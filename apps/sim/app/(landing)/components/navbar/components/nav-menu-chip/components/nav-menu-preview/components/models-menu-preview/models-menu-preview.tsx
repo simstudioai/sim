@@ -1,6 +1,6 @@
 import 'server-only'
 
-import { BrainCircuit, Search } from '@sim/emcn/icons'
+import { BrainCircuit, Search } from '@sim/emcn-legacy/icons'
 import { MenuPreviewFrame } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-frame'
 import {
   MenuPreviewHeader,

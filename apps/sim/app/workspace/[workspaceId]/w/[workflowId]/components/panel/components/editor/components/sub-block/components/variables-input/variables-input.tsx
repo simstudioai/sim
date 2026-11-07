@@ -10,8 +10,8 @@ import {
   Label,
   Textarea,
   Tooltip,
-} from '@sim/emcn'
-import { ArrowLeftRight, FileText, Plus, Trash } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeftRight, FileText, Plus, Trash } from '@sim/emcn-legacy/icons'
 import { generateId } from '@sim/utils/id'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'

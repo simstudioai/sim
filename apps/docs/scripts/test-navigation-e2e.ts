@@ -716,9 +716,7 @@ try {
             await expect(trigger).toBeFocused()
             await trigger.press('Enter')
             await expect(viewer).toBeVisible()
-            await page
-              .locator('.docs-portal[data-state="open"][aria-hidden="true"]')
-              .click({ position: { x: 1, y: 1 } })
+            await page.mouse.click(1, 1)
             await expect(viewer).toHaveCount(0)
             await expect(trigger).toBeFocused()
             await trigger.press('Enter')
@@ -769,9 +767,7 @@ try {
           await expect(trigger).toBeFocused()
           await trigger.press('Enter')
           await expect(viewer).toBeVisible()
-          await page
-            .locator('.docs-portal[data-state="open"][aria-hidden="true"]')
-            .click({ position: { x: 1, y: 1 } })
+          await page.mouse.click(1, 1)
           await expect(viewer).toHaveCount(0)
           await expect(trigger).toBeFocused()
           await trigger.press('Enter')
@@ -1057,6 +1053,12 @@ try {
         const page = await languageContext.newPage()
         try {
           await open(page, '/mcp/overview')
+          const initial = page.getByRole('tab', { name: 'Claude Code', exact: true })
+          await initial.focus()
+          await page.keyboard.press('ArrowRight')
+          const next = page.getByRole('tab', { name: 'Claude', exact: true })
+          await expect(next).toBeFocused()
+          await expect(next).toHaveAttribute('aria-selected', 'true')
           for (const label of ['Claude Code', 'VS Code']) {
             const tab = page.getByRole('tab', { name: label, exact: true })
             await tab.click()

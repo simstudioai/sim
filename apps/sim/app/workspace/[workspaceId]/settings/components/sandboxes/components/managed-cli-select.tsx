@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipSelect } from '@sim/emcn'
+import { ChipSelect } from '@sim/emcn-legacy'
 import type { SandboxCliToolId } from '@/lib/api/contracts/sandboxes'
 import { SANDBOX_CLI_TOOLS } from '@/lib/execution/remote-sandbox/cli-tools'
 import { CLI_TOOL_GROUPS } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'

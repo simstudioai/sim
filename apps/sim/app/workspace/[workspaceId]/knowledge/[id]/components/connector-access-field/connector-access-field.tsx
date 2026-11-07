@@ -10,7 +10,7 @@ import {
   ChipModalField,
   type ComboboxOption,
   Tooltip,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { supportsConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'

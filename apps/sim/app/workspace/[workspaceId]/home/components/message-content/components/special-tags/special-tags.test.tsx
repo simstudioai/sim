@@ -105,7 +105,7 @@ vi.mock('@/lib/browser-agent/transport', () => ({
   sendBrowserPanelAction: mockSendBrowserPanelAction,
 }))
 
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import type { GenericSecretSource } from '@/lib/api/contracts/organization-secrets'
 import {
   captureRevealedSimKeys,

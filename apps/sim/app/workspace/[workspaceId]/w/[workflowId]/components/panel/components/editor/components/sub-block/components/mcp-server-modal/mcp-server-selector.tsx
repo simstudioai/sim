@@ -1,6 +1,6 @@
 'use client'
 
-import { Combobox } from '@sim/emcn'
+import { Combobox } from '@sim/emcn-legacy'
 import { McpIcon } from '@/components/icons'
 import { getMcpTargetOptions } from '@/components/mcp/target-options'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'

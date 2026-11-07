@@ -1,9 +1,9 @@
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import type {
   ChatAttachment,
   ComposerController,
   ComposerReference,
 } from '@/platform/app/(shell)/_components/composer/model'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 import type { ChatContext } from '@/platform/lib/data/chat-types'
 
 export const GROUP_ICONS: Record<string, IconName> = {

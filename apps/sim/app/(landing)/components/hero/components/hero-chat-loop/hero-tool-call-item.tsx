@@ -1,4 +1,4 @@
-import { Table } from '@sim/emcn/icons'
+import { Table } from '@sim/emcn-legacy/icons'
 import { SlackIcon } from '@/components/icons'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import { getToolInProgressTitle, getToolStatusDisplayTitle } from '@/lib/mothership/tools/display'

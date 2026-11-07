@@ -1,6 +1,6 @@
 'use client'
 
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { useSession } from '@/lib/auth/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { buildInviteFailureMessage } from '@/lib/invitations/error-messages'

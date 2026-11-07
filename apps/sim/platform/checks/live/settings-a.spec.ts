@@ -9,15 +9,15 @@ test.beforeEach(async ({ page }) => {
 
 test('a theme chosen here persists across a reload and repaints the shell', async ({ page }) => {
   await page.goto(settings())
-  const theme = page.getByRole('combobox', { name: 'Theme', exact: true })
+  const theme = page.getByRole('button', { name: /^Theme:/ })
   const surface = page.locator('[data-platform-ui]').first()
   await theme.click()
-  await page.getByRole('option', { name: 'Dark', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'Dark', exact: true }).click()
   await expect(surface).toHaveAttribute('data-theme', 'dark')
   await page.reload()
   await expect(surface).toHaveAttribute('data-theme', 'dark')
   await theme.click()
-  await page.getByRole('option', { name: 'System', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'System', exact: true }).click()
   await expect(surface).toHaveAttribute('data-theme', 'system')
 })
 

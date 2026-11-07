@@ -1,18 +1,15 @@
 'use client'
 
 import type { KeyboardEvent } from 'react'
+import { ControlRow } from '@sim/emcn/button/control-row'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { DateRangePicker } from '@sim/emcn/picker/date-picker'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import Link from 'next/link'
 import type { SearchResultsData } from '@/platform/app/(shell)/_components/search/model'
 import styles from '@/platform/app/(shell)/_components/search/search.module.css'
 import { SourceRow } from '@/platform/app/(shell)/_components/search/source-row'
-import {
-  DateRangePicker,
-  EmptyState,
-  FailureNotice,
-  InlineNotice,
-  Select,
-} from '@/platform/design-system/components'
-import { ControlRow } from '@/platform/design-system/components/button/control-row'
 
 function moveFocus(event: KeyboardEvent<HTMLElement>) {
   if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
@@ -45,13 +42,13 @@ export function SearchResults({ results }: { results: SearchResultsData }) {
       )}
       {filters && (
         <div className={styles.filters} role='group' aria-label='Search filters'>
-          <Select
+          <ChoiceMenu
             label='Filter by source'
             value={filters.source.value}
             options={filters.source.options.map(({ id, label }) => ({ value: id, label }))}
             onValueChange={filters.source.onChange}
           />
-          <Select
+          <ChoiceMenu
             label='Filter by date'
             value={filters.updated.value}
             options={filters.updated.options.map(({ id, label }) => ({ value: id, label }))}
@@ -60,6 +57,7 @@ export function SearchResults({ results }: { results: SearchResultsData }) {
           {filters.range && (
             <DateRangePicker
               label='Updated between'
+              labelHidden
               value={
                 filters.range.from && filters.range.to
                   ? { start: filters.range.from, end: filters.range.to }

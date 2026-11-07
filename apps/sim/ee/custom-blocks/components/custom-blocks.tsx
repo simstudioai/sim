@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipTag } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { ChipTag } from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'

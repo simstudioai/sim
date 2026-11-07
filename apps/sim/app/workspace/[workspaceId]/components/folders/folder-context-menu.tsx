@@ -11,8 +11,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Tooltip,
-} from '@sim/emcn'
-import { Duplicate, Eye, FolderInput, Pencil, Pin, Trash } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Duplicate, Eye, FolderInput, Pencil, Pin, Trash } from '@sim/emcn-legacy/icons'
 import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders/move-options'
 import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders/move-options'
 import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'

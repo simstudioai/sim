@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
-import { DocsGallery } from '@/components/docs/gallery'
-import { DocsPageFrame } from '@/components/docs/page-frame'
+import { DocsGallery } from '@/components/docs/gallery/gallery'
+import { DocsPageFrame } from '@/components/docs/page-frame/page-frame'
 
 export const metadata: Metadata = {
   title: 'Docs component library',

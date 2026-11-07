@@ -1,7 +1,7 @@
 'use client'
 
 import { type CSSProperties, memo, useMemo } from 'react'
-import { cn, OverflowText } from '@sim/emcn'
+import { cn, OverflowText } from '@sim/emcn-legacy'
 import {
   CanvasSentenceView,
   humanizeBlockName,

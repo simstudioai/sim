@@ -1,6 +1,17 @@
 'use client'
 
 import { useId, useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { DateRangePicker } from '@sim/emcn/picker/date-picker'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { PropertyList } from '@sim/emcn/property-list'
+import { LoadMoreFooter } from '@sim/emcn/scroll-area/load-more-footer'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import {
   ActionRow,
   LoadingState,
@@ -11,23 +22,6 @@ import {
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import {
-  Button,
-  DateRangePicker,
-  Disclosure,
-  EmptyState,
-  FailureNotice,
-  MultiSelect,
-  PropertyList,
-  SearchField,
-  Select,
-  StatusTag,
-} from '@/platform/design-system/components'
-import { LoadMoreFooter } from '@/platform/design-system/components/scroll-area/load-more-footer'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   AUDIT_TIME_RANGE_OPTIONS,
   canExportAuditLogs,
@@ -170,8 +164,9 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
         }
       />
       <SettingsSection title='Filters'>
-        <SettingsRow label='Resource type' field>
+        <SettingsRow label='Resource type'>
           <MultiSelect
+            variant='text'
             label='Type'
             labelHidden
             options={RESOURCE_TYPE_OPTIONS}
@@ -181,8 +176,8 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
             searchLabel='Search types'
           />
         </SettingsRow>
-        <SettingsRow label='Time range' field>
-          <Select
+        <SettingsRow label='Time range'>
+          <ChoiceMenu
             id={timeRangeId}
             label='Time range'
             options={AUDIT_TIME_RANGE_OPTIONS}
@@ -198,7 +193,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
           />
         </SettingsRow>
         {showCustomRange && (
-          <SettingsRow label='Custom time range' field>
+          <SettingsRow label='Custom time range'>
             <DateRangePicker
               label='Custom time range'
               labelHidden

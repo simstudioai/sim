@@ -1,5 +1,5 @@
-import { cn } from '@sim/emcn'
-import { ArrowRight } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { ArrowRight } from '@sim/emcn-legacy/icons'
 import type { CareerPosting } from '@/lib/ashby/jobs'
 import type { DepartmentGroup } from '@/app/(landing)/careers/components/job-board/utils'
 

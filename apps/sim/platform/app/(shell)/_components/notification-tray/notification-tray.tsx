@@ -1,14 +1,14 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
+import { ActivityBody } from '@sim/emcn/activity-row/activity-body'
+import { Button, IconButton } from '@sim/emcn/button'
+import { useFeedbackExpiry } from '@sim/emcn/feedback/use-feedback-expiry'
+import { Icon } from '@sim/emcn/icon'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { generateId } from '@sim/utils/id'
 import type { ShellNotice } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/notification-tray/notification-tray.module.css'
-import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
-import { Button, IconButton } from '@/platform/design-system/components/button/button'
-import { useFeedbackExpiry } from '@/platform/design-system/components/feedback/use-feedback-expiry'
-import { Icon } from '@/platform/design-system/components/icon/icon'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 import { connectToastSink } from '@/platform/lib/data/toast'
 
 type Notice = Omit<ShellNotice, 'href'> & { onAction?: () => void }

@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react'
-import { bindPreviewWheelZoom, cn } from '@sim/emcn'
+import { bindPreviewWheelZoom, cn } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sanitizeRenderedHyperlinks, stripEmbeddedFrames } from '@/lib/core/security/url-safety'

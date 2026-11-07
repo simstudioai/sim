@@ -1,5 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { filterUndefined } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'

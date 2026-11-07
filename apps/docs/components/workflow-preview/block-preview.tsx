@@ -4,6 +4,7 @@ import { useId, useMemo } from 'react'
 import { CANVAS_Z_INDEX_MODE, useCanvasColorMode } from '@sim/workflow-renderer'
 import { type NodeTypes, ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { domAnimation, LazyMotion } from 'framer-motion'
+import { Canvas } from '@/components/workflow-preview/canvas'
 import '@xyflow/react/dist/style.css'
 import { BLOCK_DISPLAY_WORKFLOWS } from '@/components/workflow-preview/block-display-workflows'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
@@ -38,7 +39,7 @@ export function BlockPreview({ type }: BlockPreviewProps) {
   if (!workflow || !elements) return null
 
   return (
-    <div className='not-prose my-6 h-[280px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'>
+    <Canvas className='not-prose my-6 h-[280px] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)]'>
       <LazyMotion features={domAnimation}>
         <ReactFlowProvider initialNodes={elements.nodes} initialEdges={elements.edges}>
           <ReactFlow
@@ -69,6 +70,6 @@ export function BlockPreview({ type }: BlockPreviewProps) {
           />
         </ReactFlowProvider>
       </LazyMotion>
-    </div>
+    </Canvas>
   )
 }

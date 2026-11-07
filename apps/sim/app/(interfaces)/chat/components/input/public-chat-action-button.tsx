@@ -1,5 +1,5 @@
 import { type ComponentProps, forwardRef } from 'react'
-import { Button } from '@sim/emcn'
+import { Button } from '@sim/emcn-legacy'
 
 interface PublicChatActionButtonProps
   extends Omit<

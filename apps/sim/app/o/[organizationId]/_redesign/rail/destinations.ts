@@ -1,6 +1,6 @@
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { ShellDestination } from '@/app/o/[organizationId]/_redesign/rail/model'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 
 type OrganizationNavRoute = 'home' | 'search' | 'people' | 'integrations' | 'simLinks' | 'benchmark'
 

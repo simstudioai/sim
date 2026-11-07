@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useLayoutEffect, useRef } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 
 const SCALE_EPSILON = 0.0001
 

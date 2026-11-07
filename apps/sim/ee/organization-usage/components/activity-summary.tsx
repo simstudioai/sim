@@ -10,7 +10,7 @@ import {
   cn,
   DashboardMetric,
   formatChartLatency,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import type { OrganizationActivitySummary } from '@/lib/api/contracts/organization-activity'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {

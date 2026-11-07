@@ -16,7 +16,7 @@ import {
   Search,
   Switch,
   toast,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
 import type { MothershipEnvironment } from '@/lib/api/contracts'

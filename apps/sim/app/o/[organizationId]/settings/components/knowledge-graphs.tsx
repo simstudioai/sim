@@ -12,8 +12,8 @@ import {
   ChipModalHeader,
   ChipTag,
   toast,
-} from '@sim/emcn'
-import { Database, Plus } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Database, Plus } from '@sim/emcn-legacy/icons'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {

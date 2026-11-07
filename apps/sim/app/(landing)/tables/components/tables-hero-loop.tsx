@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Checkbox, cn } from '@sim/emcn'
-import { ChevronDown, Table, TypeBoolean, TypeText } from '@sim/emcn/icons'
+import { Checkbox, cn } from '@sim/emcn-legacy'
+import { ChevronDown, Table, TypeBoolean, TypeText } from '@sim/emcn-legacy/icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
 import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'

@@ -1,5 +1,5 @@
-import { Chip, cn } from '@sim/emcn'
-import { ChevronLeft, ChevronRight, RefreshCw, ZoomIn, ZoomOut } from '@sim/emcn/icons'
+import { Chip, cn } from '@sim/emcn-legacy'
+import { ChevronLeft, ChevronRight, RefreshCw, ZoomIn, ZoomOut } from '@sim/emcn-legacy/icons'
 
 interface PreviewNavigationControls {
   current: number

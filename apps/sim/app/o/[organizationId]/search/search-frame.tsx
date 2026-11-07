@@ -1,7 +1,7 @@
 'use client'
 
 import { lazy, type ReactNode, Suspense } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { OrganizationSearchState } from '@/app/o/[organizationId]/search/use-organization-search'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'

@@ -13,8 +13,8 @@ import {
   ChipModalHeader,
   toast,
   useCopyToClipboard,
-} from '@sim/emcn'
-import { Check, Link, Send } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check, Link, Send } from '@sim/emcn-legacy/icons'
 import { generateShortId } from '@sim/utils/id'
 import { GeneratedPasswordInput } from '@/components/ui'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'

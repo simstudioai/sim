@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 
 /**
  * `tile` is the solutions/platform feature-tile crop (right-bleed, 420px cap).

@@ -1,5 +1,5 @@
-import { Chip, cn } from '@sim/emcn'
-import { ChevronDown, Search } from '@sim/emcn/icons'
+import { Chip, cn } from '@sim/emcn-legacy'
+import { ChevronDown, Search } from '@sim/emcn-legacy/icons'
 import { MenuPreviewFrame } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-frame'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
 import { LogsRunGraph } from '@/app/(landing)/components/shared/logs-run-graph'

@@ -1,5 +1,5 @@
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import type { PlatformResource } from '@/platform/app/(shell)/_components/chat/model'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
 
 export type PanelRecent = {
   id: string

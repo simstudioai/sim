@@ -2,13 +2,13 @@
 
 import type { ReactNode } from 'react'
 import { Popover } from '@base-ui/react/popover'
+import { ControlRow } from '@sim/emcn/button/control-row'
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
+import popup from '@sim/emcn/menu/popup.shared.module.css'
+import { usePopoverContainer } from '@sim/emcn/menu/use-popover-container'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import styles from '@/app/o/[organizationId]/_redesign/rail/sidebar.module.css'
 import { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-hover-menu'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import { ControlRow } from '@/platform/design-system/components/button/control-row'
-import popup from '@/platform/design-system/components/menu/popup.shared.module.css'
-import { usePopoverContainer } from '@/platform/design-system/components/menu/use-popover-container'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 /** A boundary, so the rows are built only when the panel is mounted, not on every rail render. */
 function RailFlyoutRows({ render }: { render: () => ReactNode }) {

@@ -14,7 +14,7 @@ import {
   ChipModalHeader,
   Input,
   Label,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'

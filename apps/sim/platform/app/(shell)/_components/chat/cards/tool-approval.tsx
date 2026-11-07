@@ -1,6 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ActivityBody } from '@sim/emcn/activity-row/activity-body'
+import { Button } from '@sim/emcn/button'
+import { Icon } from '@sim/emcn/icon'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { generateId } from '@sim/utils/id'
 import styles from '@/platform/app/(shell)/_components/chat/cards/cards.module.css'
 import type { PlatformTool, ToolDecision } from '@/platform/app/(shell)/_components/chat/model'
@@ -9,8 +13,6 @@ import {
   useChatHandlers,
   useChatInteractions,
 } from '@/platform/app/(shell)/_components/session/chat-runtime'
-import { ActionMenu, Button, Icon } from '@/platform/design-system/components'
-import { ActivityBody } from '@/platform/design-system/components/activity-row/activity-body'
 
 const BROWSER_TOOL = /^browser[_-]/
 

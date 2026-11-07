@@ -12,7 +12,7 @@ import {
   TxtIcon,
   VideoIcon,
   XlsxIcon,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 
 const DROP_OVERLAY_ICONS = [
   PdfIcon,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Chip, ChipDropdown, ChipInput, ChipTextarea, cn } from '@sim/emcn'
+import { Chip, ChipDropdown, ChipInput, ChipTextarea, cn } from '@sim/emcn-legacy'
 import type { SandboxDependencyIssue } from '@/lib/api/contracts/sandboxes'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { ManagedCliSelect } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/components/managed-cli-select'

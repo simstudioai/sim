@@ -1,8 +1,8 @@
 'use client'
 
 import { type ReactNode, useEffect } from 'react'
-import { Chip, pageHeadingClassName } from '@sim/emcn'
-import { TriangleAlert } from '@sim/emcn/icons'
+import { Chip, pageHeadingClassName } from '@sim/emcn-legacy'
+import { TriangleAlert } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 
 /** Props shape required by Next.js error boundary files (`error.tsx`). */

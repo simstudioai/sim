@@ -41,9 +41,27 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       base,
       use,
     }
-    const style = 'platform/design-system/styles'
-    const catalog = 'platform/design-system/catalog'
-    const component = 'platform/design-system/components/button'
+    write(
+      '../../packages/emcn/package.json',
+      JSON.stringify({
+        name: '@sim/emcn',
+        exports: {
+          './button': './src/components/button/button.tsx',
+          './button/button.module.css': './src/components/button/button.module.css',
+          './modal': './src/components/modal/index.ts',
+        },
+      })
+    )
+    write(
+      '../../packages/emcn-platform/package.json',
+      JSON.stringify({
+        name: '@sim/emcn-platform',
+        exports: { './catalog/component-recipe': './src/catalog/component-recipe.tsx' },
+      })
+    )
+    const style = '../../packages/emcn/src/styles'
+    const catalog = '../../packages/emcn-platform/src/catalog'
+    const component = '../../packages/emcn/src/components/button'
     const writeCatalog = (name: string, value: unknown) =>
       write(`${catalog}/${name}.json`, JSON.stringify(value))
     writeCatalog('recipes', {})
@@ -56,7 +74,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     )
     write(
       `${component}/button.tsx`,
-      `import styles from '@/platform/design-system/components/button/button.module.css'
+      `import styles from '@sim/emcn/button/button.module.css'
       interface ButtonProps { variant: 'primary' }
       export function Button({variant}: ButtonProps) {
         return <button data-variant={variant} className={styles.button}>Accept</button>
@@ -64,7 +82,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     )
     write(
       'platform/app/page.tsx',
-      `import { Button as Action } from '@/platform/design-system/components/button/button'
+      `import { Button as Action } from '@sim/emcn/button'
       export default function Page() { return <Action variant="primary"/> }`
     )
     write(
@@ -73,7 +91,19 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       export function Panel(){return <section className={classes.panel}/>}`
     )
     write('platform/app/settings/_components/panel/panel.module.css', '.panel{padding:0}')
-    const modal = 'platform/design-system/components/modal'
+    const brand = '../../packages/emcn/src/components/brand'
+    const brandProps = `import type { SVGProps } from 'react'
+      interface WordmarkProps extends Omit<SVGProps<SVGSVGElement>, 'children' | 'style' | 'css' | 'sx'> {}`
+    const wordmark = `${brandProps}
+      export function Wordmark(props: WordmarkProps) { return <svg aria-hidden="true" {...props}><path d="M0 0h8" /></svg> }`
+    write(`${brand}/wordmark.tsx`, wordmark)
+    write(
+      `${brand}/provider-icon.tsx`,
+      `import type { SVGProps } from 'react'
+      interface ProviderIconProps extends Omit<SVGProps<SVGSVGElement>, 'children' | 'style' | 'css' | 'sx'> {}
+      export function GoogleIcon(props: ProviderIconProps) { return <svg aria-hidden="true" {...props}><path fill="#4285F4" d="M0 0h8" /></svg> }`
+    )
+    const modal = '../../packages/emcn/src/components/modal'
     write(
       `${modal}/modal.tsx`,
       'export function Modal(){return null}; export function MultiStepModal(){return null}'
@@ -87,9 +117,9 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       `${modal}/index.ts`,
       "export * from './modal'; export * from './overlay-dialog'; export * from './modal-parts'"
     )
-    const dialogImports = `import * as Dialogs from '@/${modal}';
-      import { OverlayDialog as Surface, ModalFooter as Actions } from '@/${modal}';
-      import { Button as Action } from '@/${component}/button';`
+    const dialogImports = `import * as Dialogs from '@sim/emcn/modal';
+      import { OverlayDialog as Surface, ModalFooter as Actions } from '@sim/emcn/modal';
+      import { Button as Action } from '@sim/emcn/button';`
     write(
       'platform/app/settings/_components/inspector.tsx',
       `${dialogImports}
@@ -102,6 +132,19 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
         <form><button>Cancel</button></form><ModalFooter/></>}`
     )
     expect(audit()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+
+    const authProbe = '../../packages/emcn-auth/src/components/probe/probe.ts'
+    write(authProbe, `import '@sim/emcn-legacy/icons'`)
+    expect(audit()).toEqual({
+      status: 1,
+      output: expect.stringContaining(`${authProbe} [legacy-import]`),
+    })
+    write(authProbe, `import '@sim/emcn-platform/catalog/component-recipe'`)
+    expect(audit()).toEqual({
+      status: 1,
+      output: expect.stringContaining(`${authProbe} [design-dependency]`),
+    })
+    rmSync(path.join(APP, authProbe))
 
     const looseRecipe = 'platform/app/settings/_components/loose.module.css'
     write(looseRecipe, '.loose{padding:0}')
@@ -128,10 +171,10 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     )
     write(
       'platform/preview/gallery.tsx',
-      `import { Button } from '@/platform/design-system/components/button/button'
+      `import { Button } from '@sim/emcn/button'
       export const Specimen = () => <Button variant="ghost"/>`
     )
-    const productPage = `import { Button as Action } from '@/platform/design-system/components/button/button'
+    const productPage = `import { Button as Action } from '@sim/emcn/button'
       function Unused(){return <Action variant="ghost"/>}
       function Nested({choice}:{choice:'primary'|'ghost'}) {return <Action variant={choice}/>}
       export default function Page(){return <Nested choice="primary"/>}`
@@ -144,7 +187,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     )
     write(
       'platform/app/workbench/page.tsx',
-      `import { Button } from '@/platform/design-system/components/button/button'
+      `import { Button } from '@sim/emcn/button'
       export default function Workbench(){return <main><Button variant="ghost"/></main>}`
     )
     for (const file of ['workbench/loading', '_draft/error', 'orphan/error', '@unused/default']) {
@@ -176,13 +219,13 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     for (const [file, variant] of Object.entries(boundaries)) {
       write(
         file,
-        `import {Button} from '@/${component}/button';
+        `import {Button} from '@sim/emcn/button';
          export default function State(){return <Button variant="${variant}"/>}`
       )
     }
     write(
       'platform/app/page.tsx',
-      `import {Button} from '@/${component}/button';
+      `import {Button} from '@sim/emcn/button';
        function Row({choice}:{choice:'primary'|'ghost'}) {
          const render = (kind = choice) => <Button variant={kind}/>;
          function shadow({choice = 'shadow'} = {}){return <Button variant={choice}/>}
@@ -297,15 +340,15 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     )
     write('platform/app/chats/gallery.ts', `export { Specimen } from '@/platform/preview/gallery'`)
     write(
-      'platform/design-system/components/menu/chrome.ts',
+      '../../packages/emcn/src/components/menu/chrome.ts',
       `import '../button/button.module.css'`
     )
     write(
       'platform/app/chats/private.ts',
       `export { Section } from '@/platform/app/settings/_components/section'`
     )
-    write('platform/design-system/features/leak/example.ts', 'export const example = true')
-    write('platform/design-system/components/flat.ts', 'export const flat = true')
+    write('../../packages/emcn/src/features/leak/example.ts', 'export const example = true')
+    write('../../packages/emcn/src/components/flat.ts', 'export const flat = true')
     write(
       'platform/app/settings/_components/banner.tsx',
       'export const Banner = () => <p>Email delivery is disabled in this preview.</p>'
@@ -351,23 +394,23 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     write(`${feature}/ink.module.css`, '.row svg path { stroke: currentColor; }')
     write(
       `${feature}/trigger.tsx`,
-      `import styles from '@/platform/design-system/components/button/button.module.css'; export const Trigger = () => <button className={styles.button}/>`
+      `import styles from '@sim/emcn/button/button.module.css'; export const Trigger = () => <button className={styles.button}/>`
     )
     write(
       `${feature}/actions.module.css`,
-      '.action { composes: button from "@/platform/design-system/components/button/button.module.css"; }'
+      '.action { composes: button from "@sim/emcn/button/button.module.css"; }'
     )
     write(`${component}/private.ts`, `import '@/platform/preview/chrome'`)
-    write(
-      'app/legacy.ts',
-      `export { Button } from '../platform/design-system/components/button/button'`
-    )
+    write(`${component}/legacy.ts`, `import '@sim/emcn-legacy/icons'`)
+    write(`${component}/surface.ts`, `import '@sim/emcn-platform/catalog/component-recipe'`)
+
+    write('app/legacy.ts', `export { Section } from '@/platform/app/settings/_components/section'`)
     write(
       'platform/app/escape.tsx',
-      `import { Button } from '@/platform/design-system/components/button/button'
+      `import { Button } from '@sim/emcn/button'
       import '@/platform/app/bypass.css'
       export const escape = (props: object) => <Button className="red" style={{opacity: 0.2}} {...props}/>
-      export const paperSpecimen = () => import('@/platform/design-system/catalog/component-recipe')
+      export const paperSpecimen = () => import('@sim/emcn-platform/catalog/component-recipe')
       export const localTimer = () => window.setTimeout(() => {}, 2000)
       export const legacy = () => import('@/components/old')
       export const data = () => import('@/platform/fixtures/data')`
@@ -387,7 +430,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       `import '@/app/o/layout'
       import '@/components/settings/navigation'
       import '@/lib/auth/server-only-module'
-      import '@sim/emcn'
+      import '@sim/emcn-legacy'
       import '@/platform/app/shell/_components/value'`
     )
     write(
@@ -425,7 +468,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     write('platform/preview/chrome.css', '.catalog-row button{color:var(--color-ink)}')
     write(
       'platform/preview/gallery.tsx',
-      `import { Button } from '@/platform/design-system/components/button/button'
+      `import { Button } from '@sim/emcn/button'
       export const Specimen = () => <Button variant="ghost"/>`
     )
     writeCatalog('recipes', { C9999: { slots: {}, root: {} } })
@@ -436,6 +479,13 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       { ...evidence, key: 'C0094', use: [SHARED, 'p-5-0', '31-0'], parentKey: 'C0093' },
     ])
     writeCatalog('variants', { Button: { variant: { primary: ['C0092'], ghost: ['C0093'] } } })
+    write(
+      `${brand}/wordmark.tsx`,
+      `${wordmark}
+      export function UnregisteredGlyph(props: WordmarkProps) { return <svg {...props}/> }
+      export function Wrapper(props: WordmarkProps) { return <div {...props}/> }
+      interface UnsafeProps { style?: { color: string } }`
+    )
     const result = audit()
     expect(result.status).toBe(1)
     for (const [file] of handBuiltDialogs) {
@@ -444,13 +494,15 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     expect(result.output).toContain(`${feature}/unnamed.tsx:4 [dialog-name]`)
     expect(result.output).toContain(`${feature}/trigger.tsx [private-recipe]`)
     expect(result.output).toContain(`${feature}/actions.module.css [private-recipe]`)
+    expect(result.output).toContain(`${component}/legacy.ts [legacy-import]`)
+    expect(result.output).toContain(`${component}/surface.ts [design-dependency]`)
     expect(result.output).toContain('platform/app/chats/other.ts [private-composition]')
     expect(result.output).toContain(
       'platform/app/settings/_components/profile/profile.ts [private-recipe]'
     )
     expect(result.output).toContain('platform/app/chats/gallery.ts [workbench-dependency]')
     expect(result.output).toContain(
-      'platform/design-system/components/menu/chrome.ts [private-recipe]'
+      '../../packages/emcn/src/components/menu/chrome.ts [private-recipe]'
     )
     expect(result.output).toContain('platform/app/chats/ages.ts:1 [time-format]')
     expect(result.output).toContain('platform/app/chats/axis.ts:1 [time-format]')
@@ -458,12 +510,16 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     expect(result.output).not.toContain('platform/app/chats/total.ts:1 [time-format]')
     expect(result.output).toContain(`${feature}/icon.tsx:1 [icon-owner]`)
     expect(result.output).toContain(`${feature}/ink.module.css:1 [icon-owner]`)
+    expect(result.output).toContain(`${brand}/wordmark.tsx:4 [icon-owner]`)
+    expect(result.output).toContain(`${brand}/wordmark.tsx:4 [prop-spread]`)
+    expect(result.output).toContain(`${brand}/wordmark.tsx:5 [prop-spread]`)
+    expect(result.output).toContain(`${brand}/wordmark.tsx [style-api] style`)
     expect(result.output).not.toContain('platform/lib/data/allowed.ts [')
     for (const specifier of [
       '@/app/o/layout',
       '@/components/settings/navigation',
       '@/lib/auth/server-only-module',
-      '@sim/emcn',
+      '@sim/emcn-legacy',
     ])
       expect(result.output).toContain(`platform/lib/data/forbidden.ts [legacy-import] ${specifier}`)
     expect(result.output).toContain('platform/lib/data/forbidden.ts [private-composition]')

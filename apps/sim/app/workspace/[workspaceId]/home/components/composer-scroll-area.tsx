@@ -1,7 +1,7 @@
 'use client'
 
 import { type AnimationEventHandler, type ReactNode, useRef } from 'react'
-import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
+import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn-legacy'
 
 interface ComposerScrollAreaProps {
   children: ReactNode

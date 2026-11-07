@@ -1,0 +1,26 @@
+:global([data-auth-root]) .accountTrigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--emcn-space-8);
+  gap: var(--emcn-space-8);
+  border: 0;
+  border-radius: var(--emcn-space-8);
+  background: transparent;
+  color: var(--auth-primary);
+  text-align: left;
+  font-size: var(--auth-control-size);
+  line-height: var(--auth-control-leading);
+  overflow-wrap: anywhere;
+}
+:global([data-auth-root]) .accountTrigger:hover {
+  background: var(--auth-hover);
+}
+:global([data-auth-root]) .accountTrigger:disabled {
+  opacity: var(--auth-disabled);
+}
+
+.menu {
+  width: 280px;
+}

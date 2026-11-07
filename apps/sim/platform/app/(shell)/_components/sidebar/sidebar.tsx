@@ -1,6 +1,12 @@
 'use client'
 
 import { Activity, type ReactNode, useRef } from 'react'
+import { Avatar, AvatarImage } from '@sim/emcn/avatar'
+import { Chip } from '@sim/emcn/button'
+import { Icon } from '@sim/emcn/icon'
+import { IdentityButton } from '@sim/emcn/identity-button'
+import { ContextActionMenu } from '@sim/emcn/menu/action-menu'
+import { ScrollArea } from '@sim/emcn/scroll-area'
 import { useSearchParams } from 'next/navigation'
 import { PLATFORM_DESTINATIONS } from '@/platform/app/(shell)/_components/destinations'
 import type {
@@ -19,16 +25,7 @@ import { linkMenuActions } from '@/platform/app/(shell)/_components/sidebar/row-
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar.module.css'
 import { WorkspacesSection } from '@/platform/app/(shell)/_components/sidebar/workspaces-section'
 import { WorkspaceNavigation } from '@/platform/app/(shell)/_components/workspace-navigation/workspace-navigation'
-import {
-  Avatar,
-  AvatarImage,
-  Chip,
-  ContextActionMenu,
-  Icon,
-  ScrollArea,
-} from '@/platform/design-system/components'
-import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
-import { platformHref } from '@/platform/design-system/navigation'
+import { platformHref } from '@/platform/lib/navigation'
 import { workspaceEntry, workspaceLocation } from '@/platform/lib/workspace-navigation'
 
 interface SidebarProps {

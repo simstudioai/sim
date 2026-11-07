@@ -1,0 +1,99 @@
+:global([data-auth-root]) .button {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  height: var(--auth-touch-height);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--auth-control-radius);
+  background: transparent;
+  color: var(--auth-primary);
+  font-size: var(--auth-control-size);
+  line-height: var(--auth-control-leading);
+  font-weight: 400;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--emcn-motion-color);
+}
+:global([data-auth-root]) .buttonSurface {
+  display: inline-flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  height: var(--auth-control-height);
+  min-width: 0;
+  padding-inline: var(--auth-control-inset);
+  gap: var(--emcn-space-6);
+  border: 1px solid var(--auth-border-subtle);
+  border-radius: var(--auth-control-radius);
+  background: var(--auth-reading);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+  transition: background-color var(--emcn-motion-color);
+}
+:global([data-auth-root]) .button[data-variant="primary"] .buttonSurface {
+  background: var(--auth-primary);
+  color: white;
+  border-color: transparent;
+  box-shadow: none;
+}
+:global([data-auth-root]) .button[data-variant="navigation"] .buttonSurface {
+  background: #0a0a0a;
+  color: white;
+  border-color: transparent;
+  border-radius: 9999px;
+  padding-inline: var(--emcn-space-16);
+  font-weight: 500;
+  line-height: 19.5px;
+  box-shadow: none;
+}
+:global([data-auth-root]) .button[data-variant="navigation"]:hover .buttonSurface {
+  background: rgb(10 10 10 / 80%);
+}
+:global([data-auth-root]) .button[data-variant="ghost"] .buttonSurface {
+  background: transparent;
+  box-shadow: none;
+  border-color: transparent;
+}
+:global([data-auth-root]) .button:hover:not(:disabled, [data-variant="navigation"]) .buttonSurface {
+  background: var(--auth-hover);
+}
+:global([data-auth-root]) .button[data-variant="primary"]:hover:not(:disabled) .buttonSurface {
+  background: rgb(10 10 10 / 90%);
+}
+:global([data-auth-root])
+  .button:active:not(:disabled, [data-variant="navigation"])
+  .buttonSurface {
+  background: var(--auth-pressed);
+}
+:global([data-auth-root]) .button[data-variant="primary"]:active:not(:disabled) .buttonSurface {
+  background: rgb(10 10 10);
+}
+:global([data-auth-root]) .button:disabled {
+  opacity: var(--auth-disabled);
+}
+:global([data-auth-root]) .fullWidth {
+  width: 100%;
+}
+:global([data-auth-root]) .icon,
+:global([data-auth-root]) .buttonSurface svg {
+  width: var(--auth-icon-size);
+  height: var(--auth-icon-size);
+  flex-shrink: 0;
+}
+@media (max-width: 767px) {
+  :global([data-auth-root]) .button[data-variant="navigation"] .buttonSurface {
+    background: transparent;
+    color: var(--auth-primary);
+    padding: 0;
+    font-weight: 400;
+    line-height: var(--auth-control-leading);
+  }
+  :global([data-auth-root]) .button[data-variant="navigation"]:hover .buttonSurface {
+    background: transparent;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}

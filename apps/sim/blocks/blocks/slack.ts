@@ -1,4 +1,4 @@
-import { BookOpen, ClipboardList, File, Table, Users } from '@sim/emcn/icons'
+import { BookOpen, ClipboardList, File, Table, Users } from '@sim/emcn-legacy/icons'
 import { omit } from '@sim/utils/object'
 import { GoogleTranslateIcon, GreptileIcon, SlackIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'

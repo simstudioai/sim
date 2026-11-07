@@ -5,6 +5,6 @@ const require = createRequire(import.meta.url)
 export default {
   plugins: {
     '@tailwindcss/postcss': {},
-    [require.resolve('./design-system/styles/system-appearance.cjs')]: {},
+    [require.resolve('@sim/emcn-platform/styles/system-appearance.cjs')]: {},
   },
 }

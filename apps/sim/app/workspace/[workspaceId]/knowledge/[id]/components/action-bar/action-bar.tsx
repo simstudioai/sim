@@ -1,5 +1,5 @@
-import { BulkActionButton, cn, Tooltip } from '@sim/emcn'
-import { Ban, Circle, Trash } from '@sim/emcn/icons'
+import { BulkActionButton, cn, Tooltip } from '@sim/emcn-legacy'
+import { Ban, Circle, Trash } from '@sim/emcn-legacy/icons'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 

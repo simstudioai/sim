@@ -1,5 +1,7 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
+import { InlineNotice } from '@sim/emcn/status'
 import Link from 'next/link'
 import { slackSearchOnboardingPath } from '@/lib/slack-search/onboarding'
 import styles from '@/app/o/[organizationId]/_redesign/integrations/slack-search-actions.module.css'
@@ -7,7 +9,6 @@ import {
   useRetrySlackSearchOnboarding,
   useSlackSearchOnboarding,
 } from '@/hooks/queries/slack-search-onboarding'
-import { Button, InlineNotice } from '@/platform/design-system/components'
 
 interface SlackSearchActionsProps {
   organizationId: string

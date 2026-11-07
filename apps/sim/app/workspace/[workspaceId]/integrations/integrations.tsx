@@ -10,8 +10,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   Search,
-} from '@sim/emcn'
-import { Lock } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Lock } from '@sim/emcn-legacy/icons'
 import { redirect, useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import {

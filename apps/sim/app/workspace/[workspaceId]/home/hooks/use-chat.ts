@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { isCurrentBrowserToolName } from '@sim/browser-protocol'
 import { isPendingDesktopScopeId } from '@sim/desktop-bridge'
-import { useToast } from '@sim/emcn'
+import { useToast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { isTerminalToolName } from '@sim/terminal-protocol'
 import { getErrorMessage, toError } from '@sim/utils/errors'

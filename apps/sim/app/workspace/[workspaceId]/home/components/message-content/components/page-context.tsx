@@ -11,8 +11,8 @@ import {
   scrollFadeAttributes,
   scrollFadeClass,
   useScrollEdges,
-} from '@sim/emcn'
-import { Globe } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Globe } from '@sim/emcn-legacy/icons'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
 
 interface PageContextProps {

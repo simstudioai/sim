@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   loadAll: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   ChipCombobox: mocks.combobox,
 }))
 vi.mock('next/navigation', () => nextNavigationMock)

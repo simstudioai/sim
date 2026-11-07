@@ -1,6 +1,6 @@
 'use client'
 
-import { Code, chipFieldSurfaceClass, cn } from '@sim/emcn'
+import { Code, chipFieldSurfaceClass, cn } from '@sim/emcn-legacy'
 
 interface CodeBlockProps {
   code: string

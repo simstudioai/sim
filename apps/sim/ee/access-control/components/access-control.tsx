@@ -12,8 +12,8 @@ import {
   ChipModalHeader,
   ChipTag,
   Label,
-} from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'

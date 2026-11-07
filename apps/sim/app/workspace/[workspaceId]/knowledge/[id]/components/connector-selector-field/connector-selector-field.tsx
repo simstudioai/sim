@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChipCombobox, type ChipModalFieldAria, type ComboboxOption } from '@sim/emcn'
+import { ChipCombobox, type ChipModalFieldAria, type ComboboxOption } from '@sim/emcn-legacy'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'

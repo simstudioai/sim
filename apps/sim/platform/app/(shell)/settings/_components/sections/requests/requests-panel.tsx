@@ -1,9 +1,9 @@
 'use client'
 
+import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { MyRequests } from '@/platform/app/(shell)/settings/_components/sections/requests/my-requests'
 import styles from '@/platform/app/(shell)/settings/_components/sections/requests/requests.module.css'
 import { ReviewRequests } from '@/platform/app/(shell)/settings/_components/sections/requests/review-requests'
-import { SegmentedControl } from '@/platform/design-system/components'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { type RequestScope, useMyRequests, useRequestsUrl } from '@/platform/lib/data/requests'
 

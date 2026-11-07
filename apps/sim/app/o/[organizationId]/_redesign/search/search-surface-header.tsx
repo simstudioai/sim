@@ -1,10 +1,10 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
+import { Icon } from '@sim/emcn/icon'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import styles from '@/app/o/[organizationId]/_redesign/search/search-surface.module.css'
 import type { OrganizationSearchState } from '@/app/o/[organizationId]/search/use-organization-search'
-import { Button } from '@/platform/design-system/components/button/button'
-import { Icon } from '@/platform/design-system/components/icon/icon'
 
 const SEARCH_MODE_ICONS = { search: 'I089', assistant: 'I073' } as const
 

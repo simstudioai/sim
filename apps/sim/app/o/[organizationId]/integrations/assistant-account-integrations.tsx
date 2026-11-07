@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipSelect, toast } from '@sim/emcn'
+import { ChipSelect, toast } from '@sim/emcn-legacy'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { assistantSearchSourceForProvider } from '@/lib/assistant-actions/providers'

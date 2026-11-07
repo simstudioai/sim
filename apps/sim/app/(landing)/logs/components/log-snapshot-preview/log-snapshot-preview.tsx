@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipModalHeader } from '@sim/emcn'
+import { ChipModalHeader } from '@sim/emcn-legacy'
 import { WorkflowPreviewCanvas } from '@/app/(landing)/workflows/components/workflow-builder-preview/components/workflow-preview-canvas'
 
 /** The saved canvas uses the same native support workflow as the visual builder preview. */

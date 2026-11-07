@@ -25,7 +25,7 @@ const { subBlockValues, mockSetValue } = vi.hoisted(() => ({
   mockSetValue: vi.fn(),
 }))
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
     <button {...props}>{children}</button>
   ),
@@ -67,7 +67,7 @@ vi.mock('@sim/emcn', () => ({
   },
 }))
 
-vi.mock('@sim/emcn/icons', () => emcnIconsMock)
+vi.mock('@sim/emcn-legacy/icons', () => emcnIconsMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value',

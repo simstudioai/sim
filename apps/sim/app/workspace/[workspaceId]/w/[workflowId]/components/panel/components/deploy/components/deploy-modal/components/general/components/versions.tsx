@@ -12,8 +12,15 @@ import {
   PopoverTrigger,
   Skeleton,
   Tooltip,
-} from '@sim/emcn'
-import { Columns2, FileText, MoreVertical, Pencil, RefreshCw, SendToBack } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import {
+  Columns2,
+  FileText,
+  MoreVertical,
+  Pencil,
+  RefreshCw,
+  SendToBack,
+} from '@sim/emcn-legacy/icons'
 import { formatDateTime } from '@sim/utils/formatting'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'

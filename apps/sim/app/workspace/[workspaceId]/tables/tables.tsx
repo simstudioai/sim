@@ -1,9 +1,16 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ComboboxOption } from '@sim/emcn'
-import { Avatar, ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@sim/emcn'
-import { Columns3, FolderPlus, Pencil, Rows3, Table as TableIcon, Trash } from '@sim/emcn/icons'
+import type { ComboboxOption } from '@sim/emcn-legacy'
+import { Avatar, ChipCombobox, ChipConfirmModal, Plus, toast, Upload } from '@sim/emcn-legacy'
+import {
+  Columns3,
+  FolderPlus,
+  Pencil,
+  Rows3,
+  Table as TableIcon,
+  Trash,
+} from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'

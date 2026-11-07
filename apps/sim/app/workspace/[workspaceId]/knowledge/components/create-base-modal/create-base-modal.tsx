@@ -17,8 +17,8 @@ import {
   type ComboboxOption,
   cn,
   toast,
-} from '@sim/emcn'
-import { Loader, X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Loader, X } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'

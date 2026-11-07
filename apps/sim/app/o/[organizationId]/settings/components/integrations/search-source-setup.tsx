@@ -10,8 +10,8 @@ import {
   ChipModalField,
   ChipModalHeader,
   toast,
-} from '@sim/emcn'
-import { Search } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Search } from '@sim/emcn-legacy/icons'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'

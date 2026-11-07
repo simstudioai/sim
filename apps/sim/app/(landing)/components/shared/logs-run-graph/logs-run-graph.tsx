@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { cn, FloatingTooltip, useFloatingTooltip } from '@sim/emcn'
+import { cn, FloatingTooltip, useFloatingTooltip } from '@sim/emcn-legacy'
 import { RUN_BUCKETS } from '@/app/(landing)/components/shared/logs-run-graph/constants'
 
 const BUCKET_HEIGHTS = {

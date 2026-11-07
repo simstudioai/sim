@@ -1,0 +1,88 @@
+@layer components {
+  .root {
+    min-width: 0;
+    margin-block: var(--emcn-space-24);
+  }
+  .listViewport {
+    min-width: 0;
+    max-width: 100%;
+    margin: calc(-1 * var(--emcn-space-4));
+    overflow-x: auto;
+    padding: var(--emcn-space-4);
+  }
+  .list {
+    display: inline-flex;
+    min-height: var(--emcn-space-28);
+    width: max-content;
+    align-items: center;
+    gap: 1px;
+    border-radius: 9999px;
+    background: var(--docs-surface);
+  }
+  .trigger {
+    position: relative;
+    display: inline-flex;
+    min-height: var(--emcn-space-28);
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    border: 1px solid transparent;
+    border-radius: 9999px;
+    padding-inline: var(--emcn-space-12);
+    color: var(--docs-segment-text);
+    font-size: var(--emcn-type-control-size);
+    line-height: var(--emcn-space-16);
+    transition:
+      background-color var(--emcn-motion-color),
+      color var(--emcn-motion-color);
+  }
+  .trigger:hover {
+    background: var(--docs-hover);
+  }
+  .trigger[data-active] {
+    border-color: var(--docs-segment-border);
+    background: var(--docs-segment-fill);
+    color: var(--docs-text);
+    box-shadow: var(--docs-segment-shadow);
+  }
+  .trigger:disabled {
+    opacity: var(--emcn-opacity-disabled);
+  }
+  .select {
+    min-width: 0;
+    max-width: 100%;
+    flex-shrink: 1;
+    padding-inline: var(--emcn-space-8);
+  }
+  .positioner {
+    z-index: 100;
+  }
+  .popup {
+    max-height: var(--available-height);
+    min-width: var(--anchor-width);
+    max-width: min(28rem, var(--available-width));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .panel {
+    min-width: 0;
+  }
+  .content {
+    padding-block-start: var(--emcn-space-16);
+  }
+  .content > :first-child {
+    margin-block-start: 0;
+  }
+  .content > :last-child {
+    margin-block-end: 0;
+  }
+  @media (pointer: coarse) {
+    .trigger::before {
+      content: "";
+      position: absolute;
+      inset-block: calc(-1 * var(--emcn-space-8));
+      inset-inline: 0;
+    }
+  }
+}

@@ -1,12 +1,13 @@
 'use client'
 
+import { Checkbox } from '@sim/emcn/checkbox'
+import { LoadMoreFooter } from '@sim/emcn/scroll-area/load-more-footer'
+import { SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
 import {
   FieldStack,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { Checkbox, FailureNotice } from '@/platform/design-system/components'
-import { LoadMoreFooter } from '@/platform/design-system/components/scroll-area/load-more-footer'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import { isApiClientError, useProjectList } from '@/platform/lib/data/access-control'
 
 interface ProjectIssueRestrictionsProps {

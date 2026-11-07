@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Badge, Button, Chip, ChipConfirmModal, cn, Tooltip, toast } from '@sim/emcn'
-import { ArrowLeft, ChevronDown, Plus } from '@sim/emcn/icons'
+import { Badge, Button, Chip, ChipConfirmModal, cn, Tooltip, toast } from '@sim/emcn-legacy'
+import { ArrowLeft, ChevronDown, Plus } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'

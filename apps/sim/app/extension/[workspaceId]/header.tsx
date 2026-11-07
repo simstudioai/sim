@@ -14,8 +14,8 @@ import {
   scrollFadeClass,
   Tooltip,
   useScrollEdges,
-} from '@sim/emcn'
-import { ArrowUpRight, BubbleChatDelay, ChevronDown, Plus } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowUpRight, BubbleChatDelay, ChevronDown, Plus } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import type { useMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'

@@ -10,7 +10,7 @@ const { mockCopy } = vi.hoisted(() => ({
   mockCopy: vi.fn(async () => true),
 }))
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   Button: ({
     children,
     variant: _variant,

@@ -1,4 +1,4 @@
-import { AuthLinkButton as ChipLink } from '@sim/auth-ui'
+import { AuthLinkButton as ChipLink } from '@sim/emcn-auth/button'
 import type { Metadata } from 'next'
 import { APP_ENTRY_PATH, organizationRoutes } from '@/lib/navigation/paths'
 import { SlackCompletion } from '@/app/credential-groups/slack-complete/slack-completion'

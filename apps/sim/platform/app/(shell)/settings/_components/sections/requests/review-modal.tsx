@@ -1,18 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { TextAreaField, TextField } from '@sim/emcn/field'
+import { DetailsField } from '@sim/emcn/field/details-field'
+import { Modal } from '@sim/emcn/modal'
+import { PropertyList } from '@sim/emcn/property-list'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import styles from '@/platform/app/(shell)/settings/_components/sections/requests/requests.module.css'
-import {
-  Button,
-  DetailsField,
-  Disclosure,
-  FailureNotice,
-  InlineNotice,
-  Modal,
-  PropertyList,
-  TextAreaField,
-  TextField,
-} from '@/platform/design-system/components'
 import { useRequestReview } from '@/platform/lib/data/requests'
 import { toast } from '@/platform/lib/data/toast'
 
@@ -168,7 +164,12 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
           )}
           {pending && (
             <div>
-              <Button variant='quiet' size='compact' onClick={() => setDeclining(!declining)}>
+              <Button
+                variant='quiet'
+                destructive={!declining}
+                size='compact'
+                onClick={() => setDeclining(!declining)}
+              >
                 {declining ? 'Back to approval' : 'Decline instead'}
               </Button>
             </div>

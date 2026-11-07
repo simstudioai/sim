@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockStartOauth } = vi.hoisted(() => ({ mockStartOauth: vi.fn() }))
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 
 vi.mock('@/hooks/queries/mcp', () => ({
   useStartMcpOauth: () => ({ mutateAsync: mockStartOauth }),

@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipModalField, ChipModalTabs } from '@sim/emcn'
+import { Chip, ChipModalField, ChipModalTabs } from '@sim/emcn-legacy'
 import type { GitLabCsvKind } from '@/connectors/gitlab/permission-config/types'
 import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 

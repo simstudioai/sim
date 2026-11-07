@@ -2,42 +2,58 @@ import { expect, test } from '@playwright/test'
 
 const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
 
-test('app discovery preserves edited skills and removes installed examples by source identity', async ({
+test('app discovery preserves editable installed skills and sends templates to the existing draft', async ({
   page,
-  context,
 }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-  await page.goto(`${origin}/integrations?state=full`)
+  await page.goto(`${origin}/home?state=full`)
+  const composer = page.getByRole('textbox', {
+    name: 'Ask about your business, or give Sim something to do…',
+  })
+  await composer.fill('Keep these account notes.')
+  await page.getByRole('link', { name: 'Integrations', exact: true }).click()
   const main = page.getByRole('main')
   await main.getByRole('searchbox', { name: 'Search apps', exact: true }).fill('1Password')
   await main.getByRole('button', { name: /^App filter:/ }).click()
   await page.getByRole('menuitem', { name: 'Categories', exact: true }).hover()
   await page.getByRole('menuitemradio', { name: 'Security', exact: true }).click()
   await main.getByRole('link', { name: /^1Password / }).click()
-  await expect(main.getByRole('link', { name: 'Docs', exact: true })).toHaveAttribute(
-    'href',
-    'https://docs.sim.ai/integrations/onepassword'
-  )
   const suggested = main.getByRole('region', { name: 'Skills', exact: true })
-  await suggested.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
+  const suggestion = suggested.getByRole('button', { name: /^fetch-secret-for-runtime / })
+  await suggestion.click()
   const skill = page.getByRole('dialog', { name: 'fetch-secret-for-runtime', exact: true })
   const instructions =
     'Ask which vault to use, then retrieve the requested secret without displaying its value.'
   await skill.getByRole('textbox', { name: 'Instructions', exact: true }).fill(instructions)
   await skill.getByRole('button', { name: 'Add to Skills', exact: true }).click()
   await expect(skill).toHaveCount(0)
-  await suggested.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
-  await expect(skill.getByRole('button', { name: 'Remove from Skills', exact: true })).toBeEnabled()
-  await skill.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await suggestion.click()
+  const field = skill.getByRole('textbox', { name: 'Instructions', exact: true })
+  await expect(field).toHaveValue(instructions)
+  await expect(field).toBeEditable()
+  const updated = `${instructions} Always cite its item reference.`
+  await field.fill(updated)
+  const remove = skill.getByRole('button', { name: 'Remove from Skills', exact: true })
+  const save = skill.getByRole('button', { name: 'Save changes', exact: true })
+  const [removeBox, saveBox] = await Promise.all([remove.boundingBox(), save.boundingBox()])
+  if (!removeBox || !saveBox) throw new Error('Skill footer controls are not visible')
+  expect(removeBox.x + removeBox.width).toBeLessThan(saveBox.x)
+  await remove.click()
+  const confirmation = page.getByRole('dialog', { name: 'Remove from Skills?', exact: true })
+  await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(remove).toBeFocused()
+  await expect(field).toHaveValue(updated)
+  await save.click()
+  await expect(skill).toHaveCount(0)
   await main
     .getByRole('region', { name: 'Agent templates', exact: true })
     .getByRole('button', { name: /1Password vault audit / })
     .click()
-  const template = page.getByRole('dialog', { name: '1Password vault audit', exact: true })
-  const prompt = await template.getByRole('textbox', { name: 'Prompt', exact: true }).inputValue()
-  await template.getByRole('button', { name: 'Copy Prompt', exact: true }).click()
-  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(prompt)
-  await template.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(page).toHaveURL(/\/home\?/)
+  await expect(composer).toHaveValue(
+    'Keep these account notes.\n\nBuild a scheduled monthly workflow that scans 1Password vaults for weak or reused passwords, expired items, and unused secrets, and writes a remediation queue.'
+  )
+  await expect(composer).toBeFocused()
+  await page.goBack()
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
   await expect(main.getByRole('searchbox', { name: 'Search apps', exact: true })).toHaveValue(
     '1Password'
@@ -47,45 +63,32 @@ test('app discovery preserves edited skills and removes installed examples by so
     .getByRole('navigation', { name: 'Integration categories' })
     .getByRole('link', { name: 'Skills', exact: true })
     .click()
-  await main.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
-  const editor = page.getByRole('dialog', { name: 'Edit skill', exact: true })
+  await main.getByRole('link', { name: /^fetch-secret-for-runtime / }).click()
+  const editor = main.getByRole('form', { name: 'Skill details', exact: true })
   await expect(editor.getByRole('textbox', { name: 'Instructions', exact: true })).toHaveValue(
-    instructions
+    updated
   )
   const editedInstructions =
     'Confirm the target vault, retrieve the secret, and report only its item reference.'
   await editor.getByRole('textbox', { name: 'Name', exact: true }).fill('runtime-vault-lookup')
   await editor.getByRole('textbox', { name: 'Instructions', exact: true }).fill(editedInstructions)
   await editor.getByRole('button', { name: 'Save changes', exact: true }).click()
+  await main.getByRole('link', { name: 'Back to Skills', exact: true }).click()
+  await expect(main.getByRole('link', { name: /^runtime-vault-lookup / })).toHaveCount(1)
   await main
     .getByRole('navigation', { name: 'Integration categories' })
     .getByRole('link', { name: 'Apps', exact: true })
     .click()
   await main.getByRole('link', { name: /^1Password / }).click()
-  await suggested.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
-  await expect(skill.getByRole('button', { name: 'Remove from Skills', exact: true })).toBeEnabled()
-  await skill.getByRole('button', { name: 'Cancel', exact: true }).click()
-  await main.getByRole('link', { name: 'Integrations', exact: true }).click()
-  await main
-    .getByRole('navigation', { name: 'Integration categories' })
-    .getByRole('link', { name: 'Skills', exact: true })
-    .click()
-  const installed = main.getByRole('button', { name: /^runtime-vault-lookup / })
-  await expect(installed).toHaveCount(1)
-  await installed.click()
-  await expect(editor.getByRole('textbox', { name: 'Instructions', exact: true })).toHaveValue(
-    editedInstructions
+  await suggestion.click()
+  await expect(skill.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue(
+    'runtime-vault-lookup'
   )
-  await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
-  await main
-    .getByRole('navigation', { name: 'Integration categories' })
-    .getByRole('link', { name: 'Apps', exact: true })
-    .click()
-  await main.getByRole('link', { name: /^1Password / }).click()
-  await suggested.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
-  await skill.getByRole('button', { name: 'Remove from Skills', exact: true }).click()
+  await expect(field).toHaveValue(editedInstructions)
+  await remove.click()
+  await confirmation.getByRole('button', { name: 'Remove from Skills', exact: true }).click()
   await expect(skill).toHaveCount(0)
-  await suggested.getByRole('button', { name: /^fetch-secret-for-runtime / }).click()
+  await suggestion.click()
   await expect(skill.getByRole('button', { name: 'Add to Skills', exact: true })).toBeEnabled()
   await skill.getByRole('button', { name: 'Cancel', exact: true }).click()
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
@@ -93,9 +96,9 @@ test('app discovery preserves edited skills and removes installed examples by so
     .getByRole('navigation', { name: 'Integration categories' })
     .getByRole('link', { name: 'Skills', exact: true })
     .click()
-  await expect(installed).toHaveCount(0)
-  await expect(main.getByRole('button', { name: /^fetch-secret-for-runtime / })).toHaveCount(0)
-  await expect(main.getByRole('button', { name: /^Weekly customer review / })).toBeVisible()
+  await expect(main.getByRole('link', { name: /^runtime-vault-lookup / })).toHaveCount(0)
+  await expect(main.getByRole('link', { name: /^fetch-secret-for-runtime / })).toHaveCount(0)
+  await expect(main.getByRole('link', { name: /^Weekly customer review / })).toBeVisible()
 })
 
 test('adding another credential preserves existing accounts and its details survive immediate browser back', async ({
@@ -131,8 +134,7 @@ test('adding another credential preserves existing accounts and its details surv
   await expect(list.getByRole('searchbox')).toHaveValue('gmail')
   await list.getByRole('link', { name: /^Gmail / }).click()
   await credentials.getByRole('button', { name: /^Gmail account review / }).click()
-  await list.getByRole('button', { name: 'Credential actions', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Disconnect', exact: true }).click()
+  await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
   await page
     .getByRole('dialog', { name: 'Disconnect Gmail account review?', exact: true })
     .getByRole('button', { name: 'Disconnect', exact: true })
@@ -180,7 +182,7 @@ test('a private connection keeps its identity when shared and protects its only 
   await row.click()
   await expect(id).toHaveValue(originalId)
   await main.getByRole('tab', { name: 'Access', exact: true }).click()
-  await main.getByRole('combobox', { name: /^People:/ }).click()
+  await main.getByRole('combobox', { name: 'People', exact: true }).click()
   await page.getByRole('option', { name: 'Nina Patel', exact: true }).click()
   await page.keyboard.press('Escape')
   await main.getByRole('button', { name: 'Add people', exact: true }).click()
@@ -227,8 +229,7 @@ test('Fireflies uses its managed MCP method and keeps every template in page flo
   await expect(main.getByRole('button', { name: 'Add people', exact: true })).toHaveCount(0)
   await expect(main.getByRole('checkbox')).toHaveCount(0)
   await main.getByRole('tab', { name: 'Details', exact: true }).click()
-  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Reconnect', exact: true }).click()
+  await page.getByRole('button', { name: 'Reconnect', exact: true }).click()
   await expect(
     page
       .getByRole('dialog', { name: 'Reconnect Meeting follow-ups', exact: true })
@@ -264,13 +265,13 @@ test('shared family credential edits and access changes propagate without removi
   await people.getByRole('button', { name: 'Manage access for Emir Karabeg', exact: true }).click()
   await expect(page.getByRole('menuitem', { name: 'Leave', exact: true })).toBeDisabled()
   await page.keyboard.press('Escape')
-  await main.getByRole('combobox', { name: /^People:/ }).click()
+  await main.getByRole('combobox', { name: 'People', exact: true }).click()
   await page.getByRole('option', { name: 'Maya Thompson', exact: true }).click()
   await page.keyboard.press('Escape')
   await main.getByRole('button', { name: 'Add people', exact: true }).click()
   await expect(people.getByText('Maya Thompson', { exact: true })).toBeVisible()
-  await people.getByRole('combobox', { name: 'Role for Alex Chen', exact: true }).click()
-  await page.getByRole('option', { name: 'Admin', exact: true }).click()
+  await people.getByRole('button', { name: 'Role for Alex Chen: Member', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: 'Admin', exact: true }).click()
   await people.getByRole('button', { name: 'Manage access for Nina Patel', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Remove', exact: true }).click()
   await page
@@ -331,7 +332,7 @@ test('service-account branches validate active fields and discard secrets after 
     .getByRole('textbox', { name: 'My Domain host', exact: true })
     .fill('test.my.salesforce.com')
   await expect(connect.getByRole('button', { name: 'Connect', exact: true })).toBeDisabled()
-  await connect.getByRole('combobox', { name: 'Authentication method', exact: true }).click()
+  await connect.getByRole('combobox', { name: /^Authentication method/ }).click()
   await page.getByRole('option', { name: 'JWT bearer (private key)', exact: true }).click()
   await expect(connect.getByLabel('Consumer secret', { exact: true })).toHaveCount(0)
   await connect
@@ -343,13 +344,12 @@ test('service-account branches validate active fields and discard secrets after 
     .fill('reporting@example.com')
   await connect.getByRole('button', { name: 'Connect', exact: true }).click()
   await main.getByRole('button', { name: /^Salesforce reporting / }).click()
-  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Reconnect', exact: true }).click()
+  await page.getByRole('button', { name: 'Reconnect', exact: true }).click()
   const reconnect = page.getByRole('dialog', {
     name: 'Reconnect Salesforce reporting',
     exact: true,
   })
-  await reconnect.getByRole('combobox', { name: 'Authentication method', exact: true }).click()
+  await reconnect.getByRole('combobox', { name: /^Authentication method/ }).click()
   await page.getByRole('option', { name: 'JWT bearer (private key)', exact: true }).click()
   await expect(reconnect.getByRole('textbox', { name: 'Private key', exact: true })).toHaveValue('')
   await expect(reconnect.getByRole('button', { name: 'Reconnect', exact: true })).toBeDisabled()
@@ -398,8 +398,7 @@ test('a Google JSON credential is validated before joining every app in its fami
   const credentials = main.getByRole('region', { name: 'Connected credentials', exact: true })
   await expect(credentials.getByRole('button', { name: /^Google reporting key / })).toBeVisible()
   await credentials.getByRole('button', { name: /^Google reporting key / }).click()
-  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Reconnect', exact: true }).click()
+  await page.getByRole('button', { name: 'Reconnect', exact: true }).click()
   const reconnect = page.getByRole('dialog', {
     name: 'Reconnect Google reporting key',
     exact: true,
@@ -407,8 +406,7 @@ test('a Google JSON credential is validated before joining every app in its fami
   await expect(reconnect.getByRole('textbox', { name: 'JSON key', exact: true })).toHaveValue('')
   await expect(reconnect.getByRole('button', { name: 'Reconnect', exact: true })).toBeDisabled()
   await reconnect.getByRole('button', { name: 'Cancel', exact: true }).click()
-  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Disconnect', exact: true }).click()
+  await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
   await page
     .getByRole('dialog', { name: 'Disconnect Google reporting key?', exact: true })
     .getByRole('button', { name: 'Disconnect', exact: true })
@@ -431,7 +429,7 @@ test('Slack bot steps preserve configuration when going back and clear secrets o
     modal.getByRole('heading', { name: 'Configure Slack bot', exact: true })
   ).toBeVisible()
   await modal.getByRole('textbox', { name: 'Bot name', exact: true }).fill('Review Bot')
-  await modal.getByRole('combobox', { name: /^Additional permissions:/ }).click()
+  await modal.getByRole('combobox', { name: 'Additional permissions', exact: true }).click()
   await expect(page.getByRole('option', { name: '@mention', exact: true })).toHaveAttribute(
     'aria-selected',
     'true'
@@ -469,8 +467,7 @@ test('Slack bot steps preserve configuration when going back and clear secrets o
   await modal.getByLabel('Signing secret', { exact: true }).fill('fixture-signing-secret')
   await modal.getByRole('button', { name: 'Connect bot', exact: true }).click()
   await main.getByRole('button', { name: /^Review Bot / }).click()
-  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Reconnect', exact: true }).click()
+  await page.getByRole('button', { name: 'Reconnect', exact: true }).click()
   const reconnect = page.getByRole('dialog')
   await expect(
     reconnect.getByRole('heading', { name: 'Reconnect Slack bot', exact: true })
@@ -514,8 +511,7 @@ test('Dataverse retains an immutable environment binding when reconnecting a nam
   await expect(main.getByRole('textbox', { name: 'Environment URL', exact: true })).toHaveValue(
     'https://sales.crm.dynamics.com'
   )
-  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Reconnect', exact: true }).click()
+  await page.getByRole('button', { name: 'Reconnect', exact: true }).click()
   const reconnect = page.getByRole('dialog', { name: 'Reconnect Sales environment', exact: true })
   const environment = reconnect.getByRole('textbox', { name: 'Environment URL', exact: true })
   await expect(environment).toHaveValue('https://sales.crm.dynamics.com')
@@ -539,7 +535,7 @@ test('member credentials withhold administration and personal tokens never offer
     'readonly',
     ''
   )
-  await expect(main.getByRole('button', { name: 'Credential actions', exact: true })).toHaveCount(0)
+  await expect(main.getByRole('button', { name: 'Disconnect', exact: true })).toHaveCount(0)
   await main.getByRole('tab', { name: 'Access', exact: true }).click()
   await expect(main.getByRole('button', { name: 'Add people', exact: true })).toHaveCount(0)
   await expect(main.getByRole('checkbox')).toHaveCount(0)
@@ -564,8 +560,7 @@ test('member credentials withhold administration and personal tokens never offer
   await expect(main.getByRole('checkbox')).toHaveCount(0)
   await expect(main.getByRole('button', { name: /^Manage access/ })).toHaveCount(0)
   await main.getByRole('tab', { name: 'Details', exact: true }).click()
-  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Reconnect', exact: true }).click()
+  await page.getByRole('button', { name: 'Reconnect', exact: true }).click()
   const reconnect = page.getByRole('dialog', { name: 'Reconnect My GitLab account', exact: true })
   await expect(reconnect.getByRole('combobox', { name: 'Workspace', exact: true })).toHaveCount(0)
   await expect(reconnect.getByLabel('Personal access token', { exact: true })).toHaveValue('')
@@ -659,8 +654,7 @@ test('managed, unconfigured and retained connections expose only the actions the
     .getByRole('region', { name: 'Connected credentials', exact: true })
     .getByRole('button', { name: /^Fireflies / })
     .click()
-  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
-  await expect(page.getByRole('menuitem', { name: 'Reconnect', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(main.getByRole('radio')).toHaveCount(0)
   await main.getByRole('link', { name: 'Back to Fireflies', exact: true }).click()
@@ -680,9 +674,8 @@ test('managed, unconfigured and retained connections expose only the actions the
     .getByRole('region', { name: 'Connected credentials', exact: true })
     .getByRole('button', { name: /^engineering@sim.ai / })
     .click()
-  await main.getByRole('button', { name: 'Credential actions', exact: true }).click()
-  await expect(page.getByRole('menuitem', { name: 'Disconnect', exact: true })).toBeVisible()
-  await expect(page.getByRole('menuitem', { name: 'Reconnect', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Disconnect', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toHaveCount(0)
 })
 
 test('a single click opens a member credential at 200 percent text size', async ({ page }) => {

@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('next/navigation', () => nextNavigationMock)
 
-import { ToastProvider } from '@sim/emcn'
+import { ToastProvider } from '@sim/emcn-legacy'
 import type { MothershipEffort } from '@/lib/mothership/model-options'
 import { useSetMothershipChatEffort } from '@/hooks/queries/mothership-chats'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'

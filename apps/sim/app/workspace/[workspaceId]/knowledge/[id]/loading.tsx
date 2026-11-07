@@ -1,6 +1,6 @@
 'use client'
 
-import { Database, Plus } from '@sim/emcn/icons'
+import { Database, Plus } from '@sim/emcn-legacy/icons'
 import { noop } from '@sim/utils/helpers'
 import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
 import {

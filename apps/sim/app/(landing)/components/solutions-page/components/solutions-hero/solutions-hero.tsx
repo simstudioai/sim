@@ -1,4 +1,4 @@
-import { ChipTag, cn } from '@sim/emcn'
+import { ChipTag, cn } from '@sim/emcn-legacy'
 import { LandingHeroHeader } from '@/app/(landing)/components/hero/components/hero-header'
 import { HeroCta } from '@/app/(landing)/components/hero-cta'
 import {

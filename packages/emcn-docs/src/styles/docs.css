@@ -1,0 +1,220 @@
+@import "@sim/emcn/styles/global.css";
+
+@theme inline {
+  --text-micro: var(--text-10);
+  --default-transition-duration: var(--emcn-motion-color);
+  --text-small: var(--emcn-type-control-size);
+  --text-small--line-height: var(--emcn-type-control-leading);
+  --text-caption: var(--emcn-type-caption-size);
+  --text-caption--line-height: var(--emcn-type-caption-leading);
+  --text-docs-title: 32px;
+  --text-docs-title--line-height: 40px;
+  --text-docs-h1: 32px;
+  --text-docs-h1--line-height: 40px;
+  --text-docs-h2: var(--emcn-type-title-size);
+  --text-docs-h2--line-height: var(--emcn-type-title-leading);
+  --text-docs-h3: 18px;
+  --text-docs-h3--line-height: 28px;
+  --text-docs-body: var(--emcn-type-reading-size);
+  --text-docs-body--line-height: var(--emcn-type-reading-leading);
+  --text-docs-lead: 18px;
+  --text-docs-lead--line-height: 28px;
+  --text-docs-nav: var(--emcn-type-body-size);
+  --text-docs-nav--line-height: 20px;
+  --text-docs-table: var(--emcn-type-body-size);
+  --text-docs-table--line-height: var(--emcn-type-body-leading);
+  --text-docs-control: var(--emcn-type-control-size);
+  --text-docs-control--line-height: var(--emcn-type-control-leading);
+  --text-docs-header: 13px;
+  --text-docs-header--line-height: 19.5px;
+  --text-docs-caption: var(--emcn-type-caption-size);
+  --text-docs-caption--line-height: var(--emcn-type-caption-leading);
+  --text-docs-code: 13px;
+  --text-docs-code--line-height: 22px;
+  --text-docs-keyboard: 11px;
+  --text-docs-keyboard--line-height: 14px;
+}
+
+.docs-root,
+.docs-portal {
+  --ui-icon-ink: currentColor;
+  --ui-glyph-size: var(--emcn-icon-size);
+  --docs-canvas: var(--emcn-color-light-canvas);
+  --docs-heading: var(--emcn-color-light-text-strong);
+  --docs-text: var(--emcn-color-light-text);
+  --docs-muted: var(--emcn-color-light-text-secondary);
+  --docs-placeholder: var(--docs-muted);
+  --docs-disabled: var(--docs-muted);
+  --docs-surface: rgb(10 10 10 / 4%);
+  --docs-border: var(--emcn-color-light-divider);
+  --docs-rule: var(--emcn-color-light-border);
+  --docs-hover: var(--emcn-color-light-hover);
+  --docs-selected: var(--emcn-color-light-selected);
+  --docs-selected-hover: var(--docs-selected);
+  --docs-pressed: var(--emcn-color-light-border);
+  --docs-link: var(--emcn-color-light-accent);
+  --docs-prose-link: var(--docs-link);
+  --docs-toc-current: var(--docs-link);
+  --docs-glass: var(--emcn-color-light-glass-shell);
+  --docs-overlay: var(--emcn-color-light-glass-floating);
+  --docs-reading: var(--emcn-color-light-reading);
+  --docs-raised: var(--emcn-color-light-canvas);
+  --docs-search-scrim: var(--docs-overlay);
+  --docs-navigation-scrim: rgb(0 0 0 / 20%);
+  --docs-media-scrim: rgb(0 0 0 / 50%);
+  --docs-chrome-blur: var(--emcn-glass-blur);
+  --docs-backdrop-blur: 8px;
+  --docs-highlight: var(--emcn-color-light-glass-highlight);
+  --docs-shadow: 0 8px 24px -8px rgb(0 0 0 / 8%);
+  --docs-segment-shadow: 0 1px 2px rgb(0 0 0 / 5%);
+  --docs-segment-fill: var(--docs-canvas);
+  --docs-segment-border: var(--docs-border);
+  --docs-segment-text: var(--docs-muted);
+  --docs-menu-shadow: inset 0 1px 0 var(--docs-highlight), 0 10px 15px -3px rgb(0 0 0 / 6%);
+  --docs-dialog-shadow: var(--docs-shadow);
+  --docs-search-fill: var(--docs-canvas);
+  --docs-primary-fill: var(--docs-heading);
+  --docs-primary-hover: color-mix(in srgb, var(--docs-heading) 85%, var(--docs-canvas));
+  --docs-primary-pressed: color-mix(in srgb, var(--docs-heading) 75%, var(--docs-canvas));
+  --docs-primary-label: var(--docs-canvas);
+  --docs-secondary-fill: var(--docs-surface);
+  --docs-secondary-hover: var(--docs-hover);
+  --docs-secondary-pressed: var(--docs-pressed);
+  --docs-radius: var(--emcn-radius-control);
+  --docs-blue: #0062c4;
+  --docs-blue-soft: rgb(191 219 254 / 35%);
+  --docs-green: var(--emcn-color-light-success);
+  --docs-green-soft: rgb(187 247 208 / 35%);
+  --docs-purple: var(--emcn-color-light-purple);
+  --docs-purple-soft: rgb(233 213 255 / 35%);
+  --docs-orange: var(--emcn-color-light-warning);
+  --docs-orange-soft: rgb(254 215 170 / 35%);
+  --docs-red: var(--emcn-color-light-danger);
+  --docs-red-soft: rgb(254 202 202 / 35%);
+  --docs-sticky-offset: 80px;
+  color: var(--docs-text);
+  color-scheme: light;
+}
+
+.dark .docs-root,
+.dark .docs-portal,
+.docs-root.dark,
+.docs-portal.dark {
+  --docs-canvas: var(--emcn-color-dark-canvas);
+  --docs-heading: var(--emcn-color-dark-text);
+  --docs-text: var(--emcn-color-dark-text);
+  --docs-muted: var(--emcn-color-dark-muted);
+  --docs-placeholder: var(--emcn-color-dark-text-muted);
+  --docs-disabled: var(--emcn-color-dark-text-disabled);
+  --docs-surface: var(--emcn-color-dark-reading);
+  --docs-border: var(--emcn-color-dark-border);
+  --docs-rule: var(--emcn-color-dark-border);
+  --docs-boundary: var(--emcn-color-dark-boundary);
+  --docs-hover: var(--emcn-color-dark-hover);
+  --docs-selected: var(--emcn-color-dark-selected);
+  --docs-selected-hover: var(--docs-pressed);
+  --docs-pressed: var(--emcn-color-dark-pressed);
+  --docs-link: var(--emcn-color-dark-blue);
+  --docs-prose-link: var(--docs-heading);
+  --docs-toc-current: var(--docs-muted);
+  --docs-glass: var(--emcn-color-dark-glass-shell);
+  --docs-overlay: var(--emcn-color-dark-glass-floating);
+  --docs-reading: var(--emcn-color-dark-reading);
+  --docs-raised: var(--emcn-color-dark-raised);
+  --docs-search-fill: var(--docs-overlay);
+  --docs-search-scrim: var(--emcn-color-dark-scrim);
+  --docs-navigation-scrim: var(--docs-search-scrim);
+  --docs-media-scrim: var(--docs-search-scrim);
+  --docs-highlight: rgb(255 255 255 / 10%);
+  --docs-shadow: 0 8px 24px -8px rgb(0 0 0 / 40%);
+  --docs-segment-shadow: none;
+  --docs-segment-fill: var(--docs-selected);
+  --docs-segment-border: var(--docs-boundary);
+  --docs-segment-text: var(--docs-heading);
+  --docs-menu-shadow: inset 0 1px 0 var(--docs-highlight), 0 8px 24px rgb(0 0 0 / 40%);
+  --docs-dialog-shadow: 0 16px 48px rgb(0 0 0 / 40%), 0 0 0 1px var(--docs-highlight);
+  --docs-primary-hover: var(--emcn-color-dark-button-primary-hover);
+  --docs-primary-pressed: var(--emcn-color-dark-button-primary-pressed);
+  --docs-secondary-fill: var(--docs-selected);
+  --docs-secondary-hover: var(--docs-pressed);
+  --docs-secondary-pressed: var(--emcn-color-dark-button-secondary-pressed);
+  --docs-blue: var(--docs-link);
+  --docs-blue-soft: var(--emcn-color-dark-blue-soft);
+  --docs-green: var(--emcn-color-dark-green);
+  --docs-green-soft: var(--emcn-color-dark-green-soft);
+  --docs-purple: var(--emcn-color-dark-purple);
+  --docs-purple-soft: var(--emcn-color-dark-purple-soft);
+  --docs-orange: var(--emcn-color-dark-orange);
+  --docs-orange-soft: var(--emcn-color-dark-orange-soft);
+  --docs-red: var(--emcn-color-dark-red);
+  --docs-red-soft: var(--emcn-color-dark-red-soft);
+  color-scheme: dark;
+}
+
+/* biome-ignore lint/correctness/noUnknownMediaFeatureName: Media Queries Level 5 feature not yet recognized by the installed CSS linter. */
+@media (prefers-reduced-transparency: reduce) {
+  .docs-root,
+  .docs-portal,
+  .dark .docs-root,
+  .dark .docs-portal,
+  .docs-root.dark,
+  .docs-portal.dark {
+    --docs-glass: var(--docs-canvas);
+    --docs-overlay: var(--docs-raised);
+    --docs-chrome-blur: 0px;
+    --docs-backdrop-blur: 0px;
+  }
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .docs-root,
+  .docs-portal,
+  .dark .docs-root,
+  .dark .docs-portal,
+  .docs-root.dark,
+  .docs-portal.dark {
+    --docs-glass: var(--docs-canvas);
+    --docs-overlay: var(--docs-raised);
+    --docs-chrome-blur: 0px;
+    --docs-backdrop-blur: 0px;
+  }
+}
+
+.dark .docs-root ::selection,
+.dark .docs-portal ::selection {
+  background: var(--emcn-color-dark-selection);
+  color: var(--docs-heading);
+}
+
+@media (max-width: 1023px) {
+  .docs-root {
+    --docs-sticky-offset: 172px;
+  }
+}
+
+.docs-root .shiki,
+.docs-root .shiki span {
+  color: var(--shiki-light);
+}
+.dark .docs-root .shiki,
+.dark .docs-root .shiki span {
+  color: var(--shiki-dark);
+}
+
+.docs-root [hidden="until-found"] {
+  content-visibility: hidden;
+}
+
+@media print {
+  .docs-root [hidden="until-found"] {
+    content-visibility: visible;
+  }
+  .docs-root [data-docs-tab-panel] {
+    display: block;
+  }
+}
+
+.docs-root :where(button, a, input, textarea, select, summary, [tabindex]):focus,
+.docs-portal :where(button, a, input, textarea, select, summary, [tabindex]):focus {
+  outline: none;
+}

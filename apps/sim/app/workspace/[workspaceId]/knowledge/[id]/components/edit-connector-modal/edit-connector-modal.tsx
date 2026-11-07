@@ -7,7 +7,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   ChipModalTabs,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import {

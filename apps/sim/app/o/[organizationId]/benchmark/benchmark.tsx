@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import { useQueryStates } from 'nuqs'
 import { emptyBenchmarkSelection } from '@/app/benchmark/search-params'
 import { BenchmarkDetail, CreateBenchmark } from '@/app/o/[organizationId]/benchmark/components'

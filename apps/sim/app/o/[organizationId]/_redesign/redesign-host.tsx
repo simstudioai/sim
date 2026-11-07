@@ -1,8 +1,8 @@
 'use client'
 
-import '@/platform/design-system/styles/embedded.css'
+import '@sim/emcn-platform/styles/platform.css'
 import type { ReactNode } from 'react'
-import { PlatformSurface } from '@/platform/design-system/components/surface/platform-surface'
+import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
 
 interface RedesignSurfaceProps {
   children: ReactNode
@@ -16,7 +16,11 @@ interface RedesignSurfaceProps {
  * one beside a surface instead.
  */
 export function RedesignSurface({ children }: RedesignSurfaceProps) {
-  return <PlatformSurface theme='system'>{children}</PlatformSurface>
+  return (
+    <PlatformSurface theme='system' embedded>
+      {children}
+    </PlatformSurface>
+  )
 }
 
 /** Fills the app's content slot, and the grid stretches the surface so its canvas reaches the end. */

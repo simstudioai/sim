@@ -13,7 +13,7 @@ import {
   Label,
   OverflowText,
   Tooltip,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   ArrowDown,
   ArrowUp,
@@ -25,7 +25,7 @@ import {
   Search,
   SquareArrowUpRight,
   X,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { ReactFlowProvider } from '@xyflow/react'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'

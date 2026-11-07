@@ -1,0 +1,84 @@
+@layer components {
+  .control {
+    position: relative;
+    display: inline-flex;
+    flex-shrink: 0;
+    height: var(--emcn-space-28);
+    align-items: center;
+    justify-content: center;
+    gap: var(--emcn-space-6);
+    border-radius: var(--emcn-radius-control);
+    padding-inline: var(--emcn-space-10);
+    color: var(--docs-text);
+    font-size: var(--emcn-type-control-size);
+    line-height: var(--emcn-type-control-leading);
+    transition:
+      background-color var(--emcn-motion-color),
+      color var(--emcn-motion-color);
+  }
+  .control:hover {
+    background: var(--docs-hover);
+  }
+  .control:active {
+    background: var(--docs-pressed);
+  }
+  .control:disabled {
+    pointer-events: none;
+    opacity: var(--emcn-opacity-disabled);
+  }
+  .menu {
+    border: 1px solid var(--docs-border);
+    border-radius: var(--emcn-radius-menu);
+    background: var(--docs-overlay);
+    padding: var(--emcn-space-4);
+    font-size: var(--emcn-type-control-size);
+    line-height: var(--emcn-type-control-leading);
+    box-shadow: var(--docs-menu-shadow);
+    backdrop-filter: blur(var(--docs-chrome-blur));
+  }
+  .dialog {
+    border: 1px solid var(--docs-border);
+    border-radius: var(--emcn-radius-dialog);
+    background: var(--docs-overlay);
+    color: var(--docs-text);
+    box-shadow: var(--docs-dialog-shadow);
+    backdrop-filter: blur(var(--docs-chrome-blur));
+  }
+  .scrollArea {
+    scrollbar-width: thin;
+  }
+  .inlineLink {
+    color: var(--docs-prose-link);
+    text-decoration: underline;
+    text-decoration-color: currentColor;
+    text-underline-offset: var(--emcn-space-4);
+  }
+  .menuItem {
+    display: flex;
+    min-height: var(--emcn-space-30);
+    align-items: center;
+    gap: var(--emcn-space-8);
+    border-radius: var(--emcn-radius-item);
+    padding-inline: var(--emcn-space-8);
+    cursor: pointer;
+    outline: none;
+  }
+  .menuItem[data-highlighted] {
+    background: var(--docs-hover);
+  }
+  .menuItem[data-disabled] {
+    cursor: not-allowed;
+    opacity: var(--emcn-opacity-disabled);
+  }
+  @media (pointer: coarse) {
+    .control::before {
+      content: "";
+      position: absolute;
+      inset-block: calc(-1 * var(--emcn-space-8));
+      inset-inline: 0;
+    }
+    .menuItem {
+      min-height: var(--emcn-touch-target);
+    }
+  }
+}

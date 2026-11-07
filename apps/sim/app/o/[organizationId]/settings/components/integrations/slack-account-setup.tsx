@@ -7,7 +7,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { useQueryState } from 'nuqs'
 import { searchSetupParam, searchSetupReturnParam } from '@/lib/sim-search/params'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'

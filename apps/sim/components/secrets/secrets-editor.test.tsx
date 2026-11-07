@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { act, type ComponentProps } from 'react'
-import { ToastProvider } from '@sim/emcn'
+import { ToastProvider } from '@sim/emcn-legacy'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'

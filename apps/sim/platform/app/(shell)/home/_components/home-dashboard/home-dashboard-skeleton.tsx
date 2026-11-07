@@ -1,10 +1,10 @@
+import { PageColumn, PageOverflow } from '@sim/emcn-platform/page-column'
+import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
 import styles from '@/platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css'
 import {
   SkeletonBlock,
   SkeletonLane,
 } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import { PageColumn, PageOverflow } from '@/platform/design-system/components'
-import { PlatformSurface } from '@/platform/design-system/components/surface/platform-surface'
 
 interface HomeDashboardSkeletonProps {
   requestMode?: 'agent' | 'assistant'

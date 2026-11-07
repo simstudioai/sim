@@ -1,5 +1,5 @@
-import { cn } from '@sim/emcn'
-import { Table, TypeBoolean, TypeText } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { Table, TypeBoolean, TypeText } from '@sim/emcn-legacy/icons'
 import { LANDING_STAGE_WINDOW_RADIUS } from '@/app/(landing)/components/landing-layout'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/tables/components/feature-graphics/table-grid-graphic.module.css'

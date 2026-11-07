@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { SelectField } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
+import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import {
   ORGANIZATION_ROLE_OPTIONS,
   useInviteMembers,
 } from '@/app/o/[organizationId]/_redesign/rail/invite'
-import { SelectField } from '@/platform/design-system/components/field/fields'
-import { Modal } from '@/platform/design-system/components/modal/modal'
-import { RecipientField } from '@/platform/design-system/components/workspace-fields/workspace-fields'
 
 interface InviteModalProps {
   onClose: () => void

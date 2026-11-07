@@ -1,5 +1,5 @@
-import { ChipTag, cn } from '@sim/emcn'
-import { ShieldCheck } from '@sim/emcn/icons'
+import { ChipTag, cn } from '@sim/emcn-legacy'
+import { ShieldCheck } from '@sim/emcn-legacy/icons'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/standards-graphic.module.css'

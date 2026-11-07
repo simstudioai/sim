@@ -1,13 +1,11 @@
 import { useState } from 'react'
-import {
-  AuthRoot,
-  AuthShellView,
-  AuthTextLink,
-  AuthWordmark,
-  AuthButton as Chip,
-  AuthStatusContent as StatusPageContent,
-} from '@sim/auth-ui'
 import { observeDesktopTitleBar, type SimDesktopApi } from '@sim/desktop-bridge'
+import { Wordmark } from '@sim/emcn/brand/wordmark'
+import { AuthButton as Chip } from '@sim/emcn-auth/button'
+import { AuthRoot } from '@sim/emcn-auth/root'
+import { AuthShellView } from '@sim/emcn-auth/shell'
+import { AuthStatusContent as StatusPageContent } from '@sim/emcn-auth/status'
+import { AuthTextLink } from '@sim/emcn-auth/text-link'
 import { createRoot } from 'react-dom/client'
 import '@/renderer/auth.css'
 
@@ -66,7 +64,7 @@ function OfflinePage({ isSimCloud }: OfflinePageProps) {
     <AuthRoot>
       <AuthShellView
         homeHref='https://sim.ai'
-        logo={<AuthWordmark />}
+        logo={<Wordmark />}
         titlebar={<div data-auth-titlebar='' aria-hidden='true' />}
         footer={
           <AuthTextLink

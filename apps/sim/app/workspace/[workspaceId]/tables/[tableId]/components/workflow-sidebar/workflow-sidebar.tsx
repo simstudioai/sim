@@ -15,8 +15,8 @@ import {
   Switch,
   Tooltip,
   toast,
-} from '@sim/emcn'
-import { ArrowLeft, ChevronDown, SquareArrowUpRight, X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, ChevronDown, SquareArrowUpRight, X } from '@sim/emcn-legacy/icons'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'

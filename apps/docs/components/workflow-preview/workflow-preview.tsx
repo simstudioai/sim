@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useId, useMemo, useState } from 'react'
-import { Expand } from '@sim/emcn/icons'
+import { Expand } from '@sim/emcn-legacy/icons'
 import { CANVAS_Z_INDEX_MODE, useCanvasColorMode } from '@sim/workflow-renderer'
 import {
   applyNodeChanges,
@@ -14,9 +14,10 @@ import {
   ReactFlowProvider,
 } from '@xyflow/react'
 import { domAnimation, LazyMotion, m, useReducedMotion } from 'framer-motion'
+import { Canvas } from '@/components/workflow-preview/canvas'
 import '@xyflow/react/dist/style.css'
-import { DocsButton } from '@/components/docs/primitives'
-import { Lightbox } from '@/components/ui/lightbox'
+import { DocsButton } from '@sim/emcn-docs/button'
+import { Lightbox } from '@sim/emcn-docs/lightbox'
 import { DocsBlockNode } from '@/components/workflow-preview/docs-block-node'
 import { DocsContainerNode } from '@/components/workflow-preview/docs-container-node'
 import { FitViewAfterInit } from '@/components/workflow-preview/fit-view-after-init'
@@ -186,7 +187,7 @@ export function WorkflowPreview({
 
   return (
     <LazyMotion features={domAnimation}>
-      <div
+      <Canvas
         className='not-prose relative my-7 flex min-w-0 flex-col overflow-hidden rounded-lg border border-[var(--docs-border)] bg-[var(--docs-canvas)]'
         style={{ height }}
       >
@@ -204,7 +205,7 @@ export function WorkflowPreview({
               </DocsButton>
             }
           >
-            <div className='relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg bg-[var(--docs-canvas)]'>
+            <Canvas className='relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-lg bg-[var(--docs-canvas)]'>
               <PreviewFlow
                 key={`${workflow.id}-lightbox`}
                 workflow={workflow}
@@ -212,7 +213,7 @@ export function WorkflowPreview({
                 highlightEdge={highlightEdge}
                 interactive
               />
-            </div>
+            </Canvas>
           </Lightbox>
         </div>
         <div className='min-h-0 min-w-0 flex-1'>
@@ -226,7 +227,7 @@ export function WorkflowPreview({
             onPaneClick={() => setExpanded(true)}
           />
         </div>
-      </div>
+      </Canvas>
     </LazyMotion>
   )
 }

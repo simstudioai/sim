@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { ChevronDown, cn } from '@sim/emcn'
+import { ChevronDown, cn } from '@sim/emcn-legacy'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
 
 interface LandingFAQItem {

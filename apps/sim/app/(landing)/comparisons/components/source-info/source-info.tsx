@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { cn, Tooltip } from '@sim/emcn'
+import { cn, Tooltip } from '@sim/emcn-legacy'
 import type { FactSource } from '@/lib/compare/data'
 
 export interface SourceLinkProps {

@@ -7,8 +7,8 @@ import {
   handleKeyboardActivation,
   Label,
   Trash,
-} from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import type { SortRule } from '@/lib/table/query-builder/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'

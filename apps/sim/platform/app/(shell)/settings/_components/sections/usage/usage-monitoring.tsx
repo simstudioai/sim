@@ -1,6 +1,11 @@
 'use client'
 
 import { useId, useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { DateRangePicker } from '@sim/emcn/picker/date-picker'
+import { ScrollArea } from '@sim/emcn/scroll-area'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
 import Link from 'next/link'
 import {
   type CreditsTarget,
@@ -19,13 +24,6 @@ import { UsageConsumers } from '@/platform/app/(shell)/settings/_components/sect
 import { UsageCredits } from '@/platform/app/(shell)/settings/_components/sections/usage/usage-credits'
 import { UsageCalendar } from '@/platform/app/(shell)/settings/_components/sections/usage/usage-heatmap'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import {
-  Button,
-  ChoiceMenu,
-  DateRangePicker,
-  ScrollArea,
-  SegmentedControl,
-} from '@/platform/design-system/components'
 import {
   exportUsageCsv,
   OVERVIEW_TAB,

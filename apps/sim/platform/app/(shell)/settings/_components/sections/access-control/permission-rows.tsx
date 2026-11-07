@@ -1,6 +1,14 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { Icon } from '@sim/emcn/icon'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
@@ -9,16 +17,6 @@ import {
   SectionToolbar,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/access-control/permission-rows.module.css'
-import {
-  Disclosure,
-  FailureNotice,
-  Icon,
-  SearchField,
-  Select,
-  StatusTag,
-} from '@/platform/design-system/components'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   type AccessRequestTarget,
   accessStateOptions,
@@ -50,19 +48,17 @@ interface PermissionBulkSelectProps extends ControlsProps {
 export function PermissionBulkSelect({ targets, controls }: PermissionBulkSelectProps) {
   const editable = targets.filter((target) => !controls.isInherited(target))
   return (
-    <Select
-      label='Set shown permissions to'
-      variant='quiet'
+    <ActionMenu
+      label='Set shown to…'
+      triggerSize='compact'
+      icon={null}
       disabled={!editable.length}
-      options={[
-        { value: 'shown', label: 'Set shown to…' },
-        ...bulkAccessOptions(editable.every(controls.canRequest)),
-      ]}
-      value='shown'
-      onValueChange={(state) => {
-        if (state === 'shown') return
-        controls.onSet(editable, state as PermissionGroupAccessState)
-      }}
+      disabledReason={!editable.length ? 'No editable permissions are shown.' : undefined}
+      actions={bulkAccessOptions(editable.every(controls.canRequest)).map((option) => ({
+        id: option.value,
+        label: option.label,
+        onSelect: () => controls.onSet(editable, option.value as PermissionGroupAccessState),
+      }))}
     />
   )
 }
@@ -103,12 +99,12 @@ function PermissionRow({
       <SettingsRow label={label} description={explanation || undefined} leading={leading}>
         <ActionRow>
           {badge && <StatusTag label={badge} />}
-          <Select
+          <ChoiceMenu
             label={label}
-            variant='quiet'
             value={state}
             options={accessStateOptions(controls.canRequest(target), state, rowDisabled)}
             disabled={rowDisabled}
+            disabledReason={rowDisabled ? explanation || undefined : undefined}
             onValueChange={(next) => controls.onSet([target], next as PermissionGroupAccessState)}
           />
         </ActionRow>

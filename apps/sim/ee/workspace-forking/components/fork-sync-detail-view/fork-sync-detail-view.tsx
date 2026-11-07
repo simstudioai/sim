@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipConfirmModal } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ChipConfirmModal } from '@sim/emcn-legacy'
+import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'

@@ -2,8 +2,8 @@
 
 import type React from 'react'
 import { memo } from 'react'
-import { Button, cn } from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
+import { Button, cn } from '@sim/emcn-legacy'
+import { ChevronDown } from '@sim/emcn-legacy/icons'
 
 export interface ToggleButtonProps {
   isExpanded: boolean

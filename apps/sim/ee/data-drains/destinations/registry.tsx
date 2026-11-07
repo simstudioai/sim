@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipInput, ChipSelect, ChipTextarea, SecretInput, Switch } from '@sim/emcn'
+import { ChipInput, ChipSelect, ChipTextarea, SecretInput, Switch } from '@sim/emcn-legacy'
 import type { DestinationType } from '@/lib/data-drains/types'
 import { SettingRow } from '@/ee/components/setting-row'
 import {

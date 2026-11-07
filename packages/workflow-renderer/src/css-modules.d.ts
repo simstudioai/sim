@@ -1,5 +1,5 @@
 /**
- * Ambient declaration for CSS Modules. The renderer compiles `@sim/emcn` source
+ * Ambient declaration for CSS Modules. The renderer compiles `@sim/emcn-legacy` source
  * (which imports CSS modules) as part of its program, so it needs this in scope
  * for a standalone type-check. Consuming apps (Next.js) provide their own.
  */

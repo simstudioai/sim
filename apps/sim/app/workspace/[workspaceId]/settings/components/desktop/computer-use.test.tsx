@@ -5,7 +5,7 @@ import type {
   ComputerUseAppPermission,
   ComputerUseStatus,
 } from '@sim/desktop-bridge'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { libDesktopMock, libDesktopMockFns } from '@sim/testing/mocks/lib-desktop.mock'
 import { createRoot, type Root } from 'react-dom/client'

@@ -1,7 +1,8 @@
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Icon } from '@sim/emcn/icon'
 import styles from '@/platform/app/(shell)/home/_components/get-started/get-started.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
 import type { HomeGetStartedStep } from '@/platform/app/(shell)/home/_components/model'
-import { ActivityRow, Icon } from '@/platform/design-system/components'
 
 interface GetStartedProps {
   steps: readonly HomeGetStartedStep[]

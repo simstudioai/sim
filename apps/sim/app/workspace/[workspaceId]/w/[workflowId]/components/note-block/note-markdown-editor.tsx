@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { NoteContentEditorProps } from '@sim/workflow-renderer'
 import { RichMarkdownField } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field'
 import { useNoteImageUpload } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/note-block/use-note-image-upload'

@@ -1,7 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Modal, RecipientField, SelectField } from '@/platform/design-system/components'
+import { SelectField } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
+import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import { ORGANIZATION_ROLE_OPTIONS, useInviteMembers } from '@/platform/lib/data/members'
 import { useOrganization } from '@/platform/lib/data/organization'
 

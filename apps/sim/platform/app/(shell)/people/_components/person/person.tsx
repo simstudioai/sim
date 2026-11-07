@@ -1,21 +1,18 @@
 'use client'
 
 import { useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
+import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
+import { Icon } from '@sim/emcn/icon'
+import { FailureNotice } from '@sim/emcn/status'
+import { PageColumn } from '@sim/emcn-platform/page-column'
 import Link from 'next/link'
 import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import { ProfileUnavailable } from '@/platform/app/(shell)/people/_components/people-page/profile-unavailable'
 import styles from '@/platform/app/(shell)/people/_components/person/person.module.css'
 import { PersonModal } from '@/platform/app/(shell)/people/_components/person/person-modal'
 import { PersonIdentity } from '@/platform/app/(shell)/people/_components/person-identity/person-identity'
-import {
-  Avatar,
-  Button,
-  FailureNotice,
-  Icon,
-  PageColumn,
-} from '@/platform/design-system/components'
-import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
-import { publicAssetPath } from '@/platform/design-system/navigation'
 import {
   isRefusal,
   type Person,
@@ -26,6 +23,7 @@ import {
   usePeopleViewer,
   usePersonProfile,
 } from '@/platform/lib/data/people'
+import { publicAssetPath } from '@/platform/lib/navigation'
 import { formatCalendarDate } from '@/platform/lib/time'
 
 const NOT_PROVIDED = 'Not provided'

@@ -1,6 +1,6 @@
 import { type ReactNode, useId } from 'react'
-import { cn, OverflowText } from '@sim/emcn'
-import { ArrowRight } from '@sim/emcn/icons'
+import { cn, OverflowText } from '@sim/emcn-legacy'
+import { ArrowRight } from '@sim/emcn-legacy/icons'
 import Link from 'next/link'
 import {
   RESOURCE_TILE_BASE,

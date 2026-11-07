@@ -1,8 +1,8 @@
+import { ListField } from '@sim/emcn/field/list-field'
 import {
   SCOPE_GROUPS,
   scopeGroup,
 } from '@/platform/app/(shell)/integrations/_components/connection-access/scope-groups'
-import { ListField } from '@/platform/design-system/components'
 
 interface ConnectionAccessProps {
   permissions: readonly { id: string; label: string; description?: string }[]

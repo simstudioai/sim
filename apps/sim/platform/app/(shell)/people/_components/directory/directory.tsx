@@ -1,18 +1,16 @@
 'use client'
 
 import { useMemo } from 'react'
+import { Button } from '@sim/emcn/button'
+import { DataTable } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SearchField } from '@sim/emcn/search-field'
+import { FailureNotice } from '@sim/emcn/status'
+import { PageColumn } from '@sim/emcn-platform/page-column'
 import styles from '@/platform/app/(shell)/people/_components/directory/directory.module.css'
 import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import { PersonIdentity } from '@/platform/app/(shell)/people/_components/person-identity/person-identity'
-import {
-  Button,
-  DataTable,
-  EmptyState,
-  FailureNotice,
-  PageColumn,
-  SearchableSelect,
-  SearchField,
-} from '@/platform/design-system/components'
 import {
   personHref,
   useDepartmentOptions,
@@ -71,9 +69,13 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
               onValueChange={directory.setSearch}
             />
           </div>
+          <span className={styles.scope} data-type='T050'>
+            People in your organization
+          </span>
           <div className={styles.department}>
             <SearchableSelect
               label='Department'
+              variant='text'
               labelHidden
               searchLabel='Search departments'
               options={departments.options}
@@ -84,9 +86,6 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
               onValueChange={(next) => directory.setDepartment(departments.parse(next))}
             />
           </div>
-          <span className={styles.scope} data-type='T050'>
-            People in your organization
-          </span>
         </div>
         {directory.loading ? (
           <PeopleStatus>Loading people…</PeopleStatus>

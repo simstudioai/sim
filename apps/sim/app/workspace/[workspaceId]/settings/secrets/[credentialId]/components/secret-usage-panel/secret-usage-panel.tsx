@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ChipLink } from '@sim/emcn'
+import { ChipLink } from '@sim/emcn-legacy'
 import { formatDateTime } from '@sim/utils/formatting'
 import { SettingsActionChip } from '@/components/settings/settings-header'
 import type { SecretUsageEntryPayload, SecretUsageScope } from '@/lib/api/contracts'

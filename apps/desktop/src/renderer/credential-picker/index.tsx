@@ -6,7 +6,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
   OverflowText,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { createRoot } from 'react-dom/client'
 import { initializeShellPage } from '@/renderer/shell'
 import type {

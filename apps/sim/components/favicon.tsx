@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useReducer } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { LRUCache } from 'lru-cache'
 import { faviconSrc } from '@/lib/favicon/url'
 

@@ -1,4 +1,4 @@
-import { Task } from '@sim/emcn/icons'
+import { Task } from '@sim/emcn-legacy/icons'
 import type { BlockConfig } from '@/blocks/types'
 
 export const ChatTriggerBlock: BlockConfig = {

@@ -1,4 +1,4 @@
-import { ClipboardList } from '@sim/emcn/icons'
+import { ClipboardList } from '@sim/emcn-legacy/icons'
 import { GmailIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'

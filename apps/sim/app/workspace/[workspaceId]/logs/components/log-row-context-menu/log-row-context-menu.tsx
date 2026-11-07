@@ -14,7 +14,7 @@ import {
   Redo,
   SquareArrowUpRight,
   X,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import type { WorkflowLogSummary } from '@/lib/api/contracts/logs'
 import { resolveLogWorkflowId } from '@/app/workspace/[workspaceId]/logs/utils'
 

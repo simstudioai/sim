@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { ChipTag, cn, usePrefersReducedMotion } from '@sim/emcn'
+import { ChipTag, cn, usePrefersReducedMotion } from '@sim/emcn-legacy'
 import Image from 'next/image'
 import { LANDING_STAGE_RADIUS } from '@/app/(landing)/components/landing-layout'
 

@@ -1,6 +1,13 @@
 'use client'
 
 import { type ClipboardEvent, useId, useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { FieldFrame, TextAreaField, TextField } from '@sim/emcn/field'
+import { FileField } from '@sim/emcn/field/file-field'
+import { TextArea } from '@sim/emcn/field/inputs'
+import { Icon } from '@sim/emcn/icon'
+import { Modal } from '@sim/emcn/modal'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
 import { MarkdownContent } from '@/platform/app/(shell)/_components/markdown-content/markdown-content'
@@ -13,17 +20,6 @@ import type {
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/skills-session/model'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/skills/_components/skill-detail/skill-detail.module.css'
 import { SkillEditors } from '@/platform/app/(shell)/workspace/[workspaceId]/skills/_components/skill-detail/skill-editors'
-import {
-  Button,
-  FieldFrame,
-  FileField,
-  Icon,
-  Modal,
-  SegmentedControl,
-  TextArea,
-  TextAreaField,
-  TextField,
-} from '@/platform/design-system/components'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { skillFile } from '@/platform/lib/data/skill-drafts'
 
@@ -126,7 +122,12 @@ export function SkillDetail({ data, skill, skills, onSave, onDelete, href }: Ski
                   <Button size='compact' variant='quiet' onClick={() => setDialog('share')}>
                     Share
                   </Button>
-                  <Button size='compact' variant='quiet' onClick={() => setDialog('delete')}>
+                  <Button
+                    size='compact'
+                    variant='quiet'
+                    destructive
+                    onClick={() => setDialog('delete')}
+                  >
                     Delete
                   </Button>
                 </>
@@ -166,7 +167,7 @@ export function SkillDetail({ data, skill, skills, onSave, onDelete, href }: Ski
           label='Name'
           value={draft.name}
           onChange={(name) => setDraft({ ...draft, name })}
-          readOnly={!editable}
+          viewOnly={!editable}
           hint={
             editable
               ? 'Use lowercase letters, numbers and hyphens.'
@@ -182,7 +183,7 @@ export function SkillDetail({ data, skill, skills, onSave, onDelete, href }: Ski
           label='Description'
           value={draft.description}
           onChange={(description) => setDraft({ ...draft, description })}
-          readOnly={!editable}
+          viewOnly={!editable}
           maxLength={1024}
           required
           placeholder='When should an agent use this skill?'

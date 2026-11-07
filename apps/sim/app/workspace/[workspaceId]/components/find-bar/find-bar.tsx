@@ -2,8 +2,8 @@
 
 import type React from 'react'
 import { memo, useRef, useState } from 'react'
-import { Button, ChipInput, cn } from '@sim/emcn'
-import { ChevronDown, ChevronRight, ChevronUp, Loader, Search, X } from '@sim/emcn/icons'
+import { Button, ChipInput, cn } from '@sim/emcn-legacy'
+import { ChevronDown, ChevronRight, ChevronUp, Loader, Search, X } from '@sim/emcn-legacy/icons'
 
 export interface FindReplaceControls {
   value: string

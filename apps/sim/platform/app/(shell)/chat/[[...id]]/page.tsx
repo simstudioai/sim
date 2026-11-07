@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { FixtureChatScreen } from '@/platform/app/(shell)/_components/chat/conversation/fixture-chat-screen'
-import { readScenario } from '@/platform/design-system/navigation'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
+import { readScenario } from '@/platform/lib/navigation'
 
 export default async function Page({ searchParams, params }: PageProps<'/chat/[[...id]]'>) {
   const [query, { id }] = await Promise.all([searchParams, params])

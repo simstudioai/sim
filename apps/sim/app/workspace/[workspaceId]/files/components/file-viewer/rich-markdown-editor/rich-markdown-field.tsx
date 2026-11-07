@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { ChipTextarea, chipFieldSurfaceClass, cn, toast } from '@sim/emcn'
+import { ChipTextarea, chipFieldSurfaceClass, cn, toast } from '@sim/emcn-legacy'
 import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { JSONContent, Range } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -34,7 +34,7 @@ import { LinkHoverCard } from '@/app/workspace/[workspaceId]/files/components/fi
 import { normalizeMarkdownContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/normalize-content'
 import { assessRawMarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
 import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
-import '@sim/emcn/components/code/code.css'
+import '@sim/emcn-legacy/components/code/code.css'
 import '@/app/workspace/[workspaceId]/files/components/file-viewer/document-table.css'
 import '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.css'
 

@@ -1,8 +1,8 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { Avatar, Chip, ChipConfirmModal, ChipModalError, toast } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { Avatar, Chip, ChipConfirmModal, ChipModalError, toast } from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import type { SettingsAction, SettingsBackAction } from '@/components/settings/settings-header'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'

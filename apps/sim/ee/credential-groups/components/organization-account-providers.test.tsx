@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { act } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import {
   organizationAccountsQueriesMock,
   organizationAccountsQueriesMockFns,

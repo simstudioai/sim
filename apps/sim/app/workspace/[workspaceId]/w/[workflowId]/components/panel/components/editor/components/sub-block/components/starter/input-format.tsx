@@ -16,8 +16,8 @@ import {
   Label,
   languages,
   Tooltip,
-} from '@sim/emcn'
-import { ArrowLeftRight, Plus, Trash } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeftRight, Plus, Trash } from '@sim/emcn-legacy/icons'
 import Editor from 'react-simple-code-editor'
 import {
   createDefaultInputFormatField,

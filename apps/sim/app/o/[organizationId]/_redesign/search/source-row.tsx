@@ -1,7 +1,9 @@
 'use client'
 
 import { memo, type ReactNode, useState } from 'react'
-import { toast, useCopyToClipboard } from '@sim/emcn'
+import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import { toast, useCopyToClipboard } from '@sim/emcn-legacy'
 import styles from '@/app/o/[organizationId]/_redesign/search/search.module.css'
 import {
   useOpenSimLinkForm,
@@ -19,8 +21,6 @@ import {
 import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { useHydrated } from '@/hooks/use-hydrated'
-import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { OverflowText } from '@/platform/design-system/components/overflow-text/overflow-text'
 
 /**
  * The Sim link entry of a source's menu: copies the link that already opens this address, or offers

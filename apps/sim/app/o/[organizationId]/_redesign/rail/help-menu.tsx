@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { openLinkInNewTab } from '@/app/o/[organizationId]/_redesign/rail/row-links'
 import { useHelp } from '@/app/o/[organizationId]/_redesign/rail/shell-actions'
 import { SupportModal } from '@/app/o/[organizationId]/_redesign/rail/support-modal'
-import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
 
 export function HelpMenu() {
   const help = useHelp()

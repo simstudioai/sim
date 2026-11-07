@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Chip, cn } from '@sim/emcn'
+import { Chip, cn } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 
 interface SettingsEmptyStateProps {

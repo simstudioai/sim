@@ -1,6 +1,6 @@
 'use client'
 
-import { File as FileIcon } from '@sim/emcn/icons'
+import { File as FileIcon } from '@sim/emcn-legacy/icons'
 import { noop } from '@sim/utils/helpers'
 import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
 import { ResourceChromeFallback } from '@/app/workspace/[workspaceId]/components/resource/components/resource-chrome-fallback'

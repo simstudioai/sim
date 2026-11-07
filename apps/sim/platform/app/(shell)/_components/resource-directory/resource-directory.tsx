@@ -1,7 +1,8 @@
 import type { ComponentProps, ReactNode, Ref } from 'react'
+import { Chip } from '@sim/emcn/button'
+import { PageColumn } from '@sim/emcn-platform/page-column'
 import type Link from 'next/link'
 import styles from '@/platform/app/(shell)/_components/resource-directory/resource-directory.module.css'
-import { Chip, PageColumn } from '@/platform/design-system/components'
 
 interface DirectoryContentProps {
   children: ReactNode

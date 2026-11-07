@@ -1,5 +1,5 @@
-import { ChipInput } from '@sim/emcn'
-import { Building } from '@sim/emcn/icons'
+import { ChipInput } from '@sim/emcn-legacy'
+import { Building } from '@sim/emcn-legacy/icons'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
 import { SegmentedMeter } from '@/app/workspace/[workspaceId]/settings/components/segmented-meter/segmented-meter'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'

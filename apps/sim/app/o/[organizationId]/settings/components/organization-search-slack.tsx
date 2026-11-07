@@ -1,7 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Chip, ChipConfirmModal, ChipLink, ChipModalError, ChipTag, useToast } from '@sim/emcn'
+import {
+  Chip,
+  ChipConfirmModal,
+  ChipLink,
+  ChipModalError,
+  ChipTag,
+  useToast,
+} from '@sim/emcn-legacy'
 import { useQueryState } from 'nuqs'
 import { SlackIcon } from '@/components/icons'
 import { SlackSearchSetupWizard } from '@/components/integrations/slack-search-setup-wizard'

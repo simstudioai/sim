@@ -1,11 +1,13 @@
 'use client'
 
 import { type RefObject, useState } from 'react'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Icon } from '@sim/emcn/icon'
+import { AnchoredPopover } from '@sim/emcn/menu/anchored-popover'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
 import styles from '@/platform/app/(shell)/_components/inbox/inbox.module.css'
 import type { InboxItem } from '@/platform/app/(shell)/_components/model'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
-import { ActivityRow, Icon, SegmentedControl } from '@/platform/design-system/components'
-import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
 
 interface InboxProps {
   anchor: RefObject<HTMLElement | null>

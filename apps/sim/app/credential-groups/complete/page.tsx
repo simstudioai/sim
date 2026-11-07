@@ -1,4 +1,4 @@
-import { AuthLinkButton as ChipLink } from '@sim/auth-ui'
+import { AuthLinkButton as ChipLink } from '@sim/emcn-auth/button'
 import { isValidUuid } from '@sim/utils/id'
 import type { Metadata } from 'next'
 import {

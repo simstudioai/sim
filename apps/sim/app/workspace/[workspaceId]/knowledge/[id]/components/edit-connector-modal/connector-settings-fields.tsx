@@ -8,8 +8,8 @@ import {
   ChipModalField,
   ChipSelect,
   type ComboboxOption,
-} from '@sim/emcn'
-import { ChevronDown, ChevronRight, Plus } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ChevronDown, ChevronRight, Plus } from '@sim/emcn-legacy/icons'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'

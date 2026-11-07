@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipDropdown } from '@sim/emcn'
+import { ChipDropdown } from '@sim/emcn-legacy'
 import type {
   ConnectorDocumentFilter,
   ConnectorDocumentsData,

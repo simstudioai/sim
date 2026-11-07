@@ -1,6 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { CopyField } from '@sim/emcn/field/value-fields'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { Select } from '@sim/emcn/picker/select'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { Switch } from '@sim/emcn/switch'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
@@ -10,21 +19,6 @@ import {
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { GroupMappings } from '@/platform/app/(shell)/settings/_components/sections/sso/group-mappings'
-import {
-  ActionMenu,
-  Button,
-  CopyField,
-  Disclosure,
-  FailureNotice,
-  Modal,
-  Select,
-  StatusTag,
-  Switch,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   CREDENTIAL_EXPIRY_OPTIONS,
   type CredentialExpiry,

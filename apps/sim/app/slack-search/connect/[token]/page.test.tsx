@@ -5,7 +5,7 @@ import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   ChipLink: ({ children, href }: ComponentProps<'a'>) => <a href={href}>{children}</a>,
 }))
 vi.mock('@/app/(auth)/components', () => ({

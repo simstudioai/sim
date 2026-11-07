@@ -1,7 +1,7 @@
 'use client'
 
-import { ChipModalField, ChipTag, cn } from '@sim/emcn'
-import { ArrowRight } from '@sim/emcn/icons'
+import { ChipModalField, ChipTag, cn } from '@sim/emcn-legacy'
+import { ArrowRight } from '@sim/emcn-legacy/icons'
 import { formatValueForDisplay, resolveFieldLabel } from '@/lib/workflows/comparison/resolve-values'
 import { StructuredValueDiff } from '@/app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/structured-value-diff'
 import {

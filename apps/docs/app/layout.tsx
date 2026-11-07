@@ -1,26 +1,12 @@
 import type { ReactNode } from 'react'
 import type { Metadata, Viewport } from 'next'
-import localFont from 'next/font/local'
-import { DocsShell } from '@/components/docs/shell'
-import { DocsThemeProvider } from '@/components/docs/theme'
+import { DocsShell } from '@/components/docs/shell/shell'
+import { DocsThemeProvider } from '@/components/docs/theme/theme'
 import { getNavigation } from '@/lib/content/catalog'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { DOCS_BASE_URL, SIM_SITE_URL } from '@/lib/urls'
 import './global.css'
 
-const geist = localFont({
-  src: './fonts/geist-variable.woff2',
-  variable: '--font-geist-sans',
-  display: 'swap',
-  weight: '100 900',
-})
-const mono = localFont({
-  src: './fonts/geist-mono-variable.woff2',
-  variable: '--font-geist-mono',
-  display: 'swap',
-  weight: '100 900',
-  preload: false,
-})
 const description =
   'Guides and API references for Sim, the open-source AI workspace. Learn how to use Chat, build workflows, manage data, and operate your deployment.'
 
@@ -32,7 +18,8 @@ export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html
       lang='en'
-      className={`${geist.variable} ${mono.variable} docs-root scroll-pt-[var(--docs-sticky-offset)] overscroll-y-none`}
+      data-emcn=''
+      className='docs-root scroll-pt-[var(--docs-sticky-offset)] overscroll-y-none'
       suppressHydrationWarning
     >
       <body className='docs-root flex min-h-dvh flex-col bg-[var(--docs-canvas)] font-sans antialiased'>

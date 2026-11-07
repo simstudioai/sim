@@ -1,6 +1,6 @@
 import type { ComponentType, MouseEventHandler, ReactNode } from 'react'
-import { Button, chipHoverSurfaceClass, cn, Tooltip } from '@sim/emcn'
-import { SelectAll } from '@sim/emcn/icons'
+import { Button, chipHoverSurfaceClass, cn, Tooltip } from '@sim/emcn-legacy'
+import { SelectAll } from '@sim/emcn-legacy/icons'
 
 interface CanvasToolbarButtonProps {
   label: string

@@ -10,8 +10,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   toast,
-} from '@sim/emcn'
-import { MoreHorizontal } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { MoreHorizontal } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import type { ChangelogRelease } from '@/lib/api/contracts/changelog'

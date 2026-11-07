@@ -1,5 +1,5 @@
 import type { ComponentPropsWithoutRef } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { MDXRemoteProps } from 'next-mdx-remote/rsc'
 import { ChangelogImage, ChangelogLink, ChangelogVideo } from '@/app/(landing)/changelog/components'
 import { HOME_TYPE } from '@/app/(landing)/components/landing-layout'

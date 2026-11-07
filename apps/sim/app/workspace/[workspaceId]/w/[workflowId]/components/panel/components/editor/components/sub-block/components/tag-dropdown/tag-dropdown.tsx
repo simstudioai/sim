@@ -11,8 +11,8 @@ import {
   PopoverScrollArea,
   PopoverSection,
   usePopoverContext,
-} from '@sim/emcn'
-import { ChevronLeft } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ChevronLeft } from '@sim/emcn-legacy/icons'
 import {
   getEffectiveBlockOutputType,
   getOutputPathsFromSchema,

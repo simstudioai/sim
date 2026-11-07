@@ -1,0 +1,75 @@
+.avatar {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--spacing-24);
+  height: var(--spacing-24);
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--control-avatar);
+  color: var(--ui-ink);
+}
+
+.avatar[data-organization] {
+  width: var(--spacing-20);
+  height: var(--spacing-20);
+  border-radius: var(--radius-4);
+}
+
+.avatar[data-size="inline"] {
+  width: var(--ui-icon-size);
+  height: var(--ui-icon-size);
+}
+
+.avatar[data-size="row"] {
+  width: var(--spacing-36);
+  height: var(--spacing-36);
+}
+
+.avatar[data-size="card"] {
+  width: var(--spacing-40);
+  height: var(--spacing-40);
+}
+
+.avatar[data-size="hero"] {
+  width: var(--spacing-80);
+  height: var(--spacing-80);
+}
+
+.avatarImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.initial {
+  text-box-trim: trim-both;
+  text-box-edge: cap alphabetic;
+}
+
+.peoplePopover {
+  display: flex;
+  flex-direction: column;
+  width: min(var(--control-people-width), 100vw);
+  max-height: 100dvh;
+  overflow-y: auto;
+  padding: var(--ui-popup-padding);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu-shared);
+  color: var(--ui-ink);
+}
+
+.peopleHeading {
+  padding: var(--ui-row-block) var(--ui-row-inset);
+  color: var(--ui-secondary);
+}
+
+.personRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  min-height: var(--spacing-app-chip);
+  padding: var(--ui-row-block) var(--ui-row-inset);
+  overflow-wrap: anywhere;
+}

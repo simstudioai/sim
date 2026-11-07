@@ -14,7 +14,7 @@ const { policy, discovery, protectedMount } = vi.hoisted(() => ({
 }))
 
 vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   cn: (...values: string[]) => values.join(' '),
   Chip: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
     <button type='button' onClick={onClick}>
@@ -25,7 +25,7 @@ vi.mock('@sim/emcn', () => ({
     <a href={href}>{children}</a>
   ),
 }))
-vi.mock('@sim/emcn/icons', () => emcnIconsMock)
+vi.mock('@sim/emcn-legacy/icons', () => emcnIconsMock)
 vi.mock('@/ee/access-control/hooks/permission-groups', () => ({ useUserPermissionConfig: policy }))
 vi.mock('@/hooks/queries/access-requests', () => ({
   useDiscoverAccessRequests: discovery,

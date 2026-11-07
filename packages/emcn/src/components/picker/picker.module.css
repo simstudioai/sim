@@ -1,0 +1,126 @@
+.trigger {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-app-chip);
+  padding-inline: var(--spacing-8);
+  gap: var(--spacing-field-label-gap);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-ink);
+  text-align: start;
+  cursor: pointer;
+}
+
+.trigger:hover:not(:disabled, [data-disabled], [aria-disabled="true"]) {
+  border-color: var(--control-hover-border);
+}
+
+.trigger[aria-invalid="true"] {
+  border-color: var(--control-danger);
+}
+
+.trigger:is(:disabled, [data-disabled], [aria-disabled="true"]) {
+  cursor: not-allowed;
+}
+
+.value {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.empty {
+  color: var(--ui-secondary);
+}
+
+.empty:not(:empty) {
+  display: block;
+  padding: var(--spacing-8);
+}
+
+.inlineControl {
+  display: inline-flex;
+  min-inline-size: 0;
+}
+
+.detachedPopup {
+  inline-size: min(calc(var(--spacing-320) + var(--spacing-80)), var(--available-width));
+}
+
+.searchField {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-app-chip);
+  padding-inline: var(--spacing-7);
+  gap: var(--spacing-6);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-secondary);
+}
+
+.searchField input {
+  flex: 1;
+  min-inline-size: 0;
+  background: transparent;
+  color: var(--ui-ink);
+  outline: none;
+}
+
+.searchField input::placeholder {
+  color: var(--ui-secondary);
+}
+
+.results {
+  max-block-size: var(--spacing-320);
+}
+
+.result {
+  align-items: flex-start;
+}
+
+.resultCopy {
+  display: grid;
+  flex: 1;
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+  overflow-wrap: anywhere;
+}
+
+.resultDetail,
+.hints {
+  color: var(--ui-secondary);
+}
+
+.resultEnter {
+  flex: none;
+  color: var(--ui-secondary);
+  visibility: hidden;
+}
+
+.result[data-highlighted] .resultEnter {
+  visibility: visible;
+}
+
+.hints {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  padding: var(--spacing-8) var(--ui-row-inset) var(--spacing-4);
+}
+
+@media (pointer: coarse) {
+  .hints,
+  .resultEnter {
+    display: none;
+  }
+}
+
+.trigger[data-empty] .value {
+  color: var(--ui-secondary);
+}

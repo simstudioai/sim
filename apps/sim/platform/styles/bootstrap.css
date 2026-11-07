@@ -1,0 +1,8 @@
+@layer theme, base, components, utilities;
+
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css" source(none);
+@import "@sim/emcn/styles/theme.css";
+
+@source "../../../../packages/emcn/src/components";
+@source "../../../../packages/emcn-platform/src/components";

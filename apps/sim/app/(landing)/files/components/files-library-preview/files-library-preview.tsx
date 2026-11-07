@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import {
   ArrowUpDown,
   ChevronRight,
@@ -9,7 +9,7 @@ import {
   Files as FilesIcon,
   Search,
   Send,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import {
   MenuPreviewHeader,
   MenuPreviewToolbar,

@@ -1,0 +1,70 @@
+.list,
+.rows {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: var(--spacing-8);
+}
+
+.list {
+  container-type: inline-size;
+}
+
+.rows {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-block-size: var(--spacing-32);
+}
+
+.row dd {
+  overflow-wrap: anywhere;
+}
+
+.row dt,
+.row dd[data-kind="metadata"] {
+  color: var(--ui-secondary);
+}
+
+@container (width < 22rem) {
+  .rows {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .row {
+    gap: var(--ui-stack-gap);
+  }
+}
+
+.row dd[data-kind="person"] {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.row :is(dt, dd) {
+  min-inline-size: 0;
+  white-space: pre-wrap;
+}
+
+.row a {
+  color: var(--ui-ink);
+}
+
+.row a:hover {
+  text-decoration: underline;
+}
+
+@media (pointer: coarse) {
+  .row a {
+    display: inline-flex;
+    align-items: center;
+    min-block-size: var(--spacing-app-touch-target);
+  }
+}

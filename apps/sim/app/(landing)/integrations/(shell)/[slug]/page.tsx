@@ -1,4 +1,4 @@
-import { ChipLink } from '@sim/emcn'
+import { ChipLink } from '@sim/emcn-legacy'
 import { escapeRegExp } from '@sim/utils/string'
 import type { Metadata } from 'next'
 import Link from 'next/link'

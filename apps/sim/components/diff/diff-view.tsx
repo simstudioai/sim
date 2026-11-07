@@ -1,8 +1,8 @@
 'use client'
 
 import { Fragment, type ReactNode, useState } from 'react'
-import { Chip, cn, scrollFadeAttributes, scrollFadeXClass, useScrollEdges } from '@sim/emcn'
-import { ChevronsUpDown } from '@sim/emcn/icons'
+import { Chip, cn, scrollFadeAttributes, scrollFadeXClass, useScrollEdges } from '@sim/emcn-legacy'
+import { ChevronsUpDown } from '@sim/emcn-legacy/icons'
 import { diffWordsWithSpace } from 'diff'
 import type { DiffHunk, DiffLine } from '@/lib/diff/unified'
 

@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import Image from 'next/image'
 import styles from '@/app/(landing)/components/cta/cta.module.css'
 import { FOOTER_ARTWORK } from '@/app/(landing)/components/cta/footer-artwork.generated'

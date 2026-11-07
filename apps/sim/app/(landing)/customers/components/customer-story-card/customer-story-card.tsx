@@ -1,4 +1,4 @@
-import { ArrowRight } from '@sim/emcn/icons'
+import { ArrowRight } from '@sim/emcn-legacy/icons'
 import Link from 'next/link'
 import type { ContentMeta } from '@/lib/content/schema'
 import type { CustomerStory } from '@/lib/customers/data'

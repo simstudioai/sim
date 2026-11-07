@@ -82,7 +82,7 @@ vi.mock('@/lib/knowledge/api/internal-route', () => ({
   internalKnowledgePresenters: { list: mockKnowledgePresenterList },
 }))
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 
 import { prefetchFilesBrowser } from '@/app/workspace/[workspaceId]/files/prefetch'
 import { prefetchKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/prefetch'

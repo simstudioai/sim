@@ -1,18 +1,16 @@
 'use client'
 
 import { type FormEvent, useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Input } from '@sim/emcn/field/inputs'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { FailureNotice } from '@sim/emcn/status'
+import { PageColumn } from '@sim/emcn-platform/page-column'
+import { RecentItems } from '@sim/emcn-platform/recent-items'
 import { LiveChat } from '@/platform/app/(shell)/_components/chat/live/live-chat'
 import { SearchResults } from '@/platform/app/(shell)/_components/search/search-results'
 import styles from '@/platform/app/(shell)/search/_components/search-surface/search-surface.module.css'
-import {
-  Button,
-  EmptyState,
-  FailureNotice,
-  PageColumn,
-  RecentItems,
-  SegmentedControl,
-} from '@/platform/design-system/components'
-import { Input } from '@/platform/design-system/components/field/inputs'
 import { useSearchSurface } from '@/platform/lib/data/search'
 
 interface SearchSurfaceProps {

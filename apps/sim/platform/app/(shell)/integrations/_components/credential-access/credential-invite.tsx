@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { SelectField } from '@sim/emcn/field'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import styles from '@/platform/app/(shell)/integrations/_components/credential-access/credential-access.module.css'
-import { Button, MultiSelect, SelectField } from '@/platform/design-system/components'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 import type { CredentialMember } from '@/platform/lib/integrations/credential-model'
 
@@ -35,6 +37,7 @@ export function CredentialInvite({ people, onAdd }: CredentialInviteProps) {
           value={selected}
           onValueChange={setSelected}
           disabled={!people.length}
+          disabledReason='No additional people are available to add.'
         />
       </div>
       <SelectField

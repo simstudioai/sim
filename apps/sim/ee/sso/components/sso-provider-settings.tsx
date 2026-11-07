@@ -15,8 +15,8 @@ import {
   Label,
   Switch,
   toast,
-} from '@sim/emcn'
-import { ArrowLeft, ChevronDown, Eye, EyeOff } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, ChevronDown, Eye, EyeOff } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'

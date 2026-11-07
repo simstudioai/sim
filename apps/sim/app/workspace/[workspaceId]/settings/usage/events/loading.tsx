@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { useParams, useRouter } from 'next/navigation'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 

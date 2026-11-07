@@ -1,4 +1,4 @@
-import { Integration, Search } from '@sim/emcn/icons'
+import { Integration, Search } from '@sim/emcn-legacy/icons'
 import {
   GithubIcon,
   GmailIcon,

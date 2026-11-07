@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, type RefObject, useCallback, useMemo, useRef, useState } from 'react'
-import { usePrefersReducedMotion } from '@sim/emcn'
+import { usePrefersReducedMotion } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import {

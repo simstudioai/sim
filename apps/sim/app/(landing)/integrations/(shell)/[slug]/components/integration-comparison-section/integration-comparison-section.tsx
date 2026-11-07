@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { IntegrationComparisonContent } from '@/app/(landing)/integrations/data/types'
 
 interface IntegrationComparisonSectionProps {

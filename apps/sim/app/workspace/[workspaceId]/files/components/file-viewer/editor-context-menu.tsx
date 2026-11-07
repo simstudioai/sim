@@ -7,8 +7,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from '@sim/emcn'
-import { Blimp, Clipboard, Duplicate, Scissors, Search, SelectAll } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Blimp, Clipboard, Duplicate, Scissors, Search, SelectAll } from '@sim/emcn-legacy/icons'
 
 interface EditorContextMenuProps {
   isOpen: boolean

@@ -1,8 +1,8 @@
 'use client'
 
 import { useId, useMemo, useState } from 'react'
-import { Checkbox, cn, OverflowText, toast } from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
+import { Checkbox, cn, OverflowText, toast } from '@sim/emcn-legacy'
+import { ChevronDown } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { useUpdateForkSyncedWorkflows } from '@/ee/workspace-forking/hooks/workspace-fork'

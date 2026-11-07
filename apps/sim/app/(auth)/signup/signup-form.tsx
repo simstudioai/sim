@@ -408,7 +408,7 @@ function SignupFormContent({
   const canSubmit = name.trim().length > 0 && email.trim().length > 0 && password.length > 0
 
   return (
-    <div className='au:space-y-[var(--auth-group-gap)]'>
+    <div className='au:flex au:flex-col au:gap-[var(--auth-group-gap)]'>
       <AuthHeader title='Create an account' description='Get started with Sim.' />
 
       {!emailEnabled && !hasSocial && !ssoEnabled && (
@@ -422,8 +422,8 @@ function SignupFormContent({
       )}
 
       {emailEnabled && (
-        <form onSubmit={onSubmit} className='au:space-y-[var(--auth-group-gap)]'>
-          <div className='au:space-y-5'>
+        <form onSubmit={onSubmit} className='au:flex au:flex-col au:gap-[var(--auth-group-gap)]'>
+          <div className='au:flex au:flex-col au:gap-5'>
             <AuthField htmlFor='name' label='Full name' errors={nameFieldErrors}>
               <AuthInput
                 id='name'

@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import {
   createIsoLineProps,
   ISO_FILL_HIGH,

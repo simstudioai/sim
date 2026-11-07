@@ -1,12 +1,8 @@
 import type { ReactElement, ReactNode } from 'react'
+import { ControlRow } from '@sim/emcn/button/control-row'
+import { Icon } from '@sim/emcn/icon'
+import { ActionMenu, ContextActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import styles from '@/app/o/[organizationId]/_redesign/rail/sidebar-collections.module.css'
-import { ControlRow } from '@/platform/design-system/components/button/control-row'
-import { Icon } from '@/platform/design-system/components/icon/icon'
-import {
-  ActionMenu,
-  ContextActionMenu,
-  type MenuAction,
-} from '@/platform/design-system/components/menu/action-menu'
 
 export function PinnedIndicator() {
   return (

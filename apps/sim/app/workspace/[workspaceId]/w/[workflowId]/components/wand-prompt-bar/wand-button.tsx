@@ -1,6 +1,6 @@
 import type { MouseEventHandler } from 'react'
-import { Chip } from '@sim/emcn'
-import { Wand } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn-legacy'
+import { Wand } from '@sim/emcn-legacy/icons'
 
 interface WandButtonProps {
   onClick: MouseEventHandler<HTMLButtonElement>

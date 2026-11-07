@@ -1,9 +1,10 @@
 'use client'
 
+import { Icon } from '@sim/emcn/icon'
+import { MessageBubble } from '@sim/emcn-platform/message-bubble'
 import { useHomePrompt } from '@/platform/app/(shell)/_components/session/composer-host'
 import styles from '@/platform/app/(shell)/integrations/_components/integration-idea/integration-idea.module.css'
-import { Icon, MessageBubble } from '@/platform/design-system/components'
-import { publicAssetPath } from '@/platform/design-system/navigation'
+import { publicAssetPath } from '@/platform/lib/navigation'
 
 interface IntegrationIdeaProps {
   providerId: string

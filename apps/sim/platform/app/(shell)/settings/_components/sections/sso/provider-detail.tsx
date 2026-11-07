@@ -1,17 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { CopyField } from '@sim/emcn/field/value-fields'
+import { PropertyList } from '@sim/emcn/property-list'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import {
   DetailHeader,
   FieldStack,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { ProviderForm } from '@/platform/app/(shell)/settings/_components/sections/sso/provider-form'
-import { Button, CopyField, PropertyList } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   type SsoProviderView,
   ssoFormFromProvider,
@@ -141,7 +140,7 @@ export function ProviderDetail({
           </SettingsRow>
         )}
         <SettingsRow label='Delete identity provider'>
-          <Button size='compact' variant='destructive' onClick={onDelete}>
+          <Button size='compact' variant='quiet' destructive onClick={onDelete}>
             Delete
           </Button>
         </SettingsRow>

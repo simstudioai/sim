@@ -1,7 +1,7 @@
 'use client'
 
-import { cn } from '@sim/emcn'
-import { TerminalWindow } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { TerminalWindow } from '@sim/emcn-legacy/icons'
 import { ThinkingLoader } from '@/components/ui'
 import { useStableFlag } from '@/hooks/use-stable-flag'
 import { useCopilotTerminalStore } from '@/stores/copilot-terminal/store'

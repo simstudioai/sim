@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipSelect, ChipTag, toast } from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+import { Chip, ChipConfirmModal, ChipSelect, ChipTag, toast } from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { PermissionGroup } from '@/lib/api/contracts/permission-groups'
 import {

@@ -1,4 +1,4 @@
-import { Check, ChipLink, ChipTag, cn } from '@sim/emcn'
+import { Check, ChipLink, ChipTag, cn } from '@sim/emcn-legacy'
 import { SlackIcon } from '@/components/icons'
 import type { CellValue } from '@/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data'
 

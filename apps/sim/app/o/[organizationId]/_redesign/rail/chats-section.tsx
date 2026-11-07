@@ -1,7 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { toast } from '@sim/emcn-legacy'
 import { usePathname, useRouter } from 'next/navigation'
 import { isPathOrDescendant, organizationRoutes } from '@/lib/navigation/paths'
 import { useChatListActions } from '@/app/o/[organizationId]/_redesign/rail/chat-list'
@@ -17,9 +20,6 @@ import { SectionStatus } from '@/app/o/[organizationId]/_redesign/rail/section-s
 import styles from '@/app/o/[organizationId]/_redesign/rail/sidebar-collections.module.css'
 import { ChatNavigationLink } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/chat-navigation-link/chat-navigation-link'
 import { useChatSelection } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-chat-selection'
-import { Disclosure } from '@/platform/design-system/components/disclosure/disclosure'
-import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { Modal } from '@/platform/design-system/components/modal/modal'
 import { useFolderStore } from '@/stores/folders/store'
 
 const CHAT_TITLE_MAX_LENGTH = 200

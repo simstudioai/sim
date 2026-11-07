@@ -1,7 +1,7 @@
 'use client'
 
 import { Component, type ErrorInfo, type ReactNode, useId } from 'react'
-import { ChipModal, ChipModalBody, ChipModalHeader, Loader, toast } from '@sim/emcn'
+import { ChipModal, ChipModalBody, ChipModalHeader, Loader, toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 
 const logger = createLogger('ExecutionSnapshotBoundary')

@@ -1,0 +1,21 @@
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme) prefix(au);
+@import 'tailwindcss/utilities.css' layer(utilities) prefix(au) source(none);
+@source '../../../../apps/sim/app';
+@source '../../../../apps/sim/ee/sso/components/sso-auth.tsx';
+@source '../../../../apps/sim/ee/sso/components/sso-form.tsx';
+@source '../../../../apps/desktop/src/renderer';
+@theme inline {
+  --spacing: var(--emcn-space-4);
+  --text-title: var(--emcn-type-title-size);
+  --text-title--line-height: var(--emcn-type-title-leading);
+  --text-body: var(--emcn-type-body-size);
+  --text-body--line-height: var(--emcn-type-body-leading);
+  --text-control: var(--emcn-type-control-size);
+  --text-control--line-height: var(--emcn-type-control-leading);
+  --text-caption: var(--emcn-type-caption-size);
+  --text-caption--line-height: var(--emcn-type-caption-leading);
+  --radius-lg: var(--emcn-radius-control);
+  --font-sans: var(--auth-font);
+  --font-mono: var(--auth-mono);
+}

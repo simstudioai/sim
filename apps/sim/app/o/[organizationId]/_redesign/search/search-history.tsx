@@ -1,14 +1,14 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { toast } from '@sim/emcn'
+import { Button, Chip } from '@sim/emcn/button'
+import { ControlRow } from '@sim/emcn/button/control-row'
+import { InlineNotice } from '@sim/emcn/status'
+import { toast } from '@sim/emcn-legacy'
 import styles from '@/app/o/[organizationId]/_redesign/search/search-surface.module.css'
 import { CompactSourceRow } from '@/app/o/[organizationId]/_redesign/search/source-row'
 import { useOrganizationContext } from '@/app/o/[organizationId]/providers/organization-provider'
 import { useClearSearchHistory, useSearchHistory } from '@/hooks/queries/search-history'
-import { Button, Chip } from '@/platform/design-system/components/button/button'
-import { ControlRow } from '@/platform/design-system/components/button/control-row'
-import { InlineNotice } from '@/platform/design-system/components/status/status'
 
 const HISTORY_RECENT_LIMIT = 5
 

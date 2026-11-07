@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { ChipModal, ChipModalHeader, cn, toast } from '@sim/emcn'
+import { ChipModal, ChipModalHeader, cn, toast } from '@sim/emcn-legacy'
 import { generateId } from '@sim/utils/id'
 import { useQueryClient } from '@tanstack/react-query'
 import { useQueryState, useQueryStates } from 'nuqs'

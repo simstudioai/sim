@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, toast } from '@sim/emcn'
+import { Chip, toast } from '@sim/emcn-legacy'
 import { getDesktopBridge } from '@/lib/desktop'
 import { useComputerUseStatus } from '@/hooks/use-computer-use-status'
 

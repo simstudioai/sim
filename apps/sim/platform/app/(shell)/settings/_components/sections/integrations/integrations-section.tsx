@@ -2,10 +2,10 @@ import { notFound, redirect } from 'next/navigation'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { OrganizationSources } from '@/platform/app/(shell)/settings/_components/sections/integrations/organization-sources'
 import { SourcesView } from '@/platform/app/(shell)/settings/_components/sections/integrations/sources-view'
-import { readScenario } from '@/platform/design-system/navigation'
 import { loadSourceSettings } from '@/platform/fixtures'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
 import { readSourceSettings } from '@/platform/lib/data/source-settings'
+import { readScenario } from '@/platform/lib/navigation'
 
 export default async function IntegrationsSection({
   organization,

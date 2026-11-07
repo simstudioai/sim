@@ -17,7 +17,11 @@ export const centerParams = {
   resource: parseAsString,
 }
 
-export const serializeCenter = createSerializer(centerParams)
+export const resourceDetailParams = {
+  resourceTab: parseAsStringLiteral(['details', 'access']).withDefault('details'),
+}
+
+export const serializeCenter = createSerializer({ ...centerParams, ...resourceDetailParams })
 
 const loadCenter = createLoader(centerParams)
 

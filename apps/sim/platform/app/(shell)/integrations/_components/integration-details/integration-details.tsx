@@ -1,6 +1,11 @@
 'use client'
 
 import { type ReactNode, useLayoutEffect, useRef, useState } from 'react'
+import { Button, Chip } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { TextField } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
+import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
 import { ConnectedCredential } from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential'
@@ -10,14 +15,6 @@ import styles from '@/platform/app/(shell)/integrations/_components/integration-
 import { IntegrationIdea } from '@/platform/app/(shell)/integrations/_components/integration-idea/integration-idea'
 import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
-import {
-  Button,
-  Chip,
-  ContentTabs,
-  EmptyState,
-  Modal,
-  TextField,
-} from '@/platform/design-system/components'
 import { isConnectable, type OrganizationIntegration } from '@/platform/lib/data/integrations-types'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 import { credentialDetailParams } from '@/platform/lib/integrations/credential-navigation'
@@ -52,20 +49,17 @@ export function IntegrationDetails({
   const { accounts, availability, connectionTarget, providerId, name } = integration
   const [view, setView] = useQueryStates(credentialDetailParams)
   const [connecting, setConnecting] = useState(false)
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null)
+  const disconnecting = accounts.find((account) => account.id === disconnectingId)
   const titleRef = useRef<HTMLHeadingElement>(null)
   const accountCount = useRef(accounts.length)
   useLayoutEffect(() => {
     if (accounts.length < accountCount.current) titleRef.current?.focus({ preventScroll: true })
     accountCount.current = accounts.length
   }, [accounts.length])
-  const selected = accountId
-    ? accounts.find((account) => account.id === accountId)
-    : accounts.length === 1
-      ? accounts[0]
-      : undefined
+  const selected = accountId ? accounts.find((account) => account.id === accountId) : undefined
   const stale = Boolean(accountId && !selected)
   const canConnect = isConnectable(integration)
-  const shown = selected ? [selected] : accounts
   const reason =
     availability === 'managed'
       ? `Managed by your organization. ${integration.accessDescription}`
@@ -73,16 +67,12 @@ export function IntegrationDetails({
 
   const credentials = (
     <ConnectedCredential
-      integrationName={name}
       providerId={providerId}
       icon={integration.icon}
-      accounts={shown.map((account) => ({
+      accounts={accounts.map((account) => ({
         ...account,
-        href: selected ? undefined : accountHref(account.id),
+        href: accountHref(account.id),
       }))}
-      pending={pending}
-      onReconnect={onReconnect}
-      onDisconnect={onDisconnect}
     />
   )
   return (
@@ -94,49 +84,53 @@ export function IntegrationDetails({
         providerId={providerId}
         icon={integration.icon}
       />
-      <IntegrationIdea
-        providerId={providerId}
-        name={name}
-        example={
-          providerId === 'fireflies'
-            ? 'Use Fireflies to remember the interests prospects mention on calls. Turn those details into thoughtful gifts and personal follow-ups.'
-            : `${integration.description.replace(/[.!?]+$/, '')}. Bring that context into your next conversation with Sim.`
-        }
-      />
-      <IntegrationControls
-        leading={
-          accounts.length === 0 ? (
-            <IntegrationUsage people={people ?? []} total={peopleTotal} />
-          ) : undefined
-        }
-      >
-        <Button
-          variant='quiet'
-          size='compact'
-          icon='I082'
-          render={
-            <Link
-              href={integration.setupGuideUrl}
-              target='_blank'
-              rel='noopener noreferrer'
-              aria-label='Docs (opens in a new tab)'
-            />
-          }
-        >
-          Docs
-        </Button>
-        {connectionTarget && (
-          <Button
-            variant='secondary'
-            size='compact'
-            icon='I074'
-            disabled={pending || !canConnect}
-            onClick={() => setConnecting(true)}
+      {!accountId && (
+        <>
+          <IntegrationIdea
+            providerId={providerId}
+            name={name}
+            example={
+              providerId === 'fireflies'
+                ? 'Use Fireflies to remember the interests prospects mention on calls. Turn those details into thoughtful gifts and personal follow-ups.'
+                : `${integration.description.replace(/[.!?]+$/, '')}. Bring that context into your next conversation with Sim.`
+            }
+          />
+          <IntegrationControls
+            leading={
+              accounts.length === 0 ? (
+                <IntegrationUsage people={people ?? []} total={peopleTotal} />
+              ) : undefined
+            }
           >
-            Connect integration
-          </Button>
-        )}
-      </IntegrationControls>
+            <Button
+              variant='quiet'
+              size='compact'
+              icon='I082'
+              render={
+                <Link
+                  href={integration.setupGuideUrl}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                  aria-label='Docs (opens in a new tab)'
+                />
+              }
+            >
+              Docs
+            </Button>
+            {connectionTarget && (
+              <Button
+                variant='secondary'
+                size='compact'
+                icon='I074'
+                disabled={pending || !canConnect}
+                onClick={() => setConnecting(true)}
+              >
+                Connect integration
+              </Button>
+            )}
+          </IntegrationControls>
+        </>
+      )}
       {stale ? (
         <EmptyState
           title='This account is no longer connected.'
@@ -145,6 +139,29 @@ export function IntegrationDetails({
       ) : selected ? (
         <ContentTabs
           label='Credential details'
+          actions={
+            <>
+              {selected.canReconnect && (
+                <Button
+                  variant='quiet'
+                  size='compact'
+                  disabled={pending}
+                  onClick={() => onReconnect(selected.id)}
+                >
+                  Reconnect
+                </Button>
+              )}
+              <Button
+                variant='quiet'
+                destructive
+                size='compact'
+                disabled={pending}
+                onClick={() => setDisconnectingId(selected.id)}
+              >
+                Disconnect
+              </Button>
+            </>
+          }
           current={
             view.credentialTab === 'permissions' && !selected.hasToolPermissions
               ? 'details'
@@ -170,7 +187,6 @@ export function IntegrationDetails({
                     value={selected.id}
                     viewOnly
                   />
-                  {credentials}
                 </div>
               ),
             },
@@ -190,7 +206,7 @@ export function IntegrationDetails({
               : []),
           ]}
         />
-      ) : shown.length > 0 ? (
+      ) : accounts.length > 0 ? (
         credentials
       ) : (
         <EmptyState
@@ -215,6 +231,20 @@ export function IntegrationDetails({
             }
           />
         </Modal>
+      )}
+      {disconnecting && (
+        <Modal
+          open
+          onOpenChange={(open) => {
+            if (!open) setDisconnectingId(null)
+          }}
+          title={`Disconnect ${name}`}
+          variant='confirm'
+          destructive
+          description={`Disconnect ${disconnecting.label} from all ${name} connections in this organization. Workflows using this account will also lose access. You can reconnect later.`}
+          confirmLabel='Disconnect'
+          onConfirm={() => onDisconnect(disconnecting.id)}
+        />
       )}
     </>
   )

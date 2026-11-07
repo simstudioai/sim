@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipConfirmModal, ChipModalError } from '@sim/emcn'
+import { ChipConfirmModal, ChipModalError } from '@sim/emcn-legacy'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { useUpdateOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 

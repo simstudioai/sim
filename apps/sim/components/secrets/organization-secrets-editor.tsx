@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import { SecretsEditor } from '@/components/secrets/secrets-editor'
 import { SettingsPanel } from '@/components/settings/settings-panel'

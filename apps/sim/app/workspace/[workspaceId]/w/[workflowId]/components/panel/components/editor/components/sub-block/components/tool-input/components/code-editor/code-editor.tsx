@@ -9,7 +9,7 @@ import {
   getCodeEditorProps,
   highlight,
   languages,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { escapeRegExp } from '@sim/utils/string'
 import Editor from 'react-simple-code-editor'
 import type { SchemaParameter } from '@/app/workspace/[workspaceId]/components/custom-tool-editor/custom-tool-schema'

@@ -1,0 +1,119 @@
+{
+  "runtimeOwner": "@sim/emcn-auth",
+  "styleOwner": "src/styles/auth.css",
+  "snapshot": "design/tokens.json",
+  "architecture": {
+    "static": [
+      "components/button",
+      "components/field",
+      "components/heading",
+      "components/stack",
+      "components/shell",
+      "components/status",
+      "components/identity",
+      "components/resource",
+      "components/legal",
+      "components/navigation",
+      "components/loading",
+      "components/text-link",
+      "components/tag",
+      "components/divider",
+      "components/feedback"
+    ],
+    "interactive": [
+      "components/root",
+      "components/input",
+      "components/select",
+      "components/account-menu",
+      "components/otp",
+      "components/code-entry",
+      "components/notification"
+    ],
+    "hostAdapters": "apps/sim/app/(auth)/components; apps/desktop/src/renderer",
+    "rule": "Shared foundations come from @sim/emcn. Auth owns light-only roles in styles/auth.css and component recipes in colocated CSS Modules. Family subpath exports are the public API; #auth aliases are internal. Route operations stay in application adapters. No auth/session logic or legacy UI dependencies in the package.",
+    "isolation": [
+      "scoped data-auth-root and data-emcn boundary",
+      "colocated CSS Modules",
+      "au: prefixed host utilities without preflight",
+      "shared locally served Geist fonts",
+      "Base UI popups inside AuthRoot",
+      "identity, favicon and legal/support endpoints retained"
+    ]
+  },
+  "responsive": {
+    "desktop": {
+      "formMaxWidth": 400,
+      "navigationMaxWidth": 1280,
+      "navigationHeight": 56,
+      "pagePadding": "48px 24px",
+      "groupGap": 20,
+      "inputFontSize": 14,
+      "navigationAction": "32px ink pill",
+      "support": "flow footer after flexible main"
+    },
+    "mobile": {
+      "breakpointMax": 767,
+      "gutters": 16,
+      "mainTop": 24,
+      "groupGap": 24,
+      "visibleControlHeight": 32,
+      "touchTargetHeight": 44,
+      "inputFontSize": 16,
+      "navigationAction": "quiet text link",
+      "support": "after form, in document flow"
+    },
+    "all": {
+      "fieldGap": 20,
+      "labelGap": 8,
+      "controlRadius": 8,
+      "controlInset": 10,
+      "quietControl": 28,
+      "glyph": 16,
+      "otpSlot": 32,
+      "otpGap": 8,
+      "providerColumns": 2,
+      "providerGap": 8,
+      "menuPadding": 4,
+      "menuRadius": 10,
+      "menuRowMinHeight": 30,
+      "menuRowRadius": 6,
+      "menuBlur": 20
+    }
+  },
+  "tokens": {
+    "canvas": "--emcn-color-light-canvas",
+    "primary": "--emcn-color-light-text",
+    "secondary": "--emcn-color-light-text-secondary",
+    "reading": "--emcn-color-light-reading",
+    "overlay": "--emcn-color-light-glass-floating",
+    "inputBorder": "--emcn-color-light-border",
+    "secondaryBorder": "--emcn-color-light-divider",
+    "hover": "--emcn-color-light-hover",
+    "selected": "--emcn-color-light-selected",
+    "pressed": "Auth role: rgb(0 0 0 / 12%)",
+    "focus": "resting paint; retain caret, selection, validation and active menu items",
+    "error": "--emcn-color-light-danger",
+    "disabledOpacity": "--emcn-opacity-disabled"
+  },
+  "practicesReviewed": {
+    "date": "2026-10-29",
+    "documentationVersion": "16.4.3",
+    "installedVersion": "16.4.1",
+    "sources": [
+      "https://nextjs.org/docs/app/getting-started/project-structure",
+      "https://nextjs.org/docs/app/getting-started/server-and-client-components",
+      "https://nextjs.org/docs/app/api-reference/functions/generate-metadata",
+      "https://developers.google.com/search/docs/crawling-indexing/block-indexing"
+    ],
+    "decisions": [
+      "Keep server-rendered route/layout composition; isolate interactive controls behind client boundaries.",
+      "Colocate route-specific forms and keep the reusable visual system in a workspace package.",
+      "Keep Auth noindex/nofollow through metadata and HTTP indexing policy; no Auth sitemap, structured-data marketing, or agent discovery additions.",
+      "Preserve full-document Auth/App navigation boundaries.",
+      "Serve local WOFF2 with font-display swap; avoid adding a network font or analytics dependency."
+    ]
+  },
+  "layout": "Parents own section and action spacing with flex or grid gap. Semantic resets stay in the base layer so layout utilities are not silently overridden. Desktop groups are 20px, mobile groups 24px, actions 8px, and field labels 8px.",
+  "interaction": "Base UI Select and Combobox own choice keyboard behavior and filtering; Base UI Menu owns account actions. Focus alone preserves resting chrome, with caret, selection, validation, active items, dismissal and focus return retained.",
+  "snapshotPurpose": "Historical source artwork tokens, retained for design provenance. Runtime foundations are owned only by @sim/emcn/styles/global.css."
+}

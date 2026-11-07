@@ -1,6 +1,6 @@
+import { PageColumn } from '@sim/emcn-platform/page-column'
 import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
 import styles from '@/platform/app/(shell)/people/_components/person/person.module.css'
-import { PageColumn } from '@/platform/design-system/components'
 
 /** A profile's frame while the route loads, with room where its way back will appear. */
 export function PersonSkeleton() {

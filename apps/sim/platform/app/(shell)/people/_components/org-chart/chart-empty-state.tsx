@@ -1,6 +1,7 @@
 import type { MouseEvent, RefCallback } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
 import Link from 'next/link'
-import { Button, EmptyState } from '@/platform/design-system/components'
 import {
   type PersonSummary,
   personHref,

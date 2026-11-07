@@ -1,113 +1,193 @@
-import { type ButtonHTMLAttributes, forwardRef } from 'react'
-import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from '../../lib/cn'
-import {
-  MobileTouchTarget,
-  mobileTouchTargetClass,
-} from '../mobile-touch-target/mobile-touch-target'
+'use client'
 
-/**
- * `size='icon'` is the square 20px icon-only button — a chip field's trailing
- * affordance, a toast dismiss, a section-header action. It drops the text padding
- * the `sm`/`md` sizes carry and tightens the radius to `rounded-sm` (4px), which
- * reads correctly at this size where the base 5px does not. The box is deliberately
- * larger than every glyph it holds; that margin IS the button's padding, since the
- * glyph is sized at the call site rather than here.
- *
- * Glyphs also draw one step thinner than the 1.55 the icon set ships, so a lone
- * icon reads as a secondary affordance rather than a piece of UI text. CSS wins
- * over the SVG's own `stroke-width` attribute, so this reaches every stroked icon
- * without touching the icon components — including the few that ship at 2.
- *
- * Compose it with `quiet` (the usual choice) or `ghost` (where the surrounding
- * surface owns the hover) — those pairings also pick up the muted icon color.
- *
- * @example <Button variant='quiet' size='icon' aria-label='Dismiss'><X className='size-[16px]' /></Button>
- */
-const buttonVariants = cva(
-  'inline-flex items-center justify-center transition-colors disabled:pointer-events-none disabled:opacity-70 outline-hidden focus:outline-hidden focus-visible:outline-hidden rounded-[5px]',
-  {
-    variants: {
-      variant: {
-        default:
-          'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)] bg-[var(--surface-4)] hover-hover:bg-[var(--surface-6)] border border-[var(--border)] hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--surface-5)]',
-        active:
-          'bg-[var(--surface-5)] hover-hover:bg-[var(--surface-6)] text-[var(--text-primary)] hover-hover:text-[var(--text-primary)] border border-[var(--border-1)] hover-hover:border-[var(--border-1)] dark:hover-hover:bg-[var(--border-1)]',
-        '3d': 'text-[var(--text-tertiary)] border-t border-l border-r border-[var(--border-1)] shadow-[0_2px_0_0_var(--border-1)] hover-hover:shadow-[0_4px_0_0_var(--border-1)] transition-[transform,box-shadow,color] hover-hover:-translate-y-0.5 hover-hover:text-[var(--text-primary)]',
-        outline:
-          'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)] border border-[var(--text-muted)] bg-transparent hover-hover:border-[var(--text-secondary)]',
-        primary:
-          'bg-[var(--text-primary)] text-[var(--text-inverse)] hover-hover:text-[var(--text-inverse)] hover-hover:bg-[var(--text-body)] dark:bg-white dark:text-[var(--bg)] dark:hover-hover:bg-[var(--text-secondary)] dark:hover-hover:text-[var(--bg)]',
-        destructive:
-          'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
-        secondary: 'bg-[var(--brand-secondary)] text-[var(--text-primary)]',
-        tertiary:
-          'bg-[var(--brand-accent)] text-[var(--text-inverse)] hover-hover:text-[var(--text-inverse)] hover-hover:bg-[var(--brand-accent-hover)] dark:bg-[var(--brand-accent)] dark:hover-hover:bg-[var(--brand-accent-hover)] dark:text-[var(--text-inverse)] dark:hover-hover:text-[var(--text-inverse)]',
-        ghost: 'text-[var(--text-secondary)] hover-hover:text-[var(--text-primary)]',
-        subtle:
-          'text-[var(--text-body)] hover-hover:text-[var(--text-body)] hover-hover:bg-[var(--surface-4)]',
-        'ghost-secondary': 'text-[var(--text-muted)] hover-hover:text-[var(--text-primary)]',
-        quiet: 'text-[var(--text-secondary)] hover-hover:bg-[var(--surface-active)]',
-      },
-      size: {
-        sm: 'px-1.5 py-1 text-[length:11px]',
-        md: 'px-2 py-1.5 text-[length:12px]',
-        icon: 'size-[20px] rounded-sm p-0 [&_svg]:[stroke-width:1.25]',
-      },
-      iconPadding: {
-        sm: 'p-1',
-        md: 'p-1.5',
-      },
-    },
-    compoundVariants: [
-      /**
-       * A lone glyph is icon content, not text, so the neutral icon buttons paint
-       * with `--text-icon-muted` rather than the variant's text color. Scoped to
-       * the neutral variants: the filled ones (`primary`, `destructive`, …) carry
-       * inverse text that must keep winning over their own surface.
-       */
-      { size: 'icon', variant: 'quiet', className: 'text-[var(--text-icon-muted)]' },
-      { size: 'icon', variant: 'ghost', className: 'text-[var(--text-icon-muted)]' },
-    ],
-    defaultVariants: {
-      variant: 'default',
-      size: 'md',
-    },
-  }
-)
+import type { ComponentProps, MouseEventHandler, ReactElement, ReactNode } from 'react'
+import { useRender } from '@base-ui/react/use-render'
+import Link from 'next/link'
+import styles from '#emcn/components/button/button.shared.module.css'
+import { ControlRow } from '#emcn/components/button/control-row'
+import type { IconName } from '#emcn/components/icon/icon'
+import { Icon } from '#emcn/components/icon/icon'
+import { CountedLabel } from '#emcn/components/overflow-text/counted-label'
+import { Tooltip } from '#emcn/components/tooltip/tooltip'
+import { isAbsoluteHref } from '#emcn/lib/navigation'
 
-export interface ButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
-  /** Reserves a 44px mobile hit target while preserving the button's visible size. */
-  mobileCompact?: boolean
-  /**
-   * Symmetric padding for icon actions whose content or layout determines their size.
-   * Preserves the selected size's typography, corner radius and icon stroke.
-   * Omit for the standard size padding, including the fixed `size='icon'` treatment.
-   * @example <Button variant='ghost' iconPadding='sm' aria-label='Copy'><Clipboard /></Button>
-   */
-  iconPadding?: VariantProps<typeof buttonVariants>['iconPadding']
+interface ButtonProps {
+  render?: ReactElement
+  children: string
+  count?: number
+  variant?: 'primary' | 'secondary' | 'quiet' | 'destructive' | 'muted'
+  /** Give a quiet action the menu's destructive hover and press treatment. */
+  destructive?: boolean
+  size?: 'regular' | 'compact'
+  submit?: boolean
+  icon?: IconName | { providerId: string }
+  trailingIcon?: IconName
+  disabled?: boolean
+  /** Explain an unavailable action through the shared pointer and keyboard tooltip. */
+  disabledReason?: string
+  onClick?: MouseEventHandler<HTMLButtonElement>
 }
 
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, iconPadding, mobileCompact, ...props }, ref) => {
-    return (
-      <MobileTouchTarget enabled={Boolean(mobileCompact)}>
-        <button
-          ref={ref}
-          className={cn(
-            buttonVariants({ variant, size, iconPadding }),
-            mobileCompact && mobileTouchTargetClass,
-            className
-          )}
-          {...props}
-        />
-      </MobileTouchTarget>
-    )
-  }
+export function Button({
+  render,
+  children,
+  count,
+  variant = 'secondary',
+  destructive,
+  size = 'regular',
+  submit,
+  icon,
+  trailingIcon,
+  disabled,
+  disabledReason,
+  onClick,
+}: ButtonProps) {
+  const button = useRender({
+    defaultTagName: 'button',
+    render,
+    props: {
+      type: submit ? 'submit' : 'button',
+      className: styles.button,
+      'data-variant': variant,
+      'data-destructive-quiet': (variant === 'quiet' && destructive) || undefined,
+      'data-solid': variant === 'primary' || variant === 'destructive' || undefined,
+      'data-size': size,
+      'data-elevation': variant === 'secondary' ? 'control' : undefined,
+      'data-type': 'T060',
+      'aria-label':
+        disabled && disabledReason
+          ? count === undefined
+            ? children
+            : `${children} ${count}`
+          : undefined,
+      disabled,
+      onClick,
+      children: (
+        <>
+          {icon &&
+            (typeof icon === 'string' ? (
+              <Icon name={icon} />
+            ) : (
+              <Icon providerId={icon.providerId} />
+            ))}
+          <CountedLabel label={children} count={count} />
+          {trailingIcon && <Icon name={trailingIcon} />}
+        </>
+      ),
+    },
+  })
+  return disabled && disabledReason ? (
+    <Tooltip label={disabledReason} disabledControl>
+      {button}
+    </Tooltip>
+  ) : (
+    button
+  )
+}
+
+interface IconButtonProps {
+  render?: ReactElement
+  label: string
+  icon: IconName
+  size?: 'small' | 'row' | 'compact' | 'inline'
+  variant?: 'quiet' | 'solid' | 'floating'
+  disabled?: boolean
+  onClick?: MouseEventHandler<HTMLButtonElement>
+  tooltip?: boolean
+  'aria-describedby'?: string
+}
+
+export function IconButton({
+  render,
+  label,
+  icon,
+  size = 'small',
+  variant = 'quiet',
+  disabled,
+  onClick,
+  tooltip,
+  'aria-describedby': describedBy,
+}: IconButtonProps) {
+  const button = useRender({
+    defaultTagName: 'button',
+    render,
+    props: {
+      type: 'button',
+      className: styles.iconButton,
+      'aria-label': label,
+      'aria-describedby': describedBy,
+      'data-type': 'T060',
+      'data-size': size,
+      'data-variant': variant,
+      'data-solid': variant === 'solid' || undefined,
+      'data-material': variant === 'floating' ? 'reading' : undefined,
+      'data-elevation': variant === 'floating' ? 'composer' : undefined,
+      disabled,
+      onClick,
+      children: <Icon name={icon} />,
+    },
+  })
+  return tooltip ? <Tooltip label={label}>{button}</Tooltip> : button
+}
+
+type ChipProps = {
+  children: string
+  icon?: IconName
+  selected?: boolean
+} & (
+  | {
+      href: string
+      onNavigate?: ComponentProps<typeof Link>['onNavigate']
+      onClick?: never
+      action?: ReactNode
+      status?: ReactNode
+      replaceActionOnTouch?: boolean
+    }
+  | {
+      href?: never
+      onNavigate?: never
+      onClick?: MouseEventHandler<HTMLButtonElement>
+      action?: never
+      status?: never
+      replaceActionOnTouch?: never
+    }
 )
 
-Button.displayName = 'Button'
-
-export { Button }
+export function Chip({
+  children,
+  icon,
+  selected = false,
+  onClick,
+  href,
+  onNavigate,
+  action,
+  status,
+  replaceActionOnTouch,
+}: ChipProps) {
+  return (
+    <ControlRow
+      label={children}
+      icon={icon}
+      action={action}
+      status={status}
+      replaceActionOnTouch={replaceActionOnTouch}
+      render={
+        href ? (
+          isAbsoluteHref(href) ? (
+            <a href={href} aria-current={selected ? 'page' : undefined}>
+              {children}
+            </a>
+          ) : (
+            <Link
+              href={href}
+              onNavigate={onNavigate}
+              aria-current={selected ? 'page' : undefined}
+            />
+          )
+        ) : (
+          <button type='button' aria-pressed={selected} onClick={onClick} />
+        )
+      }
+    />
+  )
+}

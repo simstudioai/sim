@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
-import { Loader } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { Loader } from '@sim/emcn-legacy/icons'
 
 interface BenchmarkStepProps {
   number: number

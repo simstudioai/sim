@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipLink } from '@sim/emcn'
+import { ChipLink } from '@sim/emcn-legacy'
 import { formatCreditsLabel } from '@/lib/billing/credits/conversion'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useUsageSummary } from '@/hooks/queries/usage-logs'

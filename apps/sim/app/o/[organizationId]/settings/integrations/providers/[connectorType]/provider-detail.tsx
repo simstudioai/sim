@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowLeft, Plus } from '@sim/emcn/icons'
+import { ArrowLeft, Plus } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import type { SettingsAction } from '@/components/settings/settings-header'

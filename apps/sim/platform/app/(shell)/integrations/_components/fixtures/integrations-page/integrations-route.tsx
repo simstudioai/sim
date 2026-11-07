@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation'
 import { IntegrationsPage } from '@/platform/app/(shell)/integrations/_components/fixtures/integrations-page/integrations-page'
-import { readScenario } from '@/platform/design-system/navigation'
 import {
   loadIntegrationCatalogEntry,
   loadIntegrationCenterData,
   loadIntegrationsData,
 } from '@/platform/fixtures'
+import { readScenario } from '@/platform/lib/navigation'
 
 interface IntegrationsRouteProps {
   section?: string

@@ -13,7 +13,7 @@ globs: ["apps/sim/**/*.ts","apps/sim/**/*.tsx"]
 
 ```typescript
 // ✓ Good
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 // ✗ Bad

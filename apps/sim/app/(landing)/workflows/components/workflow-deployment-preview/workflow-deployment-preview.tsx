@@ -1,7 +1,7 @@
 'use client'
 
-import { ChipModalHeader, ChipModalTabs } from '@sim/emcn'
-import { FileText, MoreVertical } from '@sim/emcn/icons'
+import { ChipModalHeader, ChipModalTabs } from '@sim/emcn-legacy'
+import { FileText, MoreVertical } from '@sim/emcn-legacy/icons'
 import { WorkflowPreviewCanvas } from '@/app/(landing)/workflows/components/workflow-builder-preview/components/workflow-preview-canvas'
 
 const DEPLOYMENT_TABS = [

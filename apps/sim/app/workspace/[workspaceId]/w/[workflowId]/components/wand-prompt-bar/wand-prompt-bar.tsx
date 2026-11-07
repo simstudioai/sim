@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Chip, cn } from '@sim/emcn'
-import { Send, X } from '@sim/emcn/icons'
+import { Chip, cn } from '@sim/emcn-legacy'
+import { Send, X } from '@sim/emcn-legacy/icons'
 
 interface WandPromptBarProps {
   isVisible: boolean

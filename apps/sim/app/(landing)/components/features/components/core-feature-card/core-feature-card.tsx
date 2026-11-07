@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import Link from 'next/link'
 import { LANDING_STAGE_RADIUS } from '@/app/(landing)/components/landing-layout'
 

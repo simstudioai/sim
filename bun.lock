@@ -52,9 +52,10 @@
         "@lydell/node-pty": "1.2.0-beta.12",
         "@lydell/node-pty-darwin-arm64": "1.2.0-beta.12",
         "@lydell/node-pty-darwin-x64": "1.2.0-beta.12",
-        "@sim/auth-ui": "workspace:*",
         "@sim/browser-protocol": "workspace:*",
         "@sim/desktop-bridge": "workspace:*",
+        "@sim/emcn": "workspace:*",
+        "@sim/emcn-auth": "workspace:*",
         "@sim/logger": "workspace:*",
         "@sim/security": "workspace:*",
         "@sim/terminal-protocol": "workspace:*",
@@ -70,7 +71,7 @@
       "devDependencies": {
         "@electron/fuses": "1.8.0",
         "@playwright/test": "1.64.1",
-        "@sim/emcn": "workspace:*",
+        "@sim/emcn-legacy": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "@types/micromatch": "4.0.10",
         "@types/node": "24.19.2",
@@ -93,20 +94,19 @@
       "name": "docs",
       "version": "0.0.0",
       "dependencies": {
+        "@base-ui/react": "1.9.0",
         "@mdx-js/mdx": "3.1.1",
         "@modelcontextprotocol/server": "2.3.1",
-        "@radix-ui/react-dialog": "1.3.1",
-        "@radix-ui/react-dropdown-menu": "2.2.1",
-        "@radix-ui/react-tabs": "1.2.1",
         "@shikijs/rehype": "4.5.0",
         "@sim/deployment-config": "workspace:*",
         "@sim/emcn": "workspace:*",
+        "@sim/emcn-docs": "workspace:*",
+        "@sim/emcn-legacy": "workspace:*",
         "@sim/logger": "workspace:*",
         "@sim/utils": "workspace:*",
         "@sim/workflow-renderer": "workspace:*",
         "@tanstack/react-query": "^5.90.21",
         "@xyflow/react": "12.12.0",
-        "clsx": "2.1.1",
         "framer-motion": "^12.5.0",
         "github-slugger": "2.0.0",
         "hast-util-to-jsx-runtime": "2.3.6",
@@ -125,7 +125,6 @@
         "remark-rehype": "11.1.2",
         "server-only": "0.0.1",
         "shiki": "4.5.0",
-        "tailwind-merge": "3.7.0",
         "unified": "11.0.5",
         "unist-util-visit": "5.1.0",
         "vfile": "6.0.3",
@@ -155,7 +154,7 @@
       "version": "0.1.5",
       "dependencies": {
         "@sim/browser-extension-protocol": "workspace:*",
-        "@sim/emcn": "workspace:*",
+        "@sim/emcn-legacy": "workspace:*",
         "@sim/logger": "workspace:*",
         "@sim/utils": "workspace:*",
         "lru-cache": "11.5.3",
@@ -300,13 +299,15 @@
         "@react-email/render": "2.1.0",
         "@sim/audit": "workspace:*",
         "@sim/auth": "workspace:*",
-        "@sim/auth-ui": "workspace:*",
         "@sim/browser-extension-protocol": "workspace:*",
         "@sim/browser-protocol": "workspace:*",
         "@sim/db": "workspace:*",
         "@sim/deployment-config": "workspace:*",
         "@sim/desktop-bridge": "workspace:*",
         "@sim/emcn": "workspace:*",
+        "@sim/emcn-auth": "workspace:*",
+        "@sim/emcn-legacy": "workspace:*",
+        "@sim/emcn-platform": "workspace:*",
         "@sim/logger": "workspace:*",
         "@sim/platform-authz": "workspace:*",
         "@sim/realtime-protocol": "workspace:*",
@@ -360,7 +361,6 @@
         "croner": "^9.0.0",
         "cronstrue": "3.3.0",
         "csv-parse": "7.0.3",
-        "d3-shape": "3.2.0",
         "date-fns": "4.4.0",
         "decimal.js": "10.6.0",
         "diff": "9.0.0",
@@ -464,7 +464,6 @@
         "@types/archiver": "8.0.0",
         "@types/busboy": "1.5.4",
         "@types/chrome": "0.3.6",
-        "@types/d3-shape": "3.1.8",
         "@types/hast": "3.0.5",
         "@types/heic-convert": "2.1.1",
         "@types/html-to-text": "9.0.4",
@@ -486,6 +485,7 @@
         "@vitest/spy": "5.0.4",
         "buffer": "5.6.0",
         "chai": "6.3.0",
+        "esbuild": "0.28.2",
         "node-gyp": "12.4.0",
         "postcss": "^8.5.30",
         "postcss-load-config": "6.0.1",
@@ -528,26 +528,6 @@
         "@sim/tsconfig": "workspace:*",
         "@types/node": "24.19.2",
         "typescript": "^7.0.2",
-      },
-    },
-    "packages/auth-ui": {
-      "name": "@sim/auth-ui",
-      "version": "0.1.0",
-      "dependencies": {
-        "@radix-ui/react-dropdown-menu": "2.2.1",
-        "@radix-ui/react-popover": "1.3.1",
-        "clsx": "^2.1.1",
-        "input-otp": "1.5.0",
-      },
-      "devDependencies": {
-        "@sim/tsconfig": "workspace:*",
-        "@types/react": "^19",
-        "@types/react-dom": "^19",
-        "typescript": "^7.0.2",
-      },
-      "peerDependencies": {
-        "react": "^19",
-        "react-dom": "^19",
       },
     },
     "packages/browser-extension-protocol": {
@@ -638,6 +618,74 @@
       "name": "@sim/emcn",
       "version": "0.1.0",
       "dependencies": {
+        "@base-ui/react": "1.9.0",
+        "@floating-ui/dom": "1.7.6",
+        "@sim/utils": "workspace:*",
+        "@tanstack/react-virtual": "3.13.24",
+        "clsx": "^2.1.1",
+        "d3-shape": "3.2.0",
+        "tailwind-merge": "3.7.0",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "@types/d3-shape": "3.1.8",
+        "@types/node": "24.19.2",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "typescript": "^7.0.2",
+      },
+      "peerDependencies": {
+        "next": ">=16",
+        "react": "^19",
+        "react-dom": "^19",
+      },
+    },
+    "packages/emcn-auth": {
+      "name": "@sim/emcn-auth",
+      "version": "0.1.0",
+      "dependencies": {
+        "@base-ui/react": "1.9.0",
+        "@sim/emcn": "workspace:*",
+        "clsx": "^2.1.1",
+        "input-otp": "1.5.0",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "typescript": "^7.0.2",
+      },
+      "peerDependencies": {
+        "react": "^19",
+        "react-dom": "^19",
+      },
+    },
+    "packages/emcn-docs": {
+      "name": "@sim/emcn-docs",
+      "version": "0.1.0",
+      "dependencies": {
+        "@base-ui/react": "1.9.0",
+        "@sim/emcn": "workspace:*",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "next": "16.4.1",
+        "react": "19.2.4",
+        "react-dom": "19.2.4",
+        "typescript": "^7.0.2",
+      },
+      "peerDependencies": {
+        "next": ">=15",
+        "react": "^19",
+        "react-dom": "^19",
+      },
+    },
+    "packages/emcn-legacy": {
+      "name": "@sim/emcn-legacy",
+      "version": "0.1.0",
+      "dependencies": {
         "@sim/utils": "workspace:*",
         "clsx": "^2.1.1",
         "tailwind-merge": "3.7.0",
@@ -690,6 +738,26 @@
         "framer-motion": "^12.5.0",
         "next": ">=15",
         "prismjs": "^1.30.0",
+        "react": "^19",
+        "react-dom": "^19",
+      },
+    },
+    "packages/emcn-platform": {
+      "name": "@sim/emcn-platform",
+      "version": "0.1.0",
+      "dependencies": {
+        "@base-ui/react": "1.9.0",
+        "@sim/emcn": "workspace:*",
+      },
+      "devDependencies": {
+        "@sim/tsconfig": "workspace:*",
+        "@types/node": "24.19.2",
+        "@types/react": "^19",
+        "@types/react-dom": "^19",
+        "typescript": "^7.0.2",
+      },
+      "peerDependencies": {
+        "next": ">=16",
         "react": "^19",
         "react-dom": "^19",
       },
@@ -887,7 +955,7 @@
       "name": "@sim/workflow-renderer",
       "version": "0.1.0",
       "devDependencies": {
-        "@sim/emcn": "workspace:*",
+        "@sim/emcn-legacy": "workspace:*",
         "@sim/tsconfig": "workspace:*",
         "@sim/utils": "workspace:*",
         "@sim/workflow-types": "workspace:*",
@@ -906,7 +974,7 @@
         "vitest": "^5.0.4",
       },
       "peerDependencies": {
-        "@sim/emcn": "workspace:*",
+        "@sim/emcn-legacy": "workspace:*",
         "@sim/utils": "workspace:*",
         "@sim/workflow-types": "workspace:*",
         "@xyflow/react": "^12.11.3",
@@ -2039,8 +2107,6 @@
 
     "@sim/auth": ["@sim/auth@workspace:packages/auth"],
 
-    "@sim/auth-ui": ["@sim/auth-ui@workspace:packages/auth-ui"],
-
     "@sim/browser-extension-protocol": ["@sim/browser-extension-protocol@workspace:packages/browser-extension-protocol"],
 
     "@sim/browser-protocol": ["@sim/browser-protocol@workspace:packages/browser-protocol"],
@@ -2054,6 +2120,14 @@
     "@sim/desktop-bridge": ["@sim/desktop-bridge@workspace:packages/desktop-bridge"],
 
     "@sim/emcn": ["@sim/emcn@workspace:packages/emcn"],
+
+    "@sim/emcn-auth": ["@sim/emcn-auth@workspace:packages/emcn-auth"],
+
+    "@sim/emcn-docs": ["@sim/emcn-docs@workspace:packages/emcn-docs"],
+
+    "@sim/emcn-legacy": ["@sim/emcn-legacy@workspace:packages/emcn-legacy"],
+
+    "@sim/emcn-platform": ["@sim/emcn-platform@workspace:packages/emcn-platform"],
 
     "@sim/extension": ["@sim/extension@workspace:apps/extension"],
 

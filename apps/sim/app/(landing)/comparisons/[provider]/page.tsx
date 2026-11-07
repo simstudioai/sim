@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import type { CompetitorProfile } from '@/lib/compare/data'

@@ -1,5 +1,5 @@
 import { StrictMode, useEffect, useRef, useState } from 'react'
-import { ToastProvider } from '@sim/emcn'
+import { ToastProvider } from '@sim/emcn-legacy'
 import { QueryClient, QueryClientProvider, useMutation } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import { isCredentialGroupOAuthFailure } from '@/lib/credential-groups/oauth-completion'

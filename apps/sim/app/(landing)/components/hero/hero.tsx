@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { HeroAnnouncementChip } from '@/app/(landing)/components/hero/components/hero-announcement-chip'
 import { LandingHeroHeader } from '@/app/(landing)/components/hero/components/hero-header'
 import { HeroPlatformStage } from '@/app/(landing)/components/hero/components/hero-platform-stage'

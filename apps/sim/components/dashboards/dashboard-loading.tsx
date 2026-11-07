@@ -1,4 +1,4 @@
-import { Loader } from '@sim/emcn/icons'
+import { Loader } from '@sim/emcn-legacy/icons'
 
 /** Kept apart from the dashboard renderer so the route's loading fallback stays light. */
 export function DashboardLoading() {

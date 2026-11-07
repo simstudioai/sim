@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipCombobox, Label } from '@sim/emcn'
+import { ChipCombobox, Label } from '@sim/emcn-legacy'
 import type { ColumnDefinition } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 

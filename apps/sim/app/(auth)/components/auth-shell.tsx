@@ -1,5 +1,7 @@
 import { type ReactNode, Suspense } from 'react'
-import { AuthRoot, AuthShellView, AuthWordmark } from '@sim/auth-ui'
+import { Wordmark } from '@sim/emcn/brand/wordmark'
+import { AuthRoot } from '@sim/emcn-auth/root'
+import { AuthShellView } from '@sim/emcn-auth/shell'
 import { DesktopTitleBarController } from '@/app/_shell/desktop-title-bar'
 import { AuthNavigation } from '@/app/(auth)/components/auth-navigation'
 import { SupportFooter } from '@/app/(auth)/components/support-footer'
@@ -22,7 +24,7 @@ export function AuthShell({ children, footer, registrationDisabled = false }: Au
           brand.isWhitelabeled && (brand.wordmarkUrl || brand.logoUrl) ? (
             <img src={brand.wordmarkUrl || brand.logoUrl || undefined} alt={brand.name} />
           ) : (
-            <AuthWordmark />
+            <Wordmark />
           )
         }
         navigation={

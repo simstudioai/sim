@@ -1,4 +1,4 @@
-import { ChipLink } from '@sim/emcn'
+import { ChipLink } from '@sim/emcn-legacy'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import type { SearchParams } from 'nuqs/server'

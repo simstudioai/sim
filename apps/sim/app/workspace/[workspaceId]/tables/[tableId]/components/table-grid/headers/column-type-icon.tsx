@@ -1,8 +1,8 @@
 'use client'
 
 import type React from 'react'
-import { Tooltip } from '@sim/emcn'
-import { PlayOutline, WorkflowX } from '@sim/emcn/icons'
+import { Tooltip } from '@sim/emcn-legacy'
+import { PlayOutline, WorkflowX } from '@sim/emcn-legacy/icons'
 import { columnTypeById } from '@/lib/table/column-types'
 import type { BlockIconInfo } from '../types'
 

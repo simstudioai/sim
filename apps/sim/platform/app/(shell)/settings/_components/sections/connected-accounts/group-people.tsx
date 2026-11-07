@@ -1,25 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import { parseAsString, useQueryState } from 'nuqs'
 import {
   FieldStack,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { CredentialGroupsData } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/model'
-import {
-  ActionMenu,
-  Avatar,
-  Button,
-  EmptyState,
-  Modal,
-  RecipientField,
-  SearchField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { toast } from '@/platform/lib/data/toast'
 
 interface GroupPeopleProps {

@@ -3,7 +3,7 @@
 // Maps block types to their icon component references for the integrations page
 
 import type { ComponentType, SVGProps } from 'react'
-import { Library, Rocket, Table } from '@sim/emcn/icons'
+import { Library, Rocket, Table } from '@sim/emcn-legacy/icons'
 import {
   A2AIcon,
   AffinityIcon,

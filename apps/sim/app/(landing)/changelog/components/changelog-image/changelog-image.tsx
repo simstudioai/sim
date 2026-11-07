@@ -1,4 +1,4 @@
-import { cn, Lightbox } from '@sim/emcn'
+import { cn, Lightbox } from '@sim/emcn-legacy'
 import Image from 'next/image'
 import { LANDING_STAGE_RADIUS } from '@/app/(landing)/components/landing-layout'
 

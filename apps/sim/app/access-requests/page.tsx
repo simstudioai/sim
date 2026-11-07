@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { ChipLink } from '@sim/emcn'
+import { ChipLink } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'

@@ -1,6 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Modal } from '@sim/emcn/modal'
+import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
+import { PageColumn } from '@sim/emcn-platform/page-column'
 import { formatDateTime } from '@sim/utils/formatting'
 import {
   DirectorySources,
@@ -9,14 +13,6 @@ import {
 } from '@/platform/app/(shell)/people/_components/directory-sync/directory-sources'
 import styles from '@/platform/app/(shell)/people/_components/directory-sync/directory-sync.module.css'
 import { PeopleStatus } from '@/platform/app/(shell)/people/_components/people-page/people-status'
-import {
-  Button,
-  FailureNotice,
-  InlineNotice,
-  Modal,
-  PageColumn,
-  StatusTag,
-} from '@/platform/design-system/components'
 import {
   SYNC_SOURCE_NAMES,
   type SyncSource,
@@ -251,7 +247,8 @@ export function DirectorySyncPage({
                 </p>
                 <div>
                   <Button
-                    variant='destructive'
+                    variant='quiet'
+                    destructive
                     disabled={directory.pending}
                     onClick={() => {
                       directory.reset()

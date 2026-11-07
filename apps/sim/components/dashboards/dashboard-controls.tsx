@@ -9,8 +9,8 @@ import {
   PopoverContent,
   PopoverTrigger,
   Tooltip,
-} from '@sim/emcn'
-import { Check, ChevronDown, ChevronLeft, Clock, RefreshCw } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check, ChevronDown, ChevronLeft, Clock, RefreshCw } from '@sim/emcn-legacy/icons'
 import { getBrowserTimezone, zonedWallClock } from '@/lib/core/utils/timezone'
 import { DASHBOARD_RANGES, type DashboardRange } from '@/lib/dashboards/spec'
 import {

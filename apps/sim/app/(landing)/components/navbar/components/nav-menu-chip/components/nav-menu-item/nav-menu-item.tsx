@@ -1,4 +1,4 @@
-import { ChipTag, cn, SimWordmark } from '@sim/emcn'
+import { ChipTag, cn, SimWordmark } from '@sim/emcn-legacy'
 import Link from 'next/link'
 import { ChevronArrow } from '@/app/(landing)/components/chevron-arrow'
 import type { NavMenuItemData } from '@/app/(landing)/components/navbar/components/nav-menu-chip/types'

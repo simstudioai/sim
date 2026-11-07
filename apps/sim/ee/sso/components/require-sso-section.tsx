@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipConfirmModal, ChipSwitch, toast } from '@sim/emcn'
+import { ChipConfirmModal, ChipSwitch, toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   SettingsEmptyState,

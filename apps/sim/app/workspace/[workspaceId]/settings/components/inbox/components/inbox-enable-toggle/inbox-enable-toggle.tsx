@@ -11,7 +11,7 @@ import {
   ChipModalHeader,
   ChipSwitch,
   Label,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useInboxConfig, useToggleInbox } from '@/hooks/queries/inbox'

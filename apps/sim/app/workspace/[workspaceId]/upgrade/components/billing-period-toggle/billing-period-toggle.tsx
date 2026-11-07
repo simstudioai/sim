@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipSwitch, ChipTag } from '@sim/emcn'
+import { ChipSwitch, ChipTag } from '@sim/emcn-legacy'
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
 
 /**

@@ -1,22 +1,19 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { Select } from '@sim/emcn/picker/select'
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
   LoadingState,
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import {
-  ActionMenu,
-  Button,
-  FailureNotice,
-  InlineNotice,
-  Modal,
-  SearchableSelect,
-  Select,
-} from '@/platform/design-system/components'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   automaticMatchWouldRemain,
   buildScimMappingBody,

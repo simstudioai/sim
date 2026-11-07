@@ -38,12 +38,12 @@ import {
 import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import { useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
-import { platformHref } from '@/platform/design-system/navigation'
 import { useOrganization } from '@/platform/lib/data/organization'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { useBrowserTimezone } from '@/platform/lib/data/preferences'
 import { useFixtureSettings } from '@/platform/lib/data/settings-providers'
 import { toast } from '@/platform/lib/data/toast'
+import { platformHref } from '@/platform/lib/navigation'
 import { plural } from '@/platform/lib/plural'
 import { formatInstantDate } from '@/platform/lib/time'
 

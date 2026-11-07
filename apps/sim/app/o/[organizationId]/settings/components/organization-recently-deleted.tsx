@@ -1,7 +1,7 @@
 'use client'
 
-import { Chip, toast } from '@sim/emcn'
-import { Task } from '@sim/emcn/icons'
+import { Chip, toast } from '@sim/emcn-legacy'
+import { Task } from '@sim/emcn-legacy/icons'
 import { formatDate } from '@sim/utils/formatting'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useSyncExternalStore } from 'react'
+import type { RecentItem } from '@sim/emcn-platform/recent-items'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
@@ -37,7 +38,6 @@ import type {
   HomeWidgetActions,
   HomeWidgetState,
 } from '@/platform/app/(shell)/home/_components/model'
-import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 import {
   greetingAt,
   HOME_CALENDAR_SOURCES,

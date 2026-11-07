@@ -1,5 +1,5 @@
-import { Chip, ChipDropdown, cn } from '@sim/emcn'
-import { Building, MoreHorizontal, Plus } from '@sim/emcn/icons'
+import { Chip, ChipDropdown, cn } from '@sim/emcn-legacy'
+import { Building, MoreHorizontal, Plus } from '@sim/emcn-legacy/icons'
 import { MenuPreviewFrame } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-frame'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
 import { MemberRow } from '@/app/workspace/[workspaceId]/settings/components/member-list/member-list'

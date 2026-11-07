@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import Image from 'next/image'
 import { LOGOS, MUTED_MARK } from '@/app/(landing)/components/logos'
 import styles from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-logo-marquee/nav-menu-logo-marquee.module.css'

@@ -1,3 +1,9 @@
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Avatar } from '@sim/emcn/avatar'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Icon } from '@sim/emcn/icon'
+import { ScrollArea } from '@sim/emcn/scroll-area'
+import { InlineNotice } from '@sim/emcn/status'
 import { useSearchParams } from 'next/navigation'
 import styles from '@/platform/app/(shell)/home/_components/activity-list/activity-list.module.css'
 import { HomeSection } from '@/platform/app/(shell)/home/_components/home-section/home-section'
@@ -8,15 +14,7 @@ import type {
 } from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { WidgetSkeleton } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import {
-  ActivityRow,
-  Avatar,
-  EmptyState,
-  Icon,
-  InlineNotice,
-  ScrollArea,
-} from '@/platform/design-system/components'
-import { platformHref } from '@/platform/design-system/navigation'
+import { platformHref } from '@/platform/lib/navigation'
 import { formatRelativeTime } from '@/platform/lib/time'
 
 interface EmailListProps {

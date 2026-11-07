@@ -20,8 +20,8 @@ import {
   type ComboboxOption,
   Label,
   useCopyToClipboard,
-} from '@sim/emcn'
-import { ArrowLeft, Check, Clipboard, Plus, Server } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, Check, Clipboard, Plus, Server } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'

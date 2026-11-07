@@ -7,8 +7,8 @@ import type {
   ReactNode,
   Ref,
 } from 'react'
-import { Button, cn } from '@sim/emcn'
-import { ArrowLeft, PanelLeft } from '@sim/emcn/icons'
+import { Button, cn } from '@sim/emcn-legacy'
+import { ArrowLeft, PanelLeft } from '@sim/emcn-legacy/icons'
 import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
 
 interface ChatPanelLayoutProps {

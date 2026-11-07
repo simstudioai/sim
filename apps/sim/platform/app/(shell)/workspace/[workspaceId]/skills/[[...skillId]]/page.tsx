@@ -1,8 +1,8 @@
 import { notFound, redirect } from 'next/navigation'
 import { SkillsDirectory } from '@/platform/app/(shell)/workspace/[workspaceId]/skills/_components/skill-directory/skill-directory'
-import { directoryHref, readScenario } from '@/platform/design-system/navigation'
 import { loadWorkspaceSkills } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
+import { directoryHref, readScenario } from '@/platform/lib/navigation'
 
 export default async function Page({
   params,

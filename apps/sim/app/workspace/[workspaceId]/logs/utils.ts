@@ -1,5 +1,5 @@
 import React from 'react'
-import { Badge, formatChartLatency } from '@sim/emcn'
+import { Badge, formatChartLatency } from '@sim/emcn-legacy'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { format } from 'date-fns'
 import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'

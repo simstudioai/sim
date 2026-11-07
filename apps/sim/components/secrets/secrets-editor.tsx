@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { ChipInput, cn, toast } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ChipInput, cn, toast } from '@sim/emcn-legacy'
+import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { countPasteRows } from '@sim/utils/paste'

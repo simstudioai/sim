@@ -1,6 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Icon } from '@sim/emcn/icon'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { Select } from '@sim/emcn/picker/select'
+import { SearchField } from '@sim/emcn/search-field'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
@@ -22,23 +32,8 @@ import {
 } from '@/platform/app/(shell)/settings/_components/sections/integrations/source-connections'
 import { SourceRow } from '@/platform/app/(shell)/settings/_components/sections/integrations/source-row'
 import { SecretSettings } from '@/platform/app/(shell)/settings/_components/sections/integrations/source-secrets'
-import {
-  ActionMenu,
-  ActivityRow,
-  Button,
-  EmptyState,
-  Icon,
-  Modal,
-  SearchField,
-  SegmentedControl,
-  Select,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
-import { platformHref } from '@/platform/design-system/navigation'
 import { useSettingsFixtureDraft } from '@/platform/lib/data/settings-providers'
+import { platformHref } from '@/platform/lib/navigation'
 
 type Editor = { type: 'add' | 'secrets' | 'slack' } | { type: 'policy' | 'remove'; id: string }
 interface SourcesViewProps {
@@ -147,23 +142,23 @@ export function SourcesView({ initial, subpath }: SourcesViewProps) {
             ))}
           {apps.some((app) => !app.approved) && (
             <SettingsRow label='Add Assistant app'>
-              <Select
-                label='Add Assistant app'
-                options={[
-                  { value: '', label: 'Add app' },
-                  ...apps
-                    .filter((app) => !app.approved)
-                    .map((app) => ({ value: app.id, label: app.name })),
-                ]}
-                value=''
-                onValueChange={(id) =>
-                  update((current) => ({
-                    ...current,
-                    assistantApps: current.assistantApps.map((app) =>
-                      app.id === id ? { ...app, approved: true } : app
-                    ),
-                  }))
-                }
+              <ActionMenu
+                label='Add app'
+                triggerSize='compact'
+                icon={null}
+                actions={apps
+                  .filter((app) => !app.approved)
+                  .map((app) => ({
+                    id: app.id,
+                    label: app.name,
+                    onSelect: () =>
+                      update((current) => ({
+                        ...current,
+                        assistantApps: current.assistantApps.map((entry) =>
+                          entry.id === app.id ? { ...entry, approved: true } : entry
+                        ),
+                      })),
+                  }))}
               />
             </SettingsRow>
           )}

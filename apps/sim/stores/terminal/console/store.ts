@@ -1,4 +1,4 @@
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { create } from 'zustand'

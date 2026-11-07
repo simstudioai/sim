@@ -1,4 +1,4 @@
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import Link from 'next/link'
 import { LOGIN_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 

@@ -602,12 +602,22 @@ function importsTesting(node: Node | undefined): boolean {
 }
 
 function testFiles(): string[] {
-  return execFileSync('git', ['ls-files', '*.test.ts', '*.test.tsx', '*.integration.ts'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-  })
-    .split('\n')
-    .filter(Boolean)
+  const listed = execFileSync(
+    'git',
+    [
+      'ls-files',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      '*.test.ts',
+      '*.test.tsx',
+      '*.integration.ts',
+    ],
+    { cwd: ROOT, encoding: 'utf8' }
+  )
+  return [...new Set(listed.split('\n'))].filter(
+    (file) => file && existsSync(path.join(ROOT, file))
+  )
 }
 
 function globalMockIds(): Set<string> {

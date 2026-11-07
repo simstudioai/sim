@@ -1,4 +1,5 @@
-import { SecretField, TextAreaField, TextField } from '@/platform/design-system/components'
+import { TextAreaField, TextField } from '@sim/emcn/field'
+import { SecretField } from '@sim/emcn/field/value-fields'
 import type { ManualSecretType } from '@/platform/lib/integrations/manual-secret'
 
 interface ManualSecretFieldsProps {

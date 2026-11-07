@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { Badge, Chip, ChipDropdown, ChipInput } from '@sim/emcn'
-import { Library, ListFilter, Search, X } from '@sim/emcn/icons'
+import { Badge, Chip, ChipDropdown, ChipInput } from '@sim/emcn-legacy'
+import { Library, ListFilter, Search, X } from '@sim/emcn-legacy/icons'
 import {
   MenuPreviewHeader,
   MenuPreviewToolbar,

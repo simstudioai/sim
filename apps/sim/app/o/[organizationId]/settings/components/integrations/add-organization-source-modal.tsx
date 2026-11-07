@@ -8,8 +8,8 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@sim/emcn'
-import { Search } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Search } from '@sim/emcn-legacy/icons'
 import {
   GENERIC_SECRETS_SOURCE_TYPE,
   GenericSecretSourceIcon,

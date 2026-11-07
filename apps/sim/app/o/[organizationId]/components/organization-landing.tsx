@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn, pageHeadingClassName } from '@sim/emcn'
+import { cn, pageHeadingClassName } from '@sim/emcn-legacy'
 
 interface OrganizationLandingProps {
   heading: string

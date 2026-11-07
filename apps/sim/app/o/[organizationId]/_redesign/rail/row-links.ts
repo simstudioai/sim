@@ -1,5 +1,5 @@
-import { toast } from '@sim/emcn'
-import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
+import type { MenuAction } from '@sim/emcn/menu/action-menu'
+import { toast } from '@sim/emcn-legacy'
 
 function absoluteHref(href: string): string {
   return new URL(href, window.location.origin).href

@@ -1,6 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import { Button, IconButton } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { FieldFrame, SelectField } from '@sim/emcn/field'
+import { Input } from '@sim/emcn/field/inputs'
+import { Modal } from '@sim/emcn/modal'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { SearchField } from '@sim/emcn/search-field'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import {
   ActionRow,
   DetailHeader,
@@ -9,22 +18,6 @@ import {
   Muted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/data-retention/policy-detail.module.css'
-import {
-  Button,
-  Checkbox,
-  FieldFrame,
-  IconButton,
-  Input,
-  Modal,
-  MultiSelect,
-  SearchField,
-  SegmentedControl,
-  SelectField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   customPatternError,
   getEntityGroupsForLanguage,
@@ -359,7 +352,8 @@ export function PolicyDetail({
             description='Use the organization defaults for these workspaces.'
           >
             <Button
-              variant='destructive'
+              variant='quiet'
+              destructive
               disabled={isSaving}
               onClick={() => setConfirmingRemove(true)}
             >

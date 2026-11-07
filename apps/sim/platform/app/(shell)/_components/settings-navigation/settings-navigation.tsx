@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Chip } from '@sim/emcn/button'
+import { SearchField } from '@sim/emcn/search-field'
 import { useSearchParams } from 'next/navigation'
 import type { SettingsNavGroup } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/settings-navigation/settings-navigation.module.css'
-import { Chip, SearchField } from '@/platform/design-system/components'
-import { platformHref } from '@/platform/design-system/navigation'
+import { platformHref } from '@/platform/lib/navigation'
 import { plural } from '@/platform/lib/plural'
 
 interface SettingsNavigationProps {

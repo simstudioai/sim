@@ -37,7 +37,7 @@ vi.mock('@/hooks/queries/tables', () => ({
   useDeleteTableRow: () => ({ mutateAsync: mockDeleteRow, isPending: false }),
   useDeleteTableRows: () => ({ mutateAsync: mockDeleteRows, isPending: false }),
 }))
-vi.mock('@sim/emcn', () => {
+vi.mock('@sim/emcn-legacy', () => {
   const passthrough = ({ children }: { children?: ReactNode }) => children ?? null
   return {
     Checkbox: () => null,

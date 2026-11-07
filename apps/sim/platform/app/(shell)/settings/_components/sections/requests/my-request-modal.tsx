@@ -1,6 +1,8 @@
 'use client'
 
-import { DetailsField, FailureNotice, Modal, StatusTag } from '@/platform/design-system/components'
+import { DetailsField } from '@sim/emcn/field/details-field'
+import { Modal } from '@sim/emcn/modal'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { type RequestScope, useRequestDetails } from '@/platform/lib/data/requests'
 import { toast } from '@/platform/lib/data/toast'
 

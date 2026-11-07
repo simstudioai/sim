@@ -1,0 +1,51 @@
+.tooltipHost {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  position: relative;
+  display: inline-flex;
+}
+
+.tooltipHost[data-disabled-control],
+.tooltipHost:has(> [role^="menuitem"], > [role="option"]) {
+  display: flex;
+}
+
+.tooltipHost[data-disabled-control] {
+  cursor: not-allowed;
+}
+
+.tooltipHost[data-disabled-control]:has(> [role="combobox"]) {
+  inline-size: 100%;
+}
+
+.tooltip,
+.tooltipPanel {
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+}
+
+.tooltip[data-positioned],
+.tooltipPanel[data-positioned] {
+  visibility: visible;
+}
+
+.tooltip {
+  pointer-events: none;
+  width: max-content;
+  max-width: min(var(--container-app-sidebar), 90vw);
+  padding: var(--spacing-6) var(--spacing-8);
+  border-radius: var(--radius-item);
+  background: var(--control-tooltip);
+  color: var(--control-tooltip-ink);
+  overflow-wrap: anywhere;
+}
+
+.label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}

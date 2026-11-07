@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn'
+import { ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'

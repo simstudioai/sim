@@ -1,5 +1,5 @@
-import { ChipTag, cn } from '@sim/emcn'
-import { CircleCheck } from '@sim/emcn/icons'
+import { ChipTag, cn } from '@sim/emcn-legacy'
+import { CircleCheck } from '@sim/emcn-legacy/icons'
 import Image from 'next/image'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics/feature-graphic-shell'
 import styles from '@/app/(landing)/enterprise/components/feature-graphics/it-platform-teams-graphic.module.css'

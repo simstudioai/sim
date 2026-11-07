@@ -1,0 +1,115 @@
+.icon {
+  width: var(--auth-icon-size);
+  height: var(--auth-icon-size);
+  flex-shrink: 0;
+}
+
+:global([data-auth-root]) .inputLane {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  position: relative;
+  min-width: 0;
+  height: var(--auth-touch-height);
+  padding: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+}
+:global([data-auth-root]) .inputSurface {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  position: relative;
+  min-width: 0;
+  height: var(--auth-control-height);
+  padding-inline: var(--auth-control-inset);
+  border: 1px solid var(--auth-border);
+  border-radius: var(--auth-control-radius);
+  background: var(--auth-reading);
+  gap: var(--emcn-space-6);
+}
+:global([data-auth-root]) .inputSurface:has(.quietAction) {
+  padding-right: var(--emcn-space-2);
+}
+:global([data-auth-root]) .inputLane[data-invalid] .inputSurface {
+  border-color: var(--auth-error);
+}
+:global([data-auth-root]) .inputLane[data-disabled] {
+  opacity: var(--auth-disabled);
+}
+:global([data-auth-root]) .input {
+  width: 100%;
+  min-width: 0;
+  flex: 1;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+  font-family: var(--auth-font);
+  font-size: var(--auth-input-size);
+  font-weight: 400;
+  line-height: var(--auth-control-leading);
+  color: var(--auth-primary);
+  caret-color: var(--auth-primary);
+  opacity: 1;
+}
+:global([data-auth-root]) .input:focus-visible {
+  outline: none;
+}
+:global([data-auth-root]) .input::placeholder {
+  color: var(--auth-secondary);
+  opacity: 1;
+}
+:global([data-auth-root]) .input:-webkit-autofill {
+  -webkit-text-fill-color: var(--auth-primary);
+  box-shadow: 0 0 0 1000px white inset;
+}
+:global([data-auth-root]) .quietAction {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--auth-quiet-size);
+  height: var(--auth-quiet-size);
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--auth-secondary);
+}
+:global([data-auth-root]) .quietAction:hover {
+  background: var(--auth-hover);
+  color: var(--auth-primary);
+}
+@media (max-width: 767px) {
+  :global([data-auth-root]) .quietAction {
+    width: var(--emcn-space-44);
+    height: var(--emcn-space-44);
+    background: transparent;
+  }
+  :global([data-auth-root]) .quietAction:hover {
+    background: transparent;
+  }
+  :global([data-auth-root]) .quietAction::after {
+    content: "";
+    position: absolute;
+    inset: 8px;
+    border-radius: 9999px;
+    pointer-events: none;
+  }
+  :global([data-auth-root]) .quietAction:hover::after {
+    background: var(--auth-hover);
+  }
+  :global([data-auth-root]) .inputSurface:has(.quietAction) {
+    padding-right: 0;
+  }
+}
+
+:global([data-auth-root]) .readonlyValue {
+  font-family: var(--auth-mono);
+}

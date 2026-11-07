@@ -17,7 +17,7 @@ vi.mock('@/app/workspace/providers/socket-provider', () => ({
   useSocket: vi.fn(() => ({ socket: null })),
 }))
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 
 import type { TableViewWire } from '@/lib/api/contracts/tables'
 import {

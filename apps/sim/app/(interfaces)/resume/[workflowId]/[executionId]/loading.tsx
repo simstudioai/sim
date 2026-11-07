@@ -1,4 +1,4 @@
-import { Skeleton } from '@sim/emcn'
+import { Skeleton } from '@sim/emcn-legacy'
 
 export default function ResumeLoading() {
   return (

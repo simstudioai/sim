@@ -1,18 +1,16 @@
 'use client'
 
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { IconButton } from '@sim/emcn/button'
+import { Icon } from '@sim/emcn/icon'
+import { useCompactViewport } from '@sim/emcn/layout/use-compact-viewport'
+import { ScrollArea } from '@sim/emcn/scroll-area'
+import { RecentItems } from '@sim/emcn-platform/recent-items'
+import { WorkspaceList } from '@sim/emcn-platform/workspace-list'
 import { BrowserContent } from '@/platform/app/(shell)/_components/chat/panel/browser-content'
 import type { PanelDestination } from '@/platform/app/(shell)/_components/chat/panel/chat-panels'
 import type { PanelData, PanelRecent } from '@/platform/app/(shell)/_components/chat/panel/model'
 import styles from '@/platform/app/(shell)/_components/chat/panel/panels.module.css'
-import {
-  ActivityRow,
-  Icon,
-  IconButton,
-  RecentItems,
-  ScrollArea,
-  WorkspaceList,
-} from '@/platform/design-system/components'
-import { useCompactViewport } from '@/platform/design-system/components/layout/use-compact-viewport'
 import { formatRelativeTime } from '@/platform/lib/time'
 
 interface PanelContentProps {

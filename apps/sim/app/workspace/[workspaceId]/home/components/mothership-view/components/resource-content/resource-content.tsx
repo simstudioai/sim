@@ -9,7 +9,7 @@ import {
   TabStripAction,
   Tooltip,
   toast,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   Download,
   FileX,
@@ -21,7 +21,7 @@ import {
   SquareArrowUpRight,
   Workflow as WorkflowIcon,
   WorkflowX,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'

@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@sim/emcn'
-import { CircleAlert, Globe, Loader } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { CircleAlert, Globe, Loader } from '@sim/emcn-legacy/icons'
 import { ThinkingLoader } from '@/components/ui'
 import { browserTabHostname, shouldShowBrowserTabSpinner } from '@/lib/browser-agent/tab-label'
 import { faviconSrc } from '@/lib/favicon/url'

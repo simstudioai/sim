@@ -1,7 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { toast } from '@sim/emcn'
+import { AttachmentGrid } from '@sim/emcn/attachments'
+import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
+import { FileField } from '@sim/emcn/field/file-field'
+import { Modal } from '@sim/emcn/modal'
+import { toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
@@ -13,14 +17,6 @@ import {
   validateHelpImage,
 } from '@/lib/help/request'
 import { readFormText } from '@/app/o/[organizationId]/_redesign/rail/row-links'
-import { AttachmentGrid } from '@/platform/design-system/components/attachments/attachment-grid'
-import {
-  SelectField,
-  TextAreaField,
-  TextField,
-} from '@/platform/design-system/components/field/fields'
-import { FileField } from '@/platform/design-system/components/field/file-field'
-import { Modal } from '@/platform/design-system/components/modal/modal'
 
 interface SupportImage {
   id: string

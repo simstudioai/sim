@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
-import { ChipDropdown } from '@sim/emcn'
+import { ChipDropdown } from '@sim/emcn-legacy'
 import type { ColumnDefinition } from '@/lib/table'
 import { SelectPill, selectedOptionIds } from './select-pill'
 

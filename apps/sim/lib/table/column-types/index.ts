@@ -5,7 +5,7 @@
  * code that needs the retype cell migrations imports `registry.server` instead.
  *
  * Deliberately NOT re-exported from `@/lib/table`: 44 server modules import
- * that barrel, and routing this through it would pull `@sim/emcn/icons` into
+ * that barrel, and routing this through it would pull `@sim/emcn-legacy/icons` into
  * every one of them. Import `@/lib/table/column-types` directly, the same way
  * `column-keys`, `constants`, and `dates` are already imported.
  */

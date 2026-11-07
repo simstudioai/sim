@@ -1,17 +1,17 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { CopyButton } from '@sim/emcn/button/copy-button'
+import { CopyField } from '@sim/emcn/field/value-fields'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import {
   FieldStack,
   Muted,
   Preformatted,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import { Button, CopyButton, CopyField, Select } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 
 const CLIENTS = [
   {
@@ -94,9 +94,8 @@ export default function SearchMcpSection({ organization }: SettingsSectionProps)
       {organization.viewer.canUseSearchMcp ? (
         <>
           <SettingsRow label='App'>
-            <Select
-              variant='quiet'
-              label={`MCP app: ${client.label}`}
+            <ChoiceMenu
+              label='MCP app'
               value={client.value}
               options={CLIENTS}
               onValueChange={(value) => {

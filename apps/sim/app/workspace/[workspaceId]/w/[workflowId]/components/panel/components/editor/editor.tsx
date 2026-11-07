@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
+import { Button, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn-legacy'
 import {
   BookOpen,
   Check,
@@ -11,7 +11,7 @@ import {
   Pencil,
   SquareArrowUpRight,
   Unlock,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import {
   type BlockRetryConfig,
   isWorkflowBlockAncestorLocked,

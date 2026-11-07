@@ -10,7 +10,7 @@ import {
   type ChartLegendItem,
   cn,
   formatChartCompactNumber,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import type { OrganizationUsageOverview } from '@/lib/api/contracts/organization-usage'
 import { USAGE_PALETTE_CLASS, USAGE_SOURCE_CATEGORIES } from '@/ee/organization-usage/constants'
 import { foldUsageSeries, formatUsageDelta } from '@/ee/organization-usage/format'

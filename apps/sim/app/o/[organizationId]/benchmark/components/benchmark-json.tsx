@@ -7,7 +7,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { BenchmarkCase } from '@/lib/api/contracts/benchmarks'

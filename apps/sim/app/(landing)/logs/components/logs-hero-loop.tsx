@@ -1,9 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import type { BadgeProps } from '@sim/emcn'
-import { Badge, cn } from '@sim/emcn'
-import { ArrowUpDown, Download, Library, ListFilter, Search, Workflow } from '@sim/emcn/icons'
+import type { BadgeProps } from '@sim/emcn-legacy'
+import { Badge, cn } from '@sim/emcn-legacy'
+import {
+  ArrowUpDown,
+  Download,
+  Library,
+  ListFilter,
+  Search,
+  Workflow,
+} from '@sim/emcn-legacy/icons'
 import { HeroLoopShell } from '@/app/(landing)/components/shared/hero-loop-shell'
 import { PLATFORM_LOOP_RESET_FADE_MS } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'

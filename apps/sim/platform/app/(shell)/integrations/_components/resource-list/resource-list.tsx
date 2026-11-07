@@ -1,10 +1,11 @@
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Icon } from '@sim/emcn/icon'
 import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import { IntegrationUsageText } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
 import styles from '@/platform/app/(shell)/integrations/_components/resource-list/resource-list.module.css'
-import { ActivityRow, Icon } from '@/platform/design-system/components'
 import type { AppSummary, IntegrationResource } from '@/platform/lib/integrations/center-model'
 import { credentialDescription } from '@/platform/lib/integrations/credential-display'
-import { integrationUsageSummary } from '@/platform/lib/integrations/usage'
+import { peopleSummary } from '@/platform/lib/integrations/people-summary'
 
 interface AppGroupProps {
   title: string
@@ -33,13 +34,15 @@ interface AppEntryProps {
 
 function AppEntry({ app, onNavigate }: AppEntryProps) {
   const usage =
-    !app.scope && !app.connected
-      ? integrationUsageSummary(app.people ?? [], app.peopleTotal)
+    !app.scope && !app.connected && (app.people?.length ?? 0) >= 2
+      ? peopleSummary(app.people ?? [], app.peopleTotal)
       : undefined
   const detail =
     !app.scope && app.connected && app.credentialCount !== undefined
       ? `${app.credentialCount} connected ${app.credentialCount === 1 ? 'credential' : 'credentials'}`
-      : (usage?.label ?? app.description)
+      : usage
+        ? `Used by ${usage.label}`
+        : app.description
   return (
     <ActivityRow
       href={app.href}
@@ -66,6 +69,7 @@ interface ResourceGroupProps {
   order: 'asc' | 'desc'
   onNavigate: (href: string) => void
   onOpen: (resource: IntegrationResource) => void
+  resourceHref: (resource: IntegrationResource) => string
 }
 
 export function ResourceGroup({
@@ -75,6 +79,7 @@ export function ResourceGroup({
   order,
   onNavigate,
   onOpen,
+  resourceHref,
 }: ResourceGroupProps) {
   if (!resources.length && !links.length) return null
   const entries = [...resources, ...links].sort(
@@ -86,27 +91,33 @@ export function ResourceGroup({
       <ul className={styles.rows}>
         {entries.map((resource) =>
           'kind' in resource ? (
-            <ActivityRow
-              key={resource.id}
-              leading={
-                resource.kind === 'credential' && resource.appId ? (
-                  <IntegrationMark providerId={resource.appId} />
-                ) : (
-                  <Icon
-                    name={
-                      resource.kind === 'skill' ? 'I044' : resource.kind === 'mcp' ? 'I126' : 'I137'
-                    }
-                  />
-                )
-              }
-              title={resource.name}
-              detail={
-                resource.kind === 'credential'
-                  ? credentialDescription(resource)
-                  : resource.description
-              }
-              onOpen={() => onOpen(resource)}
-            />
+            resource.kind === 'credential' ? (
+              <ActivityRow
+                key={resource.id}
+                leading={
+                  resource.appId ? (
+                    <IntegrationMark providerId={resource.appId} />
+                  ) : (
+                    <Icon name='I137' />
+                  )
+                }
+                title={resource.name}
+                detail={credentialDescription(resource)}
+                onOpen={() => onOpen(resource)}
+              />
+            ) : (
+              <ActivityRow
+                key={resource.id}
+                href={resourceHref(resource)}
+                onNavigate={(event) => {
+                  event.preventDefault()
+                  onOpen(resource)
+                }}
+                leading={<Icon name={resource.kind === 'skill' ? 'I044' : 'I126'} />}
+                title={resource.name}
+                detail={resource.description}
+              />
+            )
           ) : (
             <AppEntry key={resource.id} app={resource} onNavigate={onNavigate} />
           )

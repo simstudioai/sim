@@ -14,8 +14,8 @@ import {
   PopoverAnchor,
   PopoverContent,
   toast,
-} from '@sim/emcn'
-import { Download, RefreshCw, Search, X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Download, RefreshCw, Search, X } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { useQueryStates } from 'nuqs'

@@ -32,7 +32,7 @@ import {
   Search as SearchIcon,
   Tooltip,
   useCopyToClipboard,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   ArrowDown,
   ArrowUp,
@@ -44,7 +44,7 @@ import {
   Workflow,
   Wrench,
   X,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'

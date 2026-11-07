@@ -1,6 +1,6 @@
 'use client'
 
-import { DropdownMenuItem, DropdownMenuShortcut } from '@sim/emcn'
+import { DropdownMenuItem, DropdownMenuShortcut } from '@sim/emcn-legacy'
 
 interface ResourceZoomMenuItemsProps {
   onZoomIn: () => void

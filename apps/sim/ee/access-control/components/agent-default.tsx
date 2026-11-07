@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { ChipCombobox, type ComboboxOption } from '@sim/emcn'
+import { ChipCombobox, type ComboboxOption } from '@sim/emcn-legacy'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 import {

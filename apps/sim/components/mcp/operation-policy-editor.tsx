@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { Combobox, TagInput } from '@sim/emcn'
+import { Combobox, TagInput } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type McpOperationPolicy, normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 

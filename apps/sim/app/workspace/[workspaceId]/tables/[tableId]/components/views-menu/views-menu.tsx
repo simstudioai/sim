@@ -17,8 +17,8 @@ import {
   PopoverItem,
   PopoverSection,
   Tooltip,
-} from '@sim/emcn'
-import { Check, Pencil, Pin, Plus, Trash } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check, Pencil, Pin, Plus, Trash } from '@sim/emcn-legacy/icons'
 import type { TableViewWire } from '@/lib/api/contracts/tables'
 import { resolveTableViewSelection } from '@/app/workspace/[workspaceId]/tables/[tableId]/view-state'
 

@@ -1,8 +1,15 @@
 'use client'
 
 import { type ReactElement, useEffect, useRef, useState } from 'react'
-import { ChipLink, cn, OverflowText, Popover, PopoverAnchor, PopoverContent } from '@sim/emcn'
-import { ArrowUpRight } from '@sim/emcn/icons'
+import {
+  ChipLink,
+  cn,
+  OverflowText,
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from '@sim/emcn-legacy'
+import { ArrowUpRight } from '@sim/emcn-legacy/icons'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
 import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'

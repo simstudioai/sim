@@ -1,27 +1,23 @@
 'use client'
 
 import { type MouseEvent, memo, type ReactNode, type TouchEvent, useMemo, useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
+import { DataTable, TableLabel } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Icon } from '@sim/emcn/icon'
+import type { MenuAction } from '@sim/emcn/menu/action-menu'
+import { ActionMenu, ContextActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import type { LoadMoreState } from '@sim/emcn/scroll-area/use-load-more'
+import { FailureNotice } from '@sim/emcn/status'
 import { LinkEditor } from '@/platform/app/(shell)/_components/links-page/link-editor'
 import { LinkIcon } from '@/platform/app/(shell)/_components/links-page/link-icon'
 import {
   LinkRowsSkeleton,
   LinksFrame,
 } from '@/platform/app/(shell)/_components/links-page/links-frame'
-import {
-  ActionMenu,
-  Avatar,
-  Button,
-  ContextActionMenu,
-  DataTable,
-  EmptyState,
-  FailureNotice,
-  Icon,
-  Modal,
-  OverflowText,
-  TableLabel,
-} from '@/platform/design-system/components'
-import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import type { LoadMoreState } from '@/platform/design-system/components/scroll-area/use-load-more'
 import { type LinkRecord, linkFaviconSrc, openLink, useLinksPage } from '@/platform/lib/data/links'
 import { formatRelativeTime } from '@/platform/lib/time'
 

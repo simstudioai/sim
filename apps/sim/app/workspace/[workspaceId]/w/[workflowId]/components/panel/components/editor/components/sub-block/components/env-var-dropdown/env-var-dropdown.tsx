@@ -7,8 +7,8 @@ import {
   PopoverItem,
   PopoverScrollArea,
   PopoverSection,
-} from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
 import type { WorkspaceEnvironmentData } from '@/lib/environment/api'
 import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'

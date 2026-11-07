@@ -1,14 +1,10 @@
-export {
-  AuthDivider,
-  AuthEmailInput,
-  AuthField,
-  AuthFormMessage,
-  AuthHeader,
-  AuthInput,
-  AuthNavPrompt,
-  AuthTextLink,
-  PasswordInput,
-} from '@sim/auth-ui'
+export { AuthDivider } from '@sim/emcn-auth/divider'
+export { AuthFormMessage } from '@sim/emcn-auth/feedback'
+export { AuthField } from '@sim/emcn-auth/field'
+export { AuthHeader } from '@sim/emcn-auth/heading'
+export { AuthEmailInput, AuthInput, PasswordInput } from '@sim/emcn-auth/input'
+export { AuthNavPrompt } from '@sim/emcn-auth/navigation'
+export { AuthTextLink } from '@sim/emcn-auth/text-link'
 export { AuthLegalFooter } from './auth-legal-footer'
 export { AuthShell } from './auth-shell'
 export { AuthSubmitButton } from './auth-submit-button'

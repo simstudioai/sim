@@ -1,6 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   LoadingState,
@@ -11,17 +17,6 @@ import {
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { DrainCreate } from '@/platform/app/(shell)/settings/_components/sections/data-drains/drain-create'
 import { DrainDetail } from '@/platform/app/(shell)/settings/_components/sections/data-drains/drain-detail'
-import {
-  ActivityRow,
-  Button,
-  EmptyState,
-  FailureNotice,
-  SearchField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   CADENCE_LABELS,
   DESTINATION_LABELS,

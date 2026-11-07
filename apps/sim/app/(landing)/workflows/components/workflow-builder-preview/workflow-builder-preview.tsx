@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useId, useState } from 'react'
-import { Chip, cn } from '@sim/emcn'
+import { Chip, cn } from '@sim/emcn-legacy'
 import { EdgeFade } from '@/app/(landing)/components/shared/edge-fade'
 import { WorkflowPreviewCanvas } from '@/app/(landing)/workflows/components/workflow-builder-preview/components/workflow-preview-canvas'
 import { PREVIEW_BLOCKS } from '@/app/(landing)/workflows/components/workflow-builder-preview/constants'

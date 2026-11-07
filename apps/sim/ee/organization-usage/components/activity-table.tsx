@@ -10,7 +10,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { formatDuration } from '@sim/utils/formatting'
 import type { OrganizationActivityBreakdown } from '@/lib/api/contracts/organization-activity'
 import type { ActivityDimension } from '@/lib/billing/core/organization-activity'

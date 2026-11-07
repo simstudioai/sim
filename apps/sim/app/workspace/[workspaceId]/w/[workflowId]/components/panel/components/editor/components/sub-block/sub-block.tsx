@@ -1,5 +1,5 @@
 import { type JSX, type MouseEvent, memo, useCallback, useMemo, useRef, useState } from 'react'
-import { Button, cn, Input, Label, Tooltip } from '@sim/emcn'
+import { Button, cn, Input, Label, Tooltip } from '@sim/emcn-legacy'
 import {
   ArrowLeftRight,
   ArrowUp,
@@ -7,7 +7,7 @@ import {
   Clipboard,
   SquareArrowUpRight,
   TriangleAlert,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { isEqual } from 'es-toolkit'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
 import type { FallbackModelEntry } from '@/lib/workflows/blocks/fallback-models'

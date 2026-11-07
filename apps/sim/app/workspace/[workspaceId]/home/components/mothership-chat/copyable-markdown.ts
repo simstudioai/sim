@@ -1,4 +1,4 @@
-import type { ClipboardContent } from '@sim/emcn'
+import type { ClipboardContent } from '@sim/emcn-legacy'
 import type { MothershipResource, WorkspaceResourceRef } from '@/lib/mothership/resources/types'
 import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-sanitize'
 import {

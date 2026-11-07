@@ -1,0 +1,27 @@
+:global([data-auth-root]) .textLink {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--auth-secondary);
+  text-decoration: none;
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: 400;
+}
+:global([data-auth-root]) .textLink:not(:disabled):not([aria-disabled="true"]):hover {
+  color: var(--auth-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+:global([data-auth-root]) .textLink:disabled,
+:global([data-auth-root]) .textLink[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: var(--auth-disabled);
+}
+@media (max-width: 767px) {
+  :global([data-auth-root]) .textLink {
+    min-height: var(--emcn-space-44);
+    display: inline-flex;
+    align-items: center;
+  }
+}

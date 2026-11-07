@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import { LandingCtaLink } from '@/app/(landing)/components/landing-cta-link'
 import { EdgeFade } from '@/app/(landing)/components/shared/edge-fade'
 import { ProductHeroPreview } from '@/app/(landing)/components/solutions-page/components/solutions-product-page/components/product-hero-preview'

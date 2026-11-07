@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipTag } from '@sim/emcn'
+import { ChipTag } from '@sim/emcn-legacy'
 import type { SsoProviderView } from '@/lib/api/contracts/auth'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {

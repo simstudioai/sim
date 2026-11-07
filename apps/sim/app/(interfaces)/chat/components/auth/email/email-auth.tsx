@@ -1,7 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { AuthCodeEntry, AuthEmailInput, AuthField, AuthHeader, AuthStack } from '@sim/auth-ui'
+import { AuthCodeEntry } from '@sim/emcn-auth/code-entry'
+import { AuthField } from '@sim/emcn-auth/field'
+import { AuthHeader } from '@sim/emcn-auth/heading'
+import { AuthEmailInput } from '@sim/emcn-auth/input'
+import { AuthStack } from '@sim/emcn-auth/stack'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
@@ -125,7 +129,7 @@ export default function EmailAuth({ identifier }: EmailAuthProps) {
               event.preventDefault()
               void handleSendOtp()
             }}
-            className='au:space-y-5'
+            className='au:flex au:flex-col au:gap-5'
           >
             <AuthField htmlFor='email' label='Email' errors={emailErrors}>
               <AuthEmailInput

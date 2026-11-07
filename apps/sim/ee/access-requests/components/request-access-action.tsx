@@ -13,7 +13,7 @@ import {
   ChipModalHeader,
   type ChipProps,
   toast,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { useRouter } from 'next/navigation'
 import type { AccessRequestScope, AccessRequestTarget } from '@/lib/api/contracts/access-requests'
 import { getMyAccessRequestHref } from '@/ee/access-requests/lib/navigation'

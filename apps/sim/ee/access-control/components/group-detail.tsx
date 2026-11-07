@@ -20,8 +20,8 @@ import {
   Skeleton,
   Switch,
   toast,
-} from '@sim/emcn'
-import { ArrowLeft, Plus, Search } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowLeft, Plus, Search } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'

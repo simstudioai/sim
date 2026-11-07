@@ -2,8 +2,8 @@
 
 import type { ReactElement } from 'react'
 import { memo } from 'react'
-import { Library } from '@sim/emcn'
-import { Database, Table } from '@sim/emcn/icons'
+import { Library } from '@sim/emcn-legacy'
+import { Database, Table } from '@sim/emcn-legacy/icons'
 import { Command } from 'cmdk'
 import {
   MemoizedActionItem,

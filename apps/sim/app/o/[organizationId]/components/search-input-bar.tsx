@@ -7,8 +7,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cn } from '@sim/emcn'
-import { Search } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { Search } from '@sim/emcn-legacy/icons'
 import { PROMPT_TEXT_CLASSES } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
 import { GrowingTextarea } from '@/app/workspace/[workspaceId]/home/components/user-input/components/growing-textarea'
 import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'

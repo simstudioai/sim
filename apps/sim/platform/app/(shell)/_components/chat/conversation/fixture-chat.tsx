@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyState } from '@sim/emcn/empty-state'
 import { Conversation } from '@/platform/app/(shell)/_components/chat/conversation/conversation'
 import {
   CHAT_PLACEHOLDERS,
@@ -10,7 +11,6 @@ import {
   useFixtureChatRuntime,
 } from '@/platform/app/(shell)/_components/session/chat-changes'
 import { useComposerHost } from '@/platform/app/(shell)/_components/session/composer-host'
-import { EmptyState } from '@/platform/design-system/components'
 import { chatPath } from '@/platform/lib/workspace-navigation'
 
 interface FixtureChatProps {

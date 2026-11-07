@@ -1,6 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
+import { Switch } from '@sim/emcn/switch'
 import { useRouter } from 'next/navigation'
 import { SectionStack } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import { AdminDirectory } from '@/platform/app/(shell)/settings/_components/sections/admin/admin-directory'
@@ -12,17 +17,6 @@ import {
   type ImportInputs,
   WorkflowImport,
 } from '@/platform/app/(shell)/settings/_components/sections/admin/workflow-import'
-import {
-  Button,
-  FailureNotice,
-  InlineNotice,
-  Select,
-  Switch,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { useSettingsFixtureDraft } from '@/platform/lib/data/settings-providers'
 
@@ -117,7 +111,7 @@ export function AdminPanel({
                 description='Default uses the configured Sim agent URL.'
               >
                 {draft ? (
-                  <Select
+                  <ChoiceMenu
                     label='Mothership environment'
                     value={settings.mothershipEnvironment}
                     options={ENVIRONMENTS}

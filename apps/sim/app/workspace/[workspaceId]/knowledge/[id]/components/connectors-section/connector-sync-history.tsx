@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { format } from 'date-fns'
 import type {
   ConnectorData,

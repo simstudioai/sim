@@ -1,6 +1,6 @@
 'use client'
 
-import { ChipLink } from '@sim/emcn'
+import { ChipLink } from '@sim/emcn-legacy'
 import { GithubOutlineIcon } from '@/components/icons'
 
 /**

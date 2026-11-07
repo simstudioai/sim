@@ -8,7 +8,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isValidEmailSyntax } from '@sim/utils/string'
 import { type AdminUser, useAddUser } from '@/hooks/queries/admin-users'

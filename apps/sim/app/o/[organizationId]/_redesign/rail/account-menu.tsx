@@ -1,12 +1,12 @@
 'use client'
 
 import { type RefObject, useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { IdentityButton } from '@sim/emcn/identity-button'
+import { MenuItem } from '@sim/emcn/menu/action-menu'
+import { AnchoredPopover } from '@sim/emcn/menu/anchored-popover'
+import { Tooltip } from '@sim/emcn/tooltip'
 import styles from '@/app/o/[organizationId]/_redesign/rail/sidebar.module.css'
-import { Avatar } from '@/platform/design-system/components/avatar/avatar'
-import { IdentityButton } from '@/platform/design-system/components/identity-button/identity-button'
-import { MenuItem } from '@/platform/design-system/components/menu/action-menu'
-import { AnchoredPopover } from '@/platform/design-system/components/menu/anchored-popover'
-import { Tooltip } from '@/platform/design-system/components/tooltip/tooltip'
 
 interface AccountMenuProps {
   anchor: RefObject<HTMLElement | null>

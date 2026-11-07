@@ -1,13 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  DetailsField,
-  FailureNotice,
-  InlineNotice,
-  Modal,
-  TextAreaField,
-} from '@/platform/design-system/components'
+import { TextAreaField } from '@sim/emcn/field'
+import { DetailsField } from '@sim/emcn/field/details-field'
+import { Modal } from '@sim/emcn/modal'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import {
   type RequestScope,
   type RequestTarget,

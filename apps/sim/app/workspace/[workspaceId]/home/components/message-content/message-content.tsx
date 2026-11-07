@@ -10,8 +10,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cn } from '@sim/emcn'
-import { CircleStop } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { CircleStop } from '@sim/emcn-legacy/icons'
 import { useAssistantActionLayout } from '@/components/assistant-actions'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {

@@ -14,7 +14,7 @@ import {
   SIM_LINK_HOSTS,
   SIM_LINK_SUGGESTIONS_PATH,
 } from '@sim/browser-extension-protocol'
-import { SecretReveal } from '@sim/emcn'
+import { SecretReveal } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'

@@ -2,8 +2,8 @@
 
 import type React from 'react'
 import { useEffect, useRef, useState } from 'react'
-import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn'
-import { Globe } from '@sim/emcn/icons'
+import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn-legacy'
+import { Globe } from '@sim/emcn-legacy/icons'
 import { parse } from 'tldts'
 import { Favicon } from '@/components/favicon'
 import type { RowExecutionMetadata, SelectOption } from '@/lib/table'

@@ -1,7 +1,10 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { DatePicker, Modal, SearchableSelect, TextField } from '@/platform/design-system/components'
+import { TextField } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
+import { DatePicker } from '@sim/emcn/picker/date-picker'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import {
   type Person,
   type PersonDraft,

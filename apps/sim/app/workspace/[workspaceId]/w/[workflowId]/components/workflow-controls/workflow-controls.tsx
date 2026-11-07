@@ -15,8 +15,8 @@ import {
   PopoverItem,
   PopoverTrigger,
   Tooltip,
-} from '@sim/emcn'
-import { Redo, Undo } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Redo, Undo } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'

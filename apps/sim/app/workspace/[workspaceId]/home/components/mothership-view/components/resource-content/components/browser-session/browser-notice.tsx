@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Banner } from '@sim/emcn'
+import { Banner } from '@sim/emcn-legacy'
 
 interface BrowserNoticeProps {
   message: ReactNode

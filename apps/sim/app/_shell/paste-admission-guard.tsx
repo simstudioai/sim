@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { useToast } from '@sim/emcn'
+import { useToast } from '@sim/emcn-legacy'
 import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { readSelectionContextFromClipboard } from '@/lib/mothership/chat/selection-clipboard'
 

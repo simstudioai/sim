@@ -1,4 +1,4 @@
-import { Bug, ClipboardList, Clock, Database, File, Search, Server } from '@sim/emcn/icons'
+import { Bug, ClipboardList, Clock, Database, File, Search, Server } from '@sim/emcn-legacy/icons'
 import { LogfireIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'

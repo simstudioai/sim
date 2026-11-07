@@ -1,4 +1,4 @@
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   keepPreviousData,

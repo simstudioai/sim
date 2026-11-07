@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 
 interface SettingsListPaginationProps {

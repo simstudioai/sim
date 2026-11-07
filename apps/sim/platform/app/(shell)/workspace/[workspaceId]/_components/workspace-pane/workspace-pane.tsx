@@ -1,6 +1,6 @@
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-pane/workspace-pane.module.css'
-import { type Appearance, publicAssetPath } from '@/platform/design-system/navigation'
 import type { Scenario } from '@/platform/fixtures'
+import { type Appearance, publicAssetPath } from '@/platform/lib/navigation'
 
 interface WorkspacePaneProps {
   section: string

@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Chip, cn, OverflowText } from '@sim/emcn'
-import { ChevronDown, ChevronRight, ShieldCheck } from '@sim/emcn/icons'
+import { Chip, cn, OverflowText } from '@sim/emcn-legacy'
+import { ChevronDown, ChevronRight, ShieldCheck } from '@sim/emcn-legacy/icons'
 import { ActionPreview } from '@/components/assistant-actions/action-preview'
 import { assistantActionPresentation } from '@/components/assistant-actions/presentation'
 import type { AssistantActionReceiptsResponse } from '@/lib/api/contracts/assistant-actions'

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { EmptyState } from '@/platform/design-system/components'
+import { EmptyState } from '@sim/emcn/empty-state'
 
 interface ProfileUnavailableProps {
   action: ReactNode

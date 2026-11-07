@@ -1,8 +1,8 @@
 'use client'
 
+import { TextField } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
 import { readFormText } from '@/app/o/[organizationId]/_redesign/rail/row-links'
-import { TextField } from '@/platform/design-system/components/field/fields'
-import { Modal } from '@/platform/design-system/components/modal/modal'
 
 interface NameModalProps {
   title: string

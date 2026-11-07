@@ -1,6 +1,6 @@
-import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { isAbsoluteHref, publicAssetPath } from '@/platform/design-system/navigation'
+import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { toast } from '@/platform/lib/data/toast'
+import { isAbsoluteHref, publicAssetPath } from '@/platform/lib/navigation'
 
 /** The browser adds no base path for a new tab or the clipboard, unlike `next/link`. */
 function absoluteHref(href: string): string {

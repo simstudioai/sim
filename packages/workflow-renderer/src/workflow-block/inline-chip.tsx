@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { ChipTag, cn } from '@sim/emcn'
+import { ChipTag, cn } from '@sim/emcn-legacy'
 
 /**
  * The chip box a summary sentence embeds a slot in.

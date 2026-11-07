@@ -1,8 +1,8 @@
 'use client'
 
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
-import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
-import { ArrowLeft, Plus } from '@sim/emcn/icons'
+import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn-legacy'
+import { ArrowLeft, Plus } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { EmptyState } from '@/components/empty-state/empty-state'

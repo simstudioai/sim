@@ -1,16 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import type {
   SkillsData,
   WorkspaceSkill,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/skills-session/model'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/skills/_components/skill-detail/skill-detail.module.css'
-import { ActionMenu, Avatar, Modal, MultiSelect } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 
 interface SkillEditorsProps {
   skill: WorkspaceSkill

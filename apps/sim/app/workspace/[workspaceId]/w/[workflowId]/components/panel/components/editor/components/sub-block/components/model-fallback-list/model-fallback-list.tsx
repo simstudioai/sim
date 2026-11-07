@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
-import { Button, Chip, Combobox, type ComboboxOption, Label, Tooltip } from '@sim/emcn'
-import { ChevronDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
+import { Button, Chip, Combobox, type ComboboxOption, Label, Tooltip } from '@sim/emcn-legacy'
+import { ChevronDown, ChevronUp, Plus, Trash } from '@sim/emcn-legacy/icons'
 import { generateShortId } from '@sim/utils/id'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'

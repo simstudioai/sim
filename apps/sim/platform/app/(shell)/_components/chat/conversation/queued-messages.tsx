@@ -1,6 +1,6 @@
+import { Button, IconButton } from '@sim/emcn/button'
 import styles from '@/platform/app/(shell)/_components/chat/conversation/conversation.module.css'
 import type { ChatRuntime } from '@/platform/app/(shell)/_components/chat/model'
-import { Button, IconButton } from '@/platform/design-system/components'
 
 /** Messages waiting behind the running turn. Each can go now, come back to edit, or be dropped. */
 export function QueuedMessages({ runtime }: { runtime: ChatRuntime }) {

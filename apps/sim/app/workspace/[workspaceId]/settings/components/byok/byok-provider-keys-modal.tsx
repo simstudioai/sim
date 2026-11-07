@@ -7,7 +7,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   OverflowText,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import type {
   BYOKManagerCapabilities,
   BYOKManagerKey,

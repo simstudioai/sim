@@ -18,7 +18,7 @@ import {
   Settings,
   TerminalWindow,
   Wrench,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   Brain,
   Calendar,
@@ -29,7 +29,7 @@ import {
   Music,
   Square,
   Table as TableIcon,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 
 export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 

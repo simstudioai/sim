@@ -1,12 +1,12 @@
 'use client'
 
+import { CommandPalette } from '@sim/emcn/command-palette'
+import { OverlayDialog } from '@sim/emcn/modal/overlay-dialog'
 import type {
   ShellChat,
   ShellDestination,
   ShellWorkspace,
 } from '@/app/o/[organizationId]/_redesign/rail/model'
-import { CommandPalette } from '@/platform/design-system/components/command-palette/command-palette'
-import { OverlayDialog } from '@/platform/design-system/components/modal/overlay-dialog'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 
 interface CommandMenuProps {

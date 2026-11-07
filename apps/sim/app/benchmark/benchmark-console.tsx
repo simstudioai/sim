@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipCombobox, ChipLink } from '@sim/emcn'
+import { Chip, ChipCombobox, ChipLink } from '@sim/emcn-legacy'
 import { useQueryStates } from 'nuqs'
 import {
   benchmarkConsoleParams,

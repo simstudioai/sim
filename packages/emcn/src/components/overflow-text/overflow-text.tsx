@@ -1,91 +1,58 @@
 'use client'
 
-import type { ReactNode } from 'react'
-import { memo, useCallback } from 'react'
-import { cn } from '../../lib/cn'
-import {
-  FloatingTooltip,
-  isTextClipped,
-  useFloatingTooltip,
-  useIsOverflowing,
-} from '../tooltip/tooltip'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
+import styles from '#emcn/components/overflow-text/overflow-text.module.css'
+import { Tooltip } from '#emcn/components/tooltip/tooltip'
 
-/** Shared fade width for clipped labels and scroll regions that use the same treatment. */
-export const overflowFadeSizeClass = '[--overflow-fade-size:16px]'
-
-/** Complete fade-only clipping treatment for measured special cases. */
-export const overflowTextFadeClass = cn(
-  overflowFadeSizeClass,
-  'overflow-hidden text-clip whitespace-nowrap [-webkit-mask-image:linear-gradient(to_right,black_calc(100%_-_var(--overflow-fade-size)),transparent)] [mask-image:linear-gradient(to_right,black_calc(100%_-_var(--overflow-fade-size)),transparent)]'
-)
-
-/** Fade-free clipping for externally measured labels and rich-content overflow exceptions. */
-export const overflowTextClipClass = 'block min-w-0 overflow-hidden text-clip whitespace-nowrap'
-
-export interface OverflowTextProps {
-  /** Full text shown in the tooltip and used as the default visible content. */
-  label: string
-  /** Decorated rendering of `label`; the tooltip always keeps the plain label. */
+interface OverflowTextProps {
+  text: string
+  fullValue?: string
   children?: ReactNode
-  /** Layout and typography only; truncation and fade chrome are owned here. */
-  className?: string
-  /** Forces the tooltip when the visible label was shortened before rendering. */
-  showWhen?: boolean
-  /** Whether the full-value tooltip may open. Disable for visual mirror layers. */
-  tooltipEnabled?: boolean
-  /** Lets the nearest interactive ancestor own keyboard focus for this label. */
-  focusTarget?: 'nearest-interactive'
 }
 
-/**
- * A single-line, read-only label that fades only when clipped and exposes its
- * complete value in the platform floating tooltip.
- *
- * Use this for human-readable names and titles in constrained chrome. Keep
- * editable values, code, logs, paths, dense grids, and multiline copy on their
- * purpose-built overflow behavior.
- */
-export const OverflowText = memo(function OverflowText({
-  label,
-  children,
-  className,
-  showWhen,
-  tooltipEnabled = true,
-  focusTarget,
-}: OverflowTextProps) {
-  const { ref: textRef, node, isOverflowing } = useIsOverflowing<HTMLSpanElement>(children ?? label)
-  const tooltipEligible = tooltipEnabled && label.length > 0 && (Boolean(showWhen) || isOverflowing)
-  const getFocusTarget = useCallback(() => {
-    if (focusTarget !== 'nearest-interactive') return null
-    return (
-      node.current?.closest<HTMLElement>(
-        'a[href], button, [role="button"], [role^="menuitem"], [tabindex]:not([tabindex="-1"])'
-      ) ?? null
-    )
-  }, [focusTarget, node])
-  const { state, handlers } = useFloatingTooltip(
-    () => {
-      const element = node.current
-      if (!tooltipEnabled || !element || label.length === 0) return false
-      return Boolean(showWhen) || isTextClipped(element)
-    },
-    {
-      getFocusTarget: focusTarget === 'nearest-interactive' ? getFocusTarget : undefined,
-      revalidateKey: tooltipEligible,
-    }
-  )
+export function OverflowText({ text, fullValue = text, children }: OverflowTextProps) {
+  const viewport = useRef<HTMLSpanElement>(null)
+  const content = useRef<HTMLSpanElement>(null)
+  const [clipped, setClipped] = useState(false)
+  const [insideControl, setInsideControl] = useState(false)
 
+  useEffect(() => {
+    const outer = viewport.current
+    const inner = content.current
+    if (!outer || !inner) return
+    setInsideControl(Boolean(outer.closest('button, a[href], [role=button], [role=tab]')))
+    const measure = () =>
+      setClipped(inner.getBoundingClientRect().width > outer.getBoundingClientRect().width)
+    const observer = new ResizeObserver(measure)
+    observer.observe(outer)
+    observer.observe(inner)
+    measure()
+    return () => observer.disconnect()
+  }, [])
+
+  const shortened = text !== fullValue
+  const showFullValue = clipped || shortened
   return (
-    <>
-      <span
-        ref={textRef}
-        data-overflow-text=''
-        className={cn(className, overflowTextClipClass, isOverflowing && overflowTextFadeClass)}
-        {...handlers}
-      >
-        {children ?? label}
-      </span>
-      <FloatingTooltip label={label} state={state} />
-    </>
+    <span className={styles.overflowFrame}>
+      <Tooltip label={fullValue} enabled={showFullValue} visualOnly>
+        <span
+          ref={viewport}
+          className={styles.overflowText}
+          data-scroll-axis='horizontal'
+          data-edges={clipped ? 'end' : undefined}
+          tabIndex={showFullValue && !insideControl ? 0 : undefined}
+        >
+          <span
+            ref={content}
+            className={styles.overflowLabel}
+            data-type={children == null ? 'T059' : undefined}
+            aria-hidden={shortened || undefined}
+          >
+            {children ?? text}
+          </span>
+          {shortened && <span className={styles.accessibleLabel}>{fullValue}</span>}
+        </span>
+      </Tooltip>
+    </span>
   )
-})
+}

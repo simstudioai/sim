@@ -11,8 +11,8 @@ import {
   Switch,
   Tooltip,
   toast,
-} from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 import { toError } from '@sim/utils/errors'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import type { ColumnDefinition, SelectOption } from '@/lib/table'

@@ -11,7 +11,7 @@ vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 
 vi.mock('@tanstack/react-query', () => reactQueryMock)
 
-vi.mock('@sim/emcn', () => emcnMock)
+vi.mock('@sim/emcn-legacy', () => emcnMock)
 
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 

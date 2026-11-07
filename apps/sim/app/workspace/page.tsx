@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Chip } from '@sim/emcn'
-import { CircleAlert } from '@sim/emcn/icons'
+import { Chip } from '@sim/emcn-legacy'
+import { CircleAlert } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'

@@ -1,6 +1,12 @@
 'use client'
 
 import { memo, type ReactNode, useLayoutEffect, useRef, useState } from 'react'
+import { Button, IconButton } from '@sim/emcn/button'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { InlineNotice } from '@sim/emcn/status'
+import { Tooltip } from '@sim/emcn/tooltip'
+import { PageColumn, PageOverflow } from '@sim/emcn-platform/page-column'
 import styles from '@/platform/app/(shell)/_components/chat/conversation/conversation.module.css'
 import { QueuedMessages } from '@/platform/app/(shell)/_components/chat/conversation/queued-messages'
 import { ResponseMessage } from '@/platform/app/(shell)/_components/chat/message/response-message'
@@ -10,16 +16,6 @@ import { ChatPanelTrigger } from '@/platform/app/(shell)/_components/chat/panel/
 import { MessageComposer } from '@/platform/app/(shell)/_components/composer/message-composer'
 import type { ComposerController } from '@/platform/app/(shell)/_components/composer/model'
 import { ChatRuntimeProvider } from '@/platform/app/(shell)/_components/session/chat-runtime'
-import {
-  Button,
-  IconButton,
-  InlineNotice,
-  OverflowText,
-  PageColumn,
-  PageOverflow,
-  Tooltip,
-} from '@/platform/design-system/components'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 /** A settled turn keeps its identity, so only the streaming one renders per chunk. */
 const Turn = memo(function Turn({ turn }: { turn: PlatformTurn }) {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { Badge, Button, Tooltip } from '@sim/emcn'
+import { Badge, Button, Tooltip } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { truncate } from '@sim/utils/string'

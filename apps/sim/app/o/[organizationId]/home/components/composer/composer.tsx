@@ -10,8 +10,8 @@ import {
   DropdownMenuTrigger,
   Tooltip,
   toast,
-} from '@sim/emcn'
-import { ArrowUp, Paperclip, Plus, Search, Slash, StopFilled } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowUp, Paperclip, Plus, Search, Slash, StopFilled } from '@sim/emcn-legacy/icons'
 import { useQueries } from '@tanstack/react-query'
 import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import { ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE } from '@/lib/uploads/shared/assistant-images'

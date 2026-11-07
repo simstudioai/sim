@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, ChipConfirmModal, ChipLink, toast } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { Chip, ChipConfirmModal, ChipLink, toast } from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { SettingsPanel } from '@/components/settings/settings-panel'

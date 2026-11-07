@@ -1,6 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
+import { CopyField, SecretField } from '@sim/emcn/field/value-fields'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsSection } from '@sim/emcn/settings-section'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
@@ -10,19 +18,6 @@ import {
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import {
-  Button,
-  Checkbox,
-  CopyField,
-  Disclosure,
-  SearchableSelect,
-  SecretField,
-  SegmentedControl,
-  SelectField,
-  TextAreaField,
-  TextField,
-} from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import {
   buildSsoRegistrationBody,

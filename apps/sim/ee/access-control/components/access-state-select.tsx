@@ -1,4 +1,4 @@
-import { ChipDropdown } from '@sim/emcn'
+import { ChipDropdown } from '@sim/emcn-legacy'
 import {
   accessStateLabel,
   accessStateOptions,

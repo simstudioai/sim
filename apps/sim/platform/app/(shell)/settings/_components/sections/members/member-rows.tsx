@@ -1,11 +1,14 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
+import type { MenuAction } from '@sim/emcn/menu/action-menu'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { SettingsRow } from '@sim/emcn/settings-section'
+import { StatusTag } from '@sim/emcn/status'
 import styles from '@/platform/app/(shell)/settings/_components/sections/members/members.module.css'
-import { ActionMenu, Avatar, Select, StatusTag, Tooltip } from '@/platform/design-system/components'
-import { useClipboard } from '@/platform/design-system/components/feedback/use-clipboard'
-import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { SettingsRow } from '@/platform/design-system/components/settings-section/settings-section'
 import type {
   InvitationRowModel,
   MemberRowModel,
@@ -77,8 +80,7 @@ export function MemberRow({ row, actions, onRemove, onManageCredits, onTransfer 
       menuLabel={`Actions for ${row.name}`}
       control={
         row.canEditRole ? (
-          <Select
-            variant='quiet'
+          <ChoiceMenu
             label={`Role for ${row.name}`}
             options={ORGANIZATION_ROLE_OPTIONS}
             value={row.role}
@@ -154,8 +156,7 @@ export function InvitationRow({ row, canManage, actions }: InvitationRowProps) {
         row.isExternal || !canManage ? (
           <StatusTag label={row.isExternal ? 'External' : ORGANIZATION_ROLE_LABELS[row.role]} />
         ) : (
-          <Select
-            variant='quiet'
+          <ChoiceMenu
             label={`Role for ${row.email}`}
             options={ORGANIZATION_ROLE_OPTIONS}
             value={row.role}
@@ -179,12 +180,12 @@ interface WorkspaceMemberRowProps {
 export function WorkspaceMemberRow({ row, workspaceId, actions }: WorkspaceMemberRowProps) {
   const copyEmail = useCopyEmail(row.email)
   const select = (
-    <Select
-      variant='quiet'
+    <ChoiceMenu
       label={`Workspace access for ${row.name}`}
       options={WORKSPACE_ROLES}
       value={row.permission}
       disabled={!row.canEditPermission || actions.permissionPending}
+      disabledReason={row.lockReason ?? undefined}
       onValueChange={(next) =>
         void actions.changePermission(row.userId, workspaceId, toPermission(next))
       }
@@ -197,15 +198,7 @@ export function WorkspaceMemberRow({ row, workspaceId, actions }: WorkspaceMembe
       image={row.image}
       status={row.status}
       menuLabel={`Actions for ${row.name}`}
-      control={
-        row.lockReason ? (
-          <Tooltip label={row.lockReason}>
-            <span>{select}</span>
-          </Tooltip>
-        ) : (
-          select
-        )
-      }
+      control={select}
       actions={[
         copyEmail,
         ...(row.canRemoveFromWorkspace
@@ -247,8 +240,7 @@ export function WorkspaceInvitationRow({
       menuLabel={`Actions for ${row.email}`}
       actions={menu}
       control={
-        <Select
-          variant='quiet'
+        <ChoiceMenu
           label={`Workspace access for ${row.email}`}
           options={WORKSPACE_ROLES}
           value={row.permission}

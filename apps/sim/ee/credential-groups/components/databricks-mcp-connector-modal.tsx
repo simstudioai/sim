@@ -9,7 +9,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   toast,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { DatabricksIcon } from '@/components/icons'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'

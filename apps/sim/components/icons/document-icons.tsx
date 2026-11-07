@@ -14,7 +14,7 @@ import {
   VideoIcon,
   XlsxIcon,
   ZipIcon,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import {
   SUPPORTED_ARCHIVE_EXTENSIONS,
   SUPPORTED_ARCHIVE_MIME_TYPES,

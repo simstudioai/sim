@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { ChipTag, chipHoverSurfaceClass, chipTagVariants, cn, OverflowText } from '@sim/emcn'
-import { X } from '@sim/emcn/icons'
+import { ChipTag, chipHoverSurfaceClass, chipTagVariants, cn, OverflowText } from '@sim/emcn-legacy'
+import { X } from '@sim/emcn-legacy/icons'
 
 interface ResourceMentionProps {
   icon: ReactNode

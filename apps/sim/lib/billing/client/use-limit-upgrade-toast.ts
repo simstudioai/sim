@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback } from 'react'
-import { toast } from '@sim/emcn'
+import { toast } from '@sim/emcn-legacy'
 import { useParams, useRouter } from 'next/navigation'
 import { buildUpgradeHref, type UpgradeReason } from '@/lib/billing/upgrade-reasons'
 

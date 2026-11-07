@@ -1,4 +1,4 @@
-import { ChipLink } from '@sim/emcn'
+import { ChipLink } from '@sim/emcn-legacy'
 import type { TagWithCount } from '@/lib/content/schema'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
 

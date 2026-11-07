@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
-import { AuthProviderGroup, AuthSkeleton, AuthStack, cn } from '@sim/auth-ui'
+import { cn } from '@sim/emcn/lib/cn'
+import { AuthSkeleton } from '@sim/emcn-auth/loading'
+import { AuthProviderGroup, AuthStack } from '@sim/emcn-auth/stack'
 
 interface AuthLoadingSkeletonProps {
   shape?: 'title' | 'label' | 'control' | 'divider'
@@ -20,7 +22,7 @@ interface AuthLoadingFieldProps {
 }
 export function AuthLoadingField({ labelWidthClassName, className }: AuthLoadingFieldProps) {
   return (
-    <div className={cn('au:w-full au:space-y-2', className)}>
+    <div className={cn('au:flex au:w-full au:flex-col au:gap-2', className)}>
       <AuthSkeleton shape='label' className={labelWidthClassName} />
       <AuthSkeleton shape='control' className='au:w-full' />
     </div>

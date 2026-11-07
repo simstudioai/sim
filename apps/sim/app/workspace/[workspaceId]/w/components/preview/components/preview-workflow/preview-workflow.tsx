@@ -13,7 +13,7 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import {
   BLOCK_Z_BASE,

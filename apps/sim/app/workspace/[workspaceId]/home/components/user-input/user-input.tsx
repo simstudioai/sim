@@ -10,8 +10,8 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Chip, cn, Tooltip, toast } from '@sim/emcn'
-import { Paperclip, Plus, Slash } from '@sim/emcn/icons'
+import { Chip, cn, Tooltip, toast } from '@sim/emcn-legacy'
+import { Paperclip, Plus, Slash } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'

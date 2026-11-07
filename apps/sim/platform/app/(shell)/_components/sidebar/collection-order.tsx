@@ -1,4 +1,4 @@
-import { ActionMenu } from '@/platform/design-system/components'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
 
 const ORDERS = ['recent', 'ascending', 'descending'] as const
 export type SidebarOrder = (typeof ORDERS)[number]

@@ -1,12 +1,9 @@
 'use client'
 
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { Switch } from '@sim/emcn/switch'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
 import styles from '@/platform/app/(shell)/settings/_components/sections/privacy/cookie-preferences.module.css'
-import { Switch } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   CookieConsentProvider,
   cookieChoices,

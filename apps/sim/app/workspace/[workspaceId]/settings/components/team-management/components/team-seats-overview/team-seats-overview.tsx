@@ -1,4 +1,4 @@
-import { Badge, ChipLink } from '@sim/emcn'
+import { Badge, ChipLink } from '@sim/emcn-legacy'
 import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
 import { SegmentedMeter } from '@/app/workspace/[workspaceId]/settings/components/segmented-meter'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'

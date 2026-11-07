@@ -1,7 +1,7 @@
 'use client'
 
-import { Button } from '@sim/emcn'
-import { Download } from '@sim/emcn/icons'
+import { Button } from '@sim/emcn-legacy'
+import { Download } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { extractWorkspaceIdFromExecutionKey, getViewerUrl } from '@/lib/uploads/utils/file'

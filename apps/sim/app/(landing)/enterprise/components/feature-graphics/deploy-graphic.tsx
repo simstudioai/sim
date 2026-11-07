@@ -1,5 +1,5 @@
-import { ChipTag, chipContentLabelClass, chipGeometryClass, cn } from '@sim/emcn'
-import { CircleCheck, Lock } from '@sim/emcn/icons'
+import { ChipTag, chipContentLabelClass, chipGeometryClass, cn } from '@sim/emcn-legacy'
+import { CircleCheck, Lock } from '@sim/emcn-legacy/icons'
 import { ThinkingLoader } from '@/components/ui'
 import colorMixFallbacks from '@/app/(landing)/components/shared/color-mix-fallbacks/color-mix-fallbacks.module.css'
 import {

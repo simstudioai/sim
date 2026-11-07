@@ -1,4 +1,4 @@
-import { GridOffset } from '@sim/emcn/icons'
+import { GridOffset } from '@sim/emcn-legacy/icons'
 import {
   CREDENTIAL_GROUP_CREDENTIAL_EVENT_TYPES,
   CREDENTIAL_GROUP_EVENT_TRIGGER_ID,

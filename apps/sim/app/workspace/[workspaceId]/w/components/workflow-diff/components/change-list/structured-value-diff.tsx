@@ -10,7 +10,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { toRecord } from '@sim/utils/object'
 import {
   DIFF_SIGN,

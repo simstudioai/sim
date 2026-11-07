@@ -13,8 +13,8 @@ import {
   ChipModalHeader,
   ChipSwitch,
   toast,
-} from '@sim/emcn'
-import { KeySquare } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { KeySquare } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import type { GenericSecretSource } from '@/lib/api/contracts/organization-secrets'

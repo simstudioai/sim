@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
-import { ArrowRight, cn, OverflowText } from '@sim/emcn'
-import { Table } from '@sim/emcn/icons'
+import { ArrowRight, cn, OverflowText } from '@sim/emcn-legacy'
+import { Table } from '@sim/emcn-legacy/icons'
 import { stripVersionSuffix } from '@sim/utils/string'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'

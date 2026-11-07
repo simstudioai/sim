@@ -1,6 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { ControlRow } from '@sim/emcn/button/control-row'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { InlineNotice } from '@sim/emcn/status'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/_components/chat/cards/cards.module.css'
 import type {
@@ -8,8 +12,6 @@ import type {
   UsageNoticeProps,
 } from '@/platform/app/(shell)/_components/chat/message/message-segments'
 import type { PlatformCredentialRequest } from '@/platform/app/(shell)/_components/chat/model'
-import { Button, InlineNotice, SecretField } from '@/platform/design-system/components'
-import { ControlRow } from '@/platform/design-system/components/button/control-row'
 import {
   CredentialWorkspaceProvider,
   useCredentialWorkspace,

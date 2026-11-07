@@ -1,8 +1,8 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { cn } from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { ChevronDown } from '@sim/emcn-legacy/icons'
 import type { SortDirection, WorkflowGroup } from '@/lib/table'
 import { HeaderLabel } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/headers/header-label'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'

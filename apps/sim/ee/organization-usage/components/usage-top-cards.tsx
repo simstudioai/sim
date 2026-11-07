@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import {
   ORGANIZATION_USAGE_OVERVIEW_ROW_LIMIT,
   type OrganizationUsageOverview,

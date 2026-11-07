@@ -2,8 +2,8 @@
 
 import * as React from 'react'
 import * as SelectPrimitive from '@radix-ui/react-select'
-import { cn } from '@sim/emcn'
-import { Check, ChevronDown, ChevronUp } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { Check, ChevronDown, ChevronUp } from '@sim/emcn-legacy/icons'
 
 const Select = SelectPrimitive.Root
 

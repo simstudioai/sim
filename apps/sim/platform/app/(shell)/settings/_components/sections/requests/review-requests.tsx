@@ -1,21 +1,15 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { Pagination } from '@sim/emcn/pagination'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSurface } from '@sim/emcn/settings-section'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { Switch } from '@sim/emcn/switch'
 import styles from '@/platform/app/(shell)/settings/_components/sections/requests/requests.module.css'
 import { ReviewModal } from '@/platform/app/(shell)/settings/_components/sections/requests/review-modal'
-import {
-  Button,
-  EmptyState,
-  FailureNotice,
-  Pagination,
-  SearchField,
-  Select,
-  StatusTag,
-  Switch,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSurface,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   REQUEST_STATUS_OPTIONS,
   type RequestStatusFilter,
@@ -84,8 +78,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
       <div className={styles.listHeading}>
         <h2 data-type='T042'>{list.count === undefined ? heading : `${heading} ${list.count}`}</h2>
         <span className={styles.filter}>
-          <Select
-            variant='quiet'
+          <ChoiceMenu
             label='Filter request status'
             options={REQUEST_STATUS_OPTIONS}
             value={list.status}

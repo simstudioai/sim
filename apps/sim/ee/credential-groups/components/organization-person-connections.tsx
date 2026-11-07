@@ -8,7 +8,7 @@ import {
   scrollFadeAttributes,
   scrollFadeXClass,
   useScrollEdges,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import type { CredentialGroupEnrollmentDetail } from '@/lib/api/contracts/credential-groups'
 import { getCredentialGroupProviderService } from '@/lib/credential-groups/providers'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'

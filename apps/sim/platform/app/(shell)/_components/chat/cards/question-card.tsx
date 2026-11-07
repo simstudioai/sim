@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { Button, Chip, IconButton } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { Input } from '@sim/emcn/field/inputs'
 import styles from '@/platform/app/(shell)/_components/chat/cards/cards.module.css'
 import type { PlatformQuestion } from '@/platform/app/(shell)/_components/chat/model'
-import { Button, Checkbox, Chip, IconButton } from '@/platform/design-system/components'
-import { Input } from '@/platform/design-system/components/field/inputs'
 
 /** One `Prompt — Answer` line per question, the shape the transcript pairs back to this card. */
 function formatAnswers(questions: readonly PlatformQuestion[], answers: readonly string[]): string {

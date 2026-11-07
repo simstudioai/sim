@@ -8,8 +8,8 @@ import {
   Code,
   chipFieldSurfaceClass,
   useCopyToClipboard,
-} from '@sim/emcn'
-import { Check, Duplicate } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Check, Duplicate } from '@sim/emcn-legacy/icons'
 
 const CLIENTS = [
   { value: 'claude', label: 'Claude' },

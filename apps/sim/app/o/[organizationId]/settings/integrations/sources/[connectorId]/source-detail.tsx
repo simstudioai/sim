@@ -1,8 +1,8 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { ChipLink } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ChipLink } from '@sim/emcn-legacy'
+import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction, SettingsBackAction } from '@/components/settings/settings-header'

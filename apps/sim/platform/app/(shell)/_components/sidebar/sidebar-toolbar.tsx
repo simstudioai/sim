@@ -1,10 +1,11 @@
 'use client'
 
 import { useRef } from 'react'
+import { IconButton } from '@sim/emcn/button'
+import { Tooltip } from '@sim/emcn/tooltip'
 import { Inbox } from '@/platform/app/(shell)/_components/inbox/inbox'
 import type { InboxItem } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar.module.css'
-import { IconButton, Tooltip } from '@/platform/design-system/components'
 
 interface SidebarToolbarProps {
   items: readonly InboxItem[]

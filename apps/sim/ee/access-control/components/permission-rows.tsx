@@ -10,8 +10,8 @@ import {
   scrollFadeAttributes,
   scrollFadeClass,
   useScrollEdges,
-} from '@sim/emcn'
-import { ChevronDown, Search } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ChevronDown, Search } from '@sim/emcn-legacy/icons'
 import {
   ORGANIZATION_SCOPED_FEATURE_NOTE,
   type PermissionGroupPlatformFeature,

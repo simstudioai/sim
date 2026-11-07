@@ -1,4 +1,4 @@
-import { BookOpen } from '@sim/emcn/icons'
+import { BookOpen } from '@sim/emcn-legacy/icons'
 import { GoogleDriveIcon } from '@/components/icons'
 import { getScopesForService } from '@/lib/oauth/utils'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'

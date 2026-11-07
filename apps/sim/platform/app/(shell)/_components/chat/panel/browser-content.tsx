@@ -1,15 +1,13 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { IconButton } from '@sim/emcn/button'
+import { Input } from '@sim/emcn/field/inputs'
+import { BrowserActionsMenu } from '@sim/emcn/menu/action-menu'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { SearchField } from '@sim/emcn/search-field'
 import type { PanelData } from '@/platform/app/(shell)/_components/chat/panel/model'
 import styles from '@/platform/app/(shell)/_components/chat/panel/panels.module.css'
-import {
-  BrowserActionsMenu,
-  IconButton,
-  Input,
-  SearchField,
-} from '@/platform/design-system/components'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 interface BrowserContentProps {
   children: ReactNode

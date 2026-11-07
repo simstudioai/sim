@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import type { NavMenuPreviewKind } from '@/app/(landing)/components/navbar/components/nav-menu-chip/types'
 import { EdgeFade } from '@/app/(landing)/components/shared/edge-fade'
 

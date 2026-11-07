@@ -9,8 +9,8 @@ import {
   DropdownMenuItem,
   DropdownMenuItemLabel,
   DropdownMenuTrigger,
-} from '@sim/emcn'
-import { Columns3, Eye, EyeOff } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Columns3, Eye, EyeOff } from '@sim/emcn-legacy/icons'
 import type { ColumnDefinition, WorkflowGroup } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 

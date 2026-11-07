@@ -1,66 +1,44 @@
 import { Fragment, type ReactNode, useId } from 'react'
-import { HelpMenu } from '@/platform/app/(shell)/_components/sidebar/help-menu'
-import type evidence from '@/platform/design-system/catalog/evidence.json'
-import { glyphs, type IconName } from '@/platform/design-system/catalog/icon-geometry'
+import { AttachmentGrid } from '@sim/emcn/attachments'
+import { Avatar, AvatarGroup, PeoplePopover, PersonRow } from '@sim/emcn/avatar'
+import { Button, Chip, IconButton } from '@sim/emcn/button'
+import { glyphs, type IconName } from '@sim/emcn/catalog/icon-geometry'
+import { BarChart, DonutChart, TrendChart } from '@sim/emcn/chart/charts'
+import { DataTable, MetricGroup } from '@sim/emcn/data-display'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { FieldFrame, SelectField, TextAreaField, TextField } from '@sim/emcn/field'
+import { Input, TextArea } from '@sim/emcn/field/inputs'
 import {
   ActionMenu,
-  AttachmentGrid,
-  Avatar,
-  AvatarGroup,
-  BarChart,
   BrowserActionsMenu,
-  Button,
-  Chip,
-  ChoiceMenu,
-  ComposerInput,
-  DataTable,
-  DestinationTabs,
-  Disclosure,
-  DonutChart,
-  EmptyState,
-  ExecutionSteps,
-  FieldFrame,
-  IconButton,
-  Input,
   MenuItem,
-  MenuSearchField,
-  MetricGroup,
-  Modal,
-  ModalBody,
-  ModalFooter,
-  ModalHeader,
-  MultiStepModal,
-  OverflowText,
-  PeoplePopover,
-  PersonRow,
-  PropertyList,
-  RecentItems,
-  RecipientField,
-  RecipientTag,
-  ScrollArea,
-  SearchableSelect,
-  SearchField,
-  SegmentedControl,
-  Select,
-  SelectField,
-  SelectionItem,
-  SidebarWorkspaceItems,
-  Stack,
-  Switch,
-  TextArea,
-  TextAreaField,
-  TextField,
-  Tooltip,
-  TouchTarget,
-  TrendChart,
   VisibilityMenu,
-  WorkspaceList,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-  SettingsSurface,
-} from '@/platform/design-system/components/settings-section/settings-section'
+} from '@sim/emcn/menu/action-menu'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { Modal, MultiStepModal } from '@sim/emcn/modal'
+import { ModalBody, ModalFooter, ModalHeader } from '@sim/emcn/modal/parts'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { Select } from '@sim/emcn/picker/select'
+import { PropertyList } from '@sim/emcn/property-list'
+import { ScrollArea } from '@sim/emcn/scroll-area'
+import { SearchField } from '@sim/emcn/search-field'
+import { MenuSearchField } from '@sim/emcn/search-field/menu-search-field'
+import { SegmentedControl, SelectionItem } from '@sim/emcn/segmented-control'
+import { SettingsRow, SettingsSection, SettingsSurface } from '@sim/emcn/settings-section'
+import { Stack } from '@sim/emcn/stack'
+import { Switch } from '@sim/emcn/switch'
+import { Tooltip } from '@sim/emcn/tooltip'
+import { TouchTarget } from '@sim/emcn/touch-target'
+import type evidence from '@sim/emcn-platform/catalog/evidence.json'
+import { ComposerInput } from '@sim/emcn-platform/composer-input'
+import { DestinationTabs } from '@sim/emcn-platform/destination-tabs'
+import { ExecutionSteps } from '@sim/emcn-platform/execution-steps'
+import { RecentItems } from '@sim/emcn-platform/recent-items'
+import { RecipientField, RecipientTag } from '@sim/emcn-platform/workspace-fields'
+import { SidebarWorkspaceItems, WorkspaceList } from '@sim/emcn-platform/workspace-list'
+import { HelpMenu } from '@/platform/app/(shell)/_components/sidebar/help-menu'
 import type { PreviewData } from '@/platform/fixtures'
 import { formatCalendarDate } from '@/platform/lib/time'
 import { FileFieldSpecimen } from '@/platform/preview/file-field-specimen'
@@ -166,11 +144,7 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
           field={family.endsWith('stacked')}
         >
           {family.endsWith('stacked') ? (
-            <Select
-              label='Theme'
-              variant='quiet'
-              options={[{ value: 'system', label: 'System' }]}
-            />
+            <ChoiceMenu label='Theme' options={[{ value: 'system', label: 'System' }]} />
           ) : (
             data?.organization.members[0] && <Avatar name={data.organization.members[0]} />
           )}
@@ -401,9 +375,8 @@ export function ControlSpecimen({ master, data, renderChild, location }: Control
       return <Input placeholder={label} label={label} defaultValue={value} />
     case 'Select':
       return family.startsWith('Select/Theme') ? (
-        <Select
+        <ChoiceMenu
           label='Theme'
-          variant='quiet'
           options={['Light', 'Dark', 'System'].map((option) => ({ value: option, label: option }))}
           defaultValue={location.theme === 'dark' ? 'Dark' : 'System'}
         />

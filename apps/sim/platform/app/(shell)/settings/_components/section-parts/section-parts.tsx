@@ -1,10 +1,10 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { Button } from '@sim/emcn/button'
+import { SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
 import styles from '@/platform/app/(shell)/settings/_components/section-parts/section-parts.module.css'
-import { Button } from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 
 interface ChildrenProps {
   children: ReactNode

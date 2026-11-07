@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn } from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
+import { Button, cn } from '@sim/emcn-legacy'
+import { Trash } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'

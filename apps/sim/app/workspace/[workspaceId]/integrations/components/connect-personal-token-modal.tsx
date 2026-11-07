@@ -9,7 +9,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   SecretInput,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { GitlabIcon } from '@/components/icons'
 import {
   useCreateWorkspaceCredential,

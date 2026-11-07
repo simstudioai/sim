@@ -17,7 +17,9 @@ export function productUsage(app: string, program: ts.Program): Usage {
   const usage: Usage = { variants: new Set(), recipes: new Set() }
   const seen = new WeakMap<ts.Node, Set<string>>()
   const preview = path.join(app, 'platform/preview/')
-  const system = path.join(app, 'platform/design-system/')
+  const systems = ['emcn', 'emcn-platform'].map(
+    (name) => path.resolve(app, '../../packages', name, 'src') + path.sep
+  )
   const appDir = path.join(app, 'platform/app')
   const workbench = path.join(appDir, 'workbench/')
   function declaration(node: ts.Node) {
@@ -277,7 +279,7 @@ export function productUsage(app: string, program: ts.Program): Usage {
               attrs[item.name.getText()] = values(item.initializer, scope)
           }
           if (
-            decl.getSourceFile().fileName.startsWith(system) ||
+            systems.some((system) => decl.getSourceFile().fileName.startsWith(system)) ||
             decl.getSourceFile().fileName.includes('/_components/')
           ) {
             const name =

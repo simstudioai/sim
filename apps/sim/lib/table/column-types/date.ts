@@ -1,4 +1,4 @@
-import { Calendar as CalendarIcon } from '@sim/emcn/icons'
+import { Calendar as CalendarIcon } from '@sim/emcn-legacy/icons'
 import type { ColumnTypeDefinition } from '@/lib/table/column-types/types'
 import {
   formatDateCellDisplay,

@@ -1,6 +1,7 @@
 'use client'
 
 import { type ComponentType, memo, useContext } from 'react'
+import { cn } from '@sim/emcn/lib/cn'
 import {
   type CanvasSentenceSegment,
   CanvasSentenceView,
@@ -9,7 +10,6 @@ import {
 } from '@sim/workflow-renderer'
 import type { Node, NodeProps } from '@xyflow/react'
 import { m } from 'framer-motion'
-import { cn } from '@/components/docs/classnames'
 import { normalizeBlockType, resolveIcon } from '@/components/workflow-preview/block-icons'
 import { PreviewSelectionContext } from '@/components/workflow-preview/preview-selection-context'
 import {

@@ -1,6 +1,6 @@
 'use client'
 
-import { Modal } from '@/platform/design-system/components'
+import { Modal } from '@sim/emcn/modal'
 import { useSettingsLeaveGuard } from '@/platform/lib/data/settings-guard'
 
 /** One discard dialog for every Settings editor that registers an unsaved draft. */

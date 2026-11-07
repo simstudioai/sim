@@ -10,7 +10,7 @@ import {
   PopoverItem,
   PopoverScrollArea,
   PopoverSection,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   CODE_PLACEHOLDER,
   type SchemaParameter,

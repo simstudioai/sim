@@ -1,5 +1,5 @@
-import { cn } from '@sim/emcn'
-import { RefreshCw } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { RefreshCw } from '@sim/emcn-legacy/icons'
 import type { ResourceAction } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 
 interface RefreshIconProps {

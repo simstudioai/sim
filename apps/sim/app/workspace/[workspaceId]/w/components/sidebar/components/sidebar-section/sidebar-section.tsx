@@ -1,8 +1,14 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { cn, disclosureChevronClass, Expandable, ExpandableContent, OverflowText } from '@sim/emcn'
-import { ChevronDown } from '@sim/emcn/icons'
+import {
+  cn,
+  disclosureChevronClass,
+  Expandable,
+  ExpandableContent,
+  OverflowText,
+} from '@sim/emcn-legacy'
+import { ChevronDown } from '@sim/emcn-legacy/icons'
 
 /**
  * Title-row layout, shared by the toggle and its rail-collapsed counterpart so the

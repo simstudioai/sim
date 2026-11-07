@@ -56,8 +56,8 @@ import {
   useOrganizationUsageOverview,
 } from '@/hooks/queries/organization-usage'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
-import { platformHref } from '@/platform/design-system/navigation'
 import { toast } from '@/platform/lib/data/toast'
+import { platformHref } from '@/platform/lib/navigation'
 import { DAY_MS, formatCalendarDate } from '@/platform/lib/time'
 
 const logger = createLogger('PlatformUsage')

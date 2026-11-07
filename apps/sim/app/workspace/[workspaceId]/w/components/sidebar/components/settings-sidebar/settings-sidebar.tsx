@@ -11,8 +11,8 @@ import {
   scrollFadeAttributes,
   scrollFadeClass,
   useScrollEdges,
-} from '@sim/emcn'
-import { ArrowUpRight, Building, ChevronLeft, Lock } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { ArrowUpRight, Building, ChevronLeft, Lock } from '@sim/emcn-legacy/icons'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import {
   type DesktopSettingsSurface,

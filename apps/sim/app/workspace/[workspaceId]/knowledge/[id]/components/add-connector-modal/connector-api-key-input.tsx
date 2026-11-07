@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { SecretInput } from '@sim/emcn'
+import { SecretInput } from '@sim/emcn-legacy'
 import {
   checkEnvVarTrigger,
   EnvVarDropdown,

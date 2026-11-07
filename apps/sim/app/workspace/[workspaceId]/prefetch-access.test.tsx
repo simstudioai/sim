@@ -28,7 +28,7 @@ vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   cn: (...values: string[]) => values.join(' '),
   Chip: ({ children, onClick }: { children: ReactNode; onClick?: () => void }) => (
     <button type='button' onClick={onClick}>
@@ -39,7 +39,7 @@ vi.mock('@sim/emcn', () => ({
     <a href={href}>{children}</a>
   ),
 }))
-vi.mock('@sim/emcn/icons', () => emcnIconsMock)
+vi.mock('@sim/emcn-legacy/icons', () => emcnIconsMock)
 vi.mock('@/ee/access-requests/components/request-access-action', () => ({
   RequestAccessAction: ({ pendingRequestId }: { pendingRequestId: string | null }) => (
     <button type='button'>{pendingRequestId ? 'Pending' : 'Request access'}</button>

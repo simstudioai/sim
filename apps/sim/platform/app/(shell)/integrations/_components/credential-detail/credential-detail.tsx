@@ -1,20 +1,16 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { TextAreaField, TextField } from '@sim/emcn/field'
+import { Icon } from '@sim/emcn/icon'
+import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
+import { DirectoryHeading } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import { CredentialAccess } from '@/platform/app/(shell)/integrations/_components/credential-access/credential-access'
 import styles from '@/platform/app/(shell)/integrations/_components/credential-detail/credential-detail.module.css'
 import { ToolPermissions } from '@/platform/app/(shell)/integrations/_components/fixtures/tool-permissions/tool-permissions'
-import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
-import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
-import {
-  ActionMenu,
-  Button,
-  ContentTabs,
-  TextAreaField,
-  TextField,
-} from '@/platform/design-system/components'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 import { credentialDetailParams } from '@/platform/lib/integrations/credential-navigation'
@@ -22,6 +18,7 @@ import { credentialDetailParams } from '@/platform/lib/integrations/credential-n
 interface CredentialDetailProps {
   credential: IntegrationCredential
   integrationName: string
+  providerId?: string
   viewer: IntegrationPerson
   people: readonly IntegrationPerson[]
   onChange: (credential: IntegrationCredential) => void
@@ -35,6 +32,7 @@ interface CredentialDetailProps {
 export function CredentialDetail({
   credential,
   integrationName,
+  providerId,
   viewer,
   people,
   onChange,
@@ -52,37 +50,32 @@ export function CredentialDetail({
   const dirty = displayName !== credential.displayName || description !== credential.description
   return (
     <>
-      <ProviderHeading
-        name={credential.displayName}
+      <DirectoryHeading
+        title={credential.displayName}
         description={credential.accountLabel ?? integrationName}
-        providerId={credential.appId}
+        leading={providerId ? <Icon providerId={providerId} /> : <Icon name='I137' />}
       />
-      {editable && (
-        <IntegrationControls leading={null}>
-          <ActionMenu
-            label='Credential actions'
-            icon='I108'
-            tooltip={false}
-            actions={[
-              ...(onReplace
-                ? [{ id: 'replace', label: 'Replace value', onSelect: onReplace }]
-                : []),
-              ...(onReconnect
-                ? [{ id: 'reconnect', label: 'Reconnect', onSelect: onReconnect }]
-                : []),
-              {
-                id: 'disconnect',
-                label: credential.type === 'secret' ? 'Delete credential' : 'Disconnect',
-                separatorBefore: Boolean(onReconnect || onReplace),
-                destructive: true,
-                onSelect: onDisconnect,
-              },
-            ]}
-          />
-        </IntegrationControls>
-      )}
       <ContentTabs
         label='Credential details'
+        actions={
+          editable ? (
+            <>
+              {onReplace && (
+                <Button variant='quiet' size='compact' onClick={onReplace}>
+                  Replace value
+                </Button>
+              )}
+              {onReconnect && (
+                <Button variant='quiet' size='compact' onClick={onReconnect}>
+                  Reconnect
+                </Button>
+              )}
+              <Button variant='quiet' destructive size='compact' onClick={onDisconnect}>
+                {credential.type === 'secret' ? 'Delete credential' : 'Disconnect'}
+              </Button>
+            </>
+          ) : undefined
+        }
         current={
           view.credentialTab === 'permissions' && !credential.permissions
             ? 'details'
@@ -132,7 +125,7 @@ export function CredentialDetail({
                   onChange={setDisplayName}
                   maxLength={255}
                   required
-                  readOnly={!editable}
+                  viewOnly={!editable}
                   error={error}
                 />
                 <TextAreaField
@@ -141,7 +134,7 @@ export function CredentialDetail({
                   value={description}
                   onChange={setDescription}
                   maxLength={500}
-                  readOnly={!editable}
+                  viewOnly={!editable}
                   optional
                 />
                 {credential.instanceUrl && (

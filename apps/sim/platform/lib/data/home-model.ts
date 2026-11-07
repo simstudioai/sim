@@ -1,3 +1,6 @@
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
+import { providerMark } from '@sim/emcn/icon/provider-marks'
+import type { RecentItem } from '@sim/emcn-platform/recent-items'
 import type { AccessRequestRecord } from '@/lib/api/contracts/access-requests'
 import type { SearchHistoryResponse } from '@/lib/api/contracts/knowledge/search-history'
 import type { SearchIntegrationStatus } from '@/lib/api/contracts/knowledge/search-integrations'
@@ -25,9 +28,6 @@ import type {
   HomeConnectOption,
   HomeWidgetState,
 } from '@/platform/app/(shell)/home/_components/model'
-import type { IconName } from '@/platform/design-system/catalog/icon-geometry'
-import { providerMark } from '@/platform/design-system/components/icon/provider-marks'
-import type { RecentItem } from '@/platform/design-system/components/recent-items/recent-items'
 
 interface HomeWidgetSource {
   /** The member inventory provider this widget draws on, so both surfaces agree by construction. */

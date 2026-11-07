@@ -1,8 +1,8 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
-import { Button } from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+import { Button } from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import { useTableColumns } from '@/lib/table/hooks'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { useFilterBuilder } from '@/lib/table/query-builder/use-query-builder'

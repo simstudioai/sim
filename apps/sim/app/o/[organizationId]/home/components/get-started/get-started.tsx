@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@sim/emcn'
-import { ArrowRight } from '@sim/emcn/icons'
+import { cn } from '@sim/emcn-legacy'
+import { ArrowRight } from '@sim/emcn-legacy/icons'
 import { HomeSection } from '@/components/home/home-section'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
 import { useGetStartedSteps } from '@/app/o/[organizationId]/home/components/get-started/use-get-started-steps'

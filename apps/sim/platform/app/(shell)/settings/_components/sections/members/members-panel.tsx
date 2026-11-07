@@ -1,6 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
+import { Tooltip } from '@sim/emcn/tooltip'
 import { InviteModal } from '@/platform/app/(shell)/_components/invite-modal/invite-modal'
 import { ManageCreditsModal } from '@/platform/app/(shell)/settings/_components/section-parts/manage-credits-modal'
 import {
@@ -16,17 +22,6 @@ import {
 } from '@/platform/app/(shell)/settings/_components/sections/members/remove-member-modal'
 import { SeatsOverview } from '@/platform/app/(shell)/settings/_components/sections/members/seats-overview'
 import { TransferOwnershipModal } from '@/platform/app/(shell)/settings/_components/sections/members/transfer-ownership-modal'
-import {
-  Button,
-  EmptyState,
-  FailureNotice,
-  SearchField,
-  Tooltip,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   filterRoster,
   type MemberRowModel,
@@ -168,7 +163,8 @@ export function MembersPanel({ organization }: MembersPanelProps) {
             <SettingsRow label='Organization membership'>
               <Button
                 size='compact'
-                variant='destructive'
+                variant='quiet'
+                destructive
                 onClick={() =>
                   setRemoval({
                     userId: members.viewerId ?? '',

@@ -9,7 +9,7 @@ import {
   type TerminalShortcutCommand,
   type TerminalThemeProfile,
 } from '@sim/desktop-bridge'
-import { cn, NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, toast } from '@sim/emcn'
+import { cn, NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { FitAddon } from '@xterm/addon-fit'

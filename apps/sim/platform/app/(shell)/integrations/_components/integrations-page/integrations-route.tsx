@@ -1,6 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { InlineNotice } from '@sim/emcn/status'
 import { useSearchParams } from 'next/navigation'
 import { IntegrationDetails } from '@/platform/app/(shell)/integrations/_components/integration-details/integration-details'
 import { IntegrationList } from '@/platform/app/(shell)/integrations/_components/integration-list/integration-list'
@@ -12,7 +14,6 @@ import { MemberSecrets } from '@/platform/app/(shell)/integrations/_components/m
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
 import { QueryFailure } from '@/platform/app/(shell)/integrations/_components/query-failure/query-failure'
 import { ToolPermissionsPanel } from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions-panel'
-import { EmptyState, InlineNotice } from '@/platform/design-system/components'
 import {
   defaultIntegrationPaths,
   useIntegrationActions,

@@ -1,6 +1,13 @@
 'use client'
 
 import { type MouseEvent, useEffect, useRef, useState } from 'react'
+import { Chip } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { TextField } from '@sim/emcn/field'
+import { Icon } from '@sim/emcn/icon'
+import type { MenuAction } from '@sim/emcn/menu/action-menu'
+import { ActionMenu, ContextActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
 import { useSearchParams } from 'next/navigation'
 import type {
   ShellActions,
@@ -16,17 +23,7 @@ import {
 import { SectionStatus } from '@/platform/app/(shell)/_components/sidebar/section-status'
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
-import {
-  ActionMenu,
-  Chip,
-  ContextActionMenu,
-  Disclosure,
-  Icon,
-  Modal,
-  TextField,
-} from '@/platform/design-system/components'
-import type { MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { platformHref } from '@/platform/design-system/navigation'
+import { platformHref } from '@/platform/lib/navigation'
 
 const NO_SELECTION: ReadonlySet<string> = new Set()
 const CHAT_TITLE_MAX_LENGTH = 200

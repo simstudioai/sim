@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { AuthField, PasswordInput } from '@sim/auth-ui'
+import { AuthField } from '@sim/emcn-auth/field'
+import { PasswordInput } from '@sim/emcn-auth/input'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { AuthSubmitButton } from '@/app/(auth)/components'
@@ -44,7 +45,7 @@ export function PublicFileAuth({ token }: PublicFileAuthProps) {
           event.preventDefault()
           void handleAuthenticate()
         }}
-        className='au:space-y-5'
+        className='au:flex au:flex-col au:gap-5'
       >
         <AuthField htmlFor='password' label='Password' errors={error ? [error] : undefined}>
           <PasswordInput

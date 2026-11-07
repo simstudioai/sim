@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
-import { AuthRoot } from '@sim/auth-ui'
+import { AuthRoot } from '@sim/emcn-auth/root'
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
@@ -81,7 +81,7 @@ describe('OAuth consent view', () => {
       })
     )
     await act(async () => {
-      accountButton().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      accountButton().click()
       await vi.advanceTimersByTimeAsync(20)
     })
     const switchAccount = container.querySelector<HTMLElement>('[role="menuitem"]')

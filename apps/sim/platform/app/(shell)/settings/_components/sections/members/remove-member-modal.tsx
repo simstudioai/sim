@@ -1,8 +1,8 @@
 'use client'
 
+import { Modal } from '@sim/emcn/modal'
 import { formatQuotedNameList } from '@sim/utils/string'
 import styles from '@/platform/app/(shell)/settings/_components/sections/members/members.module.css'
-import { Modal } from '@/platform/design-system/components'
 import { useMemberRemoval } from '@/platform/lib/data/members'
 
 const MAX_LISTED_CREDENTIALS = 3

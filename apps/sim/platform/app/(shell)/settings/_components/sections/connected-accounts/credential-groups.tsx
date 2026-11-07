@@ -1,5 +1,9 @@
 'use client'
 
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import {
   ActionRow,
@@ -9,11 +13,6 @@ import { GroupAccess } from '@/platform/app/(shell)/settings/_components/section
 import { GroupPeople } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/group-people'
 import { GroupProviders } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/group-providers'
 import type { CredentialGroupsData } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/model'
-import { Button, EmptyState, SegmentedControl } from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import { useSettingsFixtureDraft } from '@/platform/lib/data/settings-providers'
 
 const VIEWS = [

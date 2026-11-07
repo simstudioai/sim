@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { FixtureChatScreen } from '@/platform/app/(shell)/_components/chat/conversation/fixture-chat-screen'
-import { readScenario } from '@/platform/design-system/navigation'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
+import { readScenario } from '@/platform/lib/navigation'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 export default async function Page({

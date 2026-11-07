@@ -1,5 +1,5 @@
-import { ChipTag, cn } from '@sim/emcn'
-import { CircleCheck } from '@sim/emcn/icons'
+import { ChipTag, cn } from '@sim/emcn-legacy'
+import { CircleCheck } from '@sim/emcn-legacy/icons'
 import { FeatureGraphicShell } from '@/app/(landing)/enterprise/components/feature-graphics'
 import styles from '@/app/(landing)/solutions/finance/components/feature-graphics/reconcile-graphic.module.css'
 

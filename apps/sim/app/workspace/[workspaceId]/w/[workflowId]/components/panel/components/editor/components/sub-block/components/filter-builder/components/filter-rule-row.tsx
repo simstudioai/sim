@@ -9,8 +9,8 @@ import {
   Input,
   Label,
   Trash,
-} from '@sim/emcn'
-import { Plus } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'

@@ -1,8 +1,8 @@
 'use client'
 
 import { useSyncExternalStore } from 'react'
+import { IconButton } from '@sim/emcn/button'
 import styles from '@/platform/app/(shell)/_components/platform-shell/platform-shell.module.css'
-import { IconButton } from '@/platform/design-system/components'
 
 interface WindowHistory extends EventTarget {
   canGoBack: boolean

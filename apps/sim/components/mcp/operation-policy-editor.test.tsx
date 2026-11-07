@@ -1,5 +1,5 @@
 import type { ComponentProps } from 'react'
-import type { Combobox, TagInput } from '@sim/emcn'
+import type { Combobox, TagInput } from '@sim/emcn-legacy'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -7,7 +7,7 @@ const { tagInput, dropdown } = vi.hoisted(() => ({
   tagInput: vi.fn<(props: ComponentProps<typeof TagInput>) => null>(() => null),
   dropdown: vi.fn<(props: ComponentProps<typeof Combobox>) => null>(() => null),
 }))
-vi.mock('@sim/emcn', () => ({ TagInput: tagInput, Combobox: dropdown }))
+vi.mock('@sim/emcn-legacy', () => ({ TagInput: tagInput, Combobox: dropdown }))
 
 import { McpOperationPolicyEditor } from '@/components/mcp/operation-policy-editor'
 

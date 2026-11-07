@@ -1,6 +1,6 @@
 /** @vitest-environment jsdom */
 import { act, type ComponentProps, useState } from 'react'
-import { ToastProvider } from '@sim/emcn'
+import { ToastProvider } from '@sim/emcn-legacy'
 import {
   createMockDeploymentShape,
   deploymentShapeMock,

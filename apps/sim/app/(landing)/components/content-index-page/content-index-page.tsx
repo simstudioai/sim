@@ -1,4 +1,4 @@
-import { ChipLink } from '@sim/emcn'
+import { ChipLink } from '@sim/emcn-legacy'
 import Image from 'next/image'
 import Link from 'next/link'
 import { paginateContentPosts } from '@/lib/content/index-list'

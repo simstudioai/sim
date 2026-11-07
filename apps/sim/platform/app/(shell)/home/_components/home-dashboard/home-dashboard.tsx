@@ -1,6 +1,12 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { Icon } from '@sim/emcn/icon'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { InlineNotice } from '@sim/emcn/status'
+import { PageColumn, PageOverflow } from '@sim/emcn-platform/page-column'
+import { RecentItems } from '@sim/emcn-platform/recent-items'
+import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
 import type { HomeMode, HomeWidget } from '@/platform/app/(shell)/_components/model'
 import { usePlatformNotices } from '@/platform/app/(shell)/_components/notification-tray/notification-tray'
 import { HomeActivityChart } from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart'
@@ -15,15 +21,6 @@ import styles from '@/platform/app/(shell)/home/_components/home-dashboard/home-
 import type { HomeActions, HomeView } from '@/platform/app/(shell)/home/_components/model'
 import { RetryButton } from '@/platform/app/(shell)/home/_components/retry-button/retry-button'
 import { SkeletonLane } from '@/platform/app/(shell)/home/_components/widget-skeleton/widget-skeleton'
-import {
-  ActionMenu,
-  Icon,
-  InlineNotice,
-  PageColumn,
-  PageOverflow,
-  RecentItems,
-} from '@/platform/design-system/components'
-import { PlatformSurface } from '@/platform/design-system/components/surface/platform-surface'
 
 const WIDGETS: readonly HomeWidget[] = ['Activity', 'Email', 'Calendar']
 const ACTIVITY_METRIC_TITLES: Record<HomeMode, string> = { Build: 'Tasks run', Search: 'Searches' }

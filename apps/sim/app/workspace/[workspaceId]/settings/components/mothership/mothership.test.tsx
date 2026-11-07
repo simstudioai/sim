@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockGenerate } = vi.hoisted(() => ({ mockGenerate: vi.fn() }))
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   ...emcnMock,
   Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Chip: ({ children }: { children?: ReactNode }) => <span>{children}</span>,

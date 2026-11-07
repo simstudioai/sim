@@ -17,7 +17,7 @@ import {
   Tooltip,
   toast,
   useCopyToClipboard,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { useParams, useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { isLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'

@@ -17,7 +17,7 @@ const { stubInput } = vi.hoisted(() => {
   return { stubInput }
 })
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   Button: ({ children }: { children?: ReactNode }) => <button type='button'>{children}</button>,
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
   Input: () => null,
@@ -25,7 +25,7 @@ vi.mock('@sim/emcn', () => ({
   Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
 }))
 
-vi.mock('@sim/emcn/icons', () => emcnIconsMock)
+vi.mock('@sim/emcn-legacy/icons', () => emcnIconsMock)
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components',

@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
   dropdownMenuRowClass,
   OverflowText,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import {

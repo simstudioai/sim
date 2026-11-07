@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useRef } from 'react'
-import { bindPreviewHorizontalWheel } from '@sim/emcn'
+import { bindPreviewHorizontalWheel } from '@sim/emcn-legacy'
 
 /**
  * Ref callback that gives a preview scroll container horizontal wheel scrolling.

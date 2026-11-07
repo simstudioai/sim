@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react'
-import { Repeat, Split } from '@sim/emcn/icons'
+import { Repeat, Split } from '@sim/emcn-legacy/icons'
 import { hasWorkflowTypeRole } from '@sim/workflow-renderer'
 import { getBlock } from '@/blocks/registry'
 

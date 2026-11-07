@@ -9,7 +9,7 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   toast,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { useInviteOrganizationAccountPeople } from '@/hooks/queries/organization-accounts'

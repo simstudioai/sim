@@ -18,7 +18,7 @@ import {
   Search as SearchIcon,
   Tooltip,
   useCopyToClipboard,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import {
   ArrowDown,
   ArrowUp,
@@ -28,7 +28,7 @@ import {
   Clipboard,
   Search,
   X,
-} from '@sim/emcn/icons'
+} from '@sim/emcn-legacy/icons'
 import { formatDuration } from '@sim/utils/formatting'
 import { createPortal } from 'react-dom'
 import type { TraceSpan } from '@/lib/logs/types'

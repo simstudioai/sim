@@ -1,4 +1,4 @@
-import { ClipboardList, Database, Search, Server, Table, Wrench } from '@sim/emcn/icons'
+import { ClipboardList, Database, Search, Server, Table, Wrench } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { MySQLIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'

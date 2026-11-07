@@ -1,17 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { DataTable, TableLabel } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Icon } from '@sim/emcn/icon'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { SectionSkeleton } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import {
-  ActionMenu,
-  DataTable,
-  EmptyState,
-  FailureNotice,
-  Icon,
-  Modal,
-  StatusTag,
-  TableLabel,
-} from '@/platform/design-system/components'
 import { usePersonalAccountsList } from '@/platform/lib/data/account'
 
 const TITLE = 'Connected organization accounts'

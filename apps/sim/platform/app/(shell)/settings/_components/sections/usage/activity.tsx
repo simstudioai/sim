@@ -1,20 +1,15 @@
 'use client'
 
+import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
+import { BarChart, TrendChart } from '@sim/emcn/chart/charts'
+import { DataTable, MetricGroup, TableLabel } from '@sim/emcn/data-display'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import { Pagination } from '@sim/emcn/pagination'
+import { FailureNotice } from '@sim/emcn/status'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
-import {
-  Avatar,
-  BarChart,
-  Button,
-  DataTable,
-  EmptyState,
-  FailureNotice,
-  MetricGroup,
-  OverflowText,
-  Pagination,
-  Select,
-  TableLabel,
-  TrendChart,
-} from '@/platform/design-system/components'
 import {
   ACTIVITY_DIMENSIONS,
   ACTIVITY_SORTS,
@@ -129,9 +124,8 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
       <section className={styles.block} aria-label='Breakdown'>
         <h2 data-type='T093'>Breakdown</h2>
         <div className={styles.toolbar}>
-          <Select
+          <ChoiceMenu
             label='Group activity by'
-            variant='quiet'
             options={ACTIVITY_DIMENSIONS}
             value={activityDimension}
             onValueChange={(value) =>
@@ -142,9 +136,8 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
             }
           />
           {!member && (
-            <Select
+            <ChoiceMenu
               label='Sort activity by'
-              variant='quiet'
               options={ACTIVITY_SORTS}
               value={sort}
               onValueChange={(value) =>
@@ -164,48 +157,48 @@ export function ActivityPanel({ organizationId }: { organizationId: string }) {
             title='Activity breakdown'
             titleHidden
             columns={COLUMNS_BY_DIMENSION[activityDimension]}
-            rows={breakdown.rows.map((row) => ({
-              id: row.id,
-              values: {
-                label: row.label,
-                workflowRuns: row.workflowRuns,
-                chatRuns: row.chatRuns,
-                failed: row.failed,
-                failureRate: row.failureRateLabel,
-                duration: formatDurationMs(row.averageDurationMs),
-              },
-              cells: {
-                label: (
-                  <TableLabel
-                    leading={
-                      member ? (
-                        <Avatar size='inline' name={row.label} src={row.image ?? undefined} />
-                      ) : undefined
-                    }
-                  >
-                    <OverflowText
-                      text={
-                        activityDimension === 'workflow' && row.workspaceName
-                          ? `${row.label} · ${row.workspaceName}`
-                          : row.label
+            rows={breakdown.rows.map((row) => {
+              const label =
+                activityDimension === 'workflow' && row.workspaceName
+                  ? `${row.label} · ${row.workspaceName}`
+                  : row.label
+              return {
+                id: row.id,
+                values: {
+                  label: row.label,
+                  workflowRuns: row.workflowRuns,
+                  chatRuns: row.chatRuns,
+                  failed: row.failed,
+                  failureRate: row.failureRateLabel,
+                  duration: formatDurationMs(row.averageDurationMs),
+                },
+                cells: {
+                  label: (
+                    <TableLabel
+                      leading={
+                        member ? (
+                          <Avatar size='inline' name={row.label} src={row.image ?? undefined} />
+                        ) : undefined
                       }
-                    />
-                  </TableLabel>
-                ),
-              },
-              onOpen:
-                activityDimension === 'workspace' && row.workspaceId
-                  ? () =>
-                      void setState(
-                        {
-                          workspace: row.workspaceId,
-                          activityDimension: 'workflow',
-                          activityPage: 0,
-                        },
-                        { history: 'push' }
-                      )
-                  : undefined,
-            }))}
+                    >
+                      <OverflowText text={label}>{label}</OverflowText>
+                    </TableLabel>
+                  ),
+                },
+                onOpen:
+                  activityDimension === 'workspace' && row.workspaceId
+                    ? () =>
+                        void setState(
+                          {
+                            workspace: row.workspaceId,
+                            activityDimension: 'workflow',
+                            activityPage: 0,
+                          },
+                          { history: 'push' }
+                        )
+                    : undefined,
+              }
+            })}
           />
         )}
         {(activityPage > 0 || breakdown.hasMore) && (

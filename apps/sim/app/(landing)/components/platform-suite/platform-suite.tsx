@@ -1,7 +1,7 @@
 'use client'
 
 import { type ComponentType, useState } from 'react'
-import { cn } from '@sim/emcn'
+import { cn } from '@sim/emcn-legacy'
 import Link from 'next/link'
 import {
   HOME_INSET,

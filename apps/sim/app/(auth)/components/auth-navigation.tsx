@@ -1,6 +1,6 @@
 'use client'
 
-import { AuthLinkButton } from '@sim/auth-ui'
+import { AuthLinkButton } from '@sim/emcn-auth/button'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { validateCallbackUrl } from '@/lib/core/security/input-validation'
 import { buildAuthCrossLink, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'

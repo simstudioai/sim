@@ -1,11 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
 import dynamic from 'next/dynamic'
 import { PeopleDirectory } from '@/platform/app/(shell)/people/_components/directory/directory'
 import { PeopleFrame } from '@/platform/app/(shell)/people/_components/people-page/people-frame'
 import styles from '@/platform/app/(shell)/people/_components/people-page/people-page.module.css'
-import { Button } from '@/platform/design-system/components'
 import {
   type SyncSource,
   useChartRoots,

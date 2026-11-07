@@ -1,6 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { TextField } from '@sim/emcn/field'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { Icon } from '@sim/emcn/icon'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { Modal } from '@sim/emcn/modal'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { parseAsString, useQueryState } from 'nuqs'
@@ -14,23 +24,8 @@ import type {
   CredentialProvider,
   DatabricksConfiguration,
 } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/model'
-import {
-  ActionMenu,
-  Button,
-  EmptyState,
-  Icon,
-  Modal,
-  SearchableSelect,
-  SearchField,
-  SecretField,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
-import { platformHref } from '@/platform/design-system/navigation'
 import { toast } from '@/platform/lib/data/toast'
+import { platformHref } from '@/platform/lib/navigation'
 
 interface GroupProvidersProps {
   databricks?: DatabricksConfiguration

@@ -13,7 +13,7 @@ import {
   ShieldCheck,
   Tooltip,
   toast,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import { useQueryClient } from '@tanstack/react-query'

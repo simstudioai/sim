@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef } from 'react'
-import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn'
+import { cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn-legacy'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'

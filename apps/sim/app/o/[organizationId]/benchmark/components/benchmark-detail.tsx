@@ -8,8 +8,8 @@ import {
   ChipModalError,
   ChipSelect,
   ChipTextarea,
-} from '@sim/emcn'
-import { Download, Trash } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Download, Trash } from '@sim/emcn-legacy/icons'
 import { useQueryStates } from 'nuqs'
 import type {
   BenchmarkCase,

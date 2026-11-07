@@ -1,7 +1,7 @@
 'use client'
 
 import { useConsentManager, useHeadlessConsentUI } from '@c15t/nextjs/headless'
-import { Chip } from '@sim/emcn'
+import { Chip } from '@sim/emcn-legacy'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
 import { CONSENT_LINK_CLASS, ConsentPreferences } from '@/app/_shell/consent/consent-preferences'

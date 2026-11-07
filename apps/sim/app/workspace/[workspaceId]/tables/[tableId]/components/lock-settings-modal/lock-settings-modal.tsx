@@ -10,8 +10,8 @@ import {
   ChipModalFooter,
   ChipModalHeader,
   Tooltip,
-} from '@sim/emcn'
-import { CircleInfo, Lock } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { CircleInfo, Lock } from '@sim/emcn-legacy/icons'
 import type { TableLocks } from '@/lib/table/types'
 import { LOCK_FIELDS } from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
 import { useUpdateTableLocks } from '@/hooks/queries/tables'

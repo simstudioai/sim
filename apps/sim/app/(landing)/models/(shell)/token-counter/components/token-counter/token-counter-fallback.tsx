@@ -1,4 +1,4 @@
-import { ChipTextarea, chipFieldSurfaceClass, chipGeometryClass, cn } from '@sim/emcn'
+import { ChipTextarea, chipFieldSurfaceClass, chipGeometryClass, cn } from '@sim/emcn-legacy'
 import { DEFAULT_TOOL_MODEL_IDS } from '@/app/(landing)/models/tools'
 
 export const TEXT_ROWS = 10

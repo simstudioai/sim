@@ -1,8 +1,16 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import { chipActiveSurfaceClass, chipHoverSurfaceClass, cn, Tooltip } from '@sim/emcn'
-import { ArrowUp, ChevronDown, ChevronRight, Paperclip, Pencil, Trash, X } from '@sim/emcn/icons'
+import { chipActiveSurfaceClass, chipHoverSurfaceClass, cn, Tooltip } from '@sim/emcn-legacy'
+import {
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  Paperclip,
+  Pencil,
+  Trash,
+  X,
+} from '@sim/emcn-legacy/icons'
 import { UserMessageContent } from '@/app/workspace/[workspaceId]/home/components/user-message-content'
 import type { QueuedMessage } from '@/app/workspace/[workspaceId]/home/types'
 

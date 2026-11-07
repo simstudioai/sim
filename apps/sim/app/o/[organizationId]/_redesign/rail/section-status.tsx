@@ -1,6 +1,6 @@
+import { FailureNotice } from '@sim/emcn/status'
 import type { ShellQueryStatus } from '@/app/o/[organizationId]/_redesign/rail/model'
 import styles from '@/app/o/[organizationId]/_redesign/rail/sidebar-collections.module.css'
-import { FailureNotice } from '@/platform/design-system/components/status/status'
 
 interface SectionStatusProps {
   status: ShellQueryStatus

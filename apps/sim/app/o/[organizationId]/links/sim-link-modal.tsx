@@ -11,7 +11,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { SimLink, SimLinkBody } from '@/lib/api/contracts/sim-links'
 import { SIM_LINKS_DOCS_URL } from '@/lib/sim-links/urls'

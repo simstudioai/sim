@@ -14,7 +14,7 @@ const { mockBridge, mockToast } = vi.hoisted(() => ({
   mockToast: { error: vi.fn(), success: vi.fn() },
 }))
 
-vi.mock('@sim/emcn', () => ({
+vi.mock('@sim/emcn-legacy', () => ({
   /** `password-detail` composes the shared tile classes with `cn`. */
   cn: (...classes: unknown[]) => classes.filter(Boolean).join(' '),
   ArrowLeft: () => <span />,

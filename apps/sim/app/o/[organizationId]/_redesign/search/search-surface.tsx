@@ -1,6 +1,9 @@
 'use client'
 
 import { useRef } from 'react'
+import { IconButton } from '@sim/emcn/button'
+import { Icon } from '@sim/emcn/icon'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { RedesignSurface } from '@/app/o/[organizationId]/_redesign/redesign-host'
 import { SearchHistory } from '@/app/o/[organizationId]/_redesign/search/search-history'
 import { SearchResults } from '@/app/o/[organizationId]/_redesign/search/search-results'
@@ -15,9 +18,6 @@ import {
 import { VoiceWaveform } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
 import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
 import { useAutoSizeTextarea } from '@/hooks/use-auto-size-textarea'
-import { IconButton } from '@/platform/design-system/components/button/button'
-import { Icon } from '@/platform/design-system/components/icon/icon'
-import { useScrollEdges } from '@/platform/design-system/components/scroll-area/use-scroll-edges'
 
 const FIELD_MAX_HEIGHT_PX = 200
 

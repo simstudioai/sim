@@ -1,6 +1,19 @@
 'use client'
 
 import { useDeferredValue, useRef, useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { Button } from '@sim/emcn/button'
+import { TextField } from '@sim/emcn/field'
+import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { Modal } from '@sim/emcn/modal'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SearchField } from '@sim/emcn/search-field'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
+import { Switch } from '@sim/emcn/switch'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   ActionRow,
@@ -21,24 +34,6 @@ import {
   ProviderRow,
 } from '@/platform/app/(shell)/settings/_components/sections/access-control/permission-rows'
 import { ProjectIssueRestrictions } from '@/platform/app/(shell)/settings/_components/sections/access-control/project-issue-restrictions'
-import {
-  ActionMenu,
-  Avatar,
-  Button,
-  FailureNotice,
-  Modal,
-  MultiSelect,
-  SearchableSelect,
-  SearchField,
-  SegmentedControl,
-  Select,
-  Switch,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
 import {
   type AccessRequestTarget,
   agentDefaultModelIds,
@@ -83,7 +78,7 @@ const TABS = [
   { value: 'platform', label: 'Platform' },
 ] as const
 
-function StatusFilterSelect({
+function StatusFilter({
   value,
   onChange,
 }: {
@@ -91,9 +86,8 @@ function StatusFilterSelect({
   onChange: (value: PermissionStatusFilter) => void
 }) {
   return (
-    <Select
+    <ChoiceMenu
       label='Filter by access'
-      variant='quiet'
       value={value}
       options={statusFilterOptions(value)}
       onValueChange={(next) => onChange(next as PermissionStatusFilter)}
@@ -360,7 +354,7 @@ export function GroupDetail({
               />
             }
           >
-            <StatusFilterSelect value={status} onChange={params.setStatus} />
+            <StatusFilter value={status} onChange={params.setStatus} />
             <PermissionBulkSelect
               targets={filtered.map((id) => ({ kind: 'provider', id }))}
               controls={controls}
@@ -408,7 +402,7 @@ export function GroupDetail({
               />
             }
           >
-            <StatusFilterSelect value={status} onChange={params.setStatus} />
+            <StatusFilter value={status} onChange={params.setStatus} />
           </SectionToolbar>
           {core.length === 0 && tools.length === 0 && <Muted>No blocks match your filters.</Muted>}
           {core.length > 0 && (
@@ -487,7 +481,7 @@ export function GroupDetail({
             />
           }
         >
-          <StatusFilterSelect value={status} onChange={params.setStatus} />
+          <StatusFilter value={status} onChange={params.setStatus} />
           <PermissionBulkSelect
             targets={editable.map((feature) => ({ kind: 'feature', configKey: feature.configKey }))}
             controls={controls}
@@ -687,7 +681,8 @@ export function GroupDetail({
         </SettingsRow>
         <SettingsRow label='Delete permission group'>
           <Button
-            variant='destructive'
+            variant='quiet'
+            destructive
             disabled={deleteGroup.isPending}
             onClick={() => setConfirmingDelete(true)}
           >

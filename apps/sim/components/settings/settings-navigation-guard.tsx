@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback } from 'react'
-import { ChipConfirmModal } from '@sim/emcn'
+import { ChipConfirmModal } from '@sim/emcn-legacy'
 import { useRouter } from 'next/navigation'
 import { useSettingsBrowserNavigation } from '@/hooks/use-settings-browser-navigation'
 import { useSettingsLeaveLinks } from '@/hooks/use-settings-leave-links'

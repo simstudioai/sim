@@ -8,8 +8,8 @@ import {
   DropdownMenuTrigger,
   TRIGGER_BORDER_CLASS,
   useCopyToClipboard,
-} from '@sim/emcn'
-import { Duplicate, Share } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Duplicate, Share } from '@sim/emcn-legacy/icons'
 import { LinkedInIcon, xIcon as XIcon } from '@/components/icons'
 
 interface ShareButtonProps {

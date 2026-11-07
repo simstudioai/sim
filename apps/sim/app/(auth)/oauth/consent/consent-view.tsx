@@ -1,13 +1,18 @@
 'use client'
 
-import { AuthAccountMenu, AuthIcon, AuthButton as Chip } from '@sim/auth-ui'
+import { Icon } from '@sim/emcn/icon'
+import { AuthAccountMenu } from '@sim/emcn-auth/account-menu'
+import { AuthButton as Chip } from '@sim/emcn-auth/button'
+import { AuthFormMessage } from '@sim/emcn-auth/feedback'
+import { AuthHeader } from '@sim/emcn-auth/heading'
+import { AuthStack } from '@sim/emcn-auth/stack'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   OAUTH_SCOPE_DESCRIPTIONS,
   SIM_CLI_CLIENT_ID,
   visibleOAuthScopes,
 } from '@/lib/auth/oauth-provider'
-import { AuthFormMessage, AuthHeader, AuthSubmitButton } from '@/app/(auth)/components'
+import { AuthSubmitButton } from '@/app/(auth)/components/auth-submit-button'
 import { AUTH_BUTTON_CLASS } from '@/app/(auth)/components/constants'
 import { OAuthConsentLoading } from '@/app/(auth)/oauth/consent/loading'
 import {
@@ -129,7 +134,7 @@ export function OAuthConsentView({
   }
 
   return (
-    <div className='au:space-y-[var(--auth-group-gap)]'>
+    <AuthStack>
       <AuthHeader
         title={`Authorize ${appName}`}
         description={isCli ? undefined : 'Only continue if you started this yourself.'}
@@ -140,16 +145,16 @@ export function OAuthConsentView({
         pending={switchAccount.isPending}
         onSwitch={changeAccount}
       />
-      <div className='au:space-y-[var(--auth-group-gap)]'>
+      <AuthStack>
         {scopes.length > 0 && (
-          <ul className='au:space-y-2 au:px-2'>
+          <ul className='au:flex au:flex-col au:gap-2 au:px-2'>
             {scopes.map((item) => (
               <li
                 key={item}
                 className='au:flex au:items-start au:gap-2 au:text-[var(--auth-primary)] au:text-body'
               >
-                <AuthIcon
-                  name='check'
+                <Icon
+                  name='I072'
                   className='au:mt-[3px] au:size-4 au:shrink-0 au:text-[var(--auth-secondary)]'
                 />
                 <span>{OAUTH_SCOPE_DESCRIPTIONS[item]}</span>
@@ -162,7 +167,7 @@ export function OAuthConsentView({
             Returns to {destination}.
           </p>
         )}
-        <div className='au:space-y-2'>
+        <AuthStack gap='actions'>
           <AuthSubmitButton
             type='button'
             loading={consent.isPending && consent.variables === true}
@@ -174,7 +179,7 @@ export function OAuthConsentView({
           </AuthSubmitButton>
           <Chip
             type='button'
-            variant='border'
+            variant='secondary'
             fullWidth
             disabled={isPending}
             className={AUTH_BUTTON_CLASS}
@@ -182,18 +187,16 @@ export function OAuthConsentView({
           >
             {consent.isPending && consent.variables === false ? 'Declining…' : 'Deny'}
           </Chip>
-        </div>
+        </AuthStack>
         {(consent.isError || switchAccount.isError) && (
-          <div role='alert'>
-            <AuthFormMessage type='error' align='center'>
-              {getErrorMessage(
-                consent.error ?? switchAccount.error,
-                'Something went wrong. Please try again.'
-              )}
-            </AuthFormMessage>
-          </div>
+          <AuthFormMessage type='error' align='center'>
+            {getErrorMessage(
+              consent.error ?? switchAccount.error,
+              'Something went wrong. Please try again.'
+            )}
+          </AuthFormMessage>
         )}
-      </div>
-    </div>
+      </AuthStack>
+    </AuthStack>
   )
 }

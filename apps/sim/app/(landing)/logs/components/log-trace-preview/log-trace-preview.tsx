@@ -1,7 +1,7 @@
 'use client'
 
-import { ChipModalTabs } from '@sim/emcn'
-import { Workflow } from '@sim/emcn/icons'
+import { ChipModalTabs } from '@sim/emcn-legacy'
+import { Workflow } from '@sim/emcn-legacy/icons'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
 import { PREVIEW_RUNS } from '@/app/(landing)/logs/components/log-history-preview/constants'
 import { LogTracePanel } from '@/app/(landing)/logs/components/log-trace-preview/components/log-trace-panel'

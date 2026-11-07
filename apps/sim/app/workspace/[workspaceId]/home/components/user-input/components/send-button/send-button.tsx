@@ -1,8 +1,8 @@
 'use client'
 
 import React from 'react'
-import { ComposerActionButton } from '@sim/emcn'
-import { ArrowUp, StopFilled } from '@sim/emcn/icons'
+import { ComposerActionButton } from '@sim/emcn-legacy'
+import { ArrowUp, StopFilled } from '@sim/emcn-legacy/icons'
 
 interface SendButtonProps {
   isSending: boolean

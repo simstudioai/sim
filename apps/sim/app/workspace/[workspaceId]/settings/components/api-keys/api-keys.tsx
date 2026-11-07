@@ -1,8 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Chip, ChipConfirmModal, Label, Switch, Tooltip, toast } from '@sim/emcn'
-import { CircleInfo, Plus } from '@sim/emcn/icons'
+import { Chip, ChipConfirmModal, Label, Switch, Tooltip, toast } from '@sim/emcn-legacy'
+import { CircleInfo, Plus } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'

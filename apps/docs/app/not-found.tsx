@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { DocsPageFrame } from '@/components/docs/page-frame'
+import { DocsPageFrame } from '@/components/docs/page-frame/page-frame'
 
 export default function NotFound() {
   return (

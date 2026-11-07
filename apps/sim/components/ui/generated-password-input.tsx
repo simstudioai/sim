@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, ChipInput, Loader, Tooltip, useCopyToClipboard } from '@sim/emcn'
-import { Check, Clipboard, Eye, EyeOff, RefreshCw } from '@sim/emcn/icons'
+import { Button, ChipInput, Loader, Tooltip, useCopyToClipboard } from '@sim/emcn-legacy'
+import { Check, Clipboard, Eye, EyeOff, RefreshCw } from '@sim/emcn-legacy/icons'
 import { generatePassword } from '@/lib/core/security/encryption'
 
 const MASKED_PASSWORD = '••••••••'

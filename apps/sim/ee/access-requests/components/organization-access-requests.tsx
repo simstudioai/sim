@@ -1,6 +1,6 @@
 'use client'
 
-import { Chip, ChipDropdown, ChipSwitch, ChipTag, toast } from '@sim/emcn'
+import { Chip, ChipDropdown, ChipSwitch, ChipTag, toast } from '@sim/emcn-legacy'
 import { useQueryStates } from 'nuqs'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'

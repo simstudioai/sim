@@ -1,21 +1,23 @@
 'use client'
 
 import { useRef } from 'react'
+import { IconButton } from '@sim/emcn/button'
+import { useCompactViewport } from '@sim/emcn/layout/use-compact-viewport'
+import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { ComposerInput } from '@sim/emcn-platform/composer-input'
+import { ComposerSuggestions } from '@sim/emcn-platform/composer-input/suggestions'
 import styles from '@/platform/app/(shell)/_components/composer/composer.module.css'
 import { MessageAttachments } from '@/platform/app/(shell)/_components/composer/message-attachments'
 import type { ComposerController } from '@/platform/app/(shell)/_components/composer/model'
 import { ComposerResourceMenu } from '@/platform/app/(shell)/_components/composer/resource-menu'
 import { useComposerReferences } from '@/platform/app/(shell)/_components/composer/use-composer-references'
-import { IconButton } from '@/platform/design-system/components/button/button'
-import { ComposerInput } from '@/platform/design-system/components/composer-input/composer-input'
-import { ComposerSuggestions } from '@/platform/design-system/components/composer-input/suggestions'
-import { useCompactViewport } from '@/platform/design-system/components/layout/use-compact-viewport'
-import { ActionMenu, type MenuAction } from '@/platform/design-system/components/menu/action-menu'
-import { SegmentedControl } from '@/platform/design-system/components/segmented-control/segmented-control'
+import { useComposerFocus } from '@/platform/app/(shell)/_components/session/composer-host'
 
 interface MessageComposerProps {
   composer: ComposerController
   placeholder: string
+  focusTarget?: string
   /** Returns false to keep the draft, when the message was refused before it went anywhere. */
   onSubmit: (draft: ComposerController['draft']) => false | undefined
   onStop?: () => void
@@ -28,6 +30,7 @@ interface MessageComposerProps {
 export function MessageComposer({
   composer,
   placeholder,
+  focusTarget,
   onSubmit,
   onStop,
   onSendQueuedHead,
@@ -37,6 +40,7 @@ export function MessageComposer({
   const { draft, settings, drop } = composer
   const { text, attachments: files } = draft
   const refs = useComposerReferences(composer)
+  useComposerFocus(focusTarget, refs.editor)
   const picker = useRef<HTMLInputElement>(null)
   const folder = useRef<HTMLInputElement>(null)
   const uploading = files.some((file) => file.uploading)

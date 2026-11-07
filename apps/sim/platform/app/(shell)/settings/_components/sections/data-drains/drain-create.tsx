@@ -1,6 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
+import { SecretField } from '@sim/emcn/field/value-fields'
+import { SettingsSection } from '@sim/emcn/settings-section'
+import { InlineNotice } from '@sim/emcn/status'
 import { toError } from '@sim/utils/errors'
 import {
   ActionRow,
@@ -10,16 +16,6 @@ import {
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import {
-  Button,
-  Checkbox,
-  InlineNotice,
-  SecretField,
-  SelectField,
-  TextAreaField,
-  TextField,
-} from '@/platform/design-system/components'
-import { SettingsSection } from '@/platform/design-system/components/settings-section/settings-section'
 import {
   CADENCE_OPTIONS,
   type CADENCE_TYPES,

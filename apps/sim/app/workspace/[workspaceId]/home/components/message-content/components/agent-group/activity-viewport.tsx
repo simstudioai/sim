@@ -7,7 +7,7 @@ import {
   scrollFadeAttributes,
   scrollFadeClass,
   useScrollEdges,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 
 interface ActivityViewportProps {
   children: ReactNode

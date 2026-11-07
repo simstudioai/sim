@@ -1,7 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { AuthField, AuthHeader, AuthStack, PasswordInput } from '@sim/auth-ui'
+import { AuthField } from '@sim/emcn-auth/field'
+import { AuthHeader } from '@sim/emcn-auth/heading'
+import { PasswordInput } from '@sim/emcn-auth/input'
+import { AuthStack } from '@sim/emcn-auth/stack'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { AuthShell, AuthSubmitButton } from '@/app/(auth)/components'
@@ -50,7 +53,7 @@ export default function PasswordAuth({ identifier }: PasswordAuthProps) {
             event.preventDefault()
             void handleAuthenticate()
           }}
-          className='au:space-y-5'
+          className='au:flex au:flex-col au:gap-5'
         >
           <AuthField htmlFor='password' label='Password' errors={passwordErrors}>
             <PasswordInput

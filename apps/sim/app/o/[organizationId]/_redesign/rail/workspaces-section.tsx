@@ -1,6 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { Avatar } from '@sim/emcn/avatar'
+import { Chip, IconButton } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
+import { type MenuAction, MenuItem } from '@sim/emcn/menu/action-menu'
 import { SettingsGuardedLink } from '@/components/settings/settings-guarded-link'
 import type {
   ShellActions,
@@ -14,10 +18,6 @@ import { PinnedIndicator, SectionRow } from '@/app/o/[organizationId]/_redesign/
 import { SectionStatus } from '@/app/o/[organizationId]/_redesign/rail/section-status'
 import styles from '@/app/o/[organizationId]/_redesign/rail/sidebar-collections.module.css'
 import { useWorkspaceActions } from '@/app/o/[organizationId]/_redesign/rail/workspaces'
-import { Avatar } from '@/platform/design-system/components/avatar/avatar'
-import { Chip, IconButton } from '@/platform/design-system/components/button/button'
-import { Disclosure } from '@/platform/design-system/components/disclosure/disclosure'
-import { type MenuAction, MenuItem } from '@/platform/design-system/components/menu/action-menu'
 
 const PAGE_SIZE = 5
 const WORKSPACE_NAME_MAX_LENGTH = 100

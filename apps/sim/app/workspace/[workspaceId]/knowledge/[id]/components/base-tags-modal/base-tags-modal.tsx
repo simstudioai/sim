@@ -13,8 +13,8 @@ import {
   ChipModalHeader,
   type ComboboxOption,
   handleKeyboardActivation,
-} from '@sim/emcn'
-import { Trash } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { Trash } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { TagUsageData } from '@/lib/api/contracts/knowledge'

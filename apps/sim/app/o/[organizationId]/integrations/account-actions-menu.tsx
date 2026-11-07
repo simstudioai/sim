@@ -11,8 +11,8 @@ import {
   DropdownMenuItemLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@sim/emcn'
-import { MoreHorizontal } from '@sim/emcn/icons'
+} from '@sim/emcn-legacy'
+import { MoreHorizontal } from '@sim/emcn-legacy/icons'
 import Link from 'next/link'
 import type { ViewerSearchSourceAccount } from '@/lib/api/contracts/knowledge/connectors'
 import { organizationRoutes } from '@/lib/navigation/paths'

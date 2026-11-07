@@ -11,7 +11,7 @@ import {
   ChipModalHeader,
   Skeleton,
   toast,
-} from '@sim/emcn'
+} from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { SlackIcon } from '@/components/icons'

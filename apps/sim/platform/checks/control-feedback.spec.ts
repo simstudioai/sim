@@ -174,6 +174,64 @@ for (const theme of ['light', 'dark']) {
       }
     })
 
+    test('credential destruction matches Archive hover and keeps confirmation separate', async ({
+      page,
+    }) => {
+      const paint = (control: Locator) =>
+        control.evaluate((element) => {
+          const style = getComputedStyle(element)
+          return { ink: style.color, fill: style.backgroundColor }
+        })
+      const chat = page.getByRole('link', { name: 'Review the renewal brief', exact: true })
+      await chat.hover()
+      await page.getByRole('button', { name: 'Actions for Review the renewal brief' }).click()
+      const archive = page.getByRole('menuitem', { name: 'Archive', exact: true })
+      await page.getByRole('menuitem', { name: 'Rename', exact: true }).hover()
+      const resting = await paint(archive)
+      await archive.hover()
+      const hovered = await paint(archive)
+      await archive.click()
+      await page
+        .getByRole('dialog', { name: 'Archive chat' })
+        .getByRole('button', { name: 'Cancel', exact: true })
+        .click()
+
+      await page.goto(`${origin}/integrations/gmail?state=full&theme=${theme}`)
+      const main = page.getByRole('main')
+      await main.getByRole('button', { name: /^Customer operations service account / }).click()
+      const disconnect = main.getByRole('button', { name: 'Disconnect', exact: true })
+      await page.mouse.move(0, 0)
+      expect(await paint(disconnect)).toEqual(resting)
+      await disconnect.focus()
+      expect(await paint(disconnect)).toEqual(resting)
+      await disconnect.hover()
+      expect(await paint(disconnect)).toEqual(hovered)
+      await page.mouse.down()
+      const pressed = await paint(disconnect)
+      expect(pressed.ink).toBe(hovered.ink)
+      expect(pressed.fill).not.toBe(hovered.fill)
+      await page.mouse.up()
+      const dialog = page.getByRole('dialog', { name: /^Disconnect Customer operations/ })
+      await expect(dialog).toBeVisible()
+      const confirmation = dialog.getByRole('button', { name: 'Disconnect', exact: true })
+      expect((await paint(confirmation)).fill).not.toBe(resting.fill)
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await expect(disconnect).toBeVisible()
+      await page.mouse.move(0, 0)
+      await disconnect.focus()
+      expect(await paint(disconnect)).toEqual(resting)
+      await page.keyboard.down('Space')
+      expect(await paint(disconnect)).toEqual(pressed)
+      await page.keyboard.up('Space')
+      await expect(dialog).toBeVisible()
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await expect(disconnect).toBeVisible()
+      await test.info().attach('Shared destructive feedback', {
+        body: JSON.stringify({ resting, hovered, pressed }),
+        contentType: 'application/json',
+      })
+    })
+
     test('dismissing a recent uses the same neutral action as closing a tab', async ({ page }) => {
       await page.getByRole('button', { name: 'Open chat panel' }).click()
       const panel = page.getByRole('complementary', { name: 'Chat panel' })

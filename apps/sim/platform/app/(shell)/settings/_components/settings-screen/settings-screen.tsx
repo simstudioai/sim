@@ -1,8 +1,8 @@
 'use client'
 
 import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { PageColumn } from '@sim/emcn-platform/page-column'
 import styles from '@/platform/app/(shell)/settings/_components/settings-screen/settings-screen.module.css'
-import { PageColumn } from '@/platform/design-system/components'
 
 interface SettingsScreenProps {
   title: string

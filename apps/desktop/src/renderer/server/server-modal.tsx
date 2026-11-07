@@ -1,6 +1,11 @@
 import { useRef, useState } from 'react'
-import { AuthButton, AuthField, AuthHeader, AuthInput, AuthRoot, AuthStack } from '@sim/auth-ui'
 import type { DesktopServerConfiguration } from '@sim/desktop-bridge'
+import { AuthButton } from '@sim/emcn-auth/button'
+import { AuthField } from '@sim/emcn-auth/field'
+import { AuthHeader } from '@sim/emcn-auth/heading'
+import { AuthInput } from '@sim/emcn-auth/input'
+import { AuthRoot } from '@sim/emcn-auth/root'
+import { AuthStack } from '@sim/emcn-auth/stack'
 import type { ShellWindowApi } from '@/shared/shell'
 
 interface ServerModalProps {
@@ -87,7 +92,7 @@ export function ServerModal({ server, configuration, initialError }: ServerModal
               event.preventDefault()
               void connect()
             }}
-            className='au:space-y-5'
+            className='au:flex au:flex-col au:gap-5'
           >
             <AuthField
               htmlFor='server-origin'

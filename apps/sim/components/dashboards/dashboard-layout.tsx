@@ -1,6 +1,6 @@
 'use client'
 
-import { cn, TabStrip } from '@sim/emcn'
+import { cn, TabStrip } from '@sim/emcn-legacy'
 import { useQueryState } from 'nuqs'
 import { DashboardPanel } from '@/components/dashboards/dashboard-panel'
 import { dashboardTabParser, dashboardUrlOptions } from '@/components/dashboards/search-params'

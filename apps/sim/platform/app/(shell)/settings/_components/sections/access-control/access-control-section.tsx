@@ -1,6 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { ActivityRow } from '@sim/emcn/activity-row'
+import { Button } from '@sim/emcn/button'
+import { Checkbox } from '@sim/emcn/checkbox'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { TextField } from '@sim/emcn/field'
+import { Modal } from '@sim/emcn/modal'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -12,28 +22,13 @@ import {
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { GroupDetail } from '@/platform/app/(shell)/settings/_components/sections/access-control/group-detail'
 import {
-  ActivityRow,
-  Button,
-  Checkbox,
-  EmptyState,
-  FailureNotice,
-  Modal,
-  MultiSelect,
-  SearchField,
-  TextField,
-} from '@/platform/design-system/components'
-import {
-  SettingsRow,
-  SettingsSection,
-} from '@/platform/design-system/components/settings-section/settings-section'
-import { platformHref } from '@/platform/design-system/navigation'
-import {
   type PermissionGroup,
   useAccessControlParams,
   useCreatePermissionGroup,
   useOrganizationWorkspaces,
   usePermissionGroups,
 } from '@/platform/lib/data/access-control'
+import { platformHref } from '@/platform/lib/navigation'
 import { plural } from '@/platform/lib/plural'
 
 function groupSummary(group: PermissionGroup): string {
