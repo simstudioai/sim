@@ -1,4 +1,5 @@
 import { createMockRequest } from '@sim/testing'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { authMockFns } from '@sim/testing/mocks/auth.mock'
 import { oauthUtilsMock, oauthUtilsMockFns } from '@sim/testing/mocks/oauth-utils.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
@@ -45,12 +46,26 @@ describe('Instagram authorize route', () => {
       'https://sim.test/api/auth/instagram/authorize?workspaceId=workspace-1&draftId=draft-exact'
     )
 
-    const response = await GET(request)
+    const response = await GET(request, createRouteContext({}))
 
     expect(response.status).toBe(307)
     expect(response.headers.get('set-cookie')).toContain(
       'instagram_credential_draft_id=draft-exact'
     )
+    expect(mocks.createCredentialConnection).not.toHaveBeenCalled()
+  })
+
+  it('refuses a cross-site workspace launch before creating a connection draft', async () => {
+    const request = createMockRequest(
+      'GET',
+      undefined,
+      { 'sec-fetch-site': 'cross-site' },
+      'https://sim.test/api/auth/instagram/authorize?workspaceId=workspace-1'
+    )
+
+    const response = await GET(request, createRouteContext({}))
+
+    expect(response.status).toBe(403)
     expect(mocks.createCredentialConnection).not.toHaveBeenCalled()
   })
 
@@ -68,7 +83,7 @@ describe('Instagram authorize route', () => {
       'https://sim.test/api/auth/instagram/authorize?workspaceId=workspace-1'
     )
 
-    const response = await GET(request)
+    const response = await GET(request, createRouteContext({}))
 
     expect(response.status).toBe(409)
     await expect(response.json()).resolves.toEqual({
