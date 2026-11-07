@@ -6,7 +6,8 @@ import { parseBooleanParam } from '@/tools/video/utils'
 export const falaiVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
   id: 'video_falai',
   name: 'Fal.ai Video Generation',
-  description: 'Generate a video from a text prompt with a model in the Fal.ai video catalog',
+  description:
+    'Generate a video from a text prompt, and optionally a start frame image, with a model in the Fal.ai video catalog',
   version: '1.0.0',
 
   params: {
@@ -65,6 +66,13 @@ export const falaiVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
       visibility: 'user-or-llm',
       description: 'Generate native audio when supported by the selected Fal.ai model',
     },
+    visualReference: {
+      type: 'file',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        "Start frame image (UserFile); sends the request to the model's image-to-video endpoint",
+    },
   },
 
   hosting: {
@@ -119,6 +127,7 @@ export const falaiVideoTool: InternalToolConfig<VideoParams, VideoResponse> = {
       resolution: params.resolution,
       promptOptimizer: parseBooleanParam(params.promptOptimizer),
       generateAudio: parseBooleanParam(params.generateAudio),
+      visualReference: params.visualReference,
       useHostedCostTracking: params.__usingHostedKey === true,
     }),
   },
