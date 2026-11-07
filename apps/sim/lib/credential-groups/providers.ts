@@ -57,6 +57,12 @@ interface CredentialGroupProviderSupport {
    * again adds a site to the existing account rather than a second account.
    */
   grantSpansSites?: true
+  /**
+   * Sim began recording this provider's tenant after accounts were saved without one. Such an
+   * account takes on its tenant when the same person reconnects; elsewhere a missing tenant never
+   * matches another.
+   */
+  tenantRecordedLater?: true
 }
 
 const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
@@ -196,6 +202,7 @@ const CREDENTIAL_GROUP_PROVIDER_SUPPORT: Record<
     configuration: 'oauth',
   },
   notion: {
+    tenantRecordedLater: true,
     serviceId: 'notion',
     description: 'Let each person connect one Notion account',
     configuration: 'oauth',
@@ -267,6 +274,10 @@ export function getCredentialGroupProviderService(
 
 export function credentialGroupGrantSpansSites(provider: CredentialGroupProvider): boolean {
   return CREDENTIAL_GROUP_PROVIDER_SUPPORT[provider].grantSpansSites === true
+}
+
+export function credentialGroupTenantRecordedLater(provider: CredentialGroupProvider): boolean {
+  return CREDENTIAL_GROUP_PROVIDER_SUPPORT[provider].tenantRecordedLater === true
 }
 
 export function getCredentialGroupProviderId(provider: CredentialGroupProvider): string {

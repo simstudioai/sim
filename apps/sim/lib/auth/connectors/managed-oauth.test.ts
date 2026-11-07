@@ -276,6 +276,8 @@ describe('userinfo-backed managed OAuth connectors', () => {
           type: 'user',
           user: { id: 'user-1', name: 'Person', person: { email: 'person@example.com' } },
         },
+        workspace_id: 'workspace-1',
+        workspace_name: 'Engineering',
       },
     })
 
@@ -286,6 +288,7 @@ describe('userinfo-backed managed OAuth connectors', () => {
 
     expect(identity).toMatchObject({
       providerSubjectId: 'user-1',
+      providerTenantId: 'workspace-1',
       email: 'person@example.com',
       emailVerified: true,
     })

@@ -905,7 +905,12 @@ const USER_INFO_MANAGED_OAUTH_CONNECTORS = new Map<string, () => ManagedOAuthCon
               /** Notion only exposes `person.email` for a confirmed workspace member. */
               emailVerified: true,
             },
-            { displayName: user.name, avatarUrl: user.avatar_url }
+            /** A Notion token reaches one workspace, so one person's workspaces are separate accounts. */
+            {
+              displayName: user.name,
+              avatarUrl: user.avatar_url,
+              providerTenantId: bot.workspace_id,
+            }
           )
         },
       }),

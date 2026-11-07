@@ -35,11 +35,14 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
   accounts,
   identity,
   grantSpansSites = false,
+  tenantRecordedLater = false,
 }: {
   intent?: CredentialGroupConnectionIntent
   limit: number
   /** Connecting the same login again extends its grant, so it refreshes that account. */
   grantSpansSites?: boolean
+  /** An account saved without a tenant may be this identity's, at a tenant not yet recorded. */
+  tenantRecordedLater?: boolean
   accounts: Account[]
   identity: { subject: string; tenant: string | null } | null
 }): Account | undefined {
@@ -55,6 +58,14 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
   const disconnectedUnidentified = accounts.find(
     (account) => account.revokedAt && account.providerSubjectId === null
   )
+  /** Saved before its provider reported a tenant: the same person, at a tenant still unknown. */
+  const tenantUnknown =
+    tenantRecordedLater && identity && identity.tenant !== null && !existing
+      ? accounts.find(
+          (account) =>
+            account.providerSubjectId === identity.subject && account.providerTenantId === null
+        )
+      : undefined
 
   if (intent?.kind === 'reconnect') {
     const target = accounts.find((account) => account.id === intent.credentialId)
@@ -64,7 +75,11 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
         409
       )
     if (identity) {
-      if (existing ? existing.id !== target.id : target.providerSubjectId !== null)
+      if (
+        existing
+          ? existing.id !== target.id
+          : target.providerSubjectId !== null && target.id !== tenantUnknown?.id
+      )
         throw accountConflict('account_mismatch')
     } else if (
       target.providerSubjectId !== null &&
@@ -83,13 +98,15 @@ export function resolveAccountWrite<Account extends ConnectedAccount>({
       return existing
     }
     if (live.length > 0 && !identity) throw accountConflict('account_unverified')
-    if (hasUnidentifiedLive) throw accountConflict('account_identity_required')
+    if (hasUnidentifiedLive || (tenantUnknown && !tenantUnknown.revokedAt))
+      throw accountConflict('account_identity_required')
     if (live.length >= limit) throw accountConflict('account_limit_reached')
-    return existing ?? (live.length === 0 ? disconnectedUnidentified : undefined)
+    return existing ?? (live.length === 0 ? (tenantUnknown ?? disconnectedUnidentified) : undefined)
   }
 
   if (existing && !existing.revokedAt) return existing
-  if (live.length === 0) return existing ?? disconnectedUnidentified
+  if (live.length === 0) return existing ?? tenantUnknown ?? disconnectedUnidentified
+  if (tenantUnknown && !tenantUnknown.revokedAt) return tenantUnknown
   if (live.length === 1 && !existing && (!identity || hasUnidentifiedLive)) return live[0]
   throw accountConflict(identity ? 'account_mismatch' : 'account_unverified')
 }

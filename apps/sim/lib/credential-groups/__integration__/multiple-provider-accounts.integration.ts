@@ -94,6 +94,7 @@ const DRIVE = optionFor('google-drive')
 const GITHUB = optionFor('github-repositories')
 const SLACK = optionFor('slack')
 const CONFLUENCE = optionFor('confluence')
+const NOTION = optionFor('notion')
 
 function connect(
   code: string,
@@ -111,7 +112,7 @@ function connect(
     email,
     enrollmentStatus: 'completed',
     option,
-    options: [DRIVE, GITHUB, SLACK, CONFLUENCE],
+    options: [DRIVE, GITHUB, SLACK, CONFLUENCE, NOTION],
   }
   const attempt: CredentialGroupOAuthAttempt = {
     userId,
@@ -189,7 +190,7 @@ beforeAll(async () => {
     organizationId,
     publicId: generateId(),
     name: 'Connected accounts',
-    options: [DRIVE, GITHUB, SLACK, CONFLUENCE],
+    options: [DRIVE, GITHUB, SLACK, CONFLUENCE, NOTION],
   })
   await db.insert(member).values({
     id: generateId(),
@@ -355,6 +356,56 @@ describe('adding another site to an Atlassian login', () => {
     await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
     await connect('other@atlassian', { kind: 'create' }, CONFLUENCE)
     expect(await rows()).toHaveLength(2)
+  })
+})
+
+describe('an account recorded before its tenant was known', () => {
+  it('stays separate on a provider that always recorded its tenant', async () => {
+    const legacy = await connect('person', { kind: 'create' })
+    expect(
+      await failureOf(
+        connect('person@workspace-a', { kind: 'reconnect', credentialId: legacy.credentialId })
+      )
+    ).toBe('account_mismatch')
+  })
+
+  it('takes on its tenant when reconnected or refreshed', async () => {
+    const legacy = await connect('person', { kind: 'create' }, NOTION)
+
+    await expect(
+      connect(
+        'person@workspace-a',
+        { kind: 'reconnect', credentialId: legacy.credentialId },
+        NOTION
+      )
+    ).resolves.toMatchObject({ created: false, credentialId: legacy.credentialId })
+    expect(await rows()).toMatchObject([{ subject: 'person', tenant: 'workspace-a' }])
+  })
+
+  it('takes on its tenant through an invitation link', async () => {
+    const legacy = await connect('person', { kind: 'create' }, NOTION)
+    await expect(connect('person@workspace-a', undefined, NOTION)).resolves.toMatchObject({
+      credentialId: legacy.credentialId,
+    })
+    expect(await rows()).toMatchObject([{ tenant: 'workspace-a' }])
+  })
+
+  it('must be reconnected before another tenant of the same login is added, so it is never overwritten', async () => {
+    const legacy = await connect('person', { kind: 'create' }, NOTION)
+    const [before] = await rows()
+
+    expect(await failureOf(connect('person@workspace-b', { kind: 'create' }, NOTION))).toBe(
+      'account_identity_required'
+    )
+    expect(await rows()).toEqual([before])
+
+    await connect(
+      'person@workspace-a',
+      { kind: 'reconnect', credentialId: legacy.credentialId },
+      NOTION
+    )
+    await connect('person@workspace-b', { kind: 'create' }, NOTION)
+    expect((await rows()).map((row) => row.tenant).sort()).toEqual(['workspace-a', 'workspace-b'])
   })
 })
 
