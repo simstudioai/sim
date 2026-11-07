@@ -262,6 +262,33 @@ describe('extractBlockParams', () => {
     }
   )
 
+  it('sends the model default for a Runway setting the start frame endpoint rejects', () => {
+    svcConfig.value = VideoGeneratorV3Block
+    const frameFile = { id: 'f', name: 'frame.png', url: '', size: 3, type: 'image/png', key: 'k' }
+    const values = {
+      provider: 'runway',
+      apiKey: 'test-key',
+      model: 'kling_4',
+      prompt: 'A cinematic sunrise',
+      aspectRatio: '1920:1080',
+      visualReferenceInput: frameFile,
+    }
+    const params = extractBlockParams(
+      block({
+        type: 'svc',
+        subBlocks: Object.fromEntries(
+          Object.entries(values).map(([id, value]) => [id, { id, type: 'short-input', value }])
+        ),
+      })
+    )
+    const mapped = VideoGeneratorV3Block.tools.config?.params?.(params)
+    const request = buildDirectVideoRequest({
+      ...videoToolBodySchema.parse(mapped),
+      provider: 'runway',
+    })
+    expect(request.body).not.toHaveProperty('ratio')
+  })
+
   it('resolves a canonical pair to its canonical id (advanced value wins when basic empty)', () => {
     svcConfig.value = config([
       {

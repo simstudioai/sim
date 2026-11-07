@@ -141,27 +141,34 @@ const LEGACY_FAL_SETTING_KEYS: Record<string, keyof FalVideoSettings> = {
 }
 
 /**
- * Drops stored settings the endpoint a run calls does not accept, so the model default applies.
- * Attaching or removing a start frame switches endpoints without clearing the settings chosen for
- * the other one: Seedance 2.5 takes `16:9` from a prompt but only `auto` from a start frame.
+ * Drops a stored setting the endpoint a run calls rejects but the model's other endpoint accepts,
+ * so the model default applies. Attaching or removing a start frame switches endpoints without
+ * clearing settings picked for the other one: Seedance 2.5 takes `16:9` from a prompt but only
+ * `auto` from a start frame. Any other value passes through to the request's own legacy mapping
+ * and validation.
  */
+function dropStaleSetting(
+  value: unknown,
+  allowed: readonly (number | string)[] | undefined,
+  otherAllowed: readonly (number | string)[] | undefined,
+  numeric = false
+) {
+  const normalize = (choice: unknown) => (numeric ? Number.parseFloat(String(choice)) : choice)
+  const accepts = (choices?: readonly (number | string)[]) =>
+    choices?.some((choice) => normalize(choice) === normalize(value)) ?? false
+  return value !== undefined && !accepts(allowed) && accepts(otherAllowed) ? undefined : value
+}
+
 function keepFalSettingsAllowed(
   params: Record<string, unknown>,
-  settings: FalVideoSettings | undefined
+  settings: FalVideoSettings | undefined,
+  other: FalVideoSettings | undefined
 ) {
-  const { duration, aspectRatio, resolution } = params
-  const durations = settings?.durations?.map((value) => Number.parseFloat(String(value)))
   return {
     ...params,
-    duration: typeof duration === 'number' && durations?.includes(duration) ? duration : undefined,
-    aspectRatio:
-      typeof aspectRatio === 'string' && settings?.aspectRatios?.includes(aspectRatio)
-        ? aspectRatio
-        : undefined,
-    resolution:
-      typeof resolution === 'string' && settings?.resolutions?.includes(resolution)
-        ? resolution
-        : undefined,
+    duration: dropStaleSetting(params.duration, settings?.durations, other?.durations, true),
+    aspectRatio: dropStaleSetting(params.aspectRatio, settings?.aspectRatios, other?.aspectRatios),
+    resolution: dropStaleSetting(params.resolution, settings?.resolutions, other?.resolutions),
     generateAudio: settings?.audioField ? params.generateAudio : undefined,
     promptOptimizer: settings?.promptOptimizer ? params.promptOptimizer : undefined,
   }
@@ -2029,7 +2036,11 @@ export const VideoGeneratorV3Block: BlockConfig = {
           if (!model) return { ...falParams, visualReference: undefined }
           const withImage = Boolean(model.image && falParams.visualReference)
           return {
-            ...keepFalSettingsAllowed(falParams, getFalVideoVariant(params.model, withImage)),
+            ...keepFalSettingsAllowed(
+              falParams,
+              getFalVideoVariant(params.model, withImage),
+              getFalVideoVariant(params.model, !withImage)
+            ),
             visualReference: withImage ? falParams.visualReference : undefined,
           }
         }
@@ -2038,12 +2049,18 @@ export const VideoGeneratorV3Block: BlockConfig = {
             ? normalizeFileInput(params.visualReference, { single: true })
             : undefined
         const model = getDirectVideoModel(params.provider, params.model, Boolean(visualReference))
+        const other = getDirectVideoModel(params.provider, params.model, !visualReference)?.settings
         const setting = (key: string, supported: unknown, fallbackKey?: string) => {
           if (!supported) return undefined
           const value = params[key] ?? (fallbackKey ? params[fallbackKey] : undefined)
           return value === FAL_MODEL_DEFAULT.id ? undefined : value
         }
-        const duration = setting('duration', model?.settings?.durations)
+        const duration = dropStaleSetting(
+          setting('duration', model?.settings?.durations),
+          model?.settings?.durations,
+          other?.durations,
+          true
+        )
         return {
           provider: params.provider,
           model: params.model,
@@ -2051,8 +2068,16 @@ export const VideoGeneratorV3Block: BlockConfig = {
           prompt: params.prompt,
           visualReference,
           duration: duration ? Number(duration) : undefined,
-          aspectRatio: setting('aspectRatio', model?.settings?.aspectRatios),
-          resolution: setting('resolution', model?.settings?.resolutions),
+          aspectRatio: dropStaleSetting(
+            setting('aspectRatio', model?.settings?.aspectRatios),
+            model?.settings?.aspectRatios,
+            other?.aspectRatios
+          ),
+          resolution: dropStaleSetting(
+            setting('resolution', model?.settings?.resolutions),
+            model?.settings?.resolutions,
+            other?.resolutions
+          ),
           generateAudio: parseOptionalBooleanInput(
             setting('directGenerateAudio', model?.settings?.audio, 'generateAudio')
           ),
