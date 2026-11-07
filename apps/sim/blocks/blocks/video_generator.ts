@@ -140,6 +140,33 @@ const LEGACY_FAL_SETTING_KEYS: Record<string, keyof FalVideoSettings> = {
   promptOptimizer: 'promptOptimizer',
 }
 
+/**
+ * Drops stored settings the endpoint a run calls does not accept, so the model default applies.
+ * Attaching or removing a start frame switches endpoints without clearing the settings chosen for
+ * the other one: Seedance 2.5 takes `16:9` from a prompt but only `auto` from a start frame.
+ */
+function keepFalSettingsAllowed(
+  params: Record<string, unknown>,
+  settings: FalVideoSettings | undefined
+) {
+  const { duration, aspectRatio, resolution } = params
+  const durations = settings?.durations?.map((value) => Number.parseFloat(String(value)))
+  return {
+    ...params,
+    duration: typeof duration === 'number' && durations?.includes(duration) ? duration : undefined,
+    aspectRatio:
+      typeof aspectRatio === 'string' && settings?.aspectRatios?.includes(aspectRatio)
+        ? aspectRatio
+        : undefined,
+    resolution:
+      typeof resolution === 'string' && settings?.resolutions?.includes(resolution)
+        ? resolution
+        : undefined,
+    generateAudio: settings?.audioField ? params.generateAudio : undefined,
+    promptOptimizer: settings?.promptOptimizer ? params.promptOptimizer : undefined,
+  }
+}
+
 function withFalVideoCatalog(subBlocks: SubBlockConfig[]): SubBlockConfig[] {
   return subBlocks.flatMap((subBlock) => {
     const condition = subBlock.condition
@@ -1998,16 +2025,12 @@ export const VideoGeneratorV3Block: BlockConfig = {
       params: (params) => {
         if (params.provider === 'falai') {
           const falParams = VideoGeneratorV2Block.tools.config?.params?.(params) ?? params
-          if (!getFalVideoModel(params.model)?.image || !falParams.visualReference)
-            return { ...falParams, visualReference: undefined }
-          const image = getFalVideoVariant(params.model, true)
+          const model = getFalVideoModel(params.model)
+          if (!model) return { ...falParams, visualReference: undefined }
+          const withImage = Boolean(model.image && falParams.visualReference)
           return {
-            ...falParams,
-            duration: image?.durations ? falParams.duration : undefined,
-            aspectRatio: image?.aspectRatios ? falParams.aspectRatio : undefined,
-            resolution: image?.resolutions ? falParams.resolution : undefined,
-            generateAudio: image?.audioField ? falParams.generateAudio : undefined,
-            promptOptimizer: image?.promptOptimizer ? falParams.promptOptimizer : undefined,
+            ...keepFalSettingsAllowed(falParams, getFalVideoVariant(params.model, withImage)),
+            visualReference: withImage ? falParams.visualReference : undefined,
           }
         }
         const visualReference =
