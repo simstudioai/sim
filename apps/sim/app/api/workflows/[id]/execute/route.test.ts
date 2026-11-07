@@ -2241,13 +2241,16 @@ describe('workflow execute async route', () => {
   })
 
   describe('credential actor is derived from the authenticated caller', () => {
-    it.each([
-      ['session without isClientSession', EXECUTION_CALLERS[0], true],
-      ['personal API key', EXECUTION_CALLERS[1], true],
-      ['workspace API key', EXECUTION_CALLERS[2], false],
-      ['public API', EXECUTION_CALLERS[3], false],
-      ['internal JWT', EXECUTION_CALLERS[4], false],
-    ] as const)('%s: authenticated user is actor = %s', async (_name, caller, expected) => {
+    const ACTS_AS_AUTHENTICATED_USER: Record<string, boolean> = {
+      session: true,
+      'personal API key': true,
+      'workspace API key': false,
+      'public API': false,
+      'internal JWT': false,
+    }
+
+    it.each(EXECUTION_CALLERS)('$caseName', async (caller) => {
+      const expected = ACTS_AS_AUTHENTICATED_USER[caller.caseName]
       configureExecutionCaller(caller)
 
       const response = await POST(
@@ -2259,31 +2262,21 @@ describe('workflow execute async route', () => {
       expect(mockPreprocessExecution).toHaveBeenCalledWith(
         expect.objectContaining({ useAuthenticatedUserAsActor: expected })
       )
-      const executionCall = mockExecuteWorkflowCore.mock.calls[0][0]
-      const snapshot =
-        typeof executionCall.snapshot === 'string'
-          ? JSON.parse(executionCall.snapshot)
-          : executionCall.snapshot
-      expect(snapshot.metadata.enforceCredentialAccess).toBe(expected)
+      expect(
+        mockExecuteWorkflowCore.mock.calls[0][0].snapshot.metadata.enforceCredentialAccess
+      ).toBe(expected)
     })
+  })
 
-    it('authorizes a session run that defaults to draft state at write', async () => {
-      const response = await POST(
-        createMockRequest('POST', { input: {} }, { 'Content-Type': 'application/json' }),
-        createRouteContext({ id: 'workflow-1' })
-      )
-
-      expect(response.status).toBe(200)
-      expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'write' })
-      )
-    })
-
-    it('authorizes a session run of the deployed state at read', async () => {
+  describe('execution access level', () => {
+    it.each([
+      [{}, 'write'],
+      [{ useDraftState: false }, 'read'],
+    ] as const)('session run with %o authorizes at %s', async (bodyExtra, action) => {
       const response = await POST(
         createMockRequest(
           'POST',
-          { input: {}, useDraftState: false },
+          { input: {}, ...bodyExtra },
           { 'Content-Type': 'application/json' }
         ),
         createRouteContext({ id: 'workflow-1' })
@@ -2291,7 +2284,7 @@ describe('workflow execute async route', () => {
 
       expect(response.status).toBe(200)
       expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith(
-        expect.objectContaining({ action: 'read' })
+        expect.objectContaining({ action })
       )
     })
   })
