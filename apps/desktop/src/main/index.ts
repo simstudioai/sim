@@ -148,10 +148,6 @@ function main(): void {
 
   const userDataPath = app.getPath('userData')
   const config = createConfigStore(join(userDataPath, 'settings.json'))
-  const addressSpaceOverride = addressSpaceOverrideForOrigin(config.getOrigin())
-  if (addressSpaceOverride) {
-    app.commandLine.appendSwitch('ip-address-space-overrides', addressSpaceOverride)
-  }
   setShellTheme(config.get('themeBackground'))
   initializeAccountDataRecovery(join(userDataPath, 'account-data-teardown-required.json'))
   const recoveryOrigin = getAccountDataTeardownOrigin()
@@ -160,6 +156,10 @@ function main(): void {
     if (!repaired.ok) {
       logger.error('Could not repair desktop settings for account-data recovery')
     }
+  }
+  const addressSpaceOverride = addressSpaceOverrideForOrigin(config.getOrigin())
+  if (addressSpaceOverride) {
+    app.commandLine.appendSwitch('ip-address-space-overrides', addressSpaceOverride)
   }
   const accountDataAvailable = () =>
     config.isPersistenceAvailable() && !isAccountDataTeardownRequired()
