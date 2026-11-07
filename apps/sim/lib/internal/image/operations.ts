@@ -19,7 +19,14 @@ import {
 import { MAX_REMOTE_IMAGE_BYTES } from '@/lib/internal/image/fetch'
 import { buildImageGenerationRequest } from '@/lib/internal/image/request'
 import type { ImageGenerationInput, ImageProvider } from '@/lib/internal/image/schema'
+import { cancelFalRequest } from '@/lib/media/falai'
 import { FalAIResultError, fetchFalAIResult } from '@/lib/media/falai-result'
+import {
+  HIGGSFIELD_FAILED_STATUSES,
+  higgsfieldAuthHeaders,
+  higgsfieldFailureMessage,
+  higgsfieldStatusUrl,
+} from '@/lib/media/higgsfield'
 import { recordServiceMeteringFailure } from '@/lib/mothership/billing/service-observer'
 import type { FalAICostMetadata } from '@/lib/tools/falai-pricing'
 import { uploadCopilotFile } from '@/lib/uploads/contexts/copilot'
@@ -112,6 +119,14 @@ export async function executeImageGeneration(
         (cost) => {
           undeliveredFalCost = cost
         },
+        context.signal
+      )
+    } else if (provider === 'higgsfield') {
+      imageResult = await generateWithHiggsfield(
+        apiKey,
+        prepared,
+        requestId,
+        logger,
         context.signal
       )
     } else {
@@ -456,134 +471,233 @@ async function generateWithFalAI(
     throw new Error('Fal.ai queue response missing request_id')
   }
 
-  const statusUrl = falQueueUrl(
-    getStringProperty(createData, 'status_url') ||
-      buildFalAIQueueUrl(endpoint, falRequestId, 'status')
-  )
-  const responseUrl = falQueueUrl(
-    getStringProperty(createData, 'response_url') ||
-      buildFalAIQueueUrl(endpoint, falRequestId, 'response')
-  )
+  /** Built from the endpoint, never a provider URL, so a rejected one can still be cancelled. */
+  const cancelUrl = `${buildFalAIQueueUrl(endpoint, falRequestId, 'response')}/cancel`
 
   logger.info('Fal.ai image request created', { requestId, falRequestId })
 
-  const statusValidation = await validateUrlWithDNS(statusUrl, 'statusUrl', 'contentFetch')
-  if (!statusValidation.isValid) {
-    throw new Error(statusValidation.error)
+  let reachedTerminalStatus = false
+  try {
+    const statusUrl = falQueueUrl(
+      getStringProperty(createData, 'status_url') ||
+        buildFalAIQueueUrl(endpoint, falRequestId, 'status')
+    )
+    const responseUrl = falQueueUrl(
+      getStringProperty(createData, 'response_url') ||
+        buildFalAIQueueUrl(endpoint, falRequestId, 'response')
+    )
+
+    const statusValidation = await validateUrlWithDNS(statusUrl, 'statusUrl', 'contentFetch')
+    if (!statusValidation.isValid) {
+      throw new Error(statusValidation.error)
+    }
+
+    const pollIntervalMs = 3000
+    const maxAttempts = Math.ceil(getMaxExecutionTimeout() / pollIntervalMs)
+    let attempts = 0
+
+    while (attempts < maxAttempts) {
+      await interruptibleSleep(pollIntervalMs, signal)
+      signal?.throwIfAborted()
+
+      const statusResponse = await secureFetchWithPinnedIP(statusUrl, statusValidation.resolvedIP, {
+        profile: 'contentFetch',
+        maxRedirects: 0,
+        headers: {
+          Authorization: `Key ${apiKey}`,
+        },
+        maxResponseBytes: MAX_IMAGE_JSON_BYTES,
+        signal,
+      })
+
+      if (!statusResponse.ok) {
+        await readResponseTextWithLimit(statusResponse, {
+          maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+          label: 'Fal.ai status error response',
+          signal,
+        }).catch(() => '')
+        throw new Error(`Fal.ai status check failed: ${statusResponse.status}`)
+      }
+
+      const statusData = await readResponseJsonWithLimit(statusResponse, {
+        maxBytes: MAX_IMAGE_JSON_BYTES,
+        label: 'Fal.ai status response',
+        signal,
+      })
+      if (!isRecordLike(statusData)) {
+        throw new Error('Invalid Fal.ai status response')
+      }
+
+      const status = getStringProperty(statusData, 'status')
+      if (status === 'COMPLETED') {
+        reachedTerminalStatus = true
+        const { data: resultData, cost: falaiCost } = await fetchFalAIResult({
+          apiKey,
+          endpointId: endpoint,
+          requestId: falRequestId,
+          queueError: statusData.error,
+          maxResponseBytes: MAX_IMAGE_JSON_BYTES,
+          trackCost: body.useHostedCostTracking,
+          onCost: onFalCost,
+          signal,
+          fetchResponse: async (resultSignal) => {
+            const resultUrl = falQueueUrl(
+              getStringProperty(statusData, 'response_url') || responseUrl
+            )
+            const resultValidation = await validateUrlWithDNS(
+              resultUrl,
+              'resultUrl',
+              'contentFetch'
+            )
+            if (!resultValidation.isValid) throw new Error(resultValidation.error)
+            return secureFetchWithPinnedIP(resultUrl, resultValidation.resolvedIP, {
+              profile: 'contentFetch',
+              maxRedirects: 0,
+              headers: { Authorization: `Key ${apiKey}` },
+              maxResponseBytes: MAX_IMAGE_JSON_BYTES,
+              signal: resultSignal,
+            })
+          },
+        })
+
+        if (!isRecordLike(resultData)) {
+          throw new Error('Invalid Fal.ai result response')
+        }
+
+        const firstImage =
+          prepared.model.output === 'image' && isRecordLike(resultData.image)
+            ? resultData.image
+            : firstRecord(resultData.images)
+        const imageUrl =
+          getStringProperty(firstImage, 'url') ||
+          getStringProperty(firstImage, 'data') ||
+          getStringProperty(firstImage, 'content')
+        if (!imageUrl) {
+          throw new Error('No image URL in Fal.ai response')
+        }
+
+        const downloaded = await bufferFromImageUrl(imageUrl, signal)
+        const contentType =
+          getStringProperty(firstImage, 'content_type') ||
+          getStringProperty(firstImage, 'contentType') ||
+          downloaded.contentType
+        const fileName =
+          getStringProperty(firstImage, 'file_name') ||
+          getStringProperty(firstImage, 'fileName') ||
+          `falai-${model}.${extensionFromContentType(contentType)}`
+
+        return {
+          buffer: downloaded.buffer,
+          contentType,
+          fileName,
+          provider: 'falai',
+          model,
+          sourceUrl: imageUrl.startsWith('data:') ? undefined : imageUrl,
+          description: getStringProperty(resultData, 'description'),
+          revisedPrompt: getStringProperty(resultData, 'revised_prompt'),
+          seed: getNumberProperty(resultData, 'seed'),
+          jobId: falRequestId,
+          falaiCost,
+        }
+      }
+
+      if (['ERROR', 'FAILED', 'CANCELLED'].includes(status || '')) {
+        reachedTerminalStatus = true
+        throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusData.error)}`)
+      }
+
+      attempts += 1
+    }
+
+    throw new Error('Fal.ai image generation timed out')
+  } catch (error) {
+    if (!reachedTerminalStatus) await cancelFalRequest(cancelUrl, apiKey, falRequestId)
+    throw error
   }
+}
+
+async function readHiggsfieldRequest(
+  response: Response,
+  label: string,
+  signal?: AbortSignal
+): Promise<Record<string, unknown>> {
+  if (!response.ok) {
+    const error = await readResponseTextWithLimit(response, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: `${label} error response`,
+      signal,
+    }).catch(() => '')
+    throw new Error(`Higgsfield API error: ${response.status} - ${error}`)
+  }
+  const data = await readResponseJsonWithLimit(response, {
+    maxBytes: MAX_IMAGE_JSON_BYTES,
+    label,
+    signal,
+  })
+  if (!isRecordLike(data)) throw new Error(`Invalid ${label}`)
+  return data
+}
+
+async function generateWithHiggsfield(
+  apiKey: string,
+  prepared: ReturnType<typeof buildImageGenerationRequest>,
+  requestId: string,
+  logger: ReturnType<typeof createLogger>,
+  signal?: AbortSignal
+): Promise<GeneratedImageResult> {
+  const model = prepared.model.id
+  const headers = higgsfieldAuthHeaders(apiKey)
+  let data = await readHiggsfieldRequest(
+    await fetch(prepared.endpoint, {
+      method: 'POST',
+      redirect: 'error',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(prepared.body),
+      signal,
+    }),
+    'Higgsfield submit response',
+    signal
+  )
+  const higgsfieldRequestId = getStringProperty(data, 'request_id')
+  if (!higgsfieldRequestId) throw new Error('Higgsfield response missing request_id')
+  logger.info('Higgsfield image request created', { requestId, higgsfieldRequestId })
 
   const pollIntervalMs = 3000
   const maxAttempts = Math.ceil(getMaxExecutionTimeout() / pollIntervalMs)
-  let attempts = 0
-
-  while (attempts < maxAttempts) {
-    await interruptibleSleep(pollIntervalMs, signal)
-    signal?.throwIfAborted()
-
-    const statusResponse = await secureFetchWithPinnedIP(statusUrl, statusValidation.resolvedIP, {
-      profile: 'contentFetch',
-      maxRedirects: 0,
-      headers: {
-        Authorization: `Key ${apiKey}`,
-      },
-      maxResponseBytes: MAX_IMAGE_JSON_BYTES,
-      signal,
-    })
-
-    if (!statusResponse.ok) {
-      await readResponseTextWithLimit(statusResponse, {
-        maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
-        label: 'Fal.ai status error response',
-        signal,
-      }).catch(() => '')
-      throw new Error(`Fal.ai status check failed: ${statusResponse.status}`)
-    }
-
-    const statusData = await readResponseJsonWithLimit(statusResponse, {
-      maxBytes: MAX_IMAGE_JSON_BYTES,
-      label: 'Fal.ai status response',
-      signal,
-    })
-    if (!isRecordLike(statusData)) {
-      throw new Error('Invalid Fal.ai status response')
-    }
-
-    const status = getStringProperty(statusData, 'status')
-    if (status === 'COMPLETED') {
-      const { data: resultData, cost: falaiCost } = await fetchFalAIResult({
-        apiKey,
-        endpointId: endpoint,
-        requestId: falRequestId,
-        queueError: statusData.error,
-        maxResponseBytes: MAX_IMAGE_JSON_BYTES,
-        trackCost: body.useHostedCostTracking,
-        onCost: onFalCost,
-        signal,
-        fetchResponse: async (resultSignal) => {
-          const resultUrl = falQueueUrl(
-            getStringProperty(statusData, 'response_url') || responseUrl
-          )
-          const resultValidation = await validateUrlWithDNS(resultUrl, 'resultUrl', 'contentFetch')
-          if (!resultValidation.isValid) throw new Error(resultValidation.error)
-          return secureFetchWithPinnedIP(resultUrl, resultValidation.resolvedIP, {
-            profile: 'contentFetch',
-            maxRedirects: 0,
-            headers: { Authorization: `Key ${apiKey}` },
-            maxResponseBytes: MAX_IMAGE_JSON_BYTES,
-            signal: resultSignal,
-          })
-        },
-      })
-
-      if (!isRecordLike(resultData)) {
-        throw new Error('Invalid Fal.ai result response')
-      }
-
-      const firstImage =
-        prepared.model.output === 'image' && isRecordLike(resultData.image)
-          ? resultData.image
-          : firstRecord(resultData.images)
-      const imageUrl =
-        getStringProperty(firstImage, 'url') ||
-        getStringProperty(firstImage, 'data') ||
-        getStringProperty(firstImage, 'content')
-      if (!imageUrl) {
-        throw new Error('No image URL in Fal.ai response')
-      }
-
+  for (let attempt = 0; attempt <= maxAttempts; attempt++) {
+    const status = getStringProperty(data, 'status') || ''
+    if (status === 'completed') {
+      const imageUrl = getStringProperty(firstRecord(data.images), 'url')
+      if (!imageUrl) throw new Error('No image URL in Higgsfield response')
       const downloaded = await bufferFromImageUrl(imageUrl, signal)
-      const contentType =
-        getStringProperty(firstImage, 'content_type') ||
-        getStringProperty(firstImage, 'contentType') ||
-        downloaded.contentType
-      const fileName =
-        getStringProperty(firstImage, 'file_name') ||
-        getStringProperty(firstImage, 'fileName') ||
-        `falai-${model}.${extensionFromContentType(contentType)}`
-
       return {
         buffer: downloaded.buffer,
-        contentType,
-        fileName,
-        provider: 'falai',
+        contentType: downloaded.contentType,
+        fileName: `higgsfield-${model.replaceAll('/', '-')}.${extensionFromContentType(downloaded.contentType)}`,
+        provider: 'higgsfield',
         model,
-        sourceUrl: imageUrl.startsWith('data:') ? undefined : imageUrl,
-        description: getStringProperty(resultData, 'description'),
-        revisedPrompt: getStringProperty(resultData, 'revised_prompt'),
-        seed: getNumberProperty(resultData, 'seed'),
-        jobId: falRequestId,
-        falaiCost,
+        sourceUrl: imageUrl,
+        jobId: higgsfieldRequestId,
       }
     }
-
-    if (['ERROR', 'FAILED', 'CANCELLED'].includes(status || '')) {
-      throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusData.error)}`)
+    if (HIGGSFIELD_FAILED_STATUSES.some((failedStatus) => failedStatus === status)) {
+      throw new Error(higgsfieldFailureMessage(status, data.error))
     }
-
-    attempts += 1
+    if (attempt === maxAttempts) break
+    await interruptibleSleep(pollIntervalMs, signal)
+    signal?.throwIfAborted()
+    data = await readHiggsfieldRequest(
+      await fetch(higgsfieldStatusUrl(higgsfieldRequestId), {
+        redirect: 'error',
+        headers,
+        signal,
+      }),
+      'Higgsfield status response',
+      signal
+    )
   }
 
-  throw new Error('Fal.ai image generation timed out')
+  throw new Error('Higgsfield image generation timed out')
 }
 
 async function storeGeneratedImage(

@@ -127,6 +127,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   harmonic: 'Harmonic',
   helpscout: 'Help Scout',
   hex: 'Hex',
+  higgsfield: 'Higgsfield',
   hubspot: 'HubSpot',
   huggingface: 'Hugging Face',
   human_in_the_loop_v2: 'Human',

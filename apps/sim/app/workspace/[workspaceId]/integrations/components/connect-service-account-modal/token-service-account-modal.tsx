@@ -167,9 +167,11 @@ function TokenServiceAccountModalForm({
     } catch (err: unknown) {
       const code = isApiClientError(err) ? err.code : undefined
       setError(
-        onSubmitCredentials
-          ? getErrorMessage(err, 'Could not save this connection.')
-          : getTokenServiceAccountErrorMessage(descriptor, code)
+        getTokenServiceAccountErrorMessage(
+          descriptor,
+          code,
+          onSubmitCredentials ? getErrorMessage(err, 'Could not save this connection.') : undefined
+        )
       )
       logger.error(`Failed to add ${descriptor.serviceLabel} service account credential`, err)
     }

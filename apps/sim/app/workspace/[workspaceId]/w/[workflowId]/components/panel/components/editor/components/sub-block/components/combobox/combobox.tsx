@@ -50,7 +50,13 @@ const CREATE_ACTION_VALUE = '__sub-block-create-action__'
  */
 type ComboBoxOption =
   | string
-  | { label: string; id: string; icon?: React.ComponentType<{ className?: string }> }
+  | {
+      label: string
+      id: string
+      icon?: React.ComponentType<{ className?: string }>
+      /** Left out of the list but still resolves a stored value to its label. */
+      hidden?: boolean
+    }
 
 /**
  * Props for the ComboBox component
@@ -141,12 +147,12 @@ export const ComboBox = memo(function ComboBox({
         ? options({ values: blockValues ?? {} })
         : (options ?? EMPTY_OPTIONS)
 
-    if (subBlockId === 'model') {
+    if (subBlockId === 'model' && !config.mediaModelOptions) {
       return opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
     }
 
     return opts
-  }, [options, blockValues, subBlockId, isModelUsable, deploymentShape])
+  }, [options, blockValues, subBlockId, isModelUsable, deploymentShape, config.mediaModelOptions])
 
   const [selectorSearch, setSelectorSearch] = useState('')
   const debouncedSelectorSearch = useDebounce(selectorSearch.trim(), SEARCH_DEBOUNCE_MS)
@@ -237,7 +243,12 @@ export const ComboBox = memo(function ComboBox({
     let opts: ComboBoxOption[] =
       isDynamic && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
 
-    if (subBlockId === 'model' && isDynamic && normalizedFetchedOptions.length > 0) {
+    if (
+      subBlockId === 'model' &&
+      !config.mediaModelOptions &&
+      isDynamic &&
+      normalizedFetchedOptions.length > 0
+    ) {
       opts = opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
     }
 
@@ -272,6 +283,7 @@ export const ComboBox = memo(function ComboBox({
     createdOption,
     subBlockId,
     isModelUsable,
+    config.mediaModelOptions,
   ])
 
   // Convert options to Combobox format
@@ -280,7 +292,7 @@ export const ComboBox = memo(function ComboBox({
       if (typeof option === 'string') {
         return { label: option, value: option }
       }
-      return { label: option.label, value: option.id, icon: option.icon }
+      return { label: option.label, value: option.id, icon: option.icon, hidden: option.hidden }
     })
     return createOption ? [createOption, ...mapped] : mapped
   }, [evaluatedOptions, createOption])
@@ -325,8 +337,11 @@ export const ComboBox = memo(function ComboBox({
       return undefined
     }
 
-    if (evaluatedOptions.length > 0) {
-      return getOptionValue(evaluatedOptions[0])
+    const firstSelectable = evaluatedOptions.find(
+      (option) => typeof option === 'string' || !option.hidden
+    )
+    if (firstSelectable) {
+      return getOptionValue(firstSelectable)
     }
 
     return undefined
@@ -356,16 +371,33 @@ export const ComboBox = memo(function ComboBox({
     setInputValue(displayValue)
   }
 
+  /**
+   * The default in force when the user emptied the input, so the field is not refilled while they
+   * type. A dependency change that brings a different default (a provider switch) ends it, and so
+   * does a remount: a required field saved empty gets its default back when reopened.
+   */
+  const userClearedDefaultRef = useRef<string | null>(null)
+
   // Set default value once permissions are loaded
   useEffect(() => {
     if (isPermissionLoading) return
     if (defaultOptionValue === undefined) return
 
-    // Only set default when no value exists (initial block add)
-    if (value === null || value === undefined) {
+    // Set the default on initial block add, and after a dependency change clears an opted-in field
+    const clearedByDependency =
+      config.restoreDefaultWhenCleared &&
+      value === '' &&
+      userClearedDefaultRef.current !== defaultOptionValue
+    if (value === null || value === undefined || clearedByDependency) {
       setStoreValue(defaultOptionValue)
     }
-  }, [value, defaultOptionValue, setStoreValue, isPermissionLoading])
+  }, [
+    value,
+    defaultOptionValue,
+    setStoreValue,
+    isPermissionLoading,
+    config.restoreDefaultWhenCleared,
+  ])
 
   /**
    * Handles wheel event for ReactFlow zoom control
@@ -521,9 +553,10 @@ export const ComboBox = memo(function ComboBox({
           ? matchedOption
           : matchedOption.id
         : newValue
+      userClearedDefaultRef.current = nextValue === '' ? (defaultOptionValue ?? null) : null
       setStoreValue(nextValue)
     },
-    [isPreview, evaluatedOptions, setStoreValue]
+    [isPreview, evaluatedOptions, setStoreValue, defaultOptionValue]
   )
 
   return (

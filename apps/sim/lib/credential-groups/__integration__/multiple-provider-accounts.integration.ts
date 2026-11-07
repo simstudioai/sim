@@ -15,7 +15,7 @@ import {
 } from '@sim/db/schema'
 import { sha256Hex } from '@sim/security/hash'
 import { generateId } from '@sim/utils/id'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CredentialGroupOAuthContext } from '@/lib/credential-groups/enrollments'
 import { listCredentialGroupEnrollments } from '@/lib/credential-groups/enrollments'
@@ -24,6 +24,7 @@ import { completeCredentialGroupOAuth } from '@/lib/credential-groups/oauth'
 import type { CredentialGroupOAuthAttempt } from '@/lib/credential-groups/oauth-state'
 import { CredentialGroupOAuthError } from '@/lib/credential-groups/provider-adapter'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
+import { listViewerOrganizationAccounts } from '@/lib/credential-groups/viewer-accounts'
 import { persistManagedMcpCredential } from '@/lib/credentials/managed-mcp'
 import { decryptManagedOAuthTokenSet } from '@/lib/credentials/managed-oauth'
 import { resolveSlackSearchMember } from '@/lib/knowledge/application/slack-search/identity'
@@ -38,6 +39,11 @@ const POLICY = {
 vi.mock('@/lib/credential-groups/scoped-availability', () => ({
   isScopedCredentialGroupsAvailable: async () => true,
 }))
+
+/** Each grant carries its own token, as a real exchange does, so a saved grant is identifiable. */
+let grants = 0
+/** Sites the next grant reports, or `undefined` when its site listing failed. */
+let grantSites: Array<{ name: string; url: string }> | undefined
 
 vi.mock('@/lib/credential-groups/provider-registry', async (importOriginal) => {
   const { getCredentialGroupProviderId } = await import('@/lib/credential-groups/providers')
@@ -60,8 +66,8 @@ vi.mock('@/lib/credential-groups/provider-registry', async (importOriginal) => {
             providerSubjectId: subject,
             providerTenantId: tenant || null,
             displayName: code,
-            metadata: { email: code },
-            accessToken: `token-for-${code}`,
+            metadata: { email: code, ...(grantSites ? { sites: grantSites } : {}) },
+            accessToken: `token-for-${code}-${(grants += 1)}`,
             grantedScopes: POLICY.requiredScopes,
             accessTokenExpiresAt: null,
             refreshTokenExpiresAt: null,
@@ -93,6 +99,8 @@ const optionFor = (provider: CredentialGroupProvider) => ({
 const DRIVE = optionFor('google-drive')
 const GITHUB = optionFor('github-repositories')
 const SLACK = optionFor('slack')
+const CONFLUENCE = optionFor('confluence')
+const NOTION = optionFor('notion')
 
 function connect(
   code: string,
@@ -110,7 +118,7 @@ function connect(
     email,
     enrollmentStatus: 'completed',
     option,
-    options: [DRIVE, GITHUB, SLACK],
+    options: [DRIVE, GITHUB, SLACK, CONFLUENCE, NOTION],
   }
   const attempt: CredentialGroupOAuthAttempt = {
     userId,
@@ -188,7 +196,7 @@ beforeAll(async () => {
     organizationId,
     publicId: generateId(),
     name: 'Connected accounts',
-    options: [DRIVE, GITHUB, SLACK],
+    options: [DRIVE, GITHUB, SLACK, CONFLUENCE, NOTION],
   })
   await db.insert(member).values({
     id: generateId(),
@@ -224,6 +232,7 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
+  grantSites = undefined
   await db.delete(credential).where(eq(credential.organizationId, organizationId))
 })
 
@@ -251,7 +260,7 @@ describe('connecting several accounts of one provider', () => {
       status: 'active',
     })
     expect(await decryptManagedOAuthTokenSet(stored?.tokens ?? '')).toMatchObject({
-      accessToken: 'token-for-work@second-tenant.test',
+      accessToken: expect.stringMatching(/^token-for-work@second-tenant\.test-/),
     })
   })
 
@@ -334,6 +343,149 @@ describe('reconnecting one of several accounts', () => {
       connect('work@first-tenant.test', { kind: 'reconnect', credentialId: other.credentialId })
     ).rejects.toThrow('account changed')
     expect(await rows()).toHaveLength(2)
+  })
+})
+
+describe('adding another site to an Atlassian login', () => {
+  it('keeps the new grant on the existing account instead of refusing it', async () => {
+    const first = await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
+    const saved = async () =>
+      (await decryptManagedOAuthTokenSet((await rows())[0]?.tokens ?? '')).accessToken
+    const firstToken = await saved()
+
+    const added = await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
+
+    expect(added).toMatchObject({ created: false, credentialId: first.credentialId })
+    expect(await rows()).toHaveLength(1)
+    expect(await saved()).toMatch(/^token-for-person@atlassian-/)
+    expect(await saved()).not.toBe(firstToken)
+  })
+
+  it('shows the sites recorded for the account, ignoring anything unusable', async () => {
+    const account = await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
+    const viewer = async () =>
+      (await listViewerOrganizationAccounts({ organizationId, userId })).find(
+        (row) => row.credentialId === account.credentialId
+      )
+    expect((await viewer())?.sites).toEqual([])
+
+    await db
+      .update(credential)
+      .set({
+        providerMetadata: sql`${JSON.stringify({
+          email: 'person@atlassian',
+          sites: [
+            { name: 'Acme', url: 'https://acme.example.net' },
+            { name: 42, url: 'https://broken.example.net' },
+            'not a site',
+          ],
+        })}::jsonb`,
+      })
+      .where(eq(credential.id, account.credentialId))
+
+    expect((await viewer())?.sites).toEqual([{ name: 'Acme', url: 'https://acme.example.net' }])
+  })
+
+  it('never lets oversized stored sites break the account list', async () => {
+    const account = await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
+    const site = (index: number) => ({
+      name: `Site ${index}`,
+      url: `https://s${index}.example.net`,
+    })
+    await db
+      .update(credential)
+      .set({
+        providerMetadata: sql`${JSON.stringify({
+          email: 'person@atlassian',
+          sites: [
+            { name: 'x'.repeat(600), url: 'https://long-name.example.net' },
+            { name: 'Long URL', url: `https://example.net/${'x'.repeat(2100)}` },
+            ...Array.from({ length: 60 }, (_, index) => site(index)),
+          ],
+        })}::jsonb`,
+      })
+      .where(eq(credential.id, account.credentialId))
+
+    const [viewer] = await listViewerOrganizationAccounts({ organizationId, userId })
+    expect(viewer?.sites).toHaveLength(50)
+    expect(viewer?.sites[0]).toEqual(site(0))
+  })
+
+  it('keeps the recorded sites when a reconnect cannot list them', async () => {
+    grantSites = [{ name: 'Acme', url: 'https://acme.example.net' }]
+    const account = await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
+    const reconnect = () =>
+      connect(
+        'person@atlassian',
+        { kind: 'reconnect', credentialId: account.credentialId },
+        CONFLUENCE
+      )
+    const sites = async () =>
+      (await listViewerOrganizationAccounts({ organizationId, userId }))[0]?.sites
+
+    grantSites = undefined
+    await reconnect()
+    expect(await sites()).toEqual([{ name: 'Acme', url: 'https://acme.example.net' }])
+
+    grantSites = []
+    await reconnect()
+    expect(await sites()).toEqual([])
+  })
+
+  it('still adds a different Atlassian login as its own account', async () => {
+    await connect('person@atlassian', { kind: 'create' }, CONFLUENCE)
+    await connect('other@atlassian', { kind: 'create' }, CONFLUENCE)
+    expect(await rows()).toHaveLength(2)
+  })
+})
+
+describe('an account recorded before its tenant was known', () => {
+  it('stays separate on a provider that always recorded its tenant', async () => {
+    const legacy = await connect('person', { kind: 'create' })
+    expect(
+      await failureOf(
+        connect('person@workspace-a', { kind: 'reconnect', credentialId: legacy.credentialId })
+      )
+    ).toBe('account_mismatch')
+  })
+
+  it('takes on its tenant when reconnected or refreshed', async () => {
+    const legacy = await connect('person', { kind: 'create' }, NOTION)
+
+    await expect(
+      connect(
+        'person@workspace-a',
+        { kind: 'reconnect', credentialId: legacy.credentialId },
+        NOTION
+      )
+    ).resolves.toMatchObject({ created: false, credentialId: legacy.credentialId })
+    expect(await rows()).toMatchObject([{ subject: 'person', tenant: 'workspace-a' }])
+  })
+
+  it('takes on its tenant through an invitation link', async () => {
+    const legacy = await connect('person', { kind: 'create' }, NOTION)
+    await expect(connect('person@workspace-a', undefined, NOTION)).resolves.toMatchObject({
+      credentialId: legacy.credentialId,
+    })
+    expect(await rows()).toMatchObject([{ tenant: 'workspace-a' }])
+  })
+
+  it('must be reconnected before another tenant of the same login is added, so it is never overwritten', async () => {
+    const legacy = await connect('person', { kind: 'create' }, NOTION)
+    const [before] = await rows()
+
+    expect(await failureOf(connect('person@workspace-b', { kind: 'create' }, NOTION))).toBe(
+      'account_identity_required'
+    )
+    expect(await rows()).toEqual([before])
+
+    await connect(
+      'person@workspace-a',
+      { kind: 'reconnect', credentialId: legacy.credentialId },
+      NOTION
+    )
+    await connect('person@workspace-b', { kind: 'create' }, NOTION)
+    expect((await rows()).map((row) => row.tenant).sort()).toEqual(['workspace-a', 'workspace-b'])
   })
 })
 

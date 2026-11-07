@@ -1,4 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 import { resolvePrincipalSubjectUserId } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
@@ -47,15 +48,56 @@ async function callerErrorMessage(error: unknown): Promise<string | undefined> {
     : undefined
 }
 
+interface SourceRow {
+  documentName: string | null
+  sourceUrl: string | null
+  sourceModifiedAt?: string | null
+  sourceDate?: string | null
+  sourceContainerName?: string
+}
+
+/**
+ * A document's title, link and dates, each sent once: every turn of the client's conversation
+ * re-reads them. `sourceModifiedAt` repeats `sourceDate` except where the date is an event start,
+ * and a Slack message is titled by its channel, so each is kept only when it says something else.
+ */
+function sourceFacts(row: SourceRow) {
+  const { documentName: title, sourceModifiedAt, sourceDate, sourceContainerName } = row
+  const modifiedDiffers =
+    sourceModifiedAt && (!sourceDate || Date.parse(sourceModifiedAt) !== Date.parse(sourceDate))
+  return {
+    title,
+    citationUrl: row.sourceUrl,
+    ...(modifiedDiffers ? { sourceModifiedAt } : {}),
+    sourceDate: sourceDate ?? null,
+    ...(sourceContainerName && sourceContainerName !== title ? { sourceContainerName } : {}),
+  }
+}
+
 /** One read_document result in the shape the tool returns it. */
 function projectReadResult(result: Awaited<ReturnType<typeof readLiveDocument.execute>>) {
-  const { knowledgeBaseId: _knowledgeBaseId, knowledgeBaseName: _name, ...document } = result
+  const {
+    knowledgeBaseId: _knowledgeBaseId,
+    knowledgeBaseName: _name,
+    documentName: _documentName,
+    sourceUrl: _sourceUrl,
+    sourceModifiedAt: _sourceModifiedAt,
+    sourceContainerName: _sourceContainerName,
+    ...document
+  } = result
   return {
     ...document,
-    title: result.documentName,
     citationId: liveCitationId(result.documentId),
-    citationUrl: result.sourceUrl,
+    ...sourceFacts(result),
   }
+}
+
+/** Characters of text a tool result hands the client. */
+function resultCharacters(result: CallToolResult): number {
+  return result.content.reduce(
+    (total, part) => total + (part.type === 'text' ? part.text.length : 0),
+    0
+  )
 }
 
 interface KnowledgeMcpContext {
@@ -74,6 +116,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     const startedAt = performance.now()
     const signal = AbortSignal.any([request.signal, toolSignal])
     let outcome: SearchMcpActivityInput['outcome'] = 'error'
+    let resultChars: number | undefined
     try {
       signal.throwIfAborted()
       const limited = await v2RateLimits.publicApi.enforce(request, auth, operation, cost)
@@ -92,6 +135,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
       }
       const result = await run(new ResolvedSecretTraceRegistry(), signal)
       outcome = signal.aborted ? 'cancelled' : result.isError ? 'error' : 'success'
+      resultChars = resultCharacters(result)
       return result
     } catch (error) {
       if (signal.aborted) outcome = 'cancelled'
@@ -118,6 +162,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
         userId: activity.userId,
         outcome,
         durationMs: activity.durationMs,
+        resultChars,
       })
       afterResponse(() => recordOrganizationSearchMcpActivity(activity))
     }
@@ -154,18 +199,12 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
           {
             results: result.results.map((row) => ({
               documentId: row.documentId,
-              title: row.documentName,
-              sourceUrl: row.sourceUrl,
               citationId: liveCitationId(row.documentId),
-              citationUrl: row.sourceUrl,
-              sourceModifiedAt: row.sourceModifiedAt ?? null,
-              sourceDate: row.sourceDate,
-              sourceContainerName: row.sourceContainerName,
+              ...sourceFacts(row),
               sourceContainerUrl: row.sourceContainerUrl,
               ...(row.queryIndexes ? { queryIndexes: row.queryIndexes } : {}),
               connectorType: row.connectorType,
               content: row.content,
-              chunkIndex: row.chunkIndex,
             })),
             retrieval: result.retrieval,
             live: result.live,

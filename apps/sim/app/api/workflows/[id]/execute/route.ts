@@ -945,7 +945,7 @@ async function handleExecutePost(
         ? false
         : (useDraftState ?? auth.authType === AuthType.SESSION)
     const requiresWriteExecutionAccess = Boolean(
-      useDraftState || workflowStateOverride || rawRunFromBlock
+      shouldUseDraftState || workflowStateOverride || rawRunFromBlock
     )
 
     if (req.signal.aborted) {
@@ -987,11 +987,12 @@ async function handleExecutePost(
     }
 
     /**
-     * Interactive sessions and personal keys preserve the authenticated human
-     * as actor. Preprocessing resolves the workspace payer independently.
+     * Sessions and personal keys act as the authenticated human. Keyed on auth
+     * type, not the body's `isClientSession`, so a session cannot opt out and
+     * run its editable draft on the billing account's credentials.
      */
     const useAuthenticatedUserAsActor =
-      isClientSession ||
+      auth.authType === AuthType.SESSION ||
       (auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal') ||
       useMcpBridgeAuthenticatedUserAsActor
 

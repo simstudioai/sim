@@ -39,14 +39,16 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 
 interface FalGenerationParams {
   signal?: AbortSignal
-  onCost: (cost: { costDollars: number }) => Promise<void>
+  onCost: (cost: { costDollars: number }, hostedKey: { envVarName: string }) => Promise<void>
 }
+
+const HOSTED_KEY = { envVarName: 'FALAI_API_KEY_1' }
 
 /** A fal generation that bills 0.1 through `onCost`, then returns `media` with that cost. */
 function billsThen(media: Record<string, unknown>) {
   return async ({ onCost }: FalGenerationParams) => {
     const cost = { costDollars: 0.1 }
-    await onCost(cost)
+    await onCost(cost, HOSTED_KEY)
     return { ...media, cost }
   }
 }
@@ -142,7 +144,7 @@ describe('Mothership media model boundaries', () => {
     'bills a completed %s generation once when the tool call is aborted after it',
     async (_kind, service, generator, tool) => {
       generator.mockImplementationOnce(async ({ onCost }: FalGenerationParams) => {
-        await onCost({ costDollars: 0.2 })
+        await onCost({ costDollars: 0.2 }, HOSTED_KEY)
         throw new Error('Tool timed out')
       })
       const charges = vi.fn().mockResolvedValue(undefined)

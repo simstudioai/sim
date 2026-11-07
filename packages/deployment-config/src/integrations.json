@@ -9802,8 +9802,8 @@
       "name": "Flow Engineering",
       "description": "Manage engineering requirements and traceability",
       "longDescription": "Read and update Flow Engineering projects, requirements, tests, and other entities through its customer API. Search current project data, inspect categories and relationships, manage comments, and make controlled changes on a working branch using your connected account permissions.",
-      "bgColor": "#2448C7",
-      "iconName": "ApiIcon",
+      "bgColor": "#FFFFFF",
+      "iconName": "FlowIcon",
       "docsUrl": "https://docs.sim.ai/integrations/flow",
       "operations": [
         {
@@ -9906,7 +9906,7 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["project-management", "automation", "version-control"],
-      "updatedAt": "2026-11-05"
+      "updatedAt": "2026-11-06"
     },
     {
       "type": "gamma",
@@ -13417,6 +13417,62 @@
       "updatedAt": "2026-10-14"
     },
     {
+      "type": "higgsfield",
+      "slug": "higgsfield",
+      "name": "Higgsfield",
+      "description": "Generate images and videos with Higgsfield models",
+      "longDescription": "Generate images and videos with any Higgsfield model, create SOUL images with styles and trained characters, train and manage Soul ID characters, and check, cancel, or delete generation requests.",
+      "bgColor": "#D1FE17",
+      "iconName": "HiggsfieldIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/higgsfield",
+      "operations": [
+        {
+          "name": "Generate (Any Model)",
+          "description": "Submit a generation request to any Higgsfield image or video model endpoint with that model's documented JSON input, then wait for the output URLs."
+        },
+        {
+          "name": "Generate SOUL Image",
+          "description": "Generate images with Higgsfield SOUL, optionally in a style or as a trained Soul ID character, then wait for the image URLs."
+        },
+        {
+          "name": "Get Request Status",
+          "description": "Get the status of a Higgsfield generation request and, once completed, its output URLs."
+        },
+        {
+          "name": "Cancel Request",
+          "description": "Cancel a Higgsfield generation request that is still queued. Requests that have started processing cannot be canceled."
+        },
+        {
+          "name": "Delete Request",
+          "description": "Immediately delete a finished Higgsfield request's output files, prompt, and parameters."
+        },
+        {
+          "name": "Create Character",
+          "description": "Train a reusable Soul ID character from public reference image URLs. Training runs in the background; use Get Character to check when it completes."
+        },
+        {
+          "name": "Get Character",
+          "description": "Get a Soul ID character reference, including its training status."
+        },
+        {
+          "name": "List Characters",
+          "description": "List the Soul ID character references in the Higgsfield account, one page at a time."
+        },
+        {
+          "name": "Delete Character",
+          "description": "Permanently delete a Soul ID character reference."
+        }
+      ],
+      "operationCount": 9,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "ai",
+      "tags": ["image-generation", "video-generation", "marketing", "automation"],
+      "updatedAt": "2026-11-06"
+    },
+    {
       "type": "hubspot",
       "slug": "hubspot",
       "name": "HubSpot",
@@ -14446,8 +14502,8 @@
       "name": "Jama Connect",
       "description": "Manage requirements, traceability, and verification in Jama Connect",
       "longDescription": "Search and manage requirements, inspect custom item types and pick lists, trace upstream and downstream relationships, collaborate with comments, compare item versions and baselines, and read test plans, cycles, and runs or update execution results. Connect with saved Jama API client credentials that retain the account owner’s permissions.",
-      "bgColor": "#E25100",
-      "iconName": "ApiIcon",
+      "bgColor": "#FFFFFF",
+      "iconName": "JamaIcon",
       "docsUrl": "https://docs.sim.ai/integrations/jama",
       "operations": [
         {
@@ -14619,7 +14675,7 @@
       "category": "tools",
       "integrationType": "devops",
       "tags": ["project-management", "knowledge-base"],
-      "updatedAt": "2026-11-05"
+      "updatedAt": "2026-11-06"
     },
     {
       "type": "jina",

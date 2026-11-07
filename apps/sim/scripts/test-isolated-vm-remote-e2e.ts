@@ -9,6 +9,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateRandomBytes, generateRandomHex } from '@sim/utils/random'
+import type { IsolatedVMExecutionRequest } from '@/lib/execution/isolated-vm'
 
 /**
  * Runs the isolated-vm pool against a real `isolated-vm-host.cjs` over real
@@ -383,7 +384,14 @@ async function run() {
   const slowFetch = (ms: number) =>
     `const r = await fetch('http://127.0.0.1:${slowAddress.port}/?ms=${ms}'); return await r.text()`
 
-  const execute = (code: string, extra: { timeoutMs?: number; signal?: AbortSignal } = {}) =>
+  const execute = (
+    code: string,
+    extra: {
+      timeoutMs?: number
+      signal?: AbortSignal
+      task?: IsolatedVMExecutionRequest['task']
+    } = {}
+  ) =>
     executeInIsolatedVM(
       {
         code,
@@ -393,6 +401,7 @@ async function run() {
         timeoutMs: extra.timeoutMs ?? 10000,
         requestId: `e2e-${generateRandomHex(4)}`,
         ownerKey: 'e2e-owner',
+        task: extra.task,
       },
       { signal: extra.signal }
     )
@@ -497,6 +506,36 @@ async function run() {
     assert.equal(cancelled.termination, 'cancelled')
     const next = await execute('return "still alive"')
     assert.equal(next.result, 'still alive', next.error?.message)
+  })
+
+  const runTask = (code: string) =>
+    execute(code, {
+      task: {
+        id: 'e2e-timers',
+        bundles: [],
+        bootstrap: '',
+        brokers: [],
+        finalize: 'return new Uint8Array([1])',
+      },
+    })
+
+  await check('caps the timers a task may hold on the shared worker', async () => {
+    const timeouts = await runTask(
+      'const f = () => {}; for (let i = 0; i < 200000; i++) setTimeout(f, 60000)'
+    )
+    assert.match(timeouts.error?.message ?? '', /Too many pending timers/, timeouts.error?.message)
+    const intervals = await runTask(
+      'const f = () => {}; for (let i = 0; i < 200; i++) setInterval(f, 1000)'
+    )
+    assert.match(
+      intervals.error?.message ?? '',
+      /Too many active intervals/,
+      intervals.error?.message
+    )
+    const reused = await runTask(
+      'for (let round = 0; round < 3; round++) { const ids = []; for (let i = 0; i < 1000; i++) ids.push(setTimeout(() => {}, 60000)); ids.forEach(clearTimeout); const intervals = []; for (let i = 0; i < 50; i++) intervals.push(setInterval(() => {}, 60000)); intervals.forEach(clearInterval) }'
+    )
+    assert.equal(reused.error, undefined, reused.error?.message)
   })
 
   await check('rejects a connection with the wrong token', async () => {

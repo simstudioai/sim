@@ -1,4 +1,4 @@
-import { ApiIcon } from '@/components/icons'
+import { FlowIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 
@@ -11,8 +11,8 @@ export const FlowBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/integrations/flow',
   category: 'tools',
   integrationType: IntegrationType.DevOps,
-  bgColor: '#2448C7',
-  icon: ApiIcon,
+  bgColor: '#FFFFFF',
+  icon: FlowIcon,
   authMode: AuthMode.ApiKey,
   canvasPresentation: {
     defaultTitle: 'Flow Engineering',
@@ -1086,7 +1086,7 @@ export const FlowBlockMeta = {
   url: 'https://www.flowengineering.com',
   templates: [
     {
-      icon: ApiIcon,
+      icon: FlowIcon,
       title: 'Flow requirement lookup',
       prompt:
         'When asked about a component, search its Flow project, read the matching entities, and summarize requirements with their IDs.',
@@ -1095,7 +1095,7 @@ export const FlowBlockMeta = {
       tags: ['project-management'],
     },
     {
-      icon: ApiIcon,
+      icon: FlowIcon,
       title: 'Flow traceability review',
       prompt:
         'Read the Flow data model and selected requirements, follow their links, and report missing test coverage without changing the project.',
@@ -1104,7 +1104,7 @@ export const FlowBlockMeta = {
       tags: ['project-management'],
     },
     {
-      icon: ApiIcon,
+      icon: FlowIcon,
       title: 'Flow requirement drafts',
       prompt:
         'On request, create a working branch in Flow, draft requirements in a selected category, and set their fields using the project data model.',
@@ -1113,7 +1113,7 @@ export const FlowBlockMeta = {
       tags: ['project-management'],
     },
     {
-      icon: ApiIcon,
+      icon: FlowIcon,
       title: 'Flow review digest',
       prompt:
         'On a schedule, list Flow project branches and summarize the branches ready for review and their unresolved discussion threads.',
@@ -1122,7 +1122,7 @@ export const FlowBlockMeta = {
       tags: ['project-management'],
     },
     {
-      icon: ApiIcon,
+      icon: FlowIcon,
       title: 'Flow field update',
       prompt:
         'From a supplied change list, read the current Flow entity values, apply the approved field updates as one batch, and report the changed IDs.',
@@ -1131,7 +1131,7 @@ export const FlowBlockMeta = {
       tags: ['project-management'],
     },
     {
-      icon: ApiIcon,
+      icon: FlowIcon,
       title: 'Flow discussion summary',
       prompt:
         'When given a Flow entity, read its comment threads and their direct replies, summarize open decisions, and post a follow-up only when requested.',
@@ -1140,7 +1140,7 @@ export const FlowBlockMeta = {
       tags: ['project-management'],
     },
     {
-      icon: ApiIcon,
+      icon: FlowIcon,
       title: 'Flow change history',
       prompt:
         'When investigating a requirement change, read its paginated Flow history on the selected branch and explain the actors, changes, and timestamps.',

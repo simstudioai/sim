@@ -409,7 +409,8 @@
         { "id": "video_veo", "label": "Google Gemini Video" },
         { "id": "video_luma", "label": "Luma Dream Machine Video" },
         { "id": "video_minimax", "label": "MiniMax Video" },
-        { "id": "video_falai", "label": "Fal.ai Video Generation" }
+        { "id": "video_falai", "label": "Fal.ai Video Generation" },
+        { "id": "video_higgsfield", "label": "Higgsfield Video" }
       ]
     },
     {
@@ -4715,6 +4716,25 @@
         { "id": "hex_update_collection", "label": "Hex Update Collection" },
         { "id": "hex_update_group", "label": "Hex Update Group" },
         { "id": "hex_update_project", "label": "Hex Update Project" }
+      ]
+    },
+    {
+      "type": "higgsfield",
+      "name": "Higgsfield",
+      "description": "Generate images and videos with Higgsfield models",
+      "category": "tools",
+      "hidden": false,
+      "sourceWorkspaceName": null,
+      "tools": [
+        { "id": "higgsfield_generate", "label": "Higgsfield Generate" },
+        { "id": "higgsfield_generate_soul_image", "label": "Higgsfield Generate SOUL Image" },
+        { "id": "higgsfield_get_request_status", "label": "Higgsfield Get Request Status" },
+        { "id": "higgsfield_cancel_request", "label": "Higgsfield Cancel Request" },
+        { "id": "higgsfield_delete_request", "label": "Higgsfield Delete Request" },
+        { "id": "higgsfield_create_character", "label": "Higgsfield Create Character" },
+        { "id": "higgsfield_get_character", "label": "Higgsfield Get Character" },
+        { "id": "higgsfield_list_characters", "label": "Higgsfield List Characters" },
+        { "id": "higgsfield_delete_character", "label": "Higgsfield Delete Character" }
       ]
     },
     {

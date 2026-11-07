@@ -15,10 +15,20 @@ import {
   readResponseToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { buildDirectVideoRequest } from '@/lib/internal/video/direct-request'
-import { buildFalVideoRequest, getFalAIValidationError } from '@/lib/internal/video/fal-request'
+import {
+  buildFalVideoRequest,
+  getFalAIValidationError,
+  isCustomFalVideoModel,
+} from '@/lib/internal/video/fal-request'
 import { getFalVideoModel } from '@/lib/media/fal-video-catalog'
-import { downloadFalMedia } from '@/lib/media/falai'
+import { cancelFalRequest, downloadFalMedia } from '@/lib/media/falai'
 import { fetchFalAIResult } from '@/lib/media/falai-result'
+import {
+  HIGGSFIELD_FAILED_STATUSES,
+  higgsfieldAuthHeaders,
+  higgsfieldFailureMessage,
+  higgsfieldStatusUrl,
+} from '@/lib/media/higgsfield'
 import type { FalAICostMetadata } from '@/lib/tools/falai-pricing'
 import { downloadFileFromStorage } from '@/lib/uploads/utils/file.server'
 import type { UserFile } from '@/executor/types'
@@ -28,7 +38,7 @@ const MAX_VIDEO_OUTPUT_BYTES = 250 * 1024 * 1024
 const MAX_VIDEO_JSON_BYTES = 2 * 1024 * 1024
 const POLL_INTERVAL_MS = 5000
 
-export type VideoProvider = 'runway' | 'veo' | 'luma' | 'minimax' | 'falai'
+export type VideoProvider = 'runway' | 'veo' | 'luma' | 'minimax' | 'falai' | 'higgsfield'
 
 export interface VideoGenerationInput {
   provider: VideoProvider
@@ -123,7 +133,8 @@ async function generateWithDirectProvider(
   if (protocol === 'gemini') {
     headers['x-goog-api-key'] = input.apiKey
     headers['Api-Revision'] = '2026-05-20'
-  } else headers.Authorization = `Bearer ${input.apiKey}`
+  } else if (protocol === 'higgsfield') Object.assign(headers, higgsfieldAuthHeaders(input.apiKey))
+  else headers.Authorization = `Bearer ${input.apiKey}`
   if (protocol === 'runway') headers['X-Runway-Version'] = '2024-11-06'
 
   if (input.visualReference) {
@@ -163,7 +174,10 @@ async function generateWithDirectProvider(
       signal,
     })
   )
-  const jobId = getStringProperty(data, 'id') || getStringProperty(data, 'task_id')
+  const jobId =
+    getStringProperty(data, 'id') ||
+    getStringProperty(data, 'task_id') ||
+    getStringProperty(data, 'request_id')
   if (!jobId) throw new Error(`${input.provider} response missing job ID`)
   const encodedId = encodeURIComponent(jobId)
   const pollUrl =
@@ -175,7 +189,9 @@ async function generateWithDirectProvider(
           ? `https://api.lumalabs.ai/dream-machine/v1/generations/${encodedId}`
           : protocol === 'minimax-v2'
             ? `https://api.minimax.io/v2/query/video_generation/${encodedId}`
-            : `${prepared.url}/${encodedId}`
+            : protocol === 'higgsfield'
+              ? higgsfieldStatusUrl(jobId)
+              : `${prepared.url}/${encodedId}`
   const maxAttempts = Math.ceil(getMaxExecutionTimeout() / POLL_INTERVAL_MS)
   for (let attempt = 0; attempt <= maxAttempts; attempt++) {
     const task = protocol === 'minimax-v2' && isRecordLike(data.task) ? data.task : data
@@ -197,6 +213,8 @@ async function generateWithDirectProvider(
         videoUrl = isRecordLike(task.assets) ? getStringProperty(task.assets, 'video') : undefined
       } else if (protocol === 'minimax-v2') {
         videoUrl = isRecordLike(task.content) ? getStringProperty(task.content, 'url') : undefined
+      } else if (protocol === 'higgsfield') {
+        videoUrl = isRecordLike(task.video) ? getStringProperty(task.video, 'url') : undefined
       } else if (protocol === 'minimax-v1') {
         const fileId = getStringProperty(task, 'file_id')
         if (!fileId) throw new Error('MiniMax response missing file_id')
@@ -302,6 +320,12 @@ async function generateWithDirectProvider(
       return { buffer, jobId, duration, ...dimensions }
     }
     if (
+      protocol === 'higgsfield' &&
+      HIGGSFIELD_FAILED_STATUSES.some((failedStatus) => failedStatus === status)
+    ) {
+      throw new Error(higgsfieldFailureMessage(status || '', task.error))
+    }
+    if (
       [
         'FAILED',
         'CANCELED',
@@ -393,100 +417,114 @@ async function generateWithFalAI(
 
   const app = endpoint.split('/', 2).join('/')
   const requestUrl = `https://queue.fal.run/${app}/requests/${encodeURIComponent(requestIdFal)}`
-  const statusUrl = falQueueUrl(
-    getStringProperty(createData, 'status_url') || `${requestUrl}/status`
-  )
-  const responseUrl = falQueueUrl(getStringProperty(createData, 'response_url') || requestUrl)
+  /** Built from the endpoint, never a provider URL, so a rejected one can still be cancelled. */
+  const cancelUrl = `${requestUrl}/cancel`
 
   logger.info(`Fal.ai request created: ${requestIdFal}`, { requestId })
 
-  const maxAttempts = Math.ceil(getMaxExecutionTimeout() / POLL_INTERVAL_MS)
-  let attempts = 0
+  let reachedTerminalStatus = false
+  try {
+    const statusUrl = falQueueUrl(
+      getStringProperty(createData, 'status_url') || `${requestUrl}/status`
+    )
+    const responseUrl = falQueueUrl(getStringProperty(createData, 'response_url') || requestUrl)
 
-  while (attempts < maxAttempts) {
-    await waitForProvider(context)
+    const maxAttempts = Math.ceil(getMaxExecutionTimeout() / POLL_INTERVAL_MS)
+    let attempts = 0
 
-    const statusResponse = await fetch(statusUrl, {
-      redirect: 'error',
-      headers: {
-        Authorization: `Key ${apiKey}`,
-      },
-      signal,
-    })
+    while (attempts < maxAttempts) {
+      await waitForProvider(context)
 
-    if (!statusResponse.ok) {
-      await readVideoErrorText(statusResponse, 'Fal.ai status error response')
-      throw new Error(`Fal.ai status check failed: ${statusResponse.status}`)
-    }
-
-    const statusData = await readVideoJson<unknown>(statusResponse, 'Fal.ai status response')
-    if (!isRecordLike(statusData)) {
-      throw new Error('Invalid Fal.ai status response')
-    }
-
-    if (getStringProperty(statusData, 'status') === 'COMPLETED') {
-      const { data: resultData, cost: falaiCost } = await fetchFalAIResult({
-        apiKey,
-        endpointId: endpoint,
-        requestId: requestIdFal,
-        queueError: statusData.error,
-        maxResponseBytes: MAX_VIDEO_JSON_BYTES,
-        trackCost: useHostedCostTracking,
-        onCost: context.onFalCost,
+      const statusResponse = await fetch(statusUrl, {
+        redirect: 'error',
+        headers: {
+          Authorization: `Key ${apiKey}`,
+        },
         signal,
-        fetchResponse: (resultSignal) =>
-          fetch(falQueueUrl(getStringProperty(statusData, 'response_url') || responseUrl), {
-            redirect: 'error',
-            headers: { Authorization: `Key ${apiKey}` },
-            signal: resultSignal,
-          }),
       })
 
-      if (!isRecordLike(resultData)) {
-        throw new Error('Invalid Fal.ai result response')
+      if (!statusResponse.ok) {
+        await readVideoErrorText(statusResponse, 'Fal.ai status error response')
+        throw new Error(`Fal.ai status check failed: ${statusResponse.status}`)
       }
 
-      const videoOutput = isRecordLike(resultData.video) ? resultData.video : undefined
-      const fallbackOutput = isRecordLike(resultData.output) ? resultData.output : undefined
-      const videoUrl =
-        getStringProperty(videoOutput, 'url') || getStringProperty(fallbackOutput, 'url')
-      if (!videoUrl) {
-        throw new Error('No video URL in response')
+      const statusData = await readVideoJson<unknown>(statusResponse, 'Fal.ai status response')
+      if (!isRecordLike(statusData)) {
+        throw new Error('Invalid Fal.ai status response')
       }
 
-      const { buffer } = await downloadFalMedia(videoUrl, signal)
-      const catalogModel = getFalVideoModel(model)
-      const legacyMetadata = !catalogModel || catalogModel.legacyId === model
-      let width = getNumberProperty(videoOutput, 'width')
-      let height = getNumberProperty(videoOutput, 'height')
-      if (legacyMetadata && !width && aspectRatio?.includes(':')) {
-        const dims = getVideoDimensions(aspectRatio, resolution || '1080p')
-        width = dims.width
-        height = dims.height
+      if (getStringProperty(statusData, 'status') === 'COMPLETED') {
+        reachedTerminalStatus = true
+        const { data: resultData, cost: falaiCost } = await fetchFalAIResult({
+          apiKey,
+          endpointId: endpoint,
+          requestId: requestIdFal,
+          queueError: statusData.error,
+          maxResponseBytes: MAX_VIDEO_JSON_BYTES,
+          trackCost: useHostedCostTracking,
+          onCost: context.onFalCost,
+          signal,
+          fetchResponse: (resultSignal) =>
+            fetch(falQueueUrl(getStringProperty(statusData, 'response_url') || responseUrl), {
+              redirect: 'error',
+              headers: { Authorization: `Key ${apiKey}` },
+              signal: resultSignal,
+            }),
+        })
+
+        if (!isRecordLike(resultData)) {
+          throw new Error('Invalid Fal.ai result response')
+        }
+
+        const videoOutput = isRecordLike(resultData.video) ? resultData.video : undefined
+        const fallbackOutput = isRecordLike(resultData.output) ? resultData.output : undefined
+        const videoUrl =
+          getStringProperty(videoOutput, 'url') || getStringProperty(fallbackOutput, 'url')
+        if (!videoUrl) {
+          throw new Error('No video URL in response')
+        }
+
+        const { buffer } = await downloadFalMedia(videoUrl, signal)
+        const catalogModel = getFalVideoModel(model)
+        const legacyMetadata =
+          !isCustomFalVideoModel(model) && (!catalogModel || catalogModel.legacyId === model)
+        let width = getNumberProperty(videoOutput, 'width')
+        let height = getNumberProperty(videoOutput, 'height')
+        if (legacyMetadata && !width && aspectRatio?.includes(':')) {
+          const dims = getVideoDimensions(aspectRatio, resolution || '1080p')
+          width = dims.width
+          height = dims.height
+        }
+
+        return {
+          buffer,
+          width: width ?? (legacyMetadata ? 1920 : undefined),
+          height: height ?? (legacyMetadata ? 1080 : undefined),
+          jobId: requestIdFal,
+          duration:
+            getNumberProperty(videoOutput, 'duration') ??
+            getNumberProperty(resultData, 'duration') ??
+            duration ??
+            (legacyMetadata ? 5 : undefined),
+          falaiCost,
+        }
       }
 
-      return {
-        buffer,
-        width: width ?? (legacyMetadata ? 1920 : undefined),
-        height: height ?? (legacyMetadata ? 1080 : undefined),
-        jobId: requestIdFal,
-        duration:
-          getNumberProperty(videoOutput, 'duration') ??
-          getNumberProperty(resultData, 'duration') ??
-          duration ??
-          (legacyMetadata ? 5 : undefined),
-        falaiCost,
+      if (
+        ['ERROR', 'FAILED', 'CANCELLED'].includes(getStringProperty(statusData, 'status') || '')
+      ) {
+        reachedTerminalStatus = true
+        throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusData.error)}`)
       }
+
+      attempts++
     }
 
-    if (['ERROR', 'FAILED', 'CANCELLED'].includes(getStringProperty(statusData, 'status') || '')) {
-      throw new Error(`Fal.ai generation failed: ${getFalAIErrorMessage(statusData.error)}`)
-    }
-
-    attempts++
+    throw new Error('Fal.ai generation timed out')
+  } catch (error) {
+    if (!reachedTerminalStatus) await cancelFalRequest(cancelUrl, apiKey, requestIdFal)
+    throw error
   }
-
-  throw new Error('Fal.ai generation timed out')
 }
 
 function getVideoDimensions(

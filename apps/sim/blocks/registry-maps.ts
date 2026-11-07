@@ -157,6 +157,7 @@ import { GuardrailsBlock } from '@/blocks/blocks/guardrails'
 import { HarmonicBlock, HarmonicBlockMeta } from '@/blocks/blocks/harmonic'
 import { HelpScoutBlock, HelpScoutBlockMeta } from '@/blocks/blocks/helpscout'
 import { HexBlock, HexBlockMeta } from '@/blocks/blocks/hex'
+import { HiggsfieldBlock, HiggsfieldBlockMeta } from '@/blocks/blocks/higgsfield'
 import { HubSpotBlock, HubSpotBlockMeta } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock, HuggingFaceBlockMeta } from '@/blocks/blocks/huggingface'
 import { HumanInTheLoopBlock, HumanInTheLoopV2Block } from '@/blocks/blocks/human_in_the_loop'
@@ -553,6 +554,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   harmonic: HarmonicBlock,
   helpscout: HelpScoutBlock,
   hex: HexBlock,
+  higgsfield: HiggsfieldBlock,
   hubspot: HubSpotBlock,
   huggingface: HuggingFaceBlock,
   human_in_the_loop: HumanInTheLoopBlock,
@@ -915,6 +917,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   harmonic: HarmonicBlockMeta,
   helpscout: HelpScoutBlockMeta,
   hex: HexBlockMeta,
+  higgsfield: HiggsfieldBlockMeta,
   hubspot: HubSpotBlockMeta,
   huggingface: HuggingFaceBlockMeta,
   hunter: HunterBlockMeta,

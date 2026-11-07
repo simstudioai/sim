@@ -11,6 +11,7 @@ import { FalAIResultError } from '@/lib/media/falai-result'
 
 const VIDEO_TOOL_IDS = new Set([
   'video_falai',
+  'video_higgsfield',
   'video_luma',
   'video_minimax',
   'video_runway',

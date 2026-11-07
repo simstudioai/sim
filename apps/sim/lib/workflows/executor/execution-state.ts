@@ -1,9 +1,12 @@
 import { db } from '@sim/db'
-import { workflowExecutionLogs } from '@sim/db/schema'
+import { pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
 import { filterUndefined, isRecordLike } from '@sim/utils/object'
 import { and, desc, eq, or, sql } from 'drizzle-orm'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { materializeExecutionData, TRACE_STORE_REF_KEY } from '@/lib/logs/execution/trace-store'
+import { buildResumeUiUrl } from '@/executor/constants'
 import type { SerializableExecutionState } from '@/executor/execution/types'
+import type { PausePoint } from '@/executor/types'
 import {
   isResolvedSecretTraceProvenanceV1,
   type ResolvedSecretTraceProvenanceV1,
@@ -186,6 +189,41 @@ export async function getWorkflowExecutionCopilotToolCallId(
     .limit(1)
   const toolCallId = selectCorrelation(row?.correlation, row?.triggerCorrelation)?.copilotToolCallId
   return typeof toolCallId === 'string' ? toolCallId : undefined
+}
+
+/** A paused execution's pause points, stored keyed by context id (older rows: an array). */
+export function normalizePausePoints(raw: unknown): PausePoint[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw as PausePoint[]
+  if (typeof raw === 'object') return Object.values(raw as Record<string, PausePoint>)
+  return []
+}
+
+/**
+ * The page where a person answers the execution's open pauses, or null when nothing waits on a
+ * person: the run is not paused, or is paused only on time and resumes itself.
+ */
+export async function getHumanPauseResumeUrl(
+  executionId: string,
+  workflowId: string
+): Promise<string | null> {
+  const [paused] = await db
+    .select({ status: pausedExecutions.status, pausePoints: pausedExecutions.pausePoints })
+    .from(pausedExecutions)
+    .where(
+      and(
+        eq(pausedExecutions.executionId, executionId),
+        eq(pausedExecutions.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  if (!paused || (paused.status !== 'paused' && paused.status !== 'partially_resumed')) {
+    return null
+  }
+  const waitsOnPerson = normalizePausePoints(paused.pausePoints).some(
+    (point) => point.resumeStatus === 'paused' && point.pauseKind !== 'time'
+  )
+  return waitsOnPerson ? buildResumeUiUrl(getBaseUrl(), workflowId, executionId) : null
 }
 
 /**

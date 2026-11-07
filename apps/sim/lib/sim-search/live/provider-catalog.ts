@@ -79,6 +79,11 @@ export const LIVE_SEARCH_PROVIDER_CATALOG = {
     credentialProviderIds: ['mcp:lucid'],
     modes: ['member'],
   },
+  hex: {
+    origin: 'https://app.hex.tech',
+    credentialProviderIds: ['mcp:hex'],
+    modes: ['member'],
+  },
   hubspot: {
     origin: 'https://mcp.hubspot.com',
     credentialProviderIds: ['mcp:hubspot'],

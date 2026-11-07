@@ -41,6 +41,7 @@ const account = (credentialId: string, status: 'active' | 'needs_reauth') => ({
   groupId: 'group',
   optionId: 'option',
   status,
+  sites: [],
 })
 
 const connection = (
