@@ -60,10 +60,8 @@ export function RunDetails({ run, back, read }: RunDetailsProps) {
         label='Run facts'
         fields={[
           { id: 'status', label: 'Status', value: RUN_STATUS_LABEL[run.status] },
-          { id: 'execution', label: 'Execution ID', value: run.id },
           { id: 'workflow', label: 'Workflow', value: run.workflow.name },
           { id: 'trigger', label: 'Trigger', value: run.trigger.label },
-          { id: 'version', label: 'Version', value: run.version },
           { id: 'started', label: 'Started', value: formatTimestamp(run.startedAt, timeZone) },
           { id: 'duration', label: 'Duration', value: formatDuration(run.durationMs) },
           {
@@ -71,6 +69,8 @@ export function RunDetails({ run, back, read }: RunDetailsProps) {
             label: 'Usage',
             value: run.cu === null ? 'Unknown' : `${usage} Compute Units`,
           },
+          { id: 'version', label: 'Version', value: run.version },
+          { id: 'execution', label: 'Execution ID', value: run.id },
         ]}
       />
       {root && (

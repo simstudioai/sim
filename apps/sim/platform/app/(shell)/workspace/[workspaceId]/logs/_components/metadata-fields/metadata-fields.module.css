@@ -1,11 +1,16 @@
+/* Paper's metadata fields in shared columns, so captions and values line up from row to row. */
 .fields {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(
+      auto-fill,
+      minmax(calc(var(--spacing-128) + var(--spacing-16)), 1fr)
+    );
   min-inline-size: 0;
-  gap: var(--spacing-16) var(--spacing-32);
+  gap: var(--spacing-16) var(--spacing-24);
 }
 .field {
   display: grid;
+  align-content: start;
   min-inline-size: 0;
   gap: var(--spacing-4);
 }
@@ -13,7 +18,8 @@
   color: var(--ui-secondary);
 }
 .field dd {
+  display: flex;
   min-inline-size: 0;
   color: var(--ui-ink);
-  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
 }

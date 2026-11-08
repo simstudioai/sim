@@ -21,14 +21,37 @@
   gap: var(--ui-row-gap);
   color: var(--ui-secondary);
 }
+/* The copy action's ink meets the column's text edge, as the chat payload's does. */
 .payloadActions {
   display: inline-flex;
   align-items: center;
   gap: var(--ui-row-gap);
+  margin-inline-end: calc(-1 * var(--ui-action-overhang));
 }
 .body {
+  display: grid;
   margin: 0;
   color: var(--ui-ink);
+}
+/*
+ * One source line: its indent holds its width, and the rest wraps inside its own box with a further
+ * two-character hang, so a long value never runs back to the payload's edge.
+ */
+.line {
+  display: flex;
+  min-inline-size: 0;
+}
+.indent {
+  flex: none;
+  white-space: pre;
+}
+.code {
+  min-inline-size: 0;
+  padding-inline-start: 2ch;
+  text-indent: -2ch;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.more {
+  justify-self: start;
 }

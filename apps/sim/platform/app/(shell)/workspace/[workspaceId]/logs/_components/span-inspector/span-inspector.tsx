@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
 import { CopyButton } from '@sim/emcn/button/copy-button'
 import { InlineNotice } from '@sim/emcn/status'
 import { formatDuration } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/format'
@@ -32,6 +34,9 @@ const STEP_STATUS: Record<TraceSpan['status'], string> = {
 
 const FORMAT_LABEL = { json: 'JSON', text: 'Text' } as const
 
+/** Lines a payload shows before the reader asks for the rest, so a large input never buries its output. */
+const PREVIEW_LINES = 32
+
 const NOTICE_INTENT = { neutral: 'neutral', warning: 'warning', danger: 'danger' } as const
 
 interface PayloadProps {
@@ -39,9 +44,45 @@ interface PayloadProps {
   payload: TracePayload
 }
 
+interface PayloadBodyProps {
+  content: string
+}
+
 /**
- * Paper's trace payload: a caption with the format and a copy action above the content, which reads
- * in the chat tool payload's monospace with no surface of its own.
+ * The content in the chat tool payload's monospace, one source line at a time so wrapped values keep
+ * their indent. A long payload shows its first lines until the reader asks for all of them.
+ */
+function PayloadBody({ content }: PayloadBodyProps) {
+  const [expanded, setExpanded] = useState(false)
+  const lines = content.split('\n').map((line, number) => {
+    const code = line.trimStart()
+    return { number, indent: line.slice(0, line.length - code.length), code }
+  })
+  const long = lines.length > PREVIEW_LINES
+  return (
+    <>
+      <pre className={styles.body} data-type='T009'>
+        {(long && !expanded ? lines.slice(0, PREVIEW_LINES) : lines).map((line) => (
+          <span key={line.number} className={styles.line}>
+            <span className={styles.indent}>{line.indent}</span>
+            <span className={styles.code}>{line.code || ' '}</span>
+          </span>
+        ))}
+      </pre>
+      {long && (
+        <span className={styles.more}>
+          <Button variant='quiet' size='compact' onClick={() => setExpanded(!expanded)}>
+            {expanded ? 'Show less' : `Show all ${lines.length.toLocaleString('en-US')} lines`}
+          </Button>
+        </span>
+      )}
+    </>
+  )
+}
+
+/**
+ * Paper's trace payload: a caption with the format and a copy action above the content, which has
+ * no surface of its own.
  */
 function Payload({ label, payload }: PayloadProps) {
   return (
@@ -58,9 +99,7 @@ function Payload({ label, payload }: PayloadProps) {
       {payload.format === 'withheld' ? (
         <InlineNotice intent='neutral' title='Content withheld' message={payload.reason} />
       ) : (
-        <pre className={styles.body} data-type='T009'>
-          {payload.content}
-        </pre>
+        <PayloadBody content={payload.content} />
       )}
     </section>
   )
