@@ -230,7 +230,7 @@ export function IntegrationCenter({
             currentHref={currentHref}
           />
           <ControlBar
-            leading={
+            search={
               <SearchField
                 variant='quiet'
                 label={`Search ${current}`}

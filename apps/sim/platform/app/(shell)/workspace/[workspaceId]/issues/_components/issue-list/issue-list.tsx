@@ -106,7 +106,7 @@ export function IssueList({ data, read }: IssueListProps) {
     serializeIssueList(platformHref(`${listPath}/${encodeURIComponent(id)}`, search), view)
   const controls = data.issues.length > 0 && (
     <ControlBar
-      leading={
+      search={
         <SearchField
           variant='quiet'
           label='Search issues'

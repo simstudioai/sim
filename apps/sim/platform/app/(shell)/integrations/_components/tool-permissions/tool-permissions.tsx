@@ -62,7 +62,7 @@ export function ToolPermissions({
       </div>
       {permissions.tools.length > 0 && (
         <ControlBar
-          leading={
+          search={
             <SearchField
               variant='quiet'
               label='Search tools'

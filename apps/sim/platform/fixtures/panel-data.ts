@@ -73,7 +73,16 @@ export const panelScenarios: Record<Scenario, PanelData | null> = {
   stress: {
     ...full,
     recents: [
-      ...full.recents,
+      // Stress workspaces are numbered, so its workspace recents point at them.
+      ...full.recents.map((recent, index) =>
+        recent.destination === 'workspace'
+          ? {
+              ...recent,
+              id: `workspace-${index}`,
+              label: `International customer operations and onboarding ${index + 1}`,
+            }
+          : recent
+      ),
       ...['customer-onboarding', 'account-planning', 'implementation-notes', 'renewal-review'].map(
         (name) => ({
           id: name,

@@ -110,7 +110,7 @@ export function RunList({ data, actions, read }: RunListProps) {
 
   const controls = (data.runs.length > 0 || data.incoming.length > 0) && (
     <ControlBar
-      leading={
+      search={
         <SearchField
           variant='quiet'
           label='Search runs'

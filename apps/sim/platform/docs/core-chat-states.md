@@ -18,7 +18,7 @@ Hide Email or Calendar from the widget menu or Customize Home. Email and calenda
 
 ## Current navigation
 
-The shared product layout keeps the main sidebar at the same scroll position when a chat opens or a reader returns from Settings. Closing and reopening the compact drawer also preserves the position. Command K lists Home, Settings and Integrations with their destination icons, followed by text-only workspace and chat results in sidebar order. It uses the same rows and section headings as Platform menus. Integrations opens the [organization integrations routes](organization-integrations.md). Workspace selections open that workspace’s New chat page in fixture mode. Pinned workspaces and chats appear first in their respective section and use its current sort order.
+The shared product layout keeps the main sidebar at the same scroll position when a chat opens or a reader returns from Settings. Closing and reopening the compact drawer also preserves the position. Command K lists Home, Settings and Integrations with their destination icons, followed by text-only workspace and chat results in sidebar order. It uses the same rows and section headings as Platform menus. Integrations opens the [organization integrations routes](organization-integrations.md). Workspace selections open that workspace’s Dashboard in fixture mode and mark its sidebar row current. Pinned workspaces and chats appear first in their respective section and use its current sort order.
 
 ## Settings coverage
 

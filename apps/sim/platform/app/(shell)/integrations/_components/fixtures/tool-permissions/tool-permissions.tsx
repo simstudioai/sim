@@ -67,7 +67,7 @@ export function ToolPermissions({
         )}
       </div>
       <ControlBar
-        leading={
+        search={
           <SearchField
             variant='quiet'
             label='Search tools'
