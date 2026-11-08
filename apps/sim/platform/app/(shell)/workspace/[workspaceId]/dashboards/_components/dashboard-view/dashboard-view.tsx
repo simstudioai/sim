@@ -3,7 +3,7 @@
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { parseAsString, useQueryState } from 'nuqs'
 import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
-import { RefreshStatus } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/refresh-status/refresh-status'
+import { UpdatedStatus } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/updated-status/updated-status'
 import {
   useNewChatHref,
   WorkspaceEmpty,
@@ -16,23 +16,18 @@ import type {
 import { DashboardSectionView } from '@/platform/app/(shell)/workspace/[workspaceId]/dashboards/_components/dashboard-section/dashboard-section'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/dashboards/_components/dashboard-view/dashboard-view.module.css'
 
-interface DashboardActions {
-  /** Fetch the snapshot again, keeping the current one on screen until it arrives. */
-  refresh: () => void
-}
-
 interface DashboardViewProps {
   /** How the page's read stands; ready when omitted. */
   read?: WorkspaceRead
+  /** The latest snapshot; the page refreshes itself, so `updatedAt` moves on its own. */
   data: DashboardData
-  actions: DashboardActions
 }
 
 /**
  * The workspace's production snapshot. It is read-only: the period and each section's own choice
  * change what it shows, and authoring happens in chat.
  */
-export function DashboardView({ data, actions, read }: DashboardViewProps) {
+export function DashboardView({ data, read }: DashboardViewProps) {
   const newChat = useNewChatHref()
   const fallback = data.periods.find((period) => period.value === '7d') ?? data.periods[0]
   const [requested, setPeriod] = useQueryState(
@@ -61,11 +56,7 @@ export function DashboardView({ data, actions, read }: DashboardViewProps) {
               />
             }
           >
-            <RefreshStatus
-              updatedAt={data.updatedAt}
-              referenceTime={data.referenceTime}
-              onRefresh={actions.refresh}
-            />
+            <UpdatedStatus updatedAt={data.updatedAt} referenceTime={data.referenceTime} />
           </ControlBar>
         )
       }

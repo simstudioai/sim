@@ -281,8 +281,6 @@ export interface RunsData {
   workspace: WorkspaceSummary
   referenceTime: number
   runs: readonly RunSummary[]
-  /** Runs that arrived after the list's snapshot; the new-runs action brings them in. */
-  incoming: readonly RunSummary[]
 }
 
 type TraceKind =

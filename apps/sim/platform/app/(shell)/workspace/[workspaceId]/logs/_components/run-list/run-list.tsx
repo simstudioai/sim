@@ -1,6 +1,5 @@
 'use client'
 
-import { Button } from '@sim/emcn/button'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
@@ -64,23 +63,18 @@ function compareRuns(sort: (typeof RUN_SORTS)[number]) {
   }
 }
 
-interface RunListActions {
-  /** Bring runs that arrived after this snapshot into the list. */
-  showIncoming: () => void
-}
-
 interface RunListProps {
   /** How the page's read stands; ready when omitted. */
   read?: WorkspaceRead
+  /** The latest runs; the page refreshes itself, so new runs join on their own. */
   data: RunsData
-  actions: RunListActions
 }
 
 /**
  * Every run in the workspace, newest first. A row opens the run's trace; filters and sort shape the
- * list, and new runs join only when the reader asks, so the list never moves under them.
+ * list, and new runs join as the page refreshes.
  */
-export function RunList({ data, actions, read }: RunListProps) {
+export function RunList({ data, read }: RunListProps) {
   const search = useSearchParams()
   const [view, setView] = useQueryStates(runListParams, { history: 'replace', shallow: true })
   const term = view.q.trim().toLowerCase()
@@ -108,7 +102,7 @@ export function RunList({ data, actions, read }: RunListProps) {
   const runHref = (id: string) =>
     serializeRunList(platformHref(`${base}/${encodeURIComponent(id)}`, search), view)
 
-  const controls = (data.runs.length > 0 || data.incoming.length > 0) && (
+  const controls = data.runs.length > 0 && (
     <ControlBar
       search={
         <SearchField
@@ -120,11 +114,6 @@ export function RunList({ data, actions, read }: RunListProps) {
         />
       }
     >
-      {data.incoming.length > 0 && (
-        <Button variant='quiet' size='compact' icon='I065' onClick={actions.showIncoming}>
-          {`${data.incoming.length} new ${data.incoming.length === 1 ? 'run' : 'runs'}`}
-        </Button>
-      )}
       <ChoiceMenu
         label='Status'
         options={RUN_STATUSES.map((status) => ({
@@ -174,7 +163,7 @@ export function RunList({ data, actions, read }: RunListProps) {
 
   return (
     <WorkspacePage read={read} workspace={data.workspace} current='logs' controls={controls}>
-      {!data.runs.length && !data.incoming.length ? (
+      {!data.runs.length ? (
         <WorkspaceEmpty
           title='No runs yet'
           description='Runs appear here when a workflow in this workspace runs.'

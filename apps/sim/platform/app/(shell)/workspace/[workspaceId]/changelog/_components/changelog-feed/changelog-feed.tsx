@@ -7,7 +7,7 @@ import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
 import { ListEnd } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/list-end/list-end'
-import { RefreshStatus } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/refresh-status/refresh-status'
+import { UpdatedStatus } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/updated-status/updated-status'
 import {
   WorkspaceEmpty,
   WorkspacePage,
@@ -54,22 +54,18 @@ function dayLabel(day: string, today: string, yesterday: string) {
   return formatCalendarDate(day, day.slice(0, 4) === today.slice(0, 4) ? 'long' : 'longFull')
 }
 
-interface ChangelogActions {
-  refresh: () => void
-}
-
 interface ChangelogFeedProps {
   /** How the page's read stands; ready when omitted. */
   read?: WorkspaceRead
+  /** The latest history; the page refreshes itself, so `updatedAt` moves on its own. */
   data: ChangelogData
-  actions: ChangelogActions
 }
 
 /**
  * What shipped in the workspace, newest first and grouped by day. Only applied work appears; each
  * entry links to its details and to the issue it came from.
  */
-export function ChangelogFeed({ data, actions, read }: ChangelogFeedProps) {
+export function ChangelogFeed({ data, read }: ChangelogFeedProps) {
   const search = useSearchParams()
   const timeZone = useViewerTimeZone()
   const [view, setView] = useQueryStates(changelogParams, { history: 'replace', shallow: true })
@@ -141,11 +137,7 @@ export function ChangelogFeed({ data, actions, read }: ChangelogFeedProps) {
               </>
             }
           >
-            <RefreshStatus
-              updatedAt={data.updatedAt}
-              referenceTime={data.referenceTime}
-              onRefresh={actions.refresh}
-            />
+            <UpdatedStatus updatedAt={data.updatedAt} referenceTime={data.referenceTime} />
           </ControlBar>
         )
       }

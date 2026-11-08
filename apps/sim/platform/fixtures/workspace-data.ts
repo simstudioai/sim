@@ -1103,13 +1103,14 @@ function makeRuns(scenario: Scenario, workspaceId: string, count: number, offset
 export function workspaceRuns(scenario: Scenario, shell: ShellWorkspace) {
   const workspace = workspaceSummary(scenario, shell)
   if (!workspace) return null
-  if (scenario === 'empty') return { workspace, referenceTime: FIXTURE_NOW, runs: [], incoming: [] }
-  const runs = makeRuns(scenario, shell.id, scenario === 'stress' ? 640 : 72, 1)
-  const incoming = makeRuns(scenario, shell.id, 3, 0).map((run, index) => ({
+  if (scenario === 'empty') return { workspace, referenceTime: FIXTURE_NOW, runs: [] }
+  // The last few minutes' runs, which a refresh brought in, lead the rest.
+  const recent = makeRuns(scenario, shell.id, 3, 0).map((run, index) => ({
     ...run,
     startedAt: FIXTURE_NOW - (index + 1) * MINUTE,
   }))
-  return { workspace, referenceTime: FIXTURE_NOW, runs, incoming }
+  const earlier = makeRuns(scenario, shell.id, scenario === 'stress' ? 640 : 72, 1)
+  return { workspace, referenceTime: FIXTURE_NOW, runs: [...recent, ...earlier] }
 }
 
 const json = (value: unknown): TracePayload => ({
@@ -1445,7 +1446,7 @@ export function workspaceRun(
   runId: string
 ): RunDetail | null {
   const data = workspaceRuns(scenario, shell)
-  const run = [...(data?.incoming ?? []), ...(data?.runs ?? [])].find((item) => item.id === runId)
+  const run = data?.runs.find((item) => item.id === runId)
   if (!data || !run) return null
   return {
     ...run,

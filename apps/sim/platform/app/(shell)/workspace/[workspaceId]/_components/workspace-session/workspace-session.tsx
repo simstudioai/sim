@@ -14,14 +14,12 @@ import {
 import type { IssueState } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 
 /**
- * What a reader changes in a workspace during one product session: example decisions on issues,
- * refreshes, the new runs they brought in and how far each list was read. Nothing leaves the
- * browser tab, and a new fixture scenario starts a fresh session.
+ * What a reader changes in a workspace during one product session: example decisions on issues and
+ * how far each list was read. Nothing leaves the browser tab, and a new fixture scenario starts a
+ * fresh session.
  */
 function useSessionState() {
   const [decisions, setDecisions] = useState<Readonly<Record<string, IssueState>>>({})
-  const [refreshedAt, setRefreshedAt] = useState<Readonly<Record<string, number>>>({})
-  const [incomingShown, setIncomingShown] = useState(false)
   const revealed = useRef<Map<string, number> | null>(null)
   revealed.current ??= new Map()
   const scrolled = useRef<Map<string, number> | null>(null)
@@ -47,10 +45,6 @@ function useSessionState() {
     historyTarget,
     decisions,
     setDecisions,
-    refreshedAt,
-    setRefreshedAt,
-    incomingShown,
-    setIncomingShown,
     revealed: revealed.current,
   }
 }
@@ -77,20 +71,6 @@ export function useIssueDecisions() {
     [setDecisions]
   )
   return { decisions, decide }
-}
-
-/** When a page's data last refreshed in this session, keyed by the page. */
-export function useSessionRefresh(page: string) {
-  const { refreshedAt, setRefreshedAt } = useSession()
-  return {
-    refreshedAt: refreshedAt[page],
-    refresh: (at: number) => setRefreshedAt((current) => ({ ...current, [page]: at })),
-  }
-}
-
-export function useIncomingRuns() {
-  const { incomingShown, setIncomingShown } = useSession()
-  return { shown: incomingShown, show: () => setIncomingShown(true) }
 }
 
 /** How many records a paged list shows, remembered so Back returns to the same reading position. */
