@@ -354,8 +354,9 @@ export async function sidebarChecks() {
         onHome(ADMIN, async ({ page }) => {
           const chip = orgChip(page)
           const card = orgCard(page)
+          const renameItem = card.getByRole('button', { name: 'Rename organization' })
           async function startRename() {
-            await card.getByRole('button', { name: 'Rename organization' }).click()
+            await renameItem.click()
             return card.getByRole('textbox', { name: 'Organization name' })
           }
           const renamed = `${ORGANIZATION_NAME} Group`
@@ -364,10 +365,12 @@ export async function sidebarChecks() {
           await field.fill('Discarded name')
           await field.press('Escape')
           await expect(card.getByText(ORGANIZATION_NAME, { exact: true })).toBeVisible()
+          await expect(renameItem).toBeFocused()
           const again = await startRename()
           await again.fill(renamed)
           await again.press('Enter')
           await expect(chip).toContainText(renamed)
+          await expect(renameItem).toBeFocused()
           await page.reload()
           await expect(chip).toContainText(renamed)
           await openOrgCard(page)
