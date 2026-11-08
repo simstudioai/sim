@@ -1,14 +1,13 @@
 'use client'
 
 import { CopyButton } from '@sim/emcn/button/copy-button'
-import { PropertyList } from '@sim/emcn/property-list'
-import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { InlineNotice } from '@sim/emcn/status'
 import { formatDuration } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/format'
 import type {
   TracePayload,
   TraceSpan,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
+import { MetadataFields } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/metadata-fields/metadata-fields'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/span-inspector/span-inspector.module.css'
 
 const STEP_TYPE: Record<TraceSpan['kind'], string> = {
@@ -31,6 +30,8 @@ const STEP_STATUS: Record<TraceSpan['status'], string> = {
   running: 'Running',
 }
 
+const FORMAT_LABEL = { json: 'JSON', text: 'Text' } as const
+
 const NOTICE_INTENT = { neutral: 'neutral', warning: 'warning', danger: 'danger' } as const
 
 interface PayloadProps {
@@ -38,25 +39,26 @@ interface PayloadProps {
   payload: TracePayload
 }
 
-/** A step's input or output in the chat tool-response style, with its own copy action. */
+/**
+ * Paper's trace payload: a caption with the format and a copy action above the content, which reads
+ * in the chat tool payload's monospace with no surface of its own.
+ */
 function Payload({ label, payload }: PayloadProps) {
-  const edges = useScrollEdges<HTMLPreElement>('vertical')
   return (
     <section className={styles.payload} aria-label={label}>
-      <h3 className={styles.payloadHeading} data-type='T051'>
-        {label}
+      <header className={styles.payloadHeader}>
+        <h3 data-type='T051'>{label}</h3>
         {payload.format !== 'withheld' && (
-          <CopyButton label={`Copy ${label.toLowerCase()}`} text={payload.content} />
+          <span className={styles.payloadActions}>
+            <span data-type='T050'>{FORMAT_LABEL[payload.format]}</span>
+            <CopyButton label={`Copy ${label.toLowerCase()}`} text={payload.content} />
+          </span>
         )}
-      </h3>
+      </header>
       {payload.format === 'withheld' ? (
         <InlineNotice intent='neutral' title='Content withheld' message={payload.reason} />
       ) : (
-        <pre
-          ref={edges}
-          className={styles.body}
-          data-type={payload.format === 'json' ? 'T009' : 'T048'}
-        >
+        <pre className={styles.body} data-type='T009'>
           {payload.content}
         </pre>
       )}
@@ -72,27 +74,16 @@ interface SpanInspectorProps {
 export function SpanInspector({ span }: SpanInspectorProps) {
   return (
     <section className={styles.inspector} aria-label={`${span.name} step`}>
-      <h2 className={styles.heading} data-type='T042'>
+      <h2 className={styles.heading} data-type='T093'>
         {span.name}
       </h2>
-      <PropertyList
-        title={`${span.name} facts`}
-        titleHidden
-        properties={[
-          { id: 'type', label: 'Step type', kind: 'text', value: STEP_TYPE[span.kind] },
-          { id: 'status', label: 'Status', kind: 'text', value: STEP_STATUS[span.status] },
-          {
-            id: 'duration',
-            label: 'Duration',
-            kind: 'text',
-            value: formatDuration(span.durationMs),
-          },
-          ...span.context.map((field) => ({
-            id: field.id,
-            label: field.label,
-            kind: 'text' as const,
-            value: field.value,
-          })),
+      <MetadataFields
+        label={`${span.name} facts`}
+        fields={[
+          { id: 'type', label: 'Step type', value: STEP_TYPE[span.kind] },
+          { id: 'status', label: 'Status', value: STEP_STATUS[span.status] },
+          { id: 'duration', label: 'Duration', value: formatDuration(span.durationMs) },
+          ...span.context,
         ]}
       />
       {span.notice && (

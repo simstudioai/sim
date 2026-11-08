@@ -76,6 +76,10 @@ button.disclosure:hover {
   block-size: var(--spacing-6);
   overflow: visible;
 }
+/* Paper's trace track: a hairline across the run's clock behind each step's bar. */
+.track {
+  fill: var(--ui-divider);
+}
 .bar {
   fill: var(--color-chart-series);
 }

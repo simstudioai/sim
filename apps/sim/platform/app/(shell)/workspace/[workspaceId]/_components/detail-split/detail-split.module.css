@@ -7,6 +7,37 @@
   gap: var(--ui-product-section-gap);
   padding-block-start: var(--ui-page-heading-inset);
 }
+/* Paper's ticket bar: Back and the record's identifier lead, its actions end the row. */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+}
+.lead {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  gap: var(--ui-row-gap);
+}
+.identifier {
+  display: inline-flex;
+  align-items: center;
+  min-inline-size: 0;
+  gap: var(--ui-action-gap);
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  margin-inline-start: auto;
+}
 .frame {
   display: flex;
   flex: 1;
@@ -35,34 +66,29 @@
   gap: var(--ui-product-section-gap);
   padding-block-end: var(--ui-page-inset-block);
 }
-.facts {
+.rail {
   box-sizing: border-box;
   flex: none;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--ui-product-section-gap);
   inline-size: calc(var(--spacing-224) + var(--spacing-56));
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-inline-start: var(--spacing-24);
   padding-block-end: var(--ui-page-inset-block);
   border-inline-start: var(--spacing-stroke-default) solid var(--ui-divider);
 }
-.heading,
+.rail[data-kind="inspector"] {
+  inline-size: 42%;
+  min-inline-size: var(--spacing-320);
+}
 .section {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
-}
-.heading {
-  gap: var(--spacing-8);
-  overflow-wrap: anywhere;
-}
-.heading p {
-  color: var(--ui-secondary);
-  white-space: pre-line;
-}
-.section {
   gap: var(--ui-widget-content-gap);
 }
 @container record (width < 45rem) {
@@ -70,9 +96,12 @@
     flex-direction: column;
     gap: var(--ui-product-section-gap);
   }
-  .facts {
+  /* Narrow: the facts lead the record; an inspector follows the part it describes. */
+  .rail,
+  .rail[data-kind="inspector"] {
     order: -1;
     inline-size: auto;
+    min-inline-size: 0;
     max-block-size: 40%;
     padding-inline-start: 0;
     padding-block-end: 0;
@@ -80,5 +109,8 @@
   }
   .reading {
     margin-inline-end: calc(-1 * var(--ui-row-inset));
+  }
+  .rail[data-kind="inspector"] {
+    order: 1;
   }
 }

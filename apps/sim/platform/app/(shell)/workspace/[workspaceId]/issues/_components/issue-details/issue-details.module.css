@@ -1,9 +1,3 @@
-.identifier {
-  padding-inline: var(--ui-row-inset);
-  color: var(--ui-secondary);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
 .prose {
   display: grid;
   gap: var(--ui-content-gap);

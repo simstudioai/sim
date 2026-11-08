@@ -9,21 +9,25 @@
 }
 .payload {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
   gap: var(--spacing-8);
 }
-.payloadHeading {
+.payloadHeader {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   min-block-size: var(--spacing-28);
   gap: var(--ui-row-gap);
   color: var(--ui-secondary);
 }
+.payloadActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+}
 .body {
-  max-block-size: calc(2 * var(--spacing-320));
   margin: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
   color: var(--ui-ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;

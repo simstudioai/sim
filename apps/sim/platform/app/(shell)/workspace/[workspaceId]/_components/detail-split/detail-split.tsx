@@ -12,12 +12,17 @@ import { useListReturn } from '@/platform/app/(shell)/workspace/[workspaceId]/_c
 interface DetailSplitProps {
   /** Where Back returns: the list, with its search, filters and sort. */
   back: { href: string; label: string }
+  /** The record's own identifier, beside Back, with any copy action. */
+  identifier?: ReactNode
+  /** Decisions and other record actions, at the end of Back's row. */
+  actions?: ReactNode
   /** Names the scrolling reading column for assistive technology. */
   label: string
-  /** Decisions and other record actions, pinned above the details. */
-  controls?: ReactNode
-  /** The facts rail: status, timestamps and outcomes. */
-  facts: ReactNode
+  /** Beside the reading column: the record's facts, or the data of the part selected in it. */
+  rail: ReactNode
+  railLabel: string
+  /** An inspector holds payloads and takes a larger share than a facts lane. */
+  railKind?: 'facts' | 'inspector'
   /** The record's read; anything but ready replaces the split, never Back. */
   read?: WorkspaceRead
   /** The reading column, which alone scrolls. */
@@ -27,36 +32,56 @@ interface DetailSplitProps {
 const READY: WorkspaceRead = { status: 'ready' }
 
 /**
- * A record's details beside its facts. Back and the controls stay put; only the reading column
- * scrolls, fading at whichever edge has more. On a narrow screen the facts sit above it.
+ * A record's details beside its rail. Back, the identifier and the actions share one pinned row;
+ * the reading column and the rail each scroll, fading at whichever edge has more. A facts rail
+ * keeps a narrow lane; an inspector, which holds payloads, takes a larger share. On a narrow
+ * screen the rail sits above the reading column.
  */
 export function DetailSplit({
   back,
+  identifier,
+  actions,
   label,
-  controls,
-  facts,
+  rail,
+  railLabel,
+  railKind = 'facts',
   read = READY,
   children,
 }: DetailSplitProps) {
   const reading = useScrollEdges<HTMLDivElement>('vertical')
-  const rail = useScrollEdges<HTMLElement>('vertical')
+  const aside = useScrollEdges<HTMLElement>('vertical')
   const returnToList = useListReturn()
+  const ready = read.status === 'ready'
   return (
     <PageColumn>
       <main className={styles.record}>
-        <DirectoryBack href={back.href} label={back.label} onNavigate={returnToList} />
+        <div className={styles.bar}>
+          <div className={styles.lead}>
+            <DirectoryBack href={back.href} label={back.label} onNavigate={returnToList} />
+            {ready && identifier && (
+              <span className={styles.identifier} data-type='T050'>
+                {identifier}
+              </span>
+            )}
+          </div>
+          {ready && actions && <div className={styles.actions}>{actions}</div>}
+        </div>
         {read.status === 'error' && (
           <FailureNotice message={read.message} retrying={read.retrying} onRetry={read.onRetry} />
         )}
-        {read.status === 'ready' && controls}
-        {read.status === 'ready' && (
+        {ready && (
           <div className={styles.frame}>
             <div className={styles.split}>
               <div ref={reading} className={styles.reading} role='region' aria-label={label}>
                 <div className={styles.content}>{children}</div>
               </div>
-              <aside ref={rail} className={styles.facts} aria-label='Facts'>
-                {facts}
+              <aside
+                ref={aside}
+                className={styles.rail}
+                data-kind={railKind}
+                aria-label={railLabel}
+              >
+                {rail}
               </aside>
             </div>
           </div>
@@ -75,23 +100,8 @@ interface DetailSectionProps {
 export function DetailSection({ title, children }: DetailSectionProps) {
   return (
     <section className={styles.section} aria-label={title}>
-      <h2 data-type='T042'>{title}</h2>
+      <h2 data-type='T093'>{title}</h2>
       {children}
     </section>
-  )
-}
-
-interface DetailHeadingProps {
-  title: string
-  description?: string
-}
-
-/** The record's own read-only title and description, in the Integrations heading type. */
-export function DetailHeading({ title, description }: DetailHeadingProps) {
-  return (
-    <header className={styles.heading}>
-      <h1 data-type='T076'>{title}</h1>
-      {description && <p data-type='T048'>{description}</p>}
-    </header>
   )
 }

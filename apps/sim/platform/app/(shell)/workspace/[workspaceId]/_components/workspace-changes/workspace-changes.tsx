@@ -18,7 +18,7 @@ export function WorkspaceChanges({ title = 'Workspace changes', changes }: Works
   if (!changes.length) return null
   return (
     <section className={styles.changes} aria-label={title}>
-      <h2 data-type='T042'>{title}</h2>
+      <h2 data-type='T093'>{title}</h2>
       <ul className={styles.rows}>
         {changes.map((change) => {
           const leading = change.providerId ? (

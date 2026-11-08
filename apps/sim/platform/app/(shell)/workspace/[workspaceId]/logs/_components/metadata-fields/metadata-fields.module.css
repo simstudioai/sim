@@ -1,0 +1,19 @@
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  min-inline-size: 0;
+  gap: var(--spacing-16) var(--spacing-32);
+}
+.field {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--spacing-4);
+}
+.field dt {
+  color: var(--ui-secondary);
+}
+.field dd {
+  min-inline-size: 0;
+  color: var(--ui-ink);
+  overflow-wrap: anywhere;
+}

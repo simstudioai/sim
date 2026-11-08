@@ -7,10 +7,9 @@ import { type PropertyItem, PropertyList } from '@sim/emcn/property-list'
 import { ExecutionSteps } from '@sim/emcn-platform/execution-steps'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
+import { DirectoryHeading } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import { DashboardTable } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/dashboard-table/dashboard-table'
 import {
-  DetailHeading,
   DetailSection,
   DetailSplit,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/detail-split/detail-split'
@@ -208,20 +207,12 @@ export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) 
         read={read}
         back={back}
         label={`${issue.id} details`}
-        controls={
-          <ControlBar
-            leading={
-              <span className={styles.identifier} data-type='T060'>
-                {issue.id}
-              </span>
-            }
-          >
-            {buttons}
-          </ControlBar>
-        }
-        facts={<PropertyList title='Facts' titleHidden properties={facts} />}
+        identifier={issue.id}
+        actions={buttons}
+        railLabel='Facts'
+        rail={<PropertyList title='Facts' titleHidden properties={facts} />}
       >
-        <DetailHeading title={issue.title} description={issue.description} />
+        <DirectoryHeading title={issue.title} description={issue.description} />
         {issue.document && (
           <DocumentChange change={issue.document} applied={issue.state === 'merged'} />
         )}

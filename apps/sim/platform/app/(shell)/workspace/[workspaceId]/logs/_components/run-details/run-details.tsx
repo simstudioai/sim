@@ -2,10 +2,8 @@
 
 import { useState } from 'react'
 import { CopyButton } from '@sim/emcn/button/copy-button'
-import { PropertyList } from '@sim/emcn/property-list'
-import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
+import { DirectoryHeading } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import {
-  DetailHeading,
   DetailSection,
   DetailSplit,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/detail-split/detail-split'
@@ -19,7 +17,7 @@ import type {
   WorkspaceRead,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import { useViewerTimeZone } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/run-details/run-details.module.css'
+import { MetadataFields } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/metadata-fields/metadata-fields'
 import { RUN_STATUS_LABEL } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/run-status/run-status'
 import { SpanInspector } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/span-inspector/span-inspector'
 import { TraceTree } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/trace-tree/trace-tree'
@@ -41,7 +39,7 @@ interface RunDetailsProps {
   back: { href: string; label: string }
 }
 
-/** One run, named by its execution: its facts beside the trace and the selected step. */
+/** One run, named by its execution: its facts and trace, with the selected step's data beside them. */
 export function RunDetails({ run, back, read }: RunDetailsProps) {
   const timeZone = useViewerTimeZone()
   const root = run.trace[0]
@@ -54,49 +52,33 @@ export function RunDetails({ run, back, read }: RunDetailsProps) {
       read={read}
       back={back}
       label={`Run ${shortId} trace`}
-      controls={
-        <ControlBar
-          leading={
-            <span className={styles.identifier} data-type='T060'>
-              {run.id}
-            </span>
-          }
-        >
+      identifier={
+        <>
+          {run.id}
           <CopyButton label='Copy execution ID' text={run.id} />
-        </ControlBar>
+        </>
       }
-      facts={
-        <PropertyList
-          title='Facts'
-          titleHidden
-          properties={[
-            { id: 'workflow', label: 'Workflow', kind: 'text', value: run.workflow.name },
-            { id: 'trigger', label: 'Trigger', kind: 'text', value: run.trigger.label },
-            { id: 'version', label: 'Version', kind: 'text', value: run.version },
-            {
-              id: 'started',
-              label: 'Started',
-              kind: 'text',
-              value: formatTimestamp(run.startedAt, timeZone),
-            },
-            {
-              id: 'duration',
-              label: 'Duration',
-              kind: 'text',
-              value: formatDuration(run.durationMs),
-            },
-            {
-              id: 'usage',
-              label: 'Usage',
-              kind: 'text',
-              value: run.cu === null ? 'Unknown' : `${usage} CU (Compute Units)`,
-            },
-            { id: 'status', label: 'Status', kind: 'text', value: RUN_STATUS_LABEL[run.status] },
-          ]}
-        />
-      }
+      railKind='inspector'
+      railLabel='Selected step'
+      rail={selected && <SpanInspector key={selected.id} span={selected} />}
     >
-      <DetailHeading title={`Run ${shortId}`} />
+      <DirectoryHeading title={`Run ${shortId}`} />
+      <MetadataFields
+        label='Run facts'
+        fields={[
+          { id: 'status', label: 'Status', value: RUN_STATUS_LABEL[run.status] },
+          { id: 'workflow', label: 'Workflow', value: run.workflow.name },
+          { id: 'trigger', label: 'Trigger', value: run.trigger.label },
+          { id: 'version', label: 'Version', value: run.version },
+          { id: 'started', label: 'Started', value: formatTimestamp(run.startedAt, timeZone) },
+          { id: 'duration', label: 'Duration', value: formatDuration(run.durationMs) },
+          {
+            id: 'usage',
+            label: 'Usage',
+            value: run.cu === null ? 'Unknown' : `${usage} CU (Compute Units)`,
+          },
+        ]}
+      />
       {root && (
         <DetailSection title='Trace'>
           <TraceTree
@@ -108,7 +90,6 @@ export function RunDetails({ run, back, read }: RunDetailsProps) {
           />
         </DetailSection>
       )}
-      {selected && <SpanInspector key={selected.id} span={selected} />}
     </DetailSplit>
   )
 }

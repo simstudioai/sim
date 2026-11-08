@@ -274,7 +274,10 @@ test('new runs join on request and a run opens its trace and selected step', asy
   )
   await trace.getByRole('button', { name: 'Collapse Classify request' }).click()
   await expect(trace.getByRole('button', { name: /search_knowledge/ })).toHaveCount(0)
-  await expect(page.getByRole('complementary', { name: 'Facts' })).toContainText('Compute Units')
+  await expect(main(page).getByLabel('Run facts')).toContainText('Compute Units')
+  await expect(page.getByRole('complementary', { name: 'Selected step' })).toContainText(
+    'search_knowledge'
+  )
 })
 
 test('the changelog labels each day once and links each change to its issue', async ({ page }) => {

@@ -4,11 +4,8 @@ import { Button } from '@sim/emcn/button'
 import { PropertyList } from '@sim/emcn/property-list'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
-import {
-  DetailHeading,
-  DetailSplit,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/detail-split/detail-split'
+import { DirectoryHeading } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
+import { DetailSplit } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/detail-split/detail-split'
 import { WorkspaceChanges } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-changes/workspace-changes'
 import type {
   ChangelogDetail,
@@ -40,14 +37,14 @@ export function ChangelogDetails({ entry, back, read }: ChangelogDetailsProps) {
       read={read}
       back={back}
       label='Change details'
-      controls={
-        <ControlBar>
-          <Button variant='secondary' size='compact' render={<Link href={issueHref} />}>
-            View issue
-          </Button>
-        </ControlBar>
+      identifier={entry.issueId}
+      actions={
+        <Button variant='secondary' size='compact' render={<Link href={issueHref} />}>
+          View issue
+        </Button>
       }
-      facts={
+      railLabel='Facts'
+      rail={
         <PropertyList
           title='Facts'
           titleHidden
@@ -78,7 +75,7 @@ export function ChangelogDetails({ entry, back, read }: ChangelogDetailsProps) {
         />
       }
     >
-      <DetailHeading title={entry.title} description={entry.description} />
+      <DirectoryHeading title={entry.title} description={entry.description} />
       {entry.body.length > 0 && (
         <div className={styles.body}>
           {entry.body.map((paragraph) => (
