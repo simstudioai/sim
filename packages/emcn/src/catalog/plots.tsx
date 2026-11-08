@@ -159,7 +159,7 @@ export function DonutPlot({ label, values, onInspect }: DonutPlotProps) {
               onPointerEnter={onInspect && (() => onInspect(index))}
               onPointerLeave={onInspect && (() => onInspect(null))}
               className={styles.arc}
-              data-series={index % 4}
+              data-series={index % 6}
               cx='80'
               cy='80'
               r='60'

@@ -2,6 +2,7 @@
   color: var(--ui-strong);
   container-type: inline-size;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--spacing-16);
   min-inline-size: 0;
@@ -66,10 +67,17 @@
   gap: var(--spacing-16);
   color: var(--ui-secondary);
 }
+.series li {
+  min-inline-size: 0;
+}
+/* A long series name wraps inside its entry rather than widening the chart past its column. */
 .series button {
   gap: var(--spacing-6);
   min-block-size: var(--spacing-28);
+  min-inline-size: 0;
   color: inherit;
+  text-align: start;
+  overflow-wrap: anywhere;
 }
 .seriesTotal {
   color: var(--ui-strong);
@@ -122,6 +130,12 @@
 }
 .swatch[data-palette="3"] {
   background: var(--ui-plot-violet-4);
+}
+.swatch[data-palette="4"] {
+  background: var(--ui-plot-primary);
+}
+.swatch[data-palette="5"] {
+  background: var(--ui-plot-secondary);
 }
 .distribution {
   display: flex;

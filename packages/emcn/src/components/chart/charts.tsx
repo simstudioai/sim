@@ -272,7 +272,7 @@ export function DonutChart({ title, control, segments, totalLabel }: DonutChartP
                   if (e.key === 'Escape') setActive(null)
                 }}
               >
-                <i className={styles.swatch} data-palette={i % 4} />
+                <i className={styles.swatch} data-palette={i % 6} />
                 <span data-type='T060'>{label}</span>
                 <span className={styles.share} data-type='T050'>
                   {(total ? (100 * value) / total : 0).toFixed(1)}%

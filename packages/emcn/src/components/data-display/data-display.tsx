@@ -20,21 +20,23 @@ interface MetricGroupProps {
 
 export function MetricGroup({ metrics }: MetricGroupProps) {
   return (
-    <dl className={styles.metrics}>
-      {metrics.map(({ label, value, description }) => (
-        <div className={styles.metric} key={label}>
-          <dt className={styles.metricLabel} data-type='T050'>
-            {label}
-            {description && (
-              <Tooltip label={description}>
-                <IconButton icon='I047' label={`About ${label.toLowerCase()}`} size='inline' />
-              </Tooltip>
-            )}
-          </dt>
-          <dd data-type='T076'>{value}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className={styles.metricFrame}>
+      <dl className={styles.metrics} data-count={metrics.length <= 4 ? metrics.length : undefined}>
+        {metrics.map(({ label, value, description }) => (
+          <div className={styles.metric} key={label}>
+            <dt className={styles.metricLabel} data-type='T050'>
+              {label}
+              {description && (
+                <Tooltip label={description}>
+                  <IconButton icon='I047' label={`About ${label.toLowerCase()}`} size='inline' />
+                </Tooltip>
+              )}
+            </dt>
+            <dd data-type='T076'>{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   )
 }
 
