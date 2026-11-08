@@ -10,6 +10,11 @@
   composes: popup from "./popup.shared.module.css";
   inline-size: var(--menu-action-width);
 }
+/* A command menu keeps every label on one line, growing past its resting width up to the space available. */
+.menu:not([data-menu], [data-searchable]):not(:has(.menuItem[data-option])) {
+  inline-size: max-content;
+  min-inline-size: var(--menu-action-width);
+}
 .menu:not([data-menu]):has(.menuItem[data-option]) {
   inline-size: var(--menu-choice-width);
 }
