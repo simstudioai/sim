@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { CopyButton } from '@sim/emcn/button/copy-button'
 import { DirectoryHeading } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import {
   DetailSection,
@@ -52,12 +51,6 @@ export function RunDetails({ run, back, read }: RunDetailsProps) {
       read={read}
       back={back}
       label={`Run ${shortId} trace`}
-      identifier={
-        <>
-          {run.id}
-          <CopyButton label='Copy execution ID' text={run.id} />
-        </>
-      }
       railKind='inspector'
       railLabel='Selected step'
       rail={selected && <SpanInspector key={selected.id} span={selected} />}
@@ -67,6 +60,7 @@ export function RunDetails({ run, back, read }: RunDetailsProps) {
         label='Run facts'
         fields={[
           { id: 'status', label: 'Status', value: RUN_STATUS_LABEL[run.status] },
+          { id: 'execution', label: 'Execution ID', value: run.id },
           { id: 'workflow', label: 'Workflow', value: run.workflow.name },
           { id: 'trigger', label: 'Trigger', value: run.trigger.label },
           { id: 'version', label: 'Version', value: run.version },

@@ -7,7 +7,7 @@
   gap: var(--ui-product-section-gap);
   padding-block-start: var(--ui-page-heading-inset);
 }
-/* Paper's ticket bar: Back and the record's identifier lead, its actions end the row. */
+/* Paper's ticket bar: Back leads and the record's actions end the row. */
 .bar {
   display: flex;
   flex-wrap: wrap;
@@ -15,21 +15,6 @@
   justify-content: space-between;
   gap: var(--ui-row-gap);
   min-inline-size: 0;
-}
-.lead {
-  display: flex;
-  align-items: center;
-  min-inline-size: 0;
-  gap: var(--ui-row-gap);
-}
-.identifier {
-  display: inline-flex;
-  align-items: center;
-  min-inline-size: 0;
-  gap: var(--ui-action-gap);
-  color: var(--ui-secondary);
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
 }
 .actions {
   display: flex;

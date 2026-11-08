@@ -157,6 +157,7 @@ export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) 
 
   const facts: PropertyItem[] = [
     { id: 'status', label: 'Status', kind: 'text', value: ISSUE_STATE_LABEL[issue.state] },
+    { id: 'id', label: 'ID', kind: 'text', value: issue.id },
     {
       id: 'created',
       label: 'Created',
@@ -207,7 +208,6 @@ export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) 
         read={read}
         back={back}
         label={`${issue.id} details`}
-        identifier={issue.id}
         actions={buttons}
         railLabel='Facts'
         rail={<PropertyList title='Facts' titleHidden properties={facts} />}

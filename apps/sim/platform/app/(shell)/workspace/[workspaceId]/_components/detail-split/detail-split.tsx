@@ -12,8 +12,6 @@ import { useListReturn } from '@/platform/app/(shell)/workspace/[workspaceId]/_c
 interface DetailSplitProps {
   /** Where Back returns: the list, with its search, filters and sort. */
   back: { href: string; label: string }
-  /** The record's own identifier, beside Back, with any copy action. */
-  identifier?: ReactNode
   /** Decisions and other record actions, at the end of Back's row. */
   actions?: ReactNode
   /** Names the scrolling reading column for assistive technology. */
@@ -32,14 +30,14 @@ interface DetailSplitProps {
 const READY: WorkspaceRead = { status: 'ready' }
 
 /**
- * A record's details beside its rail. Back, the identifier and the actions share one pinned row;
- * the reading column and the rail each scroll, fading at whichever edge has more. A facts rail
- * keeps a narrow lane; an inspector, which holds payloads, takes a larger share. On a narrow
- * screen facts sit above the reading column and an inspector below it.
+ * A record's details beside its rail. Back and the actions share one pinned row; the record's own
+ * identifiers belong in its facts. The reading column and the rail each scroll, fading at whichever
+ * edge has more. A facts rail keeps a narrow lane;
+ * an inspector, which holds payloads, takes a larger share. On a narrow screen facts sit above the
+ * reading column and an inspector below it.
  */
 export function DetailSplit({
   back,
-  identifier,
   actions,
   label,
   rail,
@@ -56,14 +54,7 @@ export function DetailSplit({
     <PageColumn>
       <main className={styles.record}>
         <div className={styles.bar}>
-          <div className={styles.lead}>
-            <DirectoryBack href={back.href} label={back.label} onNavigate={returnToList} />
-            {ready && identifier && (
-              <span className={styles.identifier} data-type='T050'>
-                {identifier}
-              </span>
-            )}
-          </div>
+          <DirectoryBack href={back.href} label={back.label} onNavigate={returnToList} />
           {ready && actions && <div className={styles.actions}>{actions}</div>}
         </div>
         {read.status === 'error' && (
