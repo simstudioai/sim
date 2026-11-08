@@ -315,8 +315,6 @@
   "apps/sim/app/workspace/[workspaceId]/components/resource/components/resource-options/resource-options.tsx#SearchTag",
   "apps/sim/app/workspace/[workspaceId]/components/resource/resource.tsx#BodyDropConfig",
   "apps/sim/app/workspace/[workspaceId]/components/resource/resource.tsx#ResourceCellEditing",
-  "apps/sim/app/workspace/[workspaceId]/components/workspace-chrome/index.ts#SidebarChromeProvider",
-  "apps/sim/app/workspace/[workspaceId]/components/workspace-chrome/index.ts#SidebarChromeState",
   "apps/sim/app/workspace/[workspaceId]/components/workspace-chrome/use-sidebar-peek.ts#PEEK_CLOSE_DELAY_MS",
   "apps/sim/app/workspace/[workspaceId]/components/workspace-chrome/use-sidebar-peek.ts#PEEK_OPEN_DELAY_MS",
   "apps/sim/app/workspace/[workspaceId]/components/workspace-chrome/use-sidebar-peek.ts#PEEK_POINTER_SAMPLE_MS",

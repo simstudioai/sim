@@ -12,7 +12,6 @@
     "apps/sim/platform/embedded/app/(shell)/_components/conversation/skeletons.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/_components/search/source-row.tsx": 2,
     "apps/sim/platform/embedded/app/(shell)/_components/sidebar/chats-section.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/_components/sidebar/sidebar.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/integrations/_components/integrations-page/integrations-route.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/integrations/_components/search-connection-request/search-connection-request.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/search/_components/search-surface/search-surface.tsx": 1,

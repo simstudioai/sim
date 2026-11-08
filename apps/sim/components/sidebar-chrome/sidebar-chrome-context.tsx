@@ -2,7 +2,7 @@
 
 import { createContext, type ReactNode, useContext, useMemo } from 'react'
 
-export interface SidebarChromeState {
+interface SidebarChromeState {
   /**
    * Authoritative collapse state, derived once in `WorkspaceChrome` from the
    * `sidebar_collapsed` cookie (server prop → store after hydration) so the rail's

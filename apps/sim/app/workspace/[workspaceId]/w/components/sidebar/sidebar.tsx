@@ -43,6 +43,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { useSidebarChrome } from '@/components/sidebar-chrome/sidebar-chrome-context'
 import type { DesktopChatActivity } from '@/lib/api/contracts/desktop-executor'
 import { useSession } from '@/lib/auth/client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
@@ -66,7 +67,6 @@ import {
   groupWorkflowsByFolder,
   isSidebarBackgroundClick,
 } from '@/lib/workflows/sidebar'
-import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
