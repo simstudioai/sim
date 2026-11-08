@@ -17,11 +17,8 @@ vi.mock('@/lib/api/server/routes/v2-json-route', () => ({
   ...apiServerRoutesMock,
   v2RateLimits: { publicApi: { enforce: vi.fn().mockResolvedValue(null) } },
 }))
-vi.mock('@/lib/sim-search/live/application', () => ({
-  LIVE_MORE_RANKED_BELOW_MESSAGE: 'More matches ranked below.',
-  LIVE_DATE_ORDER_MESSAGE: 'Date order covers retrieved results.',
-  LIVE_NOT_STARTED_MESSAGE: 'Not searched before the deadline.',
-  LIVE_OVER_ACCOUNT_LIMIT_MESSAGE: 'Not searched: over the account limit.',
+vi.mock('@/lib/sim-search/live/application', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/sim-search/live/application')>()),
   searchLiveKnowledge: { execute: hoisted.liveSearch },
   readLiveDocument: { execute: hoisted.liveRead },
 }))

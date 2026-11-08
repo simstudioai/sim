@@ -21,12 +21,6 @@ const hoisted = vi.hoisted(() => ({
   rateLimit: vi.fn(),
   afterResponse: vi.fn<(task: () => Promise<void>) => void>(),
   recordActivity: vi.fn(),
-  statusMessages: {
-    LIVE_MORE_RANKED_BELOW_MESSAGE: 'More matches ranked below.',
-    LIVE_DATE_ORDER_MESSAGE: 'Date order covers retrieved results.',
-    LIVE_NOT_STARTED_MESSAGE: 'Not searched before the deadline.',
-    LIVE_OVER_ACCOUNT_LIMIT_MESSAGE: 'Not searched: over the account limit.',
-  },
 }))
 vi.mock('@/lib/core/utils/after-response', () => ({ afterResponse: hoisted.afterResponse }))
 vi.mock('@/lib/knowledge/mcp/activity', () => ({
@@ -51,8 +45,8 @@ vi.mock('@/lib/api/server/routes/v2-json-route', () => ({
   ...apiServerRoutesMock,
   v2RateLimits: { publicApi: { enforce: hoisted.rateLimit } },
 }))
-vi.mock('@/lib/sim-search/live/application', () => ({
-  ...hoisted.statusMessages,
+vi.mock('@/lib/sim-search/live/application', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/sim-search/live/application')>()),
   searchLiveKnowledge: { execute: hoisted.liveSearch },
   readLiveDocument: { execute: hoisted.liveRead },
 }))
@@ -62,6 +56,12 @@ vi.mock('@/lib/knowledge/application/chat', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
+import {
+  LIVE_DATE_ORDER_MESSAGE,
+  LIVE_MORE_RANKED_BELOW_MESSAGE,
+  LIVE_NOT_STARTED_MESSAGE,
+  LIVE_OVER_ACCOUNT_LIMIT_MESSAGE,
+} from '@/lib/sim-search/live/application'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const mocks = hoisted
@@ -235,12 +235,10 @@ describe('live organization Search MCP', () => {
 
   it('states each repeated account status once and flags the entries that carried it', async () => {
     create()
-    const {
-      LIVE_MORE_RANKED_BELOW_MESSAGE: moreBelow,
-      LIVE_DATE_ORDER_MESSAGE: dateOrder,
-      LIVE_NOT_STARTED_MESSAGE: deadline,
-      LIVE_OVER_ACCOUNT_LIMIT_MESSAGE: overLimit,
-    } = mocks.statusMessages
+    const moreBelow = LIVE_MORE_RANKED_BELOW_MESSAGE
+    const dateOrder = LIVE_DATE_ORDER_MESSAGE
+    const deadline = LIVE_NOT_STARTED_MESSAGE
+    const overLimit = LIVE_OVER_ACCOUNT_LIMIT_MESSAGE
     const emptyPage = 'No readable matches on this page.'
     const unconnected = 'No connection with this provider is configured.'
     mocks.liveSearch.mockResolvedValueOnce({
