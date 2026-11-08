@@ -17,6 +17,7 @@ import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CommandMenu } from '@/platform/app/(shell)/_components/command-menu/command-menu'
+import { PageCommandsProvider } from '@/platform/app/(shell)/_components/command-menu/page-commands'
 import {
   useDesktopCommands,
   useDesktopHost,
@@ -203,7 +204,7 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
     <div className={styles.openControl}>{openControl}</div>
   )
   return (
-    <>
+    <PageCommandsProvider>
       <div
         className={styles.shell}
         data-desktop={desktop || undefined}
@@ -277,6 +278,6 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
         />
       </div>
       <NotificationTray history={data?.notifications ?? []} navigate={navigate} />
-    </>
+    </PageCommandsProvider>
   )
 }

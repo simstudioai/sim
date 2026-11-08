@@ -1,9 +1,15 @@
+'use client'
+
 import { CommandPalette } from '@sim/emcn/command-palette'
 import { OverlayDialog } from '@sim/emcn/modal/overlay-dialog'
+import { useRegisteredPageCommands } from '@/platform/app/(shell)/_components/command-menu/page-commands'
 import { PLATFORM_DESTINATIONS } from '@/platform/app/(shell)/_components/destinations'
 import type { ShellChat, ShellData } from '@/platform/app/(shell)/_components/model'
 import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 import type { ShellDestination } from '@/platform/shared/shell'
+
+/** Marks a page command's value apart from the hrefs every other entry navigates to. */
+const COMMAND_PREFIX = 'command:'
 
 interface CommandMenuProps {
   open: boolean
@@ -22,12 +28,28 @@ export function CommandMenu({
   workspaces,
   destinations = PLATFORM_DESTINATIONS,
 }: CommandMenuProps) {
+  const pageCommands = useRegisteredPageCommands()
   return (
     <OverlayDialog label='Search' presentation='command' open={open} onClose={onClose}>
       <CommandPalette
         label='Search the platform'
-        onSelect={navigate}
+        onSelect={(value) => {
+          const command = value.startsWith(COMMAND_PREFIX)
+            ? pageCommands.find((item) => `${COMMAND_PREFIX}${item.id}` === value)
+            : undefined
+          if (!command) return navigate(value)
+          onClose()
+          command.run()
+        }}
         groups={[
+          {
+            label: 'This page',
+            items: pageCommands.map((item) => ({
+              id: item.id,
+              label: item.label,
+              value: `${COMMAND_PREFIX}${item.id}`,
+            })),
+          },
           { items: destinations },
           {
             label: 'Workspaces',
