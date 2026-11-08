@@ -57,10 +57,12 @@
   color: var(--ui-secondary);
   overflow-wrap: anywhere;
 }
+/* Paper's ChangeEntry: the contributor leads and the ticket ends the row, under the time. */
 .attribution {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: space-between;
   gap: var(--ui-stack-gap) var(--ui-content-gap);
   margin-block-start: var(--ui-stack-gap);
   color: var(--ui-secondary);
@@ -75,6 +77,7 @@
 .issue {
   position: relative;
   z-index: 1;
+  margin-inline-start: auto;
   color: var(--ui-secondary);
   font-variant-numeric: tabular-nums;
 }
