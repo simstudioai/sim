@@ -16,13 +16,15 @@ import { canListOrganizationChats } from '@/platform/lib/data/organization-model
 import { useLiveAccountActions } from '@/platform/lib/data/shell-actions'
 import type { LiveShell } from '@/platform/lib/data/shell-context'
 import { useWorkspaceActions } from '@/platform/lib/data/workspaces'
-import { workspaceEntry } from '@/platform/lib/workspace-navigation'
+import { workspaceHomePath } from '@/platform/lib/workspace-navigation'
 import type { ShellDestination } from '@/platform/shared/shell'
 
 /** The legacy sidebar's page size for its Workspaces section. */
 const WORKSPACE_PAGE_SIZE = 5
 
 /** A workspace opens in the zone, on the page its live data serves first. */
+const liveWorkspaceHome = (workspaceId: string) => workspaceHomePath(workspaceId, 'live')
+
 function toShellWorkspace(
   workspace: Workspace,
   pinnedIds: ReadonlySet<string> | undefined
@@ -30,7 +32,7 @@ function toShellWorkspace(
   return {
     id: workspace.id,
     name: workspace.name,
-    href: workspaceEntry(workspace.id),
+    href: liveWorkspaceHome(workspace.id),
     permissions: workspace.permissions,
     isPinned: pinnedIds?.has(workspace.id) ?? false,
   }
@@ -94,7 +96,7 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
   const profile = useUserProfile()
   const settings = useGeneralSettings()
   const chatActions = useChatListActions(organizationId)
-  const workspaceActions = useWorkspaceActions(workspaceEntry)
+  const workspaceActions = useWorkspaceActions(liveWorkspaceHome)
   const accountActions = useLiveAccountActions(organization, navigation.destinations)
   return {
     data: {

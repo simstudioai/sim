@@ -47,7 +47,7 @@ export function ChatPanelTrigger() {
 interface ChatPanelsProps {
   children: ReactNode
   data: PanelData | null
-  workspaces: readonly { id: string; name: string }[]
+  workspaces: readonly { id: string; name: string; href?: string }[]
 }
 
 export function ChatPanels({ children, data, workspaces }: ChatPanelsProps) {
@@ -96,7 +96,8 @@ export function ChatPanels({ children, data, workspaces }: ChatPanelsProps) {
     setItems((list) => list.map((tab) => (tab.id === current ? { ...tab, view, resource } : tab)))
   }
   function openWorkspace(id: string) {
-    router.push(platformHref(workspaceEntry(id), search))
+    const href = workspaces.find((workspace) => workspace.id === id)?.href
+    router.push(platformHref(href ?? workspaceEntry(id), search))
   }
   function recent(item: PanelRecent) {
     if (item.destination === 'workspace') openWorkspace(item.id)

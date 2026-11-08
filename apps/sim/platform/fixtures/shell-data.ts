@@ -1,7 +1,7 @@
 import 'server-only'
 import type { ShellData } from '@/platform/app/(shell)/_components/model'
 import type { Scenario } from '@/platform/fixtures'
-import { workspaceEntry } from '@/platform/lib/workspace-navigation'
+import { workspaceHomePath } from '@/platform/lib/workspace-navigation'
 
 type ShellDetails = Omit<ShellData, 'chats'>
 
@@ -40,7 +40,7 @@ const full: ShellDetails = {
   ].map(([id, name]) => ({
     id,
     name,
-    href: workspaceEntry(id),
+    href: workspaceHomePath(id, 'fixture'),
     workflows: workflowsByWorkspace[id] ?? [],
   })),
   inbox: [
@@ -102,7 +102,7 @@ export const shellScenarios: Record<Scenario, ShellDetails> = {
     ...full,
     workspaces: Array.from({ length: 36 }, (_, index) => ({
       id: `workspace-${index}`,
-      href: workspaceEntry(`workspace-${index}`),
+      href: workspaceHomePath(`workspace-${index}`, 'fixture'),
       workflows: [leadEnrichment, accountReview],
       name: `International customer operations and onboarding ${index + 1}`,
     })),

@@ -5,7 +5,7 @@ export type WorkspaceDataMode = 'fixture' | 'live'
  * The workspace's pages, in tab order, with the data modes the zone serves each from. A page with
  * no live adapter yet is fixture-only; a page built on live data alone has no fixtures.
  */
-export const WORKSPACE_TABS = [
+const WORKSPACE_TABS = [
   { section: 'dashboards', label: 'Dashboard', modes: ['fixture', 'live'] },
   { section: 'issues', label: 'Issues', modes: ['fixture'] },
   { section: 'changelog', label: 'Changelog', modes: ['fixture', 'live'] },
@@ -35,6 +35,11 @@ export function workspaceHome(mode: WorkspaceDataMode): WorkspaceTab {
 
 export function workspacePath(workspaceId: string, section: string) {
   return `/workspace/${encodeURIComponent(workspaceId)}/${section}`
+}
+
+/** The page a workspace opens on for a server's data, linked directly so no redirect sits in between. */
+export function workspaceHomePath(workspaceId: string, mode: WorkspaceDataMode) {
+  return workspacePath(workspaceId, workspaceHome(mode))
 }
 
 /** A workspace itself; its route opens the page `workspaceHome` names for the server's data. */
