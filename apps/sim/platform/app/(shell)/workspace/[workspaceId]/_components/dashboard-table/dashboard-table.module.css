@@ -1,80 +1,12 @@
-.viewport {
-  min-inline-size: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset));
-  container: dashboard-table / inline-size;
-}
-.table {
-  inline-size: 100%;
-  table-layout: fixed;
-  border-spacing: 0;
-  border-collapse: separate;
-  font-variant-numeric: tabular-nums;
-}
-.table th,
-.table td {
-  padding-inline: var(--ui-row-inset);
-  text-align: start;
-  vertical-align: middle;
-  overflow-wrap: anywhere;
-  color: var(--ui-secondary);
-}
-.table th {
-  block-size: var(--ui-table-head);
-}
-.table td {
-  block-size: var(--spacing-40);
-  padding-block: var(--spacing-8);
-}
-.table td[data-kind="text"] {
-  color: var(--ui-ink);
-}
-.table td[data-empty] {
-  color: var(--ui-muted);
-}
-.table [data-numeric] {
-  inline-size: calc(var(--ui-table-compact) + var(--spacing-16));
-  text-align: end;
-}
-.table [data-kind="number"] {
-  inline-size: calc(var(--ui-table-number) + var(--spacing-16));
-}
-.table :is([data-kind="status"], [data-kind="percent"]) {
-  inline-size: calc(var(--ui-table-wide) + var(--spacing-16));
-}
-.table [data-primary] {
-  inline-size: auto;
-}
-.table td[data-tone="neutral"] {
-  color: var(--ui-ink);
-}
-.table td[data-tone="accent"] {
+.status[data-tone="accent"] {
   color: var(--status-info);
 }
-.table td[data-tone="success"] {
+.status[data-tone="success"] {
   color: var(--status-success);
 }
-.table td[data-tone="warning"] {
+.status[data-tone="warning"] {
   color: var(--status-warning);
 }
-.table td[data-tone="danger"] {
+.status[data-tone="danger"] {
   color: var(--control-danger);
-}
-.table tbody tr:hover {
-  background: var(--ui-hover);
-  clip-path: inset(0 round var(--radius-item));
-}
-@container dashboard-table (width < 48rem) {
-  .table :is([data-rank="5"], [data-rank="6"]):not([data-primary]) {
-    display: none;
-  }
-}
-@container dashboard-table (width < 32rem) {
-  .table :is([data-rank="3"], [data-rank="4"]):not([data-primary]) {
-    display: none;
-  }
-}
-@media (pointer: coarse) {
-  .table td {
-    block-size: var(--spacing-app-touch-target);
-  }
 }
