@@ -22,10 +22,7 @@ import {
 } from '@/lib/workflows/sanitization/references'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/constants'
-import {
-  checkEnvVarTrigger,
-  EnvVarDropdown,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
+import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import {
   formatDisplayText,
   getValidWorkflowSearchRange,
@@ -44,6 +41,7 @@ import { normalizeName } from '@/executor/constants'
 import { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
 import { createShouldHighlightEnvVar, useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
+import { checkEnvVarTrigger } from '@/hooks/use-env-var-suggestions'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
 const logger = createLogger('ConditionInput')

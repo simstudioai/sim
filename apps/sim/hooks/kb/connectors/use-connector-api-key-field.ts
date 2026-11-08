@@ -1,8 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { checkEnvVarTrigger } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown/use-env-var-suggestions'
 import { useAvailableEnvVarKeys } from '@/hooks/use-available-env-vars'
+import { checkEnvVarTrigger } from '@/hooks/use-env-var-suggestions'
 
 const NO_ENV_VARS = new Set<string>()
 

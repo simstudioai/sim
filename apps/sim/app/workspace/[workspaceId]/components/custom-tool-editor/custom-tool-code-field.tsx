@@ -16,15 +16,13 @@ import {
   type SchemaParameter,
 } from '@/app/workspace/[workspaceId]/components/custom-tool-editor/custom-tool-schema'
 import type { useCodeGeneration } from '@/app/workspace/[workspaceId]/components/custom-tool-editor/use-custom-tool-generation'
-import {
-  checkEnvVarTrigger,
-  EnvVarDropdown,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
+import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import {
   checkTagTrigger,
   TagDropdown,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { CodeEditor } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/components/code-editor/code-editor'
+import { checkEnvVarTrigger } from '@/hooks/use-env-var-suggestions'
 
 interface CustomToolCodeFieldProps {
   value: string

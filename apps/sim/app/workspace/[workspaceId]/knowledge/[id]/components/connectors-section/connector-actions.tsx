@@ -16,7 +16,7 @@ import {
 } from '@sim/emcn-legacy'
 import { MoreHorizontal } from '@sim/emcn-legacy/icons'
 import { orderHeaderActions, type SettingsAction } from '@/components/settings/settings-header'
-import type { ConnectorActionState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
+import type { ConnectorActionState } from '@/hooks/kb/connectors/use-connector-actions'
 
 interface ConnectorActionsProps {
   state: ConnectorActionState

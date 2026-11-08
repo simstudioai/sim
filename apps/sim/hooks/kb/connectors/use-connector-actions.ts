@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
-import { getConnectorSyncState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-state'
+import { getConnectorSyncState } from '@/hooks/kb/connectors/sync-state'
 import {
   useDeleteConnector,
   useTriggerSync,

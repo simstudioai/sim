@@ -4,7 +4,7 @@ import { ChipCombobox, type ChipModalFieldAria } from '@sim/emcn-legacy'
 import {
   type ConnectorSelectorOptions,
   useConnectorSelector,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field/use-connector-selector'
+} from '@/hooks/kb/connectors/use-connector-selector'
 
 interface ConnectorSelectorFieldProps extends ConnectorSelectorOptions {
   controlAria?: ChipModalFieldAria

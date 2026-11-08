@@ -1188,7 +1188,7 @@
     "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/chunk-context-menu/chunk-context-menu.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/base.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/connector-dialogs.test.tsx": 8,
-    "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields.test.tsx": 7,
+    "apps/sim/hooks/kb/connectors/use-connector-config-fields.test.tsx": 7,
     "apps/sim/app/workspace/[workspaceId]/knowledge/components/knowledge-base-context-menu/knowledge-base-context-menu.tsx": 3,
     "apps/sim/app/workspace/[workspaceId]/logs/components/log-details/log-details.tsx": 2,
     "apps/sim/app/workspace/[workspaceId]/providers/workspace-host-provider.test.tsx": 1,

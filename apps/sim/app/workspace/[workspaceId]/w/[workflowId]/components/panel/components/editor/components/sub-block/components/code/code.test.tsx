@@ -82,9 +82,12 @@ vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown',
   () => ({
     EnvVarDropdown: () => null,
-    checkEnvVarTrigger: () => ({ show: false, searchTerm: '' }),
   })
 )
+
+vi.mock('@/hooks/use-env-var-suggestions', () => ({
+  checkEnvVarTrigger: () => ({ show: false, searchTerm: '' }),
+}))
 
 vi.mock(
   '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown',

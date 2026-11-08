@@ -2,8 +2,8 @@
 
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { connectorMemberProvider } from '@/lib/knowledge/connectors/access-fields'
 import { supportsConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
-import { connectorMemberProvider } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useSourceAccounts } from '@/hooks/queries/source-accounts'

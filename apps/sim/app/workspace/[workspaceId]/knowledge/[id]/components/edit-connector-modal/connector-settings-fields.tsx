@@ -19,10 +19,6 @@ import {
   CONNECTOR_SWITCH_NOTICE,
   useConnectorSettingsFields,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-fields'
-import type {
-  ConfigFieldMap,
-  ConfigFieldValue,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { GitHubInstallationConnectionField } from '@/connectors/github/installation-connection-field'
 import {
@@ -31,6 +27,10 @@ import {
 } from '@/connectors/gitlab/permission-config/fields'
 import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
+import type {
+  ConfigFieldMap,
+  ConfigFieldValue,
+} from '@/hooks/kb/connectors/use-connector-config-fields'
 
 export interface ConnectorSettingsFieldsProps {
   gitlabPermissions?: GitLabPermissionForm

@@ -8,7 +8,7 @@ import {
   PopoverSection,
 } from '@sim/emcn-legacy'
 import { Plus } from '@sim/emcn-legacy/icons'
-import { useEnvVarSuggestions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown/use-env-var-suggestions'
+import { useEnvVarSuggestions } from '@/hooks/use-env-var-suggestions'
 
 /**
  * Props for the EnvVarDropdown component

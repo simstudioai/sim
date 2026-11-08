@@ -14,12 +14,12 @@ import {
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
-import { useConnectorAccessField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/use-connector-access-field'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { ConnectorMeta } from '@/connectors/types'
+import { useConnectorAccessField } from '@/hooks/kb/connectors/use-connector-access-field'
 
 export interface ConnectorAccessSelection {
   accessMode: ConnectorAccessMode

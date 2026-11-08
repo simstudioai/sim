@@ -5,6 +5,10 @@ import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connecto
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import {
+  derivedAclCapFieldIds,
+  isConnectorFieldRequired,
+} from '@/lib/knowledge/connectors/access-fields'
+import {
   getProviderIdFromServiceId,
   getServiceAccountProviderForProviderId,
   type OAuthProvider,
@@ -13,17 +17,13 @@ import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation
 import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
 import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
 import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
-import {
-  derivedAclCapFieldIds,
-  isConnectorFieldRequired,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
-import type {
-  ConfigFieldMap,
-  ConfigFieldValue,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
+import type {
+  ConfigFieldMap,
+  ConfigFieldValue,
+} from '@/hooks/kb/connectors/use-connector-config-fields'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'

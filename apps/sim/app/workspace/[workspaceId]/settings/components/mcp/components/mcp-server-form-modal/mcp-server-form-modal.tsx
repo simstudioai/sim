@@ -18,12 +18,10 @@ import { ChevronDown, ChevronRight } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { McpAuthType, McpTransport } from '@/lib/mcp/types'
-import {
-  checkEnvVarTrigger,
-  EnvVarDropdown,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
+import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { useMcpServerTest } from '@/hooks/queries/mcp'
+import { checkEnvVarTrigger } from '@/hooks/use-env-var-suggestions'
 
 const logger = createLogger('McpServerFormModal')
 

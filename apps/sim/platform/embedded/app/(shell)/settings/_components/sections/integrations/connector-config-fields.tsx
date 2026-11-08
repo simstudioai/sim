@@ -6,11 +6,11 @@ import { PopupNote, PopupRow } from '@sim/emcn/menu/popup-row'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { InlineNotice } from '@sim/emcn/status'
+import { isConnectorFieldRequired } from '@/lib/knowledge/connectors/access-fields'
 import type { SelectorKey } from '@/lib/selectors/manifest'
-import { isConnectorFieldRequired } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import type { ConnectorConfigFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields/connector-config-fields'
-import { useConnectorSelector } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field/use-connector-selector'
 import type { ConnectorConfigField } from '@/connectors/types'
+import { useConnectorSelector } from '@/hooks/kb/connectors/use-connector-selector'
 
 const SELECT_ALL = '__select_all__'
 

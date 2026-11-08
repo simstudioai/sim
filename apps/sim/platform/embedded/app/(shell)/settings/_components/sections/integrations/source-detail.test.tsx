@@ -15,7 +15,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiClientError } from '@/lib/api/client/errors'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
-import type { ConnectorActionsOptions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
+import type { ConnectorActionsOptions } from '@/hooks/kb/connectors/use-connector-actions'
 
 const mocks = vi.hoisted(() => ({
   admin: true,
@@ -33,12 +33,9 @@ vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/search-integrations', () => ({
   useSearchIntegrations: mocks.integrations,
 }))
-vi.mock(
-  '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions',
-  () => ({
-    useConnectorActions: mocks.actions,
-  })
-)
+vi.mock('@/hooks/kb/connectors/use-connector-actions', () => ({
+  useConnectorActions: mocks.actions,
+}))
 vi.mock(
   '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form',
   () => ({ useConnectorSettingsForm: mocks.form })

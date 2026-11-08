@@ -10,11 +10,11 @@ import type { SelectorContext } from '@/lib/selectors/types'
 import type { SourceSelectionLabel } from '@/lib/sim-search/source-identity'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import type { ConnectorConfigField } from '@/connectors/types'
 import type {
   ConfigFieldMap,
   ConfigFieldValue,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import type { ConnectorConfigField } from '@/connectors/types'
+} from '@/hooks/kb/connectors/use-connector-config-fields'
 import {
   useSelectorOptionDetail,
   useSelectorOptionDetails,

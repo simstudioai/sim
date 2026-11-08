@@ -5,15 +5,15 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { describeSearchSource, SOURCE_LABELS_KEY } from '@/lib/sim-search/source-identity'
-import {
-  type UseConnectorConfigFieldsOptions,
-  type UseConnectorConfigFieldsResult,
-  useConnectorConfigFields,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { gmailConnectorMeta } from '@/connectors/gmail/meta'
 import { googleCalendarConnectorMeta } from '@/connectors/google-calendar/meta'
 import { googleDriveConnectorMeta } from '@/connectors/google-drive/meta'
 import type { ConnectorMeta } from '@/connectors/types'
+import {
+  type UseConnectorConfigFieldsOptions,
+  type UseConnectorConfigFieldsResult,
+  useConnectorConfigFields,
+} from '@/hooks/kb/connectors/use-connector-config-fields'
 
 describe('useConnectorConfigFields member configuration', () => {
   let container: HTMLDivElement

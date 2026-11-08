@@ -12,8 +12,8 @@ import Link from 'next/link'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
-import { useConnectorAccessField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/use-connector-access-field'
 import type { ConnectorMeta } from '@/connectors/types'
+import { useConnectorAccessField } from '@/hooks/kb/connectors/use-connector-access-field'
 import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 
 interface ConnectorAccessProps {

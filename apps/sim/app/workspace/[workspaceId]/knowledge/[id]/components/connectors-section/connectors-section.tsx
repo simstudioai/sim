@@ -15,12 +15,12 @@ import {
 import { ConnectorMemberEnrollment } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-member-enrollment'
 import { ConnectorRecovery } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-recovery'
 import { ConnectorSyncHistory } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-history'
-import { getConnectorSyncState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-state'
-import { useConnectorActions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 import { EditConnectorModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/edit-connector-modal'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import { getConnectorSyncState } from '@/hooks/kb/connectors/sync-state'
+import { useConnectorActions } from '@/hooks/kb/connectors/use-connector-actions'
 
 interface ConnectorsSectionProps {
   scope?: ResourceScope

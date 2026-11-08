@@ -4,16 +4,16 @@ import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@sim/e
 import { ArrowLeftRight, CircleInfo } from '@sim/emcn-legacy/icons'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
+import { isConnectorFieldRequired } from '@/lib/knowledge/connectors/access-fields'
 import type { Credential } from '@/lib/oauth/types'
 import type { SelectorKey } from '@/lib/selectors/manifest'
 import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
-import { isConnectorFieldRequired } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
+import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import type {
   ConfigFieldMap,
   ConfigFieldValue,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
+} from '@/hooks/kb/connectors/use-connector-config-fields'
 
 export interface ConnectorConfigFieldsProps {
   scope?: ResourceScope
