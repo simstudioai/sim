@@ -647,7 +647,7 @@
       }
     },
     "app/workspace/layout.tsx": {
-      "modules": 1251,
+      "modules": 1151,
       "gateways": {
         "apps/sim/app/workspace/providers/socket-provider.tsx": 1240,
         "apps/sim/triggers/registry.ts": 597,
@@ -660,7 +660,7 @@
       }
     },
     "app/workspace/page.tsx": {
-      "modules": 1267,
+      "modules": 1236,
       "gateways": {
         "apps/sim/lib/auth/stale-session-recovery.ts": 1124,
         "apps/sim/stores/reset-all-stores.ts": 1120,
