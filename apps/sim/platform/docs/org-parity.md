@@ -363,6 +363,17 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Home | Plan toggle, composer handoff and server chat id | `organization-conversation.tsx` | Open | Chat lane owns `home-composer` |
 | Home | Workspace status read stays bounded under thousands of time pauses: only the asked workspaces' pauses are read, stopping at the first waiting on a person | `lib/organizations/home/workspace-activity.ts` | Done | `workspace-activity.integration.ts` measures the real plan on real PostgreSQL. No index is needed; a workspace with no match still reads every one of its live pauses |
 
+## Workspace pages
+
+The workspace's Dashboard, Issues, Changelog and Logs are Platform pages with fixture data. Each view takes `data` and a named `actions` interface, so a live adapter in `lib/data` supplies the same props. Until one exists, a live workspace keeps its legacy page.
+
+| Domain | Capability | Legacy source | Status | Proof or reason |
+| --- | --- | --- | --- | --- |
+| Workspace | Dashboard: period, section choices, refresh | `app/workspace/[workspaceId]/dashboards/page.tsx` | Legacy | `redirectWorkspaceTabToLegacy` sends a live workspace to its legacy dashboard. Adapter: `hooks/queries/dashboards.ts` over `/api/workspaces/[id]/dashboard`, mapped onto `DashboardData` |
+| Workspace | Changelog feed and change details | `app/workspace/[workspaceId]/changelog/changelog.tsx` | Legacy | Live redirects to the legacy changelog, a change's details to its list. Adapter: `hooks/queries/changelog.ts` over `lib/api/contracts/changelog.ts`, mapped onto `ChangelogData` and `ChangelogDetail` |
+| Workspace | Run list, filters, sort, new runs, run details and trace | `app/workspace/[workspaceId]/logs/logs.tsx` | Legacy | Live redirects to the legacy logs, a run to its `executionId`. Adapter: `hooks/queries/logs.ts` over `lib/api/contracts/logs.ts`, mapped onto `RunsData` and `RunDetail`; usage reads in CU from the persisted cost |
+| Workspace | Issues: list, details, decisions | None; Platform only | Hidden | No backend exists. `unbacked` hides Issues from a live workspace's navigation and its routes answer 404 |
+
 ## Zone
 
 | Capability | Legacy source | Status | Proof or reason |
