@@ -35,24 +35,6 @@ const ICON_CLASS = 'size-[14px]'
 const BUTTON_CLASS =
   'flex size-[26px] items-center pointer-coarse:size-[44px] justify-center rounded-[6px] text-[var(--text-icon)] transition-colors hover-hover:bg-[var(--surface-hover)] focus-visible:outline-hidden'
 
-/** Everything a reply's action row shows and does, whichever design language draws it. */
-export interface MessageActionsModel {
-  canCopy: boolean
-  copied: boolean
-  onCopy: () => void
-  canRate: boolean
-  /** The rating whose feedback form is open. */
-  rating: 'up' | 'down' | null
-  onRate: (rating: 'up' | 'down') => void
-  onDismissRating: () => void
-  /** Sends the open rating with these details. Empty details send nothing. */
-  onSubmitRating: (details: string) => void
-  requestId?: string
-  canFork: boolean
-  forking: boolean
-  onFork: () => void
-}
-
 interface MessageActionsProps {
   content: string
   getCopyContent?: () => string

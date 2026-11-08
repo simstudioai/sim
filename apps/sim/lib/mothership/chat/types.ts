@@ -234,3 +234,30 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   media: 'Media Agent',
   browser: 'Browser Agent',
 } as const
+
+/** Everything a reply's action row shows and does, whichever design language draws it. */
+export interface MessageActionsModel {
+  canCopy: boolean
+  copied: boolean
+  onCopy: () => void
+  canRate: boolean
+  /** The rating whose feedback form is open. */
+  rating: 'up' | 'down' | null
+  onRate: (rating: 'up' | 'down') => void
+  onDismissRating: () => void
+  /** Sends the open rating with these details. Empty details send nothing. */
+  onSubmitRating: (details: string) => void
+  requestId?: string
+  canFork: boolean
+  forking: boolean
+  onFork: () => void
+}
+
+/** What the page-context dialog slot receives, whichever design language draws it. */
+export interface PageContextDialogProps {
+  snapshot: PageSnapshot
+  title: string
+  hostname: string
+  isDraft: boolean
+  onClose: () => void
+}

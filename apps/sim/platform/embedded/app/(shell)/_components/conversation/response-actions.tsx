@@ -8,7 +8,7 @@ import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { Surface } from '@sim/emcn-platform/surface'
-import type { MessageActionsModel } from '@/app/workspace/[workspaceId]/components/message-actions/message-actions'
+import type { MessageActionsModel } from '@/lib/mothership/chat/types'
 import styles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 import { BodyDialog } from '@/platform/embedded/app/(shell)/_components/conversation/dialogs'
 

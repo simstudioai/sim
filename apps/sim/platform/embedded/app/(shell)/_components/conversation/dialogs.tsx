@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { Modal } from '@sim/emcn/modal'
 import { Surface } from '@sim/emcn-platform/surface'
 import { createPortal } from 'react-dom'
-import type { PageContextDialogProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
+import type { PageContextDialogProps } from '@/lib/mothership/chat/types'
 import styles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 import { formatTimestamp } from '@/platform/shared/time'
 

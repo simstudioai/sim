@@ -16,14 +16,6 @@ import { Globe } from '@sim/emcn-legacy/icons'
 import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
 
-export interface PageContextDialogProps {
-  snapshot: PageSnapshot
-  title: string
-  hostname: string
-  isDraft: boolean
-  onClose: () => void
-}
-
 interface PageContextProps {
   snapshot: PageSnapshot
   onRemove?: () => void
