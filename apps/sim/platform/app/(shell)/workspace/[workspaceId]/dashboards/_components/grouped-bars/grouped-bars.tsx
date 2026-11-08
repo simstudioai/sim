@@ -138,7 +138,7 @@ export function GroupedBars({ label, unit, series, bars }: GroupedBarsProps) {
         >
           {ticks.map((tick) => (
             <li key={`${tick.index}-${tick.label}`}>
-              <OverflowText text={tick.label} />
+              <OverflowText text={tick.label}>{tick.label}</OverflowText>
             </li>
           ))}
         </ul>
@@ -167,7 +167,7 @@ export function GroupedBars({ label, unit, series, bars }: GroupedBarsProps) {
               }}
             >
               <i className={styles.swatch} data-series={index} />
-              <OverflowText text={name} />
+              <OverflowText text={name}>{name}</OverflowText>
             </button>
           </li>
         ))}

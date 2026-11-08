@@ -213,7 +213,7 @@ export function RunList({ data, actions, read }: RunListProps) {
                   ].join(', ')}
                 >
                   <span className={styles.workflow} data-type='T060'>
-                    <OverflowText text={run.workflow.name} />
+                    <OverflowText text={run.workflow.name}>{run.workflow.name}</OverflowText>
                   </span>
                   <span data-type='T060'>
                     <RunStatusText status={run.status} />

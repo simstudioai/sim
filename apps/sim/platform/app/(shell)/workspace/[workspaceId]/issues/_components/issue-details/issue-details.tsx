@@ -83,10 +83,10 @@ export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) 
   }
 
   const busy = pending !== null
-  const decision = (label: string, kind: IssueDecision, variant: 'primary' | 'secondary') => (
+  const decision = (label: string, kind: IssueDecision) => (
     <Button
       key={kind}
-      variant={variant}
+      variant='secondary'
       size='compact'
       disabled={busy}
       onClick={() => void decide(kind)}
@@ -110,7 +110,7 @@ export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) 
     </Button>
   )
   const buttons = {
-    'needs-review': [confirmable('deny', 'Deny'), decision('Approve', 'approve', 'primary')],
+    'needs-review': [confirmable('deny', 'Deny'), decision('Approve', 'approve')],
     queued: [confirmable('cancel', 'Cancel')],
     'in-progress': [confirmable('cancel', 'Cancel')],
     blocked: [
@@ -129,7 +129,7 @@ export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) 
         </Button>
       ),
     ],
-    failed: [confirmable('cancel', 'Cancel'), decision('Retry', 'retry', 'secondary')],
+    failed: [confirmable('cancel', 'Cancel'), decision('Retry', 'retry')],
     merged: [
       issue.changelogEntryId && (
         <Button
@@ -151,7 +151,7 @@ export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) 
         </Button>
       ),
     ],
-    stale: [decision('Reload', 'reload', 'secondary')],
+    stale: [decision('Reload', 'reload')],
     denied: [],
     cancelled: [],
   }[issue.state].filter(Boolean)

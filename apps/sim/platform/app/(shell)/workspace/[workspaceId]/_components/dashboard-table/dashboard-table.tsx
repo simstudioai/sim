@@ -88,7 +88,11 @@ export function DashboardTable({ label, columns, rows }: DashboardTableProps) {
                     data-tone={tone}
                     data-empty={empty || undefined}
                   >
-                    {column.kind === 'status' ? <OverflowText text={text} /> : text}
+                    {column.kind === 'status' ? (
+                      <OverflowText text={text}>{text}</OverflowText>
+                    ) : (
+                      text
+                    )}
                   </td>
                 )
               })}

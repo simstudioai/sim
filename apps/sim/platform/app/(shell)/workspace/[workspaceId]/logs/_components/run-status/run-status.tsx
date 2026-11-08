@@ -33,7 +33,7 @@ export function RunTriggerLabel({ trigger }: { trigger: RunTrigger }) {
         <Icon name={trigger.icon ?? 'I030'} />
       )}
       <span className={styles.triggerLabel}>
-        <OverflowText text={trigger.label} />
+        <OverflowText text={trigger.label}>{trigger.label}</OverflowText>
       </span>
     </span>
   )

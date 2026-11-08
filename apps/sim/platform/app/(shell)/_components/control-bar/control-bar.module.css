@@ -17,7 +17,8 @@
 .leading > * {
   min-inline-size: 0;
 }
-.leading > :only-child {
+/* Search fills the leading slot; a choice or label keeps its text width, as Home's period does. */
+.leading > :has(input[type="search"]) {
   flex: 1;
 }
 .actions {

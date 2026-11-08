@@ -10,19 +10,20 @@
   min-inline-size: 0;
   gap: var(--ui-widget-content-gap);
 }
+/* Entries are list rows: ActivityRow's insets, list gap and title-over-detail stack. */
 .entries {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
-  gap: var(--ui-content-gap);
+  gap: var(--ui-list-gap);
   margin-inline: calc(-1 * var(--ui-row-inset));
 }
 .entry {
   position: relative;
   display: grid;
   min-inline-size: 0;
-  gap: var(--ui-content-gap);
-  padding: var(--ui-row-inset);
+  gap: var(--ui-stack-gap);
+  padding: var(--ui-row-block) var(--ui-row-inset);
   border-radius: var(--radius-item);
 }
 .entry:hover {
@@ -30,7 +31,7 @@
 }
 .heading {
   display: flex;
-  align-items: start;
+  align-items: baseline;
   gap: var(--spacing-16);
 }
 .heading h3 {
@@ -47,7 +48,6 @@
 }
 .time {
   flex: none;
-  padding-block-start: var(--spacing-2);
   color: var(--ui-secondary);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -61,15 +61,15 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--spacing-4) var(--spacing-16);
-  margin-block-start: var(--spacing-4);
+  gap: var(--ui-stack-gap) var(--ui-content-gap);
+  margin-block-start: var(--ui-stack-gap);
+  color: var(--ui-secondary);
 }
 .person {
   display: inline-flex;
   align-items: center;
   min-inline-size: 0;
-  gap: var(--spacing-8);
-  color: var(--ui-ink);
+  gap: var(--ui-row-gap);
   overflow-wrap: anywhere;
 }
 .issue {

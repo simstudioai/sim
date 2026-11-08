@@ -26,7 +26,7 @@ export function SignedBars({ label, unit, rows }: SignedBarsProps) {
         return (
           <li key={row.id} className={styles.row}>
             <span className={styles.label} data-type='T060'>
-              <OverflowText text={row.label} />
+              <OverflowText text={row.label}>{row.label}</OverflowText>
             </span>
             <svg className={styles.track} role='img' aria-label={`${row.label}: ${value}`}>
               <line className={styles.zero} x1='50%' x2='50%' y1='0' y2='100%' />

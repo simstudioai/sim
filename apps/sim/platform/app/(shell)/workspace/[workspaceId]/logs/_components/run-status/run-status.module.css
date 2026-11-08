@@ -14,7 +14,7 @@
   color: var(--ui-secondary);
 }
 .trigger {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   min-inline-size: 0;
   max-inline-size: 100%;

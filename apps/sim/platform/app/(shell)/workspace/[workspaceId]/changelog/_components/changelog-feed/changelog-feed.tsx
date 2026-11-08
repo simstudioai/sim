@@ -174,36 +174,33 @@ export function ChangelogFeed({ data, actions, read }: ChangelogFeedProps) {
                 {entries.map((entry) => (
                   <li key={entry.id} className={styles.entry}>
                     <div className={styles.heading}>
-                      <h3 data-type='T093'>
+                      <h3 data-type='T059'>
                         <Link href={detailHref(entry.id)} className={styles.target}>
                           {entry.title}
                         </Link>
                       </h3>
                       <time
                         className={styles.time}
-                        data-type='T060'
+                        data-type='T052'
                         dateTime={new Date(entry.appliedAt).toISOString()}
                       >
                         {formatClockTime(entry.appliedAt, timeZone)}
                       </time>
                     </div>
-                    <p className={styles.description} data-type='T048'>
+                    <p className={styles.description} data-type='T050'>
                       {entry.description}
                     </p>
-                    <div className={styles.attribution}>
-                      <span className={styles.person} data-type='T060'>
+                    <div className={styles.attribution} data-type='T052'>
+                      <span className={styles.person}>
                         <Avatar
                           name={entry.contributor.name}
                           src={entry.contributor.src}
+                          size='inline'
                           decorative
                         />
                         {entry.contributor.name}
                       </span>
-                      <Link
-                        href={issueHref(entry.issueId)}
-                        className={styles.issue}
-                        data-type='T060'
-                      >
+                      <Link href={issueHref(entry.issueId)} className={styles.issue}>
                         {entry.issueId}
                       </Link>
                     </div>

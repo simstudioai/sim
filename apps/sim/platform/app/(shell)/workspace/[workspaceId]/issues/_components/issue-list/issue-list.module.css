@@ -9,9 +9,10 @@
   margin-inline: calc(-1 * var(--ui-row-inset));
   container: issue-group / inline-size;
 }
+/* The Created lane, ending at the row's inset, so the label starts where its values do. */
 .createdLabel {
   box-sizing: border-box;
-  inline-size: calc(var(--spacing-128) + var(--ui-row-inset));
+  inline-size: var(--spacing-128);
   padding-inline-end: var(--ui-row-inset);
   color: var(--ui-secondary);
 }
@@ -31,7 +32,7 @@
   display: grid;
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
-  align-items: baseline;
+  align-items: center;
   min-block-size: var(--spacing-40);
   padding: var(--spacing-8) var(--ui-row-inset);
   border-radius: var(--radius-item);

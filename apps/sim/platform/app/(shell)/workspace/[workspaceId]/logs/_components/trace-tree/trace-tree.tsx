@@ -162,7 +162,7 @@ export function TraceTree({ label, trace, totalMs, selectedId, onSelect }: Trace
                 {depth > 0 && <SpanMark span={span} />}
               </span>
               <span className={styles.name} data-type='T060'>
-                <OverflowText text={span.name} />
+                <OverflowText text={span.name}>{span.name}</OverflowText>
               </span>
               <span className={styles.duration} data-type='T052'>
                 {formatDuration(span.durationMs)}
