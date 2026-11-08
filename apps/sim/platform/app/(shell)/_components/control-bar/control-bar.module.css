@@ -7,9 +7,18 @@
   margin-inline: calc(-1 * var(--ui-row-inset));
 }
 .leading {
+  display: flex;
+  align-items: center;
   flex: 1 1 var(--container-208);
   max-inline-size: var(--container-440);
   min-inline-size: 0;
+  gap: var(--ui-action-gap);
+}
+.leading > * {
+  min-inline-size: 0;
+}
+.leading > :only-child {
+  flex: 1;
 }
 .actions {
   display: flex;
@@ -18,4 +27,5 @@
   flex: none;
   align-items: center;
   gap: var(--ui-action-gap);
+  margin-inline-start: auto;
 }

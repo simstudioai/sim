@@ -7,13 +7,13 @@ import { Modal } from '@sim/emcn/modal'
 import { generateId } from '@sim/utils/id'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
+import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
 import { DirectoryBack } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import { CredentialConnect } from '@/platform/app/(shell)/integrations/_components/credential-connect/credential-connect'
 import type { CredentialDraft } from '@/platform/app/(shell)/integrations/_components/credential-connect/types'
 import { CredentialDetail } from '@/platform/app/(shell)/integrations/_components/credential-detail/credential-detail'
 import { CredentialList } from '@/platform/app/(shell)/integrations/_components/credential-list/credential-list'
 import { IntegrationCapabilities } from '@/platform/app/(shell)/integrations/_components/integration-capabilities/integration-capabilities'
-import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import { IntegrationIdea } from '@/platform/app/(shell)/integrations/_components/integration-idea/integration-idea'
 import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
 import { ManualCredentialDetail } from '@/platform/app/(shell)/integrations/_components/manual-credential-detail/manual-credential-detail'
@@ -309,7 +309,7 @@ export function IntegrationDetails({
               `${integration.description.replace(/[.!?]+$/, '')}. Bring that context into your next conversation with Sim.`
             }
           />
-          <IntegrationControls
+          <ControlBar
             leading={
               !integration.credentials.length && !manualCredentials.length ? (
                 <IntegrationUsage people={people ?? []} total={peopleTotal} />
@@ -368,7 +368,7 @@ export function IntegrationDetails({
                 Create credential
               </Button>
             )}
-          </IntegrationControls>
+          </ControlBar>
           <CredentialList
             providerId={integration.providerId}
             credentials={[

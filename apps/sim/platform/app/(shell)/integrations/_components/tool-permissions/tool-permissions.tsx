@@ -2,7 +2,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { CountedLabel } from '@sim/emcn/overflow-text/counted-label'
 import { SearchField } from '@sim/emcn/search-field'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
-import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
+import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
 import styles from '@/platform/app/(shell)/integrations/_components/tool-permissions/tool-permissions.module.css'
 import type {
   ToolPermissionChange,
@@ -61,7 +61,7 @@ export function ToolPermissions({
         )}
       </div>
       {permissions.tools.length > 0 && (
-        <IntegrationControls
+        <ControlBar
           leading={
             <SearchField
               variant='quiet'

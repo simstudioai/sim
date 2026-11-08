@@ -8,9 +8,9 @@ import { Modal } from '@sim/emcn/modal'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import Link from 'next/link'
 import { useQueryStates } from 'nuqs'
+import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
 import { ConnectedCredential } from '@/platform/app/(shell)/integrations/_components/connected-credential/connected-credential'
 import { ConnectionAccess } from '@/platform/app/(shell)/integrations/_components/connection-access/connection-access'
-import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import styles from '@/platform/app/(shell)/integrations/_components/integration-details/integration-details.module.css'
 import { IntegrationIdea } from '@/platform/app/(shell)/integrations/_components/integration-idea/integration-idea'
 import { IntegrationUsage } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
@@ -95,7 +95,7 @@ export function IntegrationDetails({
                 : `${integration.description.replace(/[.!?]+$/, '')}. Bring that context into your next conversation with Sim.`
             }
           />
-          <IntegrationControls
+          <ControlBar
             leading={
               accounts.length === 0 ? (
                 <IntegrationUsage people={people ?? []} total={peopleTotal} />
@@ -128,7 +128,7 @@ export function IntegrationDetails({
                 Connect integration
               </Button>
             )}
-          </IntegrationControls>
+          </ControlBar>
         </>
       )}
       {stale ? (

@@ -5,8 +5,8 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { CountedLabel } from '@sim/emcn/overflow-text/counted-label'
 import { SearchField } from '@sim/emcn/search-field'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
 import styles from '@/platform/app/(shell)/integrations/_components/fixtures/tool-permissions/tool-permissions.module.css'
-import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import type { IntegrationAccount, ToolPolicy } from '@/platform/lib/integrations/fixture-model'
 
 type Permissions = NonNullable<IntegrationAccount['permissions']>
@@ -66,7 +66,7 @@ export function ToolPermissions({
           </p>
         )}
       </div>
-      <IntegrationControls
+      <ControlBar
         leading={
           <SearchField
             variant='quiet'

@@ -8,9 +8,9 @@ import { SearchField } from '@sim/emcn/search-field'
 import { DestinationTabs } from '@sim/emcn-platform/destination-tabs'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
 import { DirectoryBack } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import styles from '@/platform/app/(shell)/integrations/_components/integration-center/integration-center.module.css'
-import { IntegrationControls } from '@/platform/app/(shell)/integrations/_components/integration-controls/integration-controls'
 import { ManualCredentialDetail } from '@/platform/app/(shell)/integrations/_components/manual-credential-detail/manual-credential-detail'
 import { ResourceDetails } from '@/platform/app/(shell)/integrations/_components/resource-details/resource-details'
 import { ResourceEditor } from '@/platform/app/(shell)/integrations/_components/resource-editor/resource-editor'
@@ -229,7 +229,7 @@ export function IntegrationCenter({
             destinations={destinations}
             currentHref={currentHref}
           />
-          <IntegrationControls
+          <ControlBar
             leading={
               <SearchField
                 variant='quiet'
@@ -315,7 +315,7 @@ export function IntegrationCenter({
                 {CREATE_LABEL[current]}
               </Button>
             )}
-          </IntegrationControls>
+          </ControlBar>
         </div>
         <div className={styles.groups}>
           {current === 'apps' ? (
