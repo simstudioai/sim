@@ -81,3 +81,43 @@ Not run: `build:platform` (it would write into the shared preview's `.next`), th
 - The brief's reading order puts the comparison with the proposed change and the source excerpt with the evidence; confirm that grouping with product.
 - Issues' Created column shows relative ages, which the time contract allows; the brief's day-label rule applies to day headings. Confirm with product.
 - Home's chart axis uses T034 while the EMCN charts use T050 for the same role; that predates this work.
+
+# Resource tabs — 2026-11-08
+
+Tables, Files, Knowledge bases, Workflows and an empty Settings tab, on the same branch after `bc3c11d9a8`. Local and unpushed. The tabs are live-only ports of the legacy pages, exactly feature compatible apart from the removals the brief names; see [workspace UI](workspace-ui.md#resource-tabs).
+
+## What landed
+
+| Commit | Change |
+| --- | --- |
+| `feat(platform): add the workspace Files tab` | File browser, file view and every previewer and editor; the shared resource table, folder tree, drag and selection; the files data seam. |
+| `refine(emcn): let command menus grow to their longest label` | Command menus size to their longest label instead of wrapping it. |
+| `refactor(platform): share the markdown editor chrome and file previews` | The editor chrome and the previews its embeds render move to `workspace/[workspaceId]/_components/` for the canvas Note. |
+| `refactor(platform): share the request-access dialog` | Settings' dialog moves to `(shell)/_components/` for the workflow toolbar and header. |
+| `fix(platform): link workspaces straight to their home tab` | Rows link to Dashboard (fixtures) or Workflows (live) without the redirect hop. |
+| `feat(platform): add the workspace Workflows tab` | List, editor, the legacy canvas copied view for view, toolbar, right panel, editor panel, deploy, terminal, variables; credential dialogs; the audit's workflow seam and canvas exceptions. |
+| `feat(platform): add the workspace Knowledge bases tab` | Bases, documents, chunks, connectors in a rail and dialog. |
+| `feat(platform): add the workspace Tables tab` | List and the legacy grid with every interaction, minus Import CSV and views. |
+| `fix(platform): nest blocks dropped into loops and parallels` | Toolbar drops subtracted the canvas offset twice; legacy's canvas starts at the window corner, the tab's does not. |
+
+Earlier commits on the branch added the breadcrumbs (`@sim/emcn/breadcrumbs`), the ControlBar trail, the tab frame's live mode, the shared realtime socket, page commands and tray clearance.
+
+## Verified live (local stack: main app :3000, realtime :3002, zone :3126 against `simstudio_platform_test`)
+
+- Tables: a 51k-row table scrolled end to end; every cell type; copy and paste; row inserts; column pin, resize, reorder, hide, insert and delete; find, sort and filter; the row modal; each Table Security lock; rename and delete; two pages editing at once; workflow columns run, stop and show executions; enrichments stop at the missing hosted provider keys.
+- Files: browse, folders, upload, unzip, download, move, rename, share, delete; the viewer for each type; collaborative markdown.
+- Knowledge bases: create, edit, delete, tags, documents, chunks; connectors added, configured, synced, paused and removed.
+- Workflows: drag from the toolbar, loops and parallels with nesting, undo and redo, auto layout, fit view, a second page's cursor and live edits, runs into the Terminal; the canvas's computed styles match legacy on 615 elements in light and dark; the Note's slash menu, formatting bar, link card, image resize and code language picker.
+- Deploy: deploy, redeploy, undeploy, promote and load versions, rename versions and edit descriptions, compare versions, the public API, API keys, chat and MCP deployment. AI descriptions only reached their error path (no provider key).
+- Terminal and Variables: filters, views, search, copy, CSV export, clear, resize; variables add, rename, retype, edit and delete, synced to a second page and kept after reload.
+- Nesting, checked against legacy with the same drag: a parallel dropped into a loop and a block dropped into that parallel nest and persist (it failed before the fix above; legacy nested the same drop).
+- Credentials from the editor and from a knowledge connector: the OAuth dialog creates a draft credential, `/api/auth/oauth2/link` answers 200 and the browser is sent to Google's consent URL (intercepted). The secrets dropdown opens on `{{`; the Vanta client-credentials and Oracle Database wallet dialogs open from their pickers.
+
+## Open items
+
+- Seeded live workspaces have non-UUID ids, which file serving refuses (`parseWorkspaceFileKey`); file bytes were verified in a UUID workspace. Table CSV export 404s on local storage only (legacy too).
+- @-mentions in the markdown editor list every catalog integration; legacy filters them by integration access. The fix needs a generated hidden-block set outside the registry; see the follow-ups.
+- Note image paste reached the upload pipeline but the local upload-complete step answered 500 for the seeded workspace's storage key.
+- The development zone needs `TRUSTED_ORIGINS` to include its own origin for OAuth links; behind the `/org` base path it shares the main app's origin.
+- Workspace-scoped access requests open the legacy workspace Settings, which the empty Settings tab does not replace yet.
+- The local dev servers restart under memory pressure; browser checks against the dev preview time out on navigations that need a fresh compile.

@@ -1,16 +1,22 @@
 # Workspace UI
 
-Open [a workspace](http://localhost:3125/workspace/it/dashboards?state=full) on a fixture-enabled Platform server. A workspace row in the sidebar, a command-search result and a workspace in the chat panel all open the workspace's Dashboard. The organization sidebar stays as it is and marks the workspace's row current, as it marks Integrations; only the page on the right changes.
+Open [a workspace](http://localhost:3125/workspace/it/dashboards?state=full) on a fixture-enabled Platform server, or a seeded workspace on a live one. A workspace row in the sidebar, a command-search result and a workspace in the chat panel all open the workspace: Dashboard on example data, Workflows on live data, as legacy opens a workspace. The organization sidebar stays as it is and marks the workspace's row current, as it marks Integrations; only the page on the right changes.
 
 | Route under `/workspace/[workspaceId]` | UI owner |
 | --- | --- |
-| The workspace itself | Redirects to `dashboards`. |
+| The workspace itself | Redirects to `dashboards` on example data and `workflows` on live data (`workspaceHome`). |
 | `dashboards` | The workspace's read-only production snapshot: metric groups, charts, a text summary, an agent roster and typed tables. |
 | `issues`, `issues/[issueId]` | Agent-proposed issues in four groups, and an issue's proposal, impact and evidence with decisions in its control bar. |
 | `changelog`, `changelog/[entryId]` | Applied changes by day, and a change's details with the workspace items it touched. |
 | `logs`, `logs/[runId]` | Runs with filters and sort, and a run's trace, selected step and payloads. |
+| `tables`, `tables/[tableId]` | Live only. The workspace's tables and folders, and a table's grid. |
+| `files`, `files/[fileId]` | Live only. Files and folders, and a file's viewer and editor. |
+| `knowledge`, `knowledge/[knowledgeBaseId]`, `knowledge/[knowledgeBaseId]/[documentId]` | Live only. Knowledge bases and folders, a base's documents and connectors, and a document's chunks. |
+| `workflows`, `workflows/[workflowId]` | Live only. Workflows and folders, and the workflow editor. |
+| `settings` | The workspace's settings tab, empty for now. |
+| `upgrade` | Redirects to organization billing. |
 
-These are the workspace pages Paper has. A workspace has no chat, skills, resource or workflow page here: chats belong to the organization, and the composer's slash offers skills.
+`WORKSPACE_TABS` (`lib/workspace-navigation.ts`) lists each tab with the data modes that serve it, and the tab bar shows only the tabs the server's mode serves. Dashboard, Issues, Changelog and Logs follow Paper; Tables, Files, Knowledge bases and Workflows are code-first ports of the legacy pages, exactly feature compatible apart from the removals below. A workspace has no chat or skills page here: chats belong to the organization, and the composer's slash offers skills.
 
 ## Workspace pages
 
@@ -25,3 +31,16 @@ Dashboard, Issues, Changelog and Logs are one family of Platform pages, styled f
 - **Refresh.** Pages refresh themselves; there is no refresh control. Dashboard and Changelog say when their data last updated, and new runs join Logs as they arrive. Example time is fixed, so on fixtures the update age and the list hold still; live data will refetch in the background through the adapters.
 - **Session.** Example decisions on issues change only the browser session (`workspace-session/`). Nothing is sent or stored.
 - **Data.** Each route is a server component that loads server-gated fixtures and passes `data` to a client route, which supplies `actions` from the session. A live workspace row opens the authorized legacy workspace, and live Dashboard, Changelog and Logs URLs redirect there until an adapter maps the existing hooks onto the same props. Issues has no backend, so its live URLs answer 404. See the [parity ledger](org-parity.md#workspace-pages).
+
+## Resource tabs
+
+Tables, Files, Knowledge bases and Workflows share one frame. They run on live data only: each page calls `notFound()` unless `resolvePlatformMode()` is `live`, and the workspace layout mounts one shared realtime socket (`lib/data/realtime.tsx`, `WorkspaceRealtime`) for every tab, so no page opens its own.
+
+- **Frame.** `LiveWorkspacePage` reads the workspace through `useLiveWorkspace` and renders the same heading, tabs and ControlBar as the Paper pages. The bar holds the tab's search and filters, with breadcrumbs in its `trail` slot to the right of search. A list fills the page (`layout='fill'`) and the workflow editor fills it without a reading column (`layout='canvas'`).
+- **Breadcrumbs.** EMCN `Breadcrumbs` (`@sim/emcn/breadcrumbs`) is the only way through nested folders: the tab root, each ancestor folder and the current folder, separated by a chevron. Past four crumbs the middle collapses into a "…" menu of links, keeping the root and the last two. The current folder's crumb opens its commands; an ancestor crumb accepts a drop, so dragging rows onto it moves them up. The folder lives in the URL (`useFolderParam`), so Back returns to it.
+- **Lists.** `ResourceTable` (`_components/resource-table/`) takes the Logs run list's anatomy: a caption header, 40px rows with a leading glyph or brand mark, secondary-ink supporting values and numbers on the trailing edge. Folders open in place and resources navigate. Rows carry their commands on an ellipsis and on right-click, join a checkbox selection with a bulk bar, rename in place, move by drag and drop and render only what is near the viewport. Pinned items sort first and show their pin in the row's action slot. Search, filters and sort live in the URL. "New" actions sit in the control bar and in search's "This page" group (`usePageCommands`).
+- **Tables.** The list creates tables at the top level only. A table opens the legacy grid, ported whole into `tables/[tableId]/`: virtualized scrolling through every row, in-cell editing, selection, copy and paste, fill, row insert above and below, column insert, pin, resize, reorder, hide and delete, every column type from the registry, workflow and enrichment columns with their runs, filter, sort, find, Export CSV, the row modal, Table Security locks and live updates from other editors. Import CSV and table views are removed.
+- **Files.** The browser lists files and folders with new file, new folder, upload (files and folders), unzip, download, drag to move, rename, share and delete. A file opens the legacy viewer and editors for every type legacy supports, including collaborative markdown, code, spreadsheets, PDFs, slides and images, with its per-file actions.
+- **Knowledge bases.** The list creates, edits and deletes bases and their tags. A base lists its documents with upload, tags, enable and disable, retry and delete, and its connectors in a rail on the right, as Logs details keep their rail. Adding or opening a connector opens a modal in the Integrations credential style with every legacy operation: source and credential, configuration and selector fields, access, sync now, pause, edit and remove. A document lists its chunks in the Logs run list's anatomy, with search, enable and disable, edit and delete.
+- **Workflows.** The list creates, imports, renames, locks, duplicates, exports, moves and deletes workflows and folders; a locked row shows its lock and cannot be dragged. A workflow opens the editor on the canvas layout: the header holds the workflow's breadcrumb (with rename, duplicate, export and delete), the more menu, Deploy and Run; the canvas is the legacy editor's, copied view for view, with the canvas controls at its corner and the Terminal docked beneath; the right panel holds the Toolbar (search, drag or click to add), the block Editor and Variables. Deploy's dialog has General (versions with rename, descriptions, compare, promote and load), API, Chat and MCP. Removed by product direction: the live workflow view and language examples in the deploy dialog, the editor's connections panel, canvas error notifications, the panel and floating chats and the floating variables window.
+- **Settings.** An empty tab, in both modes, until workspace settings move here.

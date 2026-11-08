@@ -365,14 +365,29 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 
 ## Workspace pages
 
-The workspace's Dashboard, Issues, Changelog and Logs are Platform pages with fixture data. Each view takes `data` and a named `actions` interface, so a live adapter in `lib/data` supplies the same props. Until one exists, a live workspace keeps its legacy page.
+The workspace's Dashboard, Issues, Changelog and Logs are Platform pages with fixture data. Each view takes `data` and a named `actions` interface, so a live adapter in `lib/data` supplies the same props. Until one exists, a live workspace keeps its legacy page. Tables, Files, Knowledge bases and Workflows are live-only ports of the legacy pages; a live workspace opens on Workflows. Their rows were checked by hand against the live stack and legacy on 2026-11-08 and have no committed live check yet.
 
 | Domain | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- | --- |
 | Workspace | Dashboard: period, section choices, self-refresh with its last update | `app/workspace/[workspaceId]/dashboards/page.tsx` | Legacy | `redirectWorkspaceTabToLegacy` sends a live workspace to its legacy dashboard. Adapter: `hooks/queries/dashboards.ts` over `/api/workspaces/[id]/dashboard`, mapped onto `DashboardData` |
 | Workspace | Changelog feed and change details | `app/workspace/[workspaceId]/changelog/changelog.tsx` | Legacy | Live redirects to the legacy changelog, a change's details to its list. Adapter: `hooks/queries/changelog.ts` over `lib/api/contracts/changelog.ts`, mapped onto `ChangelogData` and `ChangelogDetail` |
 | Workspace | Run list, filters, sort, new runs joining on refresh, run details and trace | `app/workspace/[workspaceId]/logs/logs.tsx` | Legacy | Live redirects to the legacy logs, a run to its `executionId`. Adapter: `hooks/queries/logs.ts` over `lib/api/contracts/logs.ts`, mapped onto `RunsData` and `RunDetail`; usage reads in Compute Units from the persisted cost. Each adapter refetches in the background and reports its last update |
-| Workspace | Issues: list, details, decisions | None; Platform only | Hidden | No backend exists. Its live routes answer 404, and a live workspace row opens the legacy workspace, so no live page links to it |
+| Workspace | Issues: list, details, decisions | None; Platform only | Hidden | No backend exists. Its live routes answer 404, and live workspaces hide its tab, so no live page links to it |
+| Workspace | Breadcrumb folder traversal, collapsed past four crumbs, drop onto an ancestor to move | Legacy folder sidebar and resource headers | Unverified | Checked by hand on Tables, Files, Knowledge bases and Workflows. `@sim/emcn/breadcrumbs` |
+| Workspace | Pin and unpin tables, files, knowledge bases, workflows and folders | `hooks/queries/pinned-items.ts` | Unverified | Checked by hand. Pinned rows sort first |
+| Workspace | Tables list: search, filters, sort, folders, create at the top level, rename, move, delete | `app/workspace/[workspaceId]/tables/` | Unverified | Checked by hand |
+| Workspace | Table grid: scrolling every row, cell editing, copy and paste, insert above and below, columns (every type, insert, pin, resize, reorder, hide, delete), filter, sort, find, Export CSV, row modal, Table Security, live updates | `tables/[tableId]/` | Unverified | Checked by hand, including a 51k-row table and two pages editing at once |
+| Workspace | Table workflow and enrichment columns: add, map inputs, run, stop, view execution | `tables/[tableId]/` | Unverified | Checked by hand. Enrichments stop at missing hosted provider keys locally |
+| Workspace | Table Import CSV and table views | `tables/[tableId]/` | Hidden | Removed by product direction |
+| Workspace | Files: new file and folder, upload files and folders, unzip, download, move, rename, share, delete | `app/workspace/[workspaceId]/files/` | Unverified | Checked by hand |
+| Workspace | File viewer and editors for every supported type, with per-file actions | `files/components/file-viewer/` | Unverified | Checked by hand. Collaborative markdown and the save-conflict notice need a calmer server for a second check |
+| Workspace | Knowledge bases: create, edit, delete, tags, documents (upload, tags, enable, retry, delete), chunks | `app/workspace/[workspaceId]/knowledge/` | Unverified | Checked by hand |
+| Workspace | Knowledge connectors: add, configure, access, sync, pause, edit, remove, in a rail and modal | `knowledge/[id]/components/connectors-section/` | Unverified | Checked by hand. The OAuth round trip from the zone needs `TRUSTED_ORIGINS` to include the zone in development |
+| Workspace | Workflows list, folders and the editor canvas: drag from the toolbar, connect, loops and parallels with nesting, undo and redo, copy and paste, auto layout, search and replace | `app/workspace/[workspaceId]/w/` | Unverified | Checked by hand |
+| Workspace | Deploy, redeploy, undeploy, roll back, rename versions, version descriptions, compare versions, API, chat and MCP deployment | `w/[workflowId]/components/panel/components/deploy/` | Unverified | Checked by hand |
+| Workspace | Terminal and workflow variables | `w/[workflowId]/components/terminal/`, `components/variables/` | Unverified | Checked by hand. Variables moved from a floating window into the right panel |
+| Workspace | Live workflow view in the deploy modal, API language examples, editor connections panel, canvas error notifications, panel and floating chat, floating variables | `w/[workflowId]/` | Hidden | Removed by product direction |
+| Workspace | Workspace settings tab | `app/workspace/[workspaceId]/settings/` | Legacy | The tab exists and is empty by product direction; settings stay on the legacy workspace |
 
 ## Zone
 
