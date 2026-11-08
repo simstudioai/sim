@@ -44,7 +44,9 @@ export function OrganizationMenu({
   const [savedName, setSavedName] = useState<{ name: string; replaces: string } | null>(null)
   const opener = useRef<HTMLElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
-  const card = useRef<HTMLDivElement>(null)
+  const renameItem = useRef<HTMLDivElement>(null)
+  /** Set while focus moves back to Rename organization, which is not a blur that saves. */
+  const movingFocus = useRef(false)
   const errorId = useId()
   if (savedName && savedName.replaces !== organization.name) setSavedName(null)
   const name = savedName?.name ?? organization.name
@@ -55,27 +57,30 @@ export function OrganizationMenu({
     setRenameError(null)
   }
 
-  /** The rename field unmounts when the draft ends, and focus would otherwise fall to the page. */
-  function returnFocusToCard() {
-    requestAnimationFrame(() => card.current?.querySelector('button')?.focus())
+  /**
+   * Focus moves back before the field unmounts: once the focused field is gone, the popover
+   * restores focus to itself instead.
+   */
+  function focusRenameItem() {
+    movingFocus.current = true
+    renameItem.current?.querySelector('button')?.focus()
+    movingFocus.current = false
   }
 
-  async function submitRename(): Promise<boolean> {
-    if (draftName === null || renaming) return false
+  async function submitRename({ returnFocus }: { returnFocus: boolean }) {
+    if (draftName === null || renaming) return
     const next = draftName.trim()
-    if (!next || next === name) {
-      stopRenaming()
-      return true
-    }
-    try {
-      await actions.rename(next)
+    if (next && next !== name) {
+      try {
+        await actions.rename(next)
+      } catch (error) {
+        setRenameError(getErrorMessage(error, 'Failed to rename organization'))
+        return
+      }
       setSavedName({ name: next, replaces: organization.name })
-      stopRenaming()
-      return true
-    } catch (error) {
-      setRenameError(getErrorMessage(error, 'Failed to rename organization'))
-      return false
     }
+    if (returnFocus) focusRenameItem()
+    stopRenaming()
   }
 
   return (
@@ -104,25 +109,25 @@ export function OrganizationMenu({
           </IdentityButton>
         )}
       >
-        <div ref={card} className={styles.menu}>
+        <div className={styles.menu}>
           <div className={styles.overview}>
             <Avatar name={name} src={logo} organization size='inline' decorative />
             <div className={styles.copy}>
               {draftName !== null ? (
                 <div
                   ref={focusNameField}
-                  onBlur={() => void submitRename()}
+                  onBlur={() => {
+                    if (!movingFocus.current) void submitRename({ returnFocus: false })
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
                       event.preventDefault()
-                      void submitRename().then((saved) => {
-                        if (saved) returnFocusToCard()
-                      })
+                      void submitRename({ returnFocus: true })
                     } else if (event.key === 'Escape') {
                       event.preventDefault()
                       event.stopPropagation()
+                      focusRenameItem()
                       stopRenaming()
-                      returnFocusToCard()
                     }
                   }}
                 >
@@ -177,11 +182,13 @@ export function OrganizationMenu({
                   if (file) void actions.uploadLogo(file)
                 }}
               />
-              <MenuItem
-                label='Rename organization'
-                icon='I036'
-                onSelect={() => setDraftName(name)}
-              />
+              <div ref={renameItem} className={styles.renameItem}>
+                <MenuItem
+                  label='Rename organization'
+                  icon='I036'
+                  onSelect={() => setDraftName(name)}
+                />
+              </div>
               <MenuItem
                 label='Change organization logo'
                 icon='I059'
