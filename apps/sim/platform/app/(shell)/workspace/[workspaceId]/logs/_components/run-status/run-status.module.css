@@ -1,0 +1,28 @@
+.status {
+  color: var(--ui-ink);
+}
+.status[data-status="failed"] {
+  color: var(--control-danger);
+}
+.status[data-status="waiting"] {
+  color: var(--status-warning);
+}
+.status[data-status="running"] {
+  color: var(--status-info);
+}
+.status[data-status="cancelled"] {
+  color: var(--ui-secondary);
+}
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  gap: var(--spacing-8);
+}
+.triggerLabel {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+}

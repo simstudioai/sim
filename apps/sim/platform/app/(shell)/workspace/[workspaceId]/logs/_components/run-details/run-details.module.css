@@ -1,0 +1,7 @@
+.identifier {
+  min-inline-size: 0;
+  padding-inline: var(--ui-row-inset);
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
