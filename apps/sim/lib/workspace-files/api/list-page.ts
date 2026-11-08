@@ -2,6 +2,7 @@ import {
   DEFAULT_WORKSPACE_FILE_PAGE_SIZE,
   type ListWorkspaceFilesQuery,
   listWorkspaceFilesContract,
+  resolveWorkspaceFileFolder,
   WORKSPACE_FILE_PAGE_PARAMS,
 } from '@/lib/api/contracts/workspace-files'
 import { cursorRoute, cursorScopeKey } from '@/lib/api/cursor-binding'
@@ -52,7 +53,7 @@ export function toWorkspaceFileListInput(
   const sortBy = query.sortBy ?? 'uploadedAt'
   const sortOrder = query.sortOrder ?? 'asc'
   const filters = {
-    folderId: query.folderId,
+    folderId: query.folderId === undefined ? undefined : resolveWorkspaceFileFolder(query.folderId),
     recursive: query.recursive,
     search: query.q,
     kinds: query.types,

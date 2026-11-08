@@ -1,4 +1,7 @@
-import { workspaceFileFolderStatsContract } from '@/lib/api/contracts/workspace-files'
+import {
+  resolveWorkspaceFileFolder,
+  workspaceFileFolderStatsContract,
+} from '@/lib/api/contracts/workspace-files'
 import {
   defineInternalJsonRoute,
   internalRateLimits,
@@ -22,9 +25,7 @@ export const GET = defineInternalJsonRoute({
   errorPolicy: internalFileErrorPolicies.default,
   mapInput: ({ params, query }) => ({
     workspaceId: params.id,
-    parentIds: query.parentIds
-      ? query.parentIds.map((parentId) => (parentId === 'root' ? null : parentId))
-      : [query.parentId],
+    parentIds: (query.parentIds ?? [query.parentId]).map(resolveWorkspaceFileFolder),
   }),
   useCase: getWorkspaceFileFolderStats,
   present: ({ folders }) => ({ success: true as const, folders }),

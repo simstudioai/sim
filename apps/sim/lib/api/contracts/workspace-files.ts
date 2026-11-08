@@ -49,9 +49,17 @@ const MAX_WORKSPACE_FILE_PAGE_SIZE = 500
 export const DEFAULT_WORKSPACE_FILE_PAGE_SIZE = 100
 
 /** A folder filter in the browser's addressing: `root` for the workspace root, else a folder id. */
-const workspaceFileFolderFilterSchema = z
-  .union([z.literal('root'), folderIdSchema])
-  .transform((value) => (value === 'root' ? null : value))
+/**
+ * `root` or a folder id, kept as sent. A transform to `null` here would run in the client's own
+ * parse too, and the query serializer drops `null`, so a root listing would go out unscoped and
+ * answer files from every folder. Routes resolve it with {@link resolveWorkspaceFileFolder}.
+ */
+const workspaceFileFolderFilterSchema = z.union([z.literal('root'), folderIdSchema])
+
+/** The folder a list, search or stats query is scoped to: `null` for the workspace root. */
+export function resolveWorkspaceFileFolder(value: string): string | null {
+  return value === 'root' ? null : value
+}
 
 /**
  * The list's paging parameters. Sending any of them asks for one bounded page (default sort

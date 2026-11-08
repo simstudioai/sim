@@ -1,4 +1,7 @@
-import { searchWorkspaceFilesContract } from '@/lib/api/contracts/workspace-files'
+import {
+  resolveWorkspaceFileFolder,
+  searchWorkspaceFilesContract,
+} from '@/lib/api/contracts/workspace-files'
 import {
   defineInternalJsonRoute,
   internalRateLimits,
@@ -30,7 +33,7 @@ export const GET = defineInternalJsonRoute({
   mapInput: ({ params, query }) => ({
     workspaceId: params.id,
     query: query.q,
-    folderId: query.folderId,
+    folderId: query.folderId === undefined ? undefined : resolveWorkspaceFileFolder(query.folderId),
     recursive: query.recursive,
     limit: query.limit,
   }),
