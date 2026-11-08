@@ -256,17 +256,65 @@ test('an issue decision changes only the session and moves the issue between gro
   ).toBeVisible()
 })
 
-test('new runs join on request and a run opens its trace and selected step', async ({ page }) => {
+test('pages refresh themselves, keeping only when they last updated', async ({ page }) => {
+  for (const tab of ['dashboards', 'changelog']) {
+    await page.goto(`${origin}/workspace/it/${tab}?state=full`)
+    await expect(main(page).getByText(/^Updated /)).toBeVisible()
+    await expect(main(page).getByRole('button', { name: /refresh/i })).toHaveCount(0)
+  }
+  await page.goto(`${origin}/workspace/it/logs?state=full`)
+  const rows = main(page).getByRole('list', { name: 'Runs' }).getByRole('listitem')
+  await expect(rows.first()).toContainText('Running')
+  await expect(main(page).getByRole('button', { name: /new runs?$/ })).toHaveCount(0)
+})
+
+test('a record keeps its identifiers in its facts, and the rail line spans only them', async ({
+  page,
+}) => {
+  await page.goto(`${origin}/workspace/it/issues/IT-136?state=full`)
+  const facts = page.getByRole('complementary', { name: 'Facts' })
+  await expect(facts.locator('dd', { hasText: /^IT-136$/ })).toBeVisible()
+  const bar = main(page).getByRole('navigation', { name: 'Issues navigation' }).locator('xpath=..')
+  await expect(bar).toContainText('Approve')
+  await expect(bar).not.toContainText('IT-136')
+  const rail = await facts.evaluate((aside) => {
+    const box = aside.getBoundingClientRect()
+    const first = aside.firstElementChild?.getBoundingClientRect()
+    const last = aside.lastElementChild?.getBoundingClientRect()
+    const reading = aside.previousElementSibling?.getBoundingClientRect()
+    const heading = document.querySelector('main h1')?.getBoundingClientRect()
+    if (!first || !last || !reading || !heading) return null
+    return {
+      above: first.top - box.top,
+      below: box.bottom - last.bottom,
+      height: box.height,
+      reading: reading.height,
+      level: Math.abs(first.top - heading.top),
+    }
+  })
+  if (!rail) throw new Error('Rail geometry is unavailable')
+  expect(rail.height).toBeLessThan(rail.reading / 2)
+  expect(rail.above).toBeGreaterThan(0)
+  expect(Math.abs(rail.above - rail.below)).toBeLessThanOrEqual(1)
+  expect(rail.level).toBeLessThanOrEqual(1)
+})
+
+test('a run opens its trace and selected step, with its execution ID among its facts', async ({
+  page,
+}) => {
   await page.goto(`${origin}/workspace/it/logs?state=full`)
   const rows = main(page).getByRole('list', { name: 'Runs' }).getByRole('listitem')
   await expect(rows).toHaveCount(50)
-  await main(page).getByRole('button', { name: '3 new runs' }).click()
-  await expect(main(page).getByRole('button', { name: '3 new runs' })).toHaveCount(0)
-  await expect(rows.first()).toContainText('Running')
   await rows.nth(4).getByRole('link').click()
   await expect(
     main(page).getByRole('heading', { level: 1, name: /^Run [0-9a-f]{8}$/ })
   ).toBeVisible()
+  const executionId = new URL(page.url()).pathname.split('/').at(-1) ?? ''
+  const runFacts = main(page).getByLabel('Run facts')
+  await expect(runFacts.locator('dd', { hasText: new RegExp(`^${executionId}$`) })).toBeVisible()
+  await expect(
+    main(page).getByRole('navigation', { name: 'Logs navigation' }).locator('xpath=..')
+  ).not.toContainText(executionId)
   const trace = main(page).getByRole('list', { name: /steps$/ })
   await trace.getByRole('button', { name: /search_knowledge/ }).click()
   await expect(main(page).getByRole('region', { name: 'search_knowledge step' })).toContainText(
@@ -274,7 +322,8 @@ test('new runs join on request and a run opens its trace and selected step', asy
   )
   await trace.getByRole('button', { name: 'Collapse Classify request' }).click()
   await expect(trace.getByRole('button', { name: /search_knowledge/ })).toHaveCount(0)
-  await expect(main(page).getByLabel('Run facts')).toContainText('Compute Units')
+  await expect(runFacts).toContainText(/\d Compute Units/)
+  await expect(runFacts).not.toContainText(/\bCU\b/)
   await expect(page.getByRole('complementary', { name: 'Selected step' })).toContainText(
     'search_knowledge'
   )
