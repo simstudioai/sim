@@ -37,7 +37,7 @@ Dashboard, Issues, Changelog and Logs are Platform pages under `app/(shell)/work
 | `refine(platform): give every trace step its mark and hang tree guides` | The root shows its mark, so disclosure, mark and name are one gap apart on every row; hairline guides hang under open parents. |
 | `refine(platform): align run facts and keep payload lines under their indent` | Metadata fields share columns and clamp to one line; payload lines wrap with a hanging indent and long payloads show 32 lines until asked; the copy action meets the text edge. |
 | `refine(platform): scroll a stacked record as one` | Below 45rem the record's facts, reading column and inspector scroll together instead of in small nested scrollers. |
-| `feat(platform): give example runs realistic payloads` | `fixtures/run-payloads.ts`: a Slack trigger event, model requests and responses with tool calls, search results, a CRM record, directory groups, device inventory and policy rules. |
+| `feat(platform): give example runs realistic payloads` | In `fixtures/workspace-data.ts`: a Slack trigger event, model requests and responses with tool calls, search results, a CRM record, directory groups, device inventory and policy rules. |
 | `test(platform): check trace rows, the logs bar and changelog tickets` | The trace check fails when the root loses its mark or guides lose their line; the bar check fails with a search; the changelog check fails with the ticket beside the contributor. |
 
 ## Decisions to review

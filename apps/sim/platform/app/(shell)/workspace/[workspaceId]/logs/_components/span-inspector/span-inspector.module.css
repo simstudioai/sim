@@ -35,7 +35,7 @@
 }
 /*
  * One source line: its indent holds its width, and the rest wraps inside its own box with a further
- * two-character hang, so a long value never runs back to the payload's edge.
+ * hang, so a long value never runs back to the payload's edge.
  */
 .line {
   display: flex;
@@ -47,8 +47,8 @@
 }
 .code {
   min-inline-size: 0;
-  padding-inline-start: 2ch;
-  text-indent: -2ch;
+  padding-inline-start: var(--spacing-16);
+  text-indent: calc(-1 * var(--spacing-16));
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
