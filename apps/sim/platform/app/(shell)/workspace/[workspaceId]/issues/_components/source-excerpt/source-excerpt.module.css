@@ -1,0 +1,18 @@
+.excerpt {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--spacing-8);
+  padding: var(--spacing-24);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  overflow-wrap: anywhere;
+}
+.source {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  color: var(--ui-secondary);
+}
+.excerpt blockquote {
+  color: var(--ui-ink);
+}

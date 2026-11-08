@@ -1,0 +1,21 @@
+.columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--container-256)), 1fr));
+  min-inline-size: 0;
+  gap: var(--ui-widget-content-gap) calc(var(--ui-product-section-gap) + 2 * var(--ui-row-inset));
+}
+.column {
+  display: grid;
+  align-content: start;
+  min-inline-size: 0;
+  gap: var(--spacing-8);
+}
+.column h3 {
+  color: var(--ui-secondary);
+}
+.items {
+  display: grid;
+  gap: var(--spacing-8);
+  color: var(--ui-ink);
+  overflow-wrap: anywhere;
+}
