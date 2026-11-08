@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "bun run build:cli-runtime && bun run dev:cache:cap && next dev --port 3000",
-    "dev:platform": "cd platform && next dev --webpack --port 3125",
+    "dev:platform": "cd platform && NODE_OPTIONS='--max-old-space-size=8192' next dev --webpack --port 3125",
     "build:platform": "cd platform && next build --webpack",
     "type-check:platform": "cd platform && next typegen && tsc --noEmit",
     "test:platform:desktop": "playwright test --config platform/checks/desktop/playwright.config.ts",

@@ -7,6 +7,27 @@ import { ProviderModelsLoader } from '@/app/workspace/[workspaceId]/providers/pr
 import { SettingsLoader } from '@/app/workspace/[workspaceId]/providers/settings-loader'
 import { WorkspacePermissionsProvider } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { WorkflowScopeSync } from '@/app/workspace/[workspaceId]/providers/workspace-scope-sync'
+import { connectWorkflowState } from '@/platform/lib/data/shims/workflow-state/connection'
+import { useVariablesStore } from '@/stores/variables/store'
+import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import {
+  canApplyDraftSnapshot,
+  captureDraftVersions,
+  syncLocalDraftFromServer,
+} from '@/stores/workflows/sync-local-draft'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+// The shared socket provider reads workflow state through bridges; from here on they read these.
+connectWorkflowState({
+  registry: useWorkflowRegistry,
+  workflow: useWorkflowStore,
+  subBlock: useSubBlockStore,
+  diff: useWorkflowDiffStore,
+  variables: useVariablesStore,
+  draft: { canApplyDraftSnapshot, captureDraftVersions, syncLocalDraftFromServer },
+})
 
 interface WorkflowWorkspaceProvidersProps {
   workspaceId: string

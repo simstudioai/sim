@@ -35,6 +35,8 @@
         "platform/lib/data/emcn-shim.ts",
         // Same, through `canvasShims` in platform/next.config.ts.
         "platform/lib/data/shims/*.ts",
+        // Same, through `workflowStateBridges` in platform/next.config.ts.
+        "platform/lib/data/shims/workflow-state/*.ts",
         "background/**/*.ts",
         "scripts/**/*.{ts,tsx}",
         "**/*.integration.ts",

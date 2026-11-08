@@ -500,6 +500,7 @@ const seamHelpers = new Set([
   'stores/table/types',
   'stores/tool-permission/store',
   'stores/workflows/registry/types',
+  'stores/workflows/subblock/types',
   'stores/workflows/workflow/types',
   'tools/metadata',
   'tools/normalize',
@@ -819,7 +820,7 @@ const seamClosureViews = new Set([
   'components/icons.tsx',
 ])
 /** Each pulls in a whole subsystem, which only the workflow editor's seam may bundle. */
-const seamClosureBanned = /^(?:blocks|tools)\/registry\.tsx?$/
+const seamClosureBanned = /^(?:blocks|tools|triggers)\/registry\.tsx?$/
 const seamPackages =
   /^@sim\/(?:utils|logger|browser-extension-protocol|platform-authz\/predicates|realtime-protocol)(?:\/|$)/
 /**
@@ -852,18 +853,6 @@ const workflowClosureViews = new Set([
   'components/settings/settings-navigation-provider.tsx',
 ])
 const workflowClosureGlyphs = /^components\/icons\/[\w-]+\.tsx$/
-/**
- * Workflow state the chat hook and the shared socket provider reach, which the canvas owns. The
- * workflow seam walks past them under its exception; any other seam's walk stops there, as it
- * stopped at the shims these used to be.
- */
-const workflowStateModules = new Set([
-  'stores/workflow-diff/store.ts',
-  'stores/workflows/registry/store.ts',
-  'stores/workflows/subblock/store.ts',
-  'stores/workflows/sync-local-draft.ts',
-  'stores/workflows/workflow/store.ts',
-])
 function resolveImport(file: string, specifier: string) {
   const workspace = resolveEmcnImport(packages, specifier, path.join(app, file))
   if (workspace) return path.relative(app, workspace)
@@ -1424,6 +1413,15 @@ function runtimeImports(file: string): string[] {
       ts.isStringLiteralLike(node.arguments[0])
     ) {
       found.push(node.arguments[0].text)
+    } else if (
+      // Webpack bundles an inline `require` as it would an import.
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === 'require' &&
+      node.arguments[0] &&
+      ts.isStringLiteralLike(node.arguments[0])
+    ) {
+      found.push(node.arguments[0].text)
     }
     ts.forEachChild(node, visit)
   }
@@ -1444,42 +1442,46 @@ function resolveSource(file: string, specifier: string): string | null {
 /**
  * Walks what the seam actually bundles, past the modules it names directly. A `.tsx` under `@/app`
  * or `@/components` is legacy UI riding in behind a hook. `next.config.ts` replaces its canvas
- * modules at build time, so the walk stops at them the same way. The workflow seam is walked first,
- * under its own exception; the rest stop where they reach the workflow state it covers.
+ * modules at build time, so the walk stops at them the same way, and skips a workflow state module
+ * where a bridged importer names it, as webpack does. The workflow seam is walked under its own
+ * exception; every other seam must reach neither the block, tool or trigger registry nor legacy views.
  */
 function checkSeamClosure() {
   if (!existsSync(path.join(app, dataSeam))) return
   const config = 'platform/next.config.ts'
-  const replaced = new Set(
-    existsSync(path.join(app, config))
-      ? [...read(config).matchAll(/\['(@\/[^']+)', 'lib\/data\/shims\//g)].map(
-          ([, request]) => request
-        )
-      : []
-  )
+  const configSource = existsSync(path.join(app, config)) ? read(config) : ''
+  /** The requests a named array in `next.config.ts` lists, or the files it names. */
+  const configList = (name: string, pattern: RegExp) => {
+    const body =
+      configSource.match(new RegExp(`const ${name} = \\[([\\s\\S]*?)\\] as const`))?.[1] ?? ''
+    return new Set([...body.matchAll(pattern)].map(([, value]) => value))
+  }
+  const replaced = configList('canvasShims', /\['(@\/[^']+)', 'lib\/data\/shims\//g)
+  // Replaced only where these importers name them, so other importers still reach the real module.
+  const bridged = configList('workflowStateBridges', /\['(@\/[^']+)', 'lib\/data\/shims\//g)
+  const bridgedImporters = configList('bridgedImporters', /'([^']+\.tsx?)'/g)
   const legacyShimmed =
     existsSync(path.join(app, config)) &&
     /resolve\.alias\[['"]@sim\/emcn-legacy\$['"]\]\s*=\s*emcnShim/.test(read(config))
   const roots = [...files(dataSeam)].filter(
     (file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file)
   )
-  const workflowVisited = walkSeam(
+  walkSeam(
     roots.filter((file) => workflowSeam.test(file)),
-    true,
-    new Set()
+    true
   )
   walkSeam(
     roots.filter((file) => !workflowSeam.test(file)),
-    false,
-    new Set([...workflowStateModules].filter((module) => workflowVisited.has(module)))
+    false
   )
 
-  function walkSeam(seeds: string[], workflow: boolean, stops: ReadonlySet<string>) {
+  function walkSeam(seeds: string[], workflow: boolean) {
     const visited = new Set<string>(seeds)
     const queue = [...seeds]
     for (let file = queue.pop(); file; file = queue.pop()) {
       for (const specifier of runtimeImports(file)) {
         if (replaced.has(specifier)) continue
+        if (bridgedImporters.has(file) && bridged.has(specifier)) continue
         // Logic modules name glyphs from the legacy icon set (block configs, table column types,
         // enrichments). Icons are not chrome, and zone views never import them directly.
         if (specifier === '@sim/emcn-legacy/icons') continue
@@ -1517,7 +1519,7 @@ function checkSeamClosure() {
           continue
         }
         const target = resolveSource(file, specifier)
-        if (!target || visited.has(target) || stops.has(target)) continue
+        if (!target || visited.has(target)) continue
         visited.add(target)
         queue.push(target)
         const view = /^(?:app|components|ee\/[^/]+\/components)\/.*\.tsx$/.test(target)
