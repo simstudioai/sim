@@ -79,12 +79,20 @@ export function resolveAuthRedirect({ redirect, callbackUrl, inviteFlow }: AuthR
   }
 }
 
-/** OAuth reauthentication must reach the form even when an older session cookie exists. */
+/**
+ * OAuth reauthentication must reach the form even when an older session cookie exists.
+ * Only an OAuth client's request qualifies: a workspace connect link on the same path
+ * needs no fresh sign-in, so a signed-in user continues to the app instead.
+ */
 export function isOAuthAuthorizationCallback(callbackUrl: string, origin: string): boolean {
   if (!callbackUrl) return false
   try {
     const callback = new URL(callbackUrl, origin)
-    return callback.origin === origin && callback.pathname === '/api/auth/oauth2/authorize'
+    return (
+      callback.origin === origin &&
+      callback.pathname === '/api/auth/oauth2/authorize' &&
+      callback.searchParams.has('client_id')
+    )
   } catch {
     return false
   }

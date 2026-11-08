@@ -7,6 +7,7 @@ import {
   isSubBlockVisibleForMode,
   isToolInputOnlySubBlock,
   isTriggerModeSubBlock,
+  withCanonicalModes,
 } from '@/lib/workflows/subblocks/visibility'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 
@@ -88,6 +89,7 @@ export function getCardSubBlocks(
   } = options
 
   const canonicalIndex = buildCanonicalIndexForSurface(config.subBlocks, triggerMode)
+  const conditionValues = withCanonicalModes(values, canonicalModeOverrides)
   const isPureTriggerBlock = Boolean(config.triggers?.enabled && config.category === 'triggers')
 
   return config.subBlocks.filter((subBlock) => {
@@ -114,7 +116,8 @@ export function getCardSubBlocks(
       return false
     }
 
-    if (subBlock.condition && !evaluateSubBlockCondition(subBlock.condition, values)) return false
+    if (subBlock.condition && !evaluateSubBlockCondition(subBlock.condition, conditionValues))
+      return false
 
     /* The operation is the card's heading here, so it is not also a field. */
     if (titleOperationSubBlockId && subBlock.id === titleOperationSubBlockId) return false

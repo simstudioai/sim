@@ -5,11 +5,9 @@ import { authorizeInstagramContract } from '@/lib/api/contracts/oauth-connection
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { requireConfiguredOAuthClient } from '@/lib/core/config/env-capabilities.server'
-import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { createCredentialConnection } from '@/lib/credentials/application/create-credential-connection'
 import { CREDENTIAL_DRAFT_TTL_SECONDS } from '@/lib/credentials/draft-constants'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 
@@ -28,8 +26,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const sessionId = session.session?.id
-    if (!sessionId) throw new Error('Authenticated session is missing its session ID')
 
     const {
       values: { INSTAGRAM_CLIENT_ID: clientId },
@@ -38,33 +34,18 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const parsed = await parseRequest(authorizeInstagramContract, request, {})
     if (!parsed.success) return parsed.response
     const { returnUrl, workspaceId, draftId } = parsed.data.query
-    let credentialDraftId = draftId
+    const baseUrl = getBaseUrl()
 
+    // Same gesture gate as the shared authorize route: a workspace link opens the
+    // confirmation page, which creates the draft on the user's click.
     if (workspaceId && !draftId) {
-      try {
-        const connection = await createCredentialConnection.execute({
-          principal: { kind: 'session', userId: session.user.id, sessionId },
-          input: { workspaceId, providerId: 'instagram' },
-          request,
-        })
-        credentialDraftId = connection.draftId
-      } catch (error) {
-        const classified = asOrchestrationError(error)
-        if (classified?.code === 'conflict') {
-          logger.warn('Rejected conflicting Instagram OAuth connection intent', {
-            userId: session.user.id,
-            workspaceId,
-          })
-          return NextResponse.json({ error: classified.message }, { status: 409 })
-        }
-        if (classified?.code === 'forbidden' || classified?.code === 'not_found') {
-          return NextResponse.json({ error: 'Workspace write access denied' }, { status: 403 })
-        }
-        throw error
-      }
+      const confirmUrl = new URL('/oauth/connect', baseUrl)
+      confirmUrl.searchParams.set('providerId', 'instagram')
+      confirmUrl.searchParams.set('workspaceId', workspaceId)
+      if (returnUrl) confirmUrl.searchParams.set('callbackURL', returnUrl)
+      return NextResponse.redirect(confirmUrl)
     }
 
-    const baseUrl = getBaseUrl()
     const state = generateShortId(32)
     const redirectUri = `${baseUrl}/api/auth/oauth2/callback/instagram`
     const scope = getCanonicalScopesForProvider('instagram').join(',')
@@ -84,8 +65,8 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       maxAge: CREDENTIAL_DRAFT_TTL_SECONDS,
       path: INSTAGRAM_STATE_COOKIE_PATH,
     })
-    if (credentialDraftId) {
-      response.cookies.set(INSTAGRAM_CREDENTIAL_DRAFT_COOKIE, credentialDraftId, {
+    if (draftId) {
+      response.cookies.set(INSTAGRAM_CREDENTIAL_DRAFT_COOKIE, draftId, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',

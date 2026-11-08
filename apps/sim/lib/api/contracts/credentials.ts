@@ -666,3 +666,22 @@ export const startPersonalCredentialConnectionContract = defineRouteContract({
     schema: z.object({ url: z.string().url(), providerId: z.string().min(1).max(100) }),
   },
 })
+
+/**
+ * Starts a workspace connection from the confirmation page. A connect link only
+ * opens that page; this POST is the explicit step that creates the user-bound
+ * draft the authorize route launches from.
+ */
+export const startCredentialConnectionContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/credentials/connections',
+  body: z.object({
+    workspaceId: workspaceIdSchema,
+    providerId: z.string().trim().min(1, 'Provider is required').max(100),
+    credentialId: z.string().min(1, 'Credential ID must not be empty').max(255).optional(),
+  }),
+  response: {
+    mode: 'json',
+    schema: z.object({ authorizationUrl: z.string().url() }),
+  },
+})

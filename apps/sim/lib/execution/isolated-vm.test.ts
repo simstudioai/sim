@@ -87,6 +87,8 @@ type ControllableReadyProc = {
   spawn: SpawnFactory
   dispatched: Promise<void>
   release: (result?: unknown) => void
+  /** Every message the pool sent the worker, in order. */
+  sent: Array<{ type?: string; executionId?: number }>
 }
 
 /**
@@ -104,11 +106,13 @@ function createControllableReadyProc(): ControllableReadyProc {
   })
   let proc: MockProc | undefined
   let lastExecutionId = 0
+  const sent: ControllableReadyProc['sent'] = []
 
   const spawn: SpawnFactory = () => {
     const current = createBaseProc()
     current.send = (message: unknown) => {
       const msg = message as { type?: string; executionId?: number }
+      sent.push(msg)
       if (msg.type === 'execute') {
         lastExecutionId = msg.executionId ?? 0
         markDispatched()
@@ -128,7 +132,7 @@ function createControllableReadyProc(): ControllableReadyProc {
     })
   }
 
-  return { spawn, dispatched, release }
+  return { spawn, dispatched, release, sent }
 }
 
 function createReadyFetchProxyProc(fetchMessage: { url: string; optionsJson?: string }): MockProc {
@@ -334,6 +338,25 @@ describe('isolated-vm scheduler', () => {
     expect(result.error).toBeUndefined()
     expect(result.result).toBe('ok')
     expect(spawnMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('disposes the worker execution when the host timeout fires', async () => {
+    const { spawn, sent } = createControllableReadyProc()
+    const { executeInIsolatedVM } = await loadExecutionModule({ spawns: [spawn] })
+
+    const result = await executeInIsolatedVM({
+      code: 'await new Promise(() => {})',
+      params: {},
+      envVars: {},
+      contextVariables: {},
+      timeoutMs: 10,
+      requestId: 'req-hung',
+    })
+
+    expect(result.termination).toBe('timeout')
+    const executed = sent.find((message) => message.type === 'execute')
+    expect(executed?.executionId).toBeDefined()
+    expect(sent).toContainEqual({ type: 'cancel', executionId: executed?.executionId })
   })
 
   it('spawns workers with an allowlisted env, never the parent process.env', async () => {

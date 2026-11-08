@@ -94,6 +94,8 @@ async function waitForProvider(context: VideoGenerationContext): Promise<void> {
 }
 
 export function getVideoInputValidationError(input: VideoGenerationInput): string | undefined {
+  if (input.visualReference && !input.visualReference.type.toLowerCase().startsWith('image/'))
+    return `Reference image must be an image file, not ${input.visualReference.type || 'an unknown type'}`
   if (input.provider === 'falai') {
     if (input.prompt.length < 3 || input.prompt.length > 2000)
       return 'Prompt must be between 3 and 2000 characters'
@@ -122,13 +124,30 @@ export async function generateVideo(
     : generateWithDirectProvider(input, context)
 }
 
+/** Keeps the encoded image under 5 MB, the largest data URI Runway accepts. */
+const MAX_REFERENCE_IMAGE_BYTES = Math.floor(((5 * 1024 * 1024 - 512) * 3) / 4)
+
+async function readReferenceImageDataUri(
+  file: UserFile,
+  { requestId, signal }: VideoGenerationContext,
+  label: string
+): Promise<string> {
+  assertKnownSizeWithinLimit(file.size, MAX_REFERENCE_IMAGE_BYTES, label)
+  const buffer = await downloadFileFromStorage(file, requestId, logger, {
+    maxBytes: MAX_REFERENCE_IMAGE_BYTES,
+    signal,
+  })
+  assertKnownSizeWithinLimit(buffer.length, MAX_REFERENCE_IMAGE_BYTES, label)
+  return `data:${file.type};base64,${buffer.toString('base64')}`
+}
+
 async function generateWithDirectProvider(
   input: VideoGenerationInput,
   context: VideoGenerationContext
 ): Promise<VideoGenerationResult> {
   const prepared = buildDirectVideoRequest(input)
   const { protocol } = prepared.model
-  const { signal, requestId } = context
+  const { signal } = context
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (protocol === 'gemini') {
     headers['x-goog-api-key'] = input.apiKey
@@ -138,17 +157,11 @@ async function generateWithDirectProvider(
   if (protocol === 'runway') headers['X-Runway-Version'] = '2024-11-06'
 
   if (input.visualReference) {
-    const maxReferenceBytes = Math.floor(((5 * 1024 * 1024 - 512) * 3) / 4)
-    assertKnownSizeWithinLimit(
-      input.visualReference.size,
-      maxReferenceBytes,
+    prepared.body.promptImage = await readReferenceImageDataUri(
+      input.visualReference,
+      context,
       'Runway reference image'
     )
-    const buffer = await downloadFileFromStorage(input.visualReference, requestId, logger, {
-      maxBytes: maxReferenceBytes,
-    })
-    assertKnownSizeWithinLimit(buffer.length, maxReferenceBytes, 'Runway reference image')
-    prepared.body.promptImage = `data:${input.visualReference.type};base64,${buffer.toString('base64')}`
   }
   signal?.throwIfAborted()
   const readProviderResponse = async (response: Response): Promise<Record<string, unknown>> => {
@@ -388,7 +401,15 @@ async function generateWithFalAI(
   const { requestId, signal } = context
   signal?.throwIfAborted()
   logger.info(`Starting Fal.ai generation with model: ${model}`, { requestId })
-  const { endpoint, body } = buildFalVideoRequest(input)
+  const { endpoint, imageField, body } = buildFalVideoRequest(input)
+  if (input.visualReference && imageField) {
+    body[imageField] = await readReferenceImageDataUri(
+      input.visualReference,
+      context,
+      'Fal.ai start frame image'
+    )
+    signal?.throwIfAborted()
+  }
   const createResponse = await fetch(`https://queue.fal.run/${endpoint}`, {
     method: 'POST',
     redirect: 'error',

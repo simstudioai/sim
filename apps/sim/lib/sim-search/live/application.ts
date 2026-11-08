@@ -11,7 +11,6 @@ import type {
 } from '@/lib/api/contracts/mothership-assistant-tools'
 import {
   type LiveSearchAccountStatus,
-  liveSearchProviderSchema,
   type NativeSearchQuery,
   nativeSearchQueriesSchema,
   workspaceSearchFiltersSchema,
@@ -76,6 +75,13 @@ import { loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog'
 import { liveSearchGuidance } from '@/lib/sim-search/live/providers'
 import { LiveReadError } from '@/lib/sim-search/live/read-error'
+import {
+  encodeLiveReference,
+  includesLiveDocument,
+  liveDocumentKey,
+  liveReferenceOwner,
+  readLiveReference,
+} from '@/lib/sim-search/live/reference'
 import { queryRelevance } from '@/lib/sim-search/live/text-match'
 import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
@@ -140,43 +146,6 @@ function writeBoundContinuation(provider: BoundProvider, value: BoundContinuatio
   return cursor
 }
 
-const referenceSchema = z
-  .object({
-    v: z.literal(1),
-    user: z.string().min(1),
-    scope: z.string().min(1),
-    account: z.string().min(1),
-    provider: liveSearchProviderSchema,
-    id: z.string().min(1).max(1000),
-    container: z.string().max(500).optional(),
-    kind: z.string().max(200).optional(),
-    revision: z.string().max(200).optional(),
-    connectionBinding: z.string().min(1).max(128).optional(),
-    threadId: z
-      .string()
-      .regex(/^\d+\.\d+$/)
-      .optional(),
-  })
-  .strict()
-type Reference = z.output<typeof referenceSchema>
-
-export function encodeLiveReference(reference: Reference): string {
-  const result = `live:${Buffer.from(JSON.stringify(referenceSchema.parse(reference))).toString('base64url')}`
-  if (result.length > 4000) throw new Error('Provider document reference is too long')
-  return result
-}
-export function decodeLiveReference(value: string): Reference {
-  if (!value.startsWith('live:') || value.length > 4000)
-    throw new OrchestrationError('not_found', 'Search again to select a live document')
-  try {
-    return referenceSchema.parse(
-      JSON.parse(Buffer.from(value.slice(5), 'base64url').toString('utf8'))
-    )
-  } catch {
-    throw new OrchestrationError('not_found', 'Invalid live document reference')
-  }
-}
-
 interface LiveSearchOptions {
   surface?: SearchKnowledgeInput['surface']
   query: string
@@ -203,7 +172,7 @@ export function matchesLiveFilters(
 ): boolean {
   if (!matchesSourceDates(document, provider, filters)) return false
   if (filters?.source && filters.source !== provider) return false
-  if (filters?.documentIds && !filters.documentIds.includes(documentId)) return false
+  if (filters?.documentIds && !includesLiveDocument(filters.documentIds, documentId)) return false
   if (filters?.modifiedAfter || filters?.modifiedBefore) {
     const modified = Date.parse(document.modifiedAt ?? '')
     if (!Number.isFinite(modified)) return false
@@ -222,7 +191,7 @@ export function matchesLiveFilters(
   }
   return true
 }
-/** A provider result with the reference that binds it to this member, scope, and account. */
+/** A provider result with the ID that locates it within its account. */
 interface LiveCandidate {
   document: NativeDocument
   documentId: string
@@ -231,24 +200,23 @@ interface LiveCandidate {
 function candidateFor(
   document: NativeDocument,
   account: LiveAccount,
-  owner: ResourceOwner,
-  userId: string
+  owner: string
 ): LiveCandidate {
   return {
     document,
-    documentId: encodeLiveReference({
-      v: 1,
-      user: userId,
-      scope: resourceScopeKey(resourceScopeFromOwner(owner)),
-      account: account.id,
-      provider: account.provider,
-      id: document.id,
-      ...(document.container ? { container: document.container } : {}),
-      ...(document.kind ? { kind: document.kind } : {}),
-      ...(document.revision ? { revision: document.revision } : {}),
-      ...(document.connectionBinding ? { connectionBinding: document.connectionBinding } : {}),
-      ...(document.threadId ? { threadId: document.threadId } : {}),
-    }),
+    documentId: encodeLiveReference(
+      {
+        account: account.id,
+        provider: account.provider,
+        id: document.id,
+        ...(document.container ? { container: document.container } : {}),
+        ...(document.kind ? { kind: document.kind } : {}),
+        ...(document.revision ? { revision: document.revision } : {}),
+        ...(document.connectionBinding ? { connectionBinding: document.connectionBinding } : {}),
+        ...(document.threadId ? { threadId: document.threadId } : {}),
+      },
+      owner
+    ),
   }
 }
 
@@ -471,6 +439,7 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
     const userId = requirePrincipalSubjectUserId(principal)
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     input.signal?.throwIfAborted()
+    const owner = liveReferenceOwner(userId, resourceScopeKey(resourceScopeFromOwner(input)))
     const queries = input.nativeQueries
       ? nativeSearchQueriesSchema.parse(input.nativeQueries)
       : undefined
@@ -571,7 +540,7 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
             modifiedAfter: instantScopePart(requestedFilters?.modifiedAfter),
             modifiedBefore: instantScopePart(requestedFilters?.modifiedBefore),
             documentIds: requestedFilters?.documentIds
-              ? [...new Set(requestedFilters.documentIds)].sort(compareStrings)
+              ? [...new Set(requestedFilters.documentIds.map(liveDocumentKey))].sort(compareStrings)
               : undefined,
           })
         )
@@ -609,7 +578,7 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
       )
       const candidates = page.documents
         .filter((document) => document.id)
-        .map((document) => candidateFor(document, account, input, userId))
+        .map((document) => candidateFor(document, account, owner))
       const matchingOf = (verified: LiveCandidate[]) =>
         firstOfEachDocument(
           verified.filter(({ document, documentId }) =>
@@ -1072,15 +1041,14 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 8)
       throw new OrchestrationError('validation', 'Invalid document read limit')
-    const reference = decodeLiveReference(input.documentId)
-    if (
-      reference.user !== userId ||
-      reference.scope !== resourceScopeKey(resourceScopeFromOwner(input))
+    const reference = readLiveReference(
+      input.documentId,
+      liveReferenceOwner(userId, resourceScopeKey(resourceScopeFromOwner(input)))
     )
-      throw new OrchestrationError('not_found', 'Document not found in this search scope')
     if (
       (input.filters?.source && input.filters.source !== reference.provider) ||
-      (input.filters?.documentIds && !input.filters.documentIds.includes(input.documentId))
+      (input.filters?.documentIds &&
+        !includesLiveDocument(input.filters.documentIds, input.documentId))
     )
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
     /** Cancellation by the caller passes through unclassified. */

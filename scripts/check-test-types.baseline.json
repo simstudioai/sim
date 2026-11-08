@@ -14,9 +14,6 @@
   "apps/sim/app/api/auth/forget-password/route.test.ts": {
     "TS2554": 8
   },
-  "apps/sim/app/api/auth/instagram/authorize/route.test.ts": {
-    "TS2554": 2
-  },
   "apps/sim/app/api/auth/oauth/credentials/route.test.ts": {
     "TS2322": 1,
     "TS2345": 2,
@@ -29,8 +26,7 @@
     "TS2739": 2
   },
   "apps/sim/app/api/auth/oauth2/authorize/route.test.ts": {
-    "TS2345": 2,
-    "TS2554": 22
+    "TS2345": 2
   },
   "apps/sim/app/api/auth/oauth2/callback/quickbooks/route.test.ts": {
     "TS2554": 3

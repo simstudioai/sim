@@ -1,19 +1,41 @@
+import { release } from 'node:os'
 import { createLogger } from '@sim/logger'
 import type { BrowserWindow } from 'electron'
+import { isSimCloudOrigin } from '@/main/config'
 import { type EventRecorder, scrubUrl } from '@/main/observability'
 
 const logger = createLogger('DesktopLoadHealth')
 
 const AUTO_RETRY_INTERVAL_MS = 5000
 const LOAD_WATCHDOG_MS = 30_000
+/** Darwin 24 is macOS 15, the first release that gates apps behind Local Network privacy. */
+const FIRST_LOCAL_NETWORK_PRIVACY_DARWIN = 24
 
-export type LoadErrorKind = 'offline' | 'dns' | 'tls' | 'timeout' | 'unreachable' | 'ignored'
+function hasLocalNetworkPrivacy(): boolean {
+  return (
+    process.platform === 'darwin' &&
+    Number.parseInt(release(), 10) >= FIRST_LOCAL_NETWORK_PRIVACY_DARWIN
+  )
+}
+
+export type LoadErrorKind =
+  | 'offline'
+  | 'dns'
+  | 'tls'
+  | 'timeout'
+  | 'local_network'
+  | 'unreachable'
+  | 'ignored'
 
 /**
  * Maps Chromium net error codes to recovery copy. -3 (ERR_ABORTED) is emitted
  * constantly by OAuth redirect chains and in-app aborts and must be ignored.
  */
-export function classifyLoadError(errorCode: number): LoadErrorKind {
+export function classifyLoadError(
+  errorCode: number,
+  url: string,
+  localNetworkPrivacy: boolean = hasLocalNetworkPrivacy()
+): LoadErrorKind {
   // Only ERR_ABORTED (-3) and success (0) are ignored. ERR_FAILED (-2) and
   // ERR_IO_PENDING (-1) are real failures that must surface the offline page.
   if (errorCode === 0 || errorCode === -3) {
@@ -30,6 +52,13 @@ export function classifyLoadError(errorCode: number): LoadErrorKind {
   }
   if (errorCode <= -200 && errorCode >= -213) {
     return 'tls'
+  }
+  // macOS Local Network privacy fails the socket with EHOSTUNREACH, which
+  // Chromium reports as ERR_ADDRESS_UNREACHABLE (-109), so a self-hosted server
+  // on a private address looks like a routing failure until Sim is allowed.
+  // Sim Cloud is public, so that permission can never be what blocked it.
+  if (errorCode === -109 && localNetworkPrivacy && !isSimCloudOrigin(url)) {
+    return 'local_network'
   }
   return 'unreachable'
 }
@@ -125,7 +154,7 @@ export function attachLoadHealth(win: BrowserWindow, deps: LoadHealthDeps): Load
         return
       }
       clearTimeout(watchdogTimer)
-      const kind = classifyLoadError(errorCode)
+      const kind = classifyLoadError(errorCode, validatedURL)
       if (kind === 'ignored') {
         return
       }

@@ -3,9 +3,20 @@ import { attachLoadHealth, classifyLoadError } from '@/main/load-health'
 import { BrowserWindow as MockBrowserWindow } from '@/test/electron-mock'
 
 describe('classifyLoadError', () => {
+  const SELF_HOSTED_URL = 'http://sim.corp.internal:3000/workspace'
+
   it('does NOT ignore ERR_FAILED (-2) or ERR_IO_PENDING (-1)', () => {
-    expect(classifyLoadError(-2)).toBe('unreachable')
-    expect(classifyLoadError(-1)).toBe('unreachable')
+    expect(classifyLoadError(-2, SELF_HOSTED_URL)).toBe('unreachable')
+    expect(classifyLoadError(-1, SELF_HOSTED_URL)).toBe('unreachable')
+  })
+
+  it('reports ERR_ADDRESS_UNREACHABLE as a local-network block only under Local Network privacy', () => {
+    expect(classifyLoadError(-109, SELF_HOSTED_URL, true)).toBe('local_network')
+    expect(classifyLoadError(-109, SELF_HOSTED_URL, false)).toBe('unreachable')
+  })
+
+  it('never blames Local Network privacy for Sim Cloud, which is public', () => {
+    expect(classifyLoadError(-109, 'https://www.sim.ai/workspace', true)).toBe('unreachable')
   })
 })
 
