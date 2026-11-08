@@ -6,7 +6,7 @@ import { NodeSelection, Plugin } from '@tiptap/pm/state'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { type ProsemirrorBinding, ySyncPluginKey } from '@tiptap/y-tiptap'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/node-views.module.css'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/node-views.module.css'
 import { useFileContentSource } from '@/platform/lib/data/files'
 import {
   createImageTargetGuard,

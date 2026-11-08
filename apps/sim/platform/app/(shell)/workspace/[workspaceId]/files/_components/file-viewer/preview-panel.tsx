@@ -2,14 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { DataTable } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/data-table'
+import { MermaidDiagram } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/mermaid-diagram'
+import { useResolvedTheme } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/use-resolved-theme'
+import { ZoomablePreview } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/zoomable-preview'
 import { ChartPreview } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/chart-preview'
-import { DataTable } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/data-table'
-import { MermaidDiagram } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/mermaid-diagram'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/preview-panel.module.css'
 import { resolvePreviewType } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/preview-type'
 import { useHorizontalWheelScroll } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/use-horizontal-wheel-scroll'
-import { useResolvedTheme } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/use-resolved-theme'
-import { ZoomablePreview } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/zoomable-preview'
 import { CSV_PREVIEW_MAX_ROWS, useWorkspaceFileBinary } from '@/platform/lib/data/files'
 import {
   compileSimPage,

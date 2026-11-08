@@ -1,5 +1,5 @@
 import { providerMarkIds } from '@sim/emcn/icon/provider-mark-ids.generated'
-import type { SuggestionMark } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/suggestion-list'
+import type { SuggestionMark } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/suggestion-list'
 import { BLOCK_NAMES, type MentionItem, type MentionKind } from '@/platform/lib/data/files/markdown'
 
 const KIND_MARKS: Partial<Record<MentionKind, SuggestionMark>> = {

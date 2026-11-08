@@ -3,20 +3,20 @@ import CollaborationCaret from '@tiptap/extension-collaboration-caret'
 import Placeholder from '@tiptap/extension-placeholder'
 import type { Awareness } from 'y-protocols/awareness'
 import type * as Y from 'yjs'
-import { CodeBlockWithLanguage } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/code-block'
+import { CodeBlockWithLanguage } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/code-block'
 import {
   ResizableImage,
   ResizableInlineImage,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/image'
-import { ImageUploadPlaceholders } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/image-upload'
-import { LinkEmbed } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/link-embed'
-import { Mention } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/mention'
-import { MentionChip } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/mention-chip'
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/image'
+import { ImageUploadPlaceholders } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/image-upload'
+import { LinkEmbed } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/link-embed'
+import { Mention } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/mention'
+import { MentionChip } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/mention-chip'
 import {
   FootnoteDefWithView,
   RawHtmlBlockWithView,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/raw-markdown-snippet'
-import { SlashCommand } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/slash-command'
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/raw-markdown-snippet'
+import { SlashCommand } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/slash-command'
 import {
   caretColorSlot,
   createCaretActivityExtension,

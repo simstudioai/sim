@@ -2,7 +2,7 @@
 
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/node-views.module.css'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/node-views.module.css'
 import { FootnoteDef, RawHtmlBlock } from '@/platform/lib/data/files/markdown'
 
 const BLOCK_BADGE_LABEL: Record<string, string> = {

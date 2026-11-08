@@ -3,7 +3,7 @@
 import { type ReactNode, type RefObject, useEffect, useId } from 'react'
 import { Icon, type IconName } from '@sim/emcn/icon'
 import type { Editor } from '@tiptap/core'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/suggestion.module.css'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/suggestion.module.css'
 
 /** A labeled run of rows; `index` is each row's flat position, for keyboard navigation. */
 interface SuggestionGroup<T> {

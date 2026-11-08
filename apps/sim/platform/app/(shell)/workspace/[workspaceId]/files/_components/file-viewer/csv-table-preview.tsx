@@ -1,6 +1,6 @@
 'use client'
 
-import { DataTable } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/data-table'
+import { DataTable } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/data-table'
 import {
   PreviewError,
   resolvePreviewError,

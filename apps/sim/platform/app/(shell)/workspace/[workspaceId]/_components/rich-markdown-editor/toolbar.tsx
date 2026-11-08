@@ -6,7 +6,7 @@ import type { IconName } from '@sim/emcn/icon'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { Tooltip } from '@sim/emcn/tooltip'
 import type { ChainedCommands } from '@tiptap/core'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/toolbar.module.css'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/toolbar.module.css'
 import { normalizeLinkHref } from '@/platform/lib/data/files/markdown'
 
 /**

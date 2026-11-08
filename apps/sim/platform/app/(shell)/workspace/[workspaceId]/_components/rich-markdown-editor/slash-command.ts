@@ -1,12 +1,12 @@
 import { Extension } from '@tiptap/core'
 import Suggestion from '@tiptap/suggestion'
-import { SlashCommandList } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/slash-command-list'
+import { SlashCommandList } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/slash-command-list'
 import {
   filterSlashCommands,
   type SlashCommandItem,
   type SlashCommandStorage,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/slash-commands'
-import { createSuggestionPopupRenderer } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/suggestion-popup'
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/slash-commands'
+import { createSuggestionPopupRenderer } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/suggestion-popup'
 import { SLASH_COMMAND_PLUGIN_KEY } from '@/platform/lib/data/files/markdown'
 
 declare module '@tiptap/core' {

@@ -8,9 +8,9 @@ import {
   useRef,
   useState,
 } from 'react'
-import { PreviewToolbar } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/preview-toolbar'
-import { bindWheelZoom } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/preview-wheel'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/zoomable-preview.module.css'
+import { PreviewToolbar } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/preview-toolbar'
+import { bindWheelZoom } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/preview-wheel'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/zoomable-preview.module.css'
 
 const ZOOM_MIN = 0.25
 const ZOOM_MAX = 4

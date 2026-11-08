@@ -1,4 +1,4 @@
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/data-table.module.css'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/data-table.module.css'
 
 interface DataTableProps {
   headers: readonly string[]

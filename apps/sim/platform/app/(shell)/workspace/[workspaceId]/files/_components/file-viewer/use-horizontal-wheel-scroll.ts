@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useRef } from 'react'
-import { bindHorizontalWheel } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/preview-wheel'
+import { bindHorizontalWheel } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/preview-wheel'
 
 /** A ref for a table frame wider than its viewport, so a mouse wheel with Shift reaches it. */
 export function useHorizontalWheelScroll() {

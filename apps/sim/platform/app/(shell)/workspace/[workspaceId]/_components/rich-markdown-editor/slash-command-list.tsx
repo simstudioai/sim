@@ -2,8 +2,8 @@
 
 import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
 import type { Editor } from '@tiptap/core'
-import type { SlashCommandItem } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/slash-commands'
-import { SuggestionList } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/suggestion-list'
+import type { SlashCommandItem } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/slash-commands'
+import { SuggestionList } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/suggestion-list'
 import {
   type SuggestionKeyDownHandler,
   useSuggestionKeyboard,

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { Editor } from '@tiptap/react'
-import { INTEGRATION_MENTIONS } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/mention-items'
+import { INTEGRATION_MENTIONS } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/mention-items'
 import {
   getWorkflowListQueryOptions,
   type MentionItem,

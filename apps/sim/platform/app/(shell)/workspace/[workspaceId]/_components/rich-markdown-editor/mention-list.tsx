@@ -2,8 +2,8 @@
 
 import { forwardRef, useImperativeHandle, useMemo, useRef, useSyncExternalStore } from 'react'
 import type { Editor } from '@tiptap/core'
-import { mentionMark } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/mention-items'
-import { SuggestionList } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/suggestion-list'
+import { mentionMark } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/mention-items'
+import { SuggestionList } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/suggestion-list'
 import {
   type MentionItem,
   type MentionStore,

@@ -4,10 +4,10 @@ import '@/platform/lib/data/files/pdf-polyfills'
 import 'react-pdf/dist/Page/TextLayer.css'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { pdfjs, Document as ReactPdfDocument, Page as ReactPdfPage } from 'react-pdf'
+import { PreviewToolbar } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/preview-toolbar'
+import { bindWheelZoom } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/preview-wheel'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/pdf-viewer.module.css'
 import { PreviewError } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/preview-shared'
-import { PreviewToolbar } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/preview-toolbar'
-import { bindWheelZoom } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/preview-wheel'
 
 /** The worker runs where the page's polyfills cannot reach, so it is the self-polyfilling build. */
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(

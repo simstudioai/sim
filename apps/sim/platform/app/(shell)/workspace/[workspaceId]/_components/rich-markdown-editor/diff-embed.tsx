@@ -9,7 +9,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { diffWordsWithSpace } from 'diff'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/diff-embed.module.css'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/diff-embed.module.css'
 import { useWorkspaceFileRecord } from '@/platform/lib/data/files'
 import {
   type DiffHunk,

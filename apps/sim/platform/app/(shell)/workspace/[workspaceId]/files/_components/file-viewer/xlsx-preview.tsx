@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { toError } from '@sim/utils/errors'
 import type { WorkBook } from 'xlsx'
-import { DataTable } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/data-table'
+import { DataTable } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/data-table'
 import {
   PreviewError,
   resolvePreviewError,

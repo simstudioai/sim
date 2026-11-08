@@ -19,23 +19,23 @@ import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
-import { useReportFileDocPeers } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/collaboration/file-doc-room'
-import { FileSaveConflict } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/file-save-conflict'
-import { PreviewError } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/preview-shared'
-import { EditorBubbleMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/bubble-menu'
-import { createMarkdownEditorExtensions } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/editor-extensions'
-import { FindBar } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/find-bar'
+import { EditorBubbleMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/bubble-menu'
+import { createMarkdownEditorExtensions } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/editor-extensions'
 import {
   beginImageUploads,
   findImageUpload,
   findImageUploadRange,
   finishImageUpload,
   removeImageUpload,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/image-upload'
-import { LinkHoverCard } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/link-hover-card'
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/image-upload'
+import { LinkHoverCard } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/link-hover-card'
+import { TableBubbleMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/table-menu'
+import { useEditorMentions } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/use-editor-mentions'
+import { useReportFileDocPeers } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/collaboration/file-doc-room'
+import { FileSaveConflict } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/file-save-conflict'
+import { PreviewError } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/preview-shared'
+import { FindBar } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/find-bar'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/rich-markdown-editor.module.css'
-import { TableBubbleMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/table-menu'
-import { useEditorMentions } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/use-editor-mentions'
 import { useMarkdownFind } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/use-markdown-find'
 import { TextEditor } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/text-editor'
 import type { FileEditingProps } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/types'

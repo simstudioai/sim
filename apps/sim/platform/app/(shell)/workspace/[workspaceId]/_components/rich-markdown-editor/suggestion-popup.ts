@@ -2,7 +2,7 @@ import type { ForwardRefExoticComponent, PropsWithoutRef, RefAttributes } from '
 import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom'
 import { ReactRenderer } from '@tiptap/react'
 import type { SuggestionOptions, SuggestionProps } from '@tiptap/suggestion'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/suggestion.module.css'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/suggestion.module.css'
 
 /** The handle every suggestion list exposes, so the popup can forward arrow and Enter keys to it. */
 export interface SuggestionListHandle {

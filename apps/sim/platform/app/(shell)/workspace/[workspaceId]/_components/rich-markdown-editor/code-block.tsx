@@ -4,12 +4,12 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { CopyButton } from '@sim/emcn/button/copy-button'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { MermaidDiagram } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/mermaid-diagram'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/node-views.module.css'
+import { MermaidDiagram } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/mermaid-diagram'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/node-views.module.css'
 import {
   ToolbarButton,
   ToolbarMenu,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/toolbar'
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/toolbar'
 import {
   DASHBOARD_EMBED_LANGUAGE,
   DIFF_EMBED_LANGUAGE,
@@ -21,14 +21,14 @@ import {
 /** Kept out of the editor's bundle until a document holds a dashboard fence. */
 const DashboardEmbed = lazy(() =>
   import(
-    '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/dashboard-embed'
+    '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/dashboard-embed'
   ).then((module) => ({ default: module.DashboardEmbed }))
 )
 
 /** Kept out of the editor's bundle until a document holds a diff fence. */
 const DiffEmbed = lazy(() =>
   import(
-    '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/diff-embed'
+    '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/diff-embed'
   ).then((module) => ({ default: module.DiffEmbed }))
 )
 

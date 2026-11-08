@@ -4,9 +4,9 @@ import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { MetricGroup } from '@sim/emcn/data-display'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
-import { ChartCanvas } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/chart-canvas'
-import { DataTable } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/data-table'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/dashboard-embed.module.css'
+import { ChartCanvas } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/chart-canvas'
+import { DataTable } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/data-table'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/dashboard-embed.module.css'
 import {
   bindTimeSeriesInteractions,
   type ChartAnnotations,

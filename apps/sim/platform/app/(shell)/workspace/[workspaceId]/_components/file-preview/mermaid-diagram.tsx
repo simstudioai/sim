@@ -3,10 +3,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/mermaid-diagram.module.css'
-import { tokenColors } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/resolve-colors'
-import { useResolvedTheme } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/use-resolved-theme'
-import { ZoomablePreview } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/zoomable-preview'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/mermaid-diagram.module.css'
+import { tokenColors } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/resolve-colors'
+import { useResolvedTheme } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/use-resolved-theme'
+import { ZoomablePreview } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/zoomable-preview'
 import { mermaidWorkflowCss } from '@/platform/lib/data/files/preview'
 
 /** Waits out a burst of streamed edits before parsing the definition again. */

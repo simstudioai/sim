@@ -1,5 +1,5 @@
 import type { editor } from 'monaco-editor'
-import { tokenColors } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/resolve-colors'
+import { tokenColors } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/resolve-colors'
 
 const TOKENS = [
   '--ui-reading',

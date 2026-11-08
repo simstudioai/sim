@@ -9,7 +9,7 @@ import {
   FloatingToolbar,
   ToolbarButton,
   ToolbarDivider,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/toolbar'
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/toolbar'
 import {
   isImageNode,
   useBubbleMenuFloating,

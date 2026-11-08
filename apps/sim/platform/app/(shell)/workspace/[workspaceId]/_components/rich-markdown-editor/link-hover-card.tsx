@@ -6,12 +6,12 @@ import { CopyButton } from '@sim/emcn/button/copy-button'
 import { getMarkRange } from '@tiptap/core'
 import { type Editor, useEditorState } from '@tiptap/react'
 import { createPortal } from 'react-dom'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/link-hover-card.module.css'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/link-hover-card.module.css'
 import {
   applyLink,
   LinkUrlInput,
   ToolbarButton,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/toolbar'
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/toolbar'
 import { normalizeLinkHref, scrollToHeading } from '@/platform/lib/data/files/markdown'
 
 interface LinkRange {

@@ -1,5 +1,5 @@
 import { Button, IconButton } from '@sim/emcn/button'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/preview-toolbar.module.css'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/preview-toolbar.module.css'
 
 interface PreviewNavigation {
   current: number

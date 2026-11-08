@@ -5,8 +5,8 @@ import { Button } from '@sim/emcn/button'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/dashboard-embed.module.css'
-import { DashboardPanel } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/dashboard-panel'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/dashboard-embed.module.css'
+import { DashboardPanel } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/dashboard-panel'
 import {
   createDashboardCursorStore,
   DASHBOARD_RANGE_LABELS,

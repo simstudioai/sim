@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
-import { ChartCanvas } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/chart-canvas'
+import { ChartCanvas } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/chart-canvas'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/chart-preview.module.css'
 import {
   buildChartRenderOption,

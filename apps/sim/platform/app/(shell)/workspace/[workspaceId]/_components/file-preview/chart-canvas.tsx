@@ -3,9 +3,9 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { EChartsType } from 'echarts'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/chart-canvas.module.css'
-import { tokenColors } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/resolve-colors'
-import { useResolvedTheme } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/use-resolved-theme'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/chart-canvas.module.css'
+import { tokenColors } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/resolve-colors'
+import { useResolvedTheme } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/use-resolved-theme'
 import { applyChartAnnotations, type ChartAnnotations } from '@/platform/lib/data/files/dashboards'
 import {
   applyChartTooltipDefaults,

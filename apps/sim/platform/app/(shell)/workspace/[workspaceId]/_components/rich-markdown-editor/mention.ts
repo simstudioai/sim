@@ -1,7 +1,7 @@
 import { Extension } from '@tiptap/core'
 import Suggestion from '@tiptap/suggestion'
-import { MentionList } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/mention-list'
-import { createSuggestionPopupRenderer } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/suggestion-popup'
+import { MentionList } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/mention-list'
+import { createSuggestionPopupRenderer } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/suggestion-popup'
 import {
   createMentionStore,
   MENTION_PLUGIN_KEY,

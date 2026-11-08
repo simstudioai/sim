@@ -17,6 +17,7 @@ import { ContextActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
+import { useResolvedTheme } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/use-resolved-theme'
 import { FileSaveConflict } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/file-save-conflict'
 import {
   defineSurfaceTheme,
@@ -29,7 +30,6 @@ import type {
   FileEditingProps,
   PreviewMode,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/types'
-import { useResolvedTheme } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/use-resolved-theme'
 import {
   assessTextEditorPaste,
   buildFileSelectionLabel,

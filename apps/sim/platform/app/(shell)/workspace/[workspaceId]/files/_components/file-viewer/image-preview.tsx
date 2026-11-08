@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { ZoomablePreview } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/zoomable-preview'
 import { UnsupportedPreview } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/preview-shared'
-import { ZoomablePreview } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/zoomable-preview'
 import { useFileContentSource, type WorkspaceFileRecord } from '@/platform/lib/data/files'
 
 interface ImagePreviewProps {
