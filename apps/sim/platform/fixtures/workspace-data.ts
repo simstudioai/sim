@@ -29,6 +29,7 @@ import { FIXTURE_NOW } from '@/platform/fixtures/clock'
 import nina from '@/platform/fixtures/media/attendee-1.jpg'
 import alex from '@/platform/fixtures/media/attendee-2.jpg'
 import maya from '@/platform/fixtures/media/attendee-3.jpg'
+import { runPayloads } from '@/platform/fixtures/run-payloads'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatCalendarDate } from '@/platform/shared/time'
 
@@ -1187,6 +1188,14 @@ function trace(run: RunSummary, scenario: Scenario): TraceSpan[] {
   const total = run.durationMs ?? 18_400
   const at = (fraction: number) => Math.round(total * fraction)
   const stress = scenario === 'stress'
+  const payload = runPayloads({
+    runId: run.id,
+    workflow: run.workflow.name,
+    trigger: run.trigger.label,
+    startedAt: run.startedAt,
+    totalMs: total,
+    failed,
+  })
   const children: TraceSpan[] = [
     span({
       id: 'classify',
@@ -1196,8 +1205,8 @@ function trace(run: RunSummary, scenario: Scenario): TraceSpan[] {
       startMs: 0,
       durationMs: at(0.12),
       context: [{ id: 'model', label: 'Model', value: 'gpt-5' }],
-      input: json({ message: 'My laptop will not join the office Wi-Fi since this morning.' }),
-      output: json({ category: 'hardware', urgency: 'normal', confidence: 0.91 }),
+      input: json(payload.classifyInput),
+      output: json(payload.classifyOutput),
       children: [
         span({
           id: 'classify-model',
@@ -1210,6 +1219,8 @@ function trace(run: RunSummary, scenario: Scenario): TraceSpan[] {
             { id: 'tokens', label: 'Tokens', value: '1,204 in, 318 out' },
             { id: 'tries', label: 'Tries', value: '2' },
           ],
+          input: json(payload.modelRequest),
+          output: json(payload.modelResponse),
           notice: {
             tone: 'warning',
             title: 'Retried',
@@ -1226,8 +1237,8 @@ function trace(run: RunSummary, scenario: Scenario): TraceSpan[] {
             { id: 'call', label: 'Call ID', value: 'call_8f2c41d07a' },
             { id: 'requested', label: 'Requested by', value: 'Classify request' },
           ],
-          input: json({ query: 'laptop office wifi certificate', limit: 3 }),
-          output: json({ articles: ['Reinstall the Wi-Fi certificate', 'Office network list'] }),
+          input: json(payload.searchInput),
+          output: json(payload.searchOutput),
         }),
       ],
     }),
@@ -1256,7 +1267,8 @@ function trace(run: RunSummary, scenario: Scenario): TraceSpan[] {
                 { id: 'call', label: 'Call ID', value: 'call_1d93be2f60' },
                 { id: 'requested', label: 'Requested by', value: 'Enrich requester' },
               ],
-              output: json({ account: 'Acme GmbH', tier: 'Enterprise', owner: 'Lena Vogt' }),
+              input: json({ sobject: 'Account', id: '0015g00000QxT3vAAF', fields: 'ALL' }),
+              output: json(payload.account),
             }),
           ],
         }),
@@ -1277,7 +1289,8 @@ function trace(run: RunSummary, scenario: Scenario): TraceSpan[] {
                 { id: 'call', label: 'Call ID', value: 'call_77ac0e519b' },
                 { id: 'requested', label: 'Requested by', value: 'Enrich requester' },
               ],
-              output: json({ groups: ['berlin-office', 'engineering', 'vpn-users'] }),
+              input: json({ userId: '00u1lvogt9AcmeEU', limit: 200 }),
+              output: json(payload.groups),
             }),
           ],
         }),
@@ -1332,7 +1345,11 @@ function trace(run: RunSummary, scenario: Scenario): TraceSpan[] {
               status: index === 1 ? 'handled' : 'success',
               startMs: at(0.282 + index * 0.066),
               durationMs: at(0.06),
-              output: json({ serial: `C02X${index}LK8`, model: 'MacBook Pro', managed: true }),
+              input: json({
+                assetTag: `ACME-LT-${4410 + index}`,
+                include: ['network', 'compliance'],
+              }),
+              output: json(payload.device(index)),
               notice:
                 index === 1
                   ? {
@@ -1373,6 +1390,9 @@ function trace(run: RunSummary, scenario: Scenario): TraceSpan[] {
               providerId: 'anthropic',
               startMs: at(0.495),
               durationMs: at(0.12),
+              context: [{ id: 'tokens', label: 'Tokens', value: '862 in, 74 out' }],
+              input: json(payload.approvalRequest),
+              output: json(payload.approvalResponse),
             }),
             span({
               id: 'policy',
@@ -1384,7 +1404,8 @@ function trace(run: RunSummary, scenario: Scenario): TraceSpan[] {
                 { id: 'call', label: 'Call ID', value: 'call_c10f4a92e3' },
                 { id: 'requested', label: 'Requested by', value: 'Draft approval' },
               ],
-              output: json({ policy: 'Network access', approver: 'regional-owner' }),
+              input: json({ policy: 'network-access', resource: 'ACME-Corp' }),
+              output: json(payload.policy),
             }),
           ],
         }),
@@ -1407,7 +1428,7 @@ function trace(run: RunSummary, scenario: Scenario): TraceSpan[] {
       status: failed ? 'error' : 'success',
       startMs: at(0.79),
       durationMs: at(0.21),
-      input: json({ ticket: 'INC-20418', steps: 4 }),
+      input: json(payload.summaryInput),
       output: failed
         ? { format: 'text', content: 'Error: the model returned an empty response twice.' }
         : {
@@ -1433,8 +1454,8 @@ function trace(run: RunSummary, scenario: Scenario): TraceSpan[] {
       status: failed ? 'error' : run.status === 'running' ? 'running' : 'success',
       startMs: 0,
       durationMs: total,
-      input: json({ trigger: run.trigger.label, workspace: 'IT service desk' }),
-      output: failed ? undefined : json({ resolved: true }),
+      input: json(payload.trigger),
+      output: failed ? undefined : json(payload.result),
       children,
     }),
   ]
