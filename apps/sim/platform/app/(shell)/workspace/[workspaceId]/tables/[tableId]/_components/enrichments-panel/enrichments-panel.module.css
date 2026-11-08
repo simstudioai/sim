@@ -1,0 +1,24 @@
+/* The catalog's rows reach past the text edge by the row inset, so their hover surface frames them. */
+.catalog {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  margin: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  padding: 0;
+  gap: var(--ui-list-gap);
+  list-style: none;
+}
+.note {
+  margin: 0;
+  color: var(--ui-secondary);
+}
+/* A setting that applies with its switch: the caption on the text edge, the switch at the end. */
+.switchRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-inline-size: 0;
+  gap: var(--ui-row-gap);
+  color: var(--ui-ink);
+}

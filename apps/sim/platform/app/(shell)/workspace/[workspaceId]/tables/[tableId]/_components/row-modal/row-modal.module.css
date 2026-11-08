@@ -1,0 +1,7 @@
+/* A date field beside its time of day, captions on one line so both controls share a row. */
+.dateTime {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--ui-row-gap);
+}

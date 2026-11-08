@@ -1,0 +1,688 @@
+/*
+ * The table grid: a database view on the canvas below the page's controls. It owns its stacking
+ * context, so its sticky header, frozen columns and overlays layer among themselves and every popup
+ * the page opens still paints above them.
+ */
+.grid {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+.viewport {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-block-size: 0;
+}
+.scroller {
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: auto;
+  overscroll-behavior: none;
+}
+.scroller:focus-visible {
+  outline: none;
+}
+.scroller[data-resizing] {
+  user-select: none;
+}
+.canvas {
+  position: relative;
+  block-size: fit-content;
+}
+.table {
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--ui-ink);
+}
+.thead {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 10;
+}
+.notFound {
+  display: grid;
+  flex: 1;
+  place-items: center;
+}
+
+/* Cells: a hairline grid on the trailing and bottom edges, as in a spreadsheet. */
+.cell,
+.gutter,
+.gutterHeader,
+.headerCell,
+.groupCell,
+.addColumnCell {
+  border-inline-end: var(--spacing-stroke-default) solid var(--ui-divider);
+  border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
+  vertical-align: middle;
+}
+.cell {
+  padding-block: var(--spacing-7);
+  padding-inline: var(--spacing-8);
+  user-select: none;
+}
+.cell[data-decorated] {
+  position: relative;
+}
+.cell[data-pinned],
+.gutter,
+.gutterHeader,
+.headerCell,
+.groupCell,
+.metaGutter,
+.metaCell,
+.addColumnCell {
+  background: var(--ui-canvas);
+}
+.cell[data-pinned] {
+  position: sticky;
+  z-index: 6;
+}
+.cell[data-pinned-edge],
+.headerCell[data-pinned-edge],
+.groupCell[data-pinned-edge],
+.metaCell[data-pinned-edge] {
+  box-shadow: var(--spacing-2) 0 0 0 var(--ui-divider);
+}
+.cellContent {
+  position: relative;
+  display: flex;
+  align-items: center;
+  block-size: var(--spacing-22);
+  min-inline-size: 0;
+  overflow: clip;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.spacer {
+  padding: 0;
+  border: 0;
+}
+
+/* The row-number gutter, frozen at the start, with the row's checkbox on hover or when checked. */
+.gutter {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 6;
+  padding-block: var(--spacing-7);
+  padding-inline: 0;
+  cursor: pointer;
+  user-select: none;
+}
+.gutterHeader {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 12;
+  padding-block: var(--spacing-7);
+  padding-inline: 0;
+  cursor: pointer;
+}
+.gutterHeaderInner,
+.passive {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.passive {
+  pointer-events: none;
+}
+.gutterEdge {
+  position: absolute;
+  inset-block: calc(-1 * var(--spacing-1));
+  inset-inline-end: calc(-1 * var(--spacing-1));
+  inline-size: var(--spacing-stroke-default);
+  background: var(--status-info);
+  pointer-events: none;
+}
+.gutterEdge[data-first-row] {
+  inset-block-start: 0;
+}
+.gutterInner {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-6);
+}
+.rowSelect {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  block-size: var(--spacing-20);
+}
+.rowSelect:focus-visible {
+  outline: var(--spacing-stroke-focus) solid var(--status-info);
+  outline-offset: calc(-1 * var(--spacing-stroke-focus));
+}
+.rowNumber {
+  color: var(--ui-muted);
+  font-variant-numeric: tabular-nums;
+}
+.rowCheck {
+  display: none;
+  pointer-events: none;
+}
+.rowSelect:hover .rowNumber,
+.rowSelect[data-checked] .rowNumber {
+  display: none;
+}
+.rowSelect:hover .rowCheck,
+.rowSelect[data-checked] .rowCheck {
+  display: flex;
+}
+.rowRun,
+.groupRun {
+  display: grid;
+  flex: none;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-ink);
+  cursor: pointer;
+}
+.rowRun {
+  inline-size: var(--spacing-20);
+  block-size: var(--spacing-20);
+  border-radius: var(--ui-control-radius);
+}
+.groupRun {
+  inline-size: var(--spacing-16);
+  block-size: var(--spacing-16);
+  border-radius: var(--radius-2);
+  color: var(--ui-muted);
+}
+.rowRun:hover,
+.groupRun:hover {
+  background: var(--ui-hover);
+  color: var(--ui-ink);
+}
+.rowRun:focus-visible,
+.groupRun:focus-visible,
+.headerButton:focus-visible,
+.headerChevron:focus-visible {
+  outline: var(--spacing-stroke-focus) solid var(--status-info);
+  outline-offset: calc(-1 * var(--spacing-stroke-focus));
+}
+
+/* Cell values. */
+.cellText {
+  display: block;
+  min-inline-size: 0;
+  overflow: clip;
+  text-overflow: ellipsis;
+}
+.cellText[data-hidden],
+.booleanCell[data-hidden],
+.linkCell[data-hidden],
+.statusCell[data-hidden] {
+  visibility: hidden;
+}
+.booleanCell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 100%;
+  min-block-size: var(--spacing-20);
+}
+.pills {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  gap: var(--spacing-4);
+  overflow: hidden;
+}
+.placeholderText {
+  color: var(--ui-muted);
+}
+.linkCell {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  gap: var(--spacing-6);
+}
+.link {
+  min-inline-size: 0;
+  overflow: clip;
+  text-overflow: ellipsis;
+  color: var(--ui-ink);
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-2);
+  transition: color var(--ui-motion-color) ease-out;
+}
+.link:hover {
+  color: var(--ui-secondary);
+}
+.favicon {
+  flex: none;
+  inline-size: var(--spacing-12);
+  block-size: var(--spacing-12);
+  border-radius: var(--radius-2);
+}
+.statusCell {
+  display: inline-flex;
+  min-inline-size: 0;
+}
+
+/* Selection: a tint over the range, an outline on the active cell, a wash on find matches. */
+.findMatch,
+.rangeTint,
+.anchorOutline {
+  position: absolute;
+  inset-block: calc(-1 * var(--spacing-1));
+  inset-inline: calc(-1 * var(--spacing-1));
+  box-sizing: border-box;
+  pointer-events: none;
+}
+:is(.findMatch, .rangeTint, .anchorOutline)[data-col-start] {
+  inset-inline-start: 0;
+}
+:is(.findMatch, .rangeTint, .anchorOutline)[data-first-row] {
+  inset-block-start: 0;
+}
+.findMatch {
+  background: color-mix(in srgb, var(--status-warning) 22%, transparent);
+}
+.rangeTint {
+  z-index: 4;
+  background: color-mix(in srgb, var(--status-info) 6%, transparent);
+}
+.rangeTint[data-top] {
+  border-block-start: var(--spacing-stroke-default) solid var(--status-info);
+}
+.rangeTint[data-bottom] {
+  border-block-end: var(--spacing-stroke-default) solid var(--status-info);
+}
+.rangeTint[data-left] {
+  border-inline-start: var(--spacing-stroke-default) solid var(--status-info);
+}
+.rangeTint[data-right] {
+  border-inline-end: var(--spacing-stroke-default) solid var(--status-info);
+}
+.anchorOutline {
+  z-index: 5;
+  border: var(--spacing-stroke-focus) solid var(--status-info);
+}
+
+/* Inline editing. */
+.editorLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+}
+.cellInput {
+  inline-size: 100%;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-ink);
+  user-select: text;
+}
+.cellInput:focus-visible,
+.renameInput:focus-visible,
+.expandedInput:focus-visible {
+  outline: none;
+}
+.cellInput[data-invalid] {
+  color: var(--control-danger);
+}
+.selectAnchor {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-end: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.cellPopover {
+  position: fixed;
+  z-index: 2;
+  padding: var(--ui-popup-padding);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu-shared);
+  color: var(--ui-ink);
+}
+.datePanel {
+  display: grid;
+  gap: var(--spacing-8);
+}
+
+/* The expanded editor floating over a double-clicked cell. */
+.expanded {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu-shared);
+  color: var(--ui-ink);
+}
+.expandedBody {
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-10);
+}
+.expandedText {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.expandedEmpty,
+.expandedHint {
+  color: var(--ui-muted);
+}
+.expandedHint kbd {
+  font-family: var(--font-mono);
+}
+.expandedInput {
+  flex: 1;
+  min-block-size: 0;
+  padding-block: var(--spacing-8);
+  padding-inline: var(--spacing-10);
+  border: 0;
+  background: transparent;
+  color: var(--ui-ink);
+  resize: none;
+}
+.expandedInput::placeholder {
+  color: var(--ui-muted);
+}
+.expandedFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  padding-block: var(--spacing-6);
+  padding-inline: var(--spacing-8);
+  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+.expandedError {
+  color: var(--control-danger);
+}
+.expandedActions {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+
+/* Find, floating over the grid's top-right corner. */
+.findBar {
+  position: absolute;
+  inset-block-start: var(--spacing-8);
+  inset-inline-end: var(--spacing-8);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  max-inline-size: calc(100% - var(--spacing-16));
+  padding: var(--spacing-4);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu-shared);
+}
+.findInput {
+  display: flex;
+  flex: 0 1 calc(var(--spacing-192) + var(--spacing-8));
+  min-inline-size: 0;
+}
+.findCount {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  min-inline-size: var(--spacing-64);
+  padding-inline: var(--spacing-4);
+  color: var(--ui-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Column headers. */
+.headerCell {
+  position: relative;
+  padding: 0;
+  text-align: start;
+}
+.headerCell[data-pinned],
+.groupCell[data-pinned],
+.metaCell[data-pinned] {
+  position: sticky;
+  z-index: 11;
+}
+.headerTint {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--status-info) 6%, transparent);
+  pointer-events: none;
+}
+.headerContent,
+.headerButton {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  gap: var(--spacing-6);
+  padding-block: var(--spacing-7);
+  padding-inline: var(--spacing-8);
+}
+.headerContent {
+  inline-size: 100%;
+}
+.headerRow {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+.headerButton {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--ui-ink);
+  text-align: start;
+  cursor: pointer;
+}
+.headerLabel {
+  display: flex;
+  flex: 1;
+  min-inline-size: 0;
+}
+.headerGlyph {
+  display: flex;
+  flex: none;
+  align-items: center;
+}
+.headerChevron {
+  display: flex;
+  flex: none;
+  align-items: center;
+  align-self: stretch;
+  padding-block: 0;
+  padding-inline: var(--spacing-2) var(--spacing-10);
+  border: 0;
+  background: transparent;
+  color: var(--ui-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--ui-motion-color) ease-out;
+}
+.headerCell:hover .headerChevron,
+.headerChevron:focus-visible {
+  opacity: 1;
+}
+.headerChevron:hover {
+  color: var(--ui-ink);
+}
+@media (pointer: coarse) {
+  .headerChevron {
+    min-inline-size: var(--spacing-32);
+    justify-content: center;
+    opacity: 1;
+  }
+}
+.renameInput {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-ink);
+}
+.resizeGrip {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: calc(-1 * var(--spacing-3));
+  z-index: 1;
+  inline-size: var(--spacing-6);
+  cursor: col-resize;
+}
+@media (width < 48rem) {
+  .resizeGrip {
+    display: none;
+  }
+}
+.addColumnCell {
+  padding-block: 0;
+  padding-inline: var(--spacing-4);
+  text-align: start;
+}
+
+/* The meta row above grouped columns: each workflow or enrichment group's name and Run. */
+.groupCell {
+  position: relative;
+  padding-block: var(--spacing-5);
+  padding-inline: var(--spacing-8);
+  text-align: start;
+  cursor: pointer;
+}
+.groupCell::before {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(-1 * var(--spacing-1));
+  inline-size: var(--spacing-stroke-default);
+  background: var(--ui-divider);
+  content: "";
+  pointer-events: none;
+}
+.groupContent {
+  display: flex;
+  align-items: center;
+  block-size: var(--spacing-18);
+  min-inline-size: 0;
+  gap: var(--spacing-6);
+}
+.groupLabel {
+  display: flex;
+  min-inline-size: 0;
+  color: var(--ui-secondary);
+}
+.metaGutter {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 12;
+  padding-block: var(--spacing-5);
+  padding-inline: var(--spacing-4);
+  border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+.metaCell {
+  padding-block: var(--spacing-5);
+  padding-inline: var(--spacing-8);
+  border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+
+/* Resize and reorder feedback. */
+.resizeLine,
+.dropLine {
+  position: absolute;
+  inset-block: 0;
+  z-index: 20;
+  inline-size: var(--spacing-2);
+  background: var(--status-info);
+  pointer-events: none;
+}
+.resizeLine {
+  translate: calc(-1.5 * var(--spacing-1)) 0;
+}
+.dropLine {
+  translate: calc(-1 * var(--spacing-1)) 0;
+}
+.dropTint {
+  position: absolute;
+  inset-block: 0;
+  z-index: 15;
+  background: color-mix(in srgb, var(--status-info) 6%, transparent);
+  pointer-events: none;
+}
+.dragGhost {
+  position: absolute;
+  inset-block-start: -100vh;
+  padding-block: var(--spacing-4);
+  padding-inline: var(--spacing-8);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-4);
+  background: var(--ui-canvas);
+  color: var(--ui-ink);
+  white-space: nowrap;
+}
+.addRow {
+  display: flex;
+  padding-block: var(--spacing-4);
+  padding-inline: var(--spacing-4);
+}
+
+/* The grid's one floating menu hangs off an invisible trigger moved to the menu's point. */
+.pointAnchor {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  z-index: 2;
+  inline-size: var(--spacing-1);
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Collaborators' selections and their name tags. */
+.remoteLayer,
+.remoteScrolling,
+.remoteFrozen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.remoteLayer {
+  overflow: hidden;
+}
+.remoteScrolling {
+  z-index: 5;
+}
+.remoteFrozen {
+  z-index: 8;
+}
+.remoteBox {
+  position: absolute;
+  border-radius: var(--radius-2);
+}
+.remoteName {
+  position: fixed;
+  z-index: 3;
+  max-inline-size: calc(var(--spacing-154) + var(--spacing-6));
+  padding-block: var(--spacing-2);
+  padding-inline: var(--spacing-6);
+  overflow: hidden;
+  border-radius: var(--radius-2);
+  border-end-start-radius: 0;
+  color: var(--ui-canvas);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  translate: 0 calc(-100% - var(--spacing-2));
+}

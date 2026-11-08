@@ -1,0 +1,64 @@
+/* The canvas below the controls: the grid, with a panel beside it while one is open. */
+.workspace {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+.main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+/* The filter sits on the column's text edge, above the grid that spans the pane. */
+.filter {
+  padding-block: var(--spacing-8);
+  padding-inline: var(--ui-page-inline-gutter);
+  border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+.runStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+.runCount {
+  padding-inline: var(--spacing-4);
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.actionBar {
+  position: absolute;
+  inset-block-end: var(--spacing-24);
+  inset-inline-start: 50%;
+  z-index: 1;
+  max-inline-size: calc(100% - var(--spacing-32));
+  translate: -50% 0;
+  pointer-events: none;
+}
+.actionBarSurface {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding-block: var(--spacing-4);
+  padding-inline: var(--spacing-8);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu-shared);
+  pointer-events: auto;
+}
+.actionBarLabel {
+  padding-inline: var(--spacing-4);
+  color: var(--ui-secondary);
+  white-space: nowrap;
+}
+.actionBarActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}

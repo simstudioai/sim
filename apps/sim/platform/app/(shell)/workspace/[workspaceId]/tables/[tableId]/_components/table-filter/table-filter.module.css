@@ -1,0 +1,46 @@
+/* Rules share lanes across rows, so every column, operator and value control lines up under the one above. */
+.filter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-4);
+  min-inline-size: 0;
+  padding-block: var(--spacing-4);
+}
+.rules {
+  display: grid;
+  grid-template-columns:
+    max-content minmax(0, max-content) minmax(0, max-content) minmax(var(--spacing-96), 1fr)
+    max-content;
+  align-items: center;
+  justify-items: start;
+  gap: var(--spacing-4) var(--ui-action-gap);
+}
+.rule {
+  display: contents;
+}
+/* "Where" ends where the joiner buttons' labels end, inset by the compact button's padding. */
+.lead {
+  justify-self: end;
+  padding-inline-end: var(--spacing-8);
+  color: var(--ui-secondary);
+}
+.logical {
+  justify-self: end;
+}
+.value {
+  display: grid;
+  justify-self: stretch;
+  min-inline-size: 0;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-action-gap);
+}
+.apply {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}

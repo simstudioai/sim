@@ -1,0 +1,103 @@
+.tab {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: var(--ui-content-gap);
+}
+.note {
+  margin: 0;
+  color: var(--ui-secondary);
+}
+/* The cascade's summary, as the trace header reads: status, duration, providers and cost. */
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0;
+  gap: var(--spacing-4) var(--ui-row-gap);
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.summaryStatus {
+  color: var(--ui-ink);
+}
+.summaryStatus[data-status="error"] {
+  color: var(--control-danger);
+}
+.summaryStatus[data-status="cancelled"] {
+  color: var(--status-warning);
+}
+/* One attempt per row on the run's clock; rows reach past the text edge by the row inset. */
+.cascade {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  margin: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  padding: 0;
+  gap: var(--ui-list-gap);
+  list-style: none;
+}
+.provider {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  padding: var(--spacing-6) var(--ui-row-inset);
+  gap: var(--spacing-6);
+  border-radius: var(--radius-item);
+  color: var(--ui-secondary);
+}
+.provider:hover {
+  background: var(--ui-hover);
+}
+.provider[data-matched] {
+  background: var(--ui-selected);
+}
+.providerLine {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  gap: var(--ui-row-gap);
+}
+.providerMark {
+  display: grid;
+  flex: none;
+  place-items: center;
+}
+.providerName {
+  display: flex;
+  flex: 1;
+  min-inline-size: 0;
+}
+.provider[data-ran] .providerName {
+  color: var(--ui-ink);
+}
+.providerMeta {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.timeline {
+  display: block;
+  inline-size: 100%;
+  block-size: var(--spacing-4);
+  overflow: visible;
+}
+.track {
+  stroke: var(--ui-divider);
+  stroke-width: var(--spacing-stroke-default);
+  vector-effect: non-scaling-stroke;
+}
+.bar {
+  fill: var(--ui-secondary);
+}
+.provider[data-matched] .bar {
+  fill: var(--status-success);
+}
+.providerError {
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}

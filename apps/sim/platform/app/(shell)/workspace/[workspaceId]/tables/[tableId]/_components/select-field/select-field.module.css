@@ -1,0 +1,30 @@
+/* The neutral tag's paint, kept on one line so a pill never grows the fixed-height cell it sits in. */
+.pill {
+  display: inline-block;
+  flex: none;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  padding-inline: var(--spacing-6);
+  border-radius: var(--ui-control-radius);
+  background: var(--ui-hover);
+  color: var(--ui-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The option editor's rows: each name field with its remove action, sharing one lane for the action. */
+.options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-action-gap);
+  min-inline-size: 0;
+}
+.option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--spacing-app-chip);
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+.options[data-read-only] .option {
+  grid-template-columns: minmax(0, 1fr);
+}

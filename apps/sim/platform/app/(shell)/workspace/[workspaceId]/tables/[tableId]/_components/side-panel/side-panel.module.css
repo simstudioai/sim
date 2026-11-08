@@ -1,0 +1,71 @@
+/* A right-hand rail beside the grid: the grid narrows while it is open rather than sliding under it. */
+.panel {
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  inline-size: min(calc(var(--spacing-320) + var(--spacing-80)), 100%);
+  min-block-size: 0;
+  border-inline-start: var(--spacing-stroke-default) solid var(--ui-divider);
+  background: var(--ui-canvas);
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  padding-block: var(--spacing-12);
+  padding-inline: var(--spacing-16) var(--spacing-12);
+}
+.heading {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  gap: var(--ui-action-gap);
+}
+.title {
+  min-inline-size: 0;
+  margin: 0;
+  color: var(--ui-ink);
+  overflow-wrap: anywhere;
+}
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  gap: var(--ui-product-section-gap);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-block: var(--spacing-4) var(--spacing-16);
+  padding-inline: var(--spacing-16);
+}
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ui-action-gap);
+  padding-block: var(--spacing-12);
+  padding-inline: var(--spacing-16);
+  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+.section {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: var(--ui-content-gap);
+}
+.sectionTitle {
+  margin: 0;
+  color: var(--ui-secondary);
+}
+@media (width < 48rem) {
+  .panel {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    z-index: 3;
+  }
+}
