@@ -135,10 +135,10 @@ describe.skipIf(!fixtureFile)('federated self-hosted GitLab Search', () => {
 
   function documentForReader(documentId: string, person: FixturePerson) {
     const scope = resourceScopeKey(resourceScopeFromOwner({ organizationId: ids.organizationId }))
-    return encodeLiveReference({
-      ...decodeLiveReference(documentId),
-      owner: liveReferenceOwner(person.simId, scope),
-    })
+    return encodeLiveReference(
+      decodeLiveReference(documentId),
+      liveReferenceOwner(person.simId, scope)
+    )
   }
 
   beforeAll(async () => {

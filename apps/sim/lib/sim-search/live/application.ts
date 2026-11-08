@@ -76,11 +76,11 @@ import { LIVE_SEARCH_PROVIDER_IDS } from '@/lib/sim-search/live/provider-catalog
 import { liveSearchGuidance } from '@/lib/sim-search/live/providers'
 import { LiveReadError } from '@/lib/sim-search/live/read-error'
 import {
-  decodeLiveReference,
   encodeLiveReference,
   includesLiveDocument,
   liveDocumentKey,
   liveReferenceOwner,
+  readLiveReference,
 } from '@/lib/sim-search/live/reference'
 import { queryRelevance } from '@/lib/sim-search/live/text-match'
 import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
@@ -204,17 +204,19 @@ function candidateFor(
 ): LiveCandidate {
   return {
     document,
-    documentId: encodeLiveReference({
-      owner,
-      account: account.id,
-      provider: account.provider,
-      id: document.id,
-      ...(document.container ? { container: document.container } : {}),
-      ...(document.kind ? { kind: document.kind } : {}),
-      ...(document.revision ? { revision: document.revision } : {}),
-      ...(document.connectionBinding ? { connectionBinding: document.connectionBinding } : {}),
-      ...(document.threadId ? { threadId: document.threadId } : {}),
-    }),
+    documentId: encodeLiveReference(
+      {
+        account: account.id,
+        provider: account.provider,
+        id: document.id,
+        ...(document.container ? { container: document.container } : {}),
+        ...(document.kind ? { kind: document.kind } : {}),
+        ...(document.revision ? { revision: document.revision } : {}),
+        ...(document.connectionBinding ? { connectionBinding: document.connectionBinding } : {}),
+        ...(document.threadId ? { threadId: document.threadId } : {}),
+      },
+      owner
+    ),
   }
 }
 
@@ -1039,12 +1041,10 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 8)
       throw new OrchestrationError('validation', 'Invalid document read limit')
-    const reference = decodeLiveReference(input.documentId)
-    if (
-      reference.owner !==
+    const reference = readLiveReference(
+      input.documentId,
       liveReferenceOwner(userId, resourceScopeKey(resourceScopeFromOwner(input)))
     )
-      throw new OrchestrationError('not_found', 'Document not found in this search scope')
     if (
       (input.filters?.source && input.filters.source !== reference.provider) ||
       (input.filters?.documentIds &&

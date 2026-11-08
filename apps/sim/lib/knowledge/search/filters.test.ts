@@ -3,18 +3,17 @@ import { liveCitationId } from '@/lib/knowledge/search/citation'
 import { intersectWorkspaceSearchFilters } from '@/lib/knowledge/search/filters'
 import { encodeLiveReference, liveReferenceOwner } from '@/lib/sim-search/live/reference'
 
+const owner = liveReferenceOwner('reader', 'workspace:w')
 const fields = {
-  owner: liveReferenceOwner('reader', 'workspace:w'),
   account: 'account',
   provider: 'slack' as const,
   id: '1730912345.123456',
   container: 'C1',
 }
 /** One Slack message in the current ID form and in the earlier form older conversations hold. */
-const currentId = encodeLiveReference(fields)
-const { owner: _owner, ...located } = fields
+const currentId = encodeLiveReference(fields, owner)
 const earlierId = `live:${Buffer.from(
-  JSON.stringify({ v: 1, user: 'reader', scope: 'workspace:w', ...located })
+  JSON.stringify({ v: 1, user: 'reader', scope: 'workspace:w', ...fields })
 ).toString('base64url')}`
 
 describe('Assistant search scope', () => {
@@ -59,7 +58,7 @@ describe('live citation IDs', () => {
   it('cite one document as one source whichever ID form named it', () => {
     expect(liveCitationId(earlierId)).toBe(liveCitationId(currentId))
     expect(liveCitationId(currentId)).not.toBe(
-      liveCitationId(encodeLiveReference({ ...fields, id: '1730912345.123457' }))
+      liveCitationId(encodeLiveReference({ ...fields, id: '1730912345.123457' }, owner))
     )
   })
 })

@@ -8,28 +8,27 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
  *
  * They are not an authorization boundary: every read re-resolves the account among the reader's
  * own accounts in the request's scope, then re-verifies the document with the provider and the
- * admin's source policy. An ID names its reader and scope only by a short {@link liveReferenceOwner}
- * fingerprint, so a read in another scope or by another member is refused as not found in this
- * scope rather than reaching account resolution.
+ * admin's source policy.
  *
- * The current form is `live2:` followed by `~`-separated fields, trailing empty fields dropped,
- * then a checksum: `live2:slack~<owner>~<account>~<ts>~<channel>~~<thread ts>~<checksum>`.
+ * The current form is `live2:` followed by the document's `~`-separated location fields, trailing
+ * empty fields dropped, then a checksum: `live2:slack~<account>~<ts>~<channel>~~<thread ts>~<check>`.
  * Clients copy IDs verbatim into later calls, so the form stays readable (provider IDs and UUIDs
- * tokenize far better than base64 of them) and uses only characters a model reproduces reliably.
- * Earlier IDs (`live:` + base64url JSON naming the reader and scope) still read, checked against
- * the same fingerprint.
+ * tokenize far better than base64 of them) and carries nothing a model must copy that does not
+ * locate the document. The checksum covers the location and the reader and scope the ID was minted
+ * for, so a copy that was truncated or altered, or one read by another member or in another scope,
+ * is refused as not found here rather than naming a different document or reaching account
+ * resolution. Earlier IDs (`live:` + base64url JSON naming the reader and scope) still read, with
+ * their reader and scope checked as before.
  */
 const LIVE_V1_PREFIX = 'live:'
 const LIVE_V2_PREFIX = 'live2:'
 const MAX_REFERENCE_LENGTH = 4000
 const FIELD_SEPARATOR = '~'
 const CHECKSUM_LENGTH = 6
-const OWNER_LENGTH = 8
 
 const fieldsSchema = z
   .object({
     provider: liveSearchProviderSchema,
-    owner: z.string().regex(new RegExp(`^[0-9a-f]{${OWNER_LENGTH}}$`)),
     account: z.string().min(1).max(500),
     id: z.string().min(1).max(1000),
     container: z.string().min(1).max(500).optional(),
@@ -46,7 +45,6 @@ const fieldsSchema = z
 /** Field order of the v2 form; optional fields last so absent ones cost nothing. */
 const FIELD_ORDER = [
   'provider',
-  'owner',
   'account',
   'id',
   'container',
@@ -77,9 +75,9 @@ const legacySchema = z
 
 export type LiveReference = z.output<typeof fieldsSchema>
 
-/** The reader and scope an ID was minted for, as the short fingerprint the ID carries. */
+/** The reader and scope an ID is minted for and read in. */
 export function liveReferenceOwner(userId: string, scope: string): string {
-  return sha256Hex(`${userId}\u0000${scope}`).slice(0, OWNER_LENGTH)
+  return `${userId}\u0000${scope}`
 }
 
 /**
@@ -105,78 +103,114 @@ function unescapeField(value: string): string {
   )
 }
 
-/**
- * The last field checks the others, so a copy the client truncated or altered fails to decode and
- * asks for a new search instead of naming a different document (a dropped thread or a shortened path
- * would otherwise still parse).
- */
-function checksum(body: string): string {
-  return sha256Hex(body).slice(0, CHECKSUM_LENGTH)
-}
-
-/** Mints the current, compact ID for a provider document. */
-export function encodeLiveReference(reference: LiveReference): string {
+function locationOf(reference: LiveReference): string {
   const fields = fieldsSchema.parse(reference)
   const parts = FIELD_ORDER.map((name) => {
     const value = fields[name]
     return value ? escapeField(value) : ''
   })
   while (parts.length > 0 && parts[parts.length - 1] === '') parts.pop()
-  const body = parts.join(FIELD_SEPARATOR)
-  const result = `${LIVE_V2_PREFIX}${body}${FIELD_SEPARATOR}${checksum(body)}`
+  return parts.join(FIELD_SEPARATOR)
+}
+
+function checksum(owner: string, location: string): string {
+  return sha256Hex(`${owner}\u0000${location}`).slice(0, CHECKSUM_LENGTH)
+}
+
+/** Mints the current, compact ID for a provider document, for the reader and scope `owner` names. */
+export function encodeLiveReference(reference: LiveReference, owner: string): string {
+  const location = locationOf(reference)
+  const result = `${LIVE_V2_PREFIX}${location}${FIELD_SEPARATOR}${checksum(owner, location)}`
   if (result.length > MAX_REFERENCE_LENGTH)
     throw new Error('Provider document reference is too long')
   return result
 }
 
-function decodeV2(value: string): LiveReference {
+interface ParsedReference {
+  reference: LiveReference
+  /** Whether the ID was minted for the reader and scope `owner` names. */
+  mintedFor: (owner: string) => boolean
+}
+
+function parseV2(value: string): ParsedReference {
   const separator = value.lastIndexOf(FIELD_SEPARATOR)
-  const body = value.slice(0, separator)
-  if (separator < 0 || value.slice(separator + 1) !== checksum(body))
-    throw new Error('Checksum mismatch')
-  const parts = body.split(FIELD_SEPARATOR)
-  if (parts.length < 4 || parts.length > FIELD_ORDER.length) throw new Error('Invalid field count')
+  if (separator < 0) throw new Error('Missing checksum')
+  const location = value.slice(0, separator)
+  const check = value.slice(separator + 1)
+  const parts = location.split(FIELD_SEPARATOR)
+  if (parts.length < 3 || parts.length > FIELD_ORDER.length) throw new Error('Invalid field count')
   const fields: Record<string, string> = {}
   FIELD_ORDER.forEach((name, index) => {
     const part = parts[index]
     if (part) fields[name] = unescapeField(part)
   })
-  return fieldsSchema.parse(fields)
+  return {
+    reference: fieldsSchema.parse(fields),
+    mintedFor: (owner) => check === checksum(owner, location),
+  }
 }
 
-function decodeV1(body: string): LiveReference {
+function parseV1(body: string): ParsedReference {
   const { v, user, scope, ...rest } = legacySchema.parse(
     JSON.parse(Buffer.from(body, 'base64url').toString('utf8'))
   )
   const fields = Object.fromEntries(
     Object.entries(rest).filter(([, value]) => value !== undefined && value !== '')
   )
-  return fieldsSchema.parse({ ...fields, owner: liveReferenceOwner(user, scope) })
+  return {
+    reference: fieldsSchema.parse(fields),
+    mintedFor: (owner) => owner === liveReferenceOwner(user, scope),
+  }
 }
 
-const SEARCH_AGAIN = 'Invalid live document reference. Search again to select a live document'
+const SEARCH_AGAIN = 'Search again to select a live document'
 
-/** Decodes a current or earlier live document ID; anything else asks the caller to search again. */
-export function decodeLiveReference(value: string): LiveReference {
-  if (value.length > MAX_REFERENCE_LENGTH) throw new OrchestrationError('not_found', SEARCH_AGAIN)
+function parse(value: string): ParsedReference {
   try {
-    if (value.startsWith(LIVE_V2_PREFIX)) return decodeV2(value.slice(LIVE_V2_PREFIX.length))
-    if (value.startsWith(LIVE_V1_PREFIX)) return decodeV1(value.slice(LIVE_V1_PREFIX.length))
+    if (value.length <= MAX_REFERENCE_LENGTH) {
+      if (value.startsWith(LIVE_V2_PREFIX)) return parseV2(value.slice(LIVE_V2_PREFIX.length))
+      if (value.startsWith(LIVE_V1_PREFIX)) return parseV1(value.slice(LIVE_V1_PREFIX.length))
+    }
   } catch {}
-  throw new OrchestrationError('not_found', SEARCH_AGAIN)
+  throw new OrchestrationError('not_found', `Invalid live document reference. ${SEARCH_AGAIN}`)
 }
 
 /**
- * The identity two document IDs share when they name the same document: the current encoding of
- * a live ID, whichever form it arrived in, or the value itself for any other ID. Compare document
- * IDs through this, never as raw strings, so a v1 ID from an earlier conversation matches the v2
- * ID a new search returns for the same document.
+ * The document a current or earlier live ID names, without checking whom it was minted for. Reads
+ * use {@link readLiveReference}; anything that is not a live ID asks the caller to search again.
+ */
+export function decodeLiveReference(value: string): LiveReference {
+  return parse(value).reference
+}
+
+/**
+ * The document an ID names, when it was minted for the reader and scope `owner` names. A current ID
+ * whose checksum does not hold for them, because it was minted for someone or somewhere else or
+ * was altered, is not found in this scope.
+ */
+export function readLiveReference(value: string, owner: string): LiveReference {
+  const { reference, mintedFor } = parse(value)
+  if (!mintedFor(owner))
+    throw new OrchestrationError(
+      'not_found',
+      value.startsWith(LIVE_V2_PREFIX)
+        ? `Document not found in this search scope. ${SEARCH_AGAIN}`
+        : 'Document not found in this search scope'
+    )
+  return reference
+}
+
+/**
+ * The identity two document IDs share when they name the same document: its location, whichever
+ * form the ID arrived in, or the value itself for any other ID. Compare document IDs through this,
+ * never as raw strings, so a v1 ID from an earlier conversation matches the v2 ID a new search
+ * returns for the same document.
  */
 export function liveDocumentKey(documentId: string): string {
   if (!documentId.startsWith(LIVE_V1_PREFIX) && !documentId.startsWith(LIVE_V2_PREFIX))
     return documentId
   try {
-    return encodeLiveReference(decodeLiveReference(documentId))
+    return `${LIVE_V2_PREFIX}${locationOf(decodeLiveReference(documentId))}`
   } catch {
     return documentId
   }

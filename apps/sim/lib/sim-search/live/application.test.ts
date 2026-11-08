@@ -1192,14 +1192,10 @@ describe('authorized live retrieval', () => {
   describe('live document IDs', () => {
     const workspaceScope = resourceScopeKey(resourceScopeFromOwner({ workspaceId: 'workspace' }))
     /** The earlier wire form, spelled out so these tests pin what older conversations hold. */
-    const legacyId = ({ owner: _owner, ...fields }: Record<string, string>) =>
+    const legacyId = (fields: Record<string, string>) =>
       `live:${Buffer.from(JSON.stringify({ v: 1, ...fields })).toString('base64url')}`
-    const fields = {
-      owner: liveReferenceOwner('reader', workspaceScope),
-      account: 'account',
-      provider: 'google_drive' as const,
-      id: 'doc',
-    }
+    const readerOwner = liveReferenceOwner('reader', workspaceScope)
+    const fields = { account: 'account', provider: 'google_drive' as const, id: 'doc' }
     const read = (documentId: string, extra: Record<string, unknown> = {}, as = principal) =>
       readLiveDocument.execute({
         principal: as,
@@ -1217,8 +1213,8 @@ describe('authorized live retrieval', () => {
       const [first] = search.results
       if (!first) throw new Error('Expected a search result')
       const { documentId } = first
-      expect(documentId).toBe(encodeLiveReference(fields))
-      expect(documentId).toMatch(/^live2:google_drive~[0-9a-f]{8}~account~doc~[0-9a-f]{6}$/)
+      expect(documentId).toBe(encodeLiveReference(fields, readerOwner))
+      expect(documentId).toMatch(/^live2:google_drive~account~doc~[0-9a-f]{6}$/)
       const result = await read(documentId)
       expect(result.documentId).toBe(documentId)
       expect(result.chunks[0]?.content).toBe('Evidence')
@@ -1235,7 +1231,7 @@ describe('authorized live retrieval', () => {
           throw new NativeSearchError('reconnect', 'This search connection is no longer available.')
         return { account, accessToken: 'secret' }
       })
-      const theirs = encodeLiveReference({ ...fields, account: 'their-account' })
+      const theirs = encodeLiveReference({ ...fields, account: 'their-account' }, readerOwner)
       await expect(read(theirs)).rejects.toMatchObject({ code: 'unauthorized' })
       expect(mocks.resolveAccount).toHaveBeenCalledWith(
         expect.anything(),
@@ -1255,7 +1251,7 @@ describe('authorized live retrieval', () => {
     ])(
       'refuses an ID minted for %s as not found before resolving any account',
       async (_case, user, scope) => {
-        const theirs = encodeLiveReference({ ...fields, owner: liveReferenceOwner(user, scope) })
+        const theirs = encodeLiveReference(fields, liveReferenceOwner(user, scope))
         await expect(read(theirs)).rejects.toThrow('Document not found in this search scope')
         expect(mocks.resolveAccount).not.toHaveBeenCalled()
         expect(mocks.read).not.toHaveBeenCalled()
@@ -1289,7 +1285,7 @@ describe('authorized live retrieval', () => {
       }
     )
     it('matches a selected document across the earlier and current forms', async () => {
-      const current = encodeLiveReference(fields)
+      const current = encodeLiveReference(fields, readerOwner)
       const earlier = legacyId({ user: 'reader', scope: workspaceScope, ...fields })
       await expect(read(current, { filters: { documentIds: [earlier] } })).resolves.toMatchObject({
         documentId: current,
@@ -1300,7 +1296,7 @@ describe('authorized live retrieval', () => {
       ).toBe(true)
       await expect(
         read(current, {
-          filters: { documentIds: [encodeLiveReference({ ...fields, id: 'other' })] },
+          filters: { documentIds: [encodeLiveReference({ ...fields, id: 'other' }, readerOwner)] },
         })
       ).rejects.toThrow('outside the selected search filters')
     })
