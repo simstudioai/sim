@@ -32,6 +32,13 @@ Dashboard, Issues, Changelog and Logs are Platform pages under `app/(shell)/work
 | `refine(platform): spell out Compute Units` | Run facts, the run list's column, sort and row names say Compute Units, never CU. |
 | `refactor(platform): let workspace pages refresh themselves` | No refresh controls: Dashboard and Changelog keep their Updated caption, new runs join Logs without a button, and the session no longer tracks refreshes. |
 | `test(platform): check self-refreshing pages, record facts and the rail line` | Each new check fails on the code before it; removing the rail's start alignment turns its check red. |
+| `refine(platform): end each changelog entry with its ticket` | The ticket ends the contributor row, under the time, as Paper's ChangeEntry places it. |
+| `refactor(platform): filter logs without a search` | Logs drops its search and the `q` parameter; status, trigger and workflow lead the bar and sort ends it. |
+| `refine(platform): give every trace step its mark and hang tree guides` | The root shows its mark, so disclosure, mark and name are one gap apart on every row; hairline guides hang under open parents. |
+| `refine(platform): align run facts and keep payload lines under their indent` | Metadata fields share columns and clamp to one line; payload lines wrap with a hanging indent and long payloads show 32 lines until asked; the copy action meets the text edge. |
+| `refine(platform): scroll a stacked record as one` | Below 45rem the record's facts, reading column and inspector scroll together instead of in small nested scrollers. |
+| `feat(platform): give example runs realistic payloads` | `fixtures/run-payloads.ts`: a Slack trigger event, model requests and responses with tool calls, search results, a CRM record, directory groups, device inventory and policy rules. |
+| `test(platform): check trace rows, the logs bar and changelog tickets` | The trace check fails when the root loses its mark or guides lose their line; the bar check fails with a search; the changelog check fails with the ticket beside the contributor. |
 
 ## Decisions to review
 
@@ -58,6 +65,7 @@ Dashboard, Issues, Changelog and Logs are Platform pages under `app/(shell)/work
 | Independent review | A fresh agent reviewed the owners and routes against the brief; its correctness and robustness findings are fixed in `fix(platform): address the workspace pages review` |
 | Sidebar and design follow-up | `type-check:platform`, `check:platform-design`, `check:platform-css`, `check:platform-convergence` and `check:unused-exports` pass. `workspace-pages`, `shell`, `panels`, `integration-center`, `integrations` and `controls-consistency` pass on :3125. Before and after screenshots at 1440 and 390 in light, and 1440 in dark. At 125% text the control bar stays inside the text edges at 1440, 901 and 390. Repo gate: `lint:check`, `check:audits` (68), `test:scripts` (845) and `type-check` (32 workspaces) pass. Full Platform suite 121 of 123; both failures came from the preview's worker restarting and pass on rerun. The Electron renderer check passes against :3125, and a scratch Electron run opened a workspace, a run and the sidebar toggle with the sidebar unchanged and the workspace name in the native titlebar. An independent review found no blocking issue; its findings are fixed in `fix(platform): address the workspace sidebar review` |
 
+| Follow-up: changelog ticket, logs search, trace guides, payloads | `type-check:platform`, Biome and the Platform audits pass. `workspace-pages.spec.ts` 16/16 on :3125 (one Back-test run failed while the preview restarted, then passed). Run details at 1440 light and dark, 901 and 390 on `full` and 1440 on `stress`; changelog at 1440 |
 | Follow-up: identifiers, Compute Units, refresh, rail | `type-check:platform`, Biome, `check:platform-design`, `check:platform-css`, `check:platform-convergence` and `check:unused-exports` pass. `workspace-pages.spec.ts` 13/13 on :3125. Screenshots of issue, run, logs, dashboard and changelog at 1440 light, issue at 1440 dark and 390 light |
 
 Not run: `build:platform` (it would write into the shared preview's `.next`), the Electron suite, and the fixture-off production suite.
