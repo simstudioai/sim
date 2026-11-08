@@ -33,7 +33,7 @@ interface DashboardViewProps {
  * change what it shows, and authoring happens in chat.
  */
 export function DashboardView({ data, actions, read }: DashboardViewProps) {
-  const newChat = useNewChatHref(data.workspace.id)
+  const newChat = useNewChatHref()
   const fallback = data.periods.find((period) => period.value === '7d') ?? data.periods[0]
   const [requested, setPeriod] = useQueryState(
     'period',

@@ -41,7 +41,6 @@ function chatStatus(chat: ShellChat, isCurrent: boolean) {
 interface ChatsSectionProps {
   chats: readonly ShellChat[]
   status?: ShellQueryStatus
-  newChatHref?: string
   activeChat?: string
   actions: ShellActions['chats']
   navigate: (href: string) => void
@@ -49,14 +48,7 @@ interface ChatsSectionProps {
 
 type ChatEdit = { kind: 'rename'; chatId: string } | { kind: 'remove'; chats: readonly ShellChat[] }
 
-export function ChatsSection({
-  chats,
-  status,
-  activeChat,
-  actions,
-  navigate,
-  newChatHref,
-}: ChatsSectionProps) {
+export function ChatsSection({ chats, status, activeChat, actions, navigate }: ChatsSectionProps) {
   const query = useSearchParams()
   const { chatsOpen, setChatsOpen, chatOrder, setChatOrder } = useSidebarLayout()
   const [editing, setEditing] = useState<ChatEdit | null>(null)
@@ -155,7 +147,7 @@ export function ChatsSection({
   /** A removal that only partly lands narrows the dialog to what is left and reports the rest. */
   async function confirmRemoval(targets: readonly ShellChat[]) {
     const { removedIds, failure } = await actions.remove(targets.map((chat) => chat.id))
-    if (activeChat && removedIds.includes(activeChat)) navigate(newChatHref ?? '/home')
+    if (activeChat && removedIds.includes(activeChat)) navigate('/home')
     if (!failure) {
       setSelected(NO_SELECTION)
       return

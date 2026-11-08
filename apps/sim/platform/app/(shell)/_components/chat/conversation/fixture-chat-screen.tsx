@@ -10,18 +10,17 @@ import {
 interface FixtureChatScreenProps {
   scenario: Scenario
   chatId?: string
-  workspaceId?: string
 }
 
-export async function FixtureChatScreen({ scenario, chatId, workspaceId }: FixtureChatScreenProps) {
+export async function FixtureChatScreen({ scenario, chatId }: FixtureChatScreenProps) {
   const [data, panel, shell] = await Promise.all([
-    loadConversationData(scenario, workspaceId),
+    loadConversationData(scenario),
     loadPanelData(scenario),
     loadShellData(scenario),
   ])
   return (
     <ChatPanels workspaces={shell?.workspaces ?? []} data={panel} key={chatId ?? 'new'}>
-      <FixtureChat data={data?.chat ?? null} chatId={chatId} workspaceId={workspaceId} />
+      <FixtureChat data={data?.chat ?? null} chatId={chatId} />
     </ChatPanels>
   )
 }

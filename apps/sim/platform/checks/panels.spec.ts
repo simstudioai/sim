@@ -57,5 +57,5 @@ test('a chat panel preserves its file, tabs and focus across resize, collapse an
   await page.keyboard.press('Enter')
   await page.getByRole('menuitemcheckbox', { name: 'Workspaces' }).click()
   await panel.getByRole('button', { name: 'Workspace', exact: true }).last().click()
-  await expect(page).toHaveURL(/\/workspace\/operations\/chat\?.*state=full/)
+  await expect(page).toHaveURL(/\/workspace\/operations\/dashboards\?.*state=full/)
 })

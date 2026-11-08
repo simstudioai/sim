@@ -26,13 +26,13 @@ export interface ShellWorkspace {
   name: string
   /** Live workspaces open on the authorized legacy surface until the workspace data seam lands. */
   href?: string
+  /** What the composer can reference in this workspace. */
   workflows?: readonly { id: string; name: string; folder?: string }[]
   permissions?: 'admin' | 'write' | 'read' | null
   isPinned?: boolean
 }
 
 export interface ShellChat extends ShellItem {
-  workspaceId?: string
   mode?: string
   /** Absolute when the chat opens on the legacy surface. */
   href?: string
@@ -70,7 +70,7 @@ export interface ShellData {
   inbox: InboxItem[]
   notifications: ShellNotice[]
   /** Shell features with no backend in this data source. Hidden, because empty would misinform. */
-  unbacked?: readonly ('inbox' | 'issues')[]
+  unbacked?: readonly 'inbox'[]
   /** So a list can tell loading and failure from empty. Absent means the data is simply there. */
   status?: { workspaces: ShellQueryStatus; chats: ShellQueryStatus; profile: ShellQueryStatus }
   workspaceCreation?: { canCreate: boolean; organizationId: string | null; reason: string | null }

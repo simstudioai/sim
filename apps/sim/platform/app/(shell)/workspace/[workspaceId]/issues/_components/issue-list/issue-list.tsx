@@ -72,7 +72,7 @@ interface IssueListProps {
  */
 export function IssueList({ data, read }: IssueListProps) {
   const search = useSearchParams()
-  const newChat = useNewChatHref(data.workspace.id)
+  const newChat = useNewChatHref()
   const [view, setView] = useQueryStates(issueListParams, { history: 'replace', shallow: true })
   const [toggled, toggleGroup] = useOpenGroups(`issues/${data.workspace.id}`)
   const listPath = workspacePath(data.workspace.id, 'issues')

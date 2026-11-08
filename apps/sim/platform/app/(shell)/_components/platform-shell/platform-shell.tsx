@@ -30,10 +30,9 @@ import { orderSidebarItems } from '@/platform/app/(shell)/_components/sidebar/co
 import { Sidebar } from '@/platform/app/(shell)/_components/sidebar/sidebar'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
 import { SidebarToolbar } from '@/platform/app/(shell)/_components/sidebar/sidebar-toolbar'
-import { workspaceNavigation } from '@/platform/app/(shell)/_components/workspace-navigation/destinations'
 import { useLiveShellActions } from '@/platform/lib/data/shell-context'
 import { isAbsoluteHref, platformHref } from '@/platform/lib/navigation'
-import { isWorkspaceTab, workspaceLocation } from '@/platform/lib/workspace-navigation'
+import { workspaceLocation } from '@/platform/lib/workspace-navigation'
 
 function isEditableTarget(target: EventTarget | null): boolean {
   return (
@@ -73,29 +72,13 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
     ? settingsDestinations.find((item) => item.key === (pathname.split('/')[2] || 'general'))
     : undefined
   const location = workspaceLocation(pathname)
-  const workspaceChat = location?.section === 'chat'
-  const conversation = workspaceChat || pathname.startsWith('/chat')
-  const activeChat = workspaceChat
-    ? location.detail
-    : conversation
-      ? pathname.split('/')[2]
-      : undefined
+  const conversation = pathname.startsWith('/chat')
+  const activeChat = conversation ? pathname.split('/')[2] : undefined
   const home = pathname === '/home'
   const integrations = pathname === '/integrations' || pathname.startsWith('/integrations/')
   const people = pathname === '/people' || pathname.startsWith('/people/')
   const workspace = data?.workspaces.find((item) => item.id === location?.id)
-  const navigation = location
-    ? workspaceNavigation(location.id, workspace?.workflows, data?.unbacked)
-    : null
-  const workspaceItems = navigation && [
-    ...navigation.primary,
-    ...navigation.pages,
-    ...navigation.workflows,
-  ]
-  const directory = location?.section === 'integrations' || location?.section === 'skills'
-  /** A workspace tab scrolls as one page; a record's details scroll only their reading column. */
-  const workspaceReading = isWorkspaceTab(location?.section) && !location?.detail
-  const scrollingPage = home || integrations || directory || workspaceReading
+  const scrollingPage = home || integrations || Boolean(location && !location.detail)
   const chats = orderSidebarItems(
     liveActions ? (data?.chats ?? []) : session.chats,
     chatOrder,
@@ -107,16 +90,10 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
     workspaceOrder,
     (item) => item.name
   )
-  const organizationChats = chats.filter((chat) => !chat.workspaceId)
-  const workspaceChats = location ? chats.filter((chat) => chat.workspaceId === location.id) : []
   const chatTitle = activeChat && (chats.find((item) => item.id === activeChat)?.title ?? 'Chat')
-  const workspaceTitle = workspaceItems?.find(
-    (item) =>
-      item.value === pathname || (item.id !== 'back' && pathname.startsWith(`${item.value}/`))
-  )?.label
-  const pageTitle =
-    workspaceTitle ??
-    (settings
+  const pageTitle = location
+    ? (workspace?.name ?? 'Workspace')
+    : settings
       ? section
         ? `Settings / ${section.title}`
         : 'Settings'
@@ -124,9 +101,9 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
         ? chatTitle || 'New chat'
         : integrations
           ? 'Integrations'
-          : pathname === '/people' || pathname.startsWith('/people/')
+          : people
             ? 'People'
-            : 'Home')
+            : 'Home'
   const drawerOpen = compact && drawer
 
   useEffect(() => {
@@ -206,8 +183,7 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
     <Sidebar
       data={data && { ...data, workspaces }}
       actions={actions}
-      chats={organizationChats}
-      workspaceChats={workspaceChats}
+      chats={chats}
       activeChat={activeChat}
       pathname={pathname}
       settingsSection={settings ? pathname.split('/')[2] || 'general' : undefined}
@@ -253,22 +229,15 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
         {webOpener}
         <div
           ref={scrollEdges}
-          role={location ? 'region' : undefined}
-          aria-label={location ? `Workspace ${workspaceTitle ?? 'content'}` : undefined}
           className={styles.content}
-          data-page-opener={
-            (scrollingPage || people || (location && !workspaceChat)) && webOpener
-              ? true
-              : undefined
-          }
+          data-page-opener={(scrollingPage || people || location) && webOpener ? true : undefined}
         >
           {/* Unkeyed, so a navigation keeps the current page until the next one is ready. */}
           <Suspense fallback={null}>
-            {location && !workspaceChat ? (
+            {location ? (
               <div
                 className={styles.pageContent}
-                data-workspace-pane={directory || workspaceReading ? undefined : true}
-                data-workspace-page={workspaceReading || undefined}
+                data-workspace={location.detail ? 'record' : 'page'}
               >
                 {children}
               </div>
@@ -302,9 +271,9 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
           open={command}
           onClose={() => setCommand(false)}
           navigate={navigate}
-          chats={location ? workspaceChats : organizationChats}
-          workspaces={location ? [] : workspaces}
-          destinations={workspaceItems ?? data?.destinations}
+          chats={chats}
+          workspaces={workspaces}
+          destinations={data?.destinations}
         />
       </div>
       <NotificationTray history={data?.notifications ?? []} navigate={navigate} />

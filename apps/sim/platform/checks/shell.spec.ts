@@ -294,7 +294,7 @@ test('sidebar and panel row actions share a hit area and act independently of th
   await expect(page.getByRole('menuitem', { name: 'Pin', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await workspace.click()
-  await expect(page).toHaveURL(/\/workspace\/operations\/chat\?state=full/)
+  await expect(page).toHaveURL(/\/workspace\/operations\/dashboards\?state=full/)
 })
 
 test('the inbox filters unread items and each notification can be dismissed separately', async ({

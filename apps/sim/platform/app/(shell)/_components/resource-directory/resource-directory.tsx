@@ -64,32 +64,3 @@ export function DirectoryBack({ href, label, onNavigate }: DirectoryBackProps) {
     </nav>
   )
 }
-
-export function DirectoryList({ children }: DirectoryContentProps) {
-  return <div className={styles.list}>{children}</div>
-}
-
-interface DirectoryGroupProps extends DirectoryContentProps {
-  label: string
-}
-export function DirectoryGroup({ label, children }: DirectoryGroupProps) {
-  return (
-    <section className={styles.group} aria-label={label}>
-      <h2 data-type='T059'>{label}</h2>
-      <ul className={styles.rows}>{children}</ul>
-    </section>
-  )
-}
-
-interface DirectoryFiltersProps {
-  search: ReactNode
-  category?: ReactNode
-}
-export function DirectoryFilters({ search, category }: DirectoryFiltersProps) {
-  return (
-    <div className={styles.filters}>
-      <div className={styles.search}>{search}</div>
-      {category && <div className={styles.category}>{category}</div>}
-    </div>
-  )
-}

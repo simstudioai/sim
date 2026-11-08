@@ -12,7 +12,6 @@ import type { ChatTurn, ComposerDraft } from '@/platform/app/(shell)/_components
 import { draftTitle, userTurn } from '@/platform/app/(shell)/_components/composer/user-turn'
 import type { ShellChat } from '@/platform/app/(shell)/_components/model'
 import { platformHref } from '@/platform/lib/navigation'
-import { chatPath } from '@/platform/lib/workspace-navigation'
 
 interface ChatEdits {
   title?: string
@@ -28,10 +27,10 @@ function useChanges() {
   }
   return {
     created,
-    createChat(title: string, initialTurns?: readonly ChatTurn[], workspaceId?: string) {
+    createChat(title: string, initialTurns?: readonly ChatTurn[]) {
       const id = generateId()
       if (initialTurns) update(id, { turns: initialTurns })
-      setCreated((previous) => [{ id, title, workspaceId }, ...previous])
+      setCreated((previous) => [{ id, title }, ...previous])
       return id
     },
     titleFor(id: string, fallback: string) {
@@ -139,8 +138,7 @@ interface FixtureThread {
 /** The fixture session's answer to `ChatRuntime`: every action edits this tab's memory. */
 export function useFixtureChatRuntime(
   threads: readonly FixtureThread[] | undefined,
-  chatId: string | undefined,
-  workspaceId?: string
+  chatId: string | undefined
 ): ChatRuntime {
   const changes = useChatChanges()
   const router = useRouter()
@@ -174,8 +172,8 @@ export function useFixtureChatRuntime(
       changes.setTurnsFor(id, [...turns, next])
       return
     }
-    const newId = changes.createChat(draftTitle(draft), [next], workspaceId)
-    router.replace(platformHref(chatPath(newId, workspaceId), search))
+    const newId = changes.createChat(draftTitle(draft), [next])
+    router.replace(platformHref(`/chat/${newId}`, search))
   }
   return {
     chatId,

@@ -11,26 +11,23 @@ import {
   useFixtureChatRuntime,
 } from '@/platform/app/(shell)/_components/session/chat-changes'
 import { useComposerHost } from '@/platform/app/(shell)/_components/session/composer-host'
-import { chatPath } from '@/platform/lib/workspace-navigation'
 
 interface FixtureChatProps {
   data: ConversationData | null
-  workspaceId?: string
   chatId?: string
 }
 
-export function FixtureChat({ data, chatId, workspaceId }: FixtureChatProps) {
+export function FixtureChat({ data, chatId }: FixtureChatProps) {
   const id = chatId ?? ''
   const changes = useChatChanges()
-  const runtime = useFixtureChatRuntime(data?.threads, chatId, workspaceId)
+  const runtime = useFixtureChatRuntime(data?.threads, chatId)
   const thread = data?.threads.some((item) => item.id === chatId)
   const composer = useComposerHost().useComposer({
-    draftKey: workspaceId ? chatPath(id, workspaceId) : `chat/${id}`,
+    draftKey: `chat/${id}`,
     ...data?.composerInventory,
     initialAttachments: !id || thread ? data?.draftAttachments : undefined,
   })
-  const created = changes.created.find((item) => item.id === chatId)
-  if (chatId && !thread && (!created || created.workspaceId !== workspaceId)) {
+  if (chatId && !thread && !changes.created.some((item) => item.id === chatId)) {
     return <EmptyState title='Chat not found' />
   }
   return (

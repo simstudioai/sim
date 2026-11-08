@@ -6,8 +6,50 @@ import type {
 } from '@/platform/app/(shell)/_components/composer/model'
 import type { ShellWorkspace } from '@/platform/app/(shell)/_components/model'
 import type { CredentialGroupsData } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/model'
-import type { WorkspaceSkill } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/skills-session/model'
+import type { Scenario } from '@/platform/fixtures'
 import type { IntegrationCatalogEntry } from '@/platform/lib/integrations/catalog-model'
+
+interface SkillExample {
+  id: string
+  name: string
+  description: string
+  /** Built-in skills belong to no workspace. */
+  builtIn?: boolean
+}
+
+const SKILLS: SkillExample[] = [
+  {
+    id: 'weekly-review',
+    name: 'weekly-review',
+    description: 'Prepare the weekly operations review from completed work and open issues.',
+  },
+  {
+    id: 'handoff',
+    name: 'customer-handoff',
+    description: 'Turn account notes into a handoff for the next owner.',
+  },
+  {
+    id: 'builtin-deploy-workflow',
+    name: 'deploy-workflow',
+    description: 'Prepare a finished workflow for deployment.',
+    builtIn: true,
+  },
+]
+
+/** The skills the composer's slash offers; the stress scenario adds a long run of similar names. */
+export function composerSkills(scenario: Scenario): SkillExample[] {
+  if (scenario === 'empty') return []
+  if (scenario !== 'stress') return SKILLS
+  return [
+    ...SKILLS,
+    ...Array.from({ length: 28 }, (_, index) => ({
+      id: `review-${index}`,
+      name: `international-onboarding-review-${index + 1}`,
+      description:
+        'Prepare a cross-functional customer onboarding review with the regional operations team.',
+    })),
+  ]
+}
 
 export function composerInventory({
   workspaces,
@@ -20,7 +62,7 @@ export function composerInventory({
 }: {
   workspaces: readonly ShellWorkspace[]
   providers: readonly Pick<IntegrationCatalogEntry, 'id' | 'name' | 'description'>[]
-  skills: readonly WorkspaceSkill[]
+  skills: readonly SkillExample[]
   credentials: CredentialGroupsData
   desktopPage?: string
   threads: readonly { id: string; title: string }[]
@@ -117,7 +159,7 @@ export function composerInventory({
         id: skill.id,
         name: skill.name,
         detail: skill.description,
-        ...(skill.access === 'built-in' ? {} : owner),
+        ...(skill.builtIn ? {} : owner),
       })),
       ...credentials.catalog
         .filter((entry) => entry.method === 'mcp' && credentials.configured.includes(entry.key))

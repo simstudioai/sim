@@ -7,7 +7,6 @@ import type {
 } from '@/platform/app/(shell)/_components/model'
 import { useChatChanges } from '@/platform/app/(shell)/_components/session/chat-changes'
 import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
-import { chatPath } from '@/platform/lib/workspace-navigation'
 
 export const SESSION_HELP: ShellHelp = {
   documentationUrl: 'https://docs.sim.ai',
@@ -29,7 +28,6 @@ export function useSessionShell(data: ShellData | null) {
     .filter((item) => !changes.isRemoved(item.id))
     .map((item) => ({
       ...item,
-      href: item.workspaceId ? chatPath(item.id, item.workspaceId) : item.href,
       title: changes.titleFor(item.id, item.title),
       isPinned: chatPins[item.id] ?? item.isPinned,
     }))

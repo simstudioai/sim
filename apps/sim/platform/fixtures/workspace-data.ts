@@ -34,7 +34,8 @@ import { formatCalendarDate } from '@/platform/shared/time'
 
 /**
  * Example data for a workspace's Dashboard, Issues, Changelog and Logs. The loader passes the shell's
- * workspace in, so names and workflows match the sidebar; merged issues are the shipped history.
+ * workspace in, so names and workflows match the sidebar and the composer; merged issues are the
+ * shipped history.
  */
 
 /* Common */
@@ -138,20 +139,15 @@ function workspaceSummary(scenario: Scenario, workspace: ShellWorkspace): Worksp
   }
 }
 
-/** The workspace items an agent's change can touch, linked to where each lives. */
+/** The workspace items an agent's change can touch. Only the provider page has somewhere to open. */
 function workspaceItems(scenario: Scenario, workspace: ShellWorkspace): WorkspaceChange[] {
-  const workspaceId = workspace.id
-  const workflows = workspace.workflows
   const workflow = (index: number, fallback: string) => {
-    const item = workflows?.[index]
+    const item = workspace.workflows?.[index]
     return {
       id: `workflow-${item?.id ?? fallback}`,
       name: item?.name ?? fallback,
       type: 'Workflow',
       icon: 'I118' as const,
-      href: item
-        ? workspacePath(workspaceId, `w/${encodeURIComponent(item.id)}`)
-        : workspacePath(workspaceId, 'w'),
     }
   }
   return [
@@ -162,7 +158,6 @@ function workspaceItems(scenario: Scenario, workspace: ShellWorkspace): Workspac
       name: scenario === 'stress' ? UNBROKEN : 'Escalation queue',
       type: 'Table',
       icon: 'I033',
-      href: workspacePath(workspaceId, 'tables'),
     },
     {
       id: 'notion-runbook',
@@ -176,14 +171,12 @@ function workspaceItems(scenario: Scenario, workspace: ShellWorkspace): Workspac
       name: 'Security policies',
       type: 'Knowledge base',
       icon: 'I004',
-      href: workspacePath(workspaceId, 'knowledge'),
     },
     {
       id: 'file-handbook',
       name: 'Support handbook.md',
       type: 'File',
       icon: 'I015',
-      href: workspacePath(workspaceId, 'files'),
     },
   ]
 }

@@ -109,7 +109,7 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
       chats: (chats.data ?? []).filter(canOpenChat).map(toShellChat),
       inbox: [],
       notifications: [],
-      unbacked: ['inbox', 'issues'],
+      unbacked: ['inbox'],
       status: {
         workspaces: workspaces.isRefetchError ? 'success' : workspaces.status,
         chats: !chatsAvailable || chats.isRefetchError ? 'success' : chats.status,

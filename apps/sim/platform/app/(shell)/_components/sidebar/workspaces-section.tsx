@@ -20,6 +20,7 @@ import { SectionStatus } from '@/platform/app/(shell)/_components/sidebar/sectio
 import styles from '@/platform/app/(shell)/_components/sidebar/sidebar-collections.module.css'
 import { useSidebarLayout } from '@/platform/app/(shell)/_components/sidebar/sidebar-layout'
 import { platformHref } from '@/platform/lib/navigation'
+import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 import { readFormText } from '@/platform/shared/row-links'
 
 const WORKSPACE_NAME_MAX_LENGTH = 100
@@ -28,10 +29,17 @@ const CREATE_UNAVAILABLE = 'Workspace creation is unavailable.'
 interface WorkspacesSectionProps {
   data: ShellData | null
   actions: ShellActions
+  /** The workspace whose page is open, marked current like any other destination. */
+  activeWorkspace?: string
   navigate: (href: string) => void
 }
 
-export function WorkspacesSection({ data, actions, navigate }: WorkspacesSectionProps) {
+export function WorkspacesSection({
+  data,
+  actions,
+  activeWorkspace,
+  navigate,
+}: WorkspacesSectionProps) {
   const query = useSearchParams()
   const { workspacesOpen, setWorkspacesOpen, workspaceOrder, setWorkspaceOrder } =
     useSidebarLayout()
@@ -107,7 +115,8 @@ export function WorkspacesSection({ data, actions, navigate }: WorkspacesSection
             return (
               <ContextActionMenu key={item.id} label={`Actions for ${item.name}`} actions={rows}>
                 <Chip
-                  href={platformHref(item.href ?? `/workspace/${item.id}`, query)}
+                  href={platformHref(item.href ?? workspaceEntry(item.id), query)}
+                  selected={item.id === activeWorkspace}
                   status={item.isPinned && <Icon name='I131' label='Pinned' />}
                   replaceActionOnTouch={item.isPinned}
                   action={

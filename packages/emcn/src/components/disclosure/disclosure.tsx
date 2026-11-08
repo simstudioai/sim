@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { Collapsible } from '@base-ui/react/collapsible'
-import { ControlRow } from '#emcn/components/button/control-row'
 import styles from '#emcn/components/disclosure/disclosure.module.css'
 import { Icon } from '#emcn/components/icon/icon'
 
@@ -18,7 +17,6 @@ type DisclosureProps = {
       /** Keeps the chevron shown, for a trigger that reads as plain text without it. */
       chevron?: boolean
     }
-  | { variant: 'folder'; actions?: never; introduction?: never; chevron?: never }
   | { variant: 'activity'; introduction?: ReactNode; actions?: never; chevron?: never }
 )
 
@@ -44,14 +42,6 @@ export function Disclosure({
       </span>
     </>
   )
-  if (variant === 'folder') {
-    return (
-      <details className={styles.folder} open={initiallyOpen}>
-        <ControlRow render={<summary />} label={label} icon='I100' trailingIcon='I090' />
-        {children}
-      </details>
-    )
-  }
   if (variant === 'activity')
     return (
       <Collapsible.Root

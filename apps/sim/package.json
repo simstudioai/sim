@@ -9,9 +9,8 @@
   },
   "scripts": {
     "dev": "bun run build:cli-runtime && bun run dev:cache:cap && next dev --port 3000",
-    "build:workspace-preview": "vite build --config workspace-preview/vite.config.ts",
-    "dev:platform": "bun run build:workspace-preview && cd platform && next dev --webpack --port 3125",
-    "build:platform": "bun run build:workspace-preview && cd platform && next build --webpack",
+    "dev:platform": "cd platform && next dev --webpack --port 3125",
+    "build:platform": "cd platform && next build --webpack",
     "type-check:platform": "cd platform && next typegen && tsc --noEmit",
     "test:platform:desktop": "playwright test --config platform/checks/desktop/playwright.config.ts",
     "test:platform:e2e": "playwright test --config platform/checks/playwright.config.ts",

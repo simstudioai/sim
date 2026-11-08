@@ -110,7 +110,6 @@
     "variant": {
       "section": ["C0422", "C0423", "C0424", "C0425"],
       "navigation": [],
-      "folder": [],
       "activity": ["C0180", "C0181", "C0182"]
     }
   },

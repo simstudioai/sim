@@ -38,35 +38,6 @@
   align-items: center;
   gap: var(--ui-action-gap);
 }
-.back,
-.rows {
+.back {
   margin-inline: calc(-1 * var(--ui-row-inset));
-}
-.list,
-.group,
-.rows {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  min-inline-size: 0;
-}
-.list {
-  gap: var(--ui-product-section-gap);
-}
-.group,
-.rows {
-  gap: var(--ui-list-gap);
-}
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ui-row-gap);
-}
-.search {
-  flex: 2 1 var(--spacing-192);
-  min-inline-size: 0;
-}
-.category {
-  flex: 1 1 var(--spacing-96);
-  max-inline-size: var(--spacing-192);
-  min-inline-size: 0;
 }

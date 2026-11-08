@@ -36,14 +36,14 @@ export interface StatusText {
   tone: StatusTone
 }
 
-/** A workspace item an issue or a shipped change touched, linked to where it lives. */
+/** A workspace item an issue or a shipped change touched. */
 export interface WorkspaceChange {
   id: string
   name: string
   /** What kind of item it is, written for people: `Workflow`, `Table`, `Notion page`. */
   type: string
-  /** A product path inside this app, or an absolute provider URL. */
-  href: string
+  /** Where it lives: a product path inside this app or an absolute provider URL. Absent when it has no page. */
+  href?: string
   icon?: IconName
   providerId?: string
 }

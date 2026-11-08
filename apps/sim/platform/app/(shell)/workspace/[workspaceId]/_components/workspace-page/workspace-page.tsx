@@ -19,7 +19,6 @@ import { platformHref } from '@/platform/lib/navigation'
 import {
   WORKSPACE_TABS,
   type WorkspaceTab,
-  workspaceEntry,
   workspacePath,
 } from '@/platform/lib/workspace-navigation'
 
@@ -108,7 +107,7 @@ export function WorkspaceEmpty({ title, description, action }: WorkspaceEmptyPro
   )
 }
 
-/** The workspace's New chat, keeping the preview's scenario and theme. */
-export function useNewChatHref(workspaceId: string) {
-  return platformHref(workspaceEntry(workspaceId), useSearchParams())
+/** The organization's New chat, keeping the preview's scenario and theme. */
+export function useNewChatHref() {
+  return platformHref('/chat', useSearchParams())
 }
