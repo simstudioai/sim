@@ -1,0 +1,27 @@
+.frame {
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.note {
+  padding-block-start: var(--spacing-12);
+  color: var(--ui-secondary);
+  text-align: center;
+}
+.empty {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  color: var(--ui-secondary);
+}
+.sheets {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+}
+.sheets > * {
+  flex: 1;
+  min-block-size: 0;
+}

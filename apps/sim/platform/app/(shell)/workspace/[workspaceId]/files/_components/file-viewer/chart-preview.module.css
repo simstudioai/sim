@@ -1,0 +1,16 @@
+.scroller {
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  padding: var(--spacing-24);
+}
+.error {
+  padding-block-end: var(--spacing-12);
+  color: var(--control-danger);
+}
+.source {
+  margin: 0;
+  overflow: auto;
+  color: var(--ui-ink);
+  white-space: pre-wrap;
+}

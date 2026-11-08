@@ -1,0 +1,4 @@
+.conflict {
+  flex: none;
+  padding-block-end: var(--spacing-12);
+}

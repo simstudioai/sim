@@ -1,0 +1,53 @@
+.embed {
+  display: block;
+  inline-size: 100%;
+  margin-block: var(--spacing-8);
+  overflow: hidden;
+  border-radius: var(--radius-item);
+}
+
+.embedFrame {
+  display: block;
+  inline-size: 100%;
+  overflow: hidden;
+}
+
+.embedIframe {
+  border: 0;
+  transform-origin: top left;
+}
+
+.embedVideo {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.embedAudio {
+  display: block;
+  inline-size: 100%;
+}
+
+.uploadPlaceholder {
+  margin-inline: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-8);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-4);
+  color: var(--ui-secondary);
+}
+
+.uploadCancel {
+  margin-inline-start: var(--spacing-8);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.uploadCancel:focus-visible {
+  outline: var(--spacing-stroke-focus) solid var(--ui-strong);
+  outline-offset: var(--spacing-2);
+}

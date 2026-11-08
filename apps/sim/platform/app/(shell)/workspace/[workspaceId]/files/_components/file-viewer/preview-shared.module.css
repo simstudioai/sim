@@ -1,0 +1,10 @@
+.center {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-block-size: 0;
+  padding-block: var(--spacing-24);
+}
+.center > * {
+  inline-size: min(100%, var(--container-440));
+}

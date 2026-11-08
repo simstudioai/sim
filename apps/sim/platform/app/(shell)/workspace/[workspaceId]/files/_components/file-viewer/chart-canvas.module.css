@@ -1,0 +1,25 @@
+.frame {
+  position: relative;
+  inline-size: 100%;
+  max-inline-size: var(--container-1200);
+  margin-inline: auto;
+  aspect-ratio: 16 / 10;
+  min-block-size: calc(var(--spacing-224) + var(--spacing-56));
+}
+.frame[data-sized] {
+  aspect-ratio: auto;
+  min-block-size: 0;
+}
+.canvas {
+  inline-size: 100%;
+  block-size: 100%;
+  min-block-size: var(--spacing-224);
+}
+.error {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: var(--spacing-16);
+  background: var(--ui-reading);
+  color: var(--control-danger);
+}

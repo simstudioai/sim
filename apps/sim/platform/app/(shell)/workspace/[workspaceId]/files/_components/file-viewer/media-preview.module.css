@@ -1,0 +1,31 @@
+.stage {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 0;
+}
+.audio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  inline-size: min(100%, var(--container-480));
+  gap: var(--ui-content-gap);
+  color: var(--ui-secondary);
+}
+.name {
+  max-inline-size: 100%;
+  color: var(--ui-ink);
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.audioPlayer {
+  inline-size: 100%;
+}
+.video {
+  display: block;
+  max-inline-size: 100%;
+  max-block-size: 100%;
+  border-radius: var(--radius-panel);
+  background: var(--control-muted-fill);
+}

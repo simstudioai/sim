@@ -1,0 +1,20 @@
+.table {
+  inline-size: max-content;
+  min-inline-size: 100%;
+  border-collapse: collapse;
+  color: var(--ui-ink);
+  overflow-wrap: anywhere;
+}
+.table th,
+.table td {
+  min-inline-size: var(--spacing-80);
+  max-inline-size: var(--spacing-320);
+  padding: var(--spacing-6) var(--spacing-12);
+  border: var(--spacing-stroke-default) solid var(--ui-divider);
+  text-align: start;
+  vertical-align: top;
+}
+.table th {
+  background: var(--control-muted-fill);
+  color: var(--ui-secondary);
+}

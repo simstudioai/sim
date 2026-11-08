@@ -1,0 +1,32 @@
+.html {
+  display: flex;
+  flex: 1;
+  min-block-size: 0;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+}
+.frame {
+  inline-size: 100%;
+  block-size: 100%;
+  border: 0;
+  background: var(--ui-reading);
+}
+.mermaid {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+}
+.table {
+  flex: 1;
+  min-block-size: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--spacing-16);
+}
+.empty {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  color: var(--ui-secondary);
+}

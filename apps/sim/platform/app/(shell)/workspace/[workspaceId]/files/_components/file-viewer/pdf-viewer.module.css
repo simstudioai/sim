@@ -1,0 +1,40 @@
+.frame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+.scroller {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  min-block-size: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: var(--radius-panel);
+  background: var(--control-muted-fill);
+}
+.scroller > div {
+  margin-inline: auto;
+}
+.padding {
+  padding: var(--spacing-24);
+}
+.pages {
+  display: grid;
+  gap: var(--spacing-16);
+}
+.page {
+  position: relative;
+  overflow: clip;
+  border-radius: var(--radius-item);
+  background: var(--ui-reading);
+}
+.page canvas {
+  display: block;
+}
+.page [class~="textLayer"] span::selection {
+  background: var(--ui-selected);
+}

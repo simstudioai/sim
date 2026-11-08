@@ -1,0 +1,21 @@
+.toolbar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  padding-block-end: var(--spacing-8);
+}
+.group {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+.count {
+  min-inline-size: var(--spacing-56);
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}

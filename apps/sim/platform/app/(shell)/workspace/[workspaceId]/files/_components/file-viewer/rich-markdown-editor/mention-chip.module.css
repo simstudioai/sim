@@ -1,0 +1,11 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  margin-inline: var(--spacing-1);
+  vertical-align: middle;
+}
+
+.chip[data-navigable] {
+  cursor: pointer;
+}

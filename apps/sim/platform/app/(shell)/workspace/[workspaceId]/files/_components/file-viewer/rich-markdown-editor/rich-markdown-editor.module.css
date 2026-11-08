@@ -1,0 +1,596 @@
+.root {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.notices {
+  display: grid;
+  gap: var(--ui-list-gap);
+  padding-block-end: var(--spacing-12);
+}
+
+.scroller {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.scroller[data-editable] {
+  cursor: text;
+}
+
+.surface {
+  box-sizing: border-box;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  inline-size: 100%;
+  max-inline-size: var(--container-760);
+  margin-inline: auto;
+  padding-block: var(--spacing-8) var(--spacing-64);
+}
+
+.surface[hidden] {
+  display: none;
+}
+
+/* EditorContent's own wrapper fills the column, so a click below the text still lands in it. */
+.surface > div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+/* The ProseMirror root: the document's type scale, ink and block rhythm. */
+.prose {
+  flex: 1 1 auto;
+  min-block-size: var(--spacing-224);
+  outline: none;
+  color: var(--ui-ink);
+  font: var(--font-weight-regular) var(--text-reading) / var(--leading-26) var(--font-sans);
+  overflow-wrap: anywhere;
+}
+
+.prose > * + * {
+  margin-block-start: var(--spacing-10);
+}
+
+.prose > :first-child {
+  margin-block-start: 0;
+}
+
+.prose :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--ui-ink);
+  font-weight: var(--font-weight-medium);
+}
+
+.prose h1 {
+  margin-block-start: var(--spacing-32);
+  font-size: var(--text-heading);
+  line-height: var(--leading-32);
+}
+
+.prose h2 {
+  margin-block-start: var(--spacing-24);
+  font-size: var(--text-20);
+  line-height: var(--leading-28);
+}
+
+.prose h3 {
+  margin-block-start: var(--spacing-20);
+  font-size: var(--text-lead);
+  line-height: var(--leading-28);
+}
+
+.prose h4 {
+  margin-block-start: var(--spacing-18);
+  font-size: var(--text-reading);
+  line-height: var(--leading-24);
+}
+
+.prose :is(h5, h6) {
+  margin-block-start: var(--spacing-18);
+  font-size: var(--text-body);
+  line-height: var(--leading-22);
+}
+
+.prose h6 {
+  color: var(--ui-secondary);
+}
+
+.prose strong {
+  font-weight: var(--font-weight-semibold);
+}
+
+.prose em {
+  font-style: italic;
+}
+
+.prose :is(del, s) {
+  color: var(--ui-secondary);
+  text-decoration: line-through;
+}
+
+.prose a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--ui-muted);
+  text-underline-offset: var(--spacing-2);
+  cursor: pointer;
+}
+
+.prose a:hover {
+  text-decoration-color: currentcolor;
+}
+
+.prose :is(ul, ol) {
+  margin: 0;
+  padding-inline-start: var(--spacing-20);
+}
+
+.prose ul {
+  list-style: disc;
+}
+
+.prose ol {
+  list-style: decimal;
+}
+
+.prose li > p {
+  margin: 0;
+}
+
+.prose li::marker {
+  color: var(--ui-ink);
+}
+
+.prose ul[data-type="taskList"] {
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.prose ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-8);
+}
+
+.prose ul[data-type="taskList"] li > label {
+  display: flex;
+  flex: none;
+  align-items: center;
+  block-size: var(--leading-26);
+  user-select: none;
+}
+
+.prose ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.prose ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
+
+.prose ul[data-type="taskList"] input[type="checkbox"] {
+  display: inline-grid;
+  place-content: center;
+  inline-size: var(--spacing-16);
+  block-size: var(--spacing-16);
+  margin: 0;
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-4);
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+
+.prose ul[data-type="taskList"] input[type="checkbox"]:checked {
+  border-color: var(--control-primary-fill);
+  background: var(--control-primary-fill);
+}
+
+.prose ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+  content: "";
+  inline-size: var(--spacing-10);
+  block-size: var(--spacing-10);
+  background: var(--control-on-solid);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+.prose ul[data-type="taskList"] input[type="checkbox"]:focus-visible {
+  outline: var(--spacing-stroke-focus) solid var(--ui-strong);
+  outline-offset: var(--spacing-2);
+}
+
+.prose blockquote {
+  margin-inline: 0;
+  padding-inline-start: var(--spacing-16);
+  border-inline-start: var(--ui-conversation-rule);
+  color: var(--ui-secondary);
+}
+
+.prose code {
+  padding: var(--spacing-2) var(--spacing-6);
+  border-radius: var(--radius-4);
+  background: var(--control-avatar);
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+}
+
+.prose pre {
+  margin: 0;
+  padding: var(--spacing-16);
+  overflow-x: auto;
+  border-radius: var(--radius-dialog);
+  background: var(--control-avatar);
+}
+
+.prose pre code {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font: var(--font-weight-regular) var(--text-control) / var(--leading-20) var(--font-mono);
+}
+
+/* Code blocks scroll unless their wrap toggle is on, outranking ProseMirror's own `pre` rule. */
+.prose pre[class~="code-editor-theme"],
+.prose pre[class~="code-editor-theme"] code {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.prose pre[class~="code-editor-theme"][data-wrap="true"],
+.prose pre[class~="code-editor-theme"][data-wrap="true"] code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.prose
+  [class~="token"]:is(
+    [class~="comment"],
+    [class~="block-comment"],
+    [class~="prolog"],
+    [class~="doctype"],
+    [class~="cdata"]
+  ) {
+  color: var(--ui-secondary);
+}
+
+.prose
+  [class~="token"]:is(
+    [class~="punctuation"],
+    [class~="operator"],
+    [class~="entity"],
+    [class~="url"],
+    [class~="symbol"]
+  ) {
+  color: var(--ui-ink);
+}
+
+.prose
+  [class~="token"]:is(
+    [class~="property"],
+    [class~="attr-name"],
+    [class~="variable"],
+    [class~="atrule"],
+    [class~="attr-value"],
+    [class~="keyword"]
+  ) {
+  color: var(--status-info);
+}
+
+.prose
+  [class~="token"]:is([class~="tag"], [class~="boolean"], [class~="number"], [class~="constant"]) {
+  color: var(--status-success);
+}
+
+.prose
+  [class~="token"]:is(
+    [class~="string"],
+    [class~="char"],
+    [class~="builtin"],
+    [class~="inserted"],
+    [class~="function"],
+    [class~="class-name"]
+  ) {
+  color: var(--status-warning);
+}
+
+.prose [class~="token"]:is([class~="regex"], [class~="important"], [class~="deleted"]) {
+  color: var(--control-danger);
+}
+
+.prose [class~="raw-markdown-inline"] {
+  padding: var(--spacing-1) var(--spacing-4);
+  border-radius: var(--radius-4);
+  background: var(--control-avatar);
+  color: var(--ui-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+  white-space: pre-wrap;
+}
+
+.prose hr {
+  margin-block: var(--spacing-24);
+  border: 0;
+  border-block-start: var(--ui-conversation-rule);
+}
+
+.prose img {
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
+.prose mark {
+  margin-inline: calc(-1 * var(--spacing-1));
+  padding-inline: var(--spacing-1);
+  border-radius: var(--radius-2);
+  background: var(--status-warning-soft);
+  color: inherit;
+  box-decoration-break: clone;
+}
+
+.prose table:not([data-embed] *) {
+  inline-size: 100%;
+  margin-block: var(--spacing-16);
+  overflow: visible;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.prose :is(th, td):not([data-embed] *) {
+  position: relative;
+  padding: var(--spacing-8) var(--spacing-12);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  font: var(--font-weight-regular) var(--text-body) / var(--leading-24) var(--font-sans);
+  text-align: start;
+  vertical-align: top;
+}
+
+.prose th:not([data-embed] *) {
+  background: var(--ui-hover);
+  font-weight: var(--font-weight-medium);
+}
+
+.prose :is(th, td) > p {
+  margin: 0;
+}
+
+.prose [class~="selectedCell"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--ui-selected);
+  pointer-events: none;
+}
+
+.prose [class~="column-resize-handle"] {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: calc(-1 * var(--spacing-2));
+  inline-size: var(--spacing-3);
+  background: var(--status-info);
+  pointer-events: none;
+}
+
+.prose[class~="resize-cursor"] {
+  cursor: col-resize;
+}
+
+.prose p[class~="is-editor-empty"]:first-child::before {
+  content: attr(data-placeholder);
+  float: inline-start;
+  block-size: 0;
+  color: var(--ui-muted);
+  pointer-events: none;
+}
+
+/* One ring for every node selected whole, so a click and a keyboard selection look the same. */
+.prose [class~="ProseMirror-selectednode"] {
+  border-radius: var(--radius-4);
+  outline: var(--spacing-stroke-focus) solid var(--status-info);
+  outline-offset: var(--spacing-2);
+}
+
+.prose [class~="ProseMirror-selectednode"]:has(img),
+.prose [class~="ProseMirror-selectednode"]:has([data-mention-chip]) {
+  outline: none;
+}
+
+.prose [class~="ProseMirror-selectednode"] img {
+  outline: var(--spacing-stroke-focus) solid var(--status-info);
+  outline-offset: calc(-1 * var(--spacing-stroke-focus));
+}
+
+.prose [class~="ProseMirror-gapcursor"]::after {
+  inset-block-start: 0;
+  inline-size: var(--spacing-2);
+  block-size: var(--spacing-20);
+  border-block-start: 0;
+  background: var(--ui-ink);
+}
+
+.prose[data-gap-between-leaves] [class~="ProseMirror-gapcursor"]::after {
+  display: none;
+}
+
+.prose hr[class~="rich-leaf-in-selection"] {
+  border-radius: var(--radius-2);
+  box-shadow: 0 0 0 var(--spacing-6) var(--ui-selected);
+}
+
+.prose [class~="rich-leaf-in-selection"]:has(img) img,
+.prose img[class~="rich-leaf-in-selection"] {
+  border-radius: var(--radius-4);
+  outline: var(--spacing-stroke-focus) solid var(--ui-selected);
+  outline-offset: var(--spacing-2);
+}
+
+/* Find matches: every hit tinted, the active one underlined in the same hue. */
+.prose [class~="rich-find-match"] {
+  border-radius: var(--radius-2);
+  background: var(--status-warning-soft);
+  color: inherit;
+}
+
+.prose [class~="rich-find-match-active"] {
+  box-shadow: inset 0 calc(-1 * var(--spacing-2)) 0 var(--status-warning);
+}
+
+/* Collaborators' carets: a zero-width anchor, an out-of-flow bar, a cap, and a name on activity. */
+.prose [class~="collaboration-carets__caret"] {
+  position: relative;
+  z-index: 1;
+  word-break: normal;
+}
+
+.prose [class~="collaboration-carets__bar"] {
+  position: absolute;
+  inset-block: calc(-1 * var(--spacing-1));
+  inset-inline-start: calc(-1 * var(--spacing-1));
+  inline-size: var(--spacing-2);
+  background: var(--ui-ink);
+  pointer-events: none;
+}
+
+.prose [class~="collaboration-carets__caret"]::before {
+  content: "";
+  position: absolute;
+  inset-block-start: calc(-1 * var(--spacing-2));
+  inset-inline-start: calc(-1 * var(--spacing-1));
+  inline-size: var(--spacing-8);
+  block-size: var(--spacing-5);
+  border-radius: var(--radius-2) var(--radius-2) var(--radius-2) 0;
+  background: var(--ui-ink);
+  transition: opacity var(--ui-motion-color);
+}
+
+.prose [class~="collaboration-carets__caret"]::after {
+  content: "";
+  position: absolute;
+  inset-block: calc(-1 * var(--spacing-4)) 0;
+  inset-inline: calc(-1 * var(--spacing-4));
+  pointer-events: auto;
+}
+
+.prose [class~="collaboration-carets__caret--active"]::before,
+.prose [class~="collaboration-carets__caret"]:hover::before {
+  opacity: 0;
+}
+
+.prose [class~="collaboration-carets__label"] {
+  position: absolute;
+  inset-block-start: calc(-1 * var(--spacing-22));
+  inset-inline-start: calc(-1 * var(--spacing-1));
+  max-inline-size: var(--spacing-154);
+  padding: var(--spacing-1) var(--spacing-6);
+  overflow: hidden;
+  border-radius: var(--radius-2) var(--radius-2) var(--radius-2) 0;
+  background: var(--ui-ink);
+  color: var(--ui-canvas);
+  font: var(--font-weight-medium) var(--text-badge) / var(--leading-16) var(--font-sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity var(--ui-motion-color);
+}
+
+.prose [class~="collaboration-carets__caret--active"] [class~="collaboration-carets__label"],
+.prose [class~="collaboration-carets__caret"]:hover [class~="collaboration-carets__label"] {
+  opacity: 1;
+}
+
+.prose [class~="collaboration-carets__caret--flip"] [class~="collaboration-carets__label"] {
+  inset-inline: auto calc(-1 * var(--spacing-1));
+  border-radius: var(--radius-2) var(--radius-2) 0 var(--radius-2);
+}
+
+.prose [class~="collaboration-carets__selection"] {
+  border-radius: var(--radius-2);
+  background: color-mix(in srgb, var(--ui-ink) 20%, transparent);
+  pointer-events: none;
+}
+
+.prose
+  [data-color-slot="0"]
+  :is([class~="collaboration-carets__bar"], [class~="collaboration-carets__label"]),
+.prose [class~="collaboration-carets__caret"][data-color-slot="0"]::before {
+  background: var(--status-success);
+}
+
+.prose [class~="collaboration-carets__selection"][data-color-slot="0"] {
+  background: color-mix(in srgb, var(--status-success) 20%, transparent);
+}
+
+.prose
+  [data-color-slot="1"]
+  :is([class~="collaboration-carets__bar"], [class~="collaboration-carets__label"]),
+.prose [class~="collaboration-carets__caret"][data-color-slot="1"]::before {
+  background: var(--control-danger);
+}
+
+.prose [class~="collaboration-carets__selection"][data-color-slot="1"] {
+  background: color-mix(in srgb, var(--control-danger) 20%, transparent);
+}
+
+.prose
+  [data-color-slot="2"]
+  :is([class~="collaboration-carets__bar"], [class~="collaboration-carets__label"]),
+.prose [class~="collaboration-carets__caret"][data-color-slot="2"]::before {
+  background: var(--status-info);
+}
+
+.prose [class~="collaboration-carets__selection"][data-color-slot="2"] {
+  background: color-mix(in srgb, var(--status-info) 20%, transparent);
+}
+
+.prose
+  [data-color-slot="3"]
+  :is([class~="collaboration-carets__bar"], [class~="collaboration-carets__label"]),
+.prose [class~="collaboration-carets__caret"][data-color-slot="3"]::before {
+  background: var(--color-orange);
+}
+
+.prose [class~="collaboration-carets__selection"][data-color-slot="3"] {
+  background: color-mix(in srgb, var(--color-orange) 20%, transparent);
+}
+
+.prose
+  [data-color-slot="4"]
+  :is([class~="collaboration-carets__bar"], [class~="collaboration-carets__label"]),
+.prose [class~="collaboration-carets__caret"][data-color-slot="4"]::before {
+  background: var(--color-dark-purple);
+}
+
+.prose [class~="collaboration-carets__selection"][data-color-slot="4"] {
+  background: color-mix(in srgb, var(--color-dark-purple) 20%, transparent);
+}
+
+.prose
+  [data-color-slot="5"]
+  :is([class~="collaboration-carets__bar"], [class~="collaboration-carets__label"]),
+.prose [class~="collaboration-carets__caret"][data-color-slot="5"]::before {
+  background: var(--status-warning);
+}
+
+.prose [class~="collaboration-carets__selection"][data-color-slot="5"] {
+  background: color-mix(in srgb, var(--status-warning) 20%, transparent);
+}
+
+.prose
+  [class~="collaboration-carets__caret"]:is([data-color-slot])
+  [class~="collaboration-carets__label"] {
+  color: var(--control-on-solid);
+}

@@ -1,0 +1,58 @@
+/* The list and its overlays share one frame, so a desktop drop anywhere on it uploads. */
+.browser {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+/* Find in list sits above the list's trailing edge and stays in view while the list scrolls under it. */
+.findFrame {
+  position: sticky;
+  inset-block-start: var(--spacing-8);
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  padding-block-end: var(--spacing-8);
+}
+.find {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  padding: var(--ui-popup-padding);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu);
+}
+.findInput {
+  display: flex;
+  inline-size: var(--container-208);
+}
+.findCount {
+  min-inline-size: var(--spacing-72);
+  padding-inline: var(--spacing-4);
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}
+.dropOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-stack-gap);
+  border: var(--spacing-stroke-default) dashed var(--ui-border);
+  border-radius: var(--radius-item);
+  background: var(--ui-canvas);
+  color: var(--ui-ink);
+  pointer-events: none;
+}
+.dropHint {
+  color: var(--ui-secondary);
+}
+.fileInput {
+  display: none;
+}

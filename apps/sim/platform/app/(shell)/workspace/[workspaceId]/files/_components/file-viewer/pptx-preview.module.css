@@ -1,0 +1,24 @@
+.preview {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+.frame {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: flex-start;
+  min-block-size: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--spacing-24);
+  border-radius: var(--radius-panel);
+  background: var(--control-muted-fill);
+}
+.stage {
+  inline-size: 100%;
+  max-inline-size: var(--container-1200);
+  margin-inline: auto;
+}

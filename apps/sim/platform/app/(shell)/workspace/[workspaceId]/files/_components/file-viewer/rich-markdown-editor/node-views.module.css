@@ -1,0 +1,189 @@
+.codeBlock {
+  position: relative;
+}
+
+.codeControls {
+  position: absolute;
+  inset-block-start: var(--spacing-6);
+  inset-inline-end: var(--spacing-6);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  padding: var(--spacing-2);
+  border-radius: var(--ui-control-radius);
+  background: var(--ui-reading);
+  opacity: 0;
+  transition: opacity var(--ui-motion-color);
+}
+
+.codeBlock:hover .codeControls,
+.codeBlock:has(:focus-visible) .codeControls,
+.codeControls:has([aria-expanded="true"]) {
+  opacity: 1;
+}
+
+@media (hover: none), (any-pointer: coarse) {
+  .codeControls {
+    opacity: 1;
+  }
+}
+
+.codeBlock[data-source-open] .codeControls {
+  position: static;
+  justify-content: flex-end;
+  margin-block-end: var(--spacing-4);
+  background: transparent;
+  opacity: 1;
+}
+
+.codeLanguage {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--spacing-24);
+  padding-inline: var(--spacing-6);
+  color: var(--ui-secondary);
+}
+
+.codeBlock pre.codeSource {
+  margin: 0;
+  padding-inline-end: var(--spacing-80);
+}
+
+.codeBlock pre.codeSource,
+.codeBlock pre.codeSource code {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.codeBlock pre.codeSource[data-wrap="true"],
+.codeBlock pre.codeSource[data-wrap="true"] code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.codeBlock pre.codeSource[hidden] {
+  display: none;
+}
+
+.embed {
+  min-inline-size: 0;
+}
+
+.diagram {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-16);
+  overflow-x: auto;
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-dialog);
+  background: var(--ui-reading);
+}
+
+.rawBlock {
+  position: relative;
+}
+
+.rawBadge {
+  position: absolute;
+  inset-block-start: var(--spacing-6);
+  inset-inline-end: var(--spacing-8);
+  padding: var(--spacing-2) var(--spacing-6);
+  border-radius: var(--radius-item);
+  background: var(--ui-hover);
+  color: var(--ui-secondary);
+  opacity: 0;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity var(--ui-motion-color);
+}
+
+.rawBlock:hover .rawBadge,
+.rawBlock:has(:focus-visible) .rawBadge {
+  opacity: 1;
+}
+
+.rawSource {
+  padding: var(--spacing-12) var(--spacing-16);
+  border-radius: var(--radius-dialog);
+  background: var(--control-avatar);
+  color: var(--ui-secondary);
+  font: var(--font-weight-regular) var(--text-body) / var(--leading-22) var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.imageFrame {
+  position: relative;
+  display: inline-block;
+  max-inline-size: 100%;
+  margin-block: var(--spacing-16);
+  line-height: 0;
+}
+
+.imageFrame[data-inline] {
+  margin-block: 0;
+  vertical-align: middle;
+}
+
+.imageLink {
+  display: block;
+}
+
+.image {
+  display: block;
+  block-size: auto;
+  max-inline-size: 100%;
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-item);
+}
+
+.image[data-editable] {
+  cursor: grab;
+}
+
+.image[data-failed] {
+  min-block-size: var(--spacing-72);
+  min-inline-size: var(--spacing-132);
+  padding: var(--spacing-12);
+  background: var(--ui-hover);
+  color: var(--ui-secondary);
+  font: var(--font-weight-regular) var(--text-caption) / var(--leading-18) var(--font-sans);
+}
+
+.resizeHandle {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  inline-size: var(--spacing-32);
+  block-size: var(--spacing-32);
+  padding: var(--spacing-4);
+  border: 0;
+  background: transparent;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+
+.resizeHandle:focus-visible {
+  outline: var(--spacing-stroke-focus) solid var(--ui-strong);
+  outline-offset: calc(-1 * var(--spacing-stroke-focus));
+}
+
+.resizeKnob {
+  inline-size: var(--spacing-12);
+  block-size: var(--spacing-12);
+  border: var(--spacing-stroke-default) solid var(--ui-canvas);
+  border-radius: var(--radius-4);
+  background: var(--status-info);
+}
+
+@media (pointer: coarse) {
+  .resizeHandle {
+    inline-size: var(--spacing-40);
+    block-size: var(--spacing-40);
+  }
+}
