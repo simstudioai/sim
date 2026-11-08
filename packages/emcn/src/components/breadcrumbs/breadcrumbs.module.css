@@ -1,0 +1,49 @@
+/* One line at any depth: crumbs shrink and fade before the trail wraps, and a deep middle folds into a menu. */
+.trail {
+  display: flex;
+  min-inline-size: 0;
+}
+.list {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+}
+.item {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-inline-size: 0;
+  max-inline-size: calc(var(--spacing-128) + var(--spacing-64));
+  gap: var(--ui-stack-gap);
+}
+.item[data-current] {
+  max-inline-size: calc(var(--spacing-224) + var(--spacing-32));
+}
+/* The ellipsis and the first location never yield their width to longer neighbors. */
+.item:first-child,
+.item:has(> .crumb > [aria-haspopup]):not([data-current]) {
+  flex-shrink: 0;
+}
+.separator {
+  display: inline-flex;
+  flex: none;
+  color: var(--ui-secondary);
+}
+.crumb {
+  display: flex;
+  min-inline-size: 0;
+  border-radius: var(--ui-control-radius);
+}
+.crumb[data-drop-target] {
+  background: var(--ui-hover);
+}
+/* The current location reads at a compact button's height and inset, so it lines up with its ancestors. */
+.current {
+  display: inline-flex;
+  align-items: center;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-28);
+  padding-inline: var(--spacing-8);
+  color: var(--ui-ink);
+}

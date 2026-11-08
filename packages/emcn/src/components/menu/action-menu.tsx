@@ -14,6 +14,7 @@ import {
 import { ContextMenu } from '@base-ui/react/context-menu'
 import { Menu } from '@base-ui/react/menu'
 import { Toolbar } from '@base-ui/react/toolbar'
+import Link from 'next/link'
 import { Button, IconButton } from '#emcn/components/button/button'
 import { useClipboard } from '#emcn/components/feedback/use-clipboard'
 import type { IconName } from '#emcn/components/icon/icon'
@@ -47,6 +48,8 @@ export type MenuAction = {
   | {
       children?: never
       onSelect?: () => void
+      /** A row that navigates, such as a collapsed breadcrumb, as a link rather than a command. */
+      href?: string
       trailingIcon?: IconName
       checked?: boolean
       disabled?: boolean
@@ -138,6 +141,7 @@ function actionRows(actions: readonly MenuAction[]): ReactNode {
           disabledReason={action.disabledReason}
           destructive={action.destructive}
           shortcut={action.shortcut}
+          href={action.href}
           onSelect={action.onSelect}
         />
       )}
@@ -462,6 +466,7 @@ interface MenuItemProps {
   disabledReason?: string
   value?: string
   selected?: boolean
+  href?: string
   onSelect?: () => void
 }
 
@@ -477,6 +482,7 @@ export function MenuItem({
   checked,
   disabled,
   disabledReason,
+  href,
   onSelect,
 }: MenuItemProps) {
   const inline = useContext(InlineMenu)
@@ -509,6 +515,18 @@ export function MenuItem({
     </>
   )
   if (floating) {
+    if (href !== undefined)
+      return (
+        <Menu.LinkItem
+          render={<Link href={href} />}
+          className={styles.menuItem}
+          label={label}
+          data-type={type}
+          closeOnClick
+        >
+          {content}
+        </Menu.LinkItem>
+      )
     if (checked !== undefined)
       return explain(
         <Menu.CheckboxItem
