@@ -13,6 +13,15 @@ export interface WorkspaceSummary {
   description: string
 }
 
+/**
+ * How a page's read stands. Pending paints only the page's chrome; a failure keeps the chrome and
+ * offers Retry where the content would be.
+ */
+export type WorkspaceRead =
+  | { status: 'ready' }
+  | { status: 'pending' }
+  | { status: 'error'; message: string; retrying?: boolean; onRetry: () => void }
+
 export interface WorkspacePerson {
   id: string
   name: string

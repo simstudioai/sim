@@ -15,6 +15,7 @@ import {
 import type {
   ChangelogData,
   ChangelogEntry,
+  WorkspaceRead,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import {
   useRevealedCount,
@@ -58,6 +59,8 @@ interface ChangelogActions {
 }
 
 interface ChangelogFeedProps {
+  /** How the page's read stands; ready when omitted. */
+  read?: WorkspaceRead
   data: ChangelogData
   actions: ChangelogActions
 }
@@ -66,7 +69,7 @@ interface ChangelogFeedProps {
  * What shipped in the workspace, newest first and grouped by day. Only applied work appears; each
  * entry links to its details and to the issue it came from.
  */
-export function ChangelogFeed({ data, actions }: ChangelogFeedProps) {
+export function ChangelogFeed({ data, actions, read }: ChangelogFeedProps) {
   const search = useSearchParams()
   const timeZone = useViewerTimeZone()
   const [view, setView] = useQueryStates(changelogParams, { history: 'replace', shallow: true })
@@ -101,6 +104,7 @@ export function ChangelogFeed({ data, actions }: ChangelogFeedProps) {
 
   return (
     <WorkspacePage
+      read={read}
       workspace={data.workspace}
       current='changelog'
       controls={

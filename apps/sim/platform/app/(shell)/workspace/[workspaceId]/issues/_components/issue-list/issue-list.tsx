@@ -19,6 +19,7 @@ import type {
   IssueGroup,
   IssueSummary,
   IssuesData,
+  WorkspaceRead,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import { useRevealedCount } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/issues/_components/issue-list/issue-list.module.css'
@@ -59,6 +60,8 @@ function compareIssues(sort: (typeof SORTS)[number]['id']) {
 }
 
 interface IssueListProps {
+  /** How the page's read stands; ready when omitted. */
+  read?: WorkspaceRead
   data: IssuesData
 }
 
@@ -66,7 +69,7 @@ interface IssueListProps {
  * Agent-proposed issues in four fixed groups. Merged and Closed start collapsed; a filter or search
  * hides groups it empties. Each row opens the issue, carrying this view so Back returns to it.
  */
-export function IssueList({ data }: IssueListProps) {
+export function IssueList({ data, read }: IssueListProps) {
   const search = useSearchParams()
   const newChat = useNewChatHref(data.workspace.id)
   const [view, setView] = useQueryStates(issueListParams, { history: 'replace', shallow: true })
@@ -136,7 +139,7 @@ export function IssueList({ data }: IssueListProps) {
   )
 
   return (
-    <WorkspacePage workspace={data.workspace} current='issues' controls={controls}>
+    <WorkspacePage read={read} workspace={data.workspace} current='issues' controls={controls}>
       {!data.issues.length ? (
         <WorkspaceEmpty
           title='No issues yet'

@@ -140,28 +140,12 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
       settingsEntry.current = `${pathname}${search.size ? `?${search}` : ''}${window.location.hash}`
   }, [settings, pathname, search])
 
-  const scrollPositions = useRef<Map<string, number> | null>(null)
-  scrollPositions.current ??= new Map()
-  const historyStep = useRef(false)
-  const scrollKey = useRef(pathname)
-
-  useEffect(() => {
-    const onHistoryStep = () => {
-      historyStep.current = true
-    }
-    window.addEventListener('popstate', onHistoryStep)
-    return () => window.removeEventListener('popstate', onHistoryStep)
-  }, [])
-
-  // Back and Forward return a workspace page to where its reader left it; a new visit starts at the top.
+  // A workspace page starts at the top unless it has just restored where its reader left it.
   useLayoutEffect(() => {
-    scrollKey.current = pathname
-    const restore = historyStep.current
-    historyStep.current = false
-    if (!pathname.startsWith('/workspace/')) return
-    content.current?.scrollTo({
-      top: restore ? (scrollPositions.current?.get(pathname) ?? 0) : 0,
-    })
+    const viewport = content.current
+    const restored = viewport?.dataset.restoredScroll === window.location.pathname
+    if (viewport) delete viewport.dataset.restoredScroll
+    if (!restored && pathname.startsWith('/workspace/')) viewport?.scrollTo({ top: 0 })
   }, [pathname])
 
   const toggleOnShortcut = useEffectEvent(() => toggle())
@@ -272,9 +256,6 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
           role={location ? 'region' : undefined}
           aria-label={location ? `Workspace ${workspaceTitle ?? 'content'}` : undefined}
           className={styles.content}
-          onScroll={(event) =>
-            scrollPositions.current?.set(scrollKey.current, event.currentTarget.scrollTop)
-          }
           data-page-opener={
             (scrollingPage || people || (location && !workspaceChat)) && webOpener
               ? true

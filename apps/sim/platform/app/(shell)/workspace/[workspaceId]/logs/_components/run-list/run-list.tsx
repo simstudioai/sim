@@ -21,6 +21,7 @@ import {
 import type {
   RunSummary,
   RunsData,
+  WorkspaceRead,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import { useRevealedCount } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/run-list/run-list.module.css'
@@ -69,6 +70,8 @@ interface RunListActions {
 }
 
 interface RunListProps {
+  /** How the page's read stands; ready when omitted. */
+  read?: WorkspaceRead
   data: RunsData
   actions: RunListActions
 }
@@ -77,7 +80,7 @@ interface RunListProps {
  * Every run in the workspace, newest first. A row opens the run's trace; filters and sort shape the
  * list, and new runs join only when the reader asks, so the list never moves under them.
  */
-export function RunList({ data, actions }: RunListProps) {
+export function RunList({ data, actions, read }: RunListProps) {
   const search = useSearchParams()
   const [view, setView] = useQueryStates(runListParams, { history: 'replace', shallow: true })
   const term = view.q.trim().toLowerCase()
@@ -167,7 +170,7 @@ export function RunList({ data, actions }: RunListProps) {
   )
 
   return (
-    <WorkspacePage workspace={data.workspace} current='logs' controls={controls}>
+    <WorkspacePage read={read} workspace={data.workspace} current='logs' controls={controls}>
       {!data.runs.length && !data.incoming.length ? (
         <WorkspaceEmpty
           title='No runs yet'

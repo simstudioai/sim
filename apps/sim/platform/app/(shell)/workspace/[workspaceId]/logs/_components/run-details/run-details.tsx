@@ -16,6 +16,7 @@ import {
 import type {
   RunDetail,
   TraceSpan,
+  WorkspaceRead,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import { useViewerTimeZone } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/run-details/run-details.module.css'
@@ -34,12 +35,14 @@ function findSpan(spans: readonly TraceSpan[], id: string): TraceSpan | undefine
 }
 
 interface RunDetailsProps {
+  /** How the page's read stands; ready when omitted. */
+  read?: WorkspaceRead
   run: RunDetail
   back: { href: string; label: string }
 }
 
 /** One run, named by its execution: its facts beside the trace and the selected step. */
-export function RunDetails({ run, back }: RunDetailsProps) {
+export function RunDetails({ run, back, read }: RunDetailsProps) {
   const timeZone = useViewerTimeZone()
   const root = run.trace[0]
   const [selectedId, setSelectedId] = useState(root?.id ?? '')
@@ -48,6 +51,7 @@ export function RunDetails({ run, back }: RunDetailsProps) {
   const usage = formatComputeUnits(run.cu)
   return (
     <DetailSplit
+      read={read}
       back={back}
       label={`Run ${shortId} trace`}
       controls={

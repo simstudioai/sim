@@ -3,13 +3,18 @@
 import type { ReactNode } from 'react'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
+import { FailureNotice } from '@sim/emcn/status'
 import { DestinationTabs } from '@sim/emcn-platform/destination-tabs'
 import { PageColumn } from '@sim/emcn-platform/page-column'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { DirectoryHeading } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-page/workspace-page.module.css'
-import type { WorkspaceSummary } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
+import type {
+  WorkspaceRead,
+  WorkspaceSummary,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
+import { useScrollMemory } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import { platformHref } from '@/platform/lib/navigation'
 import {
   WORKSPACE_TABS,
@@ -18,11 +23,15 @@ import {
   workspacePath,
 } from '@/platform/lib/workspace-navigation'
 
+const READY: WorkspaceRead = { status: 'ready' }
+
 interface WorkspacePageProps {
   workspace: WorkspaceSummary
   current: WorkspaceTab
   /** The tab's control bar, directly beneath the tabs. */
   controls?: ReactNode
+  /** The tab's read; anything but ready replaces the content, never the chrome. */
+  read?: WorkspaceRead
   children: ReactNode
 }
 
@@ -30,8 +39,15 @@ interface WorkspacePageProps {
  * A workspace tab: the workspace's name and description, its pages as tabs, the tab's controls and
  * its content. It shares the Integrations heading, tab row and control geometry.
  */
-export function WorkspacePage({ workspace, current, controls, children }: WorkspacePageProps) {
+export function WorkspacePage({
+  workspace,
+  current,
+  controls,
+  read = READY,
+  children,
+}: WorkspacePageProps) {
   const search = useSearchParams()
+  const scroll = useScrollMemory<HTMLElement>()
   const destinations = WORKSPACE_TABS.map((tab) => ({
     section: tab.section,
     label: tab.label,
@@ -39,7 +55,7 @@ export function WorkspacePage({ workspace, current, controls, children }: Worksp
   }))
   return (
     <PageColumn>
-      <main className={styles.page}>
+      <main ref={scroll.ref} className={styles.page} onClickCapture={scroll.remember}>
         <DirectoryHeading title={workspace.name} description={workspace.description} />
         <div className={styles.body}>
           <div className={styles.toolbar}>
@@ -50,7 +66,11 @@ export function WorkspacePage({ workspace, current, controls, children }: Worksp
             />
             {controls}
           </div>
-          {children}
+          {read.status === 'error' ? (
+            <FailureNotice message={read.message} retrying={read.retrying} onRetry={read.onRetry} />
+          ) : (
+            read.status === 'ready' && children
+          )}
         </div>
       </main>
     </PageColumn>

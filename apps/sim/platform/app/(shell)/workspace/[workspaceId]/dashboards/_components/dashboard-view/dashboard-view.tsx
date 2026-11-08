@@ -9,7 +9,10 @@ import {
   WorkspaceEmpty,
   WorkspacePage,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
-import type { DashboardData } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
+import type {
+  DashboardData,
+  WorkspaceRead,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import { DashboardSectionView } from '@/platform/app/(shell)/workspace/[workspaceId]/dashboards/_components/dashboard-section/dashboard-section'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/dashboards/_components/dashboard-view/dashboard-view.module.css'
 
@@ -19,6 +22,8 @@ interface DashboardActions {
 }
 
 interface DashboardViewProps {
+  /** How the page's read stands; ready when omitted. */
+  read?: WorkspaceRead
   data: DashboardData
   actions: DashboardActions
 }
@@ -27,7 +32,7 @@ interface DashboardViewProps {
  * The workspace's production snapshot. It is read-only: the period and each section's own choice
  * change what it shows, and authoring happens in chat.
  */
-export function DashboardView({ data, actions }: DashboardViewProps) {
+export function DashboardView({ data, actions, read }: DashboardViewProps) {
   const newChat = useNewChatHref(data.workspace.id)
   const fallback = data.periods.find((period) => period.value === '7d') ?? data.periods[0]
   const [requested, setPeriod] = useQueryState(
@@ -41,6 +46,7 @@ export function DashboardView({ data, actions }: DashboardViewProps) {
   const empty = !Object.keys(data.snapshots).length
   return (
     <WorkspacePage
+      read={read}
       workspace={data.workspace}
       current='dashboards'
       controls={

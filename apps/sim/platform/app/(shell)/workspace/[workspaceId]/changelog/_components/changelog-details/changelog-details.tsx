@@ -10,7 +10,10 @@ import {
   DetailSplit,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/detail-split/detail-split'
 import { WorkspaceChanges } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-changes/workspace-changes'
-import type { ChangelogDetail } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
+import type {
+  ChangelogDetail,
+  WorkspaceRead,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import { useViewerTimeZone } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/changelog/_components/changelog-details/changelog-details.module.css'
 import { platformHref } from '@/platform/lib/navigation'
@@ -18,12 +21,14 @@ import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatTimestamp } from '@/platform/shared/time'
 
 interface ChangelogDetailsProps {
+  /** How the page's read stands; ready when omitted. */
+  read?: WorkspaceRead
   entry: ChangelogDetail
   back: { href: string; label: string }
 }
 
 /** One shipped change: what it does and the workspace items it touched, beside who applied it. */
-export function ChangelogDetails({ entry, back }: ChangelogDetailsProps) {
+export function ChangelogDetails({ entry, back, read }: ChangelogDetailsProps) {
   const search = useSearchParams()
   const timeZone = useViewerTimeZone()
   const issueHref = platformHref(
@@ -32,6 +37,7 @@ export function ChangelogDetails({ entry, back }: ChangelogDetailsProps) {
   )
   return (
     <DetailSplit
+      read={read}
       back={back}
       label='Change details'
       controls={

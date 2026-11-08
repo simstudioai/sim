@@ -15,7 +15,10 @@ import {
   DetailSplit,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/detail-split/detail-split'
 import { WorkspaceChanges } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-changes/workspace-changes'
-import type { IssueDetail } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
+import type {
+  IssueDetail,
+  WorkspaceRead,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import { useViewerTimeZone } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import { DocumentChange } from '@/platform/app/(shell)/workspace/[workspaceId]/issues/_components/document-change/document-change'
 import { IssueComparison } from '@/platform/app/(shell)/workspace/[workspaceId]/issues/_components/issue-comparison/issue-comparison'
@@ -34,6 +37,8 @@ interface IssueActions {
 }
 
 interface IssueDetailsProps {
+  /** How the page's read stands; ready when omitted. */
+  read?: WorkspaceRead
   issue: IssueDetail
   actions: IssueActions
   back: { href: string; label: string }
@@ -58,7 +63,7 @@ const CONFIRM = {
  * One issue, read-only: the proposal, its expected impact and its evidence beside the facts.
  * Decisions live only in the control bar, chosen by the issue's state.
  */
-export function IssueDetails({ issue, actions, back }: IssueDetailsProps) {
+export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) {
   const search = useSearchParams()
   const timeZone = useViewerTimeZone()
   const [pending, setPending] = useState<IssueDecision | null>(null)
@@ -195,6 +200,7 @@ export function IssueDetails({ issue, actions, back }: IssueDetailsProps) {
   return (
     <>
       <DetailSplit
+        read={read}
         back={back}
         label={`${issue.id} details`}
         controls={
