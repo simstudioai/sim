@@ -16,11 +16,10 @@
   align-items: center;
 }
 .header {
-  margin-inline-end: calc(-1 * var(--spacing-8));
   justify-content: space-between;
   gap: var(--spacing-16);
 }
-/* Like Home's section controls, a header control extends around the title line without adding height. */
+/* Like Home's section controls, a header control sits inside the chart's edge and adds no height to its title line. */
 .control {
   display: flex;
   flex: none;
