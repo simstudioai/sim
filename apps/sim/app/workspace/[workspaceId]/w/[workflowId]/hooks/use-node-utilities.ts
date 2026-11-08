@@ -1,6 +1,10 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
+import {
+  BLOCK_DIMENSIONS,
+  CONTAINER_DIMENSIONS,
+  getNoteBlockHeight,
+} from '@sim/workflow-renderer/dimensions'
 import type { BlockState } from '@sim/workflow-types/workflow'
 import { useReactFlow } from '@xyflow/react'
 import { getBlockMetrics } from '@/lib/workflows/autolayout/utils'

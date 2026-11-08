@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react'
-import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS } from '@sim/workflow-renderer/dimensions'
 import type { Node, ReactFlowInstance } from '@xyflow/react'
 import { getPanelWidth, getTerminalHeight } from '@/lib/workflows/layout'
 

@@ -1,4 +1,8 @@
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
+import {
+  BLOCK_DIMENSIONS,
+  CONTAINER_DIMENSIONS,
+  getNoteBlockHeight,
+} from '@sim/workflow-renderer/dimensions'
 import type { Edge, Node } from '@xyflow/react'
 import { isEqual } from 'es-toolkit'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'

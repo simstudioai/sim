@@ -1,4 +1,8 @@
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
+import {
+  BLOCK_DIMENSIONS,
+  CONTAINER_DIMENSIONS,
+  getNoteBlockHeight,
+} from '@sim/workflow-renderer/dimensions'
 import { showsCanvasErrorRow } from '@/lib/workflows/blocks/canvas-rows'
 import { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
 import { getBlock } from '@/blocks/registry'
