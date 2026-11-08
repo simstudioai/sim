@@ -204,10 +204,15 @@ export const loadWorkspaceSkills = fixture(async (scenario) =>
   (await import('@/platform/fixtures/workspace-skills-data')).workspaceSkillsData(scenario)
 )
 
-/** The shell's workspace, so example names and workflows match the sidebar. */
+/**
+ * The shell's workspace, so example names and workflows match the sidebar. The empty scenario lists
+ * no workspaces, so its pages borrow the full scenario's identities and show every empty state.
+ */
 async function shellWorkspace(scenario: Scenario, workspaceId: string) {
   const { shellScenarios } = await import('@/platform/fixtures/shell-data')
-  return shellScenarios[scenario].workspaces.find((item) => item.id === workspaceId)
+  return shellScenarios[scenario === 'empty' ? 'full' : scenario].workspaces.find(
+    (item) => item.id === workspaceId
+  )
 }
 
 export const loadWorkspaceDashboard = fixture(async (scenario, workspaceId: string) => {
