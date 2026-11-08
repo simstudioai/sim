@@ -28,6 +28,8 @@ interface MultiSelectProps {
   placeholder?: string
   searchLabel: string
   search?: PickerServerSearch
+  /** Lets a caller read its options only once the viewer asks for them, as provider-backed lists do. */
+  onOpenChange?: (open: boolean) => void
   name?: string
   disabled?: boolean
   disabledReason?: string
@@ -46,6 +48,7 @@ export function MultiSelect({
   placeholder = 'None selected',
   searchLabel,
   search,
+  onOpenChange,
   name,
   disabled,
   disabledReason,
@@ -154,6 +157,7 @@ export function MultiSelect({
       filter={search ? null : undefined}
       inputValue={search?.query}
       onInputValueChange={search?.onQueryChange}
+      onOpenChange={onOpenChange}
       onValueChange={onValueChange}
       autoHighlight
       disabled={disabled}

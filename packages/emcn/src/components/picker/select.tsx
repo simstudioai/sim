@@ -15,6 +15,8 @@ const optionValue = (option: { value: string }) => option.value
 
 interface SelectProps<Value extends string = string> extends ControlProps {
   value?: Value
+  /** Shown in secondary ink while nothing is selected. */
+  placeholder?: string
   onValueChange?: (value: Value) => void
   options: readonly (Exclude<PickerOption, string> & { value: Value })[]
   disabledReason?: string
@@ -29,6 +31,7 @@ export function Select<Value extends string = string>({
   value,
   onValueChange,
   defaultValue,
+  placeholder,
   disabled,
   disabledReason,
   invalid,
@@ -48,7 +51,7 @@ export function Select<Value extends string = string>({
       className={picker.trigger}
       data-type='T043'
     >
-      <BaseSelect.Value ref={valueEdges} className={picker.value} />
+      <BaseSelect.Value ref={valueEdges} className={picker.value} placeholder={placeholder} />
       <Icon name='I051' />
     </BaseSelect.Trigger>
   )

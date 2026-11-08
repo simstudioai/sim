@@ -122,7 +122,8 @@
   }
 }
 
-.trigger[data-empty] .value {
+.trigger[data-empty] .value,
+.value[data-placeholder] {
   color: var(--ui-secondary);
 }
 
