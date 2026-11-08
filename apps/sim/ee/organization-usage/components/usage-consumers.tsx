@@ -43,6 +43,7 @@ import {
   ZaiIcon,
 } from '@/components/icons'
 import { NebiusIcon } from '@/components/icons/nebius'
+import { RuncrateIcon } from '@/components/icons/runcrate'
 import { ThinkingMachinesIcon } from '@/components/icons/thinking-machines'
 import type {
   OrganizationUsageBreakdown,
@@ -90,6 +91,7 @@ const PROVIDER_ICONS: Readonly<Record<string, ComponentType<{ className?: string
   'ollama-cloud': OllamaIcon,
   openai: OpenAIIcon,
   openrouter: OpenRouterIcon,
+  runcrate: RuncrateIcon,
   sakana: SakanaIcon,
   thinkingmachines: ThinkingMachinesIcon,
   together: TogetherIcon,
