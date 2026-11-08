@@ -1,4 +1,5 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { includesLiveDocument } from '@/lib/sim-search/live/reference'
 
 /** Document constraints shared by Search and Assistant, applied before ranking. */
 export interface WorkspaceSearchFilters {
@@ -19,10 +20,11 @@ export function intersectWorkspaceSearchFilters(
   if (scope.source && requested.source && scope.source !== requested.source) {
     throw new OrchestrationError('validation', 'The requested source is outside this search')
   }
-  const documentIds = scope.documentIds
+  const scopeDocumentIds = scope.documentIds
+  const documentIds = scopeDocumentIds
     ? requested.documentIds
-      ? requested.documentIds.filter((id) => scope.documentIds!.includes(id))
-      : scope.documentIds
+      ? requested.documentIds.filter((id) => includesLiveDocument(scopeDocumentIds, id))
+      : scopeDocumentIds
     : requested.documentIds
   if (documentIds?.length === 0) {
     throw new OrchestrationError('validation', 'The requested document is outside this search')
