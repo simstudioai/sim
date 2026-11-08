@@ -205,11 +205,14 @@ export function useConnectOAuthService() {
       }
 
       const scopes = getPerRequestOAuthLinkScopes(providerId)
-      await client.oauth2.link({
+      // Better Auth answers a refused link (an untrusted origin, a disabled provider) with `error`
+      // rather than throwing; without this the caller resolved and its modal closed silently.
+      const { error } = await client.oauth2.link({
         providerId,
         callbackURL: stateCallbackUrl.toString(),
         ...(scopes && { scopes }),
       })
+      if (error) throw new Error(error.message || 'Could not start connecting this account.')
 
       return { success: true }
     },
