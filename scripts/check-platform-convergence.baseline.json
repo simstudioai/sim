@@ -114,7 +114,6 @@
     "app/(shell)/settings/_components/sections/recently-deleted/recently-deleted-section.tsx",
     "app/(shell)/settings/_components/sections/requests/my-request-modal.tsx",
     "app/(shell)/settings/_components/sections/requests/my-requests.tsx",
-    "app/(shell)/settings/_components/sections/requests/request-access-modal.tsx",
     "app/(shell)/settings/_components/sections/requests/requests-panel.tsx",
     "app/(shell)/settings/_components/sections/requests/requests-section.tsx",
     "app/(shell)/settings/_components/sections/requests/requests.module.css",
