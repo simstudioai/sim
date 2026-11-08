@@ -12,7 +12,7 @@
     calc(var(--spacing-128) + var(--spacing-8))
     calc(var(--spacing-96) + var(--spacing-8))
     calc(var(--spacing-80) + var(--spacing-8))
-    var(--spacing-72)
+    var(--spacing-96)
     calc(var(--spacing-96) + var(--spacing-16));
   align-items: center;
   gap: var(--spacing-16);
@@ -21,6 +21,7 @@
 .header {
   min-block-size: var(--ui-table-head);
   color: var(--ui-secondary);
+  white-space: nowrap;
 }
 .rows {
   display: grid;

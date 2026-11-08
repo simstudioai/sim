@@ -46,7 +46,7 @@ const SORT_LABEL: Record<(typeof RUN_SORTS)[number], string> = {
   newest: 'Started newest first',
   oldest: 'Started oldest first',
   duration: 'Duration longest first',
-  cu: 'CU highest first',
+  cu: 'Compute Units highest first',
 }
 
 function compareRuns(sort: (typeof RUN_SORTS)[number]) {
@@ -193,7 +193,7 @@ export function RunList({ data, actions, read }: RunListProps) {
             <span data-optional=''>Trigger</span>
             <span className={styles.numeric}>Duration</span>
             <span className={styles.numeric} data-optional=''>
-              CU
+              Compute Units
             </span>
             <span className={styles.numeric}>Started</span>
           </div>
@@ -208,7 +208,9 @@ export function RunList({ data, actions, read }: RunListProps) {
                     RUN_STATUS_LABEL[run.status],
                     `trigger ${run.trigger.label}`,
                     `duration ${formatDuration(run.durationMs)}`,
-                    run.cu === null ? 'usage unknown' : `${formatComputeUnits(run.cu)} CU`,
+                    run.cu === null
+                      ? 'Compute Units unknown'
+                      : `${formatComputeUnits(run.cu)} Compute Units`,
                     `started ${formatRelativeTime(run.startedAt, data.referenceTime)}`,
                   ].join(', ')}
                 >

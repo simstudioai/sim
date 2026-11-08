@@ -69,7 +69,7 @@ export function RunDetails({ run, back, read }: RunDetailsProps) {
           {
             id: 'usage',
             label: 'Usage',
-            value: run.cu === null ? 'Unknown' : `${usage} CU (Compute Units)`,
+            value: run.cu === null ? 'Unknown' : `${usage} Compute Units`,
           },
         ]}
       />
