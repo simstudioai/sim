@@ -1,0 +1,7 @@
+.body {
+  display: grid;
+  gap: var(--ui-content-gap);
+  max-inline-size: var(--container-760);
+  color: var(--ui-ink);
+  overflow-wrap: anywhere;
+}
