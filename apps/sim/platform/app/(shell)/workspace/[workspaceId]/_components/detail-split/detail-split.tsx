@@ -32,7 +32,7 @@ const READY: WorkspaceRead = { status: 'ready' }
 /**
  * A record's details beside its rail. Back and the actions share one pinned row; the record's own
  * identifiers belong in its facts. The reading column and the rail each scroll, fading at whichever
- * edge has more. A facts rail keeps a narrow lane;
+ * edge has more, and the rail's boundary spans only its content. A facts rail keeps a narrow lane;
  * an inspector, which holds payloads, takes a larger share. On a narrow screen facts sit above the
  * reading column and an inspector below it.
  */

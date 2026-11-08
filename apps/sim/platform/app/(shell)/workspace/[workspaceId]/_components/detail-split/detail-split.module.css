@@ -51,19 +51,26 @@
   gap: var(--ui-product-section-gap);
   padding-block-end: var(--ui-page-inset-block);
 }
+/*
+ * The boundary spans the rail's content, extending the same inset above and below it; the rail
+ * rises by that inset so its first line stays level with the record's heading.
+ */
 .rail {
   box-sizing: border-box;
   flex: none;
+  align-self: flex-start;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--ui-product-section-gap);
   inline-size: calc(var(--spacing-224) + var(--spacing-56));
+  max-block-size: calc(100% + var(--spacing-8));
+  margin-block-start: calc(-1 * var(--spacing-8));
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  padding-block: var(--spacing-8);
   padding-inline-start: var(--spacing-24);
-  padding-block-end: var(--ui-page-inset-block);
   border-inline-start: var(--spacing-stroke-default) solid var(--ui-divider);
 }
 .rail[data-kind="inspector"] {
@@ -86,11 +93,13 @@
   .rail,
   .rail[data-kind="inspector"] {
     order: -1;
+    align-self: stretch;
     inline-size: auto;
     min-inline-size: 0;
     max-block-size: 40%;
+    margin-block-start: 0;
+    padding-block: 0;
     padding-inline-start: 0;
-    padding-block-end: 0;
     border-inline-start: none;
   }
   .reading {
