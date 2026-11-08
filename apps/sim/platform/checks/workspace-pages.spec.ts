@@ -44,6 +44,33 @@ async function box(page: Page, selector: string) {
   return page.locator(selector).filter({ visible: true }).first().boundingBox()
 }
 
+test('a workspace opens beside the organization sidebar, which stays as it is', async ({
+  page,
+}) => {
+  await page.goto(`${origin}/home?state=full`)
+  const sidebar = page.getByRole('complementary', { name: 'Platform sidebar' })
+  const navigation = sidebar.getByRole('navigation', { name: 'Main navigation' })
+  const workspaces = navigation.getByRole('region', { name: 'Workspaces', exact: true })
+  const it = workspaces.getByRole('link', { name: 'IT operations', exact: true })
+  const finance = workspaces.getByRole('link', { name: 'Finance', exact: true })
+  await it.click()
+  await expect(page).toHaveURL(/\/workspace\/it\/dashboards\?state=full/)
+  await expect(main(page).getByRole('heading', { level: 1, name: 'IT operations' })).toBeVisible()
+  await expect(navigation.getByRole('link', { name: 'Home', exact: true })).toBeVisible()
+  await expect(navigation.getByRole('link', { name: 'Integrations', exact: true })).toBeVisible()
+  await expect(it).toHaveAttribute('aria-current', 'page')
+  await expect(sidebar.getByRole('link', { name: 'Back', exact: true })).toHaveCount(0)
+  await main(page).getByRole('link', { name: 'Logs', exact: true }).click()
+  await expect(page).toHaveURL(/\/workspace\/it\/logs\?state=full/)
+  await expect(it).toHaveAttribute('aria-current', 'page')
+  await finance.click()
+  await expect(main(page).getByRole('heading', { level: 1, name: 'Finance' })).toBeVisible()
+  await expect(page).toHaveURL(/\/workspace\/[^/]+\/dashboards\?state=full/)
+  await expect(finance).toHaveAttribute('aria-current', 'page')
+  await expect(it).not.toHaveAttribute('aria-current', 'page')
+  await expect(navigation.getByRole('link', { name: 'Home', exact: true })).toBeVisible()
+})
+
 test('workspace tabs share the Integrations heading, tab row and control positions', async ({
   page,
 }) => {
