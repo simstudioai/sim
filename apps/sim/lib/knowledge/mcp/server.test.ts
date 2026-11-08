@@ -45,7 +45,8 @@ vi.mock('@/lib/api/server/routes/v2-json-route', () => ({
   ...apiServerRoutesMock,
   v2RateLimits: { publicApi: { enforce: hoisted.rateLimit } },
 }))
-vi.mock('@/lib/sim-search/live/application', () => ({
+vi.mock('@/lib/sim-search/live/application', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/sim-search/live/application')>()),
   searchLiveKnowledge: { execute: hoisted.liveSearch },
   readLiveDocument: { execute: hoisted.liveRead },
 }))
@@ -55,9 +56,16 @@ vi.mock('@/lib/knowledge/application/chat', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { createKnowledgeMcpServer } from '@/lib/knowledge/mcp/server'
+import {
+  LIVE_DATE_ORDER_MESSAGE,
+  LIVE_MORE_RANKED_BELOW_MESSAGE,
+  LIVE_NOT_STARTED_MESSAGE,
+  LIVE_OVER_ACCOUNT_LIMIT_MESSAGE,
+} from '@/lib/sim-search/live/application'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const mocks = hoisted
+const retrieval = { status: 'complete', timedOutLegs: [] }
 
 urlsMockFns.mockGetBaseUrl.mockReturnValue('https://sim.example')
 
@@ -83,7 +91,7 @@ beforeEach(() => {
   mocks.tools.clear()
   mocks.configs.clear()
   mocks.rateLimit.mockReset().mockResolvedValue(null)
-  mocks.liveSearch.mockResolvedValue({ results: [] })
+  mocks.liveSearch.mockResolvedValue({ results: [], retrieval })
   mocks.chat.mockResolvedValue({ content: 'An answer', citations: [] })
 })
 
@@ -110,7 +118,7 @@ describe('live organization Search MCP', () => {
     mocks.liveSearch.mockResolvedValue({
       results: [document],
       live: coverage,
-      retrieval: { status: 'partial' },
+      retrieval: { status: 'partial', timedOutLegs: [] },
     })
     mocks.liveRead.mockResolvedValue({
       ...document,
@@ -197,7 +205,7 @@ describe('live organization Search MCP', () => {
     mocks.liveSearch.mockResolvedValueOnce({
       results: [message, event],
       live: coverage,
-      retrieval: { status: 'complete' },
+      retrieval,
     })
     const { results } = textOf(await call('search', { query: 'launch' }))
     expect(results).toEqual([
@@ -225,6 +233,121 @@ describe('live organization Search MCP', () => {
     ])
   })
 
+  it('states each repeated account status once and flags the entries that carried it', async () => {
+    create()
+    const moreBelow = LIVE_MORE_RANKED_BELOW_MESSAGE
+    const dateOrder = LIVE_DATE_ORDER_MESSAGE
+    const deadline = LIVE_NOT_STARTED_MESSAGE
+    const overLimit = LIVE_OVER_ACCOUNT_LIMIT_MESSAGE
+    const emptyPage = 'No readable matches on this page.'
+    const unconnected = 'No connection with this provider is configured.'
+    mocks.liveSearch.mockResolvedValueOnce({
+      results: [],
+      retrieval: { status: 'partial', timedOutLegs: [] },
+      live: {
+        backend: 'live',
+        accounts: [
+          {
+            accountId: 'a1',
+            provider: 'slack',
+            displayName: 'Slack',
+            status: 'partial',
+            message: `${dateOrder} ${moreBelow}`,
+          },
+          {
+            accountId: 'a2',
+            provider: 'gmail',
+            queryIndex: 1,
+            displayName: 'Mail',
+            status: 'partial',
+            message: `Page note. ${dateOrder} ${emptyPage} ${moreBelow}`,
+            nextCursor: 'c2',
+          },
+          {
+            accountId: 'a3',
+            provider: 'notion',
+            displayName: 'Notion',
+            status: 'timeout',
+            message: deadline,
+          },
+          {
+            accountId: 'a4',
+            provider: 'linear',
+            displayName: 'Linear',
+            status: 'unavailable',
+            message: overLimit,
+          },
+          {
+            accountId: '',
+            provider: 'jira',
+            queryIndex: 2,
+            displayName: 'jira',
+            status: 'reconnect',
+            message: unconnected,
+          },
+          { accountId: 'a5', provider: 'jira', displayName: 'jira', status: 'ok' },
+        ],
+        guidance: 'Use nativeQueries to continue.',
+      },
+    })
+    const { live, retrieval: projected } = textOf(await call('search', { query: 'launch' }))
+    expect(projected).toEqual({ status: 'partial' })
+    expect(live).toEqual({
+      notes: {
+        moreBelow,
+        dateOrderPartial: dateOrder,
+        notSearchedByDeadline: deadline,
+        notSearchedOverLimit: overLimit,
+      },
+      accounts: [
+        {
+          accountId: 'a1',
+          displayName: 'Slack',
+          provider: 'slack',
+          status: 'partial',
+          moreBelow: true,
+          dateOrderPartial: true,
+        },
+        {
+          accountId: 'a2',
+          displayName: 'Mail',
+          provider: 'gmail',
+          queryIndex: 1,
+          status: 'partial',
+          nextCursor: 'c2',
+          message: `Page note. ${emptyPage}`,
+          moreBelow: true,
+          dateOrderPartial: true,
+        },
+        {
+          accountId: 'a3',
+          displayName: 'Notion',
+          provider: 'notion',
+          status: 'timeout',
+          notSearchedByDeadline: true,
+        },
+        {
+          accountId: 'a4',
+          displayName: 'Linear',
+          provider: 'linear',
+          status: 'unavailable',
+          notSearchedOverLimit: true,
+        },
+        { provider: 'jira', queryIndex: 2, status: 'reconnect', message: unconnected },
+        { accountId: 'a5', displayName: 'jira', provider: 'jira', status: 'ok' },
+      ],
+      guidance: 'Use nativeQueries to continue.',
+    })
+  })
+
+  it('rejects a date filter that is not an ISO datetime with an offset', () => {
+    create()
+    for (const tool of ['search', 'chat'])
+      expect(() =>
+        mocks.configs.get(tool)?.inputSchema.parse({ query: 'launch', startDate: '2026-09-01' })
+      ).toThrow()
+  })
+
   it('returns a read document title and link once', async () => {
     create()
     const read = textOf(await call('read_document', { documentId }))
@@ -241,7 +364,7 @@ describe('live organization Search MCP', () => {
       backend.mockImplementationOnce(
         async ({ input }: { input: { resultSecretRegistry: ResolvedSecretTraceRegistry } }) => {
           input.resultSecretRegistry.markIncomplete('source-provenance-incomplete')
-          return tool === 'search' ? { results: [document] } : document
+          return tool === 'search' ? { results: [document], retrieval } : document
         }
       )
       const result = await call(tool, tool === 'search' ? { query: 'release' } : { documentId })
