@@ -23,9 +23,6 @@
 .copy > [data-type="T050"] {
   color: var(--ui-secondary);
 }
-.renameItem {
-  display: contents;
-}
 .logoInput {
   display: none;
 }
