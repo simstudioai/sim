@@ -18,6 +18,10 @@ vi.mock('@/lib/api/server/routes/v2-json-route', () => ({
   v2RateLimits: { publicApi: { enforce: vi.fn().mockResolvedValue(null) } },
 }))
 vi.mock('@/lib/sim-search/live/application', () => ({
+  LIVE_MORE_RANKED_BELOW_MESSAGE: 'More matches ranked below.',
+  LIVE_DATE_ORDER_MESSAGE: 'Date order covers retrieved results.',
+  LIVE_NOT_STARTED_MESSAGE: 'Not searched before the deadline.',
+  LIVE_OVER_ACCOUNT_LIMIT_MESSAGE: 'Not searched: over the account limit.',
   searchLiveKnowledge: { execute: hoisted.liveSearch },
   readLiveDocument: { execute: hoisted.liveRead },
 }))
@@ -44,6 +48,7 @@ describe('Search MCP protocol', () => {
     }
     mocks.liveSearch.mockResolvedValue({
       results: [row],
+      retrieval: { status: 'complete', timedOutLegs: [] },
       live: { backend: 'live', accounts: [], guidance: '' },
     })
     mocks.liveRead.mockResolvedValue({
@@ -74,6 +79,8 @@ describe('Search MCP protocol', () => {
       const searchSchema = tools.find((tool) => tool.name === 'search')?.inputSchema
       const readSchema = tools.find((tool) => tool.name === 'read_document')?.inputSchema
       expect(searchSchema?.properties).toHaveProperty('nativeQueries')
+      expect(searchSchema?.properties?.startDate).toMatchObject({ format: 'date-time' })
+      expect(searchSchema?.properties?.startDate).not.toHaveProperty('pattern')
       expect(readSchema?.properties).toHaveProperty('startOffset')
       expect(readSchema?.properties).not.toHaveProperty('url')
       const search = await client.callTool({
