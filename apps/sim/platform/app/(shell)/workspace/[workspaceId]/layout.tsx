@@ -5,10 +5,13 @@ import { resolvePlatformMode } from '@/platform/lib/data/mode'
 /** The mode is per-request; a build with no API origin must not freeze the answer. */
 export const dynamic = 'force-dynamic'
 
-export default function WorkspaceLayout({ children }: { children: ReactNode }) {
+export default async function WorkspaceLayout({ children }: { children: ReactNode }) {
+  if (resolvePlatformMode() !== 'live')
+    return <WorkspaceSession mode='fixture'>{children}</WorkspaceSession>
+  const { WorkspaceRealtime } = await import('@/platform/lib/data/realtime')
   return (
-    <WorkspaceSession mode={resolvePlatformMode() === 'live' ? 'live' : 'fixture'}>
-      {children}
+    <WorkspaceSession mode='live'>
+      <WorkspaceRealtime>{children}</WorkspaceRealtime>
     </WorkspaceSession>
   )
 }
