@@ -4,24 +4,50 @@
   min-inline-size: 0;
   gap: var(--ui-product-section-gap);
 }
+/* Integrations' group rhythm: a title, then rows a widget gap below. */
 .group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset));
+  gap: var(--ui-widget-content-gap);
   container: issue-group / inline-size;
 }
-/* The Created lane, ending at the row's inset, so the label starts where its values do. */
-.createdLabel {
-  box-sizing: border-box;
-  inline-size: var(--spacing-128);
-  padding-inline-end: var(--ui-row-inset);
+.groupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+}
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  color: var(--ui-ink);
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.toggle svg {
   color: var(--ui-secondary);
+}
+.toggle:hover svg {
+  color: var(--ui-ink);
+}
+/* The Created lane's label ends where its right-aligned values do. */
+.column {
+  flex: none;
+  inline-size: var(--spacing-128);
+  color: var(--ui-secondary);
+  text-align: end;
 }
 /* One grid per group, with rows as subgrids, so the ID lane fits the group's longest ID. */
 .rows {
   display: grid;
   grid-template-columns: minmax(var(--spacing-48), max-content) minmax(0, 1fr) var(--spacing-128);
   min-inline-size: 0;
-  gap: var(--ui-list-gap) var(--spacing-16);
+  gap: var(--ui-list-gap) var(--ui-row-gap);
+  margin-inline: calc(-1 * var(--ui-row-inset));
 }
 .rows > li {
   display: grid;
@@ -47,36 +73,21 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.created {
+  text-align: end;
+}
 .title {
   min-inline-size: 0;
-  overflow-wrap: anywhere;
 }
 .qualifier {
   color: var(--ui-secondary);
 }
 @container issue-group (width < 32rem) {
   .rows {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(var(--spacing-48), max-content) minmax(0, 1fr) max-content;
   }
-  .row {
-    row-gap: var(--ui-stack-gap);
-  }
-  .title {
-    grid-row: 1;
-    grid-column: 1;
-  }
-  .id {
-    grid-row: 2;
-    grid-column: 1;
-  }
-  .created {
-    grid-row: 1 / span 2;
-    grid-column: 2;
-    align-self: center;
-    text-align: end;
-  }
-  .createdLabel {
-    display: none;
+  .column {
+    inline-size: auto;
   }
 }
 @media (pointer: coarse) {

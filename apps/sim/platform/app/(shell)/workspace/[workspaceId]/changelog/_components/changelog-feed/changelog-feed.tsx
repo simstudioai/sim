@@ -169,7 +169,7 @@ export function ChangelogFeed({ data, actions, read }: ChangelogFeedProps) {
         <div className={styles.days}>
           {days.map(({ day, entries }) => (
             <section key={day} className={styles.day} aria-label={dayLabel(day, today, yesterday)}>
-              <h2 data-type='T042'>{dayLabel(day, today, yesterday)}</h2>
+              <h2 data-type='T059'>{dayLabel(day, today, yesterday)}</h2>
               <ol className={styles.entries}>
                 {entries.map((entry) => (
                   <li key={entry.id} className={styles.entry}>

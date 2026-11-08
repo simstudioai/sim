@@ -12,7 +12,7 @@ interface ControlBarProps {
 
 /**
  * The compact row beneath a page's heading or tabs: page-level actions and the choices that shape
- * the content below. Its controls extend by the row inset, so their text meets the content edge.
+ * the content below. Like the tabs above it, its controls sit inside the column.
  */
 export function ControlBar({ search, leading, children }: ControlBarProps) {
   return (

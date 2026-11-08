@@ -10,7 +10,6 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-16);
-  margin-inline-end: calc(-1 * var(--ui-row-inset));
 }
 .control {
   display: flex;

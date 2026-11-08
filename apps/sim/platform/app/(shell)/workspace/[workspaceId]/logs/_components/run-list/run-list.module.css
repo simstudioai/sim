@@ -6,13 +6,14 @@
 .header,
 .row {
   display: grid;
+  /* Paper's RunRow lanes: workflow, status, trigger, then duration, usage and start on the right. */
   grid-template-columns:
     minmax(0, 1fr)
     calc(var(--spacing-128) + var(--spacing-8))
     calc(var(--spacing-96) + var(--spacing-8))
     calc(var(--spacing-80) + var(--spacing-8))
-    calc(var(--spacing-96) + var(--spacing-16))
-    var(--spacing-72);
+    var(--spacing-72)
+    calc(var(--spacing-96) + var(--spacing-16));
   align-items: center;
   gap: var(--spacing-16);
   padding-inline: var(--ui-row-inset);
@@ -80,10 +81,9 @@
     grid-row: 1;
     grid-column: 2;
   }
-  .row > :nth-child(5) {
+  .row > :nth-child(6) {
     grid-row: 2;
     grid-column: 2;
-    text-align: end;
   }
 }
 @media (pointer: coarse) {

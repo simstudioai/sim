@@ -1,8 +1,9 @@
 'use client'
 
-import { Disclosure } from '@sim/emcn/disclosure'
+import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { OverflowText } from '@sim/emcn/overflow-text'
 import { SearchField } from '@sim/emcn/search-field'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
@@ -155,34 +156,44 @@ export function IssueList({ data, read }: IssueListProps) {
       ) : (
         <div className={styles.groups}>
           {groups.map((group) => (
-            <div key={group.id} className={styles.group}>
-              <Disclosure
-                variant='navigation'
-                label={group.label}
-                open={group.open}
-                onOpenChange={(open) => toggleGroup(group.id, open)}
-                actions={
-                  group.open && (
-                    <span className={styles.createdLabel} data-type='T052' aria-hidden='true'>
-                      Created
-                    </span>
-                  )
-                }
-              >
+            <section key={group.id} className={styles.group} aria-label={group.label}>
+              <header className={styles.groupHeader}>
+                <h2 data-type='T059'>
+                  <button
+                    type='button'
+                    className={styles.toggle}
+                    aria-expanded={group.open}
+                    onClick={() => toggleGroup(group.id, !group.open)}
+                  >
+                    {group.label}
+                    <Icon name={group.open ? 'I051' : 'I090'} />
+                  </button>
+                </h2>
+                {group.open && (
+                  <span className={styles.column} data-type='T050' aria-hidden='true'>
+                    Created
+                  </span>
+                )}
+              </header>
+              {group.open && (
                 <ul className={styles.rows} aria-label={group.label}>
                   {group.shown.map((issue) => {
                     const qualifier = issueQualifier(issue.state)
                     return (
                       <li key={issue.id}>
                         <Link href={rowHref(issue.id)} className={styles.row}>
-                          <span className={styles.id} data-type='T060'>
+                          <span className={styles.id} data-type='T050'>
                             {issue.id}
                           </span>
-                          <span className={styles.title} data-type='T060'>
-                            {issue.title}
-                            {qualifier && <span className={styles.qualifier}> {qualifier}</span>}
+                          <span className={styles.title} data-type='T043'>
+                            <OverflowText
+                              text={qualifier ? `${issue.title} ${qualifier}` : issue.title}
+                            >
+                              {issue.title}
+                              {qualifier && <span className={styles.qualifier}> {qualifier}</span>}
+                            </OverflowText>
                           </span>
-                          <span className={styles.created} data-type='T060'>
+                          <span className={styles.created} data-type='T050'>
                             {formatRelativeTime(issue.createdAt, data.referenceTime)}
                           </span>
                         </Link>
@@ -190,8 +201,8 @@ export function IssueList({ data, read }: IssueListProps) {
                     )
                   })}
                 </ul>
-              </Disclosure>
-            </div>
+              )}
+            </section>
           ))}
           <ListEnd hasMore={hidden > 0} onLoadMore={revealMore} />
         </div>

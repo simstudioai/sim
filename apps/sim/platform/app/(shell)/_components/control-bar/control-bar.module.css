@@ -1,10 +1,10 @@
+/* Controls stay inside the column, as Home's period does: their surfaces meet its edges and their text is inset. */
 .controls {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   justify-content: space-between;
   gap: var(--ui-row-gap);
-  margin-inline: calc(-1 * var(--ui-row-inset));
 }
 .leading {
   display: flex;

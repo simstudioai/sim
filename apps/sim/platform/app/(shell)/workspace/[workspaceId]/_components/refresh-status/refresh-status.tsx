@@ -1,7 +1,6 @@
 'use client'
 
 import { IconButton } from '@sim/emcn/button'
-import { Tooltip } from '@sim/emcn/tooltip'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/refresh-status/refresh-status.module.css'
 import { formatRelativeTime } from '@/platform/shared/time'
 
@@ -17,12 +16,10 @@ export function RefreshStatus({ updatedAt, referenceTime, onRefresh }: RefreshSt
   const age = formatRelativeTime(updatedAt, referenceTime)
   return (
     <>
-      <span className={styles.status} data-type='T060' aria-live='polite'>
+      <span className={styles.status} data-type='T050' aria-live='polite'>
         {age === 'now' ? 'Updated just now' : `Updated ${age}`}
       </span>
-      <Tooltip label='Refresh'>
-        <IconButton label='Refresh' icon='I065' size='small' onClick={onRefresh} />
-      </Tooltip>
+      <IconButton tooltip label='Refresh' icon='I065' size='small' onClick={onRefresh} />
     </>
   )
 }

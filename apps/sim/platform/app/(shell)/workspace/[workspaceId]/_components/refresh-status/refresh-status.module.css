@@ -1,5 +1,4 @@
 .status {
-  padding-inline: var(--ui-row-inset);
   color: var(--ui-secondary);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;

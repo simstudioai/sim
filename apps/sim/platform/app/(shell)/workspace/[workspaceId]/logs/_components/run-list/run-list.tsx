@@ -192,10 +192,10 @@ export function RunList({ data, actions, read }: RunListProps) {
             <span>Status</span>
             <span data-optional=''>Trigger</span>
             <span className={styles.numeric}>Duration</span>
-            <span>Started</span>
             <span className={styles.numeric} data-optional=''>
               CU
             </span>
+            <span className={styles.numeric}>Started</span>
           </div>
           <ol className={styles.rows} aria-label='Runs'>
             {matches.slice(0, revealed).map((run) => (
@@ -224,11 +224,11 @@ export function RunList({ data, actions, read }: RunListProps) {
                   <span className={styles.number} data-type='T060'>
                     {formatDuration(run.durationMs)}
                   </span>
-                  <span className={styles.secondary} data-type='T060'>
-                    {formatRelativeTime(run.startedAt, data.referenceTime)}
-                  </span>
                   <span className={styles.number} data-type='T060' data-optional=''>
                     {formatComputeUnits(run.cu, 'compact')}
+                  </span>
+                  <span className={styles.number} data-type='T060'>
+                    {formatRelativeTime(run.startedAt, data.referenceTime)}
                   </span>
                 </Link>
               </li>
