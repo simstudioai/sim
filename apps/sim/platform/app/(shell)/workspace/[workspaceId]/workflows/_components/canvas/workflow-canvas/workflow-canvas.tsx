@@ -2438,17 +2438,7 @@ const WorkflowContent = memo(function WorkflowContent({
       if (!detail?.type) return
 
       try {
-        const canvasElement = document.querySelector('.workflow-container') as HTMLElement | null
-        if (!canvasElement) {
-          logger.warn('Workflow canvas element not found for overlay toolbar drop')
-          return
-        }
-
-        const bounds = canvasElement.getBoundingClientRect()
-        const position = screenToFlowPosition({
-          x: detail.clientX - bounds.left,
-          y: detail.clientY - bounds.top,
-        })
+        const position = screenToFlowPosition({ x: detail.clientX, y: detail.clientY })
 
         handleToolbarDrop(
           {
@@ -2533,11 +2523,9 @@ const WorkflowContent = memo(function WorkflowContent({
         const data = JSON.parse(raw)
         if (!data?.type) return
 
-        const reactFlowBounds = event.currentTarget.getBoundingClientRect()
-        const position = screenToFlowPosition({
-          x: event.clientX - reactFlowBounds.left,
-          y: event.clientY - reactFlowBounds.top,
-        })
+        // screenToFlowPosition measures the canvas itself. Subtracting its offset again, as legacy does,
+        // only works where the canvas starts at the window's corner; here the page chrome sits above it.
+        const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
 
         handleToolbarDrop(
           {
@@ -2595,11 +2583,7 @@ const WorkflowContent = memo(function WorkflowContent({
       if (!event.dataTransfer?.types.includes('application/json')) return
 
       try {
-        const reactFlowBounds = event.currentTarget.getBoundingClientRect()
-        const position = screenToFlowPosition({
-          x: event.clientX - reactFlowBounds.left,
-          y: event.clientY - reactFlowBounds.top,
-        })
+        const position = screenToFlowPosition({ x: event.clientX, y: event.clientY })
 
         const containerInfo = isPointInLoopNode(position)
 
