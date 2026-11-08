@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 
 vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
-vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope', () => ({
+vi.mock('@/hooks/kb/connectors/use-connector-scope', () => ({
   useConnectorScope: () => ({
     scope: { kind: 'organization', organizationId: 'org-1' },
     canAdmin: true,
@@ -47,7 +47,7 @@ vi.mock('@/hooks/use-permission-config', () => ({
   }),
 }))
 
-import { useConnectorSettingsForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form'
+import { useConnectorSettingsForm } from '@/hooks/kb/connectors/use-connector-settings-form'
 
 kbConnectorsQueriesMockFns.mockUseUpdateConnector.mockImplementation(() => ({
   mutate: mocks.update,

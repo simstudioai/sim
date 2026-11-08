@@ -1,7 +1,7 @@
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import type { WorkspaceOwnerBilling } from '@/lib/api/contracts/workspaces'
-import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
+import { hasWorkspaceMaxConnectorAccess } from '@/lib/knowledge/connectors/entitlements'
 
 const HOST_MAX_BILLING: WorkspaceOwnerBilling = {
   plan: 'team_25000',

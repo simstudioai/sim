@@ -7,11 +7,11 @@ import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
-import type { ConnectorSettingsFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-settings-fields'
 import {
   CONNECTOR_SWITCH_NOTICE,
   useConnectorSettingsFields,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-fields'
+} from '@/hooks/kb/connectors/use-connector-settings-fields'
+import type { ConnectorSettingsFieldsProps } from '@/hooks/kb/connectors/use-connector-settings-form'
 import {
   ActionRow,
   Muted,

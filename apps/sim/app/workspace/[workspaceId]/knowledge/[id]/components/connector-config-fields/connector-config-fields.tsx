@@ -2,47 +2,11 @@
 
 import { Button, ChipCombobox, ChipInput, ChipModalField, Tooltip } from '@sim/emcn-legacy'
 import { ArrowLeftRight, CircleInfo } from '@sim/emcn-legacy/icons'
-import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
-import type { ResourceScope } from '@/lib/core/resource-scope'
 import { isConnectorFieldRequired } from '@/lib/knowledge/connectors/access-fields'
-import type { Credential } from '@/lib/oauth/types'
 import type { SelectorKey } from '@/lib/selectors/manifest'
-import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
 import { ConnectorSelectorField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-selector-field'
-import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
-import type {
-  ConfigFieldMap,
-  ConfigFieldValue,
-} from '@/hooks/kb/connectors/use-connector-config-fields'
-
-export interface ConnectorConfigFieldsProps {
-  scope?: ResourceScope
-  accessMode?: ConnectorAccessMode
-  /** Registry definition whose `configFields` drive the rendered rows. */
-  connectorConfig: ConnectorMeta
-  /** Current values keyed by field ID. */
-  sourceConfig: ConfigFieldMap
-  selectionLabels?: SourceSelectionLabels
-  /** OAuth credential backing selector fields, when available. */
-  credentialId: string | null
-  credentialType?: Credential['type']
-  /** Canonical-pair groups keyed by `canonicalParamId`. */
-  canonicalGroups: Map<string, ConnectorConfigField[]>
-  /** Active mode per canonical pair. */
-  canonicalModes: Record<string, 'basic' | 'advanced'>
-  /** Visibility predicate honoring `condition` / canonical mode. */
-  isFieldVisible: (field: ConnectorConfigField) => boolean
-  /** Field value change handler. */
-  onFieldChange: (
-    fieldId: string,
-    value: ConfigFieldValue,
-    selectedOptions?: SourceSelectionLabel[]
-  ) => void
-  /** Swaps a canonical pair between selector and manual input. */
-  onToggleCanonicalMode: (canonicalId: string) => void
-  /** Disables configuration fields during submission. */
-  disabled: boolean
-}
+import type { ConnectorConfigField } from '@/connectors/types'
+import type { ConnectorConfigFieldsProps } from '@/hooks/kb/connectors/use-connector-config-fields'
 
 /**
  * Renders the connector's dynamic configuration fields as canonical

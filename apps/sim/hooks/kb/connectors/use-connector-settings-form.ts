@@ -6,23 +6,32 @@ import { isEqual } from 'es-toolkit'
 import type { UpdateConnectorBody } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import {
+  type ConnectorAccessSelection,
   derivedAclCapFieldIds,
   isConnectorFieldRequired,
 } from '@/lib/knowledge/connectors/access-fields'
 import { isContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
-import { readSourceSelectionLabels, SOURCE_LABELS_KEY } from '@/lib/sim-search/source-identity'
-import type { ConnectorAccessSelection } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
-import type { ConnectorSettingsFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-settings-fields'
-import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
+import {
+  readSourceSelectionLabels,
+  SOURCE_LABELS_KEY,
+  type SourceSelectionLabel,
+  type SourceSelectionLabels,
+} from '@/lib/sim-search/source-identity'
 import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
-import { useGitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
+import {
+  type GitLabPermissionForm,
+  useGitLabPermissionForm,
+} from '@/connectors/gitlab/permission-config/use-permission-form'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
+import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 import {
   type ConfigFieldMap,
+  type ConfigFieldValue,
   useConnectorConfigFields,
 } from '@/hooks/kb/connectors/use-connector-config-fields'
+import { useConnectorScope } from '@/hooks/kb/connectors/use-connector-scope'
 import {
   type ConnectorData,
   isConnectorSyncingOrPending,
@@ -42,6 +51,59 @@ const INTERNAL_CONFIG_KEYS = new Set([
 ])
 
 const CANONICAL_MODES_KEY = '_canonicalModes'
+
+/** What the connector settings form hands the fields it renders. */
+export interface ConnectorSettingsFieldsProps {
+  gitlabPermissions?: GitLabPermissionForm
+  availability: {
+    error: Error | null
+    isFetching: boolean
+    isReady: boolean
+    refetch: () => unknown
+  }
+  isSearchIndex: boolean
+  usesGitHubInstallation?: boolean
+  connectorConfig: ConnectorMeta | null
+  selectionLabels: SourceSelectionLabels
+  sourceConfig: ConfigFieldMap
+  credentialId: string | null
+  canonicalGroups: Map<string, ConnectorConfigField[]>
+  canonicalModes: Record<string, 'basic' | 'advanced'>
+  onToggleCanonicalMode: (canonicalId: string) => void
+  onFieldChange: (
+    fieldId: string,
+    value: ConfigFieldValue,
+    selectedOptions?: SourceSelectionLabel[]
+  ) => void
+  isFieldVisible: (field: ConnectorConfigField) => boolean
+  syncInterval: number
+  setSyncInterval: (v: number) => void
+  hasMaxAccess: boolean
+  isSaving: boolean
+  error: string | null
+  saveBlockedReason?: string
+  access: ConnectorAccessSelection
+  onAccessChange: (access: ConnectorAccessSelection) => void
+  canAdmin: boolean
+  showAccessField: boolean
+  allowMembers: boolean
+  allowAdmin: boolean
+  allowWorkspace: boolean
+  canReenableMemberSync: boolean
+  accessDirty: boolean
+  accessModeChanged: boolean
+  accessComplete: boolean
+  accessSetupHint?: string
+  isSwitchingAccess: boolean
+  onApplyAccess: () => void
+  onResetAccess: () => void
+  scope: ResourceScope
+  needsWorkspaceCredential: boolean
+  workspaceCredentialId: string | null
+  contentCredentialId: string | null
+  onContentCredentialChange: (credentialId: string | null) => void
+  onWorkspaceCredentialChange: (credentialId: string) => void
+}
 
 function currentAccess(connector: ConnectorData): ConnectorAccessSelection {
   if (connector.accessMode === 'members') return { accessMode: 'members' }

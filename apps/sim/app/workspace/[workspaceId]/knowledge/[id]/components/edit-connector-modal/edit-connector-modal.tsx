@@ -15,8 +15,8 @@ import {
   ConnectorDocumentsTabFilter,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-documents-tab'
 import { ConnectorSettingsFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/connector-settings-fields'
-import { useConnectorSettingsForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form'
 import { withBrandIcon } from '@/blocks/brand-icon'
+import { useConnectorSettingsForm } from '@/hooks/kb/connectors/use-connector-settings-form'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'
 
 interface EditConnectorModalProps {

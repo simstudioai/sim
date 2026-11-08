@@ -6,6 +6,7 @@ import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-sco
 import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import { getIntegrationsForCredentialProvider } from '@/lib/integrations/credential-display'
 import {
+  type ConnectorAccessSelection,
   derivedAclCapFieldIds,
   isConnectorFieldRequired,
 } from '@/lib/knowledge/connectors/access-fields'
@@ -21,14 +22,15 @@ import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
 import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
-import type { ConnectorAccessSelection } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
-import type { ConnectorConfigFieldsProps } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields/connector-config-fields'
-import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
 import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { useGitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
-import { useConnectorConfigFields } from '@/hooks/kb/connectors/use-connector-config-fields'
+import {
+  type ConnectorConfigFieldsProps,
+  useConnectorConfigFields,
+} from '@/hooks/kb/connectors/use-connector-config-fields'
+import { useConnectorScope } from '@/hooks/kb/connectors/use-connector-scope'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
 import { useSourceAccounts } from '@/hooks/queries/source-accounts'

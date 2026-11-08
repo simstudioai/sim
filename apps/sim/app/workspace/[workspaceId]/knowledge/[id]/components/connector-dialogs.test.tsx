@@ -127,7 +127,7 @@ vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-context', () => 
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
   useUserPermissionsContext: () => ({ canAdmin: mocks.canAdmin }),
 }))
-vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope', () => ({
+vi.mock('@/hooks/kb/connectors/use-connector-scope', () => ({
   useConnectorScope: (
     scope?:
       | { kind: 'workspace'; workspaceId: string }

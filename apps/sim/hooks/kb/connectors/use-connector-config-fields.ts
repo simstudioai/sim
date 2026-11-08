@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
+import type { ResourceScope } from '@/lib/core/resource-scope'
 import type { ConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
+import type { Credential } from '@/lib/oauth/types'
 import {
   createSourceLabelMetadata,
   normalizeSourceSelectionLabels,
@@ -281,4 +283,34 @@ export function useConnectorConfigFields({
     toggleCanonicalMode,
     resolveSourceConfig,
   }
+}
+
+/** What a connector form hands the configuration fields it renders. */
+export interface ConnectorConfigFieldsProps {
+  scope?: ResourceScope
+  accessMode?: ConnectorAccessMode
+  /** Registry definition whose `configFields` drive the rendered rows. */
+  connectorConfig: ConnectorMeta
+  /** Current values keyed by field ID. */
+  sourceConfig: ConfigFieldMap
+  selectionLabels?: SourceSelectionLabels
+  /** OAuth credential backing selector fields, when available. */
+  credentialId: string | null
+  credentialType?: Credential['type']
+  /** Canonical-pair groups keyed by `canonicalParamId`. */
+  canonicalGroups: Map<string, ConnectorConfigField[]>
+  /** Active mode per canonical pair. */
+  canonicalModes: Record<string, 'basic' | 'advanced'>
+  /** Visibility predicate honoring `condition` / canonical mode. */
+  isFieldVisible: (field: ConnectorConfigField) => boolean
+  /** Field value change handler. */
+  onFieldChange: (
+    fieldId: string,
+    value: ConfigFieldValue,
+    selectedOptions?: SourceSelectionLabel[]
+  ) => void
+  /** Swaps a canonical pair between selector and manual input. */
+  onToggleCanonicalMode: (canonicalId: string) => void
+  /** Disables configuration fields during submission. */
+  disabled: boolean
 }

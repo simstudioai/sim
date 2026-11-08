@@ -2,8 +2,8 @@
 
 import { useParams } from 'next/navigation'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { hasWorkspaceMaxConnectorAccess } from '@/lib/knowledge/connectors/entitlements'
 import { useOptionalOrganization } from '@/lib/organizations/provider'
-import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
 import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-context'
 import { useOptionalWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 

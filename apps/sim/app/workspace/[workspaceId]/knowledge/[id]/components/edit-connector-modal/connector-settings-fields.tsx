@@ -2,12 +2,10 @@
 
 import { Chip, ChipCombobox, ChipModalError, ChipModalField, ChipSelect } from '@sim/emcn-legacy'
 import { ChevronDown, ChevronRight, Plus } from '@sim/emcn-legacy/icons'
-import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
-import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
+import { resourceScopeFields } from '@/lib/core/resource-scope'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import {
   ConnectorAccessField,
-  type ConnectorAccessSelection,
   ConnectorContentCredentialField,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
 import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
@@ -15,74 +13,17 @@ import {
   connectorSyncFrequencyHint,
   SYNC_INTERVALS,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
-import {
-  CONNECTOR_SWITCH_NOTICE,
-  useConnectorSettingsFields,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-fields'
 import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { GitHubInstallationConnectionField } from '@/connectors/github/installation-connection-field'
 import {
   GitLabPermissionTabs,
   GitLabPermissionUploads,
 } from '@/connectors/gitlab/permission-config/fields'
-import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
-import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
-import type {
-  ConfigFieldMap,
-  ConfigFieldValue,
-} from '@/hooks/kb/connectors/use-connector-config-fields'
-
-export interface ConnectorSettingsFieldsProps {
-  gitlabPermissions?: GitLabPermissionForm
-  availability: {
-    error: Error | null
-    isFetching: boolean
-    isReady: boolean
-    refetch: () => unknown
-  }
-  isSearchIndex: boolean
-  usesGitHubInstallation?: boolean
-  connectorConfig: ConnectorMeta | null
-  selectionLabels: SourceSelectionLabels
-  sourceConfig: ConfigFieldMap
-  credentialId: string | null
-  canonicalGroups: Map<string, ConnectorConfigField[]>
-  canonicalModes: Record<string, 'basic' | 'advanced'>
-  onToggleCanonicalMode: (canonicalId: string) => void
-  onFieldChange: (
-    fieldId: string,
-    value: ConfigFieldValue,
-    selectedOptions?: SourceSelectionLabel[]
-  ) => void
-  isFieldVisible: (field: ConnectorConfigField) => boolean
-  syncInterval: number
-  setSyncInterval: (v: number) => void
-  hasMaxAccess: boolean
-  isSaving: boolean
-  error: string | null
-  saveBlockedReason?: string
-  access: ConnectorAccessSelection
-  onAccessChange: (access: ConnectorAccessSelection) => void
-  canAdmin: boolean
-  showAccessField: boolean
-  allowMembers: boolean
-  allowAdmin: boolean
-  allowWorkspace: boolean
-  canReenableMemberSync: boolean
-  accessDirty: boolean
-  accessModeChanged: boolean
-  accessComplete: boolean
-  accessSetupHint?: string
-  isSwitchingAccess: boolean
-  onApplyAccess: () => void
-  onResetAccess: () => void
-  scope: ResourceScope
-  needsWorkspaceCredential: boolean
-  workspaceCredentialId: string | null
-  contentCredentialId: string | null
-  onContentCredentialChange: (credentialId: string | null) => void
-  onWorkspaceCredentialChange: (credentialId: string) => void
-}
+import {
+  CONNECTOR_SWITCH_NOTICE,
+  useConnectorSettingsFields,
+} from '@/hooks/kb/connectors/use-connector-settings-fields'
+import type { ConnectorSettingsFieldsProps } from '@/hooks/kb/connectors/use-connector-settings-form'
 
 export function ConnectorSettingsFields({
   gitlabPermissions,

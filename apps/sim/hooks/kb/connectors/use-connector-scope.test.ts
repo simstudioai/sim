@@ -25,11 +25,11 @@ vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-context', () => 
 vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
   useOptionalWorkspacePermissionsContext: () => ({ userPermissions: { canAdmin: true } }),
 }))
-vi.mock('@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements', () => ({
+vi.mock('@/lib/knowledge/connectors/entitlements', () => ({
   hasWorkspaceMaxConnectorAccess: () => true,
 }))
 
-import { useConnectorScope } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope'
+import { useConnectorScope } from '@/hooks/kb/connectors/use-connector-scope'
 
 nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
 organizationProviderMockFns.mockUseOptionalOrganization.mockImplementation(() => mocks.organization)

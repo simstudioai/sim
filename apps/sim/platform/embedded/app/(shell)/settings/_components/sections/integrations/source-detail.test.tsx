@@ -36,10 +36,9 @@ vi.mock('@/hooks/queries/search-integrations', () => ({
 vi.mock('@/hooks/kb/connectors/use-connector-actions', () => ({
   useConnectorActions: mocks.actions,
 }))
-vi.mock(
-  '@/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form',
-  () => ({ useConnectorSettingsForm: mocks.form })
-)
+vi.mock('@/hooks/kb/connectors/use-connector-settings-form', () => ({
+  useConnectorSettingsForm: mocks.form,
+}))
 vi.mock(
   '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-settings-fields',
   () => ({ ConnectorSettingsFields: () => <p>Source configuration</p> })

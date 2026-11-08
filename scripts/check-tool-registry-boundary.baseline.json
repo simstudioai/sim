@@ -295,7 +295,7 @@
         "apps/sim/blocks/registry.ts": 391,
         "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/index.ts": 170,
         "apps/sim/connectors/registry.ts": 71,
-        "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-scope.ts": 57,
+        "apps/sim/hooks/kb/connectors/use-connector-scope.ts": 57,
         "apps/sim/lib/organizations/provider.tsx": 47,
         "apps/sim/triggers/plane/index.ts": 46
       }

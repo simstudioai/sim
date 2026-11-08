@@ -11,8 +11,8 @@ import {
   type ComboboxOption,
   Tooltip,
 } from '@sim/emcn-legacy'
-import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import type { ConnectorAccessSelection } from '@/lib/knowledge/connectors/access-fields'
 import { slackSearchSetupHref } from '@/lib/sim-search/setup-navigation'
 import {
   SettingsEmptyState,
@@ -20,10 +20,6 @@ import {
 } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { ConnectorMeta } from '@/connectors/types'
 import { useConnectorAccessField } from '@/hooks/kb/connectors/use-connector-access-field'
-
-export interface ConnectorAccessSelection {
-  accessMode: ConnectorAccessMode
-}
 
 interface ConnectorContentCredentialFieldProps {
   credentialId: string | null

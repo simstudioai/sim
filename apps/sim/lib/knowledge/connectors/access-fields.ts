@@ -6,6 +6,11 @@ import {
 import { aclIsDerived } from '@/lib/knowledge/connectors/access-modes'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
 
+/** The access a connector is configured with, as the connector forms edit it. */
+export interface ConnectorAccessSelection {
+  accessMode: ConnectorAccessMode
+}
+
 /** Administrator crawls require their permission fields and any impersonation subject. */
 export function isConnectorFieldRequired(
   field: ConnectorConfigField,

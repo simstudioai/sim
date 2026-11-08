@@ -538,9 +538,6 @@
     "TS2353": 1,
     "TS2550": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/edit-connector-modal/use-connector-settings-form.test.tsx": {
-    "TS2322": 1
-  },
   "apps/sim/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload.test.tsx": {
     "TS2322": 1
   },
@@ -2836,5 +2833,8 @@
   },
   "apps/sim/triggers/vercel/utils.test.ts": {
     "TS2739": 1
+  },
+  "apps/sim/hooks/kb/connectors/use-connector-settings-form.test.tsx": {
+    "TS2322": 1
   }
 }

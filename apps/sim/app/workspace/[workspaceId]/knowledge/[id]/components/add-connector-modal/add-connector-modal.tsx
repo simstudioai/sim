@@ -23,11 +23,6 @@ import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integr
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ConnectorApiKeyInput } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/connector-api-key-input'
 import {
-  type AddConnectorFormOptions,
-  CONNECTOR_ENTRIES,
-  useAddConnectorForm,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/use-add-connector-form'
-import {
   ConnectorAccessField,
   ConnectorContentCredentialField,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access-field'
@@ -48,6 +43,11 @@ import {
   GitLabPermissionUploads,
 } from '@/connectors/gitlab/permission-config/fields'
 import type { ConnectorMeta } from '@/connectors/types'
+import {
+  type AddConnectorFormOptions,
+  CONNECTOR_ENTRIES,
+  useAddConnectorForm,
+} from '@/hooks/kb/connectors/use-add-connector-form'
 import { useConnectorSetupStore } from '@/stores/connector-setup/store'
 
 interface AddConnectorModalProps extends AddConnectorFormOptions {

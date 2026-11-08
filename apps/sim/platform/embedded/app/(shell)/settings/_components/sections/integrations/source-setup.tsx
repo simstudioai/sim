@@ -13,7 +13,7 @@ import type { ResourceScope } from '@/lib/core/resource-scope'
 import { getCanonicalScopesForProvider } from '@/lib/oauth'
 import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
-import { useAddConnectorForm } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/add-connector-modal/use-add-connector-form'
+import { useAddConnectorForm } from '@/hooks/kb/connectors/use-add-connector-form'
 import {
   ActionRow,
   DetailHeader,
