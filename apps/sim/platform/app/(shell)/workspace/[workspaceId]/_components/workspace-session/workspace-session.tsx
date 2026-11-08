@@ -12,6 +12,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import type { IssueState } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
+import type { WorkspaceDataMode } from '@/platform/lib/workspace-navigation'
 
 /**
  * What a reader changes in a workspace during one product session: example decisions on issues and
@@ -51,9 +52,26 @@ function useSessionState() {
 
 const Session = createContext<ReturnType<typeof useSessionState> | null>(null)
 
-export function WorkspaceSession({ children }: { children: ReactNode }) {
+const DataMode = createContext<WorkspaceDataMode>('fixture')
+
+interface WorkspaceSessionProps {
+  /** Where this server's workspace data comes from, which decides the tabs it serves. */
+  mode: WorkspaceDataMode
+  children: ReactNode
+}
+
+export function WorkspaceSession({ mode, children }: WorkspaceSessionProps) {
   const state = useSessionState()
-  return <Session.Provider value={state}>{children}</Session.Provider>
+  return (
+    <DataMode.Provider value={mode}>
+      <Session.Provider value={state}>{children}</Session.Provider>
+    </DataMode.Provider>
+  )
+}
+
+/** Whether the workspace pages read example or live data on this server. */
+export function useWorkspaceDataMode() {
+  return useContext(DataMode)
 }
 
 function useSession() {

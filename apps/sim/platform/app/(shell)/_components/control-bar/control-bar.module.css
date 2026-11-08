@@ -20,6 +20,19 @@
 .search {
   flex: 1;
 }
+/* Beside a trail, search keeps a field's width and the trail takes what is left of the leading edge. */
+.leading[data-trail] {
+  flex: 1 1 auto;
+  max-inline-size: none;
+}
+.leading[data-trail] > .search {
+  flex: 0 1 var(--container-208);
+}
+.trail {
+  display: flex;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
 .actions {
   display: flex;
   flex-wrap: wrap;

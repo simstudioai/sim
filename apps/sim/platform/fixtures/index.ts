@@ -189,6 +189,12 @@ async function shellWorkspace(scenario: Scenario, workspaceId: string) {
   )
 }
 
+/** A workspace's heading, for a tab that has no example data of its own. */
+export const loadWorkspaceSummary = fixture(async (scenario, workspaceId: string) => {
+  const workspace = await shellWorkspace(scenario, workspaceId)
+  if (!workspace) return null
+  return (await import('@/platform/fixtures/workspace-data')).workspaceSummary(scenario, workspace)
+})
 export const loadWorkspaceDashboard = fixture(async (scenario, workspaceId: string) => {
   const workspace = await shellWorkspace(scenario, workspaceId)
   if (!workspace) return null

@@ -126,7 +126,7 @@ function codeFor(id: string, name: string) {
     .toUpperCase()
 }
 
-function workspaceSummary(scenario: Scenario, workspace: ShellWorkspace): WorkspaceSummary {
+export function workspaceSummary(scenario: Scenario, workspace: ShellWorkspace): WorkspaceSummary {
   return {
     id: workspace.id,
     code: codeFor(workspace.id, workspace.name),

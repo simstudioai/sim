@@ -7,31 +7,40 @@ import { FailureNotice } from '@sim/emcn/status'
 import { DestinationTabs } from '@sim/emcn-platform/destination-tabs'
 import { PageColumn } from '@sim/emcn-platform/page-column'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { notFound, useSearchParams } from 'next/navigation'
 import { DirectoryHeading } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-page/workspace-page.module.css'
-import type {
-  WorkspaceRead,
-  WorkspaceSummary,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
-import { useScrollMemory } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
+import type { WorkspaceRead } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
+import {
+  useScrollMemory,
+  useWorkspaceDataMode,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
+import { useLiveWorkspace } from '@/platform/lib/data/workspace-summary'
 import { platformHref } from '@/platform/lib/navigation'
 import {
-  WORKSPACE_TABS,
   type WorkspaceTab,
   workspacePath,
+  workspaceTabs,
 } from '@/platform/lib/workspace-navigation'
 
 const READY: WorkspaceRead = { status: 'ready' }
 
 interface WorkspacePageProps {
-  workspace: WorkspaceSummary
+  /** The workspace the heading names; a live page passes what `useLiveWorkspace` read. */
+  workspace: { id: string; name: string; description?: string }
   current: WorkspaceTab
   /** The tab's control bar, directly beneath the tabs. */
   controls?: ReactNode
   /** The tab's read; anything but ready replaces the content, never the chrome. */
   read?: WorkspaceRead
-  children: ReactNode
+  /**
+   * `page` scrolls with the shell. `fill` bounds the content to the space below the controls, in
+   * the column, for a view that scrolls itself; `canvas` does the same across the pane's full
+   * width, for a working surface such as a table grid or the workflow canvas.
+   */
+  layout?: 'page' | 'fill' | 'canvas'
+  /** The tab's content; a tab whose sections are still to come has none. */
+  children?: ReactNode
 }
 
 /**
@@ -43,36 +52,91 @@ export function WorkspacePage({
   current,
   controls,
   read = READY,
+  layout = 'page',
   children,
 }: WorkspacePageProps) {
   const search = useSearchParams()
   const scrollMemory = useScrollMemory<HTMLElement>()
-  const destinations = WORKSPACE_TABS.map((tab) => ({
+  const destinations = workspaceTabs(useWorkspaceDataMode()).map((tab) => ({
     section: tab.section,
     label: tab.label,
     href: platformHref(workspacePath(workspace.id, tab.section), search),
   }))
+  const heading = <DirectoryHeading title={workspace.name} description={workspace.description} />
+  const toolbar = (
+    <div className={styles.toolbar}>
+      <DestinationTabs
+        label={`${workspace.name} pages`}
+        destinations={destinations}
+        currentHref={destinations.find((tab) => tab.section === current)?.href ?? ''}
+      />
+      {controls}
+    </div>
+  )
+  const content =
+    read.status === 'error' ? (
+      <FailureNotice message={read.message} retrying={read.retrying} onRetry={read.onRetry} />
+    ) : (
+      read.status === 'ready' && children
+    )
+  if (layout === 'canvas')
+    return (
+      <main className={styles.canvasPage}>
+        <PageColumn>
+          <div className={styles.canvasChrome}>
+            {heading}
+            {toolbar}
+          </div>
+        </PageColumn>
+        <div className={styles.canvasContent}>{content}</div>
+      </main>
+    )
+  if (layout === 'fill')
+    return (
+      <PageColumn>
+        <main className={styles.page} data-layout='fill'>
+          {heading}
+          {toolbar}
+          <div className={styles.fillContent}>{content}</div>
+        </main>
+      </PageColumn>
+    )
   return (
     <PageColumn>
       <main ref={scrollMemory} className={styles.page}>
-        <DirectoryHeading title={workspace.name} description={workspace.description} />
+        {heading}
         <div className={styles.body}>
-          <div className={styles.toolbar}>
-            <DestinationTabs
-              label={`${workspace.name} pages`}
-              destinations={destinations}
-              currentHref={destinations.find((tab) => tab.section === current)?.href ?? ''}
-            />
-            {controls}
-          </div>
-          {read.status === 'error' ? (
-            <FailureNotice message={read.message} retrying={read.retrying} onRetry={read.onRetry} />
-          ) : (
-            read.status === 'ready' && children
-          )}
+          {toolbar}
+          {content}
         </div>
       </main>
     </PageColumn>
+  )
+}
+
+interface LiveWorkspacePageProps extends Omit<WorkspacePageProps, 'workspace'> {
+  workspaceId: string
+}
+
+/**
+ * A tab built on live data: the heading comes from the viewer's workspaces, and a workspace they
+ * cannot open answers as not found. The page's own read takes over once the workspace is known.
+ */
+export function LiveWorkspacePage({ workspaceId, read, ...page }: LiveWorkspacePageProps) {
+  const live = useLiveWorkspace(workspaceId)
+  if (live.missing) notFound()
+  const workspaceRead: WorkspaceRead =
+    live.status === 'error'
+      ? { status: 'error', message: 'This workspace could not be loaded.', onRetry: live.retry }
+      : live.status === 'pending'
+        ? { status: 'pending' }
+        : (read ?? READY)
+  return (
+    <WorkspacePage
+      {...page}
+      workspace={live.workspace ?? { id: workspaceId, name: '' }}
+      read={workspaceRead}
+    />
   )
 }
 

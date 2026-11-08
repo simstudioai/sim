@@ -98,7 +98,7 @@ test('navigation lists what the surface grants, and leaves for legacy routes in 
   await page.keyboard.press('Escape')
 })
 
-test('creating a workspace opens it on the legacy surface', async ({ page }) => {
+test('creating a workspace opens it in the zone, on its Workflows tab', async ({ page }) => {
   await openAsAdmin(page)
   const name = `Live check ${Date.now()}`
   await page
@@ -107,7 +107,7 @@ test('creating a workspace opens it on the legacy surface', async ({ page }) => 
     .click()
   await page.getByRole('textbox', { name: 'Workspace name' }).fill(name)
   await page.getByRole('button', { name: 'Create', exact: true }).click()
-  await expect(page).toHaveURL(/\/workspace\/[^/]+/)
+  await expect(page).toHaveURL(/\/workspace\/[^/]+\/workflows/)
 })
 
 test('a chat renames and deletes through the real API', async ({ page }) => {

@@ -323,6 +323,7 @@ const seamHelpers = new Set([
   'lib/terminal/transport',
   'lib/uploads/client/admission',
   'lib/uploads/shared/assistant-images',
+  'stores/folders/types',
   'stores/mothership-drafts/store',
   'stores/mothership-effort/store',
   'stores/panel',

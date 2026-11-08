@@ -12,26 +12,25 @@ import {
 import type { ShellChat, ShellData, ShellWorkspace } from '@/platform/app/(shell)/_components/model'
 import { useCanOpenOrganizationChat, useChatListActions } from '@/platform/lib/data/chat-list'
 import { useOrganization } from '@/platform/lib/data/organization'
-import { canListOrganizationChats, legacyRoutes } from '@/platform/lib/data/organization-model'
+import { canListOrganizationChats } from '@/platform/lib/data/organization-model'
 import { useLiveAccountActions } from '@/platform/lib/data/shell-actions'
 import type { LiveShell } from '@/platform/lib/data/shell-context'
 import { useWorkspaceActions } from '@/platform/lib/data/workspaces'
+import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 import type { ShellDestination } from '@/platform/shared/shell'
-
-type LegacyRoutes = ReturnType<typeof legacyRoutes>
 
 /** The legacy sidebar's page size for its Workspaces section. */
 const WORKSPACE_PAGE_SIZE = 5
 
+/** A workspace opens in the zone, on the page its live data serves first. */
 function toShellWorkspace(
   workspace: Workspace,
-  pinnedIds: ReadonlySet<string> | undefined,
-  routes: LegacyRoutes
+  pinnedIds: ReadonlySet<string> | undefined
 ): ShellWorkspace {
   return {
     id: workspace.id,
     name: workspace.name,
-    href: routes.workspace(workspace.id),
+    href: workspaceEntry(workspace.id),
     permissions: workspace.permissions,
     isPinned: pinnedIds?.has(workspace.id) ?? false,
   }
@@ -94,9 +93,8 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
   const canOpenChat = useCanOpenOrganizationChat()
   const profile = useUserProfile()
   const settings = useGeneralSettings()
-  const routes = legacyRoutes(organization)
   const chatActions = useChatListActions(organizationId)
-  const workspaceActions = useWorkspaceActions(routes.workspace)
+  const workspaceActions = useWorkspaceActions(workspaceEntry)
   const accountActions = useLiveAccountActions(organization, navigation.destinations)
   return {
     data: {
@@ -105,7 +103,7 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
       user: toShellUser(profile.data),
       workspaces: (workspaces.data ?? [])
         .filter((workspace) => workspace.organizationId === organizationId)
-        .map((workspace) => toShellWorkspace(workspace, pinnedIds.data, routes)),
+        .map((workspace) => toShellWorkspace(workspace, pinnedIds.data)),
       chats: (chats.data ?? []).filter(canOpenChat).map(toShellChat),
       inbox: [],
       notifications: [],

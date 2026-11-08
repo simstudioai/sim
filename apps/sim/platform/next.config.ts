@@ -21,6 +21,8 @@ const canvasShims = [
 ] as const
 
 const config: NextConfig = {
+  /** A second local server, such as a live one beside the fixture preview, needs its own build and lock. */
+  ...(process.env.SIM_PLATFORM_DIST_DIR && { distDir: process.env.SIM_PLATFORM_DIST_DIR }),
   devIndicators: false,
   poweredByHeader: false,
   /** `bun run type-check` proves this; a small runner spends its whole budget on it otherwise. */
