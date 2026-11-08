@@ -10,15 +10,12 @@ import {
   scrollFadeClass,
   useScrollEdges,
 } from '@sim/emcn-legacy'
+import { externalLinkHostname, handleExternalLinkClick } from '@/lib/mothership/chat/source-link'
 import {
   SourceIcon,
   sourceLabel,
   sourceSiteName,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
-import {
-  externalLinkHostname,
-  handleExternalLinkClick,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 
 interface SearchActivityResultsProps {

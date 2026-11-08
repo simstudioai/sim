@@ -34,7 +34,6 @@ import {
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
 import type { ConversationComposerProps } from '@/app/_organization-conversation/composer'
-import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import {
   getMothershipUseChatOptions,
   useChat,
@@ -50,6 +49,7 @@ import {
   useFileAttachments,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
+import { useSearchHistoryActions } from '@/hooks/sim-search/source-history'
 import { type PrepareChatSubmission, useComposerSubmission } from '@/hooks/use-composer-submission'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { readDraft, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'

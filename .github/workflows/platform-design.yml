@@ -21,6 +21,7 @@ on:
       - 'apps/sim/lib/mothership/chat/types.ts'
       - 'apps/sim/lib/mothership/chat/search-params.ts'
       - 'apps/sim/lib/mothership/chat/special-tags.ts'
+      - 'apps/sim/lib/mothership/chat/source-link.ts'
       - 'apps/sim/lib/knowledge/search/results.ts'
       - 'apps/sim/hooks/sim-search/**'
       - 'apps/sim/ee/**'

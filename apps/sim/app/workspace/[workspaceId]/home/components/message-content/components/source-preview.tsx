@@ -10,12 +10,12 @@ import {
   PopoverContent,
 } from '@sim/emcn-legacy'
 import { ArrowUpRight } from '@sim/emcn-legacy/icons'
+import { linkSiteName } from '@/lib/mothership/chat/source-link'
 import { inter } from '@/app/_styles/fonts/inter/inter'
 import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
-import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
-import { linkSiteName } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { useLinkPreview } from '@/hooks/queries/link-preview'
+import { useSourceNavigation } from '@/hooks/sim-search/source-history'
 
 interface SourcePreviewProps {
   source: SourceTagData

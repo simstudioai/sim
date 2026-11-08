@@ -10,9 +10,7 @@
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup-host.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/search-slack/search-slack-section.tsx": 1
   },
-  "platformLibToWorkspace": {
-    "apps/sim/platform/embedded/lib/data/organization-search.ts": 1
-  },
+  "platformLibToWorkspace": {},
   "viewsToWorkspace": {
     "apps/sim/platform/embedded/app/(shell)/_components/conversation/dialogs.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/_components/conversation/page-composer.tsx": 3,
@@ -21,7 +19,7 @@
     "apps/sim/platform/embedded/app/(shell)/_components/conversation/search-input-bar.tsx": 2,
     "apps/sim/platform/embedded/app/(shell)/_components/conversation/share-dialog.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/_components/conversation/skeletons.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/_components/search/source-row.tsx": 4,
+    "apps/sim/platform/embedded/app/(shell)/_components/search/source-row.tsx": 3,
     "apps/sim/platform/embedded/app/(shell)/_components/sidebar/chats-section.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/_components/sidebar/sidebar.tsx": 1,
     "apps/sim/platform/embedded/app/(shell)/integrations/_components/integrations-page/integrations-route.tsx": 1,

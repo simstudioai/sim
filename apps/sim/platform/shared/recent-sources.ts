@@ -1,8 +1,5 @@
 import type { SearchHistoryResponse } from '@/lib/api/contracts/knowledge/search-history'
-import {
-  externalLinkHostname,
-  linkSiteName,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
+import { externalLinkHostname, linkSiteName } from '@/lib/mothership/chat/source-link'
 
 /** One chip's sources, newest first, with what it reads as and where it came from. */
 export interface RecentSourceGroup {

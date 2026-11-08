@@ -6,7 +6,7 @@ import { stripVersionSuffix } from '@sim/utils/string'
 import { Favicon } from '@/components/favicon'
 import { GoogleDocsIcon, GoogleSheetsIcon, GoogleSlidesIcon } from '@/components/icons'
 import { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
-import { externalLinkHostname } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
+import { externalLinkHostname } from '@/lib/mothership/chat/source-link'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
 

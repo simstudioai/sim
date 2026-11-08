@@ -17,8 +17,8 @@ import {
   SourceIcon,
   sourceLabel,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
-import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { useSourceNavigation } from '@/hooks/sim-search/source-history'
 import { useHydrated } from '@/hooks/use-hydrated'
 import styles from '@/platform/embedded/app/(shell)/_components/search/search.module.css'
 import { toast } from '@/platform/shared/toast'

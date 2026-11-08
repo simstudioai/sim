@@ -383,7 +383,7 @@ const seamHelpers = new Set([
   'lib/invitations/error-messages',
   'lib/sim-search/live/provider-catalog',
   'lib/core/config/deployment-shape',
-  'app/workspace/[workspaceId]/home/components/message-content/components/source-link',
+  'lib/mothership/chat/source-link',
   'lib/sim-search/live/policy-schema',
   'lib/organization-secrets/validation',
   'lib/integrations/credential-display',

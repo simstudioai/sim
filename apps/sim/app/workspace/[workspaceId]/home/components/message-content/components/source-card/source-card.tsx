@@ -30,8 +30,8 @@ import {
   sourceLabel,
   sourceSiteName,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
-import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { useSourceNavigation } from '@/hooks/sim-search/source-history'
 
 const SOURCE_ROW_CLASSES = cn(
   'not-prose flex items-start gap-2 px-2 py-2 transition-colors focus-within:bg-[var(--surface-hover)]',

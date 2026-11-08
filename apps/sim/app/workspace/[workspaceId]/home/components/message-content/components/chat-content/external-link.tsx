@@ -1,11 +1,11 @@
 'use client'
 
 import { createContext, type ReactNode, useContext } from 'react'
+import { PROSE_LINK_CLASS } from '@/lib/mothership/chat/source-link'
 import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
-import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
-import { PROSE_LINK_CLASS } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import { SourcePreview } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-preview'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { useSourceNavigation } from '@/hooks/sim-search/source-history'
 
 /** Retrieved metadata takes precedence over generic public-page metadata. */
 export const LinkSourcesContext = createContext<ReadonlyMap<string, SourceTagData>>(new Map())

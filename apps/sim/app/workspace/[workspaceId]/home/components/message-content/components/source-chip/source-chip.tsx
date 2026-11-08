@@ -1,11 +1,11 @@
 'use client'
 
 import { chipFilledFillTokens, chipHoverSurfaceClass, cn, OverflowText } from '@sim/emcn-legacy'
+import { linkSiteName } from '@/lib/mothership/chat/source-link'
 import { SourceIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip/source-icon'
-import { useSourceNavigation } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
-import { linkSiteName } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import { SourcePreview } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-preview'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { useSourceNavigation } from '@/hooks/sim-search/source-history'
 
 /** The source's site or provider, separate from its document title. */
 export function sourceSiteName(source: SourceTagData): string {

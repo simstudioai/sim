@@ -39,6 +39,7 @@ import {
   inlineChatImageUrl,
   isInlineFileReference,
 } from '@/lib/mothership/chat/inline-image-reference'
+import { externalLinkHostname, PROSE_LINK_CLASS } from '@/lib/mothership/chat/source-link'
 import type { WorkspaceResourceRef } from '@/lib/mothership/chat/types'
 import {
   useChatChrome,
@@ -55,10 +56,6 @@ import {
   SourceChip,
   sourceLabel,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
-import {
-  externalLinkHostname,
-  PROSE_LINK_CLASS,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
 import {
   type ContentSegment,
   type CredentialSubmissionPayload,

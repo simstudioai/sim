@@ -16,8 +16,8 @@ import {
   organizationSearchParsers,
   organizationSearchUrlKeys,
 } from '@/lib/organizations/search-params'
-import { useSearchHistoryActions } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-history-context'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { useSearchHistoryActions } from '@/hooks/sim-search/source-history'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'

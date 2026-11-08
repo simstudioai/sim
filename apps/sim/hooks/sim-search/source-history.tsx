@@ -12,8 +12,8 @@ import { noop } from '@sim/utils/helpers'
 import { truncateAtCodePoint } from '@sim/utils/string'
 import type { ViewedSearchSource } from '@/lib/api/contracts/knowledge/search-history'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
-import { handleExternalLinkClick } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-link'
-import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { handleExternalLinkClick } from '@/lib/mothership/chat/source-link'
+import type { SourceTagData } from '@/lib/mothership/chat/special-tags'
 import { useRecordSearchHistory } from '@/hooks/queries/search-history'
 
 interface SourceHistoryContextValue {
