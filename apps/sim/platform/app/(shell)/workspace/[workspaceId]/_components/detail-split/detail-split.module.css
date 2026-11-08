@@ -84,26 +84,41 @@
   min-inline-size: 0;
   gap: var(--ui-widget-content-gap);
 }
+/*
+ * Narrow: the record stacks and scrolls as one, so no part is squeezed into its own small scroller.
+ * The facts lead the record; an inspector follows the part it describes.
+ */
 @container record (width < 45rem) {
   .split {
     flex-direction: column;
     gap: var(--ui-product-section-gap);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin-inline: calc(-1 * var(--ui-row-inset));
+    padding-inline: var(--ui-row-inset);
+    padding-block-end: var(--ui-page-inset-block);
   }
-  /* Narrow: the facts lead the record; an inspector follows the part it describes. */
+  .reading {
+    flex: none;
+    overflow: visible;
+    margin-inline-end: calc(-1 * var(--ui-row-inset));
+  }
+  .content {
+    padding-block-end: 0;
+  }
   .rail,
   .rail[data-kind="inspector"] {
     order: -1;
     align-self: stretch;
     inline-size: auto;
     min-inline-size: 0;
-    max-block-size: 40%;
+    max-block-size: none;
     margin-block-start: 0;
+    overflow: visible;
     padding-block: 0;
     padding-inline-start: 0;
     border-inline-start: none;
-  }
-  .reading {
-    margin-inline-end: calc(-1 * var(--ui-row-inset));
   }
   .rail[data-kind="inspector"] {
     order: 1;
