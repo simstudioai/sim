@@ -14,12 +14,37 @@ export function interleaveByRank<T>(lists: readonly (readonly T[])[]): T[] {
   return merged
 }
 
+const MESSAGE_SEPARATOR = ' '
+
 /** Joins status sentences once each, in first-seen order. */
 export function joinMessages(messages: readonly (string | undefined)[]): string | undefined {
   return (
-    [...new Set(messages.filter((message): message is string => Boolean(message)))].join(' ') ||
-    undefined
+    [...new Set(messages.filter((message): message is string => Boolean(message)))].join(
+      MESSAGE_SEPARATOR
+    ) || undefined
   )
+}
+
+/**
+ * Takes each given sentence out of a message {@link joinMessages} built, matching whole sentences
+ * only. Returns the sentences found and what remains, undefined when nothing does.
+ */
+export function separateMessages<Key extends string>(
+  message: string | undefined,
+  sentences: Readonly<Record<Key, string>>
+): { found: Key[]; rest: string | undefined } {
+  let padded = `${MESSAGE_SEPARATOR}${message ?? ''}${MESSAGE_SEPARATOR}`
+  const found: Key[] = []
+  for (const key of Object.keys(sentences) as Key[]) {
+    const bounded = `${MESSAGE_SEPARATOR}${sentences[key]}${MESSAGE_SEPARATOR}`
+    if (!padded.includes(bounded)) continue
+    padded = padded.replace(bounded, MESSAGE_SEPARATOR)
+    found.push(key)
+  }
+  return {
+    found,
+    rest: padded.slice(MESSAGE_SEPARATOR.length, -MESSAGE_SEPARATOR.length) || undefined,
+  }
 }
 
 /** Independent collections retain their successful evidence if another collection fails. */

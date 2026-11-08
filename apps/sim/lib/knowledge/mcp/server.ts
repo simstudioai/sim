@@ -11,6 +11,7 @@ import {
   liveSearchMcpSchema,
   readLiveDocumentMcpSchema,
 } from '@/lib/api/contracts/knowledge/mcp'
+import type { WorkspaceKnowledgeSearchData } from '@/lib/api/contracts/mothership-assistant-tools'
 import type { V2ApiKeyAuthContext } from '@/lib/api/server/routes/v2-api-key-auth'
 import { v2RateLimits } from '@/lib/api/server/routes/v2-json-route'
 import { afterResponse } from '@/lib/core/utils/after-response'
@@ -28,7 +29,15 @@ import {
 } from '@/lib/knowledge/mcp/tool-runner'
 import { liveCitationId } from '@/lib/knowledge/search/citation'
 import { toolError } from '@/lib/mcp/tool-result'
-import { readLiveDocument, searchLiveKnowledge } from '@/lib/sim-search/live/application'
+import {
+  LIVE_DATE_ORDER_MESSAGE,
+  LIVE_MORE_RANKED_BELOW_MESSAGE,
+  LIVE_NOT_STARTED_MESSAGE,
+  LIVE_OVER_ACCOUNT_LIMIT_MESSAGE,
+  readLiveDocument,
+  searchLiveKnowledge,
+} from '@/lib/sim-search/live/application'
+import { separateMessages } from '@/lib/sim-search/live/pages'
 import { LiveReadError } from '@/lib/sim-search/live/read-error'
 import { v2CaughtOrchestrationError } from '@/app/api/v2/lib/response'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
@@ -72,6 +81,55 @@ function sourceFacts(row: SourceRow) {
     sourceDate: sourceDate ?? null,
     ...(sourceContainerName && sourceContainerName !== title ? { sourceContainerName } : {}),
   }
+}
+
+/**
+ * Account status sentences that repeat across `live.accounts`, keyed by the flag that marks an
+ * entry carrying one. The search result states each sentence once in `live.notes` under its flag.
+ */
+const LIVE_ACCOUNT_NOTES = {
+  moreBelow: LIVE_MORE_RANKED_BELOW_MESSAGE,
+  dateOrderPartial: LIVE_DATE_ORDER_MESSAGE,
+  notSearchedByDeadline: LIVE_NOT_STARTED_MESSAGE,
+  notSearchedOverLimit: LIVE_OVER_ACCOUNT_LIMIT_MESSAGE,
+}
+
+/**
+ * Live coverage with each repeated status sentence moved to `live.notes` and flagged on the
+ * entries that carried it. A reconnect entry for a provider with no connection has no account ID
+ * and is named by its provider, so it sends neither. `backend` is always `live` here.
+ */
+function projectLiveCoverage(live: NonNullable<WorkspaceKnowledgeSearchData['live']>) {
+  const notes: Record<string, string> = {}
+  const accounts = live.accounts.map((entry) => {
+    const { accountId, displayName, message, ...status } = entry
+    const { found, rest: remaining } = separateMessages(message, LIVE_ACCOUNT_NOTES)
+    const flags: Record<string, true> = {}
+    for (const flag of found) {
+      flags[flag] = true
+      notes[flag] = LIVE_ACCOUNT_NOTES[flag]
+    }
+    return {
+      ...(accountId ? { accountId } : {}),
+      ...(accountId || displayName !== entry.provider ? { displayName } : {}),
+      ...status,
+      ...(remaining === undefined ? {} : { message: remaining }),
+      ...flags,
+    }
+  })
+  return {
+    ...(Object.keys(notes).length ? { notes } : {}),
+    accounts,
+    guidance: live.guidance,
+  }
+}
+
+/** A search result's retrieval status, without the timed-out legs a live search never has. */
+function projectRetrieval({
+  timedOutLegs,
+  ...retrieval
+}: WorkspaceKnowledgeSearchData['retrieval']) {
+  return timedOutLegs.length ? { ...retrieval, timedOutLegs } : retrieval
 }
 
 /** One read_document result in the shape the tool returns it. */
@@ -173,7 +231,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
     {
       title: 'Search',
       description:
-        'Search this organization’s sources through their live APIs, within your access and the admin’s source settings. Use source and date filters to narrow results, or nativeQueries for provider queries and pagination. Results carry a passage around their match where the source provides text. Inspect live.accounts for provider status and continuation cursors, and live.guidance for query syntax. Results are candidates, not proof of complete coverage. When a passage does not answer the question, use read_document with the exact returned documentId, and cite citationUrl when available.',
+        'Search this organization’s sources through their live APIs, within your access and the admin’s source settings. Use source and date filters to narrow results, or nativeQueries for provider queries and pagination. Results carry a passage around their match where the source provides text. Inspect live.accounts for provider status and continuation cursors (a true flag on an account, such as moreBelow, means the live.notes sentence under that key applies to it), and live.guidance for query syntax. Results are candidates, not proof of complete coverage. When a passage does not answer the question, use read_document with the exact returned documentId, and cite citationUrl when available.',
       inputSchema: liveSearchMcpSchema,
       annotations: KNOWLEDGE_MCP_READ_ONLY,
     },
@@ -206,8 +264,8 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
               connectorType: row.connectorType,
               content: row.content,
             })),
-            retrieval: result.retrieval,
-            live: result.live,
+            retrieval: projectRetrieval(result.retrieval),
+            ...(result.live ? { live: projectLiveCoverage(result.live) } : {}),
           },
           registry
         )

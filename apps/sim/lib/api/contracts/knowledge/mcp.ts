@@ -19,8 +19,28 @@ export const organizationKnowledgeMcpContract = defineRouteContract({
 
 const LIVE_SEARCH_MCP_DEFAULT_TOP_K = { federated: 30, scoped: 20 } as const
 
+/**
+ * A datetime field without the regex its JSON Schema would otherwise carry beside
+ * `format: "date-time"`. Every tools/list call resends the schema, and parsing still rejects a
+ * string that is not an ISO datetime with an offset.
+ */
+function withoutPatternInJsonSchema<T extends z.ZodType>(schema: T): T {
+  return schema.meta({ pattern: undefined })
+}
+
+const { startDate, endDate, modifiedAfter, modifiedBefore } = workspaceSearchFiltersSchema.shape
+
+/** The date filters of the Search MCP tools, as their tools/list schema presents them. */
+const mcpDateFilterFields = {
+  startDate: withoutPatternInJsonSchema(startDate),
+  endDate: withoutPatternInJsonSchema(endDate),
+  modifiedAfter: withoutPatternInJsonSchema(modifiedAfter),
+  modifiedBefore: withoutPatternInJsonSchema(modifiedBefore),
+}
+
 export const liveSearchMcpSchema = searchWorkspaceInputFieldsSchema
   .extend({
+    ...mcpDateFilterFields,
     topK: searchWorkspaceInputFieldsSchema.shape.topK
       .unwrap()
       .optional()
@@ -81,6 +101,7 @@ export const readLiveDocumentMcpSchema = readDocumentInputSchema
 
 export const chatSearchMcpSchema = workspaceSearchFiltersSchema
   .extend({
+    ...mcpDateFilterFields,
     query: z.string().trim().min(1, 'A question is required').max(8192),
   })
   .strict()
