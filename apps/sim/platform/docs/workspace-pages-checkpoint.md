@@ -20,6 +20,10 @@ Dashboard, Issues, Changelog and Logs are Platform pages under `app/(shell)/work
 | `fix(platform): address the workspace pages review` | The independent review's findings: groups and reading position on Back, duration and tick rounding, stale filter values, accessible run rows, ID lane, model units, grouped bar legend. |
 | `refactor(platform): open workspaces beside the organization sidebar` | A workspace row opens its Dashboard and is marked current; the sidebar no longer switches into a workspace mode. Workspace chat, skills, the integrations redirect, the resource and workflow pages and the Vite iframe preview are deleted, with fixture workspace chats, the Disclosure folder variant and the skill directory helpers. |
 | `test(platform): keep the organization sidebar on workspace pages` | The sidebar keeps Home, Integrations and Workspaces across a workspace, its tabs and a switch to another workspace. Reverting either guard (the hidden main navigation, the current row) turns it red. |
+| `refine(emcn): keep chart header controls inside the chart edge` | A chart's header control ends at its edge with the text inset, as Home's period does. |
+| `refine(platform): keep workspace controls inside the column and follow Paper's rows` | The control bar no longer overhangs the column; issue groups and rows follow Integrations and Paper's IssueRow with a right-aligned date; log rows follow Paper's RunRow with data on the right. |
+| `feat(platform): show a run's selected step beside its trace` | DetailSplit's ticket bar and inspector rail; run facts as Paper's metadata fields; the selected step's input and output in the inspector; records use DirectoryHeading and T093 sections. |
+| `refactor(platform): render the dashboard table on EMCN DataTable` | The dashboard table adapts to DataTable, Paper's named owner. |
 | `fix(platform): address the workspace sidebar review` | ControlBar takes search in its own slot; stress chat-panel recents point at stress workspaces; two stale doc sentences. |
 | `refine(platform): align workspace controls, rows and type with Home and Integrations` | Only search fills the control bar's leading slot; issue rows center and the Created label meets its values; changelog entries take ActivityRow's roles; decisions use the secondary Button; OverflowText labels keep their parent's role, so logs and chart ticks read at regular weight. |
 
@@ -52,7 +56,8 @@ Not run: `build:platform` (it would write into the shared preview's `.next`), th
 
 ## Open items
 
-- The shared preview on :3125 restarts its worker whenever it nears Next's memory threshold (`/private/tmp/sim-platform-shared-preview.log` records dozens). Each restart refuses connections briefly and recompiles pages on first visit, which makes frame-level browser checks such as the Back restore intermittently fail. Restarting `dev:platform` clears it; it also picks up the script without the removed preview build.
+- Paper's full log-details artboard is not in the repository; its recipes (TraceRow, TracePayload, MetadataField, TicketControlBar, RunRow) and your direction set the layout. The changelog keeps the smaller entry type you asked for over Paper's T093 ChangeEntry title.
+- The shared preview on :3125 restarts its worker whenever it nears Next's memory threshold (`/private/tmp/sim-platform-shared-preview.log` records dozens). Each restart refuses connections briefly and recompiles pages on first visit, which makes frame-level browser checks such as the Back restore intermittently fail. The agent restarted it in place on 2026-11-08 (same checkout, port, Node, heap, fixture flag and log); on the fresh server the workspace checks pass 11 of 11 and the Back restore 5 of 5.
 
 - Live adapters: Dashboard over `hooks/queries/dashboards.ts`, Changelog over `hooks/queries/changelog.ts`, Logs over `hooks/queries/logs.ts`, each mapped onto the existing view props and `WorkspaceRead`. Issues needs a backend first.
 - Per-section dashboard failures with a stale timestamp (Paper's error state) are not modeled; a failed read replaces the whole tab's content.
