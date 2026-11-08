@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Select as BaseSelect } from '@base-ui/react/select'
 import { FieldFrame, type FieldFrameProps } from '#emcn/components/field/frame'
 import type { ControlProps } from '#emcn/components/field/inputs'
@@ -41,6 +42,9 @@ export function Select<Value extends string = string>({
   const valueEdges = useScrollEdges<HTMLSpanElement>('horizontal')
   const scrollRef = useScrollEdges<HTMLDivElement>()
   const selection = usePickerValue(options, optionValue, defaultValue)
+  /** With a placeholder, nothing reads as chosen until the viewer picks, instead of the first option. */
+  const [picked, setPicked] = useState(false)
+  const unchosen = placeholder !== undefined && defaultValue === undefined && !picked
   const trigger = (
     <BaseSelect.Trigger
       id={id}
@@ -67,8 +71,9 @@ export function Select<Value extends string = string>({
     <BaseSelect.Root
       items={options}
       name={name}
-      value={value ?? selection.value}
+      value={value ?? (unchosen ? null : selection.value)}
       onValueChange={(value) => {
+        setPicked(true)
         selection.setValue(value)
         if (value !== null) onValueChange?.(value as Value)
       }}

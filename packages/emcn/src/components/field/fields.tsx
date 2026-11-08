@@ -137,6 +137,8 @@ interface SelectFieldProps<Value extends string = string> extends FieldProps {
   disabledReason?: string
   value?: Value
   onValueChange?: (value: Value) => void
+  /** Shown in secondary ink until something is chosen, such as "Select Notion account". */
+  placeholder?: string
 }
 
 export function SelectField<Value extends string>({
@@ -151,6 +153,7 @@ export function SelectField<Value extends string>({
   options,
   value,
   onValueChange,
+  placeholder,
 }: SelectFieldProps<Value>) {
   const id = useId()
   return (
@@ -161,6 +164,7 @@ export function SelectField<Value extends string>({
       defaultValue={defaultValue}
       value={value}
       onValueChange={onValueChange}
+      placeholder={placeholder}
       options={options}
       disabled={disabled}
       disabledReason={disabledReason}
