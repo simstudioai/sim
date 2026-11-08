@@ -32,7 +32,6 @@ export const RUN_STATUSES = [
 export const RUN_SORTS = ['newest', 'oldest', 'duration', 'cu'] as const
 
 export const runListParams = {
-  q: parseAsString.withDefault(''),
   status: parseAsStringLiteral(RUN_STATUSES).withDefault('all'),
   trigger: parseAsString.withDefault('all'),
   workflow: parseAsString.withDefault('all'),

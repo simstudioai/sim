@@ -3,7 +3,6 @@
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
-import { SearchField } from '@sim/emcn/search-field'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -77,7 +76,6 @@ interface RunListProps {
 export function RunList({ data, read }: RunListProps) {
   const search = useSearchParams()
   const [view, setView] = useQueryStates(runListParams, { history: 'replace', shallow: true })
-  const term = view.q.trim().toLowerCase()
   const workflows = [
     ...new Map(data.runs.map((run) => [run.workflow.id, run.workflow])).values(),
   ].sort((left, right) => left.name.localeCompare(right.name))
@@ -86,7 +84,7 @@ export function RunList({ data, read }: RunListProps) {
   const trigger = triggers.includes(view.trigger) ? view.trigger : 'all'
   const workflow = workflows.some((item) => item.id === view.workflow) ? view.workflow : 'all'
   const [revealed, revealMore] = useRevealedCount(
-    `logs/${data.workspace.id}/${term}/${view.status}/${trigger}/${workflow}/${view.sort}`,
+    `logs/${data.workspace.id}/${view.status}/${trigger}/${workflow}/${view.sort}`,
     PAGE_SIZE
   )
   const matches = data.runs
@@ -94,8 +92,7 @@ export function RunList({ data, read }: RunListProps) {
       (run) =>
         (view.status === 'all' || run.status === view.status) &&
         (trigger === 'all' || run.trigger.label === trigger) &&
-        (workflow === 'all' || run.workflow.id === workflow) &&
-        (!term || run.workflow.name.toLowerCase().includes(term) || run.id.includes(term))
+        (workflow === 'all' || run.workflow.id === workflow)
     )
     .sort(compareRuns(view.sort))
   const base = workspacePath(data.workspace.id, 'logs')
@@ -104,49 +101,46 @@ export function RunList({ data, read }: RunListProps) {
 
   const controls = data.runs.length > 0 && (
     <ControlBar
-      search={
-        <SearchField
-          variant='quiet'
-          label='Search runs'
-          placeholder='Search workflow or run ID'
-          value={view.q}
-          onValueChange={(q) => void setView({ q: q || null })}
-        />
+      leading={
+        <>
+          <ChoiceMenu
+            label='Status'
+            options={RUN_STATUSES.map((status) => ({
+              value: status,
+              label: status === 'all' ? 'All statuses' : RUN_STATUS_LABEL[status],
+            }))}
+            value={view.status}
+            onValueChange={(status) =>
+              void setView({
+                status: RUN_STATUSES.find((value) => value === status && value !== 'all') ?? null,
+              })
+            }
+          />
+          <ChoiceMenu
+            label='Trigger'
+            options={[
+              { value: 'all', label: 'All triggers' },
+              ...triggers.map((trigger) => ({ value: trigger, label: trigger })),
+            ]}
+            value={trigger}
+            onValueChange={(trigger) =>
+              void setView({ trigger: trigger === 'all' ? null : trigger })
+            }
+          />
+          <ChoiceMenu
+            label='Workflow'
+            options={[
+              { value: 'all', label: 'All workflows' },
+              ...workflows.map((workflow) => ({ value: workflow.id, label: workflow.name })),
+            ]}
+            value={workflow}
+            onValueChange={(workflow) =>
+              void setView({ workflow: workflow === 'all' ? null : workflow })
+            }
+          />
+        </>
       }
     >
-      <ChoiceMenu
-        label='Status'
-        options={RUN_STATUSES.map((status) => ({
-          value: status,
-          label: status === 'all' ? 'All statuses' : RUN_STATUS_LABEL[status],
-        }))}
-        value={view.status}
-        onValueChange={(status) =>
-          void setView({
-            status: RUN_STATUSES.find((value) => value === status && value !== 'all') ?? null,
-          })
-        }
-      />
-      <ChoiceMenu
-        label='Trigger'
-        options={[
-          { value: 'all', label: 'All triggers' },
-          ...triggers.map((trigger) => ({ value: trigger, label: trigger })),
-        ]}
-        value={trigger}
-        onValueChange={(trigger) => void setView({ trigger: trigger === 'all' ? null : trigger })}
-      />
-      <ChoiceMenu
-        label='Workflow'
-        options={[
-          { value: 'all', label: 'All workflows' },
-          ...workflows.map((workflow) => ({ value: workflow.id, label: workflow.name })),
-        ]}
-        value={workflow}
-        onValueChange={(workflow) =>
-          void setView({ workflow: workflow === 'all' ? null : workflow })
-        }
-      />
       <ActionMenu
         label='Sort runs'
         icon='I050'
@@ -171,7 +165,7 @@ export function RunList({ data, read }: RunListProps) {
       ) : !matches.length ? (
         <WorkspaceEmpty
           title='No matching runs'
-          description='Try another search or filter.'
+          description='Try another status, trigger or workflow.'
           action={{ label: 'Clear filters', onClick: () => void setView(null) }}
         />
       ) : (
