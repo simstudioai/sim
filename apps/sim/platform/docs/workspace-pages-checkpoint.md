@@ -27,12 +27,18 @@ Dashboard, Issues, Changelog and Logs are Platform pages under `app/(shell)/work
 | `feat(platform): show a run's selected step beside its trace` | DetailSplit's ticket bar and inspector rail; run facts as Paper's metadata fields; the selected step's input and output in the inspector; records use DirectoryHeading and T093 sections. |
 | `refactor(platform): render the dashboard table on EMCN DataTable` | The dashboard table adapts to DataTable, Paper's named owner. |
 | `fix(platform): address the Paper alignment review` | The second review's findings: Used by's leftover inset, neutral table statuses in ink, a 32px group toggle, no empty inspector, a capped inspector and a narrower trace breakpoint, labelled metadata, Paper's caption gap, a primary column that never hides, a centered trace track, DataTable's header control inside its edge. |
+| `refine(platform): keep record identifiers in their facts` | The ticket bar holds Back and the actions only; an issue's ID and a run's execution ID are facts. |
+| `refine(platform): end the record rail's line at its content` | The rail's boundary spans its content with the same 8px above and below, its first line level with the heading. |
+| `refine(platform): spell out Compute Units` | Run facts, the run list's column, sort and row names say Compute Units, never CU. |
+| `refactor(platform): let workspace pages refresh themselves` | No refresh controls: Dashboard and Changelog keep their Updated caption, new runs join Logs without a button, and the session no longer tracks refreshes. |
+| `test(platform): check self-refreshing pages, record facts and the rail line` | Each new check fails on the code before it; removing the rail's start alignment turns its check red. |
 
 ## Decisions to review
 
 - Paper could not be read in this session (no Paper MCP), so the pages follow the contract JSONs and the brief. Compare Paper's Workspace shell for the tab order and labels, which follow the brief: Dashboard, Issues, Changelog, Logs.
 - A live workspace row still opens the legacy workspace (`legacyRoutes.workspace`), since no live adapter feeds these pages yet. Fixture rows open Dashboard.
-- `ShellWorkspace.workflows` stays: the composer's @-references list each workspace's workflows. Changed items without a page (workflows, tables, knowledge bases, files) are passive rows; the external Notion page still links.
+- `ShellWorkspace.workflows` stays: the composer's @-references list each workspace's workflows. Workspace changes render through EMCN ActivityRow, as Integrations' rows do: the glyph on the first line, title and type. Changed items without a page (workflows, tables, knowledge bases, files) are passive rows with no chevron; the external Notion page still links.
+- Pages refresh themselves. Fixture time is fixed, so on fixtures the Updated age and the run list hold still; each live adapter will refetch in the background and report its last update.
 - Workspace tabs scroll as one page in the shell's scroller, at least the viewport tall so empty states center beneath the controls. Record details are bounded panes where only the reading column scrolls.
 - Issue group headers are a local toggle with Integrations' T059 group title and a chevron; Paper's IssueGroup uses T042. Issue titles hold one line and fade, with the full title in a tooltip and the link's name.
 - Grouped and signed bars are local to Dashboard: one consumer each, so no EMCN variant. Trend, stacked bars and donut use the EMCN charts.
@@ -51,6 +57,8 @@ Dashboard, Issues, Changelog and Logs are Platform pages under `app/(shell)/work
 | Visual review | Every route at 390, 901 and 1440 in light and dark on `full`, and at 390 and 1440 on `stress`, compared with Home and Integrations. Heading, tabs, search and sort sit at the same coordinates as Integrations (heading 326/64, tabs 326/145, search 348/192, sort 1374/188 at 1440) |
 | Independent review | A fresh agent reviewed the owners and routes against the brief; its correctness and robustness findings are fixed in `fix(platform): address the workspace pages review` |
 | Sidebar and design follow-up | `type-check:platform`, `check:platform-design`, `check:platform-css`, `check:platform-convergence` and `check:unused-exports` pass. `workspace-pages`, `shell`, `panels`, `integration-center`, `integrations` and `controls-consistency` pass on :3125. Before and after screenshots at 1440 and 390 in light, and 1440 in dark. At 125% text the control bar stays inside the text edges at 1440, 901 and 390. Repo gate: `lint:check`, `check:audits` (68), `test:scripts` (845) and `type-check` (32 workspaces) pass. Full Platform suite 121 of 123; both failures came from the preview's worker restarting and pass on rerun. The Electron renderer check passes against :3125, and a scratch Electron run opened a workspace, a run and the sidebar toggle with the sidebar unchanged and the workspace name in the native titlebar. An independent review found no blocking issue; its findings are fixed in `fix(platform): address the workspace sidebar review` |
+
+| Follow-up: identifiers, Compute Units, refresh, rail | `type-check:platform`, Biome, `check:platform-design`, `check:platform-css`, `check:platform-convergence` and `check:unused-exports` pass. `workspace-pages.spec.ts` 13/13 on :3125. Screenshots of issue, run, logs, dashboard and changelog at 1440 light, issue at 1440 dark and 390 light |
 
 Not run: `build:platform` (it would write into the shared preview's `.next`), the Electron suite, and the fixture-off production suite.
 

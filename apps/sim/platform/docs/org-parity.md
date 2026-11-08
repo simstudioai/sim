@@ -369,9 +369,9 @@ The workspace's Dashboard, Issues, Changelog and Logs are Platform pages with fi
 
 | Domain | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- | --- |
-| Workspace | Dashboard: period, section choices, refresh | `app/workspace/[workspaceId]/dashboards/page.tsx` | Legacy | `redirectWorkspaceTabToLegacy` sends a live workspace to its legacy dashboard. Adapter: `hooks/queries/dashboards.ts` over `/api/workspaces/[id]/dashboard`, mapped onto `DashboardData` |
+| Workspace | Dashboard: period, section choices, self-refresh with its last update | `app/workspace/[workspaceId]/dashboards/page.tsx` | Legacy | `redirectWorkspaceTabToLegacy` sends a live workspace to its legacy dashboard. Adapter: `hooks/queries/dashboards.ts` over `/api/workspaces/[id]/dashboard`, mapped onto `DashboardData` |
 | Workspace | Changelog feed and change details | `app/workspace/[workspaceId]/changelog/changelog.tsx` | Legacy | Live redirects to the legacy changelog, a change's details to its list. Adapter: `hooks/queries/changelog.ts` over `lib/api/contracts/changelog.ts`, mapped onto `ChangelogData` and `ChangelogDetail` |
-| Workspace | Run list, filters, sort, new runs, run details and trace | `app/workspace/[workspaceId]/logs/logs.tsx` | Legacy | Live redirects to the legacy logs, a run to its `executionId`. Adapter: `hooks/queries/logs.ts` over `lib/api/contracts/logs.ts`, mapped onto `RunsData` and `RunDetail`; usage reads in CU from the persisted cost |
+| Workspace | Run list, filters, sort, new runs joining on refresh, run details and trace | `app/workspace/[workspaceId]/logs/logs.tsx` | Legacy | Live redirects to the legacy logs, a run to its `executionId`. Adapter: `hooks/queries/logs.ts` over `lib/api/contracts/logs.ts`, mapped onto `RunsData` and `RunDetail`; usage reads in Compute Units from the persisted cost. Each adapter refetches in the background and reports its last update |
 | Workspace | Issues: list, details, decisions | None; Platform only | Hidden | No backend exists. Its live routes answer 404, and a live workspace row opens the legacy workspace, so no live page links to it |
 
 ## Zone
