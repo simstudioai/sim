@@ -9,7 +9,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { InlineNotice, StatusTag } from '@sim/emcn/status'
 import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { useQueryState } from 'nuqs'
-import { slackSetupResultParam } from '@/app/o/[organizationId]/settings/components/search-params'
+import { slackSetupResultParam } from '@/lib/organizations/slack-setup-params'
 import {
   ActionRow,
   Muted,

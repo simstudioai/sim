@@ -12,9 +12,9 @@ import {
   ChipModalHeader,
 } from '@sim/emcn-legacy'
 import { Check, Link, Send } from '@sim/emcn-legacy/icons'
+import { SimLinkChip } from '@/components/sim-links/sim-link-shortcut'
 import { GeneratedPasswordInput } from '@/components/ui'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
-import { SimLinkChip } from '@/app/o/[organizationId]/links/sim-link-shortcut'
 import {
   type ShareDialogProps,
   useShareDialog,

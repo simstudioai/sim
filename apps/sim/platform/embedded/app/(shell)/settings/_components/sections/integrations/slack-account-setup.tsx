@@ -3,8 +3,8 @@
 import { Modal } from '@sim/emcn/modal'
 import { FailureNotice } from '@sim/emcn/status'
 import { useQueryState } from 'nuqs'
+import { connectedAccountsParam } from '@/lib/organizations/settings-integrations-params'
 import { searchSetupParam, searchSetupReturnParam } from '@/lib/sim-search/params'
-import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
 import { SlackMemberSetupModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/slack-member-setup-modal'
 import { useSlackAppSetup } from '@/platform/embedded/lib/data/integrations'
 

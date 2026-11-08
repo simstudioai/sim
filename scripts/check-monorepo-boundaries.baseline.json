@@ -1,14 +1,7 @@
 {
   "viewDataHooks": {},
   "platformToRoutes": {
-    "apps/sim/platform/embedded/app/(shell)/_components/conversation/share-dialog.tsx": 2,
-    "apps/sim/platform/embedded/app/(shell)/_components/search/source-row.tsx": 2,
-    "apps/sim/platform/embedded/app/(shell)/search/_components/search-surface/search-surface.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/integrations-section.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/provider-detail.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/slack-account-setup.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup-host.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/search-slack/search-slack-section.tsx": 1
+    "apps/sim/platform/embedded/app/(shell)/search/_components/search-surface/search-surface.tsx": 1
   },
   "platformLibToWorkspace": {},
   "viewsToWorkspace": {

@@ -12,7 +12,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
-import { useSearchSourceSetup } from '@/app/o/[organizationId]/settings/components/integrations/use-search-source-setup'
+import { useSearchSourceSetup } from '@/hooks/organizations/use-search-source-setup'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
 import { SourceSetupForm } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup'
 

@@ -6,7 +6,7 @@ import { flushMacrotask } from '@sim/testing/helpers/async'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { SimLinkOrganizationProvider } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
+import { SimLinkOrganizationProvider } from '@/components/sim-links/sim-link-organization-provider'
 import { MessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/components/message-sources/message-sources'
 
 const source = { url: 'https://docs.example.test/guide', title: 'Setup guide' }

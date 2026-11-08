@@ -7,8 +7,8 @@ import { OverflowText } from '@sim/emcn/overflow-text'
 import {
   useOpenSimLinkForm,
   useSimLinkOrganizationId,
-} from '@/app/o/[organizationId]/links/sim-link-organization-provider'
-import { useExistingSimLink } from '@/app/o/[organizationId]/links/sim-link-shortcut'
+} from '@/components/sim-links/sim-link-organization-provider'
+import { useExistingSimLink } from '@/components/sim-links/sim-link-shortcut'
 import {
   highlightTerms,
   sourceMeta,

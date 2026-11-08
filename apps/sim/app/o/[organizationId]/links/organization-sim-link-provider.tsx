@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import { Surface } from '@sim/emcn-platform/surface'
 import dynamic from 'next/dynamic'
-import { SimLinkOrganizationProvider } from '@/app/o/[organizationId]/links/sim-link-organization-provider'
+import { SimLinkOrganizationProvider } from '@/components/sim-links/sim-link-organization-provider'
 
 /** Every organization route mounts this provider; only a new-link shortcut needs the form. */
 const LinkEditor = dynamic(() =>

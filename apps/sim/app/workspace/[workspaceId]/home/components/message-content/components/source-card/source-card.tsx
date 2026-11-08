@@ -18,12 +18,12 @@ import {
 } from '@sim/emcn-legacy'
 import { Check, Link as LinkIcon, MoreHorizontal, Sparkles } from '@sim/emcn-legacy/icons'
 import { formatDate } from '@sim/utils/formatting'
-import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
 import {
   useOpenSimLinkForm,
   useSimLinkOrganizationId,
-} from '@/app/o/[organizationId]/links/sim-link-organization-provider'
-import { SimLinkMenuItem } from '@/app/o/[organizationId]/links/sim-link-shortcut'
+} from '@/components/sim-links/sim-link-organization-provider'
+import { SimLinkMenuItem } from '@/components/sim-links/sim-link-shortcut'
+import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
 import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import {
   SourceIcon,

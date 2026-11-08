@@ -16,6 +16,7 @@ import type { SearchIntegrationApproval } from '@/lib/api/contracts/knowledge/se
 import { assistantAccountOptions } from '@/lib/credential-groups/member-integrations'
 import { hasSlackSearchUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { connectedAccountsParam } from '@/lib/organizations/settings-integrations-params'
 import {
   defaultLiveSearchPolicy,
   LIVE_SEARCH_SCOPE_FIELDS,
@@ -27,7 +28,6 @@ import {
   liveSearchMcpConnector,
   liveSearchMemberAccountProvider,
 } from '@/lib/sim-search/live/source-catalog'
-import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { IntegrationMark } from '@/platform/embedded/app/(shell)/_components/integration-mark/integration-mark'
