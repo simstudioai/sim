@@ -76,14 +76,19 @@ export function ChangelogFeed({ data, actions, read }: ChangelogFeedProps) {
   const contributors = [
     ...new Map(data.entries.map((entry) => [entry.contributor.id, entry.contributor])).values(),
   ].sort((left, right) => left.name.localeCompare(right.name))
+  // A contributor no longer in the history, from an old link, reads as everyone.
+  const contributor = contributors.some((person) => person.id === view.contributor)
+    ? view.contributor
+    : 'all'
   const since = data.referenceTime - PERIOD_DAYS[view.period] * DAY_MS
-  const matches = data.entries.filter(
-    (entry) =>
-      entry.appliedAt >= since &&
-      (view.contributor === 'all' || entry.contributor.id === view.contributor)
-  )
+  const matches = data.entries
+    .filter(
+      (entry) =>
+        entry.appliedAt >= since && (contributor === 'all' || entry.contributor.id === contributor)
+    )
+    .sort((left, right) => right.appliedAt - left.appliedAt)
   const [revealed, revealMore] = useRevealedCount(
-    `changelog/${data.workspace.id}/${view.period}/${view.contributor}`,
+    `changelog/${data.workspace.id}/${view.period}/${contributor}`,
     PAGE_SIZE
   )
   const toDay = calendarDayFormatter(timeZone)
@@ -128,7 +133,7 @@ export function ChangelogFeed({ data, actions, read }: ChangelogFeedProps) {
                     { value: 'all', label: 'All contributors' },
                     ...contributors.map((person) => ({ value: person.id, label: person.name })),
                   ]}
-                  value={view.contributor}
+                  value={contributor}
                   onValueChange={(contributor) =>
                     void setView({ contributor: contributor === 'all' ? null : contributor })
                   }
@@ -158,7 +163,7 @@ export function ChangelogFeed({ data, actions, read }: ChangelogFeedProps) {
         <WorkspaceEmpty
           title='No changes in this view'
           description='Try another period or contributor.'
-          action={{ label: 'Clear filters', href: platformHref(base, search) }}
+          action={{ label: 'Clear filters', onClick: () => void setView(null) }}
         />
       ) : (
         <div className={styles.days}>

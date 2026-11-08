@@ -21,6 +21,7 @@ const signedPercent = new Intl.NumberFormat(LOCALE, {
   maximumFractionDigits: 1,
   signDisplay: 'exceptZero',
 })
+/** Up to two decimals: Compute Units, and axis ticks such as `2.5m`. */
 const units = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 2 })
 const currencies = new Map<string, { exact: Intl.NumberFormat; compact: Intl.NumberFormat }>()
 
@@ -69,20 +70,30 @@ export function formatDelta(value: number | null | undefined) {
 /** Elapsed milliseconds, from `420 ms` through `2.4s`, `2m 14s` and `3h 5m` to `1d 2h`. */
 export function formatDuration(ms: number | null | undefined) {
   if (ms == null || !Number.isFinite(ms) || ms < 0) return MISSING
-  if (ms < 1000) return `${Math.round(ms)} ms`
+  if (Math.round(ms) < 1000) return `${Math.round(ms)} ms`
   const seconds = ms / 1000
-  if (seconds < 60) return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)}s`
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ${Math.round(seconds % 60)}s`
+  if (seconds < 9.95) return `${seconds.toFixed(1)}s`
+  // Whole seconds first, so 119.6s reads 2m 0s rather than 1m 60s.
+  const whole = Math.round(seconds)
+  if (whole < 60) return `${whole}s`
+  const minutes = Math.floor(whole / 60)
+  if (minutes < 60) return `${minutes}m ${whole % 60}s`
   const hours = Math.floor(minutes / 60)
   if (hours < 24) return `${hours}h ${minutes % 60}m`
   return `${Math.floor(hours / 24)}d ${hours % 24}h`
 }
 
+/** Past six digits, a list lane reads Compute Units in compact notation; facts keep the exact amount. */
+const COMPACT_UNITS_LIMIT = 100_000
+
 /** Compute Units; an unknown amount stays unknown rather than reading as zero. */
-export function formatComputeUnits(value: number | null | undefined) {
+export function formatComputeUnits(
+  value: number | null | undefined,
+  length: 'exact' | 'compact' = 'exact'
+) {
   if (value == null || !Number.isFinite(value)) return MISSING
-  return Math.abs(value) >= EXACT_LIMIT ? compactCount.format(value) : units.format(value)
+  const limit = length === 'compact' ? COMPACT_UNITS_LIMIT : EXACT_LIMIT
+  return Math.abs(value) >= limit ? compactCount.format(value) : units.format(value)
 }
 
 export function formatUnit(value: number | null | undefined, unit: DashboardUnit) {
@@ -109,9 +120,9 @@ export function formatTick(value: number, unit: DashboardUnit) {
   switch (unit.kind) {
     case 'duration':
       if (value === 0) return '0'
-      return value >= 60_000 ? `${Math.round(value / 60_000)}m` : `${Math.round(value / 1000)}s`
+      return value >= 60_000 ? `${units.format(value / 60_000)}m` : `${units.format(value / 1000)}s`
     case 'percent':
-      return `${Math.round(value * 100)}%`
+      return `${units.format(value * 100)}%`
     case 'currency':
       return `${value < 0 ? '−' : ''}${unit.currency === 'USD' ? '$' : ''}${compactTick(Math.abs(value))}`
     default:

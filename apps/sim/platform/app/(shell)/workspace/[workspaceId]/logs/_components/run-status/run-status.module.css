@@ -21,8 +21,6 @@
   gap: var(--spacing-8);
 }
 .triggerLabel {
+  flex: 1;
   min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: clip;
-  white-space: nowrap;
 }

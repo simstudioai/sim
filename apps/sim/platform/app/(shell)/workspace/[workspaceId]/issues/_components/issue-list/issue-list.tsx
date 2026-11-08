@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { Disclosure } from '@sim/emcn/disclosure'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
@@ -16,12 +15,14 @@ import {
   WorkspacePage,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
 import type {
-  IssueGroup,
   IssueSummary,
   IssuesData,
   WorkspaceRead,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
-import { useRevealedCount } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
+import {
+  useOpenGroups,
+  useRevealedCount,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/issues/_components/issue-list/issue-list.module.css'
 import {
   ISSUE_GROUPS,
@@ -73,7 +74,7 @@ export function IssueList({ data, read }: IssueListProps) {
   const search = useSearchParams()
   const newChat = useNewChatHref(data.workspace.id)
   const [view, setView] = useQueryStates(issueListParams, { history: 'replace', shallow: true })
-  const [toggled, setToggled] = useState<Partial<Record<IssueGroup, boolean>>>({})
+  const [toggled, toggleGroup] = useOpenGroups(`issues/${data.workspace.id}`)
   const listPath = workspacePath(data.workspace.id, 'issues')
   const term = view.q.trim().toLowerCase()
   const filtering = Boolean(term) || view.status !== 'all'
@@ -103,7 +104,6 @@ export function IssueList({ data, read }: IssueListProps) {
 
   const rowHref = (id: string) =>
     serializeIssueList(platformHref(`${listPath}/${encodeURIComponent(id)}`, search), view)
-  const clearHref = platformHref(listPath, search)
   const controls = data.issues.length > 0 && (
     <ControlBar
       leading={
@@ -150,7 +150,7 @@ export function IssueList({ data, read }: IssueListProps) {
         <WorkspaceEmpty
           title='No matching issues'
           description='Try a different title or issue ID.'
-          action={{ label: 'Clear filters', href: clearHref }}
+          action={{ label: 'Clear filters', onClick: () => void setView(null) }}
         />
       ) : (
         <div className={styles.groups}>
@@ -160,7 +160,7 @@ export function IssueList({ data, read }: IssueListProps) {
                 variant='navigation'
                 label={group.label}
                 open={group.open}
-                onOpenChange={(open) => setToggled((current) => ({ ...current, [group.id]: open }))}
+                onOpenChange={(open) => toggleGroup(group.id, open)}
                 actions={
                   group.open && (
                     <span className={styles.createdLabel} data-type='T052' aria-hidden='true'>

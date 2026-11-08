@@ -32,7 +32,8 @@
   fill: currentColor;
   color: var(--ui-plot-primary);
 }
-.group[data-dimmed] .bar {
+.group[data-dimmed] .bar,
+.bar[data-faded] {
   fill: color-mix(in srgb, currentColor calc(var(--opacity-disabled) * 100%), var(--ui-canvas));
 }
 .swatch {
@@ -61,14 +62,18 @@
 .ticks {
   grid-column: 2;
   display: flex;
+  justify-content: space-between;
   min-inline-size: 0;
   color: var(--ui-secondary);
 }
 .ticks li {
-  flex: 1;
   min-inline-size: 0;
+  max-inline-size: 33%;
+}
+.ticks[data-banded] li {
+  flex: 1;
+  max-inline-size: none;
   padding-inline: var(--spacing-4);
-  text-align: center;
 }
 .tooltip {
   column-gap: var(--spacing-12);
@@ -86,9 +91,24 @@
   color: var(--ui-secondary);
 }
 .legend li {
+  min-inline-size: 0;
+}
+.legend li[data-dimmed] {
+  opacity: var(--opacity-disabled);
+}
+.legend button {
   display: flex;
   align-items: center;
+  max-inline-size: 100%;
   gap: var(--spacing-6);
-  min-inline-size: 0;
   min-block-size: var(--spacing-28);
+  color: inherit;
+}
+.legend button[aria-pressed="true"] {
+  color: var(--ui-strong);
+}
+@media (pointer: coarse) {
+  .legend button {
+    min-block-size: var(--spacing-app-touch-target);
+  }
 }

@@ -26,6 +26,10 @@ function useSessionState() {
   revealed.current ??= new Map()
   const scrolled = useRef<Map<string, number> | null>(null)
   scrolled.current ??= new Map()
+  const openGroups = useRef<Map<string, Readonly<Record<string, boolean>>> | null>(null)
+  openGroups.current ??= new Map()
+  /** The list most recently left, so a record's Back link restores only the list it came from. */
+  const lastLeft = useRef<string | null>(null)
   /** Where Back, Forward or a record's Back link is returning, until that page restores its position. */
   const historyTarget = useRef<string | null>(null)
   useEffect(() => {
@@ -38,6 +42,8 @@ function useSessionState() {
   }, [])
   return {
     scrolled: scrolled.current,
+    openGroups: openGroups.current,
+    lastLeft,
     historyTarget,
     decisions,
     setDecisions,
@@ -106,42 +112,70 @@ export function useRevealedCount(key: string, pageSize: number) {
   return [count, more] as const
 }
 
+/** Which of a list's groups the reader opened or closed, remembered so Back shows the same groups. */
+export function useOpenGroups(key: string) {
+  const { openGroups } = useSession()
+  const [toggled, setToggled] = useState(() => openGroups.get(key) ?? {})
+  const [shownKey, setShownKey] = useState(key)
+  if (shownKey !== key) {
+    setShownKey(key)
+    setToggled(openGroups.get(key) ?? {})
+  }
+  const toggle = useCallback(
+    (group: string, open: boolean) =>
+      setToggled((current) => {
+        const next = { ...current, [group]: open }
+        openGroups.set(key, next)
+        return next
+      }),
+    [key, openGroups]
+  )
+  return [toggled, toggle] as const
+}
+
 /**
- * Remembers a page's reading position in the shell's scroller when the reader leaves it by a click,
- * and restores it when Back or Forward returns. A new visit starts at the top.
+ * A page's reading position in the shell's scroller: recorded while the page shows, restored when
+ * Back, Forward or a record's Back link returns to it. A new visit starts at the top.
  */
 export function useScrollMemory<T extends HTMLElement>() {
-  const { scrolled, historyTarget } = useSession()
+  const { scrolled, historyTarget, lastLeft } = useSession()
   const node = useRef<T>(null)
-  const scroller = () => node.current?.closest<HTMLElement>('[data-scroll-axis="vertical"]')
   useLayoutEffect(() => {
     const path = window.location.pathname
     const viewport = node.current?.closest<HTMLElement>('[data-scroll-axis="vertical"]')
+    if (!viewport) return
     // The router renders a Back or Forward inside the popstate dispatch, before later listeners run.
     const traversal = window.event?.type === 'popstate'
-    if (!viewport || (historyTarget.current !== path && !traversal)) return
-    historyTarget.current = null
-    const top = scrolled.get(path) ?? 0
-    // Tells the shell, whose reset runs after this, that the page places itself.
-    viewport.dataset.restoredScroll = path
-    // After the router's own scroll into view for a link, and before the first paint.
-    requestAnimationFrame(() => {
-      viewport.scrollTop = top
-    })
-  }, [historyTarget, scrolled])
-  const remember = () => {
-    const viewport = scroller()
-    if (viewport) scrolled.set(window.location.pathname, viewport.scrollTop)
-  }
-  return { ref: node, remember }
+    if (historyTarget.current === path || traversal) {
+      historyTarget.current = null
+      const top = scrolled.get(path) ?? 0
+      // Tells the shell, whose reset runs after this, that the page places itself.
+      viewport.dataset.restoredScroll = path
+      // After the router's own scroll into view for a link, and before the first paint.
+      requestAnimationFrame(() => {
+        viewport.scrollTop = top
+      })
+    } else {
+      scrolled.set(path, 0)
+    }
+    // Removed as the page leaves, so the scroller's clamp to the next page never overwrites it.
+    const record = () => scrolled.set(path, viewport.scrollTop)
+    viewport.addEventListener('scroll', record, { passive: true })
+    return () => {
+      viewport.removeEventListener('scroll', record)
+      lastLeft.current = path
+    }
+  }, [historyTarget, lastLeft, scrolled])
+  return node
 }
 
-/** A record's Back link: the list it returns to restores its reading position, as Back does. */
+/** A record's Back link: the list it came from restores its reading position, as Back does. */
 export function useListReturn() {
-  const { historyTarget } = useSession()
+  const { historyTarget, lastLeft } = useSession()
   return () => {
     const path = window.location.pathname
-    historyTarget.current = path.slice(0, path.lastIndexOf('/'))
+    const list = path.slice(0, path.lastIndexOf('/'))
+    if (lastLeft.current === list) historyTarget.current = list
   }
 }
 

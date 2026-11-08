@@ -65,14 +65,14 @@ function SectionBody({ title, content }: { title: string; content: DashboardCont
     case 'signed':
       return <SignedBars label={title} unit={content.unit} rows={content.rows} />
     case 'bars':
-      return (
+      return content.layout === 'grouped' ? (
         <GroupedBars
           label={title}
           unit={content.unit}
           series={content.series}
           bars={content.bars}
         />
-      )
+      ) : null
     default:
       return null
   }

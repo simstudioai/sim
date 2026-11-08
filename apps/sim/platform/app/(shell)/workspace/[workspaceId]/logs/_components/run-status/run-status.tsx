@@ -1,4 +1,5 @@
 import { Icon } from '@sim/emcn/icon'
+import { OverflowText } from '@sim/emcn/overflow-text'
 import type {
   RunStatus,
   RunTrigger,
@@ -31,7 +32,9 @@ export function RunTriggerLabel({ trigger }: { trigger: RunTrigger }) {
       ) : (
         <Icon name={trigger.icon ?? 'I030'} />
       )}
-      <span className={styles.triggerLabel}>{trigger.label}</span>
+      <span className={styles.triggerLabel}>
+        <OverflowText text={trigger.label} />
+      </span>
     </span>
   )
 }

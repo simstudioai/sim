@@ -692,7 +692,6 @@ export function workspaceChangelogEntry(
     workspace,
     referenceTime: FIXTURE_NOW,
     body: [
-      entry.description,
       scenario === 'stress'
         ? `${LONG_SENTENCE} ${UNBROKEN}`
         : 'The change applies to new requests from the moment it merged. Requests already in progress finish under the previous behavior, and their history notes which version handled them.',
@@ -827,10 +826,10 @@ function snapshot(scenario: Scenario, workspaceId: string, period: Period): Dash
       ],
     },
     views: Object.fromEntries([
-      ['all', { kind: 'trend', unit: { kind: 'count' }, points: trend(requestBase) }],
+      ['all', { kind: 'trend', points: trend(requestBase) }],
       ...agents.map((_, index) => [
         `agent-${index}`,
-        { kind: 'trend', unit: { kind: 'count' }, points: trend(requestBase / (index + 2)) },
+        { kind: 'trend', points: trend(requestBase / (index + 2)) },
       ]),
     ]),
   }
@@ -894,7 +893,6 @@ function snapshot(scenario: Scenario, workspaceId: string, period: Period): Dash
     views: single({
       kind: 'bars',
       layout: 'stacked',
-      unit: { kind: 'count' },
       series: resolutionSeries,
       bars: barLabels.map((label) => ({
         label,

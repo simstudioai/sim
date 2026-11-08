@@ -47,7 +47,7 @@ export function WorkspacePage({
   children,
 }: WorkspacePageProps) {
   const search = useSearchParams()
-  const scroll = useScrollMemory<HTMLElement>()
+  const scrollMemory = useScrollMemory<HTMLElement>()
   const destinations = WORKSPACE_TABS.map((tab) => ({
     section: tab.section,
     label: tab.label,
@@ -55,7 +55,7 @@ export function WorkspacePage({
   }))
   return (
     <PageColumn>
-      <main ref={scroll.ref} className={styles.page} onClickCapture={scroll.remember}>
+      <main ref={scrollMemory} className={styles.page}>
         <DirectoryHeading title={workspace.name} description={workspace.description} />
         <div className={styles.body}>
           <div className={styles.toolbar}>
@@ -80,7 +80,8 @@ export function WorkspacePage({
 interface WorkspaceEmptyProps {
   title: string
   description?: string
-  action?: { label: string; href: string }
+  /** A destination, such as New chat, or an in-place reset, such as Clear filters. */
+  action?: { label: string; href: string } | { label: string; onClick: () => void }
 }
 
 /** An empty tab, centered in the space beneath its controls. */
@@ -91,11 +92,16 @@ export function WorkspaceEmpty({ title, description, action }: WorkspaceEmptyPro
         title={title}
         description={description}
         action={
-          action && (
+          action &&
+          ('href' in action ? (
             <Button variant='secondary' render={<Link href={action.href} />}>
               {action.label}
             </Button>
-          )
+          ) : (
+            <Button variant='secondary' onClick={action.onClick}>
+              {action.label}
+            </Button>
+          ))
         }
       />
     </div>

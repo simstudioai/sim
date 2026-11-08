@@ -33,7 +33,7 @@ export function DocumentChange({ change, applied }: DocumentChangeProps) {
         <ol className={styles.diff} aria-label='Changed lines'>
           {change.lines.map((line) => (
             <li key={line.id} className={styles.line} data-change={line.change}>
-              <span className={styles.sign} aria-hidden='true' data-type='T060'>
+              <span className={styles.sign} aria-hidden='true' data-type='T048'>
                 {MARK[line.change]}
               </span>
               <span data-type='T048'>

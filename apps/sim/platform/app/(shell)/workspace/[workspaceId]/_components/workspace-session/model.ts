@@ -106,14 +106,18 @@ export interface AgentRosterItem {
 
 export type DashboardContent =
   | { kind: 'metrics'; metrics: readonly DashboardMetric[] }
+  /** Counts over time; the shared trend chart reads its values as counts. */
+  | { kind: 'trend'; points: readonly { label: string; value: number }[] }
+  /** Counts stacked by series; the shared bar chart reads its values as counts. */
   | {
-      kind: 'trend'
-      unit: DashboardUnit
-      points: readonly { label: string; value: number }[]
+      kind: 'bars'
+      layout: 'stacked'
+      series: readonly string[]
+      bars: readonly { label: string; values: readonly number[] }[]
     }
   | {
       kind: 'bars'
-      layout: 'stacked' | 'grouped'
+      layout: 'grouped'
       unit: DashboardUnit
       series: readonly string[]
       bars: readonly { label: string; values: readonly number[] }[]
@@ -246,6 +250,7 @@ export interface ChangelogData {
 export interface ChangelogDetail extends ChangelogEntry {
   workspace: WorkspaceSummary
   referenceTime: number
+  /** Paragraphs that follow the description. */
   body: readonly string[]
   workspaceChanges: readonly WorkspaceChange[]
 }

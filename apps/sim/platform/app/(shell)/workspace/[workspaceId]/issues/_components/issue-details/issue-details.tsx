@@ -68,6 +68,8 @@ export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) 
   const timeZone = useViewerTimeZone()
   const [pending, setPending] = useState<IssueDecision | null>(null)
   const [confirming, setConfirming] = useState<'deny' | 'cancel' | null>(null)
+  /** The last confirmation asked, so its labels hold while the dialog closes. */
+  const [confirmed, setConfirmed] = useState<'deny' | 'cancel'>('deny')
   const href = (path: string) => platformHref(path, search)
 
   async function decide(decision: IssueDecision) {
@@ -99,7 +101,10 @@ export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) 
       size='compact'
       destructive
       disabled={busy}
-      onClick={() => setConfirming(kind)}
+      onClick={() => {
+        setConfirmed(kind)
+        setConfirming(kind)
+      }}
     >
       {label}
     </Button>
@@ -262,8 +267,8 @@ export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) 
         onClose={() => setConfirming(null)}
         title={(kind) => CONFIRM[kind].title}
         description={(kind) => CONFIRM[kind].description}
-        confirmLabel={confirming ? CONFIRM[confirming].confirmLabel : ''}
-        pendingLabel={confirming ? CONFIRM[confirming].pendingLabel : ''}
+        confirmLabel={CONFIRM[confirmed].confirmLabel}
+        pendingLabel={CONFIRM[confirmed].pendingLabel}
         onConfirm={(kind) => decide(kind)}
       />
     </>

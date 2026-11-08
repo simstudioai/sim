@@ -64,12 +64,12 @@
   clip-path: inset(0 round var(--radius-item));
 }
 @container dashboard-table (width < 48rem) {
-  .table :is([data-rank="5"], [data-rank="6"]) {
+  .table :is([data-rank="5"], [data-rank="6"]):not([data-primary]) {
     display: none;
   }
 }
 @container dashboard-table (width < 32rem) {
-  .table :is([data-rank="3"], [data-rank="4"]) {
+  .table :is([data-rank="3"], [data-rank="4"]):not([data-primary]) {
     display: none;
   }
 }

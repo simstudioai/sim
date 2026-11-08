@@ -78,14 +78,16 @@ export function ChangelogDetails({ entry, back, read }: ChangelogDetailsProps) {
         />
       }
     >
-      <DetailHeading title={entry.title} />
-      <div className={styles.body}>
-        {entry.body.map((paragraph) => (
-          <p key={paragraph} data-type='T048'>
-            {paragraph}
-          </p>
-        ))}
-      </div>
+      <DetailHeading title={entry.title} description={entry.description} />
+      {entry.body.length > 0 && (
+        <div className={styles.body}>
+          {entry.body.map((paragraph) => (
+            <p key={paragraph} data-type='T048'>
+              {paragraph}
+            </p>
+          ))}
+        </div>
+      )}
       <WorkspaceChanges changes={entry.workspaceChanges} />
     </DetailSplit>
   )

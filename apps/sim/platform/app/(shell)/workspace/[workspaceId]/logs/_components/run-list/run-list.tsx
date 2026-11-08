@@ -84,20 +84,23 @@ export function RunList({ data, actions, read }: RunListProps) {
   const search = useSearchParams()
   const [view, setView] = useQueryStates(runListParams, { history: 'replace', shallow: true })
   const term = view.q.trim().toLowerCase()
-  const [revealed, revealMore] = useRevealedCount(
-    `logs/${data.workspace.id}/${term}/${view.status}/${view.trigger}/${view.workflow}/${view.sort}`,
-    PAGE_SIZE
-  )
   const workflows = [
     ...new Map(data.runs.map((run) => [run.workflow.id, run.workflow])).values(),
   ].sort((left, right) => left.name.localeCompare(right.name))
   const triggers = [...new Set(data.runs.map((run) => run.trigger.label))].sort()
+  // A trigger or workflow no longer among the runs, from an old link, reads as all of them.
+  const trigger = triggers.includes(view.trigger) ? view.trigger : 'all'
+  const workflow = workflows.some((item) => item.id === view.workflow) ? view.workflow : 'all'
+  const [revealed, revealMore] = useRevealedCount(
+    `logs/${data.workspace.id}/${term}/${view.status}/${trigger}/${workflow}/${view.sort}`,
+    PAGE_SIZE
+  )
   const matches = data.runs
     .filter(
       (run) =>
         (view.status === 'all' || run.status === view.status) &&
-        (view.trigger === 'all' || run.trigger.label === view.trigger) &&
-        (view.workflow === 'all' || run.workflow.id === view.workflow) &&
+        (trigger === 'all' || run.trigger.label === trigger) &&
+        (workflow === 'all' || run.workflow.id === workflow) &&
         (!term || run.workflow.name.toLowerCase().includes(term) || run.id.includes(term))
     )
     .sort(compareRuns(view.sort))
@@ -141,7 +144,7 @@ export function RunList({ data, actions, read }: RunListProps) {
           { value: 'all', label: 'All triggers' },
           ...triggers.map((trigger) => ({ value: trigger, label: trigger })),
         ]}
-        value={view.trigger}
+        value={trigger}
         onValueChange={(trigger) => void setView({ trigger: trigger === 'all' ? null : trigger })}
       />
       <ChoiceMenu
@@ -150,7 +153,7 @@ export function RunList({ data, actions, read }: RunListProps) {
           { value: 'all', label: 'All workflows' },
           ...workflows.map((workflow) => ({ value: workflow.id, label: workflow.name })),
         ]}
-        value={view.workflow}
+        value={workflow}
         onValueChange={(workflow) =>
           void setView({ workflow: workflow === 'all' ? null : workflow })
         }
@@ -180,7 +183,7 @@ export function RunList({ data, actions, read }: RunListProps) {
         <WorkspaceEmpty
           title='No matching runs'
           description='Try another search or filter.'
-          action={{ label: 'Clear filters', href: platformHref(base, search) }}
+          action={{ label: 'Clear filters', onClick: () => void setView(null) }}
         />
       ) : (
         <div className={styles.table}>
@@ -200,7 +203,14 @@ export function RunList({ data, actions, read }: RunListProps) {
                 <Link
                   href={runHref(run.id)}
                   className={styles.row}
-                  aria-label={`${run.workflow.name}, ${RUN_STATUS_LABEL[run.status]}, started ${formatRelativeTime(run.startedAt, data.referenceTime)}`}
+                  aria-label={[
+                    run.workflow.name,
+                    RUN_STATUS_LABEL[run.status],
+                    `trigger ${run.trigger.label}`,
+                    `duration ${formatDuration(run.durationMs)}`,
+                    `started ${formatRelativeTime(run.startedAt, data.referenceTime)}`,
+                    run.cu === null ? 'usage unknown' : `${formatComputeUnits(run.cu)} CU`,
+                  ].join(', ')}
                 >
                   <span className={styles.workflow} data-type='T060'>
                     <OverflowText text={run.workflow.name} />
@@ -218,7 +228,7 @@ export function RunList({ data, actions, read }: RunListProps) {
                     {formatRelativeTime(run.startedAt, data.referenceTime)}
                   </span>
                   <span className={styles.number} data-type='T060' data-optional=''>
-                    {formatComputeUnits(run.cu)}
+                    {formatComputeUnits(run.cu, 'compact')}
                   </span>
                 </Link>
               </li>
