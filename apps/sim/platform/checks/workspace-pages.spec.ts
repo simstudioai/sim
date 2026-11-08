@@ -81,11 +81,11 @@ test('workspace tabs share the Integrations heading, tab row and control positio
     search: await box(page, 'main input'),
     sort: await box(page, 'main button[aria-label^="Sort"]'),
   }
-  for (const [tab, sorted] of [
-    ['issues', true],
-    ['logs', true],
-    ['dashboards', false],
-    ['changelog', false],
+  for (const [tab, searched, sorted] of [
+    ['issues', true, true],
+    ['logs', false, true],
+    ['dashboards', false, false],
+    ['changelog', false, false],
   ] as const) {
     await page.goto(`${origin}/workspace/it/${tab}?state=full`)
     await expect(main(page).getByRole('heading', { level: 1, name: 'IT operations' })).toBeVisible()
@@ -95,11 +95,12 @@ test('workspace tabs share the Integrations heading, tab row and control positio
     expect(heading?.y).toBe(reference.heading?.y)
     expect(tabs?.x).toBe(reference.tabs?.x)
     expect(tabs?.y).toBe(reference.tabs?.y)
-    if (sorted) {
+    if (searched) {
       expect((await box(page, 'main input'))?.x).toBe(reference.search?.x)
       expect((await box(page, 'main input'))?.y).toBe(reference.search?.y)
-      expect((await box(page, 'main button[aria-label^="Sort"]'))?.x).toBe(reference.sort?.x)
     }
+    if (sorted)
+      expect((await box(page, 'main button[aria-label^="Sort"]'))?.x).toBe(reference.sort?.x)
   }
 })
 
@@ -327,6 +328,85 @@ test('a run opens its trace and selected step, with its execution ID among its f
   await expect(page.getByRole('complementary', { name: 'Selected step' })).toContainText(
     'search_knowledge'
   )
+})
+
+test('trace rows share one disclosure-to-name gap and hang guides under open parents', async ({
+  page,
+}) => {
+  await page.goto(`${origin}/workspace/it/logs?state=full`)
+  await main(page)
+    .getByRole('list', { name: 'Runs' })
+    .getByRole('listitem')
+    .nth(3)
+    .getByRole('link')
+    .click()
+  const trace = main(page).getByRole('list', { name: /steps$/ })
+  await expect(trace.getByRole('button', { name: /^Classify request/ })).toBeVisible()
+  const rows = await trace.locator(':scope > li').evaluateAll((items) =>
+    items.slice(0, 6).map((item) => {
+      const target = item.querySelector('[data-trace-target]')
+      const disclosure = target?.previousElementSibling?.getBoundingClientRect()
+      const name = target?.querySelector('[data-type="T060"]')?.getBoundingClientRect()
+      const guides = [...item.children].filter(
+        (child) => child !== target?.previousElementSibling && child !== target
+      )
+      const guide = guides.at(-1)
+      return {
+        marked: (target?.firstElementChild?.childElementCount ?? 0) > 0,
+        gap: name && disclosure ? Math.round(name.left - disclosure.left) : null,
+        disclosureCenter: disclosure ? disclosure.left + disclosure.width / 2 : null,
+        depth: guides.length,
+        guideCenter: guide
+          ? guide.getBoundingClientRect().left + guide.getBoundingClientRect().width / 2
+          : null,
+        guideStyle: guide ? getComputedStyle(guide, '::before').borderInlineStartStyle : null,
+      }
+    })
+  )
+  expect(rows.every((row) => row.marked)).toBe(true)
+  expect(new Set(rows.map((row) => row.gap)).size).toBe(1)
+  for (const [index, row] of rows.entries()) {
+    if (!row.depth) continue
+    const parent = rows
+      .slice(0, index)
+      .reverse()
+      .find((candidate) => candidate.depth === row.depth - 1)
+    expect(row.guideStyle).toBe('solid')
+    expect(
+      Math.abs((row.guideCenter ?? 0) - (parent?.disclosureCenter ?? -99))
+    ).toBeLessThanOrEqual(1)
+  }
+})
+
+test('logs filter from the leading edge of the bar, with no search', async ({ page }) => {
+  await page.goto(`${origin}/workspace/it/logs?state=full`)
+  await expect(main(page).getByRole('button', { name: /Status/ })).toBeVisible()
+  await expect(main(page).getByRole('searchbox')).toHaveCount(0)
+  const tabs = await main(page)
+    .getByRole('navigation', { name: /pages$/ })
+    .getByRole('link', { name: 'Dashboard' })
+    .boundingBox()
+  const status = await main(page)
+    .getByRole('button', { name: /Status/ })
+    .boundingBox()
+  if (!tabs || !status) throw new Error('Control geometry is unavailable')
+  expect(Math.abs(status.x - tabs.x)).toBeLessThanOrEqual(1)
+})
+
+test('the changelog ends each entry with its ticket, under the time', async ({ page }) => {
+  await page.goto(`${origin}/workspace/it/changelog?state=full`)
+  const entry = main(page).getByRole('listitem').first()
+  const time = await entry.locator('time').boundingBox()
+  const ticket = await entry.getByRole('link', { name: /^[A-Z]+-\d+$/ }).boundingBox()
+  const person = await entry
+    .getByText(/^[A-Z][a-z]+ [A-Z][a-z]+$/)
+    .first()
+    .boundingBox()
+  if (!time || !ticket || !person) throw new Error('Entry geometry is unavailable')
+  expect(Math.abs(ticket.x + ticket.width - (time.x + time.width))).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(ticket.y + ticket.height / 2 - (person.y + person.height / 2))
+  ).toBeLessThanOrEqual(1)
 })
 
 test('the changelog labels each day once and links each change to its issue', async ({ page }) => {
