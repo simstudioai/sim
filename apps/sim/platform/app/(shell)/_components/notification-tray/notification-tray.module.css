@@ -3,7 +3,8 @@
   flex-direction: column;
   min-inline-size: 0;
   position: fixed;
-  inset-block-end: calc(var(--spacing-20) + env(safe-area-inset-bottom));
+  /* A surface pinned to the window's bottom edge, such as a side panel's footer, lifts the tray above it. */
+  inset-block-end: calc(var(--spacing-20) + var(--shell-tray-lift) + env(safe-area-inset-bottom));
   inset-inline-end: calc(var(--spacing-20) + env(safe-area-inset-right));
   inline-size: min(
     var(--shell-notice-width),

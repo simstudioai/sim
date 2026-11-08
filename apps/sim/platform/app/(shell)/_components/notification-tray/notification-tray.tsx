@@ -9,6 +9,7 @@ import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { generateId } from '@sim/utils/id'
 import type { ShellNotice } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/notification-tray/notification-tray.module.css'
+import { useTrayLift } from '@/platform/app/(shell)/_components/notification-tray/tray-clearance'
 import { connectToastSink } from '@/platform/shared/toast'
 
 type Notice = Omit<ShellNotice, 'href'> & { onAction?: () => void }
@@ -93,6 +94,7 @@ interface NotificationTrayProps {
 }
 export function NotificationTray({ history, navigate }: NotificationTrayProps) {
   useToastNotices()
+  const stack = useTrayLift()
   const scrollEdges = useScrollEdges<HTMLDivElement>()
   const { edits, display, setDisplay, dismiss } = useTrayState()
   const items = [
@@ -108,6 +110,7 @@ export function NotificationTray({ history, navigate }: NotificationTrayProps) {
   if (display === 'hidden' || !items.length) return null
   return (
     <section
+      ref={stack}
       onPointerEnter={() => setEngaged(latest)}
       onPointerLeave={(event) =>
         setEngaged(event.currentTarget.matches(':focus-within') ? latest : undefined)

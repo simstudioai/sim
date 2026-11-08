@@ -26,6 +26,8 @@
 [data-platform-ui] {
   --shell-inbox-width: 27rem;
   --shell-notice-width: 22.5rem;
+  /* Set on the tray by a mounted surface pinned to the window's bottom edge; see tray-clearance. */
+  --shell-tray-lift: var(--spacing-0);
   --shell-org-menu-width: 16.5rem;
   --shell-edge-inset: var(--spacing-12);
   --shell-toolbar-end: calc(var(--shell-edge-inset) + var(--spacing-app-chip));
