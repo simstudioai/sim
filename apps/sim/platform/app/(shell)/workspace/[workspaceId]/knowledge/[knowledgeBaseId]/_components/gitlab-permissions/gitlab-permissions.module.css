@@ -1,0 +1,14 @@
+.note {
+  margin: 0;
+  color: var(--ui-secondary);
+}
+.file {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-stack-gap);
+}
+.template {
+  display: flex;
+  justify-content: flex-end;
+  margin-inline-end: calc(-1 * var(--ui-action-overhang));
+}

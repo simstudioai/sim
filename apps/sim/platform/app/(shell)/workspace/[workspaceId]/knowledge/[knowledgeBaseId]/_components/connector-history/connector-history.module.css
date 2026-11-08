@@ -1,0 +1,52 @@
+.history {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-content-gap);
+}
+.summary,
+.empty {
+  margin: 0;
+  color: var(--ui-secondary);
+}
+.error {
+  margin: 0;
+  color: var(--control-danger);
+  overflow-wrap: anywhere;
+}
+.warning {
+  margin: 0;
+  color: var(--status-warning);
+}
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-list-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Logs' row rhythm: when it ran and what changed, its outcome against the trailing edge. */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  min-block-size: var(--spacing-40);
+  padding-block: var(--spacing-4);
+}
+.copy {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+}
+.detail {
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}
+.state {
+  flex: none;
+  color: var(--ui-secondary);
+}
+.state[data-state="failed"] {
+  color: var(--control-danger);
+}

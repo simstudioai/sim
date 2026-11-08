@@ -1,0 +1,119 @@
+/*
+ * DetailSplit's facts rail: a 280px lane whose hairline boundary spans only its content, extending
+ * the same inset above and below it, and rising by that inset so its heading sits level with the list.
+ */
+.rail {
+  box-sizing: border-box;
+  flex: none;
+  align-self: flex-start;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: var(--ui-content-gap);
+  inline-size: calc(var(--spacing-224) + var(--spacing-56));
+  max-block-size: calc(100% + var(--spacing-8));
+  margin-block-start: calc(-1 * var(--spacing-8));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-block: var(--spacing-8);
+  padding-inline-start: var(--spacing-24);
+  border-inline-start: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  min-block-size: var(--ui-table-head);
+}
+.heading h2 {
+  margin: 0;
+}
+.heading > :last-child {
+  margin-inline-end: calc(-1 * var(--ui-action-overhang));
+}
+.empty {
+  margin: 0;
+  color: var(--ui-secondary);
+}
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-content-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+}
+/* The row's hover surface reaches past the rail's text edge, as list rows do elsewhere. */
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  padding: var(--spacing-6) var(--ui-row-inset);
+  border: 0;
+  border-radius: var(--radius-item);
+  background: transparent;
+  color: var(--ui-ink);
+  text-align: start;
+  cursor: pointer;
+}
+.row:hover {
+  background: var(--ui-hover);
+}
+.mark {
+  display: flex;
+  align-items: center;
+  block-size: var(--ui-glyph-size);
+}
+.copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+}
+.name,
+.detail {
+  display: flex;
+  min-inline-size: 0;
+}
+.detail {
+  color: var(--ui-secondary);
+}
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-action-gap) var(--ui-row-gap);
+  min-inline-size: 0;
+  padding-block-start: var(--ui-stack-gap);
+}
+.pending {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  color: var(--ui-secondary);
+}
+/* Narrow: the rail leads the stacked base and gives up its own scroller and boundary. */
+@container knowledge-base (width < 45rem) {
+  .rail {
+    order: -1;
+    align-self: stretch;
+    inline-size: auto;
+    max-block-size: none;
+    margin-block-start: 0;
+    overflow: visible;
+    padding-block: 0;
+    padding-inline-start: 0;
+    border-inline-start: none;
+  }
+}

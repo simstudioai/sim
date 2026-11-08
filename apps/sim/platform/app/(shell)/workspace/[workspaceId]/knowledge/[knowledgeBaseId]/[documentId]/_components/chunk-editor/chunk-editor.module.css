@@ -1,0 +1,73 @@
+/* The chunk reads as a page: a centered reading measure that scrolls, over a fixed status line. */
+.editor {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+.scroller {
+  flex: 1;
+  min-block-size: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+  cursor: text;
+}
+.page,
+.input {
+  box-sizing: border-box;
+  display: block;
+  inline-size: 100%;
+  max-inline-size: calc(var(--container-640) + var(--spacing-128));
+  min-block-size: 100%;
+  margin-inline: auto;
+  padding: var(--spacing-24) var(--spacing-32);
+  color: var(--ui-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.page {
+  cursor: default;
+}
+.input {
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  resize: none;
+  outline: none;
+}
+.input::placeholder {
+  color: var(--ui-muted);
+}
+.token[data-tint="0"] {
+  background: var(--status-info-soft);
+}
+.token[data-tint="1"] {
+  background: var(--status-success-soft);
+}
+.token[data-tint="2"] {
+  background: var(--status-warning-soft);
+}
+.token[data-tint="3"] {
+  background: var(--control-danger-soft);
+}
+.footer {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap) var(--spacing-16);
+  min-block-size: var(--spacing-40);
+  border-block-start: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+.tokenizer {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-content-gap);
+}
+.secondary {
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+}

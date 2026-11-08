@@ -1,0 +1,22 @@
+.panel,
+.more {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-section-gap);
+}
+.more {
+  padding-block-start: var(--ui-content-gap);
+}
+.apply {
+  display: grid;
+  gap: var(--ui-row-gap);
+}
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-action-gap);
+}
+.note {
+  margin: 0;
+  color: var(--ui-secondary);
+}

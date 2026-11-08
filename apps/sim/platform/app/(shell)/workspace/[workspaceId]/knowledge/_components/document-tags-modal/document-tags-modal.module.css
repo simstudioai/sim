@@ -1,0 +1,53 @@
+/* Logs' row lanes at dialog scale: the tag in normal ink, its type and value in secondary ink. */
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-list-gap);
+  margin: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  padding: 0;
+  list-style: none;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  min-inline-size: 0;
+  padding-inline-end: var(--ui-row-inset);
+  border-radius: var(--radius-item);
+}
+.row:hover {
+  background: var(--ui-hover);
+}
+.open {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--spacing-16);
+  min-inline-size: 0;
+  min-block-size: var(--spacing-32);
+  padding-block: var(--spacing-4);
+  padding-inline: var(--ui-row-inset) 0;
+  border: 0;
+  border-radius: var(--radius-item);
+  background: transparent;
+  color: var(--ui-ink);
+  text-align: start;
+  cursor: pointer;
+}
+.name,
+.value {
+  display: flex;
+  min-inline-size: 0;
+}
+.secondary,
+.value {
+  color: var(--ui-secondary);
+  white-space: nowrap;
+}
+@media (pointer: coarse) {
+  .open {
+    min-block-size: var(--spacing-app-touch-target);
+  }
+}

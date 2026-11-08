@@ -1,0 +1,56 @@
+.documents {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-content-gap);
+}
+.empty {
+  margin: 0;
+  color: var(--ui-secondary);
+}
+.list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-list-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Logs' row rhythm: the document and its state, its actions centered against the whole row. */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  min-block-size: var(--spacing-40);
+  min-inline-size: 0;
+  padding-block: var(--spacing-4);
+}
+.copy {
+  display: grid;
+  flex: 1;
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+}
+.name {
+  display: flex;
+  min-inline-size: 0;
+}
+.detail {
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  margin-inline-end: calc(-1 * var(--ui-action-overhang));
+}
+.more {
+  display: flex;
+  justify-content: center;
+}
+.error {
+  margin: 0;
+  color: var(--control-danger);
+}

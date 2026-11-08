@@ -1,0 +1,14 @@
+/* A value with more on hover keeps its place in the row and takes keyboard focus for the same reveal. */
+.explained {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  min-inline-size: 0;
+  border-radius: var(--radius-item);
+}
+.tags {
+  display: flex;
+  min-inline-size: 0;
+  color: var(--ui-secondary);
+}

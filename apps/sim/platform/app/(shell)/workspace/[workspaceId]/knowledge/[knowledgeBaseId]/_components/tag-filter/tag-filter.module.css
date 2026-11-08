@@ -1,0 +1,60 @@
+.anchor {
+  display: inline-flex;
+}
+/* A panel sized to its rules, between a narrow field's width and a comfortable reading width. */
+.panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: var(--ui-content-gap);
+  inline-size: min(var(--container-440), calc(100vw - var(--spacing-32)));
+  padding: var(--spacing-4);
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  justify-self: stretch;
+  gap: var(--ui-row-gap);
+  min-block-size: var(--spacing-app-control-sm);
+}
+.heading h2 {
+  margin: 0;
+}
+.rules {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-self: stretch;
+  gap: var(--ui-content-gap);
+  max-block-size: var(--spacing-320);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.rule {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-row-gap);
+}
+.joiner {
+  color: var(--ui-secondary);
+}
+.choices {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-row-gap);
+}
+.choices > :first-child:nth-last-child(2) {
+  grid-column: span 2;
+}
+.range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--ui-row-gap);
+}
+.to {
+  color: var(--ui-secondary);
+}

@@ -1,0 +1,58 @@
+/* The trail takes the width the controls leave it, its crumbs fading rather than overflowing. */
+.trail {
+  display: flex;
+  flex: 1;
+  min-inline-size: 0;
+  contain: inline-size;
+}
+/* The documents and the connectors rail share DetailSplit's frame: each scrolls beside the other. */
+.frame {
+  display: flex;
+  flex: 1;
+  min-block-size: 0;
+  container: knowledge-base / inline-size;
+}
+.split {
+  display: flex;
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+  gap: var(--spacing-24);
+}
+.documents {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-inline-start: calc(-1 * var(--ui-row-inset));
+  padding-inline: var(--ui-row-inset);
+  padding-block-end: var(--ui-page-inset-block);
+}
+.paging {
+  display: flex;
+  justify-content: flex-end;
+  padding-block-start: var(--ui-content-gap);
+}
+/* Narrow: the base stacks and scrolls as one, its connectors first. */
+@container knowledge-base (width < 45rem) {
+  .split {
+    flex-direction: column;
+    gap: var(--ui-product-section-gap);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    margin-inline: calc(-1 * var(--ui-row-inset));
+    padding-inline: var(--ui-row-inset);
+    padding-block-end: var(--ui-page-inset-block);
+  }
+  .documents {
+    flex: none;
+    overflow: visible;
+    margin-inline: 0;
+    padding-inline: 0;
+    padding-block-end: 0;
+  }
+}

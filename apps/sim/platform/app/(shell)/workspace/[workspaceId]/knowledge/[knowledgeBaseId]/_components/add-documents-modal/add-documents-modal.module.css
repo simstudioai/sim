@@ -1,0 +1,37 @@
+/* The chosen files in a list's rhythm: name in normal ink, size or progress in secondary ink. */
+.files {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-list-gap);
+  max-block-size: var(--spacing-320);
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.file {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  min-block-size: var(--spacing-32);
+  min-inline-size: 0;
+}
+.name {
+  display: flex;
+  flex: 1;
+  min-inline-size: 0;
+}
+.detail {
+  flex: none;
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ui-action-gap);
+  min-inline-size: var(--spacing-app-control-sm);
+}

@@ -1,0 +1,19 @@
+/* A rail notice: the condition as a title/detail stack, its action centered against the whole row. */
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ui-row-gap) var(--ui-content-gap);
+  min-inline-size: 0;
+}
+.copy {
+  display: grid;
+  flex: 1 1 var(--spacing-128);
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+  overflow-wrap: anywhere;
+}
+.detail {
+  color: var(--ui-secondary);
+}

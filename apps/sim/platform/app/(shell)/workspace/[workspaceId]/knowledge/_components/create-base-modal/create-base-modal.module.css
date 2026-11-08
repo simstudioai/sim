@@ -1,0 +1,6 @@
+/* The two chunk-size bounds read as one decision, side by side, with the modal's own field rhythm. */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(var(--container-208), 1fr));
+  gap: var(--ui-section-gap);
+}

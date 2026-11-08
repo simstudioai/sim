@@ -1,0 +1,13 @@
+.field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
+  gap: var(--ui-row-gap);
+}
+.hint {
+  color: var(--ui-secondary);
+}
+.footer {
+  display: grid;
+  gap: var(--ui-row-gap);
+}

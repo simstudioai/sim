@@ -1,0 +1,26 @@
+/* The source list keeps ActivityRow's own rhythm; its hover reaches past the dialog's text edge. */
+.sources {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-list-gap);
+  max-block-size: var(--spacing-320);
+  margin: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.empty {
+  margin: 0;
+  color: var(--ui-secondary);
+}
+.more {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-section-gap);
+  padding-block-start: var(--ui-content-gap);
+}
+.tags {
+  display: grid;
+  gap: var(--ui-row-gap);
+}
