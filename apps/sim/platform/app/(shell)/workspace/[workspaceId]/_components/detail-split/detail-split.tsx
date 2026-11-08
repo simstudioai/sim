@@ -18,8 +18,8 @@ interface DetailSplitProps {
   actions?: ReactNode
   /** Names the scrolling reading column for assistive technology. */
   label: string
-  /** Beside the reading column: the record's facts, or the data of the part selected in it. */
-  rail: ReactNode
+  /** Beside the reading column: the record's facts, or the data of the part selected in it. Nothing renders no rail. */
+  rail?: ReactNode
   railLabel: string
   /** An inspector holds payloads and takes a larger share than a facts lane. */
   railKind?: 'facts' | 'inspector'
@@ -35,7 +35,7 @@ const READY: WorkspaceRead = { status: 'ready' }
  * A record's details beside its rail. Back, the identifier and the actions share one pinned row;
  * the reading column and the rail each scroll, fading at whichever edge has more. A facts rail
  * keeps a narrow lane; an inspector, which holds payloads, takes a larger share. On a narrow
- * screen the rail sits above the reading column.
+ * screen facts sit above the reading column and an inspector below it.
  */
 export function DetailSplit({
   back,
@@ -75,14 +75,16 @@ export function DetailSplit({
               <div ref={reading} className={styles.reading} role='region' aria-label={label}>
                 <div className={styles.content}>{children}</div>
               </div>
-              <aside
-                ref={aside}
-                className={styles.rail}
-                data-kind={railKind}
-                aria-label={railLabel}
-              >
-                {rail}
-              </aside>
+              {rail && (
+                <aside
+                  ref={aside}
+                  className={styles.rail}
+                  data-kind={railKind}
+                  aria-label={railLabel}
+                >
+                  {rail}
+                </aside>
+              )}
             </div>
           </div>
         )}

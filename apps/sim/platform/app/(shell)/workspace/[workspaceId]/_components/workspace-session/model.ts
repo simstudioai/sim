@@ -77,7 +77,7 @@ export interface DashboardColumn {
   key: string
   label: string
   kind: DashboardColumnKind
-  /** The column a row is read by; it takes the remaining width. */
+  /** The column a row is read by; it never leaves as the table narrows. */
   primary?: boolean
   currency?: string
 }

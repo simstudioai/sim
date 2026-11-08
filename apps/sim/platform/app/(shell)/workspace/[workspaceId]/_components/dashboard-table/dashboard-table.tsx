@@ -59,7 +59,13 @@ export function DashboardTable({ label, columns, rows }: DashboardTableProps) {
         key: column.key,
         label: column.label,
         primary: column.primary,
-        showFrom: index >= 4 ? 'wide' : index === 3 ? 'compact' : undefined,
+        showFrom: column.primary
+          ? undefined
+          : index >= 4
+            ? 'wide'
+            : index === 3
+              ? 'compact'
+              : undefined,
         kind: column.kind === 'text' || column.kind === 'status' ? column.kind : 'number',
       }))}
       rows={rows.map((row) => ({

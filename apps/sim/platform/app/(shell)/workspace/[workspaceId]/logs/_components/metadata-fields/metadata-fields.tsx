@@ -8,13 +8,15 @@ interface MetadataFieldsProps {
 /** Paper's metadata fields: a caption over its value, each at its own width, wrapping as space runs out. */
 export function MetadataFields({ label, fields }: MetadataFieldsProps) {
   return (
-    <dl className={styles.fields} aria-label={label}>
-      {fields.map((field) => (
-        <div key={field.id} className={styles.field}>
-          <dt data-type='T050'>{field.label}</dt>
-          <dd data-type='T060'>{field.value}</dd>
-        </div>
-      ))}
-    </dl>
+    <section aria-label={label}>
+      <dl className={styles.fields}>
+        {fields.map((field) => (
+          <div key={field.id} className={styles.field}>
+            <dt data-type='T050'>{field.label}</dt>
+            <dd data-type='T060'>{field.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   )
 }

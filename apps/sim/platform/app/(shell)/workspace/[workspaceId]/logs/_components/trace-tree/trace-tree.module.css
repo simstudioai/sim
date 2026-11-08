@@ -78,7 +78,9 @@ button.disclosure:hover {
 }
 /* Paper's trace track: a hairline across the run's clock behind each step's bar. */
 .track {
-  fill: var(--ui-divider);
+  stroke: var(--ui-divider);
+  stroke-width: var(--spacing-stroke-default);
+  vector-effect: non-scaling-stroke;
 }
 .bar {
   fill: var(--color-chart-series);
@@ -109,7 +111,7 @@ button.disclosure:hover {
 .bar[data-paint="error"] {
   fill: var(--control-danger);
 }
-@container trace (width < 32rem) {
+@container trace (width < 28rem) {
   .target {
     grid-template-columns: var(--spacing-16) minmax(0, 1fr) var(--spacing-56);
   }

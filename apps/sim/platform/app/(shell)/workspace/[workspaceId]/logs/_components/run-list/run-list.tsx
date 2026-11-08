@@ -208,8 +208,8 @@ export function RunList({ data, actions, read }: RunListProps) {
                     RUN_STATUS_LABEL[run.status],
                     `trigger ${run.trigger.label}`,
                     `duration ${formatDuration(run.durationMs)}`,
-                    `started ${formatRelativeTime(run.startedAt, data.referenceTime)}`,
                     run.cu === null ? 'usage unknown' : `${formatComputeUnits(run.cu)} CU`,
+                    `started ${formatRelativeTime(run.startedAt, data.referenceTime)}`,
                   ].join(', ')}
                 >
                   <span className={styles.workflow} data-type='T060'>

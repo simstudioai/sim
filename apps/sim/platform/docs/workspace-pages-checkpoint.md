@@ -20,23 +20,23 @@ Dashboard, Issues, Changelog and Logs are Platform pages under `app/(shell)/work
 | `fix(platform): address the workspace pages review` | The independent review's findings: groups and reading position on Back, duration and tick rounding, stale filter values, accessible run rows, ID lane, model units, grouped bar legend. |
 | `refactor(platform): open workspaces beside the organization sidebar` | A workspace row opens its Dashboard and is marked current; the sidebar no longer switches into a workspace mode. Workspace chat, skills, the integrations redirect, the resource and workflow pages and the Vite iframe preview are deleted, with fixture workspace chats, the Disclosure folder variant and the skill directory helpers. |
 | `test(platform): keep the organization sidebar on workspace pages` | The sidebar keeps Home, Integrations and Workspaces across a workspace, its tabs and a switch to another workspace. Reverting either guard (the hidden main navigation, the current row) turns it red. |
+| `refine(platform): align workspace controls, rows and type with Home and Integrations` | Only search fills the control bar's leading slot; issue rows center and the Created label meets its values; changelog entries take ActivityRow's roles; decisions use the secondary Button; OverflowText labels keep their parent's role, so logs and chart ticks read at regular weight. |
+| `fix(platform): address the workspace sidebar review` | ControlBar takes search in its own slot; stress chat-panel recents point at stress workspaces; two stale doc sentences. |
 | `refine(emcn): keep chart header controls inside the chart edge` | A chart's header control ends at its edge with the text inset, as Home's period does. |
 | `refine(platform): keep workspace controls inside the column and follow Paper's rows` | The control bar no longer overhangs the column; issue groups and rows follow Integrations and Paper's IssueRow with a right-aligned date; log rows follow Paper's RunRow with data on the right. |
 | `feat(platform): show a run's selected step beside its trace` | DetailSplit's ticket bar and inspector rail; run facts as Paper's metadata fields; the selected step's input and output in the inspector; records use DirectoryHeading and T093 sections. |
 | `refactor(platform): render the dashboard table on EMCN DataTable` | The dashboard table adapts to DataTable, Paper's named owner. |
-| `fix(platform): address the workspace sidebar review` | ControlBar takes search in its own slot; stress chat-panel recents point at stress workspaces; two stale doc sentences. |
-| `refine(platform): align workspace controls, rows and type with Home and Integrations` | Only search fills the control bar's leading slot; issue rows center and the Created label meets its values; changelog entries take ActivityRow's roles; decisions use the secondary Button; OverflowText labels keep their parent's role, so logs and chart ticks read at regular weight. |
+| `fix(platform): address the Paper alignment review` | The second review's findings: Used by's leftover inset, neutral table statuses in ink, a 32px group toggle, no empty inspector, a capped inspector and a narrower trace breakpoint, labelled metadata, Paper's caption gap, a primary column that never hides, a centered trace track, DataTable's header control inside its edge. |
 
 ## Decisions to review
 
 - Paper could not be read in this session (no Paper MCP), so the pages follow the contract JSONs and the brief. Compare Paper's Workspace shell for the tab order and labels, which follow the brief: Dashboard, Issues, Changelog, Logs.
 - A live workspace row still opens the legacy workspace (`legacyRoutes.workspace`), since no live adapter feeds these pages yet. Fixture rows open Dashboard.
 - `ShellWorkspace.workflows` stays: the composer's @-references list each workspace's workflows. Changed items without a page (workflows, tables, knowledge bases, files) are passive rows; the external Notion page still links.
-- Issue rows center their text against a wrapped title, as DataTable cells do, so a two-line title's ID and age sit at its middle.
 - Workspace tabs scroll as one page in the shell's scroller, at least the viewport tall so empty states center beneath the controls. Record details are bounded panes where only the reading column scrolls.
-- Group headers use EMCN `Disclosure` (`navigation` variant, so a collapsed group keeps the text edge). Its caption type differs from Integrations' T059 group titles; changing either is the owner's call.
+- Issue group headers are a local toggle with Integrations' T059 group title and a chevron; Paper's IssueGroup uses T042. Issue titles hold one line and fade, with the full title in a tooltip and the link's name.
 - Grouped and signed bars are local to Dashboard: one consumer each, so no EMCN variant. Trend, stacked bars and donut use the EMCN charts.
-- Changelog details show WorkspaceChanges in the reading column, as the brief says, rather than in the rail, as Paper's desktop specimen does.
+- Changelog details show WorkspaceChanges in the reading column, as the brief says, rather than in the rail, as Paper's desktop specimen does. A change shows no identifier of its own (its id is an internal slug); its issue is in the facts and behind View issue.
 - The empty fixture scenario borrows the full scenario's workspaces for these pages only, so every empty state has a URL; the sidebar still lists none.
 - Stale issues sit in Needs review; queued, blocked and failed sit in In progress. A row names its state after the title where the group does not.
 

@@ -37,7 +37,6 @@ export function ChangelogDetails({ entry, back, read }: ChangelogDetailsProps) {
       read={read}
       back={back}
       label='Change details'
-      identifier={entry.issueId}
       actions={
         <Button variant='secondary' size='compact' render={<Link href={issueHref} />}>
           View issue

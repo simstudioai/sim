@@ -82,8 +82,9 @@
   border-inline-start: var(--spacing-stroke-default) solid var(--ui-divider);
 }
 .rail[data-kind="inspector"] {
-  inline-size: 42%;
+  inline-size: 40%;
   min-inline-size: var(--spacing-320);
+  max-inline-size: var(--container-440);
 }
 .section {
   display: grid;

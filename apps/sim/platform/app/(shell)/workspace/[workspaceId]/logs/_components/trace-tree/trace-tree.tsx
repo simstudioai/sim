@@ -172,7 +172,7 @@ export function TraceTree({ label, trace, totalMs, selectedId, onSelect }: Trace
                 role='img'
                 aria-label={`Started at ${formatDuration(span.startMs)}`}
               >
-                <rect className={styles.track} x='0' y='2.5' width='100%' height='1' />
+                <line className={styles.track} x1='0' x2='100%' y1='50%' y2='50%' />
                 <rect
                   className={styles.bar}
                   data-paint={spanPaint(span)}

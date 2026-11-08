@@ -1,3 +1,6 @@
+.status[data-tone="neutral"] {
+  color: var(--ui-ink);
+}
 .status[data-tone="accent"] {
   color: var(--status-info);
 }

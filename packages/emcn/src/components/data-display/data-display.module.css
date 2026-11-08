@@ -116,7 +116,6 @@
   @apply flex items-center justify-between;
   gap: var(--spacing-16);
   min-block-size: var(--spacing-28);
-  margin-inline-end: calc(-1 * var(--spacing-8));
 }
 .tableViewport {
   min-inline-size: 0;

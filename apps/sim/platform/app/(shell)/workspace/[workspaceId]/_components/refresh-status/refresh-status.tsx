@@ -15,11 +15,11 @@ interface RefreshStatusProps {
 export function RefreshStatus({ updatedAt, referenceTime, onRefresh }: RefreshStatusProps) {
   const age = formatRelativeTime(updatedAt, referenceTime)
   return (
-    <>
+    <span className={styles.refresh}>
       <span className={styles.status} data-type='T050' aria-live='polite'>
         {age === 'now' ? 'Updated just now' : `Updated ${age}`}
       </span>
       <IconButton tooltip label='Refresh' icon='I065' size='small' onClick={onRefresh} />
-    </>
+    </span>
   )
 }

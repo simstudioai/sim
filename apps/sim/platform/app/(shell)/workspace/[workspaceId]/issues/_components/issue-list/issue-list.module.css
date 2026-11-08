@@ -12,16 +12,26 @@
   gap: var(--ui-widget-content-gap);
   container: issue-group / inline-size;
 }
+/* Paper's 32px group header; the toggle spans it up to the column label. */
 .groupHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--ui-row-gap);
   min-inline-size: 0;
+  min-block-size: var(--spacing-32);
+}
+.groupHeader h2 {
+  display: flex;
+  flex: 1;
+  align-self: stretch;
+  min-inline-size: 0;
 }
 .toggle {
   display: inline-flex;
+  flex: 1;
   align-items: center;
+  min-block-size: var(--spacing-32);
   gap: var(--ui-action-gap);
   color: var(--ui-ink);
   text-align: start;
@@ -91,7 +101,8 @@
   }
 }
 @media (pointer: coarse) {
-  .row {
+  .row,
+  .toggle {
     min-block-size: var(--spacing-app-touch-target);
   }
 }
