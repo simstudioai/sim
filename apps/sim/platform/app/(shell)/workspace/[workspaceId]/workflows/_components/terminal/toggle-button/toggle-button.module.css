@@ -1,0 +1,7 @@
+.toggle > svg {
+  transition: transform var(--ui-motion-position);
+}
+
+.toggle[data-collapsed] > svg {
+  transform: rotate(180deg);
+}

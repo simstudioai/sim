@@ -1,0 +1,7 @@
+/* The border SVG overhangs its host by the bulge padding; it never takes pointer events itself. */
+.svg {
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+  overflow: visible;
+}

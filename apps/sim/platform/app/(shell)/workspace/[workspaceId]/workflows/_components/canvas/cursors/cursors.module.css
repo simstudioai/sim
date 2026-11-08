@@ -1,0 +1,40 @@
+/* The legacy collaborator cursor layer's compiled classes. */
+.layer {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.cursor {
+  pointer-events: none;
+  position: absolute;
+}
+
+.pointer {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+}
+
+.arrow {
+  margin-top: calc(0.25rem * -4.5);
+}
+
+.nameTag {
+  margin-left: -4px;
+  display: inline-flex;
+  max-width: 160px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  border-radius: 2px;
+  padding-inline: calc(0.25rem * 1.5);
+  padding-block: calc(0.25rem * 0.5);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--wf-surface-1);
+}

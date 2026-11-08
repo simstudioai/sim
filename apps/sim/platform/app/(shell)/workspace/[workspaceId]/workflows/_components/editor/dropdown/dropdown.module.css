@@ -1,0 +1,25 @@
+.dropdown {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  min-inline-size: 0;
+  border-radius: var(--radius-control);
+}
+
+.dropdown[data-search-match] {
+  box-shadow: 0 0 0 var(--spacing-stroke-focus) var(--status-warning);
+}
+
+.mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--ui-icon-size);
+  block-size: var(--ui-icon-size);
+}
+
+.mark > svg {
+  inline-size: 100%;
+  block-size: 100%;
+}

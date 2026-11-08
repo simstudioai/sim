@@ -1,0 +1,13 @@
+.mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--ui-icon-size);
+  block-size: var(--ui-icon-size);
+}
+
+.mark > svg {
+  inline-size: 100%;
+  block-size: 100%;
+}

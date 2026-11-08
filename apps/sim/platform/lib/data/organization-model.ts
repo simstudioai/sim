@@ -4,6 +4,7 @@ import {
   WORKSPACE_SETTINGS_PATH,
   WORKSPACES_PATH,
 } from '@/lib/navigation/paths'
+import { getMyAccessRequestHref } from '@/ee/access-requests/lib/navigation'
 
 /**
  * The organization surface as Platform views read it. Plain data: it crosses from the server.
@@ -36,6 +37,9 @@ export function legacyRoutes({ legacyOrigin, organization }: PlatformOrganizatio
     settingsSection: (section: string) => `${legacyOrigin}${routes.settingsSection(section)}`,
     workspace: (workspaceId: string) => `${legacyOrigin}${WORKSPACES_PATH}/${workspaceId}`,
     workspaceSettings: `${legacyOrigin}${WORKSPACE_SETTINGS_PATH}`,
+    /** The viewer's request in a workspace's Settings, which has no Platform page yet. */
+    workspaceRequest: (workspaceId: string, requestId: string) =>
+      `${legacyOrigin}${getMyAccessRequestHref({ kind: 'workspace', workspaceId }, requestId)}`,
   }
 }
 

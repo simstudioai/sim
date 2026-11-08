@@ -57,6 +57,8 @@ export interface ResourceRow {
   icon: IconName | { providerId: string }
   folder?: boolean
   pinned?: boolean
+  /** Shows a lock after the name, as a locked workflow or folder does. */
+  locked?: boolean
   /** Where the row leads. Without it the row runs `onOpen`, as a folder does. */
   href?: string
   onOpen?: () => void
@@ -370,6 +372,11 @@ function ResourceRowView({
         {row.pinned && !rename && (
           <span className={styles.pin}>
             <Icon name='I131' label='Pinned' />
+          </span>
+        )}
+        {row.locked && !rename && (
+          <span className={styles.pin}>
+            <Icon name='lock' label='Locked' />
           </span>
         )}
       </span>

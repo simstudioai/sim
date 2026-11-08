@@ -1,0 +1,122 @@
+/*
+ * Placed and sized from the view (left, top, width, min-height), as the legacy panel was. It sits
+ * beside the canvas, not in it, so it clears an isolated canvas at the lowest layer and stays
+ * beneath the EMCN popups its own picker portals out.
+ */
+.panel {
+  position: fixed;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--spacing-2) var(--spacing-10) var(--spacing-8);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu-shared);
+  color: var(--ui-ink);
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-10);
+  block-size: var(--spacing-32);
+  cursor: grab;
+}
+
+.header:active {
+  cursor: grabbing;
+}
+
+.title {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.count {
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.controls {
+  min-block-size: 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns:
+    var(--spacing-app-control-sm) minmax(0, 1fr) var(--spacing-app-control-sm)
+    var(--spacing-app-control-sm);
+  align-items: center;
+  gap: var(--spacing-6);
+}
+
+.query {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.replaceRow {
+  grid-column: 2 / 5;
+}
+
+.replacement {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.replaceActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+}
+
+.replaceButtons {
+  display: flex;
+  flex: none;
+  gap: var(--spacing-6);
+}
+
+/* Narrow layouts dock the panel into the editor's flow at full width, as the legacy panel did. */
+@media (width < 48rem) {
+  .panel {
+    position: relative;
+    top: auto !important;
+    left: auto !important;
+    flex: none;
+    width: 100% !important;
+    min-height: 0 !important;
+    max-block-size: 50%;
+    border-radius: 0;
+  }
+
+  .header {
+    block-size: var(--spacing-44);
+    cursor: default;
+  }
+
+  .controls {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .replaceActions {
+    flex-wrap: wrap;
+  }
+
+  .replaceButtons {
+    margin-inline-start: auto;
+  }
+}

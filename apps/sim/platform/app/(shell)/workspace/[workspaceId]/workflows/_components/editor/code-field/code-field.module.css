@@ -1,0 +1,169 @@
+.field {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-inline-size: 0;
+  min-block-size: calc(var(--spacing-20) * 5 + 2 * var(--spacing-8));
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-ink);
+}
+
+.field:not([data-disabled]):hover {
+  border-color: var(--control-hover-border);
+}
+
+.field[data-invalid] {
+  border-color: var(--control-danger);
+}
+
+.gutter {
+  display: flex;
+  flex-direction: column;
+  inline-size: var(--spacing-20);
+  padding-block: var(--spacing-8);
+  border-inline-end: var(--spacing-stroke-default) solid var(--ui-divider);
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  user-select: none;
+}
+
+.gutter[data-digits="3"] {
+  inline-size: var(--spacing-30);
+}
+
+.gutter[data-digits="4"] {
+  inline-size: calc(var(--spacing-36) + var(--spacing-2));
+}
+
+.gutter[data-digits="5"] {
+  inline-size: calc(var(--spacing-44) + var(--spacing-2));
+}
+
+.gutter[data-digits="6"] {
+  inline-size: calc(var(--spacing-52) + var(--spacing-2));
+}
+
+.lineNumber {
+  padding-inline-end: var(--spacing-4);
+}
+
+.lineNumber[data-active] {
+  color: var(--ui-ink);
+}
+
+.lineNumber[data-continued] {
+  visibility: hidden;
+}
+
+.content {
+  position: relative;
+  grid-column: 2;
+  min-inline-size: 0;
+  color: var(--ui-ink);
+}
+
+/* The type role's `font` shorthand resets ligatures, so they are turned off beneath it. */
+.content > div {
+  font-variant-ligatures: none;
+}
+
+.field:not(:has(.gutter)) .content {
+  grid-column: 1 / -1;
+}
+
+.content textarea {
+  outline: none;
+  caret-color: var(--ui-ink);
+}
+
+.content textarea::selection {
+  background: var(--ui-selected);
+}
+
+.field[data-disabled] .content > div {
+  opacity: var(--opacity-disabled);
+}
+
+.field[data-disabled] textarea {
+  cursor: not-allowed;
+}
+
+.placeholder {
+  position: absolute;
+  inset-inline-end: var(--spacing-8);
+  white-space: pre-wrap;
+  inset-block-start: var(--spacing-8);
+  inset-inline-start: var(--spacing-8);
+  color: var(--ui-secondary);
+  pointer-events: none;
+}
+
+.actions {
+  position: absolute;
+  inset-block-start: var(--spacing-4);
+  inset-inline-end: var(--spacing-4);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+
+.content [data-token~="comment"],
+.content [data-token~="block-comment"],
+.content [data-token~="prolog"],
+.content [data-token~="doctype"],
+.content [data-token~="cdata"] {
+  color: var(--ui-secondary);
+}
+
+.content [data-token~="punctuation"],
+.content [data-token~="operator"],
+.content [data-token~="entity"],
+.content [data-token~="url"],
+.content [data-token~="symbol"] {
+  color: var(--ui-ink);
+}
+
+.content [data-token~="property"],
+.content [data-token~="attr-name"],
+.content [data-token~="variable"],
+.content [data-token~="atrule"],
+.content [data-token~="attr-value"],
+.content [data-token~="keyword"] {
+  color: var(--status-info);
+}
+
+.content [data-token~="tag"],
+.content [data-token~="boolean"],
+.content [data-token~="number"],
+.content [data-token~="constant"] {
+  color: var(--status-success);
+}
+
+.content [data-token~="string"],
+.content [data-token~="char"],
+.content [data-token~="builtin"],
+.content [data-token~="inserted"],
+.content [data-token~="function"],
+.content [data-token~="class-name"] {
+  color: var(--status-warning);
+}
+
+.content [data-token~="regex"],
+.content [data-token~="important"],
+.content [data-token~="deleted"] {
+  color: var(--control-danger);
+}
+
+.content [data-code-reference] {
+  color: var(--status-info);
+}
+
+.content mark[data-code-search] {
+  border-radius: var(--radius-2);
+  background: var(--status-warning-soft);
+  color: inherit;
+}

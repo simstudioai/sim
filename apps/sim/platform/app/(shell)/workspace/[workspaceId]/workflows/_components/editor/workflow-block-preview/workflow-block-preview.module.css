@@ -1,0 +1,51 @@
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-label-gap);
+  margin-block-end: var(--spacing-field-stack);
+}
+
+.label {
+  color: var(--ui-ink);
+}
+
+.frame {
+  position: relative;
+  block-size: calc(2 * var(--spacing-80));
+  overflow: hidden;
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-canvas);
+}
+
+.open {
+  position: absolute;
+  inset-block-end: var(--spacing-6);
+  inset-inline-end: var(--spacing-6);
+  z-index: 1;
+}
+
+.canvas {
+  block-size: 100%;
+  inline-size: 100%;
+}
+
+.canvas [class~="react-flow__handle"] {
+  display: none !important;
+}
+
+.canvas * {
+  cursor: grab !important;
+}
+
+.canvas *:active {
+  cursor: grabbing !important;
+}
+
+.unavailable {
+  display: flex;
+  block-size: 100%;
+  align-items: center;
+  justify-content: center;
+  color: var(--ui-secondary);
+}

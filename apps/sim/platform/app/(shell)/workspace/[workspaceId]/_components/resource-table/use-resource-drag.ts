@@ -32,6 +32,8 @@ interface UseResourceDragOptions {
   enabled: boolean
   /** The row being renamed stays editable rather than draggable. */
   renamingId?: string | null
+  /** A row this returns false for stays put, as a locked workflow or folder does. */
+  canDrag?: (rowId: string) => boolean
   /** Rows in display order, and the selection a dragged selected row carries with it. */
   rowIds: readonly string[]
   selection?: ResourceSelection
@@ -224,12 +226,13 @@ export function useResourceDrag(options: UseResourceDragOptions) {
 
   const row = useCallback(
     (rowId: string) => {
-      const { enabled, renamingId, external, mime } = live.current
+      const { enabled, renamingId, canDrag, external, mime } = live.current
       const folderId = parseRowId(rowId).kind === 'folder' ? parseRowId(rowId).id : null
+      const movable = enabled && renamingId !== rowId && (canDrag?.(rowId) ?? true)
       return {
-        draggable: enabled && renamingId !== rowId,
+        draggable: movable,
         onDragStart: (event: DragEvent<HTMLElement>) => {
-          if (!enabled || renamingId === rowId) {
+          if (!movable) {
             event.preventDefault()
             return
           }

@@ -1,0 +1,28 @@
+.body {
+  flex: 1;
+  min-block-size: 0;
+  padding: var(--spacing-12);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-stack);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-label-gap);
+  min-inline-size: 0;
+}
+
+.label {
+  color: var(--ui-ink);
+}
+
+.hint {
+  color: var(--ui-secondary);
+}

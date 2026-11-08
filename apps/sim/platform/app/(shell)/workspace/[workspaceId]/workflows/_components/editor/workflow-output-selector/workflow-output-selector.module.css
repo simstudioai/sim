@@ -1,0 +1,6 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  min-inline-size: 0;
+}

@@ -1,0 +1,26 @@
+.entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-stack);
+  min-inline-size: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-label-gap);
+  min-inline-size: 0;
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-action-gap);
+  min-block-size: var(--spacing-24);
+  margin-block: calc((var(--spacing-18) - var(--spacing-24)) / 2);
+}
+
+.label {
+  color: var(--ui-ink);
+}

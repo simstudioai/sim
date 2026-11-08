@@ -1,0 +1,14 @@
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-section-gap);
+  min-inline-size: 0;
+  padding-block-start: var(--spacing-8);
+}
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: calc(var(--spacing-128) - var(--spacing-8));
+  color: var(--ui-secondary);
+}

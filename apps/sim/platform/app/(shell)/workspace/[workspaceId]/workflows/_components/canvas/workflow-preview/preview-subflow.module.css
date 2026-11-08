@@ -1,0 +1,19 @@
+/* The legacy preview container's comparison wrapper, converted from its compiled Tailwind. */
+
+/* `relative` */
+.frame {
+  position: relative;
+}
+
+/* `opacity-45` */
+.removed {
+  opacity: 0.45;
+}
+
+/* `absolute right-0 bottom-0 left-0` */
+.footer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+}

@@ -1,0 +1,613 @@
+/*
+ * `.prose` wraps the shared rich markdown field. `[class~="ProseMirror"]` is its contenteditable root,
+ * so `.prose [class~="ProseMirror"]` is the legacy `[&_.ProseMirror]` variant at its own specificity,
+ * and `.prose :where([class~="ProseMirror"])` is the legacy `.rich-markdown-nodes` chrome at its own.
+ *
+ * The Note card's skin over the markdown editor: the legacy note prose classes (which mirror the read
+ * view's type ramp and block rhythm so the card does not jump when editing opens) and the file
+ * editor's node chrome (`.rich-markdown-nodes`), which every surface shares.
+ */
+
+.prose {
+  min-height: 100%;
+  width: 100%;
+  color: currentColor;
+  --rich-markdown-line-height: 1.25rem;
+}
+
+.prose [class~="ProseMirror"] {
+  min-height: 100%;
+  padding-top: calc(0.25rem * 0.5);
+  padding-bottom: calc(0.25rem * 2);
+  overflow-wrap: break-word;
+  outline-style: none;
+}
+
+@media (forced-colors: active) {
+  .prose [class~="ProseMirror"] {
+    outline-offset: 2px;
+    outline: 2px solid #0000;
+  }
+}
+
+:where(.prose [class~="ProseMirror"] > :not(:last-child)) {
+  margin-block-start: 0;
+  margin-block-end: calc(0.25rem * 4);
+}
+
+.prose [class~="ProseMirror"] h1 {
+  margin-top: calc(0.25rem * 3);
+  margin-bottom: calc(0.25rem * 3);
+  font-size: 1.125rem;
+  line-height: calc(1.75 / 1.125);
+  font-weight: 600;
+}
+
+.prose [class~="ProseMirror"] h2 {
+  margin-top: calc(0.25rem * 2.5);
+  margin-bottom: calc(0.25rem * 2.5);
+  font-size: 15px;
+  line-height: calc(1.5 / 1);
+  font-weight: 600;
+}
+
+.prose [class~="ProseMirror"] h3 {
+  margin-top: calc(0.25rem * 2);
+  margin-bottom: calc(0.25rem * 2);
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+  font-weight: 600;
+}
+
+.prose [class~="ProseMirror"] h4 {
+  margin-top: calc(0.25rem * 2);
+  margin-bottom: calc(0.25rem * 2);
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.prose [class~="ProseMirror"] h1:first-child,
+.prose [class~="ProseMirror"] h2:first-child,
+.prose [class~="ProseMirror"] h3:first-child,
+.prose [class~="ProseMirror"] h4:first-child {
+  margin-top: 0;
+}
+
+.prose [class~="ProseMirror"] p {
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.prose [class~="ProseMirror"] p:last-child {
+  margin-bottom: 0;
+}
+
+.prose [class~="ProseMirror"] > :first-child {
+  margin-top: 0;
+}
+
+.prose [class~="ProseMirror"] > :last-child {
+  margin-bottom: 0;
+}
+
+.prose [class~="ProseMirror"] [class~="is-empty"]:first-child:before {
+  content: attr(data-placeholder);
+  pointer-events: none;
+  float: left;
+  height: 0;
+  color: currentColor;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .prose [class~="ProseMirror"] [class~="is-empty"]:first-child:before {
+    color: color-mix(in oklab, currentcolor 55%, transparent);
+  }
+}
+
+.prose [class~="ProseMirror"] a {
+  font-weight: 500;
+  word-break: break-all;
+  text-decoration-line: underline;
+  text-underline-offset: 2px;
+}
+
+.prose [class~="ProseMirror"] blockquote {
+  margin-block: calc(0.25rem * 4);
+  border-left-style: solid;
+  border-left-width: 2px;
+  border-color: currentColor;
+  padding-left: calc(0.25rem * 4);
+  font-style: italic;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .prose [class~="ProseMirror"] blockquote {
+    border-color: color-mix(in oklab, currentcolor 25%, transparent);
+  }
+}
+
+.prose [class~="ProseMirror"] code {
+  border-radius: 0.25rem;
+  background-color: #0000001a;
+  padding-inline: 0.25rem;
+  padding-block: calc(0.25rem * 0.5);
+  font-family:
+    var(--font-martian-mono, ui-monospace), SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: normal;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .prose [class~="ProseMirror"] code {
+    background-color: color-mix(in oklab, #000 10%, transparent);
+  }
+}
+
+.prose [class~="ProseMirror"] em {
+  opacity: 0.8;
+}
+
+.prose [class~="ProseMirror"] img {
+  border-radius: calc(var(--wf-radius) - 2px);
+  border-style: solid;
+  border-width: 0;
+}
+
+.prose [class~="ProseMirror"] li {
+  overflow-wrap: break-word;
+}
+
+.prose [class~="ProseMirror"] li > p {
+  margin-bottom: 0;
+}
+
+.prose [class~="ProseMirror"] ol {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+  list-style-type: decimal;
+  padding-left: calc(0.25rem * 6);
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+}
+
+.prose [class~="ProseMirror"] ul {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+  list-style-type: disc;
+  padding-left: calc(0.25rem * 6);
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+}
+
+:where(.prose [class~="ProseMirror"] ul > :not(:last-child)),
+:where(.prose [class~="ProseMirror"] ol > :not(:last-child)) {
+  margin-block-start: 0;
+  margin-block-end: 0.25rem;
+}
+
+.prose [class~="ProseMirror"] pre {
+  margin-block: calc(0.25rem * 2);
+  border-radius: 0.25rem;
+  background-color: #00000026;
+  padding: calc(0.25rem * 2);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .prose [class~="ProseMirror"] pre {
+    background-color: color-mix(in oklab, #000 15%, transparent);
+  }
+}
+
+.prose [class~="ProseMirror"] pre code {
+  display: block;
+  background-color: #0000;
+  padding: 0;
+}
+
+.prose [class~="ProseMirror"] strong {
+  font-weight: 600;
+}
+
+.prose [class~="ProseMirror"] table {
+  margin-block: calc(0.25rem * 2);
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.prose [class~="ProseMirror"] td {
+  padding-inline: calc(0.25rem * 2);
+  padding-block: 0.25rem;
+  opacity: 0.9;
+}
+
+.prose [class~="ProseMirror"] th {
+  padding-inline: calc(0.25rem * 2);
+  padding-block: 0.25rem;
+  text-align: left;
+  font-weight: 600;
+}
+
+/* The file editor's node chrome, on the ProseMirror root (legacy `.rich-markdown-nodes`). */
+.prose :where([class~="ProseMirror"]) img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: var(--wf-border-width) solid var(--wf-border);
+}
+
+.prose :where([class~="ProseMirror"]) [class~="ProseMirror-selectednode"] {
+  outline: 2px solid var(--wf-brand-secondary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.prose :where([class~="ProseMirror"]) [class~="ProseMirror-selectednode"]:has(img) {
+  outline: none;
+}
+
+.prose :where([class~="ProseMirror"]) [class~="ProseMirror-selectednode"] img {
+  outline: 2px solid var(--wf-brand-secondary);
+  outline-offset: -2px;
+}
+
+.prose :where([class~="ProseMirror"]) [class~="ProseMirror-gapcursor"]::after {
+  top: 0;
+  width: 2px;
+  height: 1.25em;
+  border-top: none;
+  background-color: var(--wf-text-primary);
+}
+
+.prose
+  :where([class~="ProseMirror"])[data-gap-between-leaves]
+  [class~="ProseMirror-gapcursor"]::after {
+  display: none;
+}
+
+.prose :where([class~="ProseMirror"]) li > p {
+  margin: 0;
+}
+
+.prose :where([class~="ProseMirror"]) ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.prose :where([class~="ProseMirror"]) ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+.prose :where([class~="ProseMirror"]) ul[data-type="taskList"] li > label {
+  display: flex;
+  align-items: center;
+  height: var(--rich-markdown-line-height, 1.6667em);
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.prose :where([class~="ProseMirror"]) ul[data-type="taskList"] li > div {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.prose :where([class~="ProseMirror"]) ul[data-type="taskList"] li > div > p {
+  margin: 0;
+}
+
+.prose :where([class~="ProseMirror"]) ul[data-type="taskList"] input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-grid;
+  place-content: center;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: var(--wf-border-width) solid var(--wf-border-1);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.prose :where([class~="ProseMirror"]) ul[data-type="taskList"] input[type="checkbox"]:checked {
+  background-color: var(--wf-text-primary);
+  border-color: var(--wf-text-primary);
+}
+
+.prose
+  :where([class~="ProseMirror"])
+  ul[data-type="taskList"]
+  input[type="checkbox"]:checked::after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background-color: var(--wf-surface-2);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+.prose :where([class~="ProseMirror"]) pre,
+.prose :where([class~="ProseMirror"]) pre code {
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.prose :where([class~="ProseMirror"]) pre[data-wrap="true"],
+.prose :where([class~="ProseMirror"]) pre[data-wrap="true"] code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.prose :where([class~="ProseMirror"]) [class~="raw-markdown-block"],
+.prose :where([class~="ProseMirror"]) [class~="raw-markdown-inline"] {
+  font-family: var(--font-martian-mono, ui-monospace, monospace);
+  font-size: 0.875em;
+  color: var(--wf-text-muted);
+  background: var(--wf-surface-5);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+[class~="dark"] .prose :where([class~="ProseMirror"]) [class~="raw-markdown-block"],
+[class~="dark"] .prose :where([class~="ProseMirror"]) [class~="raw-markdown-inline"] {
+  background: var(--wf-code-bg);
+}
+
+.prose :where([class~="ProseMirror"]) [class~="raw-markdown-block"] {
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.prose :where([class~="ProseMirror"]) [class~="raw-markdown-inline"] {
+  border-radius: 4px;
+  padding: 0.0625rem 0.3rem;
+}
+
+.prose :where([class~="ProseMirror"]) hr {
+  border: none;
+  border-top: var(--wf-border-width) solid var(--wf-border);
+  margin: 1.5em 0;
+}
+
+.prose :where([class~="ProseMirror"]) hr[class~="rich-leaf-in-selection"] {
+  box-shadow: 0 0 0 0.4em var(--wf-selection-bg);
+  border-radius: 1px;
+}
+
+[class~="dark"] .prose :where([class~="ProseMirror"]) hr[class~="rich-leaf-in-selection"] {
+  box-shadow: 0 0 0 0.4em var(--wf-selection-dark);
+}
+
+.prose :where([class~="ProseMirror"]) [class~="rich-leaf-in-selection"]:has(img) img,
+.prose :where([class~="ProseMirror"]) img[class~="rich-leaf-in-selection"] {
+  outline: 2px solid var(--wf-selection-bg);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.prose :where([class~="ProseMirror"]) table {
+  table-layout: fixed;
+  overflow: visible;
+}
+
+.prose :where([class~="ProseMirror"]) th > p,
+.prose :where([class~="ProseMirror"]) td > p {
+  margin: 0;
+}
+
+.prose :where([class~="ProseMirror"]) [class~="selectedCell"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--wf-surface-active);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.prose :where([class~="ProseMirror"]) mark {
+  background-color: color-mix(in srgb, #fbbf24 40%, transparent);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 0.1em;
+  margin: 0 -0.1em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* Prism tokens in a code block (legacy `code.css`, which keyed them on `.code-editor-theme`). */
+.prose :where([class~="ProseMirror"]) pre [class~="token"] {
+  background: transparent;
+}
+
+.prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is(
+    [class~="comment"],
+    [class~="block-comment"],
+    [class~="prolog"],
+    [class~="doctype"],
+    [class~="cdata"],
+    [class~="tag"],
+    [class~="boolean"],
+    [class~="number"],
+    [class~="constant"]
+  ) {
+  color: #16a34a;
+}
+
+.prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is(
+    [class~="punctuation"],
+    [class~="operator"],
+    [class~="entity"],
+    [class~="url"],
+    [class~="symbol"]
+  ) {
+  color: #383838;
+}
+
+.prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is([class~="property"], [class~="attr-name"], [class~="variable"]) {
+  color: #0891b2;
+}
+
+.prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is([class~="string"], [class~="char"], [class~="builtin"], [class~="inserted"]) {
+  color: #b45309;
+}
+
+.prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is([class~="atrule"], [class~="attr-value"], [class~="keyword"]) {
+  color: #2f55ff;
+}
+
+.prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is([class~="function"], [class~="class-name"]) {
+  color: #ca8a04;
+}
+
+.prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is([class~="regex"], [class~="important"]) {
+  color: #e11d48;
+}
+
+.prose :where([class~="ProseMirror"]) pre [class~="token"][class~="deleted"] {
+  color: #dc2626;
+}
+
+[class~="dark"]
+  .prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is(
+    [class~="comment"],
+    [class~="block-comment"],
+    [class~="prolog"],
+    [class~="doctype"],
+    [class~="cdata"]
+  ) {
+  color: #6ec97d;
+}
+
+[class~="dark"]
+  .prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is(
+    [class~="punctuation"],
+    [class~="operator"],
+    [class~="entity"],
+    [class~="url"],
+    [class~="symbol"]
+  ) {
+  color: #d4d4d4;
+}
+
+[class~="dark"]
+  .prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is([class~="property"], [class~="attr-name"], [class~="variable"]) {
+  color: #4fc3f7;
+}
+
+[class~="dark"]
+  .prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is([class~="tag"], [class~="boolean"], [class~="number"], [class~="constant"]) {
+  color: #a5d6a7;
+}
+
+[class~="dark"]
+  .prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is([class~="string"], [class~="char"], [class~="builtin"], [class~="inserted"]) {
+  color: #f39c6b;
+}
+
+[class~="dark"]
+  .prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is([class~="atrule"], [class~="attr-value"], [class~="keyword"]) {
+  color: #2fa1ff;
+}
+
+[class~="dark"]
+  .prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is([class~="function"], [class~="class-name"]) {
+  color: #fbbf24;
+}
+
+[class~="dark"]
+  .prose
+  :where([class~="ProseMirror"])
+  pre
+  [class~="token"]:is([class~="regex"], [class~="important"], [class~="deleted"]) {
+  color: #f87171;
+}
+
+/* The raw-source fallback for markdown the rich editor cannot round-trip losslessly. */
+.rawSource {
+  width: 100%;
+  resize: none;
+  border-style: none;
+  background-color: #0000;
+  padding: 0;
+  color: currentColor;
+  caret-color: currentColor;
+  outline-style: none;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.rawSource::-webkit-scrollbar {
+  display: none;
+}
+
+.rawSource::placeholder {
+  color: currentColor;
+  opacity: 0.55;
+}
+
+.rawSource:focus-visible {
+  outline-style: none;
+}
+
+.rawSourceGrow {
+  overflow: hidden;
+}
+
+.rawSourceLocked {
+  -webkit-user-select: none;
+  user-select: none;
+  opacity: 0.5;
+}

@@ -1,0 +1,114 @@
+/*
+ * The legacy read-only preview frame: its container (`preview-mode`, background `var(--bg)`), the
+ * cursor rules legacy declared globally in `preview-workflow.css`, and the global React Flow rule
+ * its nodes inherit. React Flow owns its class names, so those rules name them as `[class~="…"]`
+ * attribute selectors, which CSS Modules leave unhashed, scoped under this frame. Each selector keeps
+ * the legacy rule's specificity so the rules still resolve against each other the same way.
+ */
+.root {
+  background-color: var(--wf-bg);
+}
+
+/* `[--xy-background-color:var(--bg)]` on React Flow itself. */
+.flow {
+  --xy-background-color: var(--wf-bg);
+}
+
+/* `cursor: var(--preview-cursor)`, one class per `cursorStyle`. */
+.cursorDefault [class~="react-flow"],
+.cursorDefault [class~="react-flow__renderer"] {
+  cursor: default;
+}
+
+.cursorDefault [class~="react-flow__pane"],
+.cursorDefault [class~="react-flow__selectionpane"] {
+  cursor: default !important;
+}
+
+.cursorPointer [class~="react-flow"],
+.cursorPointer [class~="react-flow__renderer"] {
+  cursor: pointer;
+}
+
+.cursorPointer [class~="react-flow__pane"],
+.cursorPointer [class~="react-flow__selectionpane"] {
+  cursor: pointer !important;
+}
+
+.cursorGrab [class~="react-flow"],
+.cursorGrab [class~="react-flow__renderer"] {
+  cursor: grab;
+}
+
+.cursorGrab [class~="react-flow__pane"],
+.cursorGrab [class~="react-flow__selectionpane"] {
+  cursor: grab !important;
+}
+
+/* `.preview-mode:where([data-preview-grab])`: a grab cursor closes while dragging. */
+.cursorGrab [class~="react-flow"]:active,
+.cursorGrab [class~="react-flow__renderer"]:active {
+  cursor: grabbing;
+}
+
+.cursorGrab [class~="react-flow__pane"]:active,
+.cursorGrab [class~="react-flow__selectionpane"]:active,
+.cursorGrab [class~="react-flow__node"]:active,
+.cursorGrab [class~="react-flow__node"]:active * {
+  cursor: grabbing !important;
+}
+
+/* `.preview-mode.interactive-nodes`: clickable nodes show a pointer. */
+.root.interactiveNodes [class~="react-flow__node"],
+.root.interactiveNodes [class~="react-flow__node"] > div,
+.root.interactiveNodes [class~="react-flow__node"] * {
+  cursor: pointer !important;
+}
+
+/* Legacy globals.css: React Flow v12 emits no data-parent-node-id; nested nodes carry `subflow-child-node`. */
+.root [class~="react-flow__node"][class~="subflow-child-node"] [class~="react-flow__handle"] {
+  z-index: 30;
+}
+
+/*
+ * The missing-state notice: `flex items-center justify-center rounded-lg border border-gray-200
+ * bg-gray-50 dark:border-gray-700 dark:bg-gray-900`, dark under the canvas color mode.
+ */
+.fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--wf-radius);
+  border-style: solid;
+  border-width: var(--wf-border-width);
+  border-color: #e5e5e5;
+  background-color: #fafafa;
+}
+
+:where([data-color-mode="dark"]) .fallback {
+  border-color: #404040;
+  background-color: #171717;
+}
+
+/* `text-center text-gray-500 dark:text-gray-400` */
+.fallbackText {
+  text-align: center;
+  color: #737373;
+}
+
+:where([data-color-mode="dark"]) .fallbackText {
+  color: #a3a3a3;
+}
+
+/* `mb-2 text-lg` */
+.fallbackTitle {
+  margin-bottom: 0.5rem;
+  font-size: 1.125rem;
+  line-height: calc(1.75 / 1.125);
+}
+
+/* `text-sm` */
+.fallbackBody {
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+}

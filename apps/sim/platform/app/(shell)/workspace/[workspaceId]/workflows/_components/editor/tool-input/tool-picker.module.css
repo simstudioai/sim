@@ -1,0 +1,57 @@
+.frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+  padding-inline: var(--spacing-8);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-secondary);
+}
+
+.frame:not([data-disabled]):hover {
+  border-color: var(--control-hover-border);
+}
+
+.frame[data-disabled] {
+  cursor: not-allowed;
+}
+
+.frame[data-disabled] > * {
+  opacity: var(--opacity-disabled);
+}
+
+.input {
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+  block-size: calc(var(--spacing-app-chip) - 2 * var(--spacing-stroke-default));
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-ink);
+  outline: none;
+  text-overflow: ellipsis;
+}
+
+.input::placeholder {
+  color: var(--ui-secondary);
+  opacity: 1;
+}
+
+.input:disabled {
+  cursor: not-allowed;
+}
+
+.group + .group {
+  padding-block-start: var(--ui-list-gap);
+}
+
+.trailing {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  color: var(--ui-secondary);
+}

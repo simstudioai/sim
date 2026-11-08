@@ -1,0 +1,37 @@
+/* The legacy edge's delete control: the compiled classes of its button and × glyph. */
+.deleteButton {
+  display: flex;
+  width: 22px;
+  height: 22px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  transition-property:
+    color, background-color, border-color, outline-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.15s;
+}
+
+.deleteIcon {
+  width: calc(0.25rem * 4);
+  height: calc(0.25rem * 4);
+  color: var(--wf-text-error);
+  transition-property:
+    color, background-color, border-color, outline-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.15s;
+}
+
+.deleteIcon:is(:where(.deleteButton):hover *) {
+  color: var(--wf-text-error);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .deleteIcon:is(:where(.deleteButton):hover *) {
+    color: color-mix(in srgb, var(--wf-text-error) 80%, transparent);
+  }
+}
+
+.pulseLayer {
+  pointer-events: none;
+}

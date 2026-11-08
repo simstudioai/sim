@@ -1,0 +1,95 @@
+/* The summary row's legacy classes. `font-mono` is the legacy app's mono stack. */
+.mono {
+  font-family:
+    var(--font-martian-mono, ui-monospace), SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+.inlineValue {
+  min-width: 0;
+}
+
+/* `min-w-0 text-sm` */
+.statement {
+  min-width: 0;
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+}
+
+/* `font-medium text-[var(--text-primary)]` */
+.statementPrimary {
+  font-weight: 500;
+  color: var(--wf-text-primary);
+}
+
+/* `text-[var(--text-muted)]` */
+.statementMuted {
+  color: var(--wf-text-muted);
+}
+
+/* `flex min-w-0 items-center gap-2` */
+.metaRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* `size-[14px] shrink-0 text-[var(--text-icon)]` */
+.metaIcon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--wf-text-icon);
+}
+
+/* `min-w-0 flex-1 text-left text-[var(--text-primary)] text-sm` */
+.metaValue {
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+  color: var(--wf-text-primary);
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+}
+
+/* `flex items-center` */
+.footerRow {
+  display: flex;
+  align-items: center;
+}
+
+/* `min-w-0 text-[var(--text-muted)] text-sm capitalize` */
+.footerText {
+  min-width: 0;
+  color: var(--wf-text-muted);
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+  text-transform: capitalize;
+}
+
+/* `flex h-5 items-center gap-2` */
+.row {
+  display: flex;
+  height: 1.25rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* `min-w-0 text-[var(--text-tertiary)] text-sm capitalize` */
+.rowTitle {
+  min-width: 0;
+  color: var(--wf-text-tertiary);
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+  text-transform: capitalize;
+}
+
+/* `flex-1 text-right text-[var(--text-primary)] text-sm` */
+.rowValue {
+  flex: 1;
+  text-align: right;
+  color: var(--wf-text-primary);
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+}

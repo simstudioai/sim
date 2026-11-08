@@ -1,0 +1,346 @@
+/*
+ * The legacy connection block picker's compiled classes: the card, its "Add block" swell, the
+ * borderless search field over a fading cmdk list, and the result rows, in the legacy cascade order.
+ */
+
+.root {
+  position: relative;
+  height: 352px;
+  width: 250px;
+  cursor: grab;
+  border-radius: 1rem;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.root:active {
+  cursor: grabbing;
+}
+
+.swell {
+  pointer-events: auto;
+  position: absolute;
+  top: -28px;
+  right: 24px;
+  z-index: 30;
+  display: flex;
+  height: 28px;
+  width: 140px;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(0.25rem * 1.5);
+  overflow: hidden;
+  padding-block: calc(0.25rem * 0.5);
+  padding-right: 0.2rem;
+  padding-left: calc(0.25rem * 5);
+}
+
+.swellLabel {
+  min-width: max-content;
+  flex-shrink: 0;
+  font-size: 0.875rem;
+  line-height: calc(0.25rem * 5);
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--wf-surface-2);
+}
+
+/* Legacy emcn `Button variant='ghost'` merged with the close slot's own classes. */
+.close {
+  display: inline-flex;
+  height: 24px !important;
+  width: 40px !important;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: calc(var(--wf-radius) - 2px);
+  border-style: none;
+  background-color: var(--wf-surface-2) !important;
+  padding: 0;
+  font-size: 12px;
+  color: var(--wf-text-inverse) !important;
+  outline-style: none;
+  transition-property: background-color, color, opacity, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.15s;
+  clip-path: path(
+    "M16.25 0A8 8 0 0 1 22.4 2.88L36.59 19.9A2.5 2.5 0 0 1 34.66 24L4 24A4 4 0 0 1 0 20L0 4A4 4 0 0 1 4 0Z"
+  );
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .close {
+    background-color: color-mix(in srgb, var(--wf-surface-2) 18%, transparent) !important;
+    color: color-mix(in srgb, var(--wf-text-inverse) 72%, transparent) !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .close,
+  .close:focus,
+  .close:focus-visible {
+    outline-offset: 2px;
+    outline: 2px solid #0000;
+  }
+}
+
+.close:focus,
+.close:focus-visible {
+  outline-style: none;
+}
+
+.close:active {
+  scale: 0.96;
+}
+
+.close:disabled {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .close:hover {
+    background-color: var(--wf-surface-2) !important;
+    color: var(--wf-text-primary) !important;
+  }
+}
+
+.close svg {
+  translate: calc(6px * -1) var(--wf-border-width);
+}
+
+.closeIcon {
+  width: 14px;
+  height: 14px;
+}
+
+/* Invisible target handle under the painted left knob; the picker accepts no connection itself. */
+.handle {
+  top: 50% !important;
+  left: 0 !important;
+  z-index: 30 !important;
+  height: 38px !important;
+  width: 14px !important;
+  translate: 0 calc(calc(1 / 2 * 100%) * -1) !important;
+  cursor: default !important;
+  border-radius: 0 !important;
+  border-style: none !important;
+  background-color: #0000 !important;
+  opacity: 0 !important;
+}
+
+.command {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 1rem;
+  clip-path: inset(0 round 16px);
+}
+
+.results {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+}
+
+/* The command list, its edge fade (legacy `scrollFadeClass`) and the picker's own overrides. */
+.list {
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-inline: calc(0.25rem * 1.5);
+  padding-top: calc(0.25rem * 12);
+  padding-bottom: calc(0.25rem * 1.5);
+  --scroll-fade-inset: 3rem;
+  clip-path: inset(3px round 13px);
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  --scroll-fade-band: 12px;
+  --scroll-fade-top-start: 0px;
+  --scroll-fade-top-end: 0px;
+  --scroll-fade-bottom-start: 100%;
+  --scroll-fade-bottom-end: 100%;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent var(--scroll-fade-top-start),
+    black var(--scroll-fade-top-end),
+    black var(--scroll-fade-bottom-start),
+    transparent var(--scroll-fade-bottom-end)
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent var(--scroll-fade-top-start),
+    black var(--scroll-fade-top-end),
+    black var(--scroll-fade-bottom-start),
+    transparent var(--scroll-fade-bottom-end)
+  );
+}
+
+.list::-webkit-scrollbar {
+  display: none;
+}
+
+.list[data-scroll-fade-top] {
+  --scroll-fade-top-start: var(--scroll-fade-inset, 0px);
+  --scroll-fade-top-end: calc(var(--scroll-fade-inset, 0px) + var(--scroll-fade-band));
+}
+
+.list[data-scroll-fade-bottom] {
+  --scroll-fade-bottom-start: calc(100% - var(--scroll-fade-band));
+  --scroll-fade-bottom-end: 100%;
+}
+
+.list [cmdk-group-items] {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.list [cmdk-group] + [cmdk-group] {
+  margin-top: calc(0.25rem * 4);
+}
+
+.list [cmdk-item] svg {
+  scale: 100% 100% !important;
+  transition-property: none !important;
+}
+
+.list [cmdk-item][aria-selected="true"] {
+  border-color: #0000 !important;
+  background-color: var(--wf-surface-hover) !important;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: calc(0.25rem * 4);
+  padding-block: calc(0.25rem * 8);
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+  color: var(--wf-text-subtle);
+}
+
+.group [cmdk-group-heading] {
+  margin-bottom: calc(0.25rem * 2);
+  display: flex;
+  height: 18px;
+  scroll-margin-top: calc(0.25rem * 12);
+  align-items: center;
+  padding-inline: calc(0.25rem * 2);
+  font-size: 13px;
+  color: var(--wf-text-muted);
+}
+
+.item {
+  margin-inline: calc(0.25rem * 0.5);
+  display: flex;
+  height: 30px;
+  width: 100%;
+  cursor: pointer;
+  scroll-margin-top: calc(0.25rem * 12);
+  scroll-margin-bottom: calc(0.25rem * 1.5);
+  align-items: center;
+  gap: calc(0.25rem * 2);
+  border-radius: var(--wf-radius);
+  border-style: solid;
+  border-width: var(--wf-border-width);
+  border-color: #0000;
+  padding-inline: calc(0.25rem * 2);
+  text-align: left;
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+}
+
+.item[aria-selected="true"] {
+  border-color: var(--wf-border-1);
+  background-color: var(--wf-surface-active);
+}
+
+.item[data-disabled="true"] {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
+.itemLabel {
+  color: var(--wf-text-body);
+}
+
+.sentinel {
+  height: var(--wf-border-width);
+}
+
+/* The borderless search field, fogging the rows that scroll under it. */
+.search {
+  position: absolute;
+  inset-inline: 3px;
+  top: 3px;
+  z-index: 20;
+  display: flex;
+  height: calc(0.25rem * 12);
+  cursor: text;
+  align-items: center;
+  gap: calc(0.25rem * 2);
+  border-top-left-radius: 13px;
+  border-top-right-radius: 13px;
+  background-image: linear-gradient(
+    to bottom,
+    var(--wf-surface-2) 0%,
+    var(--wf-surface-2) 68%,
+    transparent 100%
+  );
+  padding-inline: calc(0.25rem * 2.5);
+  padding-bottom: calc(0.25rem * 2);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .search {
+    background-image: linear-gradient(
+      to bottom,
+      var(--wf-surface-2) 0%,
+      color-mix(in srgb, var(--wf-surface-2) 88%, transparent) 68%,
+      transparent 100%
+    );
+  }
+}
+
+.searchIcon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--wf-text-muted);
+}
+
+.searchInput {
+  margin-left: calc(0.25rem * -1);
+  height: calc(0.25rem * 8);
+  min-width: 0;
+  flex: 1;
+  cursor: text;
+  background-color: #0000;
+  text-indent: 0.25rem;
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+  color: var(--wf-text-body);
+  outline-style: none;
+}
+
+@media (forced-colors: active) {
+  .searchInput,
+  .searchInput:focus {
+    outline-offset: 2px;
+    outline: 2px solid #0000;
+  }
+}
+
+.searchInput::placeholder {
+  color: var(--wf-text-muted);
+}
+
+.searchInput:focus {
+  outline-style: none;
+}

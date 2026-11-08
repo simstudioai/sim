@@ -1,0 +1,20 @@
+.range {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-inline-size: 0;
+}
+
+.bound {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+.to,
+.summary {
+  color: var(--ui-secondary);
+}
+
+.to {
+  flex: none;
+}

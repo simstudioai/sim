@@ -63,9 +63,41 @@ interface Evidence {
 }
 type Variants = Record<string, Record<string, Record<string, string[]>>>
 const read = (file: string) => readFileSync(path.join(app, file), 'utf8')
+/**
+ * The Workflows tab's canvas reproduces the legacy editor's canvas pixel for pixel, as the user
+ * required ("the workflow blocks themselves and the canvas nodes and the loops ... must look the exact
+ * same"). Its blocks, handles, borders, edges, subflow containers, notes and cursors are the legacy
+ * renderer's views copied into this one folder, so it keeps the renderer's pixel geometry and type
+ * metrics (shared with its JS layout math in `@sim/workflow-renderer/dimensions`), its literal palette
+ * and timings, its decorative SVG, its local component sizes and focus treatment, and React Flow's
+ * inline style for node geometry and block colors. Its colors otherwise come from the legacy canvas
+ * tokens, declared once in `workflow-canvas/canvas-tokens.module.css`. Chrome around the canvas
+ * (menus, panels, dialogs, the toolbar) lives outside this folder and keeps every rule.
+ */
+const WORKFLOW_CANVAS = 'platform/app/(shell)/workspace/[workspaceId]/workflows/_components/canvas/'
+const WORKFLOW_CANVAS_RULES: ReadonlySet<string> = new Set([
+  'consumer-style',
+  'focus-style',
+  'icon-owner',
+  'motion-timing',
+  'prop-spread',
+  'raw-color',
+  'raw-geometry',
+  'style-api',
+  'untokenized-style',
+  'variant-declaration',
+])
+/** Custom properties the canvas's own modules declare, readable only from those modules. */
+const workflowCanvasTokens = new Set<string>([
+  // The legacy document faces: next/font sets the first on the canvas root; the second falls back.
+  '--font-season',
+  '--font-martian-mono',
+])
+
 /** Each distinct finding, rendered; `location` may carry a `:line` suffix. */
 const findings = new Map<string, { rule: string; file: string }>()
 function report(rule: string, location: string, message: string) {
+  if (location.startsWith(WORKFLOW_CANVAS) && WORKFLOW_CANVAS_RULES.has(rule)) return
   findings.set(`${location} [${rule}] ${message}`, {
     rule,
     file: location.replace(/:\d+$/, ''),
@@ -227,10 +259,77 @@ const seamRoots = ['hooks/queries', 'lib/api']
  * `@/app` or `@/components` is expected; `checkSeamClosure` proves none of them renders legacy UI.
  */
 const seamHelpers = new Set([
+  'lib/charts/annotations',
+  'lib/charts/bar-row-highlight',
+  'lib/charts/option',
+  'lib/charts/spec',
+  'lib/charts/summary',
+  'lib/charts/theme',
+  'lib/charts/time-series',
+  'lib/core/security/url-safety',
+  'lib/core/utils/browser-polyfills',
+  'lib/core/utils/separator-keys',
+  'lib/dashboards/embed-language',
+  'lib/dashboards/spec',
+  'lib/dashboards/time',
+  'lib/diff/embed-language',
+  'lib/diff/unified',
+  'lib/file-parsers/ooxml-preview-guard',
+  'lib/mothership/chat/selection-context',
+  'lib/mothership/chat/selection-clipboard',
+  'lib/pptx-renderer/sim-pptx-viewer',
   'lib/slack-search/manifest',
   'lib/integrations/slack-manifest',
   'lib/organizations/search-params',
   'lib/organizations/integrations-search-params',
+  'app/workspace/[workspaceId]/components/find-bar/use-find-shortcut',
+  'app/workspace/[workspaceId]/files/components/file-viewer/csv-import',
+  'app/workspace/[workspaceId]/files/components/file-viewer/file-category',
+  'app/workspace/[workspaceId]/files/components/file-viewer/mermaid-theme',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/block-mover',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/code-block-schema',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/code-highlight',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/caret-presence',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/readiness',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/detect-language',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/find-extension',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/heading-anchors',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-paste',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-upload',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-target',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/keymap',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention-node',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention-store',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/types',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/use-bubble-menu-floating',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/use-editor-toolbar',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/use-suggestion-keyboard',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/normalize-content',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/raw-markdown-snippet-schema',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/suggestion-plugin-keys',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/table',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/title-heading',
+  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/use-editor-editable',
+  'app/workspace/[workspaceId]/files/components/file-viewer/text-editor-paste',
+  'app/workspace/[workspaceId]/files/components/file-viewer/use-doc-preview-binary',
+  'app/workspace/[workspaceId]/files/components/file-viewer/use-editable-file-content',
+  'app/workspace/[workspaceId]/files/components/file-viewer/use-selection-copy-bridge',
+  'app/workspace/[workspaceId]/files/components/file-viewer/xlsx-preview-data',
+  'app/workspace/[workspaceId]/files/hooks/use-workspace-files-room',
+  'app/workspace/[workspaceId]/files/search-params',
+  'app/workspace/[workspaceId]/files/untitled-title',
   'app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view',
   'app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity',
   'app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-labels',
@@ -243,9 +342,27 @@ const seamHelpers = new Set([
   'app/workspace/[workspaceId]/home/hooks/use-chat',
   'app/workspace/[workspaceId]/home/hooks/use-resource-panel',
   'app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry',
+  'app/workspace/[workspaceId]/knowledge/[id]/components/consts',
+  'app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload',
+  'app/workspace/[workspaceId]/knowledge/search-params',
+  'app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/table-paste',
+  'app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/types',
+  'app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/utils',
+  'app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing',
+  'app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-event-stream',
+  'app/workspace/[workspaceId]/tables/[tableId]/lock-copy',
+  'app/workspace/[workspaceId]/tables/[tableId]/types',
+  'app/workspace/[workspaceId]/tables/[tableId]/utils',
+  'app/workspace/[workspaceId]/tables/hooks/use-workspace-tables-room',
+  'app/workspace/[workspaceId]/tables/search-params',
   'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments',
   'blocks/custom/overlay',
   'components/assistant-actions/presentation',
+  'connectors/auth',
+  'connectors/gitlab/permission-config/csv-files',
+  'connectors/gitlab/permission-config/use-permission-form',
+  'connectors/registry',
+  'connectors/types',
   'ee/access-control/hooks/permission-groups',
   'ee/access-control/lib/editor',
   'ee/access-control/search-params',
@@ -283,31 +400,54 @@ const seamHelpers = new Set([
   'ee/sso/search-params',
   'ee/whitelabeling/form',
   'ee/whitelabeling/hooks/whitelabel',
+  'enrichments/registry',
+  'enrichments/types',
+  'hooks/kb/use-knowledge',
+  'hooks/use-autosave',
   'hooks/use-before-unload-while',
+  'hooks/use-capture-when-ready',
   'hooks/use-debounce',
   'hooks/use-debounced-search-setter',
+  'hooks/use-credential-refresh-triggers',
   'hooks/use-desktop-update-state',
+  'hooks/use-file-content-source',
+  'hooks/use-inline-rename',
   'hooks/use-is-mobile',
   'hooks/use-mothership-chat-events',
   'hooks/use-profile-picture-upload',
+  'hooks/use-resource-list-preferences',
   'hooks/use-search-filter-value',
   'hooks/use-search-integration-connection',
+  'hooks/use-table-undo',
+  'hooks/use-user-permissions',
   'hooks/use-voice-input',
   'lib/billing/upgrade-reasons',
   'lib/block-metadata/names.generated',
+  'lib/chunkers/constants',
   'lib/core/config/feature-flags-context',
   'lib/core/resource-scope',
+  'lib/selectors/manifest',
+  'lib/tokenization/accurate',
   'lib/core/security/csp',
   'lib/core/utils/browser-storage',
   'lib/core/utils/paste-admission',
   'lib/core/utils/react-node-text',
   'lib/desktop',
   'lib/desktop/chat-scope',
+  'lib/posthog/client',
+  'lib/knowledge/constants',
+  'lib/knowledge/connectors/access-modes',
+  'lib/knowledge/connectors/sync-limits',
+  'lib/knowledge/documents/types',
+  'lib/knowledge/filters/types',
   'lib/knowledge/search/connection-target',
   'lib/knowledge/search/results',
   'lib/mothership/chat/search-params',
   'lib/mothership/chat/special-tags',
   'lib/mothership/chat/types',
+  'lib/knowledge/types',
+  'lib/logs/execution/trace-spans/trace-spans',
+  'lib/logs/types',
   'lib/mothership/generated/resources',
   'lib/mothership/generated/tool-catalog-v1',
   'lib/mothership/model-options',
@@ -320,17 +460,49 @@ const seamHelpers = new Set([
   'lib/resources',
   'lib/settings/section-availability',
   'lib/sim-search/connectors',
+  'lib/sim-search/connection-labels',
+  'lib/sim-search/constants',
+  'lib/sim-search/live/source-settings',
+  'lib/sim-search/source-identity',
+  'lib/table/column-keys',
+  'lib/table/column-naming',
+  'lib/table/column-types',
+  'lib/table/constants',
+  'lib/table/currency',
+  'lib/table/dates',
+  'lib/table/deps',
+  'lib/table/query-builder/cell-filter',
+  'lib/table/query-builder/constants',
+  'lib/table/query-builder/converters',
+  'lib/table/ttl-values',
+  'lib/table/types',
+  'lib/table/workflow-groups/deployment-mode',
   'lib/terminal/transport',
   'lib/uploads/client/admission',
+  'lib/uploads/client/text-content',
   'lib/uploads/shared/assistant-images',
+  'lib/uploads/shared/types',
+  'lib/uploads/utils/file',
+  'lib/uploads/utils/mime',
+  'lib/uploads/utils/validation',
+  'lib/workflows/input-format',
+  'lib/workflows/types',
+  'lib/workspace-files/artifact-stylesheet',
+  'lib/workspace-files/browser',
+  'lib/workspace-files/page-compile',
+  'lib/workspace-files/page-content-type',
+  'stores/connector-setup/store',
+  'stores/dashboards/cursor/store',
   'stores/folders/types',
   'stores/mothership-drafts/store',
   'stores/mothership-effort/store',
   'stores/panel',
+  'stores/table/types',
   'stores/tool-permission/store',
   'stores/workflows/registry/types',
   'stores/workflows/workflow/types',
   'tools/metadata',
+  'tools/normalize',
   // The chat hook and the pure modules around it: Platform drives it rather than forking it.
   // `next.config.ts` replaces what they would otherwise reach for a canvas with a named shim.
   'hooks/use-seed-deployment-shape',
@@ -375,6 +547,7 @@ const seamHelpers = new Set([
   'lib/core/utils/timezone',
   'lib/core/utils/timezone-picker',
   'lib/core/utils/urls',
+  'lib/core/utils/validation',
   'lib/credential-groups/managed-mcp-connectors',
   'lib/credential-groups/member-integrations',
   'lib/favicon/url',
@@ -408,98 +581,289 @@ const seamHelpers = new Set([
   'lib/url-state',
   'lib/workspaces/permissions/role-lock',
   'stores/settings/dirty/store',
-  'lib/charts/annotations',
-  'lib/charts/bar-row-highlight',
-  'lib/charts/option',
-  'lib/charts/spec',
-  'lib/charts/summary',
-  'lib/charts/theme',
-  'lib/charts/time-series',
-  'lib/core/security/url-safety',
-  'lib/core/utils/browser-polyfills',
-  'lib/core/utils/separator-keys',
-  'lib/dashboards/embed-language',
-  'lib/dashboards/spec',
-  'lib/dashboards/time',
-  'lib/diff/embed-language',
-  'lib/diff/unified',
-  'lib/file-parsers/ooxml-preview-guard',
-  'lib/mothership/chat/selection-context',
-  'lib/pptx-renderer/sim-pptx-viewer',
-  'app/workspace/[workspaceId]/components/find-bar/use-find-shortcut',
-  'app/workspace/[workspaceId]/files/components/file-viewer/csv-import',
-  'app/workspace/[workspaceId]/files/components/file-viewer/file-category',
-  'app/workspace/[workspaceId]/files/components/file-viewer/mermaid-theme',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/block-mover',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/code-block-schema',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/code-highlight',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/caret-presence',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/readiness',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/detect-language',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/find/find-extension',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/heading-anchors',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-paste',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-schema',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-target',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/keymap',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention-node',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/mention-store',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/mention/types',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/use-bubble-menu-floating',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/use-editor-toolbar',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/menus/use-suggestion-keyboard',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/normalize-content',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/raw-markdown-snippet-schema',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/suggestion-plugin-keys',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/table',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/title-heading',
-  'app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/use-editor-editable',
-  'app/workspace/[workspaceId]/files/components/file-viewer/text-editor-paste',
-  'app/workspace/[workspaceId]/files/components/file-viewer/use-doc-preview-binary',
-  'app/workspace/[workspaceId]/files/components/file-viewer/use-editable-file-content',
-  'app/workspace/[workspaceId]/files/components/file-viewer/use-selection-copy-bridge',
-  'app/workspace/[workspaceId]/files/components/file-viewer/xlsx-preview-data',
-  'app/workspace/[workspaceId]/files/hooks/use-workspace-files-room',
-  'app/workspace/[workspaceId]/files/search-params',
-  'app/workspace/[workspaceId]/files/untitled-title',
-  'hooks/use-autosave',
-  'hooks/use-file-content-source',
-  'hooks/use-inline-rename',
-  'hooks/use-resource-list-preferences',
-  'hooks/use-user-permissions',
-  'lib/uploads/client/text-content',
-  'lib/uploads/shared/types',
-  'lib/uploads/utils/file',
-  'lib/uploads/utils/mime',
-  'lib/workspace-files/artifact-stylesheet',
-  'lib/workspace-files/browser',
-  'lib/workspace-files/page-compile',
-  'lib/workspace-files/page-content-type',
-  'stores/dashboards/cursor/store',
+  // The workflow editor's logic, re-exported by `lib/data/workflows` for the ported canvas views.
+  'app/_styles/fonts/season/season',
+  'components/settings/settings-navigation-provider',
+  'lib/billing/workspace-permissions',
+  'app/workspace/[workspaceId]/providers/block-visibility-loader',
+  'app/workspace/[workspaceId]/providers/provider-models-loader',
+  'app/workspace/[workspaceId]/providers/settings-loader',
+  'app/workspace/[workspaceId]/providers/workflow-scope-provider',
+  'app/workspace/[workspaceId]/providers/workspace-host-context',
+  'app/workspace/[workspaceId]/providers/workspace-permissions-provider',
+  'app/workspace/[workspaceId]/providers/workspace-scope-sync',
+  'app/workspace/[workspaceId]/utils/commands',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/hooks/use-workflow-resource-replacement-options',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/hooks/use-workflow-search-reference-hydration',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-block-properties',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-block-state',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-child-workflow',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-webhook-info',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/float',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/use-auto-layout',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-current-workflow',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/use-canvas-context-menu',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/use-dynamic-handle-refresh',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/use-execution-handoff',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/use-node-utilities',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/use-prevent-zoom',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/use-shift-selection-lock',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution',
+  'app/workspace/[workspaceId]/w/[workflowId]/search-params',
+  'app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection',
+  'app/workspace/[workspaceId]/w/[workflowId]/utils/edge-highlight',
+  'app/workspace/[workspaceId]/w/[workflowId]/utils/node-position',
+  'app/workspace/[workspaceId]/w/[workflowId]/utils/run-from-block',
+  'app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers',
+  'app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils',
+  'app/workspace/[workspaceId]/w/hooks/use-can-delete',
+  'app/workspace/[workspaceId]/w/hooks/use-delete-selection',
+  'app/workspace/[workspaceId]/w/hooks/use-export-selection',
+  'app/workspace/[workspaceId]/w/hooks/use-export-workflow',
   'app/workspace/providers/socket-provider',
+  'blocks',
+  'blocks/custom/build-config',
+  'blocks/custom/client-overlay',
+  'blocks/registry',
+  'blocks/types',
+  'executor/constants',
+  'hooks/mcp/use-mcp-tools',
+  'hooks/use-canvas-viewport',
+  'hooks/use-collaborative-workflow',
+  'hooks/use-operation-access',
+  'hooks/use-permission-config',
+  'hooks/use-reactive-conditions',
+  'hooks/use-sandbox-block-constraints',
+  'hooks/use-selector-display-name',
+  'lib/core/utils/platform',
+  'lib/credentials/client-state',
+  'lib/credentials/display-name',
+  'lib/mcp/shared',
+  'lib/mothership/events',
+  'lib/mothership/tools/client/base-tool',
+  'lib/oauth',
+  'lib/permission-groups/operation-access',
+  'lib/workflows/autolayout/constants',
+  'lib/workflows/blocks/canvas-card-fields',
+  'lib/workflows/blocks/canvas-ports',
+  'lib/workflows/blocks/canvas-presentation',
+  'lib/workflows/blocks/canvas-rows',
+  'lib/workflows/blocks/canvas-sentence',
+  'lib/workflows/blocks/canvas-trigger-sentence',
+  'lib/workflows/blocks/code-preview',
+  'lib/workflows/blocks/deterministic-dimensions',
+  'lib/workflows/blocks/flatten-outputs',
+  'lib/workflows/comparison',
+  'lib/workflows/diff/types',
+  'lib/workflows/dynamic-handle-topology',
+  'lib/workflows/layout',
+  'lib/workflows/notes/add-image',
+  'lib/workflows/notes/canvas-requests',
+  'lib/workflows/operations/import-export',
+  'lib/workflows/search-replace/indexer',
+  'lib/workflows/search-replace/replacements',
+  'lib/workflows/search-replace/resources',
+  'lib/workflows/search-replace/state',
+  'lib/workflows/search-replace/subflow-fields',
+  'lib/workflows/search-replace/types',
+  'lib/workflows/subblocks/dependencies',
+  'lib/workflows/subblocks/display',
+  'lib/workflows/subblocks/visibility',
+  'lib/workflows/triggers/input-definition-triggers',
+  'lib/workflows/triggers/triggers',
+  'lib/workflows/triggers/utils',
   'lib/workspaces/colors',
+  'lib/workspaces/naming',
+  'providers/models',
+  'stores/canvas-mode',
+  'stores/canvas-mode/store',
+  'stores/chat/store',
+  'stores/constants',
+  'stores/execution',
+  'stores/modals/search/store',
+  'stores/modals/search/types',
+  'stores/modals/variables/store',
+  'stores/panel/editor/store',
+  'stores/panel/toolbar/store',
+  'stores/presence/store',
+  'stores/undo-redo',
+  'stores/variables/store',
+  'stores/workflow-diff/store',
+  'stores/workflow-search-replace/store',
+  'stores/workflows',
+  'stores/workflows/prepare-block-state',
+  'stores/workflows/registry/store',
+  'stores/workflows/registry/utils',
+  'stores/workflows/subblock/store',
+  'stores/workflows/utils',
+  'stores/workflows/workflow/store',
+  'tools/params',
+  'triggers/registry',
+  // The block editor's sub-block logic, re-exported by `lib/data/workflow-editor` for its inputs.
+  'app/workspace/[workspaceId]/components/custom-tool-editor/custom-tool-schema',
+  'app/workspace/[workspaceId]/components/custom-tool-editor/use-custom-tool-generation',
+  'app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/use-service-account-connect',
+  'app/workspace/[workspaceId]/settings/components/sandboxes/utils',
+  'app/workspace/[workspaceId]/skills/components/skill-copy',
+  'app/workspace/[workspaceId]/skills/components/utils',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/combobox/missing-option',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/microsoft-dataverse-policy',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/dropdown/stale-selections',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown/use-env-var-suggestions',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/utils',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-dependency-block-type',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-fetched-options',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-mcp-block-config',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-resource-folders',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-selector-setup',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-editor-block-properties',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-editor-subblock-layout',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/workflow-reference-scope',
+  'blocks/utils',
+  'components/mcp/target-options',
+  'executor/utils/builder-data',
+  'executor/utils/reference-validation',
+  'hooks/kb/use-knowledge-base-tag-definitions',
+  'hooks/kb/use-tag-selection',
+  'hooks/mcp/use-mcp-oauth-popup',
+  'hooks/use-available-env-vars',
+  'hooks/use-code-undo-redo',
+  'hooks/use-settings-navigation',
+  'hooks/use-webhook-management',
+  'lib/credential-groups/managed-mcp-connector-icons',
+  'lib/credentials/client-credential-accounts/descriptors',
+  'lib/credentials/service-account-provider-ids',
+  'lib/credentials/token-service-accounts/descriptors',
+  'lib/execution/languages',
+  'lib/folders/paths',
+  'lib/folders/selection',
+  'lib/mcp/operation-policy',
+  'lib/mcp/output-schema',
+  'lib/mcp/tool-validation',
+  'lib/mcp/types',
+  'lib/mcp/workflow-config',
+  'lib/oauth/microsoft-dataverse',
+  'lib/table/hooks/use-table-columns',
+  'lib/table/query-builder/use-query-builder',
+  'lib/workflows/blocks/fallback-models',
+  'lib/workflows/blocks/outputs',
+  'lib/workflows/blocks/reference-tags',
+  'lib/workflows/blocks/retry-eligibility',
+  'lib/workflows/conditions',
+  'lib/workflows/labels',
+  'lib/workflows/sanitization/references',
+  'lib/workflows/schedules/utils',
+  'lib/workflows/streaming/nested-output-options',
+  'lib/workflows/streaming/output-selector',
+  'lib/workflows/tool-input/param-visibility',
+  'lib/workflows/tool-input/synthetic-subblocks',
+  'lib/workflows/tool-input/types',
+  'lib/workflows/tool-input/usage-control',
+  'lib/workspace-files/folder-display-path',
+  'lib/workspace-files/folder-path-selection',
+  'lib/workspace-files/selection',
+  'stores/providers/store',
+  'stores/variables/types',
+  'tools/param-shape',
+  'triggers/constants',
+  'triggers/slack/capabilities',
+  'lib/oauth/types',
+  // The editor Terminal's logic, re-exported by `lib/data/workflow-deploy/terminal` for its views.
+  'app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks/use-terminal-filters',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils',
+  'hooks/use-code-viewer',
+  'lib/core/utils/user-file',
+  'lib/execution/payloads/large-array-manifest-metadata',
+  'lib/execution/payloads/large-value-ref',
+  'stores/terminal',
+  // The deploy surfaces' logic, re-exported by `lib/data/workflow-deploy` for the deploy views.
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/chat/hooks/use-identifier-validation',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/chat/utils',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/compare-pair',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/deploy-action-lock',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/predeploy-checks',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deploy-readiness',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deployment',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-deployment-view-state',
+  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/hooks/use-draft-workflow-state',
+  'app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/ordered-row-diff',
+  'app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/text-diff-lines',
+  'app/workspace/[workspaceId]/w/components/workflow-diff/components/change-list/value-presentation',
+  'app/workspace/[workspaceId]/w/components/workflow-diff/utils',
+  'lib/chat-deployments/urls',
+  'lib/mcp/workflow-tool-schema',
+  'lib/workflows/comparison/compare',
+  'lib/workflows/comparison/resolve-values',
+  'lib/workflows/operations/deployment-utils',
+  'lib/workflows/streaming/agent-stream-protocol',
+  'stores/workflows/sync-local-draft',
 ])
 /** Legacy `.tsx` the seam's closure may reach: providers and glyphs, not a surface. */
 const seamClosureViews = new Set([
   'app/_shell/providers/query-provider.tsx',
-  'components/icons.tsx',
   'app/workspace/providers/socket-provider.tsx',
+  'components/icons.tsx',
 ])
-/** Each pulls in a whole subsystem, which is why `next.config.ts` replaces what would reach it. */
+/** Each pulls in a whole subsystem, which only the workflow editor's seam may bundle. */
 const seamClosureBanned = /^(?:blocks|tools)\/registry\.tsx?$/
 const seamPackages =
   /^@sim\/(?:utils|logger|browser-extension-protocol|platform-authz\/predicates|realtime-protocol)(?:\/|$)/
+/**
+ * The Workflows tab runs the legacy editor's logic unchanged (the user asked for the canvas exactly
+ * as it is), so its seam folders are the one place the blocks and tools registry, the workflow
+ * packages and the editor's context providers may cross. A knowledge connector's selector fields
+ * resolve their options through the same blocks registry, so their isolated folder shares the
+ * exception. Everything else keeps the rules above.
+ */
+const workflowSeam =
+  /^platform\/lib\/data\/(?:workflows|workflow-editor|workflow-deploy|knowledge\/connector-selectors)\//
+/**
+ * The workflow model, its persisted shape, the realtime protocol, the renderer's pure layout data and
+ * the legacy glyph set block configs already name their icons from.
+ */
+const workflowSeamPackages =
+  /^@sim\/(?:workflow-types|workflow-persistence|realtime-protocol)(?:\/|$)|^@sim\/workflow-renderer\/(?:dimensions|note-colors|note-content|tile-icon-color)$|^@sim\/emcn-legacy\/icons$/
+/**
+ * What the workflow seam's closure may reach beyond `seamClosureViews`: the editor's context
+ * providers and loaders, which render nothing of their own, and the glyph modules block configs name.
+ */
+const workflowClosureViews = new Set([
+  'app/workspace/[workspaceId]/providers/block-visibility-loader.tsx',
+  'app/workspace/[workspaceId]/providers/provider-models-loader.tsx',
+  'app/workspace/[workspaceId]/providers/settings-loader.tsx',
+  'app/workspace/[workspaceId]/providers/workflow-scope-provider.tsx',
+  'app/workspace/[workspaceId]/providers/workspace-permissions-provider.tsx',
+  'app/workspace/[workspaceId]/providers/workspace-scope-sync.tsx',
+  'app/workspace/[workspaceId]/w/[workflowId]/hooks/workflow-reference-scope.tsx',
+  'components/settings/settings-navigation-provider.tsx',
+])
+const workflowClosureGlyphs = /^components\/icons\/[\w-]+\.tsx$/
+/**
+ * Workflow state the chat hook and the shared socket provider reach, which the canvas owns. The
+ * workflow seam walks past them under its exception; any other seam's walk stops there, as it
+ * stopped at the shims these used to be.
+ */
+const workflowStateModules = new Set([
+  'stores/workflow-diff/store.ts',
+  'stores/workflows/registry/store.ts',
+  'stores/workflows/subblock/store.ts',
+  'stores/workflows/sync-local-draft.ts',
+  'stores/workflows/workflow/store.ts',
+])
 function resolveImport(file: string, specifier: string) {
   const workspace = resolveEmcnImport(packages, specifier, path.join(app, file))
   if (workspace) return path.relative(app, workspace)
@@ -622,6 +986,7 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
       !inEmbedded &&
       /^@sim\/(?!utils(?:\/|$)|emcn(?:-platform)?(?:\/|$))/.test(specifier) &&
       !(inSeam && seamPackages.test(specifier)) &&
+      !(workflowSeam.test(file) && workflowSeamPackages.test(specifier)) &&
       !(
         file === 'platform/app/(shell)/_components/desktop/desktop-host.tsx' &&
         specifier === '@sim/desktop-bridge'
@@ -828,7 +1193,8 @@ function checkCss(file: string, sheet: postcss.Root) {
       const positioned = isComponent(file) && positionerMeasurements.has(token)
       const columnWidth = token === '--column-width' && file.startsWith(COLUMN_WIDTH_OWNER)
       const hostToken = file.startsWith(embedded) && HOST_TOKENS.has(token)
-      if (!tokens.has(token) && !positioned && !columnWidth && !hostToken)
+      const canvasToken = file.startsWith(WORKFLOW_CANVAS) && workflowCanvasTokens.has(token)
+      if (!tokens.has(token) && !positioned && !columnWidth && !hostToken && !canvasToken)
         report('unknown-token', location, token)
     }
     if (base) return
@@ -845,7 +1211,7 @@ function checkCss(file: string, sheet: postcss.Root) {
     ) {
       report('untokenized-style', location, `Use a foundation recipe: ${prop}: ${value}`)
     }
-    if (prop.startsWith('--') && !LOCAL_TOKEN_OWNERS.has(file))
+    if (prop.startsWith('--') && !LOCAL_TOKEN_OWNERS.has(file) && !file.startsWith(WORKFLOW_CANVAS))
       report('css-owner', location, 'Token definitions belong in foundations')
     const literal = value.replace(/url\([^)]*\)|--[\w-]+|"[^"]*"|'[^']*'/gi, '')
     if (
@@ -1078,7 +1444,8 @@ function resolveSource(file: string, specifier: string): string | null {
 /**
  * Walks what the seam actually bundles, past the modules it names directly. A `.tsx` under `@/app`
  * or `@/components` is legacy UI riding in behind a hook. `next.config.ts` replaces its canvas
- * modules at build time, so the walk stops at them the same way.
+ * modules at build time, so the walk stops at them the same way. The workflow seam is walked first,
+ * under its own exception; the rest stop where they reach the workflow state it covers.
  */
 function checkSeamClosure() {
   if (!existsSync(path.join(app, dataSeam))) return
@@ -1093,61 +1460,79 @@ function checkSeamClosure() {
   const legacyShimmed =
     existsSync(path.join(app, config)) &&
     /resolve\.alias\[['"]@sim\/emcn-legacy\$['"]\]\s*=\s*emcnShim/.test(read(config))
-  const visited = new Set<string>()
-  const queue: string[] = []
-  for (const file of files(dataSeam)) {
-    if (!/\.tsx?$/.test(file) || /\.test\.tsx?$/.test(file)) continue
-    visited.add(file)
-    queue.push(file)
-  }
-  for (let file = queue.pop(); file; file = queue.pop()) {
-    for (const specifier of runtimeImports(file)) {
-      if (replaced.has(specifier)) continue
-      if (/^@sim\/emcn-legacy(?:\/|$)/.test(specifier)) {
-        if (specifier !== '@sim/emcn-legacy' || !legacyShimmed)
+  const roots = [...files(dataSeam)].filter(
+    (file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file)
+  )
+  const workflowVisited = walkSeam(
+    roots.filter((file) => workflowSeam.test(file)),
+    true,
+    new Set()
+  )
+  walkSeam(
+    roots.filter((file) => !workflowSeam.test(file)),
+    false,
+    new Set([...workflowStateModules].filter((module) => workflowVisited.has(module)))
+  )
+
+  function walkSeam(seeds: string[], workflow: boolean, stops: ReadonlySet<string>) {
+    const visited = new Set<string>(seeds)
+    const queue = [...seeds]
+    for (let file = queue.pop(); file; file = queue.pop()) {
+      for (const specifier of runtimeImports(file)) {
+        if (replaced.has(specifier)) continue
+        // Logic modules name glyphs from the legacy icon set (block configs, table column types,
+        // enrichments). Icons are not chrome, and zone views never import them directly.
+        if (specifier === '@sim/emcn-legacy/icons') continue
+        if (/^@sim\/emcn-legacy(?:\/|$)/.test(specifier)) {
+          if (specifier !== '@sim/emcn-legacy' || !legacyShimmed)
+            report(
+              'seam-closure',
+              file,
+              `Legacy EMCN bypasses the toast-only runtime adapter: ${specifier}`
+            )
+          else {
+            const source = ts.createSourceFile(file, read(file), ts.ScriptTarget.Latest)
+            for (const statement of source.statements) {
+              if (
+                !ts.isImportDeclaration(statement) ||
+                !ts.isStringLiteral(statement.moduleSpecifier) ||
+                statement.moduleSpecifier.text !== specifier ||
+                isTypesOnly(statement)
+              )
+                continue
+              const bindings = statement.importClause?.namedBindings
+              if (
+                statement.importClause?.name ||
+                !bindings ||
+                !ts.isNamedImports(bindings) ||
+                bindings.elements.some(
+                  (binding) =>
+                    !binding.isTypeOnly &&
+                    !['toast', 'useToast'].includes((binding.propertyName ?? binding.name).text)
+                )
+              )
+                report('seam-closure', file, 'The legacy adapter exposes only toast and useToast')
+            }
+          }
+          continue
+        }
+        const target = resolveSource(file, specifier)
+        if (!target || visited.has(target) || stops.has(target)) continue
+        visited.add(target)
+        queue.push(target)
+        const view = /^(?:app|components|ee\/[^/]+\/components)\/.*\.tsx$/.test(target)
+        const allowedView =
+          seamClosureViews.has(target) ||
+          (workflow && (workflowClosureViews.has(target) || workflowClosureGlyphs.test(target)))
+        if ((seamClosureBanned.test(target) && !workflow) || (view && !allowedView))
           report(
             'seam-closure',
-            file,
-            `Legacy EMCN bypasses the toast-only runtime adapter: ${specifier}`
+            target,
+            `The data seam bundles this legacy module through ${file}; cut that edge`
           )
-        else {
-          const source = ts.createSourceFile(file, read(file), ts.ScriptTarget.Latest)
-          for (const statement of source.statements) {
-            if (
-              !ts.isImportDeclaration(statement) ||
-              !ts.isStringLiteral(statement.moduleSpecifier) ||
-              statement.moduleSpecifier.text !== specifier ||
-              isTypesOnly(statement)
-            )
-              continue
-            const bindings = statement.importClause?.namedBindings
-            if (
-              statement.importClause?.name ||
-              !bindings ||
-              !ts.isNamedImports(bindings) ||
-              bindings.elements.some(
-                (binding) =>
-                  !binding.isTypeOnly &&
-                  !['toast', 'useToast'].includes((binding.propertyName ?? binding.name).text)
-              )
-            )
-              report('seam-closure', file, 'The legacy adapter exposes only toast and useToast')
-          }
-        }
-        continue
       }
-      const target = resolveSource(file, specifier)
-      if (!target || visited.has(target)) continue
-      visited.add(target)
-      queue.push(target)
-      const view = /^(?:app|components|ee\/[^/]+\/components)\/.*\.tsx$/.test(target)
-      if (seamClosureBanned.test(target) || (view && !seamClosureViews.has(target)))
-        report(
-          'seam-closure',
-          target,
-          `The data seam bundles this legacy module through ${file}; cut that edge`
-        )
     }
+    return visited
   }
 }
 
@@ -1435,6 +1820,10 @@ for (const file of sourceFiles) {
   else if (file.startsWith(platform) || isSystem(file)) {
     const sheet = postcss.parse(source, { from: file })
     sheets.set(file, sheet)
+    if (file.startsWith(WORKFLOW_CANVAS))
+      sheet.walkDecls(/^--/, (decl) => {
+        workflowCanvasTokens.add(decl.prop)
+      })
     if (isFoundation(file) || file === 'platform/styles/bootstrap.css')
       sheet.walkDecls(/^--/, (decl) => {
         tokens.add(decl.prop)

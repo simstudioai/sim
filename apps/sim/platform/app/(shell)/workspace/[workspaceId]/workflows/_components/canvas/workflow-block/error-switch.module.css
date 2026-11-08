@@ -1,0 +1,75 @@
+/* The legacy Switch root and thumb, scaled to the error row. */
+.switch {
+  position: relative;
+  display: inline-flex;
+  height: 1.25rem;
+  width: 2.25rem;
+  flex-shrink: 0;
+  cursor: pointer;
+  align-items: center;
+  border-radius: 9999px;
+  background-color: var(--wf-border-1);
+  transition-property:
+    color, background-color, border-color, outline-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.15s;
+  scale: 0.72;
+}
+
+.switch::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+}
+
+.switch:focus-visible {
+  outline-style: none;
+  box-shadow:
+    0 0 0 2px var(--wf-surface-2),
+    0 0 0 4px var(--wf-text-muted);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .switch:focus-visible {
+    box-shadow:
+      0 0 0 2px var(--wf-surface-2),
+      0 0 0 4px color-mix(in srgb, var(--wf-text-muted) 30%, transparent);
+  }
+}
+
+@media (forced-colors: active) {
+  .switch:focus-visible {
+    outline-offset: 2px;
+    outline: 2px solid #0000;
+  }
+}
+
+.switch[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.switch[data-state="checked"] {
+  background-color: var(--wf-text-primary);
+}
+
+.thumb {
+  pointer-events: none;
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 9999px;
+  background-color: var(--wf-surface-2);
+  box-shadow: 0 1px 2px 0 #0000000d;
+  transition-property: transform, translate, scale, rotate;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.15s;
+}
+
+.thumb[data-state="checked"] {
+  translate: 18px 0;
+}
+
+.thumb[data-state="unchecked"] {
+  translate: 0.125rem 0;
+}

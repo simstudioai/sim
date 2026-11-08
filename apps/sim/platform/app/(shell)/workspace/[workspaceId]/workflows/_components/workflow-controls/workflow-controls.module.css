@@ -1,0 +1,28 @@
+.toolbar {
+  position: absolute;
+  inset-block-end: var(--spacing-12);
+  inset-inline-start: var(--spacing-12);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  padding: var(--ui-popup-padding);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu-shared);
+  color: var(--ui-ink);
+}
+
+.divider,
+.modeDivider {
+  flex: none;
+  inline-size: var(--spacing-stroke-default);
+  block-size: var(--spacing-20);
+  margin-inline: var(--spacing-4);
+  background: var(--ui-divider);
+}
+
+@media (width < 48rem) {
+  .modeDivider {
+    display: none;
+  }
+}

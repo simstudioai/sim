@@ -1,0 +1,42 @@
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-label-gap);
+  min-inline-size: 0;
+}
+
+.groupLabel {
+  color: var(--ui-ink);
+}
+
+.capabilities {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  min-inline-size: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+
+.prose {
+  color: var(--ui-secondary);
+}
+
+.statusRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  min-inline-size: 0;
+}

@@ -1347,7 +1347,6 @@
   "apps/sim/lib/api/contracts/demo-requests.ts#demoRequestSchema",
   "apps/sim/lib/api/contracts/deployments.ts#ActivateDeploymentVersionBody",
   "apps/sim/lib/api/contracts/deployments.ts#DeployedWorkflowStateResponse",
-  "apps/sim/lib/api/contracts/deployments.ts#DeploymentVersion",
   "apps/sim/lib/api/contracts/deployments.ts#UndeployWorkflowResponse",
   "apps/sim/lib/api/contracts/deployments.ts#UpdateDeploymentVersionMetadataBody",
   "apps/sim/lib/api/contracts/deployments.ts#UpdatePublicApiBody",

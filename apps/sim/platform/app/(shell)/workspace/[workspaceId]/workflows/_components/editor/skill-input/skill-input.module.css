@@ -1,0 +1,72 @@
+.skills {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  gap: var(--ui-list-gap);
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-app-chip);
+  padding-inline-end: calc(
+    (var(--spacing-app-chip) - var(--spacing-24)) /
+    2 -
+    var(--spacing-stroke-default)
+  );
+  gap: var(--ui-action-gap);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-ink);
+}
+
+.row:has(button.rowMain:hover) {
+  border-color: var(--control-hover-border);
+}
+
+.rowMain {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  align-self: stretch;
+  min-inline-size: 0;
+  padding-inline: var(--spacing-8);
+  gap: var(--ui-row-gap);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+}
+
+button.rowMain {
+  cursor: pointer;
+}
+
+.glyph {
+  display: inline-flex;
+  flex: none;
+  color: var(--ui-secondary);
+}
+
+.name {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.contentField {
+  display: contents;
+}

@@ -1,0 +1,148 @@
+/* The legacy ChipTag base (`inline-flex items-center rounded-md text-sm leading-5 h-5 gap-[3px] px-1`); literal
+   so a tile outside the canvas tokens keeps its radius. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  transition-property:
+    color, background-color, border-color, outline-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.15s;
+  height: 1.25rem;
+  gap: 3px;
+  padding-inline: 0.25rem;
+}
+
+/* `mono`: the trough surface with strong text. */
+.mono {
+  background-color: var(--wf-surface-5);
+  color: var(--wf-text-primary);
+}
+
+.mono:where([class~="dark"], [class~="dark"] *):not(:where([class~="light"], [class~="light"] *)) {
+  background-color: var(--wf-surface-4);
+}
+
+/* `workflow` tones: fixed brand values, one per theme. */
+.neutral {
+  background-color: #fff;
+  color: #1a1a1a;
+  box-shadow: inset 0 0 0 1px #c3c3c3;
+}
+
+.inverse {
+  background-color: #3b3b3b;
+  color: #f8f8f8;
+}
+
+.ash {
+  background-color: #e6e6e6;
+  color: #1a1a1a;
+}
+
+.orange {
+  background-color: #ff4c00;
+  color: #f8f8f8;
+}
+
+.blue {
+  background-color: #0062ff;
+  color: #f8f8f8;
+}
+
+.green {
+  background-color: #188f00;
+  color: #f8f8f8;
+}
+
+.yellow {
+  background-color: #ffef08;
+  color: #1a1a1a;
+}
+
+.purple {
+  background-color: #a0f;
+  color: #f8f8f8;
+}
+
+.identity {
+  background-color: #8b5cf6;
+  color: #f8f8f8;
+}
+
+.content {
+  background-color: #007e80;
+  color: #fff;
+}
+
+/* `brand`: the provider fill arrives inline; the foreground follows the tile contrast rule. */
+.brandLight {
+  color: #fff;
+}
+
+.brandDark {
+  color: #000;
+}
+
+/*
+ * Layouts: the legacy `className` each canvas caller merged over the base. They follow the paints
+ * so the later declaration wins, as tailwind-merge kept the caller's class.
+ */
+.square {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  justify-content: center;
+  padding: 0;
+}
+
+.tag {
+  flex-shrink: 0;
+  justify-content: center;
+  transition-property: opacity;
+  transition-duration: 0.15s;
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.dimmed {
+  opacity: 0.5;
+}
+
+.inline {
+  display: inline-flex;
+  max-width: 160px;
+  translate: 0 -1px;
+  background-color: var(--wf-surface-2);
+  vertical-align: middle;
+  box-shadow: inset 0 0 0 1px var(--wf-border-1);
+}
+
+.inline:where([class~="dark"], [class~="dark"] *):not(
+    :where([class~="light"], [class~="light"] *)
+  ) {
+  background-color: var(--wf-surface-2);
+}
+
+.muted {
+  color: var(--wf-text-muted);
+}
+
+.tile {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  justify-content: center;
+  padding: 0;
+}
+
+.tileLg {
+  width: 18px;
+  height: 18px;
+}
+
+.tileSm {
+  width: 14px;
+  height: 14px;
+}

@@ -21,7 +21,9 @@ export default async function RootLayout({ children }: RootLayoutProps) {
       ? (await import('@/platform/lib/data/public-env')).readPublicEnvAttribute()
       : undefined
   return (
-    <html lang='en' data-public-env={publicEnv}>
+    // The Workflows tab's persisted editor stores write their sizes onto this element as they rehydrate,
+    // before React does, as the legacy root allows.
+    <html lang='en' data-public-env={publicEnv} suppressHydrationWarning>
       <body>
         <AssetsProvider basePath={process.env.NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH ?? ''}>
           {children}

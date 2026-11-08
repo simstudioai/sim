@@ -1,0 +1,160 @@
+.viewer {
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: auto;
+  overscroll-behavior: none;
+  padding-block: var(--spacing-4);
+  color: var(--ui-ink);
+}
+
+.viewer[data-wrap] {
+  overflow-x: hidden;
+}
+
+/* A line grows past the viewport when it does not wrap, so the viewport scrolls sideways. */
+.row {
+  display: flex;
+  align-items: flex-start;
+  inline-size: max-content;
+  min-inline-size: 100%;
+}
+
+.viewer[data-wrap] .row {
+  inline-size: 100%;
+}
+
+.gutter {
+  flex: none;
+  inline-size: var(--spacing-20);
+  margin-inline-start: var(--spacing-8);
+  padding-inline-end: var(--spacing-2);
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  user-select: none;
+}
+
+.gutter[data-digits="3"] {
+  inline-size: var(--spacing-30);
+}
+
+.gutter[data-digits="4"] {
+  inline-size: calc(var(--spacing-36) + var(--spacing-2));
+}
+
+.gutter[data-digits="5"] {
+  inline-size: calc(var(--spacing-44) + var(--spacing-2));
+}
+
+.gutter[data-digits="6"] {
+  inline-size: calc(var(--spacing-52) + var(--spacing-2));
+}
+
+.fold {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  inline-size: var(--spacing-12);
+  margin-inline-start: var(--spacing-4);
+}
+
+.foldButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--spacing-12);
+  block-size: var(--spacing-20);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ui-secondary);
+  cursor: pointer;
+}
+
+.foldButton:hover {
+  color: var(--ui-ink);
+}
+
+.foldButton > svg {
+  inline-size: var(--spacing-12);
+  block-size: var(--spacing-12);
+  transform: rotate(90deg);
+  transition: transform var(--ui-motion-position);
+}
+
+.foldButton[data-collapsed] > svg {
+  transform: none;
+}
+
+.code {
+  flex: 1;
+  margin: 0;
+  padding-inline: var(--spacing-8);
+  font-variant-ligatures: none;
+  white-space: pre;
+}
+
+.viewer[data-wrap] .code {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.code [data-token~="comment"],
+.code [data-token~="block-comment"],
+.code [data-token~="prolog"],
+.code [data-token~="doctype"],
+.code [data-token~="cdata"] {
+  color: var(--ui-secondary);
+}
+
+.code [data-token~="punctuation"],
+.code [data-token~="operator"],
+.code [data-token~="entity"],
+.code [data-token~="url"],
+.code [data-token~="symbol"] {
+  color: var(--ui-ink);
+}
+
+.code [data-token~="property"],
+.code [data-token~="attr-name"],
+.code [data-token~="variable"],
+.code [data-token~="atrule"],
+.code [data-token~="attr-value"],
+.code [data-token~="keyword"] {
+  color: var(--status-info);
+}
+
+.code [data-token~="tag"],
+.code [data-token~="boolean"],
+.code [data-token~="number"],
+.code [data-token~="constant"] {
+  color: var(--status-success);
+}
+
+.code [data-token~="string"],
+.code [data-token~="char"],
+.code [data-token~="builtin"],
+.code [data-token~="inserted"],
+.code [data-token~="function"],
+.code [data-token~="class-name"] {
+  color: var(--status-warning);
+}
+
+.code [data-token~="regex"],
+.code [data-token~="important"],
+.code [data-token~="deleted"] {
+  color: var(--control-danger);
+}
+
+.code mark[data-search-match] {
+  border-radius: var(--radius-2);
+  background: var(--status-warning-soft);
+  color: inherit;
+}
+
+.code mark[data-current] {
+  background: var(--status-warning);
+  color: var(--control-on-solid);
+}

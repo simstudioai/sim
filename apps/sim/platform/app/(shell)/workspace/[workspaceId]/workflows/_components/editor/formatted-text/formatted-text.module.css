@@ -1,0 +1,9 @@
+.reference {
+  color: var(--status-info);
+}
+
+.searchMatch {
+  border-radius: var(--radius-2);
+  background: var(--status-warning-soft);
+  color: inherit;
+}

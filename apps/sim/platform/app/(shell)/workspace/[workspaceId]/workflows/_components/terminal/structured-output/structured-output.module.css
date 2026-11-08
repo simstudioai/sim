@@ -1,0 +1,103 @@
+.tree {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: auto;
+  overscroll-behavior: none;
+  padding: var(--spacing-4) var(--spacing-8) var(--spacing-8) var(--spacing-20);
+  color: var(--ui-ink);
+}
+
+.tree[data-wrap] {
+  overflow-x: hidden;
+}
+
+.node {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+/* A key reads at the tree's text edge; its hover surface reaches into the inset, as a chip does. */
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  min-block-size: var(--spacing-app-chip);
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  padding-inline: var(--ui-row-inset);
+  border-radius: var(--ui-control-radius);
+  cursor: pointer;
+}
+
+.header:hover {
+  background: var(--ui-hover);
+}
+
+.key {
+  min-inline-size: 0;
+  color: var(--ui-ink);
+}
+
+.key[data-error] {
+  color: var(--control-danger);
+}
+
+.summary {
+  color: var(--ui-secondary);
+}
+
+.chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--ui-secondary);
+}
+
+.chevron[data-collapsed] > svg {
+  transform: rotate(-90deg);
+}
+
+.children {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  min-inline-size: 0;
+  margin-block-start: var(--spacing-2);
+  margin-inline-start: var(--spacing-3);
+  padding-inline-start: var(--spacing-9);
+  border-inline-start: var(--spacing-stroke-hairline) solid var(--ui-divider);
+}
+
+.value {
+  min-inline-size: 0;
+  padding-block: var(--spacing-2);
+  color: var(--ui-ink);
+  white-space: nowrap;
+}
+
+.value[data-wrap] {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.value[data-error] {
+  color: var(--control-danger);
+}
+
+.empty {
+  padding-block: var(--spacing-2);
+  color: var(--ui-secondary);
+}
+
+.match {
+  border-radius: var(--radius-2);
+  background: var(--status-warning-soft);
+  color: inherit;
+}
+
+.match[data-current] {
+  background: var(--status-warning);
+  color: var(--control-on-solid);
+}

@@ -1,0 +1,94 @@
+.list {
+  flex: 1;
+  min-block-size: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: none;
+  padding: var(--spacing-2) var(--spacing-8) var(--spacing-8);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+}
+
+/* The chip's geometry, with the duration pushed to the row's end. */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-row-gap);
+  inline-size: 100%;
+  min-block-size: var(--spacing-app-chip);
+  padding-inline: var(--ui-row-inset);
+  border: 0;
+  border-radius: var(--ui-control-radius);
+  background: transparent;
+  color: var(--ui-ink);
+  text-align: start;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--ui-hover);
+}
+
+.row:active,
+.row[aria-current="true"] {
+  background: var(--ui-selected);
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+}
+
+.tile {
+  display: inline-flex;
+  flex: none;
+}
+
+.label {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.label[data-error] {
+  color: var(--control-danger);
+}
+
+.chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--ui-secondary);
+}
+
+.chevron[data-collapsed] > svg {
+  transform: rotate(-90deg);
+}
+
+.duration {
+  flex: none;
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A rule between runs, set below the previous run's last row. */
+.separator {
+  display: flex;
+  align-items: flex-end;
+  block-size: var(--spacing-6);
+}
+
+.separator::after {
+  flex: 1;
+  border-block-start: var(--spacing-stroke-hairline) solid var(--ui-divider);
+  content: "";
+}

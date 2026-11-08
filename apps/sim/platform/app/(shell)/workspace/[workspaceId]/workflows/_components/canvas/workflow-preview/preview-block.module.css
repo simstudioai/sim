@@ -1,0 +1,199 @@
+/*
+ * The legacy preview card, converted class for class from its compiled Tailwind
+ * (`--wf-*` are the legacy canvas tokens the canvas token scope defines). Tailwind's composed ring
+ * variables are flattened to the box-shadow they produce.
+ */
+
+/*
+ * `relative w-[250px] select-none rounded-2xl border-[length:var(--preview-border-width)]
+ * border-[var(--border)] bg-[var(--surface-2)]`; the width itself is set inline from
+ * `PREVIEW_CARD_BORDER_WIDTH`, which the dimension math shares.
+ */
+.card {
+  position: relative;
+  width: 250px;
+  -webkit-user-select: none;
+  user-select: none;
+  border-radius: 1rem;
+  border-style: solid;
+  border-color: var(--wf-border);
+  background-color: var(--wf-surface-2);
+}
+
+/* `border-[var(--border)] bg-[var(--surface-1)] [&>[data-ghost-content]]:opacity-45` */
+.ghost {
+  border-color: var(--wf-border);
+  background-color: var(--wf-surface-1);
+}
+
+.ghost > [data-ghost-content] {
+  opacity: 0.45;
+}
+
+/* `pointer-events-none absolute inset-0 z-40 rounded-2xl ring-[1.5px]` */
+.ring {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  border-radius: 1rem;
+}
+
+/* `ring-[var(--text-secondary)]` */
+.ringSelected {
+  box-shadow: 0 0 0 1.5px var(--wf-text-secondary);
+}
+
+/* `ring-[var(--brand-accent)]` */
+.ringAdded {
+  box-shadow: 0 0 0 1.5px var(--wf-brand-accent);
+}
+
+/* `ring-[var(--warning)]` */
+.ringModified {
+  box-shadow: 0 0 0 1.5px var(--wf-warning);
+}
+
+/* `ring-[var(--brand-accent)]` */
+.ringSuccess {
+  box-shadow: 0 0 0 1.5px var(--wf-brand-accent);
+}
+
+/* `ring-[var(--text-error)]` */
+.ringError {
+  box-shadow: 0 0 0 1.5px var(--wf-text-error);
+}
+
+/* The input port over React Flow's handle defaults: `border-none! bg-[var(--surface-7)]! h-5! w-[7px]! rounded-xs!` */
+.handleTarget {
+  top: 50% !important;
+  left: -7px !important;
+  transform: translateY(-50%) !important;
+  border-style: none !important;
+  background-color: var(--wf-surface-7) !important;
+  height: 1.25rem !important;
+  width: 7px !important;
+  border-radius: 2px !important;
+}
+
+/* `z-[10]! border-none! bg-[var(--workflow-edge)]! h-5! w-[7px]! rounded-r-[2px]! rounded-l-none!` */
+.handleSource {
+  top: 50% !important;
+  right: -7px !important;
+  transform: translateY(-50%) !important;
+  z-index: 10 !important;
+  border-style: none !important;
+  background-color: var(--wf-workflow-edge) !important;
+  height: 1.25rem !important;
+  width: 7px !important;
+  border-top-right-radius: 2px !important;
+  border-bottom-right-radius: 2px !important;
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+}
+
+/* `z-[10]! border-none! bg-[var(--text-error)]! h-[7px]! w-6! rounded-b-[2px]! rounded-t-none!` */
+.handleError {
+  z-index: 10 !important;
+  border-style: none !important;
+  background-color: var(--wf-text-error) !important;
+  height: 7px !important;
+  width: 1.5rem !important;
+  border-bottom-right-radius: 2px !important;
+  border-bottom-left-radius: 2px !important;
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+}
+
+/* `flex h-[40px] items-center justify-between px-2` */
+.header {
+  display: flex;
+  height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: 0.5rem;
+}
+
+/* `relative z-10 flex min-w-0 flex-1 items-center` */
+.titleWrap {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+}
+
+/* `text-[17px]` */
+.title {
+  font-size: 17px;
+}
+
+/* `text-[var(--text-muted)]` */
+.titleDisabled {
+  color: var(--wf-text-muted);
+}
+
+/* `flex flex-col gap-2 p-2` */
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+/* `flex h-5 items-center gap-2` */
+.row {
+  display: flex;
+  height: 1.25rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* `-mx-1 rounded-sm bg-[color-mix(in_srgb,var(--warning)_14%,transparent)] px-1` */
+.rowChanged {
+  margin-inline: -0.25rem;
+  border-radius: calc(var(--wf-radius) - 4px);
+  background-color: var(--wf-warning);
+  padding-inline: 0.25rem;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .rowChanged {
+    background-color: color-mix(in srgb, var(--wf-warning) 14%, transparent);
+  }
+}
+
+/* `text-[var(--text-tertiary)] text-sm capitalize` */
+.rowTitle {
+  color: var(--wf-text-tertiary);
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+  text-transform: capitalize;
+}
+
+/* `flex-1 text-right text-[var(--text-primary)] text-sm` */
+.rowValue {
+  flex: 1;
+  text-align: right;
+  color: var(--wf-text-primary);
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+}
+
+/*
+ * `rounded-sm bg-[color-mix(in_srgb,var(--warning)_18%,transparent)]
+ * ring-1 ring-[color-mix(in_srgb,var(--warning)_45%,transparent)]`
+ */
+.changedChip {
+  border-radius: calc(var(--wf-radius) - 4px);
+  background-color: var(--wf-warning);
+  box-shadow: 0 0 0 1px var(--wf-warning);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .changedChip {
+    background-color: color-mix(in srgb, var(--wf-warning) 18%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--wf-warning) 45%, transparent);
+  }
+}

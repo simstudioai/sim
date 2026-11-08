@@ -1,0 +1,35 @@
+.text {
+  padding: var(--spacing-12);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--control-muted-fill);
+  color: var(--ui-secondary);
+}
+
+.rich {
+  white-space: normal;
+}
+
+.rich a {
+  color: var(--status-info);
+  text-decoration: underline;
+  text-underline-offset: var(--spacing-2);
+}
+
+.rich code {
+  padding: 0 var(--spacing-4);
+  border-radius: var(--radius-2);
+  background: var(--ui-hover);
+  font-family: var(--font-mono);
+}
+
+.rich strong {
+  color: var(--ui-ink);
+}
+
+.rich ul {
+  margin-inline-start: var(--spacing-20);
+  list-style: disc;
+}

@@ -1,0 +1,7 @@
+/* Low specificity, so a caller's size class wins as tailwind-merge let it in legacy. */
+:where(.image) {
+  inline-size: 100%;
+  block-size: 100%;
+  border-radius: 4px;
+  object-fit: contain;
+}

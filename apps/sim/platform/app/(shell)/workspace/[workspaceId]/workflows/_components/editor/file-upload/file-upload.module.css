@@ -1,0 +1,110 @@
+.fileUpload {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  min-inline-size: 0;
+}
+
+.note {
+  color: var(--ui-secondary);
+}
+
+.error {
+  color: var(--control-danger);
+}
+
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  min-inline-size: 0;
+}
+
+.file {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  min-inline-size: 0;
+  min-block-size: var(--spacing-app-chip);
+  padding-inline: var(--spacing-8) var(--spacing-2);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-ink);
+}
+
+.fileText {
+  display: flex;
+  flex: 1;
+  align-items: baseline;
+  gap: var(--spacing-8);
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.fileName {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fileSize {
+  flex: none;
+  color: var(--ui-secondary);
+}
+
+.fileActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+
+.fileStatus {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: var(--spacing-24);
+  block-size: var(--spacing-24);
+  color: var(--ui-secondary);
+}
+
+.progressBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.progress {
+  display: block;
+  inline-size: 100%;
+  block-size: var(--spacing-4);
+  overflow: hidden;
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--ui-hover);
+  color: var(--ui-ink);
+}
+
+.progress::-webkit-progress-bar {
+  border-radius: var(--radius-full);
+  background: var(--ui-hover);
+}
+
+.progress::-webkit-progress-value {
+  border-radius: var(--radius-full);
+  background: var(--ui-ink);
+}
+
+.progress::-moz-progress-bar {
+  border-radius: var(--radius-full);
+  background: var(--ui-ink);
+}
+
+.progressStatus {
+  color: var(--ui-secondary);
+  text-align: center;
+}

@@ -1,0 +1,65 @@
+.error {
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--control-danger);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.generate {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  min-inline-size: 0;
+}
+
+.generateInput {
+  inline-size: calc(var(--spacing-224) - var(--spacing-4));
+  min-inline-size: 0;
+  block-size: var(--spacing-24);
+  padding-inline: var(--spacing-8);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-ink);
+}
+
+.generateInput::placeholder {
+  color: var(--ui-secondary);
+  opacity: 1;
+}
+
+.generateInput:disabled {
+  color: var(--ui-secondary);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  min-inline-size: 0;
+  padding-block-start: var(--spacing-8);
+}
+
+.editor {
+  display: grid;
+  grid-template-rows: minmax(calc(var(--spacing-20) * 21), auto);
+  min-inline-size: 0;
+}
+
+.editor[data-with-parameters] {
+  grid-template-rows: minmax(calc(var(--spacing-20) * 19), auto);
+}
+
+.parameters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-stack-gap) var(--spacing-6);
+  color: var(--ui-secondary);
+}
+
+.paramType {
+  flex: none;
+  color: var(--ui-secondary);
+}

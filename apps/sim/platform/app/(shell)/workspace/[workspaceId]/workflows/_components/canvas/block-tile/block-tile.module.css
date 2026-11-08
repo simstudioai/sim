@@ -1,0 +1,76 @@
+/*
+ * The legacy block tile: a provider-filled slot (`chipIconSlotClass` + `overflow-hidden rounded-md
+ * [&_img]:size-full`) or the canvas role accent, at 18, 16 or 14px.
+ */
+.tile {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.tile img {
+  width: 100%;
+  height: 100%;
+}
+
+.sizeLg {
+  width: 18px;
+  height: 18px;
+}
+
+.sizeMd {
+  width: 16px;
+  height: 16px;
+}
+
+.sizeSm {
+  width: 14px;
+  height: 14px;
+}
+
+.glyph,
+.accentGlyph {
+  width: 10px;
+  height: 10px;
+}
+
+.glyphLg,
+.accentGlyphLg {
+  width: 12px;
+  height: 12px;
+}
+
+/* `transition-transform duration-100 group-hover:scale-110`, under a caller's `group` row. */
+.glyphMotion {
+  transition-property: transform, translate, scale, rotate;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.1s;
+}
+
+[class~="group"]:hover .glyphMotion {
+  scale: 1.1;
+}
+
+/* A brand tile's glyph and initial contrast its fixed fill, over the icon's own color. */
+.inkLight {
+  color: #fff !important;
+}
+
+.inkDark {
+  color: #000 !important;
+}
+
+.fallbackLabel {
+  font-weight: 700;
+  font-size: 10px;
+}
+
+/* The header tag's glyph: `size-[14px] shrink-0`. */
+.tagGlyph {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}

@@ -1,0 +1,6 @@
+.code {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-label-gap);
+  min-inline-size: 0;
+}

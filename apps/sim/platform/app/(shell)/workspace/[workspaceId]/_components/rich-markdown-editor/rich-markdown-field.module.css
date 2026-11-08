@@ -1,0 +1,21 @@
+/*
+ * The field draws no frame and sets no type: its host owns the surface, type ramp and ink, scoped
+ * from the host's own wrapper. It only lays the editor out to fill the host and anchors the bars.
+ */
+.field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-block-size: 100%;
+  inline-size: 100%;
+}
+.content,
+.content > div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+.editor {
+  flex: 1;
+  outline: none;
+}

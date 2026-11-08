@@ -1,0 +1,11 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  min-inline-size: 0;
+  border-radius: var(--radius-control);
+}
+
+.picker[data-search-match] {
+  box-shadow: 0 0 0 var(--spacing-stroke-focus) var(--status-warning);
+}

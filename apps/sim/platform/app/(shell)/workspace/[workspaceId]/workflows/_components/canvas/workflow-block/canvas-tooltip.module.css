@@ -1,0 +1,27 @@
+/* The EMCN tooltip surface (its tooltip.module.css), for the card's own triggers. */
+.tooltip {
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+  width: max-content;
+  max-width: min(var(--container-app-sidebar), 90vw);
+  padding: var(--spacing-6) var(--spacing-8);
+  border-radius: var(--radius-item);
+  background: var(--control-tooltip);
+  color: var(--control-tooltip-ink);
+  overflow-wrap: anywhere;
+}
+
+.tooltip[data-positioned] {
+  visibility: visible;
+}
+
+.content {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}

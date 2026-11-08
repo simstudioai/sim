@@ -1,0 +1,398 @@
+/*
+ * The legacy action bar's compiled Tailwind, rule for rule and in the legacy cascade order, so the bar
+ * painted in a card's border swell keeps its exact pixels. The `group-data-[…]` variants keyed on the
+ * card root (another component's module) read the root's data attribute directly, which keeps their
+ * specificity; `dark:` reads the theme class React Flow's wrapper carries.
+ */
+
+.bar {
+  position: absolute;
+  border-radius: var(--wf-radius);
+}
+
+.swell {
+  pointer-events: auto;
+  top: -28px;
+  right: 24px;
+  z-index: 40;
+  height: 28px;
+  width: fit-content;
+  overflow: hidden;
+  padding-inline: 0.2rem;
+  padding-block: calc(0.25rem * 0.5);
+}
+
+.floating {
+  pointer-events: auto;
+  top: -40px;
+  right: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  border-style: solid;
+  border-width: 1.5px;
+  border-color: var(--wf-border-1);
+  background-color: var(--wf-surface-2);
+  padding: 3px;
+  opacity: 0;
+  transition-property: opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.15s;
+}
+
+/* Legacy `group-hover:` keyed on the card root, which fills its React Flow node. */
+.floating:is(:where([class~="react-flow__node"]):hover *) {
+  opacity: 1;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+}
+
+.rowSwell {
+  pointer-events: none;
+  height: 100%;
+  opacity: 0;
+  transition-property: opacity;
+  transition-duration: 0.15s;
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.rowSwell:is([data-action-menu-ready] *) {
+  pointer-events: auto;
+  opacity: 1;
+  transition-duration: 0.1s;
+}
+
+.hatch {
+  pointer-events: none;
+  position: absolute;
+  inset-block: 0;
+  right: 0;
+  overflow: hidden;
+}
+
+.hatchPlain {
+  left: 26px;
+}
+
+.hatchSwell {
+  left: 42px;
+  clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 100%, 0 100%);
+}
+
+.hatchFill {
+  display: block;
+  height: 100%;
+  width: calc(100% + 26px);
+  animation: 0.9s linear infinite hatchScroll;
+  background-image: repeating-linear-gradient(
+    75deg,
+    var(--wf-surface-2) 11.59px 22.805px,
+    transparent 23.555px 24.735px,
+    var(--wf-surface-2) 25.485px 36.7px
+  );
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hatchFill {
+    animation: none;
+  }
+}
+
+@keyframes hatchScroll {
+  from {
+    transform: translateX(-26px);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Legacy emcn `Button variant='ghost'` merged with the bar's own action classes. */
+.button {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: calc(var(--wf-radius) - 2px);
+  border-style: none;
+  background-color: #0000;
+  padding: 0;
+  font-size: 12px;
+  color: var(--wf-text-icon);
+  outline-style: none;
+  transition-property: background-color, color, opacity, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.15s;
+}
+
+@media (forced-colors: active) {
+  .button,
+  .button:focus,
+  .button:focus-visible {
+    outline-offset: 2px;
+    outline: 2px solid #0000;
+  }
+}
+
+.button:focus,
+.button:focus-visible {
+  outline-style: none;
+}
+
+.button:active {
+  scale: 0.96;
+}
+
+.button:disabled {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .button:hover {
+    background-color: var(--wf-surface-5);
+    color: var(--wf-text-primary) !important;
+  }
+
+  .button:where([class~="dark"], [class~="dark"] *):not(
+      :where([class~="light"], [class~="light"] *)
+    ):hover {
+    background-color: var(--wf-surface-4);
+  }
+}
+
+.icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* Icons follow the swell's own fill, which the card publishes as `data-node-selected`. */
+.swellButton:is([data-node-selected] *) {
+  color: var(--wf-surface-2);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .swellButton:hover:is([data-node-selected] *) {
+    background-color: var(--wf-surface-2);
+    color: var(--wf-text-primary) !important;
+  }
+}
+
+.toggled {
+  background-color: var(--wf-text-secondary);
+  color: var(--wf-text-inverse);
+}
+
+.running {
+  background-color: var(--wf-text-secondary) !important;
+  color: var(--wf-text-inverse) !important;
+}
+
+.running:focus-visible {
+  background-color: var(--wf-white) !important;
+  color: var(--wf-surface-inverted) !important;
+}
+
+.running:where([class~="dark"], [class~="dark"] *):not(
+    :where([class~="light"], [class~="light"] *)
+  ):focus-visible {
+  background-color: var(--wf-surface-4) !important;
+  color: var(--wf-text-primary) !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .running:hover {
+    background-color: var(--wf-white) !important;
+    color: var(--wf-surface-inverted) !important;
+  }
+
+  .running:where([class~="dark"], [class~="dark"] *):not(
+      :where([class~="light"], [class~="light"] *)
+    ):hover {
+    background-color: var(--wf-surface-4) !important;
+    color: var(--wf-text-primary) !important;
+  }
+}
+
+/* End slots: the swell's diagonal taper cut into a 40px button, glyph shifted off the cut. */
+.first {
+  width: 40px !important;
+  clip-path: path(
+    "M23.75 0A8 8 0 0 0 17.6 2.88L3.41 19.9A2.5 2.5 0 0 0 5.34 24L36 24A4 4 0 0 0 40 20L40 4A4 4 0 0 0 36 0Z"
+  );
+}
+
+.firstWide > svg {
+  translate: 8px var(--wf-border-width);
+}
+
+.firstNarrow > svg {
+  translate: 6px var(--wf-border-width);
+}
+
+.last {
+  width: 40px !important;
+  clip-path: path(
+    "M16.25 0A8 8 0 0 1 22.4 2.88L36.59 19.9A2.5 2.5 0 0 1 34.66 24L4 24A4 4 0 0 1 0 20L0 4A4 4 0 0 1 4 0Z"
+  );
+}
+
+.last svg {
+  translate: calc(6px * -1) var(--wf-border-width);
+}
+
+.dimmed {
+  background-color: #0000 !important;
+  opacity: 0.25 !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dimmed:hover,
+  .dimmed:where([class~="dark"], [class~="dark"] *):not(
+      :where([class~="light"], [class~="light"] *)
+    ):hover {
+    background-color: #0000 !important;
+  }
+}
+
+.sweepSlot {
+  background-color: #0000 !important;
+  opacity: 1 !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .sweepSlot:hover {
+    background-color: #0000 !important;
+  }
+}
+
+.sweepSlot svg {
+  opacity: 0 !important;
+}
+
+.lockedDim {
+  opacity: 0.35 !important;
+}
+
+/* The running run button (`data-run-group`): a spinner that swaps to a stop glyph on hover or focus. */
+.runningIcon {
+  position: relative;
+  display: grid;
+  width: 14px;
+  height: 14px;
+  translate: 8px var(--wf-border-width);
+  place-items: center;
+}
+
+.srOnly {
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border-width: 0;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  position: absolute;
+  overflow: hidden;
+}
+
+.spinner,
+.stopGlyph {
+  grid-column-start: 1;
+  grid-row-start: 1;
+  transition-property: opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.1s;
+}
+
+.spinner {
+  opacity: 1;
+}
+
+.stopGlyph {
+  opacity: 0;
+}
+
+.spinner:is(:where([data-run-group]):hover *),
+.spinner:is(:where([data-run-group]):focus-visible *) {
+  opacity: 0;
+}
+
+.stopGlyph:is(:where([data-run-group]):hover *),
+.stopGlyph:is(:where([data-run-group]):focus-visible *) {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .spinner {
+    animation: spin 1s linear infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner,
+  .stopGlyph {
+    transition-property: none;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.stopIcon {
+  width: 11px;
+  height: 11px;
+  fill: currentColor;
+}
+
+.menuAnchor {
+  display: inline-flex;
+}
+
+/* The color picker popup is chrome: EMCN roles, a column of round swatches. */
+.swatches {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.swatchOption {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color var(--ui-motion-color);
+}
+
+.swatchOption:hover,
+.swatchOption:focus-visible {
+  background: var(--ui-hover);
+}
+
+.swatch {
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgb(0 0 0 / 0.15);
+  border-radius: 999px;
+}
+
+.swatch[data-selected] {
+  box-shadow:
+    0 0 0 1px var(--ui-floating),
+    0 0 0 3px var(--ui-ink);
+}

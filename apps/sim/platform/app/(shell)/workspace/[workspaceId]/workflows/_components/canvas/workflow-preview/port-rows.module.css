@@ -1,0 +1,86 @@
+/*
+ * The legacy preview's port rows and their anchors, converted from its compiled Tailwind
+ * (`--wf-*` are the legacy canvas tokens the canvas token scope defines).
+ */
+
+/* `relative flex flex-col gap-2 p-2` */
+.rows {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+}
+
+/* `flex h-5 items-center gap-2` */
+.row {
+  display: flex;
+  height: 1.25rem;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* `opacity-45` */
+.removed {
+  opacity: 0.45;
+}
+
+/* `-mx-1 rounded-sm bg-[color-mix(in_srgb,var(--warning)_14%,transparent)] px-1` */
+.changed {
+  margin-inline: -0.25rem;
+  border-radius: calc(var(--wf-radius) - 4px);
+  background-color: var(--wf-warning);
+  padding-inline: 0.25rem;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .changed {
+    background-color: color-mix(in srgb, var(--wf-warning) 14%, transparent);
+  }
+}
+
+/* `text-[var(--text-tertiary)] text-sm` */
+.title {
+  color: var(--wf-text-tertiary);
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+}
+
+/* `flex-1 text-right text-[var(--text-primary)] text-sm` */
+.value {
+  flex: 1;
+  text-align: right;
+  color: var(--wf-text-primary);
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+}
+
+/* The anchors over React Flow's handle defaults: `z-[10]! h-5! w-[7px]! border-none! bg-[var(--workflow-edge)]!` */
+.handle {
+  z-index: 10 !important;
+  height: 1.25rem !important;
+  width: 7px !important;
+  border-style: none !important;
+  background-color: var(--wf-workflow-edge) !important;
+}
+
+/* `rounded-r-none! rounded-l-[2px]!` */
+.handleTarget {
+  border-top-right-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-top-left-radius: 2px !important;
+  border-bottom-left-radius: 2px !important;
+}
+
+/* `rounded-r-[2px]! rounded-l-none!` */
+.handleSource {
+  border-top-right-radius: 2px !important;
+  border-bottom-right-radius: 2px !important;
+  border-top-left-radius: 0 !important;
+  border-bottom-left-radius: 0 !important;
+}
+
+/* `opacity-45!` */
+.handleRemoved {
+  opacity: 0.45 !important;
+}

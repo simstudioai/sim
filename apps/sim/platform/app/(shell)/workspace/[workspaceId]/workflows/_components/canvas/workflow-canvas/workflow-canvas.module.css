@@ -1,0 +1,172 @@
+/*
+ * The workflow canvas frame. `.container` is the legacy canvas container: it carries the canvas
+ * tokens, the legacy document text base the blocks and notes inherit (the `body` and
+ * `.workspace-root` rules of the legacy app's globals.css), and the React Flow rules legacy declared
+ * globally. React Flow owns its own class names, so those rules name them as `[class~="…"]`
+ * attribute selectors, which CSS Modules leave unhashed, always scoped under this frame.
+ */
+.root {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.container {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  /* Menus and popovers portal above the canvas; React Flow's layers stay inside this context. */
+  isolation: isolate;
+  /*
+   * The in-flight line reads `--text-secondary`, not the `--workflow-edge` grey a resting edge
+   * uses: it has to stay legible over a subflow body as well as the canvas, and that grey is
+   * ~1.1:1 against one.
+   */
+  --connection-line-stroke: var(--wf-text-secondary);
+  font-family: var(
+    --font-season,
+    system-ui,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    "Noto Sans"
+  );
+  font-size: 16px;
+  font-feature-settings: normal;
+  font-variation-settings: normal;
+  line-height: 1.5;
+  /* Legacy `.workspace-root` sets 0.02em at the 16px document size; children inherit the length. */
+  letter-spacing: 0.32px;
+  color: var(--wf-text-primary);
+  text-rendering: optimizeSpeed;
+  /* Legacy never smooths its document text; the Platform surface does, which thins every glyph. */
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+  tab-size: 4;
+}
+
+.container[data-connection-line="error"] {
+  --connection-line-stroke: var(--wf-text-error);
+}
+
+:where(.container) *,
+:where(.container) *::before,
+:where(.container) *::after {
+  border-color: var(--wf-border);
+}
+
+:where(.container) * {
+  overscroll-behavior-x: none;
+}
+
+:where(.container) *:focus {
+  outline: none;
+}
+
+.container::selection,
+.container *::selection {
+  background-color: var(--wf-selection-muted);
+}
+
+:where(.container) :where(input, textarea, [contenteditable="true"]) {
+  caret-color: var(--wf-text-primary);
+}
+
+:where(.container) :where(code, kbd, samp, pre) {
+  letter-spacing: normal;
+}
+
+/*
+ * The subflow container carries legacy's `data-type="subflowNode"`, which EMCN's type reset
+ * (`[data-emcn] [data-type]`) reads as a type role and strips of the document tracking. Its header
+ * text inherits the canvas tracking in legacy, so it does here.
+ */
+.container [data-type="subflowNode"][data-node-id] {
+  letter-spacing: inherit;
+}
+
+.loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--wf-bg);
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: conic-gradient(
+    from 0deg,
+    hsl(var(--wf-muted-foreground)) 0deg 120deg,
+    transparent 120deg 180deg,
+    hsl(var(--wf-muted-foreground)) 180deg 300deg,
+    transparent 300deg 360deg
+  );
+  mask: radial-gradient(farthest-side, transparent calc(100% - 1.5px), black calc(100% - 1.5px));
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.flow {
+  height: 100%;
+  background-color: var(--wf-bg);
+  transition-property: opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.15s;
+  --xy-background-color: var(--wf-bg);
+  opacity: 0;
+}
+
+.flow[data-canvas-state="ready"] {
+  opacity: 1;
+}
+
+.flow[data-canvas-state="read-only"] {
+  opacity: 0.75;
+}
+
+/* The marquee: legacy's escaped `.react-flow__selection` utilities over its global box rule. */
+.flow [class~="react-flow__selection"] {
+  border: 1px solid var(--wf-text-secondary) !important;
+  background: color-mix(in oklch, var(--wf-text-secondary) 8%, transparent) !important;
+}
+
+.flow [class~="react-flow__nodesselection-rect"],
+.flow [class~="react-flow__nodesselection"] {
+  background: transparent !important;
+  border: none !important;
+  pointer-events: none !important;
+}
+
+.flow[data-canvas-mode="cursor"] [class~="react-flow__pane"],
+.flow[data-canvas-mode="cursor"] [class~="react-flow__selectionpane"] {
+  cursor: default !important;
+}
+
+.flow[data-canvas-mode="hand"] [class~="react-flow__pane"],
+.flow[data-canvas-mode="hand"] [class~="react-flow__selectionpane"] {
+  cursor: grab !important;
+}
+
+.flow[data-canvas-mode="hand"] [class~="react-flow__pane"]:active,
+.flow[data-canvas-mode="hand"] [class~="react-flow__selectionpane"]:active {
+  cursor: grabbing !important;
+}
+
+/* React Flow v12 emits no data-parent-node-id; nested nodes carry `subflow-child-node` instead. */
+.flow [class~="react-flow__node"][class~="subflow-child-node"] [class~="react-flow__handle"] {
+  z-index: 30;
+}

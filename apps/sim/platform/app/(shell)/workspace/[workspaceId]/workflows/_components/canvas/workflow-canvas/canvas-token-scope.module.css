@@ -1,0 +1,61 @@
+/*
+ * The legacy canvas document without a layout box: the text base the editor canvas's `.container`
+ * carries (the legacy app's `body` and `.workspace-root` rules), and its document-wide rules, for a
+ * canvas surface rendered elsewhere. `display: contents` keeps the surface inside sized by its real
+ * parent while every inherited property (tokens, face, tracking) still reaches it.
+ */
+.scope {
+  display: contents;
+  font-family: var(
+    --font-season,
+    system-ui,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    "Noto Sans"
+  );
+  font-size: 16px;
+  font-feature-settings: normal;
+  font-variation-settings: normal;
+  line-height: 1.5;
+  /* Legacy `.workspace-root` sets 0.02em at the 16px document size; children inherit the length. */
+  letter-spacing: 0.32px;
+  color: var(--wf-text-primary);
+  text-rendering: optimizeSpeed;
+  /* Legacy never smooths its document text; the Platform surface does, which thins every glyph. */
+  -webkit-font-smoothing: auto;
+  -moz-osx-font-smoothing: auto;
+  tab-size: 4;
+}
+
+:where(.scope) *,
+:where(.scope) *::before,
+:where(.scope) *::after {
+  border-color: var(--wf-border);
+}
+
+:where(.scope) * {
+  overscroll-behavior-x: none;
+}
+
+:where(.scope) *:focus {
+  outline: none;
+}
+
+.scope *::selection {
+  background-color: var(--wf-selection-muted);
+}
+
+:where(.scope) :where(code, kbd, samp, pre) {
+  letter-spacing: normal;
+}
+
+/*
+ * The subflow container carries legacy's `data-type="subflowNode"`, which EMCN's type reset
+ * (`[data-emcn] [data-type]`) reads as a type role and strips of the document tracking. Its header
+ * text inherits the canvas tracking in legacy, so it does here.
+ */
+.scope [data-type="subflowNode"][data-node-id] {
+  letter-spacing: inherit;
+}

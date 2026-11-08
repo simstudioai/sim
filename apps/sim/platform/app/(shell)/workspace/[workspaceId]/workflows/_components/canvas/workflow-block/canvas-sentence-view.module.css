@@ -1,0 +1,12 @@
+/* `min-w-0 break-words text-[var(--text-muted)] text-sm leading-6` */
+.sentence {
+  min-width: 0;
+  overflow-wrap: break-word;
+  color: var(--wf-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+}
+
+.chipText {
+  min-width: 0;
+}

@@ -1,0 +1,86 @@
+.branches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-stack);
+  min-inline-size: 0;
+}
+
+.branch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-label-gap);
+  min-inline-size: 0;
+}
+
+.branchHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-action-gap);
+  min-block-size: var(--spacing-24);
+  margin-block: calc((var(--spacing-18) - var(--spacing-24)) / 2);
+}
+
+.branchTitle {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  color: var(--ui-ink);
+}
+
+.branchActions {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+
+.route {
+  position: relative;
+  min-inline-size: 0;
+  min-block-size: calc(var(--spacing-20) * 5);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-ink);
+}
+
+.route:not([data-disabled]):hover {
+  border-color: var(--control-hover-border);
+}
+
+.routeMirror,
+.routeTextarea {
+  padding: var(--spacing-8);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.routeMirror {
+  pointer-events: none;
+}
+
+.route[data-disabled] .routeMirror {
+  opacity: var(--opacity-disabled);
+}
+
+.routeTextarea {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--ui-ink);
+  outline: none;
+  resize: none;
+}
+
+.routeTextarea::placeholder {
+  color: var(--ui-secondary);
+  opacity: 1;
+}
+
+.routeTextarea:disabled {
+  cursor: not-allowed;
+}

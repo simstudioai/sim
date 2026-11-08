@@ -1,0 +1,208 @@
+/* The legacy loop/parallel container's compiled classes, in the legacy cascade order. */
+
+.group {
+  pointer-events: none;
+  position: relative;
+}
+
+.actionBridge {
+  pointer-events: auto;
+  position: absolute;
+  top: -28px;
+  right: 0;
+  z-index: 10;
+  height: 28px;
+  width: 240px;
+}
+
+.container {
+  position: relative;
+  border-radius: 1rem;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.dropOutline {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  border-radius: 1rem;
+  opacity: 0;
+  box-shadow: 0 0 0 1.5px var(--wf-text-secondary);
+  transition-property: opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.1s;
+}
+
+[class~="subflow-node-drop-target"] .dropOutline {
+  opacity: 1;
+}
+
+/* Invisible React Flow handles aligned with the painted connection knobs. */
+.handle {
+  z-index: 20 !important;
+  height: 38px !important;
+  width: 14px !important;
+  cursor: crosshair !important;
+  border-radius: 0 !important;
+  border-style: none !important;
+  background-color: #0000 !important;
+  opacity: 0 !important;
+}
+
+.handleLeft {
+  left: -7px !important;
+}
+
+.handleRight {
+  right: -7px !important;
+}
+
+/* The Start pill's source handle centers on the pill and stays clickable inside the container. */
+.startHandle {
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  pointer-events: auto !important;
+}
+
+@media (pointer: coarse) {
+  .handle:before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+  }
+
+  .handleLeft:before {
+    right: 0;
+    left: -30px;
+  }
+
+  .handleRight:before {
+    right: -30px;
+    left: 0;
+  }
+}
+
+/* The temporary source handle under the pointer-following connection swell. */
+.cursorHandle {
+  z-index: 50 !important;
+  cursor: crosshair !important;
+  border-radius: 0 !important;
+  border-style: none !important;
+  background-color: #0000 !important;
+  opacity: 0 !important;
+}
+
+.header {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  cursor: grab;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: calc(0.25rem * 2);
+}
+
+.header:active {
+  cursor: grabbing;
+}
+
+.nameWrap {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  transition-property: opacity;
+  transition-duration: 0.15s;
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.dimmed {
+  opacity: 0.5;
+}
+
+.name {
+  font-size: 17px;
+}
+
+.nameDisabled {
+  color: var(--wf-text-muted);
+}
+
+.badges {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.stateIcon {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+.typeIcon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+.body {
+  position: absolute;
+  inset: 0;
+  top: 40px;
+  z-index: 10;
+  cursor: grab;
+  border-bottom-right-radius: 1rem;
+  border-bottom-left-radius: 1rem;
+}
+
+.body:active {
+  cursor: grabbing;
+}
+
+.resize {
+  pointer-events: auto;
+  position: absolute;
+  right: 8px;
+  bottom: calc(0.25rem * 2);
+  z-index: 20;
+  display: flex;
+  width: 32px;
+  height: 32px;
+  cursor: se-resize;
+  align-items: center;
+  justify-content: center;
+  color: hsl(var(--wf-muted-foreground));
+}
+
+.dragArea {
+  position: relative;
+  z-index: 20;
+}
+
+.start {
+  position: absolute;
+  top: calc(0.25rem * 3);
+  left: 16px;
+  display: flex;
+  height: 34px;
+  width: 58px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--wf-radius);
+}
+
+.startLabel {
+  position: relative;
+  z-index: 10;
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+  color: var(--wf-text-primary);
+}

@@ -1,0 +1,28 @@
+.entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-stack);
+  min-inline-size: 0;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-label-gap);
+  min-inline-size: 0;
+}
+
+.label {
+  color: var(--ui-ink);
+}
+
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-stack-gap);
+  color: var(--ui-secondary);
+}
+
+.noteTitle {
+  color: var(--ui-ink);
+}

@@ -1,0 +1,768 @@
+/*
+ * The legacy canvas Note: its card, header, expand control, scroll region, the per-color ink, and
+ * the markdown read view (Streamdown components), compiled class for class in the legacy cascade
+ * order.
+ */
+
+.layout {
+  position: relative;
+}
+
+.group {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  translate: calc(calc(1 / 2 * 100%) * -1) calc(calc(1 / 2 * 100%) * -1);
+}
+
+.actionBridge {
+  pointer-events: auto;
+  position: absolute;
+  inset-inline: 0;
+  top: -28px;
+  z-index: 10;
+  height: 28px;
+}
+
+.card {
+  position: relative;
+  z-index: 20;
+  border-radius: 1rem;
+  transition-property: color, width, height;
+  transition-duration: 0.15s, 0.28s, 0.28s;
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.cardExpanded {
+  cursor: default;
+}
+
+.cardIdle {
+  cursor: grab;
+}
+
+.cardFocused {
+  cursor: text;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition-property: none;
+  }
+}
+
+.cardIdle:active,
+.cardFocused:active {
+  cursor: grabbing;
+}
+
+/* The note colours' ink: card text, placeholder, selection tint and caret. */
+.placeholderDark {
+  color: #00000073;
+}
+
+.textDark {
+  color: #000000bf;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .placeholderDark {
+    color: color-mix(in oklab, #000 45%, transparent);
+  }
+
+  .textDark {
+    color: color-mix(in oklab, #000 75%, transparent);
+  }
+}
+
+.placeholderLight {
+  color: #ffffff8c;
+}
+
+.textLight {
+  color: #ffffffbf;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .placeholderLight {
+    color: color-mix(in oklab, #fff 55%, transparent);
+  }
+
+  .textLight {
+    color: color-mix(in oklab, #fff 75%, transparent);
+  }
+}
+
+.caretDark,
+.caretDark [contenteditable="true"] {
+  caret-color: #000;
+}
+
+.caretLight,
+.caretLight [contenteditable="true"] {
+  caret-color: #fff;
+}
+
+.selectionDark ::selection,
+.selectionDark::selection {
+  background-color: #00000026;
+}
+
+.selectionLight ::selection,
+.selectionLight::selection {
+  background-color: #ffffff40;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .selectionDark ::selection,
+  .selectionDark::selection {
+    background-color: color-mix(in oklab, #000 15%, transparent);
+  }
+
+  .selectionLight ::selection,
+  .selectionLight::selection {
+    background-color: color-mix(in oklab, #fff 25%, transparent);
+  }
+}
+
+.textDark:hover {
+  color: #171717;
+}
+
+.textLight:hover {
+  color: #fff;
+}
+
+.header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  height: calc(0.25rem * 10);
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: calc(0.25rem * 2);
+}
+
+.titleWrap {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  transition-property: opacity;
+  transition-duration: 0.15s;
+  transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.titleInput {
+  height: calc(0.25rem * 7);
+  width: 100%;
+  min-width: 0;
+  border-style: none;
+  background-color: #0000;
+  padding-inline: 0;
+  font-size: 17px;
+  color: currentColor;
+  caret-color: currentColor;
+  outline-style: none;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.titleInput:focus-visible {
+  outline-style: none;
+}
+
+@media (forced-colors: active) {
+  .titleInput,
+  .titleInput:focus-visible,
+  .expandButton,
+  .expandButton:focus,
+  .expandButton:focus-visible {
+    outline-offset: 2px;
+    outline: 2px solid #0000;
+  }
+}
+
+.titleButton {
+  min-width: 0;
+  flex: 1;
+  cursor: text;
+  border-radius: calc(var(--wf-radius) - 4px);
+  background-color: #0000;
+  text-align: left;
+}
+
+.title {
+  font-size: 17px;
+  color: currentColor;
+}
+
+.dimmed {
+  opacity: 0.5;
+}
+
+/* Legacy emcn `Button variant='ghost'` merged with the expand control's own classes. */
+.expandButton {
+  pointer-events: none;
+  margin-left: 0.25rem;
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: calc(var(--wf-radius) - 2px);
+  border-style: none;
+  background-color: #0000;
+  padding: 0;
+  font-size: 12px;
+  color: currentColor;
+  opacity: 0;
+  outline-style: none;
+  transition-property: background-color, color, opacity, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.15s;
+}
+
+.expandButton:is(:where(.group):hover *),
+.expandButton:is(:where(.group)[data-node-selected] *) {
+  pointer-events: auto;
+  opacity: 0.7;
+}
+
+.expandButton:focus,
+.expandButton:focus-visible {
+  outline-style: none;
+}
+
+.expandButton:active {
+  scale: 0.96;
+}
+
+.expandButton:disabled {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .expandButton:hover {
+    background-color: currentColor;
+  }
+
+  @supports (color: color-mix(in lab, red, red)) {
+    .expandButton:hover {
+      background-color: color-mix(in oklab, currentcolor 10%, transparent);
+    }
+  }
+
+  .expandButton:hover {
+    color: var(--wf-text-primary);
+    opacity: 1;
+  }
+}
+
+.expandGlyphs {
+  position: relative;
+  width: 14px;
+  height: 14px;
+}
+
+.expandGlyph {
+  position: absolute;
+  inset: 0;
+  width: 14px;
+  height: 14px;
+  transition-property: opacity, scale, filter;
+  transition-duration: 0.2s;
+  transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+}
+
+.glyphShown {
+  scale: 100% 100%;
+  opacity: 1;
+  filter: none;
+}
+
+.glyphHidden {
+  scale: 0.25;
+  opacity: 0;
+  filter: blur(4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expandGlyph {
+    transition-property: none;
+  }
+}
+
+.scrollRegion {
+  position: relative;
+  z-index: 10;
+  height: calc(100% - 40px);
+  max-width: 100%;
+  overflow-x: hidden;
+  padding-inline: calc(0.25rem * 2);
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow-wrap: break-word;
+  color: currentColor;
+  contain: layout;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollRegion::-webkit-scrollbar {
+  display: none;
+}
+
+.touchScroll {
+  touch-action: pan-y;
+}
+
+.scrollY {
+  overflow-y: auto;
+}
+
+.fadeBoth {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    black 12px,
+    black calc(100% - 12px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0px,
+    black 12px,
+    black calc(100% - 12px),
+    transparent 100%
+  );
+}
+
+.fadeTop {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0px, black 12px);
+  mask-image: linear-gradient(to bottom, transparent 0px, black 12px);
+}
+
+.fadeBottom {
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 12px), transparent 100%);
+  mask-image: linear-gradient(to bottom, black calc(100% - 12px), transparent 100%);
+}
+
+.editorHost {
+  min-height: 100%;
+  width: 100%;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.editOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  width: 100%;
+  cursor: text;
+  border-radius: calc(var(--wf-radius) - 4px);
+  background-color: #0000;
+}
+
+.measure {
+  position: relative;
+  max-width: 100%;
+  padding-top: calc(0.25rem * 0.5);
+  padding-bottom: calc(0.25rem * 2);
+}
+
+.measureCompact {
+  pointer-events: none;
+}
+
+.placeholder {
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+}
+
+/*
+ * Block rhythm for the markdown read view: Streamdown's own wrapper default, made the note's.
+ * `space-y-*` compiles to a zero-specificity `:where()`, so the per-element margins below win.
+ */
+.flow {
+  white-space: normal;
+}
+
+:where(.flow > :not(:last-child)) {
+  margin-block-start: 0;
+  margin-block-end: calc(0.25rem * 4);
+}
+
+.flow > :first-child {
+  margin-top: 0;
+}
+
+.flow > :last-child {
+  margin-bottom: 0;
+}
+
+.paragraph {
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  overflow-wrap: break-word;
+  color: currentColor;
+}
+
+.paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.h1 {
+  margin-top: calc(0.25rem * 3);
+  margin-bottom: calc(0.25rem * 3);
+  font-size: 1.125rem;
+  line-height: calc(1.75 / 1.125);
+  font-weight: 600;
+  overflow-wrap: break-word;
+  color: currentColor;
+}
+
+.h2 {
+  margin-top: calc(0.25rem * 2.5);
+  margin-bottom: calc(0.25rem * 2.5);
+  font-size: 15px;
+  line-height: calc(1.5 / 1);
+  font-weight: 600;
+  overflow-wrap: break-word;
+  color: currentColor;
+}
+
+.h3 {
+  margin-top: calc(0.25rem * 2);
+  margin-bottom: calc(0.25rem * 2);
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+  font-weight: 600;
+  overflow-wrap: break-word;
+  color: currentColor;
+}
+
+.h4 {
+  margin-top: calc(0.25rem * 2);
+  margin-bottom: calc(0.25rem * 2);
+  font-size: 11px;
+  line-height: 1.5;
+  font-weight: 600;
+  overflow-wrap: break-word;
+  color: currentColor;
+}
+
+.h1:first-child,
+.h2:first-child,
+.h3:first-child,
+.h4:first-child {
+  margin-top: 0;
+}
+
+/* Streamdown's own `h5`/`h6`/`hr`/`sup`/`sub`, whose Tailwind classes the legacy app compiled. */
+.h5 {
+  margin-top: calc(0.25rem * 6);
+  margin-bottom: calc(0.25rem * 2);
+  font-size: 15px;
+  line-height: calc(1.5 / 1);
+  font-weight: 600;
+}
+
+.h6 {
+  margin-top: calc(0.25rem * 6);
+  margin-bottom: calc(0.25rem * 2);
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+  font-weight: 600;
+}
+
+.rule {
+  height: 0;
+  color: inherit;
+  border: 0 solid;
+  border-top-width: 1px;
+  border-color: var(--wf-border);
+  margin-block: calc(0.25rem * 6);
+}
+
+.script {
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+}
+
+.list {
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  line-height: calc(1.25 / 0.875);
+  overflow-wrap: break-word;
+  color: currentColor;
+}
+
+:where(.list > :not(:last-child)) {
+  margin-block-start: 0;
+  margin-block-end: 0.25rem;
+}
+
+.listDisc {
+  list-style-type: disc;
+  padding-left: calc(0.25rem * 6);
+}
+
+.listTasks {
+  list-style-type: none;
+  padding-left: 0;
+}
+
+.listDecimal {
+  list-style-type: decimal;
+  padding-left: calc(0.25rem * 6);
+}
+
+.listItem {
+  overflow-wrap: break-word;
+}
+
+.taskItem {
+  display: flex;
+  align-items: flex-start;
+  gap: calc(0.25rem * 2);
+}
+
+/* The editor's task checkbox, declaration for declaration, so the card keeps its shape. */
+.taskCheckbox {
+  margin-top: 3px;
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  appearance: none;
+  place-content: center;
+  border-radius: 3px;
+  border-style: solid;
+  border-width: var(--wf-border-width);
+  border-color: var(--wf-border-1);
+  background-color: #0000;
+}
+
+.taskCheckbox:checked {
+  border-color: var(--wf-text-primary);
+  background-color: var(--wf-text-primary);
+}
+
+.taskCheckbox:checked:after {
+  content: "";
+  width: 10px;
+  height: 10px;
+  background-color: var(--wf-surface-2);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+.image {
+  margin-block: calc(0.25rem * 2);
+  display: block;
+  height: auto;
+  max-width: 100%;
+  border-radius: calc(var(--wf-radius) - 2px);
+}
+
+.inlineCode {
+  border-radius: 0.25rem;
+  background-color: #0000001a;
+  padding-inline: 0.25rem;
+  padding-block: calc(0.25rem * 0.5);
+  font-family:
+    var(--font-martian-mono, ui-monospace), SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: normal;
+  color: currentColor;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .inlineCode {
+    background-color: color-mix(in oklab, #000 10%, transparent);
+  }
+}
+
+.code {
+  display: block;
+  border-radius: 0.25rem;
+  background-color: #00000026;
+  padding: calc(0.25rem * 2);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  color: currentColor;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .code {
+    background-color: color-mix(in oklab, #000 15%, transparent);
+  }
+}
+
+.embed {
+  margin-block: calc(0.25rem * 2);
+  display: block;
+  width: 100%;
+}
+
+.embedLink {
+  margin-bottom: 0.25rem;
+  display: block;
+}
+
+.link {
+  font-weight: 500;
+  word-break: break-all;
+  color: currentColor;
+  text-decoration-line: underline;
+  text-underline-offset: 2px;
+  opacity: 0.9;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .link:hover {
+    opacity: 1;
+  }
+}
+
+.embedFrame {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border-radius: calc(var(--wf-radius) - 2px);
+}
+
+.embedViewport {
+  display: block;
+  overflow: hidden;
+}
+
+.embedIframe {
+  transform-origin: 0 0;
+}
+
+.embedVideo {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+}
+
+.embedAudio {
+  width: 100%;
+}
+
+.strong {
+  font-weight: 600;
+  overflow-wrap: break-word;
+  color: currentColor;
+}
+
+.emphasis {
+  overflow-wrap: break-word;
+  color: currentColor;
+  opacity: 0.8;
+}
+
+.blockquote {
+  margin-block: calc(0.25rem * 4);
+  border-left-style: solid;
+  border-left-width: 2px;
+  border-color: currentColor;
+  padding-left: calc(0.25rem * 4);
+  overflow-wrap: break-word;
+  color: currentColor;
+  font-style: italic;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .blockquote {
+    border-color: color-mix(in oklab, currentcolor 25%, transparent);
+  }
+}
+
+.blockquote > p {
+  margin-block: calc(0.25rem * 2);
+}
+
+.blockquote > p:first-child {
+  margin-top: 0;
+}
+
+.blockquote > p:last-child {
+  margin-bottom: 0;
+}
+
+.tableWrap {
+  margin-block: calc(0.25rem * 2);
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.tableHead,
+.tableRow {
+  border-bottom-style: solid;
+  border-bottom-width: var(--wf-border-width);
+  border-color: currentColor;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .tableHead,
+  .tableRow {
+    border-color: color-mix(in oklab, currentcolor 20%, transparent);
+  }
+}
+
+.tableRow:last-child {
+  border-bottom-width: 0;
+}
+
+.tableHeaderCell {
+  padding-inline: calc(0.25rem * 2);
+  padding-block: 0.25rem;
+  text-align: left;
+  font-weight: 600;
+  color: currentColor;
+}
+
+.tableCell {
+  padding-inline: calc(0.25rem * 2);
+  padding-block: 0.25rem;
+  color: currentColor;
+  opacity: 0.9;
+}
+
+/* Workflow search marks: other matches wash the card's own colour, the current one is orange. */
+.searchMark {
+  border-radius: calc(var(--wf-radius) - 4px);
+  background-color: currentColor;
+  color: inherit;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .searchMark {
+    background-color: color-mix(in oklab, currentcolor 20%, transparent);
+  }
+}
+
+.searchMarkActive {
+  border-radius: calc(var(--wf-radius) - 4px);
+  background-color: #fb923c;
+  color: #000;
+}

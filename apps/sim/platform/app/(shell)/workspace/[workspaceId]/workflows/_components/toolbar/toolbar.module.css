@@ -1,0 +1,113 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  min-block-size: var(--spacing-40);
+  padding-inline: var(--spacing-9);
+  border-block-end: var(--spacing-stroke-default) solid var(--ui-divider);
+}
+
+.search {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  padding-block-end: var(--spacing-12);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: none;
+}
+
+/* The table head's height, so the shared sticky-head mask fades rows only beneath the header. */
+.sectionHeader {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--spacing-4);
+  block-size: var(--ui-table-head);
+  padding-inline: var(--spacing-8)
+    calc(var(--spacing-8) + (var(--spacing-app-chip) - var(--spacing-24)) / 2);
+  background: var(--ui-canvas);
+}
+
+.sectionToggle,
+.sectionTitle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--spacing-4);
+  min-inline-size: 0;
+  block-size: 100%;
+  padding-inline: var(--ui-row-inset);
+  color: var(--ui-secondary);
+  text-align: start;
+}
+
+.sectionToggle {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.sectionToggle:disabled {
+  cursor: default;
+}
+
+.sectionToggle:enabled:hover {
+  color: var(--ui-ink);
+}
+
+.sectionLabel {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.chevron {
+  display: inline-flex;
+  flex: none;
+  visibility: hidden;
+}
+
+.sectionToggle:enabled:is(:hover, :focus-visible) .chevron {
+  visibility: visible;
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-list-gap);
+  padding-inline: var(--spacing-8);
+}
+
+.item:is(:hover, :focus-visible) {
+  background: var(--ui-hover);
+}
+
+.item:active {
+  background: var(--ui-selected);
+}
+
+.item[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.tile {
+  display: inline-flex;
+  flex: none;
+}

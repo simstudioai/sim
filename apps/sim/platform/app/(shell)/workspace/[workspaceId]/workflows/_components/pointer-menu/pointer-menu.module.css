@@ -1,0 +1,20 @@
+/* The point a context menu hangs from: placed by the pointer, never seen, never focused. */
+.point {
+  position: fixed;
+  display: flex;
+  inline-size: 0;
+  block-size: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* The menu's trigger collapses onto the point, so the rows open and flip around the pointer. */
+.point > [aria-haspopup][type] {
+  inline-size: 0;
+  min-inline-size: 0;
+  block-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+}

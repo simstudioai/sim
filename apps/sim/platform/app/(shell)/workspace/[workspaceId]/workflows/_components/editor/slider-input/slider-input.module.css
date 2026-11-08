@@ -1,0 +1,24 @@
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--spacing-40);
+  align-items: center;
+  gap: var(--spacing-12);
+  min-block-size: var(--spacing-app-chip);
+}
+
+.range {
+  inline-size: 100%;
+  accent-color: var(--ui-ink);
+  cursor: pointer;
+}
+
+.row[data-disabled] .range {
+  cursor: not-allowed;
+  opacity: var(--opacity-disabled);
+}
+
+.value {
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}

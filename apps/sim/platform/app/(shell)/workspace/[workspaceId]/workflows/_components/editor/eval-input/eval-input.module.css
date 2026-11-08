@@ -1,0 +1,51 @@
+.metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-stack);
+  min-inline-size: 0;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-content-gap);
+  min-inline-size: 0;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-action-gap);
+  min-block-size: var(--spacing-24);
+  margin-block: calc((var(--spacing-18) - var(--spacing-24)) / 2);
+}
+
+.title {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  color: var(--ui-ink);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-label-gap);
+  min-inline-size: 0;
+}
+
+.label {
+  color: var(--ui-ink);
+}
+
+.range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-8);
+}

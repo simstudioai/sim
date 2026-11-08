@@ -1,0 +1,28 @@
+.scheduleInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+  min-inline-size: 0;
+}
+
+.status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  min-inline-size: 0;
+}
+
+.statusRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.detail {
+  color: var(--ui-secondary);
+}
+
+.error {
+  color: var(--control-danger);
+}

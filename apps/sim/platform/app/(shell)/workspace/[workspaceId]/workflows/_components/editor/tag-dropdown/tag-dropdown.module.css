@@ -1,0 +1,20 @@
+.section + .section {
+  padding-block-start: var(--ui-list-gap);
+}
+
+.headingLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+}
+
+.type {
+  flex: none;
+  color: var(--ui-secondary);
+}
+
+.chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--ui-secondary);
+}

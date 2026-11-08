@@ -1,0 +1,12 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-section-gap);
+  min-inline-size: 0;
+}
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-section-gap);
+  min-inline-size: 0;
+}

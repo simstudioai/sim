@@ -1,0 +1,393 @@
+/* The comparison needs the window's width for its canvas, so it takes the modal's surface wider. */
+.dialog {
+  position: fixed;
+  inset: 0;
+  inline-size: calc(100% - var(--spacing-32));
+  max-inline-size: none;
+  block-size: calc(100dvh - var(--spacing-32) * 2);
+  max-block-size: none;
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-dialog);
+  color: var(--ui-ink);
+}
+.dialog::backdrop {
+  background: var(--ui-scrim);
+}
+.layout {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+}
+.header {
+  display: flex;
+  flex: none;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  padding: var(--ui-dialog-inset) var(--ui-dialog-inset) 0;
+}
+.toolbar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  padding: var(--spacing-8) var(--ui-dialog-inset);
+  border-block-end: var(--spacing-stroke-hairline) solid var(--ui-border);
+}
+.arrow {
+  display: inline-flex;
+  color: var(--ui-secondary);
+}
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-12);
+  margin-inline-start: auto;
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.counts [data-kind="added"] {
+  color: var(--status-success);
+}
+.counts [data-kind="changed"] {
+  color: var(--status-warning);
+}
+.counts [data-kind="removed"] {
+  color: var(--control-danger);
+}
+.body {
+  display: flex;
+  flex: 1;
+  min-block-size: 0;
+}
+.failure {
+  margin: auto;
+  padding: var(--ui-dialog-inset);
+}
+.split {
+  display: flex;
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+.canvas {
+  display: flex;
+  flex: 1;
+  min-inline-size: 0;
+}
+.list {
+  flex: none;
+  inline-size: min(calc(var(--spacing-320) + var(--spacing-128)), 45%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-inline-start: var(--spacing-stroke-hairline) solid var(--ui-border);
+  background: var(--ui-canvas);
+}
+.identical {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  block-size: 100%;
+  padding: var(--spacing-24);
+  color: var(--ui-secondary);
+  text-align: center;
+}
+.changeList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--ui-dialog-inset);
+}
+.section,
+.sectionBody,
+.namedRows {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.section {
+  gap: var(--spacing-8);
+}
+.sectionTitle {
+  margin: 0;
+  color: var(--ui-secondary);
+}
+.sectionBody {
+  gap: var(--spacing-8);
+}
+.namedRows {
+  gap: var(--ui-stack-gap);
+}
+.card {
+  min-inline-size: 0;
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+}
+.card[data-selected] {
+  border-color: var(--ui-strong);
+}
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  inline-size: 100%;
+  min-block-size: var(--spacing-40);
+  padding: var(--spacing-8) var(--spacing-12);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ui-ink);
+  text-align: start;
+  cursor: pointer;
+}
+.cardHeader:hover {
+  background: var(--ui-hover);
+}
+.cardTitle {
+  display: flex;
+  flex: 1;
+  min-inline-size: 0;
+}
+.chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--ui-secondary);
+  transform: rotate(-90deg);
+  transition: transform var(--ui-motion-position);
+}
+.chevron[data-open] {
+  transform: none;
+}
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+  padding: var(--spacing-4) var(--spacing-12) var(--spacing-12);
+}
+.moves {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-stack-gap);
+}
+.fieldChange {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-label-gap);
+  min-inline-size: 0;
+}
+.fieldLabel {
+  color: var(--ui-ink);
+}
+.muted {
+  color: var(--ui-secondary);
+}
+.namedRow {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-inline-size: 0;
+}
+.namedText {
+  display: flex;
+  min-inline-size: 0;
+}
+.namedRow[data-kind="removed"] .namedText {
+  color: var(--ui-secondary);
+}
+.sign {
+  flex: none;
+  inline-size: var(--spacing-12);
+  font-family: var(--font-mono);
+  text-align: center;
+  user-select: none;
+}
+:is(.namedRow, .line, tr)[data-kind="added"] .sign,
+tr[data-kind="added"] .signCell {
+  color: var(--status-success);
+}
+:is(.namedRow, .line, tr)[data-kind="removed"] .sign,
+tr[data-kind="removed"] .signCell {
+  color: var(--control-danger);
+}
+.namedRow[data-kind="changed"] .sign {
+  color: var(--status-warning);
+}
+.code {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  padding-block: var(--spacing-4);
+  overflow: hidden;
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-canvas);
+}
+.foldAll {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  padding-inline: var(--spacing-8);
+  color: var(--ui-secondary);
+}
+.line {
+  display: flex;
+  gap: var(--spacing-8);
+  padding-inline: var(--spacing-8);
+}
+.line[data-kind="context"] {
+  color: var(--ui-secondary);
+}
+.line[data-kind="added"] {
+  background: var(--status-success-soft);
+}
+.line[data-kind="removed"] {
+  background: var(--control-danger-soft);
+}
+.lineText {
+  flex: 1;
+  min-inline-size: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.line[data-kind="added"] [data-changed] {
+  border-radius: var(--radius-2);
+  background: var(--status-success-soft);
+  text-decoration: underline;
+}
+.line[data-kind="removed"] [data-changed] {
+  border-radius: var(--radius-2);
+  background: var(--control-danger-soft);
+  text-decoration: underline;
+}
+.fold {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-block-size: var(--spacing-24);
+  padding-inline: var(--spacing-8);
+  border: 0;
+  background: none;
+  color: var(--ui-secondary);
+  text-align: start;
+  cursor: pointer;
+}
+.fold:hover {
+  background: var(--ui-hover);
+  color: var(--ui-ink);
+}
+.oversized {
+  padding: var(--spacing-4) var(--spacing-8);
+  color: var(--ui-secondary);
+}
+.inlineDiff {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.inlineDiff [data-kind="added"] {
+  border-radius: var(--radius-2);
+  background: var(--status-success-soft);
+}
+.inlineDiff [data-kind="removed"] {
+  border-radius: var(--radius-2);
+  background: var(--control-danger-soft);
+  color: var(--ui-secondary);
+}
+.pair {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-8);
+  min-inline-size: 0;
+}
+.valueChip {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--spacing-6);
+  min-inline-size: 0;
+}
+.chipSign {
+  flex: none;
+  font-family: var(--font-mono);
+}
+.valueChip[data-kind="added"] .chipSign {
+  color: var(--status-success);
+}
+.valueChip[data-kind="removed"] .chipSign {
+  color: var(--control-danger);
+}
+.chip {
+  min-inline-size: 0;
+  padding-inline: var(--spacing-6);
+  border-radius: var(--ui-control-radius);
+  background: var(--ui-hover);
+  overflow-wrap: anywhere;
+}
+.structured {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-8);
+  min-inline-size: 0;
+}
+.table {
+  inline-size: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+.table th {
+  padding: var(--spacing-4) var(--spacing-8);
+  color: var(--ui-secondary);
+  text-align: start;
+}
+.table td {
+  padding: var(--spacing-4) var(--spacing-8);
+  vertical-align: top;
+  border-block-start: var(--spacing-stroke-hairline) solid var(--ui-divider);
+}
+.table tr[data-kind="added"] {
+  background: var(--status-success-soft);
+}
+.table tr[data-kind="removed"] {
+  background: var(--control-danger-soft);
+}
+.signCell {
+  inline-size: var(--spacing-32);
+  font-family: var(--font-mono);
+}
+.readableList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  margin: 0;
+  padding-inline-start: var(--spacing-16);
+}
+.readableFields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  margin: 0;
+}
+.readableField {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  align-items: start;
+  gap: var(--spacing-8);
+}
+.readableField dt {
+  overflow-wrap: anywhere;
+}
+.readableField dd {
+  min-inline-size: 0;
+  margin: 0;
+}
+.prose {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

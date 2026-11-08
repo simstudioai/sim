@@ -1,0 +1,20 @@
+.thinking {
+  flex: none;
+  padding: var(--spacing-12) var(--spacing-12) var(--spacing-12) var(--spacing-20);
+  border-block-end: var(--spacing-stroke-hairline) solid var(--ui-divider);
+}
+
+.body {
+  max-block-size: var(--spacing-154);
+  overflow-y: auto;
+  overscroll-behavior: none;
+  padding-inline-start: var(--spacing-12);
+  border-inline-start: var(--spacing-stroke-hairline) solid var(--ui-divider);
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.body[data-streaming] {
+  color: var(--ui-ink);
+}

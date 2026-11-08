@@ -1,0 +1,54 @@
+.selector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-label-gap);
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-list-gap);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  min-block-size: var(--spacing-24);
+  padding-inline: var(--spacing-6) var(--spacing-2);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-secondary);
+}
+
+.chipLabel {
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--ui-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  border-radius: var(--radius-control);
+}
+
+.picker[data-search-match] {
+  box-shadow: 0 0 0 var(--spacing-stroke-focus) var(--status-warning);
+}
+
+.note {
+  margin: 0;
+  color: var(--ui-secondary);
+}

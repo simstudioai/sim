@@ -1,0 +1,37 @@
+/*
+ * The legacy preview's comparison label, converted from its compiled Tailwind
+ * (`--wf-*` are the legacy canvas tokens the canvas token scope defines).
+ */
+
+/* `-top-[22px] pointer-events-none absolute left-2 z-40 rounded-sm px-1.5 py-0.5 font-medium text-xs leading-[14px]` */
+.label {
+  top: -22px;
+  pointer-events: none;
+  position: absolute;
+  left: 0.5rem;
+  z-index: 40;
+  border-radius: calc(var(--wf-radius) - 4px);
+  padding-inline: 0.375rem;
+  padding-block: 0.125rem;
+  font-weight: 500;
+  font-size: 11px;
+  line-height: 14px;
+}
+
+/* `bg-[var(--brand-accent)] text-[var(--text-inverse)]` */
+.added {
+  background-color: var(--wf-brand-accent);
+  color: var(--wf-text-inverse);
+}
+
+/* `bg-[var(--warning)] text-[var(--text-inverse)]` */
+.modified {
+  background-color: var(--wf-warning);
+  color: var(--wf-text-inverse);
+}
+
+/* `bg-[var(--surface-7)] text-[var(--text-secondary)]` */
+.removed {
+  background-color: var(--wf-surface-7);
+  color: var(--wf-text-secondary);
+}

@@ -1,0 +1,96 @@
+.field {
+  position: relative;
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.frame {
+  position: relative;
+  min-inline-size: 0;
+  min-block-size: calc(var(--spacing-24) * 5);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-ink);
+}
+
+.frame:is([data-rows="0"], [data-rows="1"], [data-rows="2"], [data-rows="3"]) {
+  min-block-size: var(--spacing-80);
+}
+
+.frame[data-rows="4"] {
+  min-block-size: calc(var(--spacing-24) * 4);
+}
+
+.frame[data-rows="6"] {
+  min-block-size: calc(var(--spacing-24) * 6);
+}
+
+.frame[data-rows="7"] {
+  min-block-size: calc(var(--spacing-24) * 7);
+}
+
+.frame[data-rows="8"] {
+  min-block-size: calc(var(--spacing-24) * 8);
+}
+
+.frame[data-rows="9"] {
+  min-block-size: calc(var(--spacing-24) * 9);
+}
+
+.frame[data-rows="10"] {
+  min-block-size: calc(var(--spacing-24) * 10);
+}
+
+.frame:not([data-disabled]):hover {
+  border-color: var(--control-hover-border);
+}
+
+.mirror,
+.textarea {
+  padding: var(--spacing-8);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.mirror {
+  pointer-events: none;
+}
+
+.frame[data-disabled] .mirror,
+.frame[data-streaming] .mirror {
+  opacity: var(--opacity-disabled);
+}
+
+.textarea {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--ui-ink);
+  outline: none;
+  resize: none;
+}
+
+.textarea::placeholder {
+  color: var(--ui-secondary);
+  opacity: 1;
+}
+
+.textarea:disabled {
+  cursor: not-allowed;
+}
+
+.frame[data-streaming] .textarea {
+  pointer-events: none;
+}
+
+.trailing {
+  position: absolute;
+  inset-block-start: var(--spacing-4);
+  inset-inline-end: var(--spacing-4);
+}
