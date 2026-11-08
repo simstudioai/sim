@@ -19,7 +19,7 @@ function ChartFrame({ title, control, children }: ChartFrameProps) {
     <section aria-label={title} className={styles.chart}>
       <header className={styles.header}>
         <h2 data-type='T042'>{title}</h2>
-        {control}
+        {control && <span className={styles.control}>{control}</span>}
       </header>
       {children}
     </section>

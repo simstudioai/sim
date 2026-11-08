@@ -31,7 +31,7 @@ export function MetricGroup({ metrics }: MetricGroupProps) {
               </Tooltip>
             )}
           </dt>
-          <dd data-type='T102'>{value}</dd>
+          <dd data-type='T076'>{value}</dd>
         </div>
       ))}
     </dl>
