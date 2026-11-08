@@ -53,6 +53,7 @@ import {
   useWorkflowScope,
   useWorkflowStore,
 } from '@/platform/lib/data/workflow-editor'
+import { Box } from '@/platform/lib/data/workflows'
 
 const EMPTY_SUBBLOCK_VALUES: Record<string, unknown> = {}
 const DEFAULT_DOCS_URL = 'https://docs.sim.ai/quick-reference'
@@ -61,6 +62,20 @@ const SUBFLOWS = {
   loop: { name: 'Loop', docsLink: 'https://docs.sim.ai/workflows/blocks/loop' },
   parallel: { name: 'Parallel', docsLink: 'https://docs.sim.ai/workflows/blocks/parallel' },
 } as const
+
+/** What the layout hook reads while no block is selected: nothing to lay out. */
+const NO_BLOCK_CONFIG: BlockConfig = {
+  type: '',
+  name: '',
+  description: '',
+  category: 'blocks',
+  bgColor: '',
+  icon: Box,
+  subBlocks: [],
+  tools: { access: [] },
+  inputs: {},
+  outputs: {},
+}
 
 /** A key that remounts an MCP field whenever the server or tool it depends on changes. */
 function subBlockKey(blockId: string, subBlock: SubBlockConfig, state: SubBlockValues): string {
@@ -202,7 +217,7 @@ export function EditorPanel() {
   )
 
   const { subBlocks, stateToUse } = useEditorSubblockLayout(
-    blockConfig ?? ({ subBlocks: [] } as unknown as BlockConfig),
+    blockConfig ?? NO_BLOCK_CONFIG,
     currentBlockId || '',
     displayAdvancedOptions,
     triggerMode,
