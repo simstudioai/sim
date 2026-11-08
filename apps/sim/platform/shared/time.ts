@@ -10,6 +10,9 @@ const DATE = {
   short: utcFormat({ month: 'short', day: 'numeric' }),
   full: utcFormat({ month: 'short', day: 'numeric', year: 'numeric' }),
   weekday: utcFormat({ weekday: 'long', month: 'long', day: 'numeric' }),
+  /** A day heading, `November 1`. */
+  long: utcFormat({ month: 'long', day: 'numeric' }),
+  longFull: utcFormat({ month: 'long', day: 'numeric', year: 'numeric' }),
 }
 const CLOCK_OPTIONS = { hour: 'numeric', minute: '2-digit', hour12: true } as const
 const UTC_CLOCK = utcFormat(CLOCK_OPTIONS)

@@ -52,6 +52,11 @@
   flex: 1;
   min-block-size: 0;
 }
+/* At least the viewport tall, so an empty state centers in the space below the page's controls. */
+.pageContent[data-workspace-page] {
+  display: grid;
+  flex: 1 0 auto;
+}
 .desktopBar {
   display: flex;
   align-items: center;

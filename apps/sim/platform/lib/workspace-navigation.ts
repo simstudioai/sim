@@ -13,15 +13,27 @@ export function chatPath(chatId?: string, workspaceId?: string) {
   return chatId ? `${base}/${encodeURIComponent(chatId)}` : base
 }
 
+/** Resources the isolated legacy preview document still renders in the workspace pane. */
 export const WORKSPACE_PAGES = [
   { section: 'tables', label: 'Tables', icon: 'I033' },
   { section: 'files', label: 'Files', icon: 'I015' },
   { section: 'knowledge', label: 'Knowledge bases', icon: 'I004' },
   { section: 'tests', label: 'Tests', icon: 'I072' },
-  { section: 'logs', label: 'Logs', icon: 'I082' },
-  { section: 'dashboards', label: 'Dashboard', icon: 'I038' },
-  { section: 'changelog', label: 'Changelog', icon: 'I046' },
 ] as const satisfies readonly { section: string; label: string; icon: IconName }[]
+
+/** The workspace's own Platform pages, in tab order. */
+export const WORKSPACE_TABS = [
+  { section: 'dashboards', label: 'Dashboard', icon: 'I038' },
+  { section: 'issues', label: 'Issues', icon: 'I073' },
+  { section: 'changelog', label: 'Changelog', icon: 'I046' },
+  { section: 'logs', label: 'Logs', icon: 'I082' },
+] as const satisfies readonly { section: string; label: string; icon: IconName }[]
+
+export type WorkspaceTab = (typeof WORKSPACE_TABS)[number]['section']
+
+export function isWorkspaceTab(section: string | undefined): section is WorkspaceTab {
+  return WORKSPACE_TABS.some((tab) => tab.section === section)
+}
 
 export function workspaceLocation(pathname: string) {
   const [, root, id, section, detail] = pathname.split('/')

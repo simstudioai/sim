@@ -1,5 +1,10 @@
-import type { ShellWorkspace } from '@/platform/app/(shell)/_components/model'
-import { WORKSPACE_PAGES, workspaceEntry, workspacePath } from '@/platform/lib/workspace-navigation'
+import type { ShellData, ShellWorkspace } from '@/platform/app/(shell)/_components/model'
+import {
+  WORKSPACE_PAGES,
+  WORKSPACE_TABS,
+  workspaceEntry,
+  workspacePath,
+} from '@/platform/lib/workspace-navigation'
 import type { ShellDestination } from '@/platform/shared/shell'
 
 interface WorkspaceNavigation {
@@ -10,7 +15,8 @@ interface WorkspaceNavigation {
 
 export function workspaceNavigation(
   workspaceId: string,
-  workflows: ShellWorkspace['workflows'] = []
+  workflows: ShellWorkspace['workflows'] = [],
+  unbacked: ShellData['unbacked'] = []
 ): WorkspaceNavigation {
   return {
     primary: [
@@ -24,12 +30,14 @@ export function workspaceNavigation(
       },
       { id: 'skills', label: 'Skills', icon: 'I044', value: workspacePath(workspaceId, 'skills') },
     ],
-    pages: WORKSPACE_PAGES.map(({ section, label, icon }) => ({
-      id: section,
-      label,
-      icon,
-      value: workspacePath(workspaceId, section),
-    })),
+    pages: [...WORKSPACE_PAGES, ...WORKSPACE_TABS]
+      .filter(({ section }) => !(section === 'issues' && unbacked.includes('issues')))
+      .map(({ section, label, icon }) => ({
+        id: section,
+        label,
+        icon,
+        value: workspacePath(workspaceId, section),
+      })),
     workflows: workflows.map(({ id, name, folder }) => ({
       id,
       label: name,

@@ -1,13 +1,10 @@
 import { useState } from 'react'
-import { Dashboard, Rss, ShieldCheck } from '@sim/emcn-legacy/icons'
+import { ShieldCheck } from '@sim/emcn-legacy/icons'
 import { noop } from '@sim/utils/helpers'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import {
-  ChangelogEmptyState,
-  DashboardEmptyState,
   FilesEmptyState,
   KnowledgeEmptyState,
-  LogsEmptyState,
   TablesEmptyState,
   TestsEmptyState,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
@@ -52,28 +49,6 @@ const pages = {
     columns: [],
     records: [],
     empty: <TestsEmptyState />,
-  },
-  logs: {
-    ...RESOURCE_LIST_CHROME.logs,
-    records: [
-      ['Lead enrichment', 'Nov 4', 'Success', '$0.01', 'Manual', '2.3s'],
-      ['Account review', 'Nov 3', 'Success', '$0.02', 'Schedule', '4.8s'],
-    ],
-    empty: <LogsEmptyState />,
-  },
-  dashboards: {
-    title: 'Dashboard',
-    icon: Dashboard,
-    columns: [],
-    records: [],
-    empty: <DashboardEmptyState />,
-  },
-  changelog: {
-    title: 'Changelog',
-    icon: Rss,
-    columns: [],
-    records: [],
-    empty: <ChangelogEmptyState />,
   },
 }
 

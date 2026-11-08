@@ -1,0 +1,29 @@
+.page,
+.body {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: var(--ui-product-section-gap);
+}
+.page {
+  box-sizing: border-box;
+  min-block-size: 100%;
+  padding-block: var(--ui-page-heading-inset) var(--ui-page-inset-block);
+}
+.body {
+  flex: 1;
+}
+.toolbar {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-content-gap);
+}
+.empty {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-block-size: var(--spacing-320);
+}
+.empty > * {
+  inline-size: min(100%, var(--container-440));
+}

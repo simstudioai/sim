@@ -5,7 +5,7 @@ import { Chip } from '@sim/emcn/button'
 import { Disclosure } from '@sim/emcn/disclosure'
 import { ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { usePathname, useSearchParams } from 'next/navigation'
-import type { ShellWorkspace } from '@/platform/app/(shell)/_components/model'
+import type { ShellData, ShellWorkspace } from '@/platform/app/(shell)/_components/model'
 import { linkMenuActions } from '@/platform/app/(shell)/_components/sidebar/row-links'
 import { workspaceNavigation } from '@/platform/app/(shell)/_components/workspace-navigation/destinations'
 import styles from '@/platform/app/(shell)/_components/workspace-navigation/workspace-navigation.module.css'
@@ -16,13 +16,19 @@ import type { ShellDestination } from '@/platform/shared/shell'
 interface WorkspaceNavigationProps {
   chats?: ReactNode
   workspace?: ShellWorkspace
+  unbacked?: ShellData['unbacked']
   location: NonNullable<ReturnType<typeof workspaceLocation>>
 }
 
-export function WorkspaceNavigation({ workspace, location, chats }: WorkspaceNavigationProps) {
+export function WorkspaceNavigation({
+  workspace,
+  location,
+  chats,
+  unbacked,
+}: WorkspaceNavigationProps) {
   const search = useSearchParams()
   const pathname = usePathname()
-  const items = workspaceNavigation(location.id, workspace?.workflows)
+  const items = workspaceNavigation(location.id, workspace?.workflows, unbacked)
   const folders = [...new Set(items.workflows.flatMap(({ folder }) => (folder ? [folder] : [])))]
   function row(item: ShellDestination) {
     const href = platformHref(item.value, search)

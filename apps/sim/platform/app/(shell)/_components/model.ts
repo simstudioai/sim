@@ -70,7 +70,7 @@ export interface ShellData {
   inbox: InboxItem[]
   notifications: ShellNotice[]
   /** Shell features with no backend in this data source. Hidden, because empty would misinform. */
-  unbacked?: readonly 'inbox'[]
+  unbacked?: readonly ('inbox' | 'issues')[]
   /** So a list can tell loading and failure from empty. Absent means the data is simply there. */
   status?: { workspaces: ShellQueryStatus; chats: ShellQueryStatus; profile: ShellQueryStatus }
   workspaceCreation?: { canCreate: boolean; organizationId: string | null; reason: string | null }

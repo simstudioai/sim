@@ -123,6 +123,7 @@ export function Sidebar({
             <WorkspaceNavigation
               workspace={data?.workspaces.find((item) => item.id === location.id)}
               location={location}
+              unbacked={data?.unbacked}
               chats={
                 data?.chatsAvailable !== false && (
                   <ChatsSection

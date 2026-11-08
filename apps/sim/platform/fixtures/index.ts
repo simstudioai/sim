@@ -203,3 +203,67 @@ export const loadAdminExample = fixture(async (scenario) =>
 export const loadWorkspaceSkills = fixture(async (scenario) =>
   (await import('@/platform/fixtures/workspace-skills-data')).workspaceSkillsData(scenario)
 )
+
+/** The shell's workspace, so example names and workflows match the sidebar. */
+async function shellWorkspace(scenario: Scenario, workspaceId: string) {
+  const { shellScenarios } = await import('@/platform/fixtures/shell-data')
+  return shellScenarios[scenario].workspaces.find((item) => item.id === workspaceId)
+}
+
+export const loadWorkspaceDashboard = fixture(async (scenario, workspaceId: string) => {
+  const workspace = await shellWorkspace(scenario, workspaceId)
+  if (!workspace) return null
+  return (await import('@/platform/fixtures/workspace-data')).workspaceDashboard(
+    scenario,
+    workspace
+  )
+})
+export const loadWorkspaceIssues = fixture(async (scenario, workspaceId: string) => {
+  const workspace = await shellWorkspace(scenario, workspaceId)
+  if (!workspace) return null
+  return (await import('@/platform/fixtures/workspace-data')).workspaceIssues(scenario, workspace)
+})
+export const loadWorkspaceIssue = fixture(
+  async (scenario, workspaceId: string, issueId: string) => {
+    const workspace = await shellWorkspace(scenario, workspaceId)
+    if (!workspace) return null
+    return (await import('@/platform/fixtures/workspace-data')).workspaceIssue(
+      scenario,
+      workspace,
+      issueId
+    )
+  }
+)
+export const loadWorkspaceChangelog = fixture(async (scenario, workspaceId: string) => {
+  const workspace = await shellWorkspace(scenario, workspaceId)
+  if (!workspace) return null
+  return (await import('@/platform/fixtures/workspace-data')).workspaceChangelog(
+    scenario,
+    workspace
+  )
+})
+export const loadWorkspaceChangelogEntry = fixture(
+  async (scenario, workspaceId: string, entryId: string) => {
+    const workspace = await shellWorkspace(scenario, workspaceId)
+    if (!workspace) return null
+    return (await import('@/platform/fixtures/workspace-data')).workspaceChangelogEntry(
+      scenario,
+      workspace,
+      entryId
+    )
+  }
+)
+export const loadWorkspaceRuns = fixture(async (scenario, workspaceId: string) => {
+  const workspace = await shellWorkspace(scenario, workspaceId)
+  if (!workspace) return null
+  return (await import('@/platform/fixtures/workspace-data')).workspaceRuns(scenario, workspace)
+})
+export const loadWorkspaceRun = fixture(async (scenario, workspaceId: string, runId: string) => {
+  const workspace = await shellWorkspace(scenario, workspaceId)
+  if (!workspace) return null
+  return (await import('@/platform/fixtures/workspace-data')).workspaceRun(
+    scenario,
+    workspace,
+    runId
+  )
+})
