@@ -1,9 +1,9 @@
 import { useEffect } from 'react'
+import type { MothershipResourceType } from '@/lib/mothership/chat/types'
 import {
   type AvailableResources,
   useAvailableResources,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/available-resources'
-import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 
 /** Reuses each workspace's canonical inventory without introducing another picker. */
 export function OrganizationResourceInventory({

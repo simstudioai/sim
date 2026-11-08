@@ -1,5 +1,5 @@
+import type { ChatMessageContext } from '@/lib/mothership/chat/types'
 import { CHAT_CONTEXT_KIND_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/chat-context-kind-registry'
-import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 
 interface ContextMentionIconProps {
   context: ChatMessageContext

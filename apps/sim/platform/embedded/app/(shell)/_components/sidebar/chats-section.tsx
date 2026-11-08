@@ -7,7 +7,7 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { usePathname, useRouter } from 'next/navigation'
 import { isPathOrDescendant, organizationRoutes } from '@/lib/navigation/paths'
 import { ChatNavigationLink } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/chat-navigation-link/chat-navigation-link'
-import { useChatSelection } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-chat-selection'
+import { useChatSelection } from '@/hooks/sidebar/use-chat-selection'
 import { NameModal } from '@/platform/embedded/app/(shell)/_components/sidebar/name-modal'
 import { RailFlyout } from '@/platform/embedded/app/(shell)/_components/sidebar/rail-flyout'
 import {

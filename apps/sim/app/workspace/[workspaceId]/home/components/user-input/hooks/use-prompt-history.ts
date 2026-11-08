@@ -5,8 +5,8 @@ import {
   getMothershipAttachmentUrl,
 } from '@/lib/mothership/chat/attachment-preview'
 import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
+import type { ChatMessage } from '@/lib/mothership/chat/types'
 import type { PromptEditorInstance } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
-import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import type { ChatContext } from '@/stores/panel'
 

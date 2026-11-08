@@ -1,4 +1,4 @@
-import type { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
+import type { ToolCallStatus } from '@/lib/mothership/chat/types'
 
 export type MessagePhase = 'streaming' | 'revealing' | 'settled'
 

@@ -1,10 +1,10 @@
 import { useQueryStates } from 'nuqs'
-import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import {
   resourceUrlKeys,
   searchFilterParsers,
   UPDATED_WINDOWS,
-} from '@/app/workspace/[workspaceId]/home/search-params'
+} from '@/lib/mothership/chat/search-params'
+import { connectorDisplayName } from '@/lib/sim-search/connectors'
 
 /** A picker can't hold an empty string, so "every source" has a value of its own. */
 const ALL_SOURCES = '__all_sources__'

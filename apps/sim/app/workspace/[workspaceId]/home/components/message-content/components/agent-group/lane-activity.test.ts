@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import type { ToolCallData } from '@/lib/mothership/chat/types'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import { getLaneLiveIndicator } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity'
-import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 
 function call(id: string, toolName: string, extra: Partial<ToolCallData> = {}): AgentGroupItem {
   return { type: 'tool', data: { id, toolName, displayTitle: id, status: 'success', ...extra } }

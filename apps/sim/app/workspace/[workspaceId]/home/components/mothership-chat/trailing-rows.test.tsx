@@ -14,8 +14,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
+import type { ChatMessage } from '@/lib/mothership/chat/types'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/mothership-chat'
-import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
 
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/desktop', () => libDesktopMock)

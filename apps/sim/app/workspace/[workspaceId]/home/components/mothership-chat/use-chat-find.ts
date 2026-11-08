@@ -13,13 +13,13 @@ import {
 import { forEachSearchOccurrence } from '@sim/utils/string'
 import type { Virtualizer } from '@tanstack/react-virtual'
 import { LRUCache } from 'lru-cache'
+import type { ChatMessage } from '@/lib/mothership/chat/types'
 import { useFindShortcut } from '@/app/workspace/[workspaceId]/components/find-bar'
 import { getOrchestratorMessageTextSegments } from '@/app/workspace/[workspaceId]/home/components/message-content'
 import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-sanitize'
 import { parseSpecialTags } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { getChatFindText } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/chat-find-text'
 import { getUserMessageText } from '@/app/workspace/[workspaceId]/home/components/user-message-content/utils'
-import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
 
 /**
  * Most matches a search keeps, counted back from the newest message: older history loads in

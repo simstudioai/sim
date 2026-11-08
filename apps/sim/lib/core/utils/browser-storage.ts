@@ -9,10 +9,7 @@ import { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
  */
 
 import { createLogger } from '@sim/logger'
-import type {
-  ChatRequestMode,
-  FileAttachmentForApi,
-} from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatRequestMode, FileAttachmentForApi } from '@/lib/mothership/chat/types'
 import type { ChatContext } from '@/stores/panel'
 
 const logger = createLogger('BrowserStorage')

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import type { MothershipResource } from '@/lib/mothership/chat/types'
 import { mapResourceToContext } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 
 function resource(partial: Partial<MothershipResource> & Pick<MothershipResource, 'type'>) {
   return { id: 'id-1', title: 'Something', ...partial } as MothershipResource

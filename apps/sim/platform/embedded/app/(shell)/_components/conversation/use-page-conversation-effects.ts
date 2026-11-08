@@ -2,13 +2,13 @@
 
 import { useEffect } from 'react'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { searchFiltersFromParams } from '@/lib/mothership/chat/search-params'
+import type { ChatRequestMode } from '@/lib/mothership/chat/types'
 import { createSearchResource } from '@/lib/mothership/resources/search'
 import {
   chatSendOptions,
   type useOrganizationConversation,
 } from '@/app/_organization-conversation/use-organization-conversation'
-import { searchFiltersFromParams } from '@/app/workspace/[workspaceId]/home/search-params'
-import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 
 interface UsePageConversationEffectsOptions {
   chatId?: string

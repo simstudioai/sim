@@ -5,6 +5,7 @@ import { chipVariants, cn, OverflowText, RowActions, rowActionsGroupClass } from
 import { Lock, MoreHorizontal } from '@sim/emcn-legacy/icons'
 import Link from 'next/link'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
+import { buildDragResources, createSidebarDragGhost } from '@/lib/workflows/sidebar'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SidebarRowAction } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
@@ -15,10 +16,6 @@ import {
   useItemRename,
   useSidebarListContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import {
-  buildDragResources,
-  createSidebarDragGhost,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import {
   useCanDelete,
   useDeleteSelection,

@@ -47,6 +47,11 @@ import {
   searchConnectionAttemptKey,
 } from '@/lib/knowledge/search/connection-attempt'
 import { searchConnectionTargetSchema } from '@/lib/knowledge/search/connection-target'
+import type {
+  ChatMessageContext,
+  MothershipResource,
+  WorkspaceResourceRef,
+} from '@/lib/mothership/chat/types'
 import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { OAUTH_PROVIDERS } from '@/lib/oauth/oauth'
 import { getServiceConfigByProviderId } from '@/lib/oauth/utils'
@@ -95,11 +100,6 @@ import {
 import { usePersonalCredentialConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/use-personal-credential-connection'
 import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import { usePlanUpgradeLink } from '@/app/workspace/[workspaceId]/home/hooks/use-plan-upgrade-link'
-import type {
-  ChatMessageContext,
-  MothershipResource,
-  WorkspaceResourceRef,
-} from '@/app/workspace/[workspaceId]/home/types'
 // Deep import, not the barrel: the barrel also re-exports
 // ConnectServiceAccountModal, and that edge would pull the modal into this
 // chunk and defeat the lazy() split below.

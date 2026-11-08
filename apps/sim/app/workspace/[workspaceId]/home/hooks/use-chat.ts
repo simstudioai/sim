@@ -59,6 +59,15 @@ import {
   type RevealedSimKeysByMessage,
   restoreRevealedSimKeysForMessage,
 } from '@/lib/mothership/chat/sim-key-redaction'
+import type {
+  ChatMessage,
+  ChatRequestMode,
+  ContentBlock,
+  FileAttachmentForApi,
+  MothershipResource,
+  SendPayload,
+  ToolCallInfo,
+} from '@/lib/mothership/chat/types'
 import {
   MOTHERSHIP_CHAT_API_PATH,
   MOTHERSHIP_CHAT_ID_HEADER,
@@ -185,15 +194,6 @@ import type { ChatContext } from '@/stores/panel'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import type {
-  ChatMessage,
-  ChatRequestMode,
-  ContentBlock,
-  FileAttachmentForApi,
-  MothershipResource,
-  SendPayload,
-  ToolCallInfo,
-} from '../types'
 import {
   buildAssistantSnapshotMessage,
   buildChatHistoryHydrationKey,

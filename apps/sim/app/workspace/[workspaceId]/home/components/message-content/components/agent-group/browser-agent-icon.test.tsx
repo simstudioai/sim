@@ -4,12 +4,12 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ToolCallData } from '@/lib/mothership/chat/types'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import {
   BrowserAgentIcon,
   getBrowserAgentFaviconUrl,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/browser-agent-icon'
-import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 const { browserAvailable, chatIdentity } = vi.hoisted(() => ({

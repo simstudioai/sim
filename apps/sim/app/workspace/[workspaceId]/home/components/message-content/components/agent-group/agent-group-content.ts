@@ -1,9 +1,9 @@
+import type { ToolCallData } from '@/lib/mothership/chat/types'
 import type {
   AgentGroupItem,
   NestedAgentGroup,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/tool-status'
-import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 
 /**
  * The newest call that is still in progress, by start time, so parallel calls

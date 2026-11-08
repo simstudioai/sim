@@ -15,6 +15,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
 import type { TableDefinition } from '@/lib/table'
 import { generateUniqueTableName, MAX_TABLE_BATCH_ITEMS } from '@/lib/table/constants'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -76,7 +77,6 @@ import {
 } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
 import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
-import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ImportCsvDialog,

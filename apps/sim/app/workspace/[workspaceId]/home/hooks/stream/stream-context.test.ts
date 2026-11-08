@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
+import type { ContentBlock } from '@/lib/mothership/chat/types'
 import { createStreamLoopContext } from './stream-context'
 import { makeStreamLoopDeps, ref } from './stream-test-helpers'
 

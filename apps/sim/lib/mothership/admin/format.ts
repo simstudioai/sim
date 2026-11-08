@@ -1,5 +1,5 @@
 import { formatDateTime } from '@sim/utils/formatting'
-import type { MothershipTab } from '@/app/workspace/[workspaceId]/settings/components/mothership/search-params'
+import type { MothershipTab } from '@/lib/mothership/admin/search-params'
 import type { MothershipEnv } from '@/hooks/queries/mothership-admin'
 
 export const TABS: { id: MothershipTab; label: string }[] = [

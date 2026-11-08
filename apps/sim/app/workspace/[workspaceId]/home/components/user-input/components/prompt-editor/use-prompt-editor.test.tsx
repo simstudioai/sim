@@ -14,12 +14,12 @@ vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import { SIM_SELECTION_MIME } from '@/lib/mothership/chat/selection-clipboard'
+import type { ChatMessage } from '@/lib/mothership/chat/types'
 import {
   type UsePromptEditorProps,
   usePromptEditor,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor'
 import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
-import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 import type { ChatContext } from '@/stores/panel'

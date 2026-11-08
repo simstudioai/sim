@@ -1,5 +1,5 @@
 import { escapeRegExp } from '@sim/utils/string'
-import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatMessageContext } from '@/lib/mothership/chat/types'
 import { getIntegrationMatcher } from '@/blocks/integration-matcher'
 
 interface MentionRange {

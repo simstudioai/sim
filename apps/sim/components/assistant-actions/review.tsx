@@ -27,8 +27,8 @@ import type {
 import { ASSISTANT_REVIEW_FIELD_MAX_CHARS } from '@/lib/assistant-actions/limits'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
+import { type ChatMessage, ToolCallStatus } from '@/lib/mothership/chat/types'
 import { InteractionCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/interaction-card'
-import { type ChatMessage, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { BrandIcon } from '@/blocks/brand-icon'
 import {
   useAssistantActionReceiptBatches,

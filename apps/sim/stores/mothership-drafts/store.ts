@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
+import type { FileAttachmentForApi } from '@/lib/mothership/chat/types'
 import type { ChatContext } from '@/stores/panel'
 
 export interface DraftPayload {

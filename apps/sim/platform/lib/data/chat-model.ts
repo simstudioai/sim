@@ -2,6 +2,7 @@ import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { searchConnectionTargetSchema } from '@/lib/knowledge/search/connection-target'
+import type { ChatMessage, ChatMessageContext, ToolCallData } from '@/lib/mothership/chat/types'
 import {
   Terminal as TerminalTool,
   Wait as WaitTool,
@@ -39,11 +40,6 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/message-content/parse-blocks'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/tool-status'
-import type {
-  ChatMessage,
-  ChatMessageContext,
-  ToolCallData,
-} from '@/app/workspace/[workspaceId]/home/types'
 import type {
   PlatformCredentialRequest,
   PlatformLane,

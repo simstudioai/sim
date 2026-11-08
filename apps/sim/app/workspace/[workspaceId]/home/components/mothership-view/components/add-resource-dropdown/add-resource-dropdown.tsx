@@ -19,6 +19,7 @@ import {
 import { Folder, Plus } from '@sim/emcn-legacy/icons'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import type { MothershipResource, MothershipResourceType } from '@/lib/mothership/chat/types'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import {
@@ -44,10 +45,6 @@ import {
   getResourceConfig,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
 import { RESOURCE_TAB_ICON_CLASS } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
-import type {
-  MothershipResource,
-  MothershipResourceType,
-} from '@/app/workspace/[workspaceId]/home/types'
 import { useOrderedWorkspacesQuery, type Workspace } from '@/hooks/queries/workspace'
 
 export interface AddResourceDropdownProps {

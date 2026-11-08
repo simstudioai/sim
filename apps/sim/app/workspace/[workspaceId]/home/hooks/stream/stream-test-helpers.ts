@@ -2,12 +2,12 @@ import type { MutableRefObject } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { vi } from 'vitest'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
+import type { ContentBlock, MothershipResource } from '@/lib/mothership/chat/types'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import type {
   ActiveTurn,
   StreamLoopDeps,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
-import type { ContentBlock, MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 
 /** Minimal {@link MutableRefObject} factory for stream-loop unit fixtures. */
 export function ref<T>(current: T): MutableRefObject<T> {

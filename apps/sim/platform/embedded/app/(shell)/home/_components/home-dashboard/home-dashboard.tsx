@@ -5,7 +5,7 @@ import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { FailureNotice } from '@sim/emcn/status'
 import { Surface } from '@sim/emcn-platform/surface'
-import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatRequestMode } from '@/lib/mothership/chat/types'
 import { GetStarted } from '@/platform/embedded/app/(shell)/_components/get-started/get-started'
 import { HomeActivityChart } from '@/platform/embedded/app/(shell)/home/_components/activity-chart/activity-chart'
 import {

@@ -14,7 +14,7 @@ import {
   PASSWORD_MODE_OPTIONS,
   type PasswordMode,
   useAddUserForm,
-} from '@/app/workspace/[workspaceId]/settings/components/admin/use-add-user-form'
+} from '@/hooks/admin/use-add-user-form'
 import type { AdminUser } from '@/hooks/queries/admin-users'
 
 interface AddUserModalProps {

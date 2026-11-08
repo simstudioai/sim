@@ -1,6 +1,6 @@
 import { ChipTag, cn, Lightbox, OverflowText } from '@sim/emcn-legacy'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatMessageAttachment } from '@/lib/mothership/chat/types'
 
 function FileAttachmentPill(props: { mediaType: string; filename: string }) {
   const Icon = getDocumentIcon(props.mediaType, props.filename)

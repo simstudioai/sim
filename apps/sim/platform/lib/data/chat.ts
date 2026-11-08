@@ -6,6 +6,7 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
+import type { ChatMessage, ChatRequestMode } from '@/lib/mothership/chat/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
 import {
@@ -16,7 +17,6 @@ import {
   useChatResourcePanel,
   useResourcePanelController,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
-import type { ChatMessage, ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useDecideToolPermissions } from '@/hooks/queries/copilot-tool-permissions'
 import {

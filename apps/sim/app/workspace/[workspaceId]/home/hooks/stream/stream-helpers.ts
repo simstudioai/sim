@@ -1,5 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import { isUnsettledToolState } from '@/lib/mothership/chat/persisted-message'
+import type { ContentBlock } from '@/lib/mothership/chat/types'
+import { ToolCallStatus } from '@/lib/mothership/chat/types'
 import {
   CallIntegrationTool,
   CreateEmptyFile,
@@ -34,8 +36,6 @@ import {
 } from '@/lib/mothership/tools/client/resource-display'
 import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/mothership/tools/display'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
-import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 

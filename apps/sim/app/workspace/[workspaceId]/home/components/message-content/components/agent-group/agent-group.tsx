@@ -1,6 +1,7 @@
 'use client'
 
 import { useAssistantActionLayout } from '@/components/assistant-actions'
+import type { ToolCallData } from '@/lib/mothership/chat/types'
 import {
   type AgentGroupItem,
   type AgentGroupProps,
@@ -8,7 +9,6 @@ import {
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import { ToolCallItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import { CredentialDisplay } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 
 function renderBrowserTakeover(reason: string) {
   return <CredentialDisplay data={[{ type: 'browser_takeover', name: reason }]} />

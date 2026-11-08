@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Chip, Tooltip, toast } from '@sim/emcn-legacy'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {

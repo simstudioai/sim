@@ -30,6 +30,7 @@ import { usePostHog } from 'posthog-js/react'
 import { EmptyState } from '@/components/empty-state/empty-state'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
+import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
 import { captureEvent } from '@/lib/posthog/client'
 import {
   type FileDownloadSource,
@@ -132,7 +133,6 @@ import {
   renameToUniqueMarkdownName,
   uniqueMarkdownName,
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
-import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'

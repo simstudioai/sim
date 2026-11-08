@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import { cn } from '@sim/emcn-legacy'
 import { useShallow } from 'zustand/react/shallow'
 import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
+import { compareByOrder, groupWorkflowsByFolder } from '@/lib/workflows/sidebar'
 import { EmptyAreaContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/empty-area-context-menu'
 import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/folder-item/folder-item'
 import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/workflow-item'
@@ -14,10 +15,6 @@ import {
   useSidebarListContextValue,
   useWorkflowSelection,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import {
-  compareByOrder,
-  groupWorkflowsByFolder,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useFolderStore } from '@/stores/folders/store'

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import type { ToolCallData } from '@/lib/mothership/chat/types'
 import { PrepareFileEdit, Wait as WaitTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import {
   getToolInProgressTitle,
@@ -6,7 +7,6 @@ import {
   getWaitCountdownTitle,
 } from '@/lib/mothership/tools/display'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
-import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 
 /**
  * How often the countdown re-reads the clock. Comfortably under a second so

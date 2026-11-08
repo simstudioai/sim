@@ -5,10 +5,7 @@ import { ChipTag } from '@sim/emcn-legacy'
 import { Database, Plus } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
-import {
-  dataDrainIdParam,
-  dataDrainIdUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
+import { dataDrainIdParam, dataDrainIdUrlKeys } from '@/lib/settings/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'

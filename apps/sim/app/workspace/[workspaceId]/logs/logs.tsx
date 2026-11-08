@@ -38,6 +38,7 @@ import type {
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getContextMenuPosition } from '@/lib/core/utils/context-menu'
 import { formatDateShort } from '@/lib/core/utils/date-display'
+import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
 import { hasActiveFilters } from '@/lib/logs/filters'
 import { getTriggerOptions } from '@/lib/logs/get-trigger-options'
 import { type ParsedFilter, parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
@@ -81,7 +82,6 @@ import {
   logSortParams,
 } from '@/app/workspace/[workspaceId]/logs/search-params'
 import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
-import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'

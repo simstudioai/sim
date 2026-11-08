@@ -1,12 +1,12 @@
 import { isRecordLike } from '@sim/utils/object'
 import type { PersistedContentBlock } from '@/lib/api/contracts/copilot-messages'
 import { REDACTED_MARKER } from '@/lib/core/security/redaction'
+import type { ChatMessage, ContentBlock } from '@/lib/mothership/chat/types'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1TextChannel,
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import { GenerateApiKey } from '@/lib/mothership/generated/tool-catalog-v1'
-import type { ChatMessage, ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
 /**
  * Two-sided handling of `sim_key` API keys in the Mothership chat:

@@ -4,7 +4,7 @@ import { useQueryState } from 'nuqs'
 import {
   credentialGroupPeopleSearchParam,
   credentialGroupPeopleSearchUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
+} from '@/lib/settings/search-params'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 /** Keeps account filtering stable across setup, loading, and populated views. */

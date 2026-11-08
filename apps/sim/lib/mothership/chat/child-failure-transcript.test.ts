@@ -8,6 +8,7 @@ import {
   buildPersistedAssistantMessage,
   normalizeMessage,
 } from '@/lib/mothership/chat/persisted-message'
+import type { ContentBlock } from '@/lib/mothership/chat/types'
 import type { MothershipStreamV1StreamScope } from '@/lib/mothership/generated/mothership-stream-v1'
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
 import { handleSpanEvent } from '@/lib/mothership/request/handlers/span'
@@ -22,7 +23,6 @@ import {
   contentBlocksToModel,
   modelToContentBlocks,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
 vi.mock('@/lib/auth/client', () => authClientMock)
 

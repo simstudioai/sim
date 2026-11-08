@@ -18,13 +18,10 @@ import {
   Workflow,
 } from '@sim/emcn-legacy/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import type { MothershipResource, MothershipResourceType } from '@/lib/mothership/chat/types'
 import { terminalIdFromResourceId } from '@/lib/terminal/resource-id'
 import { BrowserTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/browser-tab-icon'
 import { TerminalTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/terminal-tab-icon'
-import type {
-  MothershipResource,
-  MothershipResourceType,
-} from '@/app/workspace/[workspaceId]/home/types'
 import { getDisplayStatus, STATUS_CONFIG } from '@/app/workspace/[workspaceId]/logs/utils'
 import { BrandIcon, type StyleableIcon } from '@/blocks/brand-icon'
 

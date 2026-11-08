@@ -29,6 +29,14 @@ import {
 } from '@/components/assistant-actions'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
 import { SMOOTH_CHASE_RATE } from '@/lib/core/utils/smooth-bottom-chase'
+import type {
+  ChatMessage,
+  ChatMessageAttachment,
+  ChatMessageContext,
+  ContentBlock,
+  FileAttachmentForApi,
+  WorkspaceResourceRef,
+} from '@/lib/mothership/chat/types'
 import type { TurnOrigin } from '@/lib/mothership/generated/protocol'
 import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar'
 import { MessageActions } from '@/app/workspace/[workspaceId]/components/message-actions'
@@ -73,14 +81,6 @@ import {
   fetchWorkspaceResourceRef,
   readCachedWorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
-import type {
-  ChatMessage,
-  ChatMessageAttachment,
-  ChatMessageContext,
-  ContentBlock,
-  FileAttachmentForApi,
-  WorkspaceResourceRef,
-} from '@/app/workspace/[workspaceId]/home/types'
 import { useOptionalWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'

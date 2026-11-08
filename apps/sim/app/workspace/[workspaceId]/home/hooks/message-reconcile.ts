@@ -13,6 +13,7 @@ import {
   normalizeMessage,
   withBlockTiming,
 } from '@/lib/mothership/chat/persisted-message'
+import type { ContentBlock } from '@/lib/mothership/chat/types'
 import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
@@ -23,7 +24,6 @@ import {
 } from '@/lib/mothership/generated/mothership-stream-v1'
 import type { StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
 import { isZeroStreamCursor } from './stream-protocol'
 

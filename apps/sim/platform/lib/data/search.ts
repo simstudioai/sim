@@ -8,6 +8,11 @@ import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/client'
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
 import { BrowserStorage } from '@/lib/core/utils/browser-storage'
+import {
+  searchFilterParsers,
+  searchFiltersFromParams,
+  UPDATED_WINDOWS,
+} from '@/lib/mothership/chat/search-params'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
 import {
   organizationSearchParsers,
@@ -18,11 +23,6 @@ import {
   groupResultsByDocument,
   toSource,
 } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/utils'
-import {
-  searchFilterParsers,
-  searchFiltersFromParams,
-  UPDATED_WINDOWS,
-} from '@/app/workspace/[workspaceId]/home/search-params'
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 import {
   useClearSearchHistory,

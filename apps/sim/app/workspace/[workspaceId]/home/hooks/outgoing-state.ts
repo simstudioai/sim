@@ -1,12 +1,8 @@
 import { backoffWithJitter } from '@sim/utils/retry'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
 import { isChatContext } from '@/lib/mothership/chat/context'
+import type { ChatMessage, ChatMessageContext, SendPayload } from '@/lib/mothership/chat/types'
 import { sendPayload } from '@/app/workspace/[workspaceId]/home/hooks/send-payload'
-import type {
-  ChatMessage,
-  ChatMessageContext,
-  SendPayload,
-} from '@/app/workspace/[workspaceId]/home/types'
 import type { MothershipChatHistory } from '@/hooks/queries/mothership-chats'
 import type { JournaledOutgoing } from '@/stores/mothership-outgoing/store'
 import type { ChatContext } from '@/stores/panel'

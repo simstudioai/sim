@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { searchFiltersFromParams } from '@/app/workspace/[workspaceId]/home/search-params'
+import { searchFiltersFromParams } from '@/lib/mothership/chat/search-params'
 
 it('normalizes a reversed date deep link to the same local-day range', () => {
   const from = new Date('2026-01-03')

@@ -38,6 +38,9 @@ import { getWorkflowNormalizedStateContract } from '@/lib/api/contracts/workflow
 import { useSession } from '@/lib/auth/client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { createCommands } from '@/lib/global-commands/commands'
+import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
+import type { FileAttachmentForApi } from '@/lib/mothership/chat/types'
 import {
   MOTHERSHIP_SEND_MESSAGE_EVENT,
   type MothershipSendMessageDetail,
@@ -48,12 +51,9 @@ import { ConversationListItem } from '@/app/workspace/[workspaceId]/components/c
 import { useResourceRouter } from '@/app/workspace/[workspaceId]/components/resource/resource-navigation'
 import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import { getWorkflowCopilotUseChatOptions, useChat } from '@/app/workspace/[workspaceId]/home/hooks'
-import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
-import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands'
 import {
   Deploy,
   Editor,

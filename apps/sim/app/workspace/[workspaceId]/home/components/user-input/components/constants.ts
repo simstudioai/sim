@@ -1,9 +1,6 @@
 import { cn } from '@sim/emcn-legacy'
+import type { MothershipResource, MothershipResourceType } from '@/lib/mothership/chat/types'
 import { terminalIdFromResourceId } from '@/lib/terminal/resource-id'
-import type {
-  MothershipResource,
-  MothershipResourceType,
-} from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
 export interface SpeechRecognitionEvent extends Event {

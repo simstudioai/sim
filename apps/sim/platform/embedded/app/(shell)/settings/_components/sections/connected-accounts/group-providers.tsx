@@ -16,7 +16,7 @@ import { getCredentialGroupProviderService } from '@/lib/credential-groups/provi
 import {
   credentialGroupProviderSearchParam,
   credentialGroupProviderSearchUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
+} from '@/lib/settings/search-params'
 import {
   type OrganizationAccountProviderChoice,
   organizationAccountProviderRows,

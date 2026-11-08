@@ -11,6 +11,12 @@ import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { BrowserStorage } from '@/lib/core/utils/browser-storage'
+import { resourceParam, searchFilterParsers } from '@/lib/mothership/chat/search-params'
+import type {
+  ChatRequestMode,
+  FileAttachmentForApi,
+  WorkspaceResourceRef,
+} from '@/lib/mothership/chat/types'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { organizationDraftKey, SEARCH_ASSISTANT_DRAFT_SLOT } from '@/lib/organizations/draft-key'
 import { useOrganization } from '@/lib/organizations/provider'
@@ -39,15 +45,6 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
 import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
 import { fetchWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
-import {
-  resourceParam,
-  searchFilterParsers,
-} from '@/app/workspace/[workspaceId]/home/search-params'
-import type {
-  ChatRequestMode,
-  FileAttachmentForApi,
-  WorkspaceResourceRef,
-} from '@/app/workspace/[workspaceId]/home/types'
 import {
   type AttachedFile,
   useFileAttachments,

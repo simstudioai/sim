@@ -16,7 +16,7 @@ import {
   ADMIN_PAGE_SIZE,
   MOTHERSHIP_ENV_OPTIONS,
   useAdminConsole,
-} from '@/app/workspace/[workspaceId]/settings/components/admin/use-admin-console'
+} from '@/hooks/admin/use-admin-console'
 import type { AdminUser } from '@/hooks/queries/admin-users'
 import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 import {

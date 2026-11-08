@@ -10,14 +10,14 @@ import { useQueryState } from 'nuqs'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import type { ForkLineageChildApi, ForkLineageNodeApi } from '@/lib/api/contracts/workspace-fork'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   forkIdParam,
   forkIdUrlKeys,
   forkViewParam,
   forkViewUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
+} from '@/lib/settings/search-params'
+import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   type RowAction,
   RowActionsMenu,

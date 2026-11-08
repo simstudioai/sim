@@ -11,6 +11,7 @@ import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
 import type { RunLimit, RunMode, TableViewWire } from '@/lib/api/contracts/tables'
+import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
   ColumnDefinition,
@@ -40,7 +41,6 @@ import type {
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
-import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   getTableViewRevision,

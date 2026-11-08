@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatMessage } from '@/lib/mothership/chat/types'
 import {
   captureRevealedSimKeys,
   extractRevealedSimKeys,

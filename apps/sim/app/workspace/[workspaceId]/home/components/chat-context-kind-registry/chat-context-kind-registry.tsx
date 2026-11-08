@@ -14,7 +14,7 @@ import {
 import { AgentSkillsIcon, McpIcon } from '@/components/icons'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
-import type { ChatContextKind, ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatContextKind, ChatMessageContext } from '@/lib/mothership/chat/types'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { getBlockRegistry } from '@/blocks/registry'
 

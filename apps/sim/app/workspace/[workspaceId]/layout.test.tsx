@@ -104,7 +104,7 @@ vi.mock('@/app/workspace/[workspaceId]/providers/block-visibility-loader', () =>
   BlockVisibilityLoader: () => null,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/global-commands-provider', () => ({
+vi.mock('@/lib/global-commands/provider', () => ({
   GlobalCommandsProvider: ({ children }: { children: ReactNode }) => children,
 }))
 

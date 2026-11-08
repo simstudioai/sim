@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { isRecordLike } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
+import type { MothershipResource } from '@/lib/mothership/chat/types'
 import type { SyntheticFilePreviewPayload } from '@/lib/mothership/request/session'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { invalidateResourceQueries } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/resource-invalidation'
@@ -25,7 +26,6 @@ import {
   useFilePreviewSessions,
 } from '@/app/workspace/[workspaceId]/home/hooks/preview/use-file-preview-sessions'
 import { resolveFileResourceSelectionId } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { findCachedWorkspaceFile } from '@/hooks/queries/utils/workspace-file-cache'
 import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-keys'
 

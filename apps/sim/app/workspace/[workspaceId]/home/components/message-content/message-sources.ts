@@ -1,10 +1,10 @@
+import type { ContentBlock } from '@/lib/mothership/chat/types'
 import {
   parseSpecialTags,
   type SourceTagData,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import { indexSourcesByUrl } from '@/app/workspace/[workspaceId]/home/components/message-content/sources-by-url'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
 /**
  * Every distinct `<source>` cited across the given prose, in first-cited order,

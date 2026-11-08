@@ -1,13 +1,13 @@
 import type { BrowserTabState } from '@sim/browser-protocol'
 import type { TerminalTabState } from '@sim/terminal-protocol'
 import { browserTabTitle } from '@/lib/browser-agent/tab-label'
+import type { MothershipResourceType } from '@/lib/mothership/chat/types'
 import { terminalResourceId } from '@/lib/terminal/resource-id'
 import { terminalTabTitle } from '@/lib/terminal/tab-label'
 import {
   type AvailableItem,
   isServerMatchFor,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
-import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 
 export interface ResourceMentionGroup {
   type: MothershipResourceType

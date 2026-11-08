@@ -12,6 +12,8 @@ import {
 } from '@sim/emcn-legacy'
 import { ChevronDown, ChevronRight, ChevronUp, X } from '@sim/emcn-legacy/icons'
 import { useShallow } from 'zustand/react/shallow'
+import { createCommand } from '@/lib/global-commands/commands'
+import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
 import { getPanelWidth, getTerminalHeight } from '@/lib/workflows/layout'
 import { indexWorkflowSearchMatches } from '@/lib/workflows/search-replace/indexer'
 import { buildWorkflowSearchReplacePlan } from '@/lib/workflows/search-replace/replacements'
@@ -28,13 +30,11 @@ import { getWorkflowSearchBlocks } from '@/lib/workflows/search-replace/state'
 import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 import type { WorkflowSearchReplaceSubflowUpdate } from '@/lib/workflows/search-replace/types'
 import { getTransitiveSubBlockDependents } from '@/lib/workflows/subblocks/dependencies'
-import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {
   useScopedWorkflowId,
   useWorkflowScope,
 } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { createCommand } from '@/app/workspace/[workspaceId]/utils/commands'
 import { ReplacementControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/components'
 import { useWorkflowResourceReplacementOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/hooks/use-workflow-resource-replacement-options'
 import {

@@ -9,6 +9,7 @@ import {
   getMothershipAttachmentPreviewUrl,
   getMothershipAttachmentUrl,
 } from '@/lib/mothership/chat/attachment-preview'
+import type { ChatRequestMode, FileAttachmentForApi } from '@/lib/mothership/chat/types'
 import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
 import { runWithConcurrency, WHOLE_FILE_PARALLEL_UPLOADS } from '@/lib/uploads/client/concurrency'
 import { uploadInternalFileSession } from '@/lib/uploads/client/session-upload'
@@ -20,10 +21,6 @@ import {
 } from '@/lib/uploads/shared/assistant-images'
 import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { resolveFileType } from '@/lib/uploads/utils/file'
-import type {
-  ChatRequestMode,
-  FileAttachmentForApi,
-} from '@/app/workspace/[workspaceId]/home/types'
 import { useFileDrop } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-drop'
 
 const logger = createLogger('useFileAttachments')

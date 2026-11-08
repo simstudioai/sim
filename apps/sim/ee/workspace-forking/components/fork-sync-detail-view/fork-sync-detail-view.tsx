@@ -6,11 +6,8 @@ import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { useQueryState } from 'nuqs'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
+import { forkSyncDirectionParam, forkSyncDirectionUrlKeys } from '@/lib/settings/search-params'
 import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
-import {
-  forkSyncDirectionParam,
-  forkSyncDirectionUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { ForkSyncView } from '@/ee/workspace-forking/components/fork-sync/fork-sync-view'
 import {

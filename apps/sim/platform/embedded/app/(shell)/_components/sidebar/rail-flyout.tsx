@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { ControlRow } from '@sim/emcn/button/control-row'
 import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import { HoverPopover } from '@sim/emcn/menu/hover-popover'
-import { useHoverMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks/use-hover-menu'
+import { useHoverMenu } from '@/hooks/sidebar/use-hover-menu'
 import styles from '@/platform/embedded/app/(shell)/_components/sidebar/sidebar.module.css'
 
 /** A boundary, so the rows are built only when the panel is mounted, not on every rail render. */

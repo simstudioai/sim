@@ -6,11 +6,11 @@
  * record with no marker (an orphan) disappears.
  */
 import { describe, expect, it } from 'vitest'
+import type { ChatMessage } from '@/lib/mothership/chat/types'
 import {
   findLiveResponseId,
   placeSteeredMessages,
 } from '@/app/workspace/[workspaceId]/home/hooks/steered-messages'
-import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
 
 const owner: ChatMessage = { id: 'turn', role: 'user', content: 'Count' }
 const steering: ChatMessage = {

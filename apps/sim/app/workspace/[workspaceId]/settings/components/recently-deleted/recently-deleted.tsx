@@ -12,6 +12,7 @@ import {
   RECENTLY_DELETED_TYPES_BY_FILTER,
   type RecentlyDeletedFilter,
 } from '@/lib/api/contracts/recently-deleted'
+import type { MothershipResourceType } from '@/lib/mothership/chat/types'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { folderedResourceListHref } from '@/app/workspace/[workspaceId]/components/folders'
 import {
@@ -19,7 +20,6 @@ import {
   SortDropdown,
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   recentlyDeletedParsers,

@@ -4,6 +4,7 @@ import { type ComponentType, type ReactNode, useState } from 'react'
 import { ActivityTextColumn } from '@/components/ui/activity-status'
 import { ThinkingLoader } from '@/components/ui/thinking-loader'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
+import { type ToolCallData, ToolCallStatus } from '@/lib/mothership/chat/types'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { readCallActivity } from '@/lib/mothership/tools/activity'
 import { getToolDisplayTitle } from '@/lib/mothership/tools/display'
@@ -41,7 +42,6 @@ import {
   getAgentIcon,
   isToolDone,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
-import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 
 /**

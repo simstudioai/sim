@@ -3,12 +3,9 @@
 import { Wrench } from '@sim/emcn-legacy/icons'
 import { McpIcon } from '@/components/icons'
 import type { SecretReferenceResourcePayload } from '@/lib/api/contracts'
+import { customToolIdParam, mcpServerIdParam } from '@/lib/settings/search-params'
 import { DetailSection } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
-import {
-  customToolIdParam,
-  mcpServerIdParam,
-} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
   RESOURCE_LIST_STACK,

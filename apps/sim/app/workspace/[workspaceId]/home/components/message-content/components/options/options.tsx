@@ -1,5 +1,5 @@
 import { Chip } from '@sim/emcn-legacy'
-import type { OptionItem } from '@/app/workspace/[workspaceId]/home/types'
+import type { OptionItem } from '@/lib/mothership/chat/types'
 
 interface OptionsProps {
   items: OptionItem[]

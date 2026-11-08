@@ -1,16 +1,16 @@
 import { useState } from 'react'
 import { useQueryStates } from 'nuqs'
+import {
+  resourceUrlKeys,
+  searchFilterParsers,
+  searchFiltersFromParams,
+} from '@/lib/mothership/chat/search-params'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   groupResultsByDocument,
   type SearchResultsProps,
 } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/utils'
 import type { SourceTagData } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import {
-  resourceUrlKeys,
-  searchFilterParsers,
-  searchFiltersFromParams,
-} from '@/app/workspace/[workspaceId]/home/search-params'
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 
 const UNAVAILABLE_ACCOUNT_STATUSES = ['unavailable', 'timeout', 'rate_limited', 'reconnect']

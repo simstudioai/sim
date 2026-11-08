@@ -12,11 +12,11 @@ vi.mock('@/lib/auth/client', () => authClientMock)
 
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { normalizeMessage, stripToolResultOutput } from '@/lib/mothership/chat/persisted-message'
+import type { ContentBlock } from '@/lib/mothership/chat/types'
 import {
   getTurnLiveIndicators,
   ownsTurnWait,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity'
-import type { ContentBlock } from '../../types'
 import { getOrchestratorMessageText, parseBlocks } from './message-content'
 
 /** Whether the transcript owns the turn's wait, read through the rule's single owner. */

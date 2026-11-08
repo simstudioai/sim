@@ -4,6 +4,7 @@ import { type ComponentProps, forwardRef, memo, useCallback, useRef, useState } 
 import { cn } from '@sim/emcn-legacy'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import type { MothershipTableViewContext } from '@/lib/api/contracts/mothership-resources'
+import type { MothershipResource, MothershipResourceType } from '@/lib/mothership/chat/types'
 import type { FilePreviewSession } from '@/lib/mothership/request/session'
 import {
   getChatResourceSelectionId,
@@ -30,10 +31,6 @@ import { SourcesResourceContent } from '@/app/workspace/[workspaceId]/home/compo
 import { TerminalSession } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-session'
 import { ResourceWorkspaceHost } from '@/app/workspace/[workspaceId]/home/components/resource-workspace-host'
 import { hasRenderableFilePreviewContent } from '@/app/workspace/[workspaceId]/home/hooks/preview'
-import type {
-  MothershipResource,
-  MothershipResourceType,
-} from '@/app/workspace/[workspaceId]/home/types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import { useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'

@@ -44,13 +44,13 @@ import { supportsAtomicBrowserPanelOcclusion } from '@/lib/browser-agent/transpo
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { getFolderPathNames } from '@/lib/folders/tree'
+import { useInvokeGlobalCommand } from '@/lib/global-commands/provider'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { workspaceIntegrationsPath } from '@/lib/navigation/paths'
 import { captureEvent } from '@/lib/posthog/client'
 import { toSearchToken } from '@/lib/search/tokens'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
 import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
-import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   CommandFadedList,

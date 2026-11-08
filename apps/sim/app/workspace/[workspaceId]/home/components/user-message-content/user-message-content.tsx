@@ -2,12 +2,12 @@
 
 import { useMemo } from 'react'
 import { cn } from '@sim/emcn-legacy'
+import type { ChatMessageContext } from '@/lib/mothership/chat/types'
 import { useChatChrome } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import { ContextMentionIcon } from '@/app/workspace/[workspaceId]/home/components/context-mention-icon'
 import { PageContext } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
 import { ResourceMention } from '@/app/workspace/[workspaceId]/home/components/message-content/components/resource-mention'
 import { computeMentionRanges } from '@/app/workspace/[workspaceId]/home/components/user-message-content/utils'
-import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 
 const USER_MESSAGE_CLASSES =
   'whitespace-pre-wrap [overflow-wrap:anywhere] text-base text-[var(--text-primary)] leading-[23px] tracking-[0] antialiased'

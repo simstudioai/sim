@@ -13,6 +13,7 @@ import {
 import { cn } from '@sim/emcn-legacy'
 import { CircleStop } from '@sim/emcn-legacy/icons'
 import { useAssistantActionLayout } from '@/components/assistant-actions'
+import type { ContentBlock } from '@/lib/mothership/chat/types'
 import {
   useChatChrome,
   useChatSurface,
@@ -37,7 +38,6 @@ import {
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
 import { indexSourcesByUrl } from '@/app/workspace/[workspaceId]/home/components/message-content/sources-by-url'
 import { useToolResourceTitles } from '@/app/workspace/[workspaceId]/home/hooks/use-tool-resource-titles'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import type { AgentGroupItem } from './components'
 import { AgentGroup, ChatContent, MessageSources, Options, PendingTagIndicator } from './components'

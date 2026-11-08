@@ -4,14 +4,11 @@ import { useState } from 'react'
 import { toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
+import { adminParsers, adminUrlKeys } from '@/lib/admin/search-params'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/client'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
-import {
-  adminParsers,
-  adminUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/components/admin/search-params'
-import { useRecentImpersonations } from '@/app/workspace/[workspaceId]/settings/components/admin/use-recent-impersonations'
+import { useRecentImpersonations } from '@/hooks/admin/use-recent-impersonations'
 import {
   type AdminUser,
   useAdminUsers,

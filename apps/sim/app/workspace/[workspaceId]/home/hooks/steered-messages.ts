@@ -1,4 +1,4 @@
-import type { ChatMessage, ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatMessage, ContentBlock } from '@/lib/mothership/chat/types'
 
 interface SteeringBlockCarrier {
   type: string

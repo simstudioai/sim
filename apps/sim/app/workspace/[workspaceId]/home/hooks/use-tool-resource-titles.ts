@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useReducer } from 'react'
 import { useParams } from 'next/navigation'
+import type { ContentBlock } from '@/lib/mothership/chat/types'
 import {
   isResourceNameQuery,
   resolveNamedCliToolDisplayTitle,
 } from '@/lib/mothership/tools/client/resource-display'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 

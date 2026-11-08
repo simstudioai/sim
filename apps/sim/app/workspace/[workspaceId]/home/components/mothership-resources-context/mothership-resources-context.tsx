@@ -1,8 +1,8 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useMemo } from 'react'
+import type { MothershipResource } from '@/lib/mothership/chat/types'
 import type { ChatResourceAddress } from '@/lib/mothership/resources/types'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 
 /**
  * Resource-management operations for the Mothership resource panel. Provided

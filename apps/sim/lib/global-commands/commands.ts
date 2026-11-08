@@ -1,4 +1,4 @@
-import type { GlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import type { GlobalCommand } from '@/lib/global-commands/provider'
 
 /**
  * Identifiers for all globally-available commands.

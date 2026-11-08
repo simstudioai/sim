@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { create } from 'zustand'
 import { createJSONStorage, devtools, persist } from 'zustand/middleware'
-import type { SendPayload } from '@/app/workspace/[workspaceId]/home/types'
+import type { SendPayload } from '@/lib/mothership/chat/types'
 
 /**
  * What a chat still has to deliver, as much as a remount needs to carry on under

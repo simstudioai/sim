@@ -27,7 +27,7 @@ import {
   groupStatusUrlKeys,
   groupTabParam,
   groupTabUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/[section]/search-params'
+} from '@/lib/settings/search-params'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,

@@ -1,4 +1,4 @@
-import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
+import type { FileAttachmentForApi } from '@/lib/mothership/chat/types'
 import type { ComposerDraft } from '@/platform/app/(shell)/_components/composer/model'
 import type { ChatContext } from '@/stores/panel'
 

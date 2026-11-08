@@ -18,15 +18,15 @@ import {
 import { getErrorMessage } from '@sim/utils/errors'
 import type { MothershipEnvironment } from '@/lib/api/contracts'
 import { AddUserModal } from '@/app/workspace/[workspaceId]/settings/components/admin/add-user-modal'
-import {
-  ADMIN_PAGE_SIZE,
-  MOTHERSHIP_ENV_OPTIONS,
-  useAdminConsole,
-} from '@/app/workspace/[workspaceId]/settings/components/admin/use-admin-console'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import {
+  ADMIN_PAGE_SIZE,
+  MOTHERSHIP_ENV_OPTIONS,
+  useAdminConsole,
+} from '@/hooks/admin/use-admin-console'
 import type { AdminUser } from '@/hooks/queries/admin-users'
 
 const USER_TABLE_HEADER = (

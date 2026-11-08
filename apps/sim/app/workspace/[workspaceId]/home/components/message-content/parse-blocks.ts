@@ -1,4 +1,6 @@
 import { isPlainRecord } from '@sim/utils/object'
+import type { ContentBlock, OptionItem, ToolCallData } from '@/lib/mothership/chat/types'
+import { SUBAGENT_LABELS } from '@/lib/mothership/chat/types'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { PrepareFileEdit, Read as ReadTool } from '@/lib/mothership/generated/tool-catalog-v1'
 import type { TaskBlockInfo } from '@/lib/mothership/request/types'
@@ -16,12 +18,6 @@ import { isAgentGroupResolved } from '@/app/workspace/[workspaceId]/home/compone
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import { THINKING_LABEL } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-labels'
 import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/tool-status'
-import type {
-  ContentBlock,
-  OptionItem,
-  ToolCallData,
-} from '@/app/workspace/[workspaceId]/home/types'
-import { SUBAGENT_LABELS } from '@/app/workspace/[workspaceId]/home/types'
 
 const FILE_SUBAGENT_ID = 'file'
 

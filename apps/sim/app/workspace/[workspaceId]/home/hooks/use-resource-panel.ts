@@ -12,6 +12,7 @@ import {
   useState,
 } from 'react'
 import { useQueryState, useQueryStates } from 'nuqs'
+import { resourceParam, resourceUrlKeys } from '@/lib/mothership/chat/search-params'
 import {
   getChatResourceSelectionId,
   type MothershipResource,
@@ -26,7 +27,6 @@ import {
   resolveResourceEventPresentation,
   resolveResourceSelectionUpdate,
 } from '@/app/workspace/[workspaceId]/home/resource-view-policy'
-import { resourceParam, resourceUrlKeys } from '@/app/workspace/[workspaceId]/home/search-params'
 import {
   tableDetailParsers,
   tableDetailUrlKeys,

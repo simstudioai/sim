@@ -25,9 +25,9 @@ import { formatDuration } from '@sim/utils/formatting'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import Link from 'next/link'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { createCommands } from '@/lib/global-commands/commands'
+import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
 import { sendMothershipMessage } from '@/lib/mothership/events'
-import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
-import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands'
 import {
   EntryBlockTile,
   LogRowContextMenu,

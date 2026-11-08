@@ -3,13 +3,13 @@ import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { subscribeDesktopPreferences } from '@/lib/desktop'
 import { isIntegrationUsable } from '@/lib/integrations/access'
+import type { MothershipResourceType } from '@/lib/mothership/chat/types'
 import { isTerminalAvailable } from '@/lib/terminal/transport'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
 import {
   byResourceMenuOrder,
   getResourceConfig,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import type { MothershipResourceType } from '@/app/workspace/[workspaceId]/home/types'
 import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { listIntegrationsByPopularity } from '@/blocks/integration-matcher'
 import { useWorkspaceDashboard } from '@/hooks/queries/dashboards'

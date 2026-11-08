@@ -1,3 +1,5 @@
+import type { ContentBlock } from '@/lib/mothership/chat/types'
+import { ToolCallStatus } from '@/lib/mothership/chat/types'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { readCallActivity } from '@/lib/mothership/tools/activity'
@@ -19,8 +21,6 @@ import {
   type ToolNode,
   type TurnModel,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
-import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 /**
  * Serialization bridge between the normalized {@link TurnModel} (the streaming

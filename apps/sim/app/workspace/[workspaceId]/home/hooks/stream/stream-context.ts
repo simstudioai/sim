@@ -3,6 +3,12 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
 import type { RevealedSimKeysByMessage } from '@/lib/mothership/chat/sim-key-redaction'
 import { captureRevealedSimKeys } from '@/lib/mothership/chat/sim-key-redaction'
+import type {
+  ChatMessage,
+  ChatRequestMode,
+  ContentBlock,
+  MothershipResource,
+} from '@/lib/mothership/chat/types'
 import type { SyntheticFilePreviewPayload } from '@/lib/mothership/request/session'
 import type { FilePreviewSession } from '@/lib/mothership/request/session/file-preview-session-contract'
 import type {
@@ -19,12 +25,6 @@ import {
   modelToContentBlocks,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
 import type { ResourceEventHandler } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
-import type {
-  ChatMessage,
-  ChatRequestMode,
-  ContentBlock,
-  MothershipResource,
-} from '@/app/workspace/[workspaceId]/home/types'
 import {
   type MothershipChatHistory,
   refreshMothershipChatDetail,

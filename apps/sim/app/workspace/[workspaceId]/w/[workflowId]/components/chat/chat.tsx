@@ -36,11 +36,11 @@ import {
   parseOutputContentSafely,
 } from '@/lib/core/utils/response-format'
 import { readSSEEvents } from '@/lib/core/utils/sse'
+import type { ChatMessageAttachment } from '@/lib/mothership/chat/types'
 import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { START_BLOCK_RESERVED_FIELDS } from '@/lib/workflows/types'
-import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
 import {
   ChatMessage,
   OutputSelect,

@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/client'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import type { FileAttachmentForApi } from '@/lib/mothership/chat/types'
 import {
   MOTHERSHIP_EFFORT_OPTIONS,
   MOTHERSHIP_MODEL_OPTIONS,
@@ -22,7 +23,6 @@ import {
   ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
-import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import {
   useMothershipChatHistory,

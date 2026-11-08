@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import type { ContentBlock } from '@/lib/mothership/chat/types'
 import { finalizeResidualToolCalls } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-helpers'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
 describe('finalizeResidualToolCalls', () => {
   it.each(['executing', 'awaiting_approval'] as const)(

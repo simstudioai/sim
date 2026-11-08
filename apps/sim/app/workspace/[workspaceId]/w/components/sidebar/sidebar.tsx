@@ -52,22 +52,28 @@ import { isStatusNoticePreviewEnabled } from '@/lib/core/config/env-flags'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { isMacPlatform } from '@/lib/core/utils/platform'
 import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
+import { createCommands } from '@/lib/global-commands/commands'
+import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { isIntegrationUsable } from '@/lib/integrations/access'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { workspaceIntegrationsPath } from '@/lib/navigation/paths'
 import { captureEvent } from '@/lib/posthog/client'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
+import {
+  compareByOrder,
+  createSidebarDragGhost,
+  groupWorkflowsByFolder,
+  isSidebarBackgroundClick,
+} from '@/lib/workflows/sidebar'
 import { useSidebarChrome } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
-import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   allNavigationItems,
   type SettingsSection,
 } from '@/app/workspace/[workspaceId]/settings/navigation'
-import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands'
 import {
   ChatNavigationLink,
   CollapsedChatFlyoutItem,
@@ -108,22 +114,13 @@ import {
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import {
-  useChatSelection,
   useFlyoutInlineRename,
   useFolderOperations,
-  useHoverMenu,
-  useSidebarResize,
   useWorkflowOperations,
   useWorkspaceLogoUpload,
   useWorkspaceManagement,
   useWorkspaceWorkflowsRoom,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import {
-  compareByOrder,
-  createSidebarDragGhost,
-  groupWorkflowsByFolder,
-  isSidebarBackgroundClick,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/utils'
 import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
@@ -145,6 +142,9 @@ import {
 import { useUserProfile } from '@/hooks/queries/user-profile'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import type { Workspace } from '@/hooks/queries/workspace'
+import { useChatSelection } from '@/hooks/sidebar/use-chat-selection'
+import { useHoverMenu } from '@/hooks/sidebar/use-hover-menu'
+import { useSidebarResize } from '@/hooks/sidebar/use-sidebar-resize'
 import { useContextMenu } from '@/hooks/use-context-menu'
 import { useIntegrationAccess } from '@/hooks/use-integration-access'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'

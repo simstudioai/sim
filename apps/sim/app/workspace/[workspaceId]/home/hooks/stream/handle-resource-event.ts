@@ -1,5 +1,6 @@
 import { workspaceKnowledgeSearchDataSchema } from '@/lib/api/contracts/knowledge/search'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
+import type { MothershipResource, MothershipResourceType } from '@/lib/mothership/chat/types'
 import {
   type MothershipStreamV1EventType,
   MothershipStreamV1ResourceOp,
@@ -21,10 +22,6 @@ import {
 } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import { refreshSettings } from '@/app/workspace/[workspaceId]/home/hooks/stream/refresh-settings'
 import type { StreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
-import type {
-  MothershipResource,
-  MothershipResourceType,
-} from '@/app/workspace/[workspaceId]/home/types'
 import {
   type MothershipChatHistory,
   mothershipChatKeys,

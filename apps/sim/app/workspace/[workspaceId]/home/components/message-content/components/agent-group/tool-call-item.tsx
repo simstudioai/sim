@@ -2,6 +2,7 @@ import { type ReactNode, useMemo } from 'react'
 import { isPlainRecord } from '@sim/utils/object'
 import { AssistantActionReviewStatus } from '@/components/assistant-actions'
 import { ActivityStatus, type ActivityStatusProps } from '@/components/ui/activity-status'
+import type { ToolCallData, ToolCallStatus } from '@/lib/mothership/chat/types'
 import {
   CallIntegrationTool,
   Read as ReadTool,
@@ -20,7 +21,6 @@ import {
   getToolIcon,
   resolveToolDisplayState,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
-import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlockByToolName } from '@/blocks/registry'

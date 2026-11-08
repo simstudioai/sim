@@ -3,6 +3,7 @@
 import { type ReactNode, useRef } from 'react'
 import { ChipModal, ChipModalHeader } from '@sim/emcn-legacy'
 import { AssistantActionReviewProvider } from '@/components/assistant-actions'
+import type { ChatRequestMode } from '@/lib/mothership/chat/types'
 import {
   useConversationGate,
   useOrganizationConversation,
@@ -14,7 +15,6 @@ import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mo
 import { SourcesResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/sources-resource-content'
 import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
 import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
-import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 import type { PrepareChatSubmission } from '@/hooks/use-composer-submission'
 
 interface PanelConversationProps {

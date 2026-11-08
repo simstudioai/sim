@@ -1,7 +1,7 @@
 import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
 import { describe, expect, it, vi } from 'vitest'
+import type { ChatMessageContext } from '@/lib/mothership/chat/types'
 import { computeMentionRanges } from '@/app/workspace/[workspaceId]/home/components/user-message-content/utils'
-import type { ChatMessageContext } from '@/app/workspace/[workspaceId]/home/types'
 
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 

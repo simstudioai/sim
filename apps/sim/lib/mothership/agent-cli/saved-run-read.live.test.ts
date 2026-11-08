@@ -133,6 +133,7 @@ import {
   resolveActiveResourceContext,
 } from '@/lib/mothership/chat/process-contents'
 import { finalizeAssistantTurn } from '@/lib/mothership/chat/terminal-state'
+import type { ContentBlock as DisplayContentBlock } from '@/lib/mothership/chat/types'
 import { createRegistryContentGate } from '@/lib/mothership/content-delivery/registry-gate'
 import {
   WORKFLOW_RUN_WAIT_TIMEOUT_CAPABILITY,
@@ -188,7 +189,6 @@ import { GET as runRoute } from '@/app/api/v2/workflows/[workflowId]/runs/[runId
 import { GET as workflowStateRoute } from '@/app/api/v2/workflows/[workflowId]/state/route'
 import { GET as workflowsRoute } from '@/app/api/v2/workflows/route'
 import { toRawPersistedContentBlock } from '@/app/workspace/[workspaceId]/home/hooks/message-reconcile'
-import type { ContentBlock as DisplayContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 import { getLatestBlock } from '@/blocks/registry'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'

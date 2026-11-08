@@ -3,9 +3,9 @@
  */
 import { createElement } from 'react'
 import { describe, expect, it, vi } from 'vitest'
+import type { ToolCallData, ToolCallStatus } from '@/lib/mothership/chat/types'
 import { isAgentGroupResolved } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
-import type { ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 vi.mock('@/lib/browser-agent/transport', () => ({
   isBrowserAgentAvailable: () => true,

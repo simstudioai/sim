@@ -1,4 +1,4 @@
-import type { SendPayload } from '@/app/workspace/[workspaceId]/home/types'
+import type { SendPayload } from '@/lib/mothership/chat/types'
 
 /** The payload of a send, without fields it does not set. */
 export function sendPayload(source: SendPayload): SendPayload {

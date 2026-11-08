@@ -5,13 +5,13 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ActivityStatus } from '@/components/ui/activity-status'
+import type { ToolCallData } from '@/lib/mothership/chat/types'
 import {
   getActivityHeaderTool,
   getInProgressActivityLabel,
   ToolActivityGroup,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-group'
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
-import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 
 const executingSearch: ToolCallData = {
   id: 'search-1',

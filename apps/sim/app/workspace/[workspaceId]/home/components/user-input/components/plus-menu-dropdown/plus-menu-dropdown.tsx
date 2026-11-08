@@ -14,6 +14,7 @@ import {
   OverflowText,
 } from '@sim/emcn-legacy'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import type { MothershipResource, MothershipResourceType } from '@/lib/mothership/chat/types'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import {
   COMPOSER_EXCLUDED_TYPES,
@@ -42,10 +43,6 @@ import {
   withFolderMentions,
   withTerminalTabMentions,
 } from '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/resource-mention-items'
-import type {
-  MothershipResource,
-  MothershipResourceType,
-} from '@/app/workspace/[workspaceId]/home/types'
 import { useOrderedWorkspacesQuery, type Workspace } from '@/hooks/queries/workspace'
 import { useSettledTerminalCommands } from '@/hooks/use-settled-terminal-commands'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'

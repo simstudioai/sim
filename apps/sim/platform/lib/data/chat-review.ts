@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { assistantActionPresentation } from '@/components/assistant-actions/presentation'
-import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatMessage } from '@/lib/mothership/chat/types'
 import {
   useAssistantActionReview,
   useAssistantActionTurnReceipts,

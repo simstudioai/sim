@@ -8,6 +8,7 @@ import {
   attachSelectionContextToClipboard,
   readSelectionContextFromClipboard,
 } from '@/lib/mothership/chat/selection-clipboard'
+import type { ChatMessageContext, MothershipResource } from '@/lib/mothership/chat/types'
 import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
 import { snapSelectionToChips } from '@/app/workspace/[workspaceId]/home/components/user-input/chip-selection'
 import {
@@ -24,10 +25,6 @@ import {
 import type { SkillsMenuHandle } from '@/app/workspace/[workspaceId]/home/components/user-input/components/skills-menu-dropdown/skills-menu-dropdown'
 import { useSkillAutoMention } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-skill-auto-mention'
 import { computeMentionRanges } from '@/app/workspace/[workspaceId]/home/components/user-message-content/utils'
-import type {
-  ChatMessageContext,
-  MothershipResource,
-} from '@/app/workspace/[workspaceId]/home/types'
 import {
   useContextManagement,
   useIntegrationAutoMention,

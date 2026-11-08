@@ -1,12 +1,12 @@
 import { createLogger } from '@sim/logger'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge/search'
-import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
-import { sendPayload } from '@/app/workspace/[workspaceId]/home/hooks/send-payload'
 import type {
   ChatRequestMode,
   FileAttachmentForApi,
   SendPayload,
-} from '@/app/workspace/[workspaceId]/home/types'
+} from '@/lib/mothership/chat/types'
+import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
+import { sendPayload } from '@/app/workspace/[workspaceId]/home/hooks/send-payload'
 import type { ChatContext } from '@/stores/panel'
 
 const logger = createLogger('MothershipEvents')

@@ -26,6 +26,7 @@ vi.mock('@/hooks/queries/utils/workflow-cache', () => ({
   removeWorkflowFromActiveCache: mocks.removeWorkflowFromActiveCache,
 }))
 
+import type { MothershipResource } from '@/lib/mothership/chat/types'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { handleResourceEvent } from '@/app/workspace/[workspaceId]/home/hooks/stream/handle-resource-event'
 import {
@@ -36,7 +37,6 @@ import {
   makeStreamLoopDeps,
   ref,
 } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-test-helpers'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
 import { type MothershipChatHistory, mothershipChatKeys } from '@/hooks/queries/mothership-chats'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
 

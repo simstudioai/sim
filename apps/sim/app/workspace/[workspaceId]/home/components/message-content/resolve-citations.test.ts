@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { normalizeMessage } from '@/lib/mothership/chat/persisted-message'
 import { compactRetrievalCitations } from '@/lib/mothership/chat/retrieval-citations'
+import type { ContentBlock, ToolCallStatus } from '@/lib/mothership/chat/types'
 import { collectCitedMessageSources } from '@/app/workspace/[workspaceId]/home/components/message-content/message-sources'
 import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
-import type { ContentBlock, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 const output = {
   success: true,

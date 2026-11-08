@@ -30,6 +30,7 @@ import {
   reorderBrowserTab,
   sendBrowserPanelAction,
 } from '@/lib/browser-agent/transport'
+import type { MothershipResource, MothershipResourceType } from '@/lib/mothership/chat/types'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { getChatResourceSelectionId } from '@/lib/mothership/resources/types'
 import { requestTerminalFocus } from '@/lib/terminal/focus'
@@ -45,10 +46,6 @@ import {
   RESOURCE_HEADER_CLASSES,
   RESOURCE_TAB_ICON_CLASS,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
-import type {
-  MothershipResource,
-  MothershipResourceType,
-} from '@/app/workspace/[workspaceId]/home/types'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useTablesList } from '@/hooks/queries/tables'

@@ -39,6 +39,7 @@ import {
   inlineChatImageUrl,
   isInlineFileReference,
 } from '@/lib/mothership/chat/inline-image-reference'
+import type { WorkspaceResourceRef } from '@/lib/mothership/chat/types'
 import {
   useChatChrome,
   useChatSurface,
@@ -68,7 +69,6 @@ import {
   type WorkspaceResourceTagData,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { indexSourcesByUrl } from '@/app/workspace/[workspaceId]/home/components/message-content/sources-by-url'
-import type { WorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/types'
 import { useSmoothText } from '@/hooks/use-smooth-text'
 
 const LANG_ALIASES: Record<string, string> = {

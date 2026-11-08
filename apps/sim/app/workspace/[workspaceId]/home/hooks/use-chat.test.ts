@@ -2,6 +2,7 @@ import { featureFlagsProviderMock } from '@sim/testing/mocks/feature-flags-provi
 import { nextNavigationMock, nextNavigationMockFns } from '@sim/testing/mocks/next-navigation.mock'
 import { describe, expect, it, vi } from 'vitest'
 import type { PersistedMessage } from '@/lib/mothership/chat/persisted-message'
+import type { ContentBlock } from '@/lib/mothership/chat/types'
 import {
   MothershipStreamV1EventType,
   MothershipStreamV1ToolPhase,
@@ -16,7 +17,6 @@ import {
   selectDeletedWorkflowResources,
   waitForDetachedChatResolution,
 } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
 
 nextNavigationMockFns.mockUsePathname.mockReturnValue('/workspace/workspace-1/home')
 

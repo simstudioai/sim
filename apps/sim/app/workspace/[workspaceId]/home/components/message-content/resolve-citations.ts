@@ -2,7 +2,7 @@ import {
   collectRetrievalCitationEvidence,
   parseCitationRecord as parseRecord,
 } from '@/lib/mothership/chat/citation-evidence'
-import type { ContentBlock } from '@/app/workspace/[workspaceId]/home/types'
+import type { ContentBlock } from '@/lib/mothership/chat/types'
 
 /**
  * Source cards use metadata from successful retrieval, never model-authored IDs

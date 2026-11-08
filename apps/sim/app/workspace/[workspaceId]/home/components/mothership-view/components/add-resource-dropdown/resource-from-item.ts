@@ -1,8 +1,5 @@
+import type { MothershipResource, MothershipResourceType } from '@/lib/mothership/chat/types'
 import type { AvailableItem } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/add-resource-dropdown/resource-folder-tree'
-import type {
-  MothershipResource,
-  MothershipResourceType,
-} from '@/app/workspace/[workspaceId]/home/types'
 
 /**
  * Builds the resource a picker row stands for.

@@ -64,7 +64,7 @@ vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
   WorkspaceViewport: ({ children }: { children: ReactNode }) => children,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/global-commands-provider', () => ({
+vi.mock('@/lib/global-commands/provider', () => ({
   GlobalCommandsProvider: ({ children }: { children: ReactNode }) => children,
 }))
 

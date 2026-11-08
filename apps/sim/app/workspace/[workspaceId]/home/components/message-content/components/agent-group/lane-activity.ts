@@ -1,3 +1,4 @@
+import { type ToolCallData, ToolCallStatus } from '@/lib/mothership/chat/types'
 import { RETIRED_BROWSER_REQUEST_TAKEOVER_ID } from '@/lib/mothership/tools/retired-tools'
 import {
   collectGroupTools,
@@ -10,7 +11,6 @@ import type {
   NestedAgentGroup,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
 import { needsToolInput } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
-import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 /** Keep answers and interactions in the transcript, outside collapsible tool history. */
 function isStandaloneItem(item: AgentGroupItem, standaloneToolIds?: ReadonlySet<string>): boolean {

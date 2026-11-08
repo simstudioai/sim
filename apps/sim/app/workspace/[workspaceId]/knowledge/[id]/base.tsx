@@ -41,6 +41,7 @@ import { format } from 'date-fns'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
 import {
   ALL_TAG_SLOTS,
   type AllTagSlot,
@@ -106,7 +107,6 @@ import {
   kbDocumentSortParams,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
 import { canDeleteKnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/permissions'
-import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'

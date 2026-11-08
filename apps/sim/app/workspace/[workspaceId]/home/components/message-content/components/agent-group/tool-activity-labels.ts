@@ -1,3 +1,4 @@
+import { type ToolCallData, ToolCallStatus } from '@/lib/mothership/chat/types'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import {
   CallIntegrationTool,
@@ -9,7 +10,6 @@ import { getToolStatusDisplayTitle } from '@/lib/mothership/tools/display'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
 import { getNewestRunningTool } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-content'
 import { needsToolInput } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
-import { type ToolCallData, ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 /** A completed summary names at most this many distinct actions, and never counts the rest. */
 const MAX_SUMMARY_ACTIONS = 3

@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { Button, cn, Tooltip } from '@sim/emcn-legacy'
 import { Mic, Paperclip, Plus, Slash, X } from '@sim/emcn-legacy/icons'
+import { ToolCallStatus } from '@/lib/mothership/chat/types'
 import { HeroChatReply } from '@/app/(landing)/components/hero/components/hero-chat-loop/hero-chat-reply'
 import { HeroToolCallItem } from '@/app/(landing)/components/hero/components/hero-chat-loop/hero-tool-call-item'
 import { HeroChatWelcome } from '@/app/(landing)/components/hero/components/hero-chat-welcome'
@@ -19,7 +20,6 @@ import {
 import type { QuestionItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { PendingTagIndicator } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/pending-tag-indicator'
 import { SendButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/send-button/send-button'
-import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 
 /** Word-reveal cadence for the streamed reply. */
 const STREAM_WORD_MS = 55

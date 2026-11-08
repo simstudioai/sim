@@ -8,14 +8,6 @@ import {
   withBlockTiming,
 } from '@/lib/mothership/chat/persisted-message'
 import {
-  MothershipStreamV1CompletionStatus,
-  MothershipStreamV1EventType,
-  MothershipStreamV1SpanLifecycleEvent,
-  MothershipStreamV1ToolOutcome,
-} from '@/lib/mothership/generated/mothership-stream-v1'
-import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
-import { normalizeToolActivityDescription } from '@/lib/mothership/tools/display'
-import {
   type ChatContextKind,
   type ChatMessage,
   type ChatMessageAttachment,
@@ -24,7 +16,15 @@ import {
   ContentBlockType,
   type ToolCallInfo,
   ToolCallStatus,
-} from '@/app/workspace/[workspaceId]/home/types'
+} from '@/lib/mothership/chat/types'
+import {
+  MothershipStreamV1CompletionStatus,
+  MothershipStreamV1EventType,
+  MothershipStreamV1SpanLifecycleEvent,
+  MothershipStreamV1ToolOutcome,
+} from '@/lib/mothership/generated/mothership-stream-v1'
+import { isToolHiddenInUi } from '@/lib/mothership/tools/client/hidden-tools'
+import { normalizeToolActivityDescription } from '@/lib/mothership/tools/display'
 
 const STATE_TO_STATUS: Record<string, ToolCallStatus> = {
   [MothershipStreamV1ToolOutcome.success]: ToolCallStatus.success,

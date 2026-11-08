@@ -2,6 +2,7 @@
 
 import { type ComponentType, Fragment, useState } from 'react'
 import { ActivityStatus } from '@/components/ui/activity-status'
+import type { ToolCallData } from '@/lib/mothership/chat/types'
 import type { ToolActivity } from '@/lib/mothership/generated/protocol'
 import { readCallActivity } from '@/lib/mothership/tools/activity'
 import { ActivityStream } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/activity-stream'
@@ -19,7 +20,6 @@ import {
 import type { ToolCallItemProps } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
 import { getActivityAttentionKey } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-interactions'
 import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
-import type { ToolCallData } from '@/app/workspace/[workspaceId]/home/types'
 
 export {
   getActivityHeaderTool,

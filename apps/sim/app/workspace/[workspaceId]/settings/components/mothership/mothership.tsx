@@ -21,15 +21,15 @@ import {
   formatDate,
   TABS,
   toRFC3339,
-} from '@/app/workspace/[workspaceId]/settings/components/mothership/format'
+} from '@/lib/mothership/admin/format'
 import {
   type MothershipTab,
   mothershipParsers,
   mothershipUrlKeys,
-} from '@/app/workspace/[workspaceId]/settings/components/mothership/search-params'
-import { useLicenseForm } from '@/app/workspace/[workspaceId]/settings/components/mothership/use-license-form'
+} from '@/lib/mothership/admin/search-params'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { useLicenseForm } from '@/hooks/mothership/use-license-form'
 import {
   type MothershipEnv,
   useMothershipLicenses,

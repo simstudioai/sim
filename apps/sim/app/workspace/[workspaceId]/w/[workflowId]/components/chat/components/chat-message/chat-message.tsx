@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
+import type { ChatMessageAttachment } from '@/lib/mothership/chat/types'
 import { ChatMessageAttachments } from '@/app/workspace/[workspaceId]/home/components/chat-message-attachments'
-import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
 import { useThrottledValue } from '@/hooks/use-throttled-value'
 
 interface ChatMessageProps {

@@ -6,9 +6,9 @@ import type { Virtualizer } from '@tanstack/react-virtual'
 import { createRoot } from 'react-dom/client'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ChatMessage } from '@/lib/mothership/chat/types'
 import { ChatContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-content'
 import { useChatFind } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/use-chat-find'
-import type { ChatMessage } from '@/app/workspace/[workspaceId]/home/types'
 
 type ChatFind = ReturnType<typeof useChatFind>
 

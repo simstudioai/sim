@@ -1,6 +1,6 @@
+import { resourceParam } from '@/lib/mothership/chat/search-params'
+import type { ChatRequestMode } from '@/lib/mothership/chat/types'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { resourceParam } from '@/app/workspace/[workspaceId]/home/search-params'
-import type { ChatRequestMode } from '@/app/workspace/[workspaceId]/home/types'
 
 /** Preserve the selected resource when a new conversation receives its default chat URL. */
 export function chatUrl(

@@ -7,9 +7,9 @@ import { Globe } from '@sim/emcn-legacy/icons'
 import { isRecordLike, toRecordOrNull } from '@sim/utils/object'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import { faviconSrc } from '@/lib/favicon/url'
+import { ToolCallStatus } from '@/lib/mothership/chat/types'
 import { useChatSurface } from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
 import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
-import { ToolCallStatus } from '@/app/workspace/[workspaceId]/home/types'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 
 /** Only the page's hostname leaves the browser, and only to Sim's favicon route. */

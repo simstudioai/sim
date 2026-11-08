@@ -13,6 +13,7 @@ import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
 import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
+import { GlobalCommandsProvider } from '@/lib/global-commands/provider'
 import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { OrganizationProvider } from '@/lib/organizations/provider'
@@ -36,7 +37,6 @@ import {
   WorkspaceChrome,
   WorkspaceViewport,
 } from '@/app/workspace/[workspaceId]/components/workspace-chrome'
-import { GlobalCommandsProvider } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { Sidebar } from '@/platform/embedded/app/(shell)/_components/sidebar/sidebar'
 

@@ -15,6 +15,12 @@ import {
   LandingWorkflowSeedStorage,
   MothershipHandoffStorage,
 } from '@/lib/core/utils/browser-storage'
+import type {
+  FileAttachmentForApi,
+  MothershipResource,
+  MothershipResourceType,
+  WorkspaceResourceRef,
+} from '@/lib/mothership/chat/types'
 import {
   addMothershipContexts,
   MOTHERSHIP_SEND_MESSAGE_EVENT,
@@ -48,12 +54,6 @@ import {
   type UserInputHandle,
 } from './components'
 import { getMothershipUseChatOptions, useChat } from './hooks'
-import type {
-  FileAttachmentForApi,
-  MothershipResource,
-  MothershipResourceType,
-  WorkspaceResourceRef,
-} from './types'
 
 const logger = createLogger('Home')
 

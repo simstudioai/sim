@@ -15,6 +15,11 @@ import { Paperclip, Plus, Slash } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/mothership/chat/attachment-preview'
+import type {
+  ChatMessage,
+  FileAttachmentForApi,
+  MothershipResource,
+} from '@/lib/mothership/chat/types'
 import { MOTHERSHIP_ADD_CONTEXT_EVENT } from '@/lib/mothership/events'
 import { SIM_RESOURCE_DRAG_TYPE, SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
@@ -35,11 +40,6 @@ import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/co
 import { usePromptHistory } from '@/app/workspace/[workspaceId]/home/components/user-input/hooks/use-prompt-history'
 import { handleMothershipAddContextEvent } from '@/app/workspace/[workspaceId]/home/components/user-input/mothership-context-event'
 import { useChatPlanRequired } from '@/app/workspace/[workspaceId]/home/hooks/use-chat-plan-required'
-import type {
-  ChatMessage,
-  FileAttachmentForApi,
-  MothershipResource,
-} from '@/app/workspace/[workspaceId]/home/types'
 import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks'
 import type { AttachedFile } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { mentionifyIntegrations } from '@/blocks/integration-matcher'
@@ -53,7 +53,7 @@ import { useChatPlanModalStore } from '@/stores/modals/chat-plan/store'
 import { type DraftPayload, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
-export type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
+export type { FileAttachmentForApi } from '@/lib/mothership/chat/types'
 
 const logger = createLogger('UserInput')
 

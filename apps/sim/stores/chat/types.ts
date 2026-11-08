@@ -1,4 +1,4 @@
-import type { ChatMessageAttachment } from '@/app/workspace/[workspaceId]/home/types'
+import type { ChatMessageAttachment } from '@/lib/mothership/chat/types'
 
 /**
  * Position interface for floating chat
