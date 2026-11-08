@@ -27,6 +27,7 @@
 .tag {
   display: inline-flex;
   align-items: center;
+  gap: var(--ui-stack-gap);
   max-inline-size: 100%;
   min-inline-size: 0;
   padding-inline: var(--spacing-6);

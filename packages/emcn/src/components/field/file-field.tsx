@@ -5,10 +5,23 @@ import { IconButton } from '#emcn/components/button/button'
 import styles from '#emcn/components/field/file-field.module.css'
 import { FieldFrame, fieldDescription } from '#emcn/components/field/frame'
 
-interface FileFieldProps {
+type FileChoice =
+  | {
+      multiple?: false
+      /** Called with what was chosen or dropped. `accept` is only a hint, so validate the file here. */
+      onFileChange: (file: File) => void
+      onFilesChange?: never
+    }
+  | {
+      /** Accepts several files at once, such as a batch of documents. */
+      multiple: true
+      /** Called with every file chosen or dropped. `accept` is only a hint, so validate them here. */
+      onFilesChange: (files: File[]) => void
+      onFileChange?: never
+    }
+
+type FileFieldProps = FileChoice & {
   label: string
-  /** Called with what was chosen or dropped. `accept` is only a hint, so validate the file here. */
-  onFileChange: (file: File) => void
   accept?: string
   kind?: 'file' | 'image'
   prompt?: string
@@ -20,10 +33,12 @@ interface FileFieldProps {
   hint?: string
 }
 
-/** Choose or drop one file. The caller owns reading and uploading it. */
+/** Choose or drop a file, or several with `multiple`. The caller owns reading and uploading them. */
 export function FileField({
   label,
+  multiple,
   onFileChange,
+  onFilesChange,
   accept,
   kind = 'file',
   prompt,
@@ -65,6 +80,7 @@ export function FileField({
           className={styles.fileInput}
           type='file'
           accept={accept}
+          multiple={multiple}
           disabled={disabled}
           aria-invalid={error ? true : undefined}
           aria-describedby={[`${id}-selection`, fieldDescription(id, error, hint)]
@@ -74,9 +90,11 @@ export function FileField({
           onDragLeave={() => setDragging(false)}
           onDrop={() => setDragging(false)}
           onChange={(event) => {
-            const file = event.currentTarget.files?.[0]
+            const files = Array.from(event.currentTarget.files ?? [])
             event.currentTarget.value = ''
-            if (file) onFileChange(file)
+            if (!files.length) return
+            if (onFilesChange) onFilesChange(files)
+            else onFileChange?.(files[0])
           }}
         />
         {selection && onClear && (
