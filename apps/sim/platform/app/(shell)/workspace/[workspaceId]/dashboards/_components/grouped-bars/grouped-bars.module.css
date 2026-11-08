@@ -1,0 +1,94 @@
+.chart {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--spacing-16);
+}
+.coordinates {
+  display: grid;
+  grid-template-columns: var(--spacing-32) minmax(0, 1fr);
+  gap: var(--spacing-8);
+}
+.scale {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.canvas {
+  position: relative;
+  box-sizing: border-box;
+  min-inline-size: 0;
+  block-size: var(--chart-plot-height);
+  padding-block: var(--spacing-8);
+}
+.plot {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: hidden;
+}
+.bar {
+  fill: currentColor;
+  color: var(--ui-plot-primary);
+}
+.group[data-dimmed] .bar {
+  fill: color-mix(in srgb, currentColor calc(var(--opacity-disabled) * 100%), var(--ui-canvas));
+}
+.swatch {
+  flex: none;
+  inline-size: var(--spacing-6);
+  block-size: var(--spacing-6);
+  border-radius: var(--radius-full);
+  color: var(--ui-plot-primary);
+  background: currentColor;
+}
+:is(.bar, .swatch)[data-series="1"] {
+  color: var(--ui-plot-secondary);
+}
+:is(.bar, .swatch)[data-series="2"] {
+  color: var(--ui-plot-violet-1);
+}
+:is(.bar, .swatch)[data-series="3"] {
+  color: var(--ui-plot-violet-2);
+}
+:is(.bar, .swatch)[data-series="4"] {
+  color: var(--ui-plot-violet-3);
+}
+:is(.bar, .swatch)[data-series="5"] {
+  color: var(--ui-plot-violet-4);
+}
+.ticks {
+  grid-column: 2;
+  display: flex;
+  min-inline-size: 0;
+  color: var(--ui-secondary);
+}
+.ticks li {
+  flex: 1;
+  min-inline-size: 0;
+  padding-inline: var(--spacing-4);
+  text-align: center;
+}
+.tooltip {
+  column-gap: var(--spacing-12);
+  inline-size: min(100%, var(--chart-tooltip-width));
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  max-inline-size: 100%;
+  pointer-events: none;
+}
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-4) var(--spacing-16);
+  color: var(--ui-secondary);
+}
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-6);
+  min-inline-size: 0;
+  min-block-size: var(--spacing-28);
+}

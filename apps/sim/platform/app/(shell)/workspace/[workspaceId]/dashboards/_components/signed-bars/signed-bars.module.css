@@ -1,0 +1,58 @@
+.rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: var(--ui-list-gap);
+  margin-inline: calc(-1 * var(--ui-row-inset));
+}
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) calc(
+      var(--ui-table-number) +
+      var(--spacing-16)
+    );
+  align-items: center;
+  gap: var(--spacing-16);
+  min-block-size: var(--spacing-40);
+  padding: var(--spacing-8) var(--ui-row-inset);
+  border-radius: var(--radius-item);
+}
+.row:hover {
+  background: var(--ui-hover);
+}
+.label {
+  min-inline-size: 0;
+  color: var(--ui-ink);
+}
+.track {
+  display: block;
+  inline-size: 100%;
+  block-size: var(--spacing-16);
+  overflow: visible;
+}
+.zero {
+  stroke: var(--ui-border);
+  stroke-width: var(--spacing-stroke-default);
+  vector-effect: non-scaling-stroke;
+}
+.bar {
+  fill: var(--ui-plot-primary);
+}
+.bar[data-negative] {
+  fill: var(--ui-plot-violet-2);
+}
+.value {
+  color: var(--ui-secondary);
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+@container (width < 28rem) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}

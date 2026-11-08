@@ -1,0 +1,18 @@
+.rows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: var(--ui-product-section-gap);
+}
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  min-inline-size: 0;
+}
+/* Home's two columns: 24px between the sections' hover surfaces, so 40px between their text. */
+.row:has(> :nth-child(2)) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--container-440)), 1fr));
+  gap: var(--ui-product-section-gap);
+  column-gap: calc(var(--ui-product-section-gap) + 2 * var(--ui-row-inset));
+}

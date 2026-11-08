@@ -1,0 +1,30 @@
+.section {
+  display: grid;
+  align-content: start;
+  min-inline-size: 0;
+  gap: var(--ui-widget-content-gap);
+  container-type: inline-size;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-16);
+  margin-inline-end: calc(-1 * var(--ui-row-inset));
+}
+.control {
+  display: flex;
+  flex: none;
+  align-items: center;
+  block-size: 0;
+}
+.text {
+  display: grid;
+  gap: var(--ui-content-gap);
+  max-inline-size: var(--container-760);
+  overflow-wrap: anywhere;
+}
+.text p {
+  color: var(--ui-ink);
+  text-wrap: pretty;
+}

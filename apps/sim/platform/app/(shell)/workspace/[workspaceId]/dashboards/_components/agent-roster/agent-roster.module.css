@@ -1,0 +1,22 @@
+.roster {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: var(--ui-list-gap);
+  margin-inline: calc(-1 * var(--ui-row-inset));
+}
+.status[data-tone="accent"] {
+  color: var(--status-info);
+}
+.status[data-tone="success"] {
+  color: var(--status-success);
+}
+.status[data-tone="warning"] {
+  color: var(--status-warning);
+}
+.status[data-tone="danger"] {
+  color: var(--control-danger);
+}
+.status[data-tone="neutral"] {
+  color: var(--ui-ink);
+}
