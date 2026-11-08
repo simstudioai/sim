@@ -2,6 +2,14 @@ import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { searchConnectionTargetSchema } from '@/lib/knowledge/search/connection-target'
+import {
+  type ContentSegment,
+  type CredentialItemData,
+  parseCredentialSubmissionProgress,
+  parseLastCredentialTag,
+  parseLastQuestionTag,
+  parseSpecialTags,
+} from '@/lib/mothership/chat/special-tags'
 import type { ChatMessage, ChatMessageContext, ToolCallData } from '@/lib/mothership/chat/types'
 import {
   Terminal as TerminalTool,
@@ -23,14 +31,6 @@ import {
   withoutRetriedSearchFailures,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-labels'
 import { parseQuestionAnswerMessage } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question/answers'
-import {
-  type ContentSegment,
-  type CredentialItemData,
-  parseCredentialSubmissionProgress,
-  parseLastCredentialTag,
-  parseLastQuestionTag,
-  parseSpecialTags,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/parse'
 import {
   type AgentGroupSegment,
   deriveThinkingLabel,

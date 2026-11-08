@@ -47,6 +47,21 @@ import {
   searchConnectionAttemptKey,
 } from '@/lib/knowledge/search/connection-attempt'
 import { searchConnectionTargetSchema } from '@/lib/knowledge/search/connection-target'
+import {
+  type ContentSegment,
+  type CredentialItemData,
+  type CredentialSubmissionPayload,
+  type CredentialTagData,
+  type CredentialTagType,
+  formatCredentialSubmissionMessage,
+  type MothershipErrorTagData,
+  type OptionsTagData,
+  type QuestionItem,
+  type SecretInputScope,
+  type UsageUpgradeTagData,
+  type WorkspaceResourceTagData,
+  type WorkspaceResourceTagType,
+} from '@/lib/mothership/chat/special-tags'
 import type {
   ChatMessageContext,
   MothershipResource,
@@ -78,21 +93,6 @@ import {
   OrganizationSecretInputHost,
   useOrganizationSecretInput,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/organization-secret-input'
-import {
-  type ContentSegment,
-  type CredentialItemData,
-  type CredentialSubmissionPayload,
-  type CredentialTagData,
-  type CredentialTagType,
-  formatCredentialSubmissionMessage,
-  type MothershipErrorTagData,
-  type OptionsTagData,
-  type QuestionItem,
-  type SecretInputScope,
-  type UsageUpgradeTagData,
-  type WorkspaceResourceTagData,
-  type WorkspaceResourceTagType,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/parse'
 import {
   resolveOAuthChipTarget,
   useOAuthChipConnection,
@@ -149,7 +149,7 @@ export {
   type UsageUpgradeTagData,
   type WorkspaceResourceTagData,
   type WorkspaceResourceTagType,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/parse'
+} from '@/lib/mothership/chat/special-tags'
 
 /**
  * Kept out of the chat's initial chunk — it pulls in three provider-specific

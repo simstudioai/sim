@@ -1,4 +1,4 @@
-import type { QuestionItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/parse'
+import type { QuestionItem } from '@/lib/mothership/chat/special-tags'
 
 /**
  * Builds the single user message sent after the final question is answered:

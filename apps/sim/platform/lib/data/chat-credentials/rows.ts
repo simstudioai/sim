@@ -5,8 +5,8 @@ import { useSession } from '@/lib/auth/client'
 import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billing/upgrade-reasons'
 import { getDesktopBridge } from '@/lib/desktop'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
+import { formatCredentialSubmissionMessage } from '@/lib/mothership/chat/special-tags'
 import { CredentialWorkspaceContext } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/credential-workspace-context'
-import { formatCredentialSubmissionMessage } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/parse'
 import {
   usePersonalEnvironment,
   useSavePersonalEnvironment,

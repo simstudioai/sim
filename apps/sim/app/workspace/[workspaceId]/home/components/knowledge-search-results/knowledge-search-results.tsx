@@ -5,15 +5,15 @@ import { ActivityStatus } from '@/components/ui/activity-status'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/client'
 import type { ResourceScope } from '@/lib/core/resource-scope'
-import { SearchFilters } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/search-filters'
-import { useLiveSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/use-live-search-results'
 import {
   handleResultsKeyDown,
   liveSearchResultsKey,
   type SearchResultsProps,
   toSource,
-} from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/utils'
+} from '@/lib/knowledge/search/results'
+import { SearchFilters } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/search-filters'
 import { SourceCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card'
+import { useLiveSearchResults } from '@/hooks/sim-search/use-live-search-results'
 
 type KnowledgeSearchResultsProps = (
   | { workspaceId: string; scope?: never }

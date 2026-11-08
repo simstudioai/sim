@@ -5,12 +5,9 @@ import type {
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
+import { isHttpUrl, type SourceTagData } from '@/lib/mothership/chat/special-tags'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
-import {
-  isHttpUrl,
-  type SourceTagData,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/parse'
 
 /** A new query, reader or access scope starts a fresh search and rolling-date anchor. */
 export function liveSearchResultsKey(

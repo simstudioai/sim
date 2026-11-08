@@ -8,6 +8,7 @@ import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/client'
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
 import { BrowserStorage } from '@/lib/core/utils/browser-storage'
+import { groupResultsByDocument, toSource } from '@/lib/knowledge/search/results'
 import {
   searchFilterParsers,
   searchFiltersFromParams,
@@ -19,10 +20,6 @@ import {
   organizationSearchUrlKeys,
 } from '@/lib/organizations/search-params'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
-import {
-  groupResultsByDocument,
-  toSource,
-} from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/utils'
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 import {
   useClearSearchHistory,

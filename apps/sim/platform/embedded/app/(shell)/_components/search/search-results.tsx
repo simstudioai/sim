@@ -8,12 +8,12 @@ import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/client'
 import type { ResourceScope } from '@/lib/core/resource-scope'
-import { useLiveSearchResults } from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/use-live-search-results'
 import {
   handleResultsKeyDown,
   liveSearchResultsKey,
   toSource,
-} from '@/app/workspace/[workspaceId]/home/components/knowledge-search-results/utils'
+} from '@/lib/knowledge/search/results'
+import { useLiveSearchResults } from '@/hooks/sim-search/use-live-search-results'
 import { useSearchFilterControls } from '@/hooks/sim-search/use-search-filter-controls'
 import styles from '@/platform/embedded/app/(shell)/_components/search/search.module.css'
 import { SourceRow } from '@/platform/embedded/app/(shell)/_components/search/source-row'
