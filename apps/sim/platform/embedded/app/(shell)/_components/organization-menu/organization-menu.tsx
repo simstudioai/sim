@@ -44,7 +44,7 @@ export function OrganizationMenu({
   const [savedName, setSavedName] = useState<{ name: string; replaces: string } | null>(null)
   const opener = useRef<HTMLElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
-  const renameItem = useRef<HTMLElement | null>(null)
+  const card = useRef<HTMLDivElement>(null)
   const errorId = useId()
   if (savedName && savedName.replaces !== organization.name) setSavedName(null)
   const name = savedName?.name ?? organization.name
@@ -55,12 +55,9 @@ export function OrganizationMenu({
     setRenameError(null)
   }
 
-  /**
-   * Returns focus to the item that started the rename once the field has unmounted; moving it
-   * sooner would blur the field, which saves the draft.
-   */
-  function returnFocusToRenameItem() {
-    requestAnimationFrame(() => renameItem.current?.focus())
+  /** The rename field unmounts when the draft ends, and focus would otherwise fall to the page. */
+  function returnFocusToCard() {
+    requestAnimationFrame(() => card.current?.querySelector('button')?.focus())
   }
 
   async function submitRename(): Promise<boolean> {
@@ -107,7 +104,7 @@ export function OrganizationMenu({
           </IdentityButton>
         )}
       >
-        <div className={styles.menu}>
+        <div ref={card} className={styles.menu}>
           <div className={styles.overview}>
             <Avatar name={name} src={logo} organization size='inline' decorative />
             <div className={styles.copy}>
@@ -119,13 +116,13 @@ export function OrganizationMenu({
                     if (event.key === 'Enter') {
                       event.preventDefault()
                       void submitRename().then((saved) => {
-                        if (saved) returnFocusToRenameItem()
+                        if (saved) returnFocusToCard()
                       })
                     } else if (event.key === 'Escape') {
                       event.preventDefault()
                       event.stopPropagation()
                       stopRenaming()
-                      returnFocusToRenameItem()
+                      returnFocusToCard()
                     }
                   }}
                 >
@@ -183,11 +180,7 @@ export function OrganizationMenu({
               <MenuItem
                 label='Rename organization'
                 icon='I036'
-                onSelect={() => {
-                  renameItem.current =
-                    document.activeElement instanceof HTMLElement ? document.activeElement : null
-                  setDraftName(name)
-                }}
+                onSelect={() => setDraftName(name)}
               />
               <MenuItem
                 label='Change organization logo'
