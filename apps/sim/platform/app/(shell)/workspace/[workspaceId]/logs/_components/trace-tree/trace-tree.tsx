@@ -86,8 +86,10 @@ interface TraceTreeProps {
 }
 
 /**
- * The run's steps as a tree on one clock: nesting by indent, each step's mark and duration, and a
- * bar placed where it ran. Selecting a step opens it below; Left and Right collapse and expand.
+ * The run's steps as a tree on one clock, as Paper's TraceRow: a disclosure, the step's mark and
+ * name one gap apart on every row, its duration and a bar placed where it ran. Each level indents
+ * by one disclosure, and a hairline guide hangs under every open parent's disclosure through its
+ * last descendant. Selecting a step opens it in the inspector; Left and Right collapse and expand.
  */
 export function TraceTree({ label, trace, totalMs, selectedId, onSelect }: TraceTreeProps) {
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
@@ -135,7 +137,7 @@ export function TraceTree({ label, trace, totalMs, selectedId, onSelect }: Trace
             data-selected={span.id === selectedId || undefined}
           >
             {Array.from({ length: depth }, (_, level) => (
-              <span key={level} className={styles.indent} aria-hidden='true' />
+              <span key={level} className={styles.guide} aria-hidden='true' />
             ))}
             {expandable ? (
               <button
@@ -159,7 +161,7 @@ export function TraceTree({ label, trace, totalMs, selectedId, onSelect }: Trace
               onKeyDown={(event) => onKeyDown(event, span)}
             >
               <span className={styles.mark} aria-hidden='true'>
-                {depth > 0 && <SpanMark span={span} />}
+                <SpanMark span={span} />
               </span>
               <span className={styles.name} data-type='T060'>
                 <OverflowText text={span.name}>{span.name}</OverflowText>

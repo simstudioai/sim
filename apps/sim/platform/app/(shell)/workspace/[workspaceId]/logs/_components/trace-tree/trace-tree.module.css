@@ -20,11 +20,25 @@
 .row[data-selected] {
   background: var(--ui-selected);
 }
-.indent {
+/*
+ * One level of nesting, as wide as a disclosure. Its hairline sits under the ancestor's disclosure
+ * and bridges the list gap above, so a parent's guide runs unbroken through its descendants.
+ */
+.guide {
+  position: relative;
   flex: none;
+  align-self: stretch;
   inline-size: var(--spacing-16);
 }
+.guide::before {
+  position: absolute;
+  inset-block: calc(-1 * var(--ui-list-gap)) 0;
+  inset-inline-start: calc(50% - var(--spacing-stroke-default) / 2);
+  border-inline-start: var(--ui-conversation-rule);
+  content: "";
+}
 .disclosure {
+  position: relative;
   display: grid;
   flex: none;
   place-items: center;
@@ -40,6 +54,7 @@ button.disclosure {
 button.disclosure:hover {
   color: var(--ui-ink);
 }
+/* Paper's TraceRow: mark, name, duration and timeline, one gap apart. */
 .target {
   display: grid;
   flex: 1;
@@ -59,6 +74,7 @@ button.disclosure:hover {
   place-items: center;
   inline-size: var(--spacing-16);
   block-size: var(--spacing-16);
+  color: var(--ui-secondary);
 }
 .name {
   min-inline-size: 0;
@@ -110,6 +126,13 @@ button.disclosure:hover {
 }
 .bar[data-paint="error"] {
   fill: var(--control-danger);
+}
+@media (pointer: coarse) {
+  button.disclosure::after {
+    position: absolute;
+    inset: calc((var(--spacing-16) - var(--spacing-app-touch-target)) / 2);
+    content: "";
+  }
 }
 @container trace (width < 28rem) {
   .target {
