@@ -17,7 +17,7 @@ import { WorkspaceGrantModal } from '@/platform/embedded/app/(shell)/settings/_c
 import {
   useCredentialGroupWorkspaceAccess,
   useWorkspaceAccessUpdate,
-} from '@/platform/embedded/lib/data/credential-groups'
+} from '@/platform/embedded/lib/data/integrations'
 
 type Grant = OrganizationAccountWorkspaceAccess['grants'][number]
 type GrantEditor =

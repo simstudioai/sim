@@ -2,12 +2,14 @@
 
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationSessionPolicy } from '@/lib/api/contracts/organization'
+import type { OrganizationNetwork } from '@/lib/api/contracts/organization-network'
 import {
   useOrganizationSessionPolicy,
   useRevokeOrganizationSessions,
   useUpdateOrganizationSessionPolicy,
 } from '@/ee/session-policy/hooks/session-policy'
 import { parseSessionPolicyHours } from '@/ee/session-policy/lib/policy-form'
+import { useOrganizationNetwork } from '@/hooks/queries/organization-network'
 import { plural } from '@/platform/shared/plural'
 import { toast } from '@/platform/shared/toast'
 
@@ -65,4 +67,29 @@ export function useSessionPolicyWrites(organizationId: string) {
       toast.success(`Signed out ${plural(result.data.revokedSessions, 'session')}`)
     },
   }
+}
+
+function outboundAddresses(network: OrganizationNetwork) {
+  if (network.mode === 'unavailable') return { kind: 'unavailable' as const }
+  if (network.mode === 'gateway' && network.publicIps.length > 0) {
+    return { kind: 'allowlist' as const, publicIps: network.publicIps }
+  }
+  return {
+    kind: 'none' as const,
+    message:
+      network.mode === 'blocked'
+        ? 'Supported HTTPS connections are paused.'
+        : network.mode === 'gateway'
+          ? 'Your outbound IP addresses aren’t available yet.'
+          : 'Outbound IP addresses are not configured for this organization.',
+  }
+}
+
+/**
+ * The organization's outbound traffic as the section words it: the addresses to allowlist, why there
+ * are none, or that the deployment could not say.
+ */
+export function useOutboundAddresses(organizationId: string) {
+  const { data, error, isFetching, refetch } = useOrganizationNetwork(organizationId)
+  return { data: data && outboundAddresses(data), error, isFetching, refetch }
 }

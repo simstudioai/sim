@@ -26,7 +26,7 @@ import {
 import {
   useSearchPolicySave,
   useServiceAccountConnections,
-} from '@/platform/embedded/lib/data/integration-settings'
+} from '@/platform/embedded/lib/data/integrations'
 import { toast } from '@/platform/shared/toast'
 
 interface PolicyModalProps {

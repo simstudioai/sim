@@ -32,7 +32,7 @@ import {
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { SlackAccountSetup } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/slack-account-setup'
 import { SourceSetup } from '@/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup-host'
-import { useProviderConnections } from '@/platform/embedded/lib/data/integration-settings'
+import { useProviderConnections } from '@/platform/embedded/lib/data/integrations'
 
 interface ProviderDetailProps {
   connectorType: string

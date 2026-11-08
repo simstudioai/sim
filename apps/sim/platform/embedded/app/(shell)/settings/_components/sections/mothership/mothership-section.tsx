@@ -36,10 +36,7 @@ import {
   SectionStack,
   SectionToolbar,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
-import {
-  useMothershipLicenseList,
-  useMothershipOverview,
-} from '@/platform/embedded/lib/data/mothership'
+import { useMothershipLicenseList, useMothershipOverview } from '@/platform/embedded/lib/data/usage'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 export default function MothershipSection() {

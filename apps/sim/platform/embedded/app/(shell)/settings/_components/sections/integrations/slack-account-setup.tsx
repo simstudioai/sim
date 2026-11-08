@@ -6,7 +6,7 @@ import { useQueryState } from 'nuqs'
 import { searchSetupParam, searchSetupReturnParam } from '@/lib/sim-search/params'
 import { connectedAccountsParam } from '@/app/o/[organizationId]/settings/components/integrations/search-params'
 import { SlackMemberSetupModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/slack-member-setup-modal'
-import { useSlackAppSetup } from '@/platform/embedded/lib/data/integration-settings'
+import { useSlackAppSetup } from '@/platform/embedded/lib/data/integrations'
 
 interface SlackAccountSetupProps {
   organizationId: string

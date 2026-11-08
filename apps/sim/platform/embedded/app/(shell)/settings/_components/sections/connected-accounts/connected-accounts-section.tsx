@@ -16,7 +16,7 @@ import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/setti
 import { GroupAccess } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-access'
 import { GroupPeople } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-people'
 import { GroupProviders } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-providers'
-import { useCredentialGroupSettings } from '@/platform/embedded/lib/data/credential-groups'
+import { useCredentialGroupSettings } from '@/platform/embedded/lib/data/integrations'
 
 const VIEWS = [
   { value: 'providers', label: 'Providers' },

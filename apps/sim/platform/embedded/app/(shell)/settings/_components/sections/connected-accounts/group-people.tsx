@@ -20,7 +20,7 @@ import {
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/group-people.module.css'
 import { PeopleInviteModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/people-invite-modal'
-import { useCredentialGroupPeople } from '@/platform/embedded/lib/data/credential-groups'
+import { useCredentialGroupPeople } from '@/platform/embedded/lib/data/integrations'
 
 interface PersonConnectionsProps {
   person: Parameters<typeof personConnectionSummaries>[0]

@@ -8,7 +8,7 @@ import { InlineNotice } from '@sim/emcn/status'
 import { LoadingRows } from '@sim/emcn/status/query-boundary'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
-import { useDatabricksConfiguration } from '@/platform/embedded/lib/data/credential-groups'
+import { useDatabricksConfiguration } from '@/platform/embedded/lib/data/integrations'
 
 interface DatabricksModalProps {
   organizationId: string

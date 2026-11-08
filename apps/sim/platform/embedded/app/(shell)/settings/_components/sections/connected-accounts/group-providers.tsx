@@ -32,7 +32,7 @@ import {
 import { DatabricksModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/databricks-modal'
 import { ProviderCatalogModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/provider-catalog-modal'
 import { SlackMemberSetupModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/connected-accounts/slack-member-setup-modal'
-import { useCredentialGroupProviders } from '@/platform/embedded/lib/data/credential-groups'
+import { useCredentialGroupProviders } from '@/platform/embedded/lib/data/integrations'
 
 interface GroupProvidersProps {
   organizationId: string

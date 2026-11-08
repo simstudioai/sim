@@ -32,7 +32,10 @@ import {
   ActionRow,
   Muted,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
-import { useScimGroupMappingList, useScimMappingAdd } from '@/platform/embedded/lib/data/sso/scim'
+import {
+  useScimGroupMappingList,
+  useScimMappingAdd,
+} from '@/platform/embedded/lib/data/sso-settings'
 import { plural } from '@/platform/shared/plural'
 
 interface AddMappingProps {

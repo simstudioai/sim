@@ -34,7 +34,7 @@ import { ConnectorSettingsFields } from '@/platform/embedded/app/(shell)/setting
 import {
   useSourceConnection,
   useSourceIntegrationStatus,
-} from '@/platform/embedded/lib/data/integration-settings'
+} from '@/platform/embedded/lib/data/integrations'
 
 interface SourceDetailProps {
   connectorId: string

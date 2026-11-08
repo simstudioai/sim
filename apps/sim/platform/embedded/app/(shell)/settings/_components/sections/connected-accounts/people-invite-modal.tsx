@@ -5,7 +5,7 @@ import { Modal } from '@sim/emcn/modal'
 import { InlineNotice } from '@sim/emcn/status'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
-import { useConnectionRequestInvite } from '@/platform/embedded/lib/data/credential-groups'
+import { useConnectionRequestInvite } from '@/platform/embedded/lib/data/integrations'
 
 interface PeopleInviteModalProps {
   organizationId: string

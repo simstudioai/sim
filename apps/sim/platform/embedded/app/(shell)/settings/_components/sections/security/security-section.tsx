@@ -24,8 +24,8 @@ import {
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-server-draft'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
-import { useOutboundAddresses } from '@/platform/embedded/lib/data/network'
 import {
+  useOutboundAddresses,
   useSessionPolicy,
   useSessionPolicyWrites,
 } from '@/platform/embedded/lib/data/session-policy'

@@ -33,10 +33,7 @@ import {
 import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-server-draft'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { PolicyDetail } from '@/platform/embedded/app/(shell)/settings/_components/sections/data-retention/policy-detail'
-import {
-  useRetentionSettings,
-  useRetentionWrites,
-} from '@/platform/embedded/lib/data/data-retention'
+import { useRetentionSettings, useRetentionWrites } from '@/platform/embedded/lib/data/drains'
 import { toast } from '@/platform/shared/toast'
 
 type PolicySelection =

@@ -23,7 +23,7 @@ import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts
 import {
   useAssistantAppActions,
   usePersonalAccountDisconnect,
-} from '@/platform/embedded/lib/data/integration-settings'
+} from '@/platform/embedded/lib/data/integrations'
 
 interface AssistantAppsProps {
   organizationId: string

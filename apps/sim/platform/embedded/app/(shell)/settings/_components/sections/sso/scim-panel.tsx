@@ -33,7 +33,7 @@ import {
   useScimActivityFeed,
   useScimConnectionActions,
   useScimProvisioning,
-} from '@/platform/embedded/lib/data/sso/scim'
+} from '@/platform/embedded/lib/data/sso-settings'
 import { plural } from '@/platform/shared/plural'
 import { formatRelativeTime } from '@/platform/shared/time'
 

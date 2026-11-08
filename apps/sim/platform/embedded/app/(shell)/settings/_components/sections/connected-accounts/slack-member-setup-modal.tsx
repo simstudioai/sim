@@ -7,7 +7,7 @@ import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { FailureNotice } from '@sim/emcn/status'
 import { Muted } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { SlackSetupWizard } from '@/platform/embedded/app/(shell)/settings/_components/sections/search-slack/slack-setup-wizard'
-import { useSlackMemberSetup } from '@/platform/embedded/lib/data/credential-groups'
+import { useSlackMemberSetup } from '@/platform/embedded/lib/data/integrations'
 
 interface SlackMemberSetupModalProps {
   organizationId: string

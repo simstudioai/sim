@@ -17,7 +17,7 @@ import {
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { SlackSetupWizard } from '@/platform/embedded/app/(shell)/settings/_components/sections/search-slack/slack-setup-wizard'
-import { useSlackSearchConnections } from '@/platform/embedded/lib/data/slack-search'
+import { useSlackSearchConnections } from '@/platform/embedded/lib/data/slack-search-handoff'
 import { toast } from '@/platform/shared/toast'
 
 interface WizardState {
