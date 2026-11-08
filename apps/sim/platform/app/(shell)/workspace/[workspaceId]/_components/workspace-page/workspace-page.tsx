@@ -94,7 +94,7 @@ export function WorkspacePage({
   if (layout === 'fill')
     return (
       <PageColumn>
-        <main className={styles.page} data-layout='fill'>
+        <main className={styles.page} data-bounded=''>
           {heading}
           {toolbar}
           <div className={styles.fillContent}>{content}</div>
@@ -122,7 +122,14 @@ interface LiveWorkspacePageProps extends Omit<WorkspacePageProps, 'workspace'> {
  * A tab built on live data: the heading comes from the viewer's workspaces, and a workspace they
  * cannot open answers as not found. The page's own read takes over once the workspace is known.
  */
-export function LiveWorkspacePage({ workspaceId, read, ...page }: LiveWorkspacePageProps) {
+export function LiveWorkspacePage({
+  workspaceId,
+  current,
+  controls,
+  read,
+  layout,
+  children,
+}: LiveWorkspacePageProps) {
   const live = useLiveWorkspace(workspaceId)
   if (live.missing) notFound()
   const workspaceRead: WorkspaceRead =
@@ -133,10 +140,14 @@ export function LiveWorkspacePage({ workspaceId, read, ...page }: LiveWorkspaceP
         : (read ?? READY)
   return (
     <WorkspacePage
-      {...page}
       workspace={live.workspace ?? { id: workspaceId, name: '' }}
+      current={current}
+      controls={controls}
       read={workspaceRead}
-    />
+      layout={layout}
+    >
+      {children}
+    </WorkspacePage>
   )
 }
 

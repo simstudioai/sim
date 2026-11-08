@@ -22,7 +22,7 @@
 }
 /* Beside a trail, search keeps a field's width and the trail takes what is left of the leading edge. */
 .leading[data-trail] {
-  flex: 1 1 auto;
+  flex: 1 1 var(--container-440);
   max-inline-size: none;
 }
 .leading[data-trail] > .search {

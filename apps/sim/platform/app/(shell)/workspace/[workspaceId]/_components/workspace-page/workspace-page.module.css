@@ -28,7 +28,7 @@
   inline-size: min(100%, var(--container-440));
 }
 /* A bounded tab: the heading, tabs and controls hold their place and the content below scrolls itself. */
-.page[data-layout="fill"] {
+.page[data-bounded] {
   block-size: 100%;
   min-block-size: 0;
   padding-block-end: 0;
