@@ -156,10 +156,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     if (!parsed.success) return parsed.response
     const { name, skipDefaultWorkflow } = parsed.data.body
     const activeOrganizationId = getActiveOrganizationId(session)
-    const creationPolicy = await getWorkspaceCreationPolicy({
+    let creationPolicy = await getWorkspaceCreationPolicy({
       userId: session.user.id,
       activeOrganizationId,
     })
+    /** A new workspace lands in the creator's organization, so they need one first. */
+    if (creationPolicy.observedOrganizationId === null) {
+      await ensureUserOrganization(session.user.id)
+      creationPolicy = await getWorkspaceCreationPolicy({
+        userId: session.user.id,
+        activeOrganizationId,
+      })
+    }
 
     if (!creationPolicy.canCreate) {
       /**
