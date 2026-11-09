@@ -4,12 +4,12 @@ import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { CopyButton } from '@sim/emcn/button/copy-button'
 import { InlineNotice } from '@sim/emcn/status'
+import { MetadataFields } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/metadata-fields/metadata-fields'
 import { formatDuration } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/format'
 import type {
   TracePayload,
   TraceSpan,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
-import { MetadataFields } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/metadata-fields/metadata-fields'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/span-inspector/span-inspector.module.css'
 
 const STEP_TYPE: Record<TraceSpan['kind'], string> = {
