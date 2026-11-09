@@ -85,6 +85,7 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   const home = surfacePath === '/home'
   const integrations = surfacePath === '/integrations' || surfacePath.startsWith('/integrations/')
   const people = surfacePath === '/people' || surfacePath.startsWith('/people/')
+  const searchPage = surfacePath === '/search' || surfacePath.startsWith('/search/')
   const workspace = data?.workspaces.find((item) => item.id === location?.id)
   const scrollingPage = home || integrations || Boolean(location && !location.detail)
   const chats = orderSidebarItems(
@@ -107,11 +108,13 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
         : 'Settings'
       : conversation
         ? chatTitle || 'New chat'
-        : integrations
-          ? 'Integrations'
-          : people
-            ? 'People'
-            : 'Home'
+        : searchPage
+          ? chatTitle || 'Search'
+          : integrations
+            ? 'Integrations'
+            : people
+              ? 'People'
+              : 'Home'
   const drawerOpen = compact && drawer
 
   useEffect(() => {

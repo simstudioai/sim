@@ -339,7 +339,8 @@ interface SearchFieldOptions {
 
 /**
  * Search's field: an editable draft kept per committed query, so a reload, Back to an earlier query
- * or a return to the same one restores what was typed. Input waits for hydration, then takes focus.
+ * or a return to the same one restores what was typed. What is typed before the session is known
+ * stays in the field until the next edit stores it. The field takes focus once hydrated.
  */
 export function useSearchField({ query, searching, onSubmit, onStop }: SearchFieldOptions) {
   const organization = useOrganization()
@@ -353,13 +354,18 @@ export function useSearchField({ query, searching, onSubmit, onStop }: SearchFie
   const draftKey = drafts.query(owner)
   const saved = useMothershipDraftsStore((state) => state.drafts[draftKey])
   const stored = saved?.text ?? (latest?.searchQuery === owner ? latest.text : query)
+  const [unstored, setUnstored] = useState<string | null>(null)
   // Server markup knows only the URL, so the saved draft appears once the page is interactive.
-  const value = hydrated && userId ? stored : query
+  const value = unstored ?? (hydrated && userId ? stored : query)
   useEffect(() => {
     if (hydrated) inputRef.current?.focus()
   }, [hydrated])
   const setValue = (text: string) => {
-    if (!userId) return
+    if (!userId) {
+      setUnstored(text)
+      return
+    }
+    setUnstored(null)
     const { setDraft } = useMothershipDraftsStore.getState()
     const payload = { text, searchQuery: owner }
     setDraft(draftKey, payload)
@@ -374,11 +380,11 @@ export function useSearchField({ query, searching, onSubmit, onStop }: SearchFie
       if (latest?.searchQuery === owner) clearDraft(drafts.latest)
     }
     clearDraft(drafts.query(next))
+    setUnstored(null)
     onSubmit(next)
   }
   return {
     inputRef,
-    hydrated,
     value,
     setValue,
     submit,
