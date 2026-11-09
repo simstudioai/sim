@@ -22,6 +22,7 @@ import {
   linkLine,
   markdownResponse,
   navMenuLines,
+  SECURITY_LINES,
   SOLUTION_LINES,
   section,
   toLlmsMarkdown,
@@ -172,6 +173,7 @@ export async function GET() {
         `- ${max.name}: $${max.dollars} per user per month, ${max.credits.toLocaleString('en-US')} credits.`,
         '- Enterprise: custom limits, infrastructure, and governance for large organizations.',
       ]),
+      section('Security and governance', SECURITY_LINES),
       section('Solutions', SOLUTION_LINES),
       section(
         'Customer stories',
