@@ -33,9 +33,13 @@ export default async function WorkspaceLayout({ children, params }: WorkspaceLay
     import('@/platform/lib/data/workspace-visit'),
     import('@/platform/lib/data/upload-guard'),
   ])
-  if (!(await readWorkspaceShellOrganizationId(workspaceId))) notFound()
+  const [organizationId, tabFlags] = await Promise.all([
+    readWorkspaceShellOrganizationId(workspaceId),
+    readWorkspaceTabFlags(),
+  ])
+  if (!organizationId) notFound()
   return (
-    <WorkspaceSession mode='live' tabFlags={await readWorkspaceTabFlags()}>
+    <WorkspaceSession mode='live' tabFlags={tabFlags}>
       <WorkspaceVisit workspaceId={workspaceId} />
       <UploadGuard />
       <WorkspaceRealtime>{children}</WorkspaceRealtime>

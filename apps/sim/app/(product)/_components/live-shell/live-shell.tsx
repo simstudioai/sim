@@ -31,7 +31,11 @@ export async function LiveShell({
   telemetry: ReactNode
   children: ReactNode
 }) {
-  const surface = await readOrganizationSurface()
+  const [surface, location, cookieStore] = await Promise.all([
+    readOrganizationSurface(),
+    readDocumentLocation(),
+    cookies(),
+  ])
   if (surface.status !== 'ok') {
     // The proxy sends a request with no session cookie to login, so this one's cookie is stale.
     if (surface.status === 'unauthenticated') return <StaleSession loginHref={LOGIN_PATH} />
@@ -41,9 +45,10 @@ export async function LiveShell({
   }
 
   const { organization } = surface
-  const location = await readDocumentLocation()
-  if (location) await followProductRoute(organization, location)
-  const cookieStore = await cookies()
+  const [, dehydratedState] = await Promise.all([
+    location && followProductRoute(organization, location),
+    prefetchShell(organization),
+  ])
 
   return (
     <LiveProviders
@@ -52,7 +57,7 @@ export async function LiveShell({
         destinations: resolveLiveDestinations(organization),
         settingsNavigation: resolveSettingsNavigation(organization),
       }}
-      dehydratedState={await prefetchShell(organization)}
+      dehydratedState={dehydratedState}
     >
       {telemetry}
       <Suspense fallback={null}>
