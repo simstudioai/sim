@@ -92,8 +92,7 @@ export async function prepareSteeringInput(params: {
 
   const userPermission =
     workspaceId && fileAttachments?.length
-      ? ((await getUserEntityPermissions(userId, 'workspace', workspaceId).catch(() => null)) ??
-        undefined)
+      ? ((await getUserEntityPermissions(userId, 'workspace', workspaceId)) ?? undefined)
       : undefined
   const uploadContexts = await buildChatUploadContexts({
     isAssistant,
