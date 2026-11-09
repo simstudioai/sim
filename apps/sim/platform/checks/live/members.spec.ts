@@ -1,5 +1,6 @@
 import { expect, type Page, test } from '@playwright/test'
 import { memberEmail, requireEnv, signIn, signInAsAdmin } from '@/platform/checks/live/session'
+import { liveRoute } from '@/platform/checks/routes'
 
 /**
  * Mutates the seeded organization. `PLATFORM_LIVE_EMAIL` is an administrator,
@@ -7,7 +8,7 @@ import { memberEmail, requireEnv, signIn, signInAsAdmin } from '@/platform/check
  * flips and flips back, `PLATFORM_LIVE_REMOVABLE_EMAIL` someone reseeded before each run, and
  * `PLATFORM_LIVE_REFUSED_INVITE_EMAIL` an address the batch invite always refuses.
  */
-const MEMBERS = '/org/settings/members'
+const MEMBERS = liveRoute('/settings/members')
 
 async function openMembers(page: Page) {
   await signInAsAdmin(page, MEMBERS)

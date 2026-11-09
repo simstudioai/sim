@@ -1,11 +1,10 @@
 import { expect, test } from '@playwright/test'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test('a day without activity keeps its place within the selected calendar window', async ({
   page,
 }) => {
-  await page.goto(`${origin}/home?state=stress`)
+  await page.goto(fixtureUrl('/home?state=stress'))
   const chart = page.getByRole('region', { name: 'Tasks run', exact: true })
   await chart.getByRole('group', { name: 'Tasks run data' }).focus()
   await page.keyboard.press('End')
@@ -21,7 +20,7 @@ test('a day without activity keeps its place within the selected calendar window
 test('Home switches the activity metric while keeping its date window and widget visibility', async ({
   page,
 }) => {
-  await page.goto(`${origin}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   const build = page.getByRole('region', { name: 'Tasks run', exact: true })
   const search = page.getByRole('region', { name: 'Searches', exact: true })
   await build.getByRole('button', { name: 'Range: Last 7 days' }).click()

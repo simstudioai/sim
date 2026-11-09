@@ -1,13 +1,14 @@
 import { expect, type Page, test } from '@playwright/test'
 import { escapeRegExp } from '@sim/utils/string'
 import { adminEmail, requireEnv, signInAsAdmin } from '@/platform/checks/live/session'
+import { liveRoute } from '@/platform/checks/routes'
 
 /** What a member does day to day beyond each section's own spec, against the real API. */
 const chats = (page: Page) => page.getByRole('region', { name: 'Chats', exact: true })
 const workspaces = (page: Page) => page.getByRole('region', { name: 'Workspaces', exact: true })
 
 test('a chat pins and marks unread, and both survive a reload', async ({ page }) => {
-  await signInAsAdmin(page, '/org/home')
+  await signInAsAdmin(page, liveRoute('/home'))
   const list = chats(page)
   await list.getByRole('button', { name: 'Actions for Quarterly review' }).click()
   await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
@@ -29,7 +30,7 @@ test('a chat pins and marks unread, and both survive a reload', async ({ page })
 })
 
 test('a workspace pins and renames through its row menu', async ({ page }) => {
-  await signInAsAdmin(page, '/org/home')
+  await signInAsAdmin(page, liveRoute('/home'))
   const list = workspaces(page)
   await list.getByRole('button', { name: 'Actions for Marketing' }).click()
   await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
@@ -48,7 +49,7 @@ test('a workspace pins and renames through its row menu', async ({ page }) => {
 test('Mod+B collapses the sidebar, the choice survives a reload, and Expand restores it', async ({
   page,
 }) => {
-  await signInAsAdmin(page, '/org/home')
+  await signInAsAdmin(page, liveRoute('/home'))
   const sidebar = page.getByRole('complementary', { name: 'Platform sidebar' })
   await expect(sidebar).toBeVisible()
   await page.keyboard.press('ControlOrMeta+b')
@@ -62,7 +63,7 @@ test('Mod+B collapses the sidebar, the choice survives a reload, and Expand rest
 })
 
 test('Mod+K opens the palette, which finds a real workspace and a chat', async ({ page }) => {
-  await signInAsAdmin(page, '/org/home')
+  await signInAsAdmin(page, liveRoute('/home'))
   await page.keyboard.press('ControlOrMeta+k')
   const palette = page.getByRole('dialog', { name: 'Search' })
   await expect(palette).toBeVisible()
@@ -76,15 +77,15 @@ test('Mod+K opens the palette, which finds a real workspace and a chat', async (
 })
 
 test('a deleted chat restores from Recently deleted back into the sidebar', async ({ page }) => {
-  await signInAsAdmin(page, '/org/settings/recently-deleted')
+  await signInAsAdmin(page, liveRoute('/settings/recently-deleted'))
   await page.getByRole('button', { name: 'Restore', exact: true }).first().click()
   await expect(page.getByRole('heading', { name: 'No deleted chats' })).toBeVisible()
-  await page.goto('/org/home')
+  await page.goto(liveRoute('/home'))
   await expect(chats(page).getByRole('link', { name: 'Retired plan' })).toBeVisible()
 })
 
 test('a pending invite resends and revokes from its row', async ({ page }) => {
-  await signInAsAdmin(page, '/org/settings/members')
+  await signInAsAdmin(page, liveRoute('/settings/members'))
   const email = `platform-live-revoke-${Date.now()}@example.test`
   await page.getByRole('button', { name: 'Invite', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Invite people' })
@@ -108,7 +109,7 @@ test('a pending invite resends and revokes from its row', async ({ page }) => {
 })
 
 test('member search lives in the URL and narrows the roster', async ({ page }) => {
-  await signInAsAdmin(page, '/org/settings/members')
+  await signInAsAdmin(page, liveRoute('/settings/members'))
   await page.getByRole('searchbox', { name: /Search members/ }).fill(adminEmail())
   await expect(page).toHaveURL(/search=/)
   await expect(page.getByText(adminEmail()).first()).toBeVisible()
@@ -119,7 +120,7 @@ test('member search lives in the URL and narrows the roster', async ({ page }) =
 })
 
 test('a notification preference writes and survives a reload', async ({ page }) => {
-  await signInAsAdmin(page, '/org/settings/notifications')
+  await signInAsAdmin(page, liveRoute('/settings/notifications'))
   const toggle = page.getByRole('switch', { name: 'Canvas error notifications' })
   const before = await toggle.isChecked()
   await toggle.click()
@@ -133,7 +134,7 @@ test('a notification preference writes and survives a reload', async ({ page }) 
 })
 
 test('Search mode on Home offers Get started with its real steps', async ({ page }) => {
-  await signInAsAdmin(page, '/org/home')
+  await signInAsAdmin(page, liveRoute('/home'))
   await page.getByRole('radio', { name: 'Search' }).click()
   const started = page.getByRole('region', { name: 'Get started', exact: true })
   await expect(started).toBeVisible()
@@ -144,7 +145,7 @@ test('Search mode on Home offers Get started with its real steps', async ({ page
 test('a permission group created in the form opens, saves its name and deletes', async ({
   page,
 }) => {
-  await signInAsAdmin(page, '/org/settings/access-control')
+  await signInAsAdmin(page, liveRoute('/settings/access-control'))
   const name = `Form group ${Date.now()}`
   await page.getByRole('button', { name: 'Create group' }).click()
   const dialog = page.getByRole('dialog', { name: 'Create permission group' })
@@ -163,7 +164,7 @@ test('a permission group created in the form opens, saves its name and deletes',
 })
 
 test('Requests opens for an administrator and switches views in the URL', async ({ page }) => {
-  await signInAsAdmin(page, '/org/settings/requests')
+  await signInAsAdmin(page, liveRoute('/settings/requests'))
   await expect(page.getByRole('heading', { name: 'Requests', level: 1 })).toBeVisible()
   await page.getByRole('radio', { name: 'My requests' }).click()
   await expect(page).toHaveURL(/view=/)
@@ -172,6 +173,6 @@ test('Requests opens for an administrator and switches views in the URL', async 
 })
 
 test('an unknown settings section is not found, inside the shell', async ({ page }) => {
-  await signInAsAdmin(page, '/org/settings/not-a-section')
+  await signInAsAdmin(page, liveRoute('/settings/not-a-section'))
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
 })

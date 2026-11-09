@@ -1,4 +1,5 @@
 import { expect, type Page, type TestInfo } from '@playwright/test'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 /** Exercises field paint and clipboard feedback across the input and its sibling action. */
 export async function checkCredentialFields(
@@ -8,7 +9,7 @@ export async function checkCredentialFields(
   testInfo: TestInfo,
   readClipboard: () => Promise<string>
 ) {
-  await page.goto(`${origin}/integrations/gmail?state=full&theme=${theme}`)
+  await page.goto(fixtureUrl(`/integrations/gmail?state=full&theme=${theme}`, origin))
   await page
     .getByRole('region', { name: 'Connected credentials', exact: true })
     .getByRole('button', { name: /^emir@sim.ai / })

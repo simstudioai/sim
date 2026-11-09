@@ -1,6 +1,5 @@
 import { expect, type Locator, test } from '@playwright/test'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test.use({
   launchOptions: {
@@ -40,7 +39,7 @@ test('the sidebar keeps its reading position across route changes and a Settings
   page,
 }) => {
   await page.setViewportSize({ width: 1280, height: 680 })
-  await page.goto(`${origin}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   const sidebar = page.getByRole('complementary', { name: 'Platform sidebar' })
   const nav = sidebar.getByRole('region', { name: 'Platform navigation' })
   await expect(nav).toHaveAttribute('data-edges', 'end')
@@ -77,7 +76,7 @@ test('command search respects an open form and toggles within the navigation dra
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 800 })
-  await page.goto(`${origin}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   await page.getByRole('button', { name: 'Expand sidebar' }).click()
   const drawer = page.getByRole('dialog', { name: 'Navigation drawer' })
   const organization = drawer.getByRole('button', { name: 'Organization menu', exact: true })
@@ -103,7 +102,7 @@ test('command search respects an open form and toggles within the navigation dra
 test('a keyboard search navigates to the matching chat and shell edits survive the return trip', async ({
   page,
 }) => {
-  await page.goto(`${origin}/home?state=full&theme=dark`)
+  await page.goto(fixtureUrl('/home?state=full&theme=dark'))
   const trigger = page.getByRole('button', { name: 'Search', exact: true })
   await trigger.click()
   await expect(page.getByRole('dialog', { name: 'Search', exact: true })).toBeVisible()
@@ -164,7 +163,7 @@ test('a keyboard search navigates to the matching chat and shell edits survive t
     .getByRole('button', { name: 'Settings' })
     .click()
   await page.getByRole('button', { name: 'Back to app' }).click()
-  await expect(page).toHaveURL(`${origin}/chat/weekly-review?state=full&theme=dark`)
+  await expect(page).toHaveURL(fixtureUrl('/chat/weekly-review?state=full&theme=dark'))
   await expect(page.getByRole('heading', { name: 'Renewal follow-up' })).toBeVisible()
   await expect(workspaces.getByRole('link', { name: 'Workspace' })).toBeHidden()
   await expect(collection.getByRole('link', { name: 'Renewal follow-up' })).toBeHidden()
@@ -186,7 +185,7 @@ test('the narrow drawer returns focus on Escape, routes through settings, and ke
 }) => {
   for (const width of [356, 730]) {
     await page.setViewportSize({ width, height: 640 })
-    await page.goto(`${origin}/home?state=stress&theme=light`)
+    await page.goto(fixtureUrl('/home?state=stress&theme=light'))
     const toggle = page.getByRole('button', { name: 'Expand sidebar' })
     const opener = await toggle.boundingBox()
     await toggle.click()
@@ -248,7 +247,7 @@ test('sidebar and panel row actions share a hit area and act independently of th
   page,
 }) => {
   await page.setViewportSize({ width: 1600, height: 900 })
-  await page.goto(`${origin}/chat/weekly-review?state=full`)
+  await page.goto(fixtureUrl('/chat/weekly-review?state=full'))
   const sidebar = page.getByRole('complementary', { name: 'Platform sidebar' })
   await expectSidebarInsets(sidebar)
   const panel = page.getByRole('complementary', { name: 'Chat panel' })
@@ -300,7 +299,7 @@ test('sidebar and panel row actions share a hit area and act independently of th
 test('the inbox filters unread items and each notification can be dismissed separately', async ({
   page,
 }) => {
-  await page.goto(`${origin}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   const open = page.getByRole('button', { name: 'Notifications', exact: true })
   await open.click()
   const inbox = page.getByRole('dialog', { name: 'Notifications', exact: true })
@@ -356,7 +355,7 @@ test('the inbox filters unread items and each notification can be dismissed sepa
 test('an open menu stays actionable above expanded notifications as the viewport changes', async ({
   page,
 }) => {
-  await page.goto(`${origin}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   const customize = page.getByRole('button', { name: 'Customize Home' })
   const calendar = page.getByRole('menuitemcheckbox', { name: 'Calendar', exact: true })
   const notices = page.getByRole('region', { name: 'Notification stack' })

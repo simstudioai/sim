@@ -1,12 +1,11 @@
 import { expect, test } from '@playwright/test'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 for (const theme of ['light', 'dark']) {
   test(`disabled menu commands keep their paint and cannot remove protected access in ${theme}`, async ({
     page,
   }) => {
-    await page.goto(`${origin}/integrations/gmail?state=full&theme=${theme}`)
+    await page.goto(fixtureUrl(`/integrations/gmail?state=full&theme=${theme}`))
     const main = page.getByRole('main')
     await main.getByRole('button', { name: /^Customer operations service account / }).click()
     await main.getByRole('tab', { name: 'Access', exact: true }).click()
@@ -51,7 +50,7 @@ for (const theme of ['light', 'dark']) {
   test(`secret reveal stays inset and app choices dismiss without reopening in ${theme}`, async ({
     page,
   }) => {
-    await page.goto(`${origin}/integrations?tab=credentials&state=full&theme=${theme}`)
+    await page.goto(fixtureUrl(`/integrations?tab=credentials&state=full&theme=${theme}`))
     await page.getByRole('button', { name: 'Create credential', exact: true }).click()
     const modal = page.getByRole('dialog', { name: 'Create credential', exact: true })
     const value = modal.getByLabel('Value', { exact: true })
@@ -104,7 +103,9 @@ test.describe('searchable picker dismissal', () => {
     }) => {
       for (const surface of ['page', 'modal']) {
         await page.goto(
-          `${origin}/integrations${surface === 'page' ? '?tab=skills&' : '/fireflies?'}state=full&theme=${theme}`
+          fixtureUrl(
+            `/integrations${surface === 'page' ? '?tab=skills&' : '/fireflies?'}state=full&theme=${theme}`
+          )
         )
         if (surface === 'page') {
           await page.getByRole('link', { name: /^Weekly customer review / }).click()
@@ -163,7 +164,7 @@ test.describe('searchable picker dismissal', () => {
 
 for (const theme of ['light', 'dark']) {
   test(`date captions dismiss their calendar without reopening in ${theme}`, async ({ page }) => {
-    await page.goto(`${origin}/settings/mothership?state=stress&tab=licenses&theme=${theme}`)
+    await page.goto(fixtureUrl(`/settings/mothership?state=stress&tab=licenses&theme=${theme}`))
     const expiration = page.getByRole('button', { name: /^Expiration/ })
     const calendar = page.getByRole('dialog', { name: 'Expiration', exact: true })
     await expiration.click()
@@ -183,7 +184,7 @@ for (const theme of ['light', 'dark']) {
 test('a searchable workspace picker preserves its selection when dismissed through its caption', async ({
   page,
 }) => {
-  await page.goto(`${origin}/settings/mothership?state=stress&tab=byok`)
+  await page.goto(fixtureUrl('/settings/mothership?state=stress&tab=byok'))
   const workspace = page.getByRole('combobox', { name: 'Target workspace', exact: true })
   await workspace.click()
   await page.getByRole('option', { name: 'Workspace', exact: true }).click()

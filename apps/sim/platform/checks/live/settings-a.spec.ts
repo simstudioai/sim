@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { organizationName, signInAsAdmin } from '@/platform/checks/live/session'
+import { liveRoute } from '@/platform/checks/routes'
 
-const settings = (path = '') => `/org/settings${path}`
+const settings = (path = '') => liveRoute(`/settings${path}`)
 
 test.beforeEach(async ({ page }) => {
-  await signInAsAdmin(page, '/org')
+  await signInAsAdmin(page, liveRoute(''))
 })
 
 test('a theme chosen here persists across a reload and repaints the shell', async ({ page }) => {

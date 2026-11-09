@@ -22,8 +22,8 @@
  *
  * 3. The organization surface's seam points one way, in both data layers. `apps/sim/platform/embedded/lib`
  *    never imports `@/platform/embedded/app` or `@/app/o`, not even for a type, and
- *    `apps/sim/platform/lib` never imports `@/app/o`, not even for a type, or `@/platform/app` at
- *    runtime: views depend on the data layer, routes depend on both, and a data file that reached
+ *    `apps/sim/platform/lib` never imports `@/app/o`, not even for a type, or the product routes
+ *    (`PRODUCT_ROUTES`) at runtime: views depend on the data layer, routes depend on both, and a data file that reached
  *    back into either could not be read or tested without it. Fix by moving what both need under
  *    the data layer, or under `lib/` when a surface the design system may not reach (the extension,
  *    `/workspace`) shares it.
@@ -64,6 +64,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import ts from '@typescript/typescript6'
+import { PRODUCT_ROUTES } from './platform-product-routes'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const PACKAGES_DIR = path.join(ROOT, 'packages')
@@ -73,6 +74,8 @@ const ZONE_LIB_DIR = path.join(PLATFORM_DIR, 'lib')
 const PLATFORM_LIB_DIR = path.join(PLATFORM_DIR, 'embedded/lib')
 const PLATFORM_VIEWS_DIR = path.join(SIM_DIR, 'platform/embedded/app')
 const EMBEDDED_DIR = path.join(PLATFORM_DIR, 'embedded')
+/** The Platform's product routes as an import specifier. */
+const PRODUCT_ROUTES_MODULE = `@/${PRODUCT_ROUTES.replace(/\/$/, '')}`
 const EE_DATA_HOOK = /^@\/ee\/(?:.+\/)?hooks(?:\/|$)/
 const SEAM_BASELINE = path.join(ROOT, 'scripts/check-monorepo-boundaries.baseline.json')
 
@@ -431,7 +434,7 @@ async function main() {
         const specifier = aliasedSpecifier(file, module.text)
         if (matchesModule(specifier, '@/app/o')) return `platform/lib imports a route: ${specifier}`
         const runtime = bindings === 'all' || bindings.length > 0
-        return runtime && matchesModule(specifier, '@/platform/app')
+        return runtime && matchesModule(specifier, PRODUCT_ROUTES_MODULE)
           ? `platform/lib imports a view at runtime: ${specifier}`
           : null
       }))
@@ -440,7 +443,7 @@ async function main() {
       ...(await scanImports(file, ({ module, bindings }) => {
         const specifier = aliasedSpecifier(file, module.text)
         const typeOnly = bindings !== 'all' && bindings.length === 0
-        return typeOnly && matchesModule(specifier, '@/platform/app')
+        return typeOnly && matchesModule(specifier, PRODUCT_ROUTES_MODULE)
           ? `platform/lib takes a view's type: ${specifier}`
           : null
       }))

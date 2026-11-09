@@ -1,11 +1,10 @@
 import { expect, test } from '@playwright/test'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test('an integration idea prepares an editable Home draft without sending or losing existing text', async ({
   page,
 }) => {
-  await page.goto(`${origin}/home?state=full&theme=light`)
+  await page.goto(fixtureUrl('/home?state=full&theme=light'))
   const composer = page.getByRole('textbox', {
     name: 'Ask about your business, or give Sim something to do…',
   })
