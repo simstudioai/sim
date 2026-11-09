@@ -103,9 +103,8 @@ const isSourceModule = (filename: string) =>
 /**
  * Subtrees the guard walks, each discovered rather than listed file by file.
  * Discovery is what keeps a subtree honest: the first version of this guard
- * named `app/workspace/layout.tsx` as "the shared shell", but that file only
- * wraps `SocketProvider` — the real shell is
- * `app/workspace/[workspaceId]/layout.tsx`, which was never checked. Layouts are
+ * named one layout as "the shared shell" while the real shell sat in a nested
+ * layout that was never checked. Layouts are
  * enumerated separately from pages because Next.js composes them by convention:
  * a page does not `import` its layout, so walking pages alone never reaches
  * layout modules even though every route pays for them.

@@ -13,11 +13,12 @@ import {
   workspaceSettingTitle,
 } from '@/platform/lib/data/workspace-settings'
 import { readScenario } from '@/platform/lib/navigation'
+import type { ProductPageProps } from '@/platform/lib/route-props'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 export async function generateMetadata({
   params,
-}: PageProps<'/workspace/[workspaceId]/settings/[[...section]]'>): Promise<Metadata> {
+}: ProductPageProps<{ workspaceId: string; section?: string[] }>): Promise<Metadata> {
   const { section: [key] = [] } = await params
   return { title: key ? workspaceSettingTitle(key) : 'Settings' }
 }
@@ -37,7 +38,7 @@ function matchesSubpath(patterns: readonly string[] | undefined, subpath: readon
 export default async function Page({
   params,
   searchParams,
-}: PageProps<'/workspace/[workspaceId]/settings/[[...section]]'>) {
+}: ProductPageProps<{ workspaceId: string; section?: string[] }>) {
   const [{ workspaceId, section: path = [] }, query] = await Promise.all([params, searchParams])
   if (resolvePlatformMode() !== 'live') {
     const workspace = await loadWorkspaceSummary(readScenario(query.state), workspaceId)

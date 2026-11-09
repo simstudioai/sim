@@ -5,6 +5,7 @@ import { DashboardRoute } from '@/app/(product)/workspace/[workspaceId]/dashboar
 import { loadWorkspaceDashboard } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { readScenario } from '@/platform/lib/navigation'
+import type { ProductPageProps } from '@/platform/lib/route-props'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic'
 export default async function Page({
   params,
   searchParams,
-}: PageProps<'/workspace/[workspaceId]/dashboards'>) {
+}: ProductPageProps<{ workspaceId: string }>) {
   const [{ workspaceId }, query] = await Promise.all([params, searchParams])
   const mode = resolvePlatformMode()
   if (mode === 'live') {

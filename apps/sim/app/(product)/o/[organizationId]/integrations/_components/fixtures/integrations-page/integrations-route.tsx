@@ -6,10 +6,11 @@ import {
   loadIntegrationsData,
 } from '@/platform/fixtures'
 import { readScenario } from '@/platform/lib/navigation'
+import type { ProductPageProps } from '@/platform/lib/route-props'
 
 interface IntegrationsRouteProps {
   section?: string
-  searchParams: PageProps<'/integrations'>['searchParams']
+  searchParams: ProductPageProps<{ organizationId: string }>['searchParams']
 }
 
 export async function IntegrationsRoute({ section, searchParams }: IntegrationsRouteProps) {

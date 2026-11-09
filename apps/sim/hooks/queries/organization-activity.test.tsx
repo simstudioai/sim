@@ -11,7 +11,10 @@ import {
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useOrganizationActivitySummary } from '@/hooks/queries/organization-activity'
-import { renderDataHook, unmountDataHooks } from '@/platform/embedded/lib/render-hook.test-support'
+import {
+  renderDataHook,
+  unmountDataHooks,
+} from '@/hooks/queries/utils/render-data-hook.test-support'
 
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('next/navigation', () => nextNavigationMock)

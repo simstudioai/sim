@@ -24,13 +24,10 @@
         // Container bootstrap and Trigger's directory-discovered task graph.
         "bootstrap.ts",
         "trigger.config.ts",
-        // The nested Platform project loads its PostCSS config and Playwright discovers its specs.
-        "platform/postcss.config.mjs",
+        // Playwright discovers the Platform browser checks.
         "platform/checks/**/*.spec.ts",
         // Started by .github/scripts/http-e2e.sh as the live suite's scripted worker.
         "platform/checks/live/support/scripted-agent.ts",
-        "platform/checks/live/support/appconfig-service.ts",
-        "platform/checks/live/support/failing-zone.ts",
         "background/**/*.ts",
         "scripts/**/*.{ts,tsx}",
         "**/*.integration.ts",

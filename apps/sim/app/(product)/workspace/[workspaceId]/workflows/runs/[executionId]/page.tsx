@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref } from '@/platform/lib/navigation'
+import type { ProductPageProps } from '@/platform/lib/route-props'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { withRunListView } from '@/platform/lib/workspace-views'
 
@@ -14,7 +15,7 @@ export const metadata: Metadata = { title: 'Run snapshot' }
 export default async function Page({
   params,
   searchParams,
-}: PageProps<'/workspace/[workspaceId]/workflows/runs/[executionId]'>) {
+}: ProductPageProps<{ workspaceId: string; executionId: string }>) {
   if (resolvePlatformMode() !== 'live') notFound()
   const [{ workspaceId, executionId }, query, { RunSnapshot }] = await Promise.all([
     params,

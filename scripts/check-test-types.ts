@@ -3,10 +3,8 @@
  * Ratchets type errors in apps/sim's unit tests down, per file and per error code.
  *
  * `apps/sim/tsconfig.json` excludes `*.test.ts(x)`, so `bun run type-check` never sees the ~3.4k
- * test files, and they carry thousands of type errors nobody is asked to fix today. That includes
- * the tests under `platform/embedded`. The Platform zone's own tests stay out: its project
- * (`platform/tsconfig.json`) compiles them in `type-check`, where any error fails. Without a
- * gate, every new test can add more, and a test whose mocks no longer match the code they stand
+ * test files, and they carry thousands of type errors nobody is asked to fix today. The product's
+ * tests (`app/(product)`, `platform/`) are part of the same project. Without a gate, every new test can add more, and a test whose mocks no longer match the code they stand
  * in for type-checks as fine as one that does. This check runs the native compiler (the root
  * `tsc`, which `check:native-typecheck` pins to TypeScript 7) on `apps/sim/tsconfig.tests.json`,
  * the app's config with the tests left in, counts errors per file and TS code, and compares the

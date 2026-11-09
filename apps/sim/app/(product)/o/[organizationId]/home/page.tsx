@@ -3,10 +3,11 @@ import { FixtureHome } from '@/app/(product)/o/[organizationId]/home/_components
 import { loadConversationData, loadHomeRecentLinks } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { readScenario } from '@/platform/lib/navigation'
+import type { ProductPageProps } from '@/platform/lib/route-props'
 
 export const metadata: Metadata = { title: 'Home' }
 
-export default async function Page({ searchParams }: PageProps<'/home'>) {
+export default async function Page({ searchParams }: ProductPageProps<{ organizationId: string }>) {
   if (resolvePlatformMode() === 'live') {
     // Loaded only here, so a fixture server never evaluates the data seam.
     const { LiveHomeRoute } = await import(

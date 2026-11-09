@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
+import type { ProductPageProps } from '@/platform/lib/route-props'
 
 export const metadata: Metadata = { title: 'Integrations' }
 
-export default async function Page({ searchParams }: PageProps<'/integrations'>) {
+export default async function Page({ searchParams }: ProductPageProps<{ organizationId: string }>) {
   // Loaded only behind its mode, so a fixture server never evaluates the data seam.
   if (resolvePlatformMode() === 'live') {
     const { LiveIntegrationsRoute } = await import(

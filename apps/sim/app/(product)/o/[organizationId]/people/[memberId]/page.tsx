@@ -2,10 +2,13 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { PersonProfile } from '@/app/(product)/o/[organizationId]/people/_components/person/person'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
+import type { ProductPageProps } from '@/platform/lib/route-props'
 
 export const metadata: Metadata = { title: 'People' }
 
-export default async function Page({ params }: PageProps<'/people/[memberId]'>) {
+export default async function Page({
+  params,
+}: ProductPageProps<{ organizationId: string; memberId: string }>) {
   if (resolvePlatformMode() !== 'live') notFound()
   const { requirePeopleAccess } = await import(
     '@/app/(product)/o/[organizationId]/people/_components/people-access'

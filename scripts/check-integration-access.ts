@@ -46,12 +46,6 @@ const RAW_CATALOGS: Readonly<Record<string, readonly string[]>> = {
 const EXEMPT: Readonly<Record<string, string>> = {
   'app/(landing)/': 'public marketing site: lists the catalog to visitors, who have no policy',
   'app/sitemap.ts': 'public sitemap of the marketing integration pages',
-  'app/workspace/[workspaceId]/integrations/[block]/page.tsx':
-    'resolves the route slug to one integration; IntegrationBlockDetail gates it',
-  'components/mothership-chat/suggested-actions/suggested-actions.tsx':
-    'maps integration names to slugs to rewrite prompt text; lists nothing',
-  'app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/integration-search-items.ts':
-    'builder whose required `isUsable` the sidebar supplies from useIntegrationAccess',
   'ee/credential-groups/components/credential-group-provider-tile.tsx':
     'looks up one integration by type for its tile',
 }

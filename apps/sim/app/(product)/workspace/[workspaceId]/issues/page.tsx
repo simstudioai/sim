@@ -5,13 +5,14 @@ import { IssuesRoute } from '@/app/(product)/workspace/[workspaceId]/issues/_com
 import { loadWorkspaceIssues } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { readScenario } from '@/platform/lib/navigation'
+import type { ProductPageProps } from '@/platform/lib/route-props'
 
 export const metadata: Metadata = { title: 'Issues' }
 
 export default async function Page({
   params,
   searchParams,
-}: PageProps<'/workspace/[workspaceId]/issues'>) {
+}: ProductPageProps<{ workspaceId: string }>) {
   const [{ workspaceId }, query] = await Promise.all([params, searchParams])
   const mode = resolvePlatformMode()
   // Issues have no backend yet, so live workspaces neither list nor link them.

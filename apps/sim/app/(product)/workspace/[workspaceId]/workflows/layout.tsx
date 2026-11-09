@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
+import type { ProductLayoutProps } from '@/platform/lib/route-props'
 
 /**
  * The Workflows tab exists on live data only. Its providers (the realtime socket, permissions, the
@@ -9,7 +10,7 @@ import { resolvePlatformMode } from '@/platform/lib/data/mode'
 export default async function Layout({
   children,
   params,
-}: LayoutProps<'/workspace/[workspaceId]/workflows'>) {
+}: ProductLayoutProps<{ workspaceId: string }>) {
   if (resolvePlatformMode() !== 'live') notFound()
   const [{ workspaceId }, { WorkflowsLayout }] = await Promise.all([
     params,

@@ -4,12 +4,13 @@ import { IssueRoute } from '@/app/(product)/workspace/[workspaceId]/issues/_comp
 import { loadWorkspaceIssue } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref, readScenario } from '@/platform/lib/navigation'
+import type { ProductPageProps } from '@/platform/lib/route-props'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { withIssueListView } from '@/platform/lib/workspace-views'
 
 export async function generateMetadata({
   params,
-}: PageProps<'/workspace/[workspaceId]/issues/[issueId]'>): Promise<Metadata> {
+}: ProductPageProps<{ workspaceId: string; issueId: string }>): Promise<Metadata> {
   const { issueId } = await params
   return { title: decodeURIComponent(issueId) }
 }
@@ -17,7 +18,7 @@ export async function generateMetadata({
 export default async function Page({
   params,
   searchParams,
-}: PageProps<'/workspace/[workspaceId]/issues/[issueId]'>) {
+}: ProductPageProps<{ workspaceId: string; issueId: string }>) {
   const [{ workspaceId, issueId }, query] = await Promise.all([params, searchParams])
   if (resolvePlatformMode() === 'live') notFound()
   const issue = await loadWorkspaceIssue(

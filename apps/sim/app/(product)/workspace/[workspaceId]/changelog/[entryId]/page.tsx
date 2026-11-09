@@ -4,6 +4,7 @@ import { ChangelogDetails } from '@/app/(product)/workspace/[workspaceId]/change
 import { loadWorkspaceChangelogEntry } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref, readScenario } from '@/platform/lib/navigation'
+import type { ProductPageProps } from '@/platform/lib/route-props'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { withChangelogView } from '@/platform/lib/workspace-views'
 
@@ -15,7 +16,7 @@ export const dynamic = 'force-dynamic'
 export default async function Page({
   params,
   searchParams,
-}: PageProps<'/workspace/[workspaceId]/changelog/[entryId]'>) {
+}: ProductPageProps<{ workspaceId: string; entryId: string }>) {
   const [{ workspaceId, entryId }, query] = await Promise.all([params, searchParams])
   const search = { get: (key: string) => (typeof query[key] === 'string' ? query[key] : null) }
   const back = {

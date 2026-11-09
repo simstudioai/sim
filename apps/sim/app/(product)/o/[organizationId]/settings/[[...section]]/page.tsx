@@ -6,10 +6,11 @@ import { loadSettingsFixture } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { settingsPageTitle } from '@/platform/lib/data/settings-navigation'
 import { readPreviewPlan, readScenario } from '@/platform/lib/navigation'
+import type { ProductPageProps } from '@/platform/lib/route-props'
 
 export async function generateMetadata({
   params,
-}: PageProps<'/settings/[[...section]]'>): Promise<Metadata> {
+}: ProductPageProps<{ organizationId: string; section?: string[] }>): Promise<Metadata> {
   const { section = [] } = await params
   return { title: settingsPageTitle(section) }
 }
@@ -17,7 +18,7 @@ export async function generateMetadata({
 export default async function Page({
   searchParams,
   params,
-}: PageProps<'/settings/[[...section]]'>) {
+}: ProductPageProps<{ organizationId: string; section?: string[] }>) {
   const [query, { section: path = [] }] = await Promise.all([searchParams, params])
   if (resolvePlatformMode() === 'live') {
     const { readOrganizationSurface } = await import('@/platform/lib/data/surface')

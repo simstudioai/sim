@@ -5,6 +5,7 @@ import { LogsRoute } from '@/app/(product)/workspace/[workspaceId]/logs/_compone
 import { loadWorkspaceRuns } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref, readScenario } from '@/platform/lib/navigation'
+import type { ProductPageProps } from '@/platform/lib/route-props'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { withRunListView } from '@/platform/lib/workspace-views'
 
@@ -16,7 +17,7 @@ export const dynamic = 'force-dynamic'
 export default async function Page({
   params,
   searchParams,
-}: PageProps<'/workspace/[workspaceId]/logs'>) {
+}: ProductPageProps<{ workspaceId: string }>) {
   const [{ workspaceId }, query] = await Promise.all([params, searchParams])
   const mode = resolvePlatformMode()
   if (mode === 'live') {

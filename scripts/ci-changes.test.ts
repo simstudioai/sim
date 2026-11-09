@@ -354,7 +354,7 @@ describe('CI task attribution through real Turborepo', () => {
     })
   })
   it.each([
-    'apps/sim/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data.ts',
+    'apps/sim/components/billing/upgrade/billing-period-toggle/billing-period-toggle.tsx',
     'apps/sim/providers/models.ts',
     'apps/sim/blocks/registry.ts',
   ])('runs SEO when landing pages consume changed workspace or backend code: %s', (file) => {

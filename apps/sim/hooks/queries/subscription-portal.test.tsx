@@ -4,7 +4,10 @@ import {
   apiClientRequestMockFns,
 } from '@sim/testing/mocks/api-client-request.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { renderDataHook, unmountDataHooks } from '@/platform/embedded/lib/render-hook.test-support'
+import {
+  renderDataHook,
+  unmountDataHooks,
+} from '@/hooks/queries/utils/render-data-hook.test-support'
 
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 
