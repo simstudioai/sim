@@ -7,6 +7,7 @@ import { toRecord } from '@sim/utils/object'
 import { and, eq, isNull } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
+  attributionMatchesOrganizationScope,
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
   createAttributedBillingRequestEnvelope,
@@ -774,7 +775,7 @@ export async function requestChatTitle(params: {
       if (
         attribution.actorUserId !== userId ||
         attribution.workspaceId !== (workspaceId ?? null) ||
-        (organizationId && attribution.organizationId !== organizationId)
+        (organizationId && !attributionMatchesOrganizationScope(attribution, organizationId))
       ) {
         throw new Error('Title billing attribution does not match its actor and workspace')
       }

@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, workspace } from '@sim/db/schema'
+import { member, organization, workspace } from '@sim/db/schema'
 import { generateId, isValidUuid } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { and, eq } from 'drizzle-orm'
@@ -233,7 +233,12 @@ export function assertBillingAttributionSnapshot(value: unknown): BillingAttribu
     throw new Error('Billing attribution organization must be a non-empty string or null')
   }
 
-  if (raw.workspaceId === null && !isNonEmptyString(raw.organizationId)) {
+  /** Workspace-less billing is an organization's, paid by it or (a personal one) by its owner. */
+  if (
+    raw.workspaceId === null &&
+    !isNonEmptyString(raw.organizationId) &&
+    !(isRecordLike(raw.billingEntity) && raw.billingEntity.type === 'user')
+  ) {
     throw new Error('Organization billing requires an organization owner')
   }
 
@@ -462,6 +467,22 @@ function parseBillingAttributionHeader(
   return attribution
 }
 
+/**
+ * Whether a workspace-less attribution bills the organization-scoped resource it is attached to:
+ * the organization itself, or — for a personal organization, which bills its owner — a personal
+ * attribution with no organization.
+ */
+export function attributionMatchesOrganizationScope(
+  attribution: Pick<BillingAttributionSnapshot, 'workspaceId' | 'organizationId' | 'billingEntity'>,
+  organizationId: string
+): boolean {
+  return (
+    attribution.workspaceId === null &&
+    (attribution.organizationId === organizationId ||
+      (attribution.organizationId === null && attribution.billingEntity.type === 'user'))
+  )
+}
+
 /** Settles exactly the admitted scope, including organization charges replayed from Go's ledger. */
 export function requireBillingCallbackAttribution(
   headers: Pick<Headers, 'get'>,
@@ -473,7 +494,7 @@ export function requireBillingCallbackAttribution(
     attribution.actorUserId !== expected.actorUserId ||
     attribution.workspaceId !== (expected.workspaceId ?? null) ||
     (expected.organizationId !== undefined &&
-      attribution.organizationId !== expected.organizationId)
+      !attributionMatchesOrganizationScope(attribution, expected.organizationId))
   ) {
     throw new Error('Billing attribution header does not match the admitted callback scope')
   }
@@ -798,18 +819,32 @@ export async function resolveBillingAttribution({
   })
 }
 
-/** The organization payer is independent of the person making the request. */
+/**
+ * The organization payer is independent of the person making the request. A personal
+ * organization pays for nothing itself: its owner does, from their personal plan and pool, exactly
+ * as for their personal workspaces, so the payer it resolves has no organization.
+ */
 export async function resolveOrganizationBillingPayer(organizationId: string) {
-  /** The owner and the subscription are independent reads; neither waits on the other. */
+  /** The owner, the kind and the subscription are independent reads; none waits on another. */
   const [[owner], payerSubscription] = await Promise.all([
     db
-      .select({ userId: member.userId })
+      .select({ userId: member.userId, kind: organization.kind })
       .from(member)
+      .innerJoin(organization, eq(organization.id, member.organizationId))
       .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
       .limit(1),
     getOrganizationSubscription(organizationId, { onError: 'throw' }),
   ])
   if (!owner) throw new Error('Organization billing owner is unavailable')
+  if (owner.kind === 'personal') {
+    return {
+      organizationId: null,
+      billedAccountUserId: owner.userId,
+      payerSubscription: await getHighestPriorityPersonalSubscription(owner.userId, {
+        onError: 'throw',
+      }),
+    }
+  }
   if (payerSubscription && payerSubscription.referenceId !== organizationId)
     throw new Error('Organization subscription belongs to a different payer')
   return { organizationId, billedAccountUserId: owner.userId, payerSubscription }
@@ -840,7 +875,12 @@ export async function resolveSystemOrganizationBillingAttribution(
   })
 }
 
-/** A workspace's billing organization is its payer, not a second resource owner. */
+/**
+ * A workspace's billing organization is its payer, not a second resource owner. An
+ * organization-scoped resource of a personal organization carries its owner's personal
+ * attribution (no organization), which a consistency check cannot tell from another personal
+ * payer without a read; the resolver that produced it is the authority.
+ */
 export function assertBillingAttributionOwner(
   attribution: BillingAttributionSnapshot,
   owner: ResourceOwner
@@ -849,7 +889,7 @@ export function assertBillingAttributionOwner(
   const matches =
     scope.kind === 'workspace'
       ? attribution.workspaceId === scope.workspaceId
-      : attribution.workspaceId === null && attribution.organizationId === scope.organizationId
+      : attributionMatchesOrganizationScope(attribution, scope.organizationId)
   if (!matches) throw new Error('Billing attribution does not match resource owner')
 }
 

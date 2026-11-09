@@ -1,6 +1,7 @@
 import { isRecordLike } from '@sim/utils/object'
 import {
   assertBillingAttributionSnapshot,
+  attributionMatchesOrganizationScope,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/attribution'
 /**
@@ -153,8 +154,7 @@ export function assertDocumentProcessingBillingContext(
     if (
       !isNonEmptyString(value.organizationId) ||
       value.workspaceId !== null ||
-      attribution.workspaceId !== null ||
-      attribution.organizationId !== value.organizationId ||
+      !attributionMatchesOrganizationScope(attribution, value.organizationId) ||
       attribution.actorUserId !== value.actorUserId
     ) {
       throw new Error('Document processing organization does not match billing attribution')
