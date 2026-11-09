@@ -78,6 +78,9 @@ const MAX_MCP_READ_DOCUMENTS = 10
 export const readLiveDocumentMcpSchema = readDocumentInputSchema
   .extend({
     documentId: readDocumentInputSchema.shape.documentId.optional(),
+    startChunkIndex: readDocumentInputSchema.shape.startChunkIndex.describe(
+      'Copy next.startChunkIndex from a prior read to continue it; live documents always use 0.'
+    ),
     documentIds: z
       .array(readDocumentInputSchema.shape.documentId)
       .min(1)
