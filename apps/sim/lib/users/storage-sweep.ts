@@ -175,6 +175,18 @@ function isDisposableKey(key: string): boolean {
   return isSafeKey(key) && !FOREIGN_LIFECYCLE_ROOTS.some((root) => key.startsWith(root))
 }
 
+/**
+ * A stored object durable cleanup may delete: a safe key outside every foreign-lifecycle root, in
+ * a context whose objects are owned by the row naming them. Null for anything else.
+ */
+export function toDisposableStorageObject(key: string, context: string): StorageObject | null {
+  return isDisposableKey(key) && isObjectContext(context) ? { key, context } : null
+}
+
+function isObjectContext(context: string): context is StorageContext {
+  return OBJECT_CONTEXTS.has(context)
+}
+
 function isAccountProfilePicture(key: string, context: string): boolean {
   return context === 'profile-pictures' && key.startsWith('profile-pictures/')
 }
