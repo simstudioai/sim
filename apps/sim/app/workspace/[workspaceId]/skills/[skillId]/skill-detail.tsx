@@ -9,6 +9,11 @@ import { useRouter } from 'next/navigation'
 import { AddPeopleModal } from '@/components/permissions'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import {
+  isSkillNameConflictError,
+  parseSkillMarkdown,
+  validateSkillName,
+} from '@/lib/skills/authoring'
+import {
   CredentialDetailHeading,
   CredentialDetailLayout,
   UnsavedChangesModal,
@@ -22,11 +27,6 @@ import {
   SkillFields,
 } from '@/app/workspace/[workspaceId]/skills/components/skill-fields'
 import { useSkillEditorsController } from '@/app/workspace/[workspaceId]/skills/components/skill-members'
-import {
-  isSkillNameConflictError,
-  parseSkillMarkdown,
-  validateSkillName,
-} from '@/app/workspace/[workspaceId]/skills/components/utils'
 import { useDeleteSkill, useSkills, useUpdateSkill } from '@/hooks/queries/skills'
 
 const logger = createLogger('SkillDetail')

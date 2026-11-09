@@ -2,12 +2,10 @@
 
 import { useId } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { FieldFrame } from '@sim/emcn/field'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { Select } from '@sim/emcn/picker/select'
-import {
-  RuleCard,
-  RuleField,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/filter-builder/rule-card'
+import { RuleCard } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/filter-builder/rule-card'
 import { getActiveWorkflowSearchHighlight } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/knowledge-tag-filters/knowledge-tag-filters.module.css'
 import { ReferenceField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/reference-field/reference-field'
@@ -155,7 +153,7 @@ export function TagFilterRow({
         onValueChange={(next) => onUpdate(filter.id, 'operator', next)}
         disabled={readOnly}
       />
-      <RuleField label='Value' htmlFor={valueId}>
+      <FieldFrame id={valueId} label='Value'>
         {filter.operator === 'between' ? (
           <div className={styles.range}>
             <div className={styles.bound}>{renderValue('tagValue', `${name} from`, valueId)}</div>
@@ -167,7 +165,7 @@ export function TagFilterRow({
         ) : (
           renderValue('tagValue', `${name} value`, valueId)
         )}
-      </RuleField>
+      </FieldFrame>
     </RuleCard>
   )
 }

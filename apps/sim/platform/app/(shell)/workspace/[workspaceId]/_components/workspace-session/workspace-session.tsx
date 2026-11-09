@@ -12,7 +12,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import type { IssueState } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
-import type { WorkspaceDataMode } from '@/platform/lib/workspace-navigation'
+import type { WorkspaceDataMode, WorkspaceTabFlags } from '@/platform/lib/workspace-navigation'
 
 /**
  * What a reader changes in a workspace during one product session: example decisions on issues and
@@ -54,19 +54,36 @@ const Session = createContext<ReturnType<typeof useSessionState> | null>(null)
 
 const DataMode = createContext<WorkspaceDataMode>('fixture')
 
+const NO_TAB_FLAGS: WorkspaceTabFlags = {}
+
+const TabFlags = createContext<WorkspaceTabFlags>(NO_TAB_FLAGS)
+
 interface WorkspaceSessionProps {
   /** Where this server's workspace data comes from, which decides the tabs it serves. */
   mode: WorkspaceDataMode
+  /** The organization's rollout flags a tab depends on; a flag left out hides its tab. */
+  tabFlags?: WorkspaceTabFlags
   children: ReactNode
 }
 
-export function WorkspaceSession({ mode, children }: WorkspaceSessionProps) {
+export function WorkspaceSession({
+  mode,
+  tabFlags = NO_TAB_FLAGS,
+  children,
+}: WorkspaceSessionProps) {
   const state = useSessionState()
   return (
     <DataMode.Provider value={mode}>
-      <Session.Provider value={state}>{children}</Session.Provider>
+      <TabFlags.Provider value={tabFlags}>
+        <Session.Provider value={state}>{children}</Session.Provider>
+      </TabFlags.Provider>
     </DataMode.Provider>
   )
+}
+
+/** The rollout flags that decide which flagged tabs this organization sees. */
+export function useWorkspaceTabFlags() {
+  return useContext(TabFlags)
 }
 
 /** Whether the workspace pages read example or live data on this server. */

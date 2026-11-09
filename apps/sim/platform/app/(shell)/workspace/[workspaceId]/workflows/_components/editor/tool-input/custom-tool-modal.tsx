@@ -12,7 +12,7 @@ import {
   CustomToolError,
   CustomToolSchemaField,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-editor'
-import { GeneratePrompt } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/custom-tool-editor/generate-prompt'
+import { GeneratePrompt } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/generate-prompt/generate-prompt'
 import { TagDropdown } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tag-dropdown/tag-dropdown'
 import { useWorkflowScope } from '@/platform/lib/data/workflow-editor'
 import {

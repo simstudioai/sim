@@ -2,12 +2,10 @@
 
 import { useId } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { FieldFrame } from '@sim/emcn/field'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { Select } from '@sim/emcn/picker/select'
-import {
-  RuleCard,
-  RuleField,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/filter-builder/rule-card'
+import { RuleCard } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/filter-builder/rule-card'
 import { formatDisplayText } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/formatted-text'
 import {
   getActiveWorkflowSearchHighlight,
@@ -143,7 +141,7 @@ export function FilterRuleRow({
         onValueChange={(next) => onUpdate(rule.id, 'operator', next)}
         disabled={readOnly}
       />
-      <RuleField label='Value' htmlFor={valueId}>
+      <FieldFrame id={valueId} label='Value'>
         <ReferenceField
           controller={controller}
           fieldKey={`filter-${rule.id}-value`}
@@ -162,7 +160,7 @@ export function FilterRuleRow({
             valuePath: [index, 'value'],
           })}
         />
-      </RuleField>
+      </FieldFrame>
     </RuleCard>
   )
 }

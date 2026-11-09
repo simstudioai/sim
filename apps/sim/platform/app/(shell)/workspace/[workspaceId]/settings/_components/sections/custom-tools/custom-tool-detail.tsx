@@ -16,7 +16,7 @@ import {
   CustomToolError,
   CustomToolSchemaField,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-editor'
-import { GeneratePrompt } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/custom-tool-editor/generate-prompt'
+import { GeneratePrompt } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/generate-prompt/generate-prompt'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/settings/_components/sections/custom-tools/custom-tools.module.css'
 import {
   type CustomToolDefinition,

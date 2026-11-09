@@ -2,11 +2,13 @@
 
 import { useId, useMemo, useState } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { FieldFrame } from '@sim/emcn/field'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/code-field/code-field'
 import { highlightSyntax } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/code-field/highlight'
 import { useActiveSearchTarget } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import { EntryCard } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/entry-card/entry-card'
+import { ActionField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/field-label-row/field-label-row'
 import { FileUpload } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/file-upload/file-upload'
 import { getActiveWorkflowSearchHighlight } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
 import { ReferenceField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/reference-field/reference-field'
@@ -284,10 +286,7 @@ export function ResponseFormat({
               )
             }
           >
-            <div className={styles.field}>
-              <label className={styles.label} data-type='T059' htmlFor={`${fieldId}-name`}>
-                Name
-              </label>
+            <FieldFrame id={`${fieldId}-name`} label='Name'>
               <ReferenceField
                 id={`${fieldId}-name`}
                 label='Name'
@@ -301,16 +300,13 @@ export function ResponseFormat({
                 accessiblePrefixes={accessiblePrefixes}
                 searchHighlight={searchHighlight(index, 'name')}
               />
-            </div>
-            <div className={styles.field}>
-              <div className={styles.labelRow}>
-                <span className={styles.label} data-type='T059'>
-                  Value
-                </span>
-                {isFileFieldType(field.type) && renderFileModeToggle(field)}
-              </div>
+            </FieldFrame>
+            <ActionField
+              label='Value'
+              actions={isFileFieldType(field.type) && renderFileModeToggle(field)}
+            >
               {renderValueControl(field, index)}
-            </div>
+            </ActionField>
           </EntryCard>
         )
       })}

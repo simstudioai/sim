@@ -19,14 +19,14 @@ interface CreateApiKeyModalProps {
   allowPersonalApiKeys: boolean
   canManageWorkspaceKeys: boolean
   defaultKeyType: KeyType
-  /** Where the key was made, recorded with it. */
-  source: 'settings' | 'deploy_modal'
+  /** Where the key was created, for the audit record: the deploy dialog unless a Settings page says so. */
+  source?: 'settings' | 'deploy_modal'
   onClose: () => void
 }
 
 /**
- * A new personal or workspace API key, from Settings or the deploy dialog. The key is shown once,
- * masked until revealed, with a copy action; it cannot be read again after the dialog closes.
+ * A new personal or workspace API key. The key is shown once, masked until
+ * revealed, with a copy action; it cannot be read again after the dialog closes.
  */
 export function CreateApiKeyModal({
   workspaceId,
@@ -34,7 +34,7 @@ export function CreateApiKeyModal({
   allowPersonalApiKeys,
   canManageWorkspaceKeys,
   defaultKeyType,
-  source,
+  source = 'deploy_modal',
   onClose,
 }: CreateApiKeyModalProps) {
   const createApiKey = useCreateApiKey()

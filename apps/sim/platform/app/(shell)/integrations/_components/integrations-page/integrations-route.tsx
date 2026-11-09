@@ -9,6 +9,7 @@ import {
   IntegrationsHeading,
   IntegrationsPage,
 } from '@/platform/app/(shell)/integrations/_components/integrations-page/integrations-page'
+import { useLiveSkills } from '@/platform/app/(shell)/integrations/_components/live-skills/live-skills'
 import { MemberSecrets } from '@/platform/app/(shell)/integrations/_components/member-secrets/member-secrets'
 import { ProviderHeading } from '@/platform/app/(shell)/integrations/_components/provider-heading/provider-heading'
 import { QueryFailure } from '@/platform/app/(shell)/integrations/_components/query-failure/query-failure'
@@ -49,6 +50,7 @@ export function IntegrationsRoute({
     useMemberIntegrations(organizationId)
   const actions = useIntegrationActions(organizationId)
   const { search, account, clearAccount, serialize } = useIntegrationsView()
+  const skills = useLiveSkills()
   const defaults = defaultIntegrationPaths(organizationId)
   const indexPath = basePath ?? defaults.index
   const pathOf = (id: string) => `${indexPath}/${encodeURIComponent(id)}`
@@ -74,6 +76,8 @@ export function IntegrationsRoute({
     </>
   )
 
+  if (!section && skills.detail) return <IntegrationsPage>{skills.detail}</IntegrationsPage>
+
   if (!section)
     return (
       <IntegrationsPage>
@@ -93,6 +97,7 @@ export function IntegrationsRoute({
                     : integrationHref(GENERIC_SECRETS_SEGMENT)
                 }
                 settled={policies.isSuccess && secrets.isSuccess}
+                skills={skills.tab}
               />
             </>
           ))}

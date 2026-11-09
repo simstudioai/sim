@@ -1,9 +1,12 @@
 'use client'
 
+import { Fragment } from 'react'
+import { ActivityRow } from '@sim/emcn/activity-row'
 import { Button } from '@sim/emcn/button'
 import { Icon } from '@sim/emcn/icon'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import { RowList } from '@sim/emcn/settings-section/row-list'
 import { FailureNotice, Spinner, StatusTag } from '@sim/emcn/status'
 import {
   ConnectorRecovery,
@@ -70,7 +73,7 @@ export function ConnectorsRail({
           No connected sources yet.
         </p>
       ) : (
-        <ul className={styles.list}>
+        <RowList label='Connected sources'>
           {connectors.map((connector) => {
             const meta = CONNECTOR_META_REGISTRY[connector.connectorType]
             const name = meta?.name ?? connector.connectorType
@@ -83,66 +86,55 @@ export function ConnectorsRail({
                 ? undefined
                 : 'Not synced yet'
             return (
-              <li key={connector.id} className={styles.item}>
-                <button
-                  type='button'
-                  className={styles.row}
-                  aria-label={`${name}, ${status.label}${lastSync ? `, ${lastSync}` : ''}`}
-                  onClick={() => onOpen(connector.id)}
-                >
-                  <span className={styles.mark}>
-                    <Icon providerId={connectorMark(connector.connectorType)} />
-                  </span>
-                  <span className={styles.copy}>
-                    <span className={styles.name} data-type='T060'>
-                      <OverflowText text={name}>{name}</OverflowText>
-                    </span>
-                    {source && (
-                      <span className={styles.detail} data-type='T052'>
-                        <OverflowText text={source}>{source}</OverflowText>
+              <Fragment key={connector.id}>
+                <ActivityRow
+                  leading={<Icon providerId={connectorMark(connector.connectorType)} />}
+                  title={name}
+                  wrapDetail
+                  detailContent={
+                    <span className={styles.detail}>
+                      {source && <OverflowText text={source}>{source}</OverflowText>}
+                      <span className={styles.tags}>
+                        <StatusTag
+                          label={status.label}
+                          intent={status.intent}
+                          leading={state.syncInFlight ? <Spinner /> : undefined}
+                        />
+                        {state.syncsPerMember && <StatusTag label='Per member' />}
+                        {lastSync}
                       </span>
-                    )}
-                    <span className={styles.tags}>
-                      <StatusTag
-                        label={status.label}
-                        intent={status.intent}
-                        leading={state.syncInFlight ? <Spinner /> : undefined}
-                      />
-                      {state.syncsPerMember && <StatusTag label='Per member' />}
-                      {lastSync && (
-                        <span className={styles.detail} data-type='T052'>
-                          {lastSync}
-                        </span>
-                      )}
                     </span>
-                  </span>
-                </button>
-                {connector.accessRewritePending && (
-                  <span className={styles.pending} data-type='T052'>
-                    <Spinner />
-                    Updating access
-                  </span>
-                )}
-                {connector.viewerMembership && connector.viewerMembership !== 'connected' && (
-                  <MemberEnrollment
-                    knowledgeBaseId={knowledgeBaseId}
-                    connectorId={connector.id}
-                    isSearchIndex={isSearchIndex}
-                    membership={connector.viewerMembership}
-                  />
-                )}
-                <ConnectorRecovery
-                  workspaceId={workspaceId}
-                  knowledgeBaseId={knowledgeBaseId}
-                  connector={connector}
-                  isSearchIndex={isSearchIndex}
-                  canEdit={canEdit}
-                  onOpenSettings={() => onOpen(connector.id)}
+                  }
+                  onOpen={() => onOpen(connector.id)}
                 />
-              </li>
+                <li className={styles.attention}>
+                  {connector.accessRewritePending && (
+                    <span className={styles.pending} data-type='T052'>
+                      <Spinner />
+                      Updating access
+                    </span>
+                  )}
+                  {connector.viewerMembership && connector.viewerMembership !== 'connected' && (
+                    <MemberEnrollment
+                      knowledgeBaseId={knowledgeBaseId}
+                      connectorId={connector.id}
+                      isSearchIndex={isSearchIndex}
+                      membership={connector.viewerMembership}
+                    />
+                  )}
+                  <ConnectorRecovery
+                    workspaceId={workspaceId}
+                    knowledgeBaseId={knowledgeBaseId}
+                    connector={connector}
+                    isSearchIndex={isSearchIndex}
+                    canEdit={canEdit}
+                    onOpenSettings={() => onOpen(connector.id)}
+                  />
+                </li>
+              </Fragment>
             )
           })}
-        </ul>
+        </RowList>
       )}
     </aside>
   )

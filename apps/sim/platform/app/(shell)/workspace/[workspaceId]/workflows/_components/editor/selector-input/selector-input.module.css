@@ -28,45 +28,6 @@
   box-shadow: 0 0 0 var(--spacing-stroke-focus) var(--status-warning);
 }
 
-.chosen {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-list-gap);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.chosenRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-action-gap);
-  min-block-size: var(--spacing-app-chip);
-  padding-inline: var(--spacing-8);
-  border: var(--spacing-stroke-default) solid var(--ui-border);
-  border-radius: var(--radius-control);
-  background: var(--ui-reading);
-}
-
-.chosenLabel {
-  flex: 1;
-  min-inline-size: 0;
-  overflow: hidden;
-  color: var(--ui-ink);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.unsupported {
-  margin: 0;
-  padding: var(--spacing-8);
-  border: var(--spacing-stroke-default) solid var(--ui-border);
-  border-radius: var(--radius-control);
-  color: var(--ui-secondary);
-  text-align: center;
-}
-
 .listFooter {
   display: flex;
   justify-content: center;

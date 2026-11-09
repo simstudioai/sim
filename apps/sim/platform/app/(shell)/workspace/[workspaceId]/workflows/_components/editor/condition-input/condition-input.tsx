@@ -15,6 +15,7 @@ import { EnvVarDropdown } from '@/platform/app/(shell)/workspace/[workspaceId]/_
 import { useActiveSearchTarget } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/condition-input/condition-input.module.css'
 import { RouteDescription } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/condition-input/route-description'
+import { FieldLabelRow } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/field-label-row/field-label-row'
 import { highlightCode } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/code-highlight'
 import { getActiveWorkflowSearchHighlight } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
 import { TagDropdown } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tag-dropdown/tag-dropdown'
@@ -355,47 +356,47 @@ export function ConditionInput({
         )
         return (
           <div key={block.id} className={styles.branch}>
-            <div className={styles.branchHeader}>
-              <span className={styles.branchTitle} data-type='T060'>
-                {title}
-              </span>
-              {!isPreview && (
-                <span className={styles.branchActions}>
-                  <IconButton
-                    label={`Add ${noun}`}
-                    icon='I074'
-                    size='compact'
-                    tooltip
-                    disabled={disabled || isElse}
-                    onClick={() => addBlock(block.id)}
-                  />
-                  <IconButton
-                    label='Move up'
-                    icon='I023'
-                    size='compact'
-                    tooltip
-                    disabled={disabled || index === 0 || isElse}
-                    onClick={() => moveBlock(block.id, 'up')}
-                  />
-                  <IconButton
-                    label='Move down'
-                    icon='I102'
-                    size='compact'
-                    tooltip
-                    disabled={disabled || index === blocks.length - 1 || isNextElse || isElse}
-                    onClick={() => moveBlock(block.id, 'down')}
-                  />
-                  <IconButton
-                    label={`Delete ${noun}`}
-                    icon='I105'
-                    size='compact'
-                    tooltip
-                    disabled={disabled || blocks.length <= minBlocks}
-                    onClick={() => removeBlock(block.id)}
-                  />
-                </span>
-              )}
-            </div>
+            <FieldLabelRow
+              label={title}
+              actions={
+                !isPreview && (
+                  <>
+                    <IconButton
+                      label={`Add ${noun}`}
+                      icon='I074'
+                      size='compact'
+                      tooltip
+                      disabled={disabled || isElse}
+                      onClick={() => addBlock(block.id)}
+                    />
+                    <IconButton
+                      label='Move up'
+                      icon='I023'
+                      size='compact'
+                      tooltip
+                      disabled={disabled || index === 0 || isElse}
+                      onClick={() => moveBlock(block.id, 'up')}
+                    />
+                    <IconButton
+                      label='Move down'
+                      icon='I102'
+                      size='compact'
+                      tooltip
+                      disabled={disabled || index === blocks.length - 1 || isNextElse || isElse}
+                      onClick={() => moveBlock(block.id, 'down')}
+                    />
+                    <IconButton
+                      label={`Delete ${noun}`}
+                      icon='I105'
+                      size='compact'
+                      tooltip
+                      disabled={disabled || blocks.length <= minBlocks}
+                      onClick={() => removeBlock(block.id)}
+                    />
+                  </>
+                )
+              }
+            />
             {isRouterMode ? (
               <RouteDescription
                 value={block.value}

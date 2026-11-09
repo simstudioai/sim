@@ -1,6 +1,7 @@
 'use client'
 
 import { useId, useMemo, useState } from 'react'
+import { FieldFrame } from '@sim/emcn/field'
 import { useActiveSearchTarget } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import { EntryCard } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/entry-card/entry-card'
 import { getActiveWorkflowSearchHighlight } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
@@ -133,10 +134,7 @@ export function InputMapping({
             collapsed={collapsed}
             onToggle={() => setCollapsedFields((prev) => ({ ...prev, [field.name]: !collapsed }))}
           >
-            <div className={styles.field}>
-              <label className={styles.label} data-type='T059' htmlFor={fieldId}>
-                Value
-              </label>
+            <FieldFrame id={fieldId} label='Value'>
               <ReferenceField
                 id={fieldId}
                 label={field.name}
@@ -154,7 +152,7 @@ export function InputMapping({
                   valuePath: [field.name],
                 })}
               />
-            </div>
+            </FieldFrame>
           </EntryCard>
         )
       })}

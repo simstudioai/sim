@@ -1,7 +1,6 @@
 'use client'
 
 import { type ChangeEvent, useRef } from 'react'
-import { Spinner } from '@sim/emcn/status'
 import { useActiveSearchTarget } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import { FilePicker } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/file-upload/file-picker'
 import { FileRow } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/file-upload/file-row'
@@ -159,19 +158,12 @@ export function FileUpload({
           {isUploading && (
             <>
               {uploadingFiles.map((file) => (
-                <div key={file.id} className={styles.file}>
-                  <span className={styles.fileText}>
-                    <span className={styles.fileName} data-type='T043'>
-                      {file.name}
-                    </span>
-                    <span className={styles.fileSize} data-type='T052'>
-                      {formatUploadedFileSize(file.size)}
-                    </span>
-                  </span>
-                  <span className={styles.fileStatus}>
-                    <Spinner />
-                  </span>
-                </div>
+                <FileRow
+                  key={file.id}
+                  name={file.name}
+                  label={file.name}
+                  sizeLabel={formatUploadedFileSize(file.size)}
+                />
               ))}
               <div className={styles.progressBlock}>
                 <progress
