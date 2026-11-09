@@ -37,6 +37,7 @@ Object.assign(process.env, {
   KNOWLEDGE_MEMBER_ACCESS: 'true',
   CREDENTIAL_GROUPS: 'true',
   ACCESS_CONTROL_ENABLED: 'true',
+  PERSONAL_ORGANIZATIONS: 'true',
   STORAGE_PROVIDER: 'local',
   OCR_PROVIDER: 'local',
   DISABLE_AUTH: 'false',

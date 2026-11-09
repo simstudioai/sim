@@ -18,6 +18,7 @@ import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import { getPlanType, isEnterprise, isMaxTier, isPro, isTeam } from '@/lib/billing/plan-helpers'
 import { hasUsableSubscriptionStatus } from '@/lib/billing/subscriptions/utils'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import {
   capabilityDeniedBy,
@@ -495,7 +496,8 @@ export async function getWorkspaceCreationPolicy({
    * capped and billed to their creator exactly as personal workspaces, and land in it. A pinned
    * request keeps the exact organization it names — a fork stays in its source's Project, so a
    * collaborator's fork of someone's personal workspace lands beside it, billed to the
-   * collaborator, as it did when both were organization-less.
+   * collaborator, as it did when both were organization-less. With the `personal-organizations`
+   * flag off, a new workspace stays organization-less even for someone who holds one.
    */
   const requestedIsPersonal =
     requestedOrganizationId !== null &&
@@ -504,7 +506,7 @@ export async function getWorkspaceCreationPolicy({
     ? requestedIsPersonal
       ? requestedOrganizationId
       : null
-    : membership?.kind === 'personal'
+    : membership?.kind === 'personal' && (await isFeatureEnabled('personal-organizations'))
       ? membership.organizationId
       : null
   const organizationId = requestedIsPersonal ? null : requestedOrganizationId

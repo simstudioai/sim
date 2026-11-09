@@ -51,6 +51,7 @@ import { member, organization, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, count, eq, exists, gt, isNull, notExists, or, type SQL } from 'drizzle-orm'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   isInstanceOrganizationMode,
   joinInstanceOrganization,
@@ -154,6 +155,9 @@ async function main(): Promise<void> {
     return
   }
   const instanceMode = isInstanceOrganizationMode()
+  if (options.apply && !instanceMode && !(await isFeatureEnabled('personal-organizations'))) {
+    throw new Error('Turn the personal-organizations flag on before applying the backfill')
+  }
 
   const report: BackfillReport = {
     apply: options.apply,
