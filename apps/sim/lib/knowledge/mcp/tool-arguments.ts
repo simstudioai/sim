@@ -6,6 +6,7 @@ import {
   readLiveDocumentMcpSchema,
 } from '@/lib/api/contracts/knowledge/mcp'
 import { mcpToolCallParamsSchema } from '@/lib/api/contracts/mcp'
+import { liveSearchProviderSchema } from '@/lib/api/contracts/mothership-assistant-tools'
 
 /** Search filters a client sometimes writes on each native query instead of on the search. */
 const SEARCH_FILTERS_ON_NATIVE_QUERIES = [
@@ -17,11 +18,12 @@ const SEARCH_FILTERS_ON_NATIVE_QUERIES = [
   'topK',
 ] as const
 
-const TOOL_INPUT_SCHEMAS: Record<string, z.ZodType> = {
-  search: liveSearchMcpSchema,
-  read_document: readLiveDocumentMcpSchema,
-  chat: chatSearchMcpSchema,
-}
+/** Keyed by client-supplied tool names, so a name such as `constructor` finds nothing. */
+const TOOL_INPUT_SCHEMAS = new Map<string, z.ZodType>([
+  ['search', liveSearchMcpSchema],
+  ['read_document', readLiveDocumentMcpSchema],
+  ['chat', chatSearchMcpSchema],
+])
 
 function readToolCall(message: Record<string, unknown>) {
   if (message.method !== 'tools/call') return undefined
@@ -31,16 +33,17 @@ function readToolCall(message: Record<string, unknown>) {
 
 /**
  * Search arguments rewritten where the schema rejects them but they have exactly one reading: an
- * empty `nativeQueries` list, a null optional native query field, a top-level `provider` (the
- * `source` filter), and a search filter every native query carries with the same value. Native
+ * empty `nativeQueries` list, a null optional native query field, a top-level `provider` naming a
+ * provider (the `source` filter), and a search filter every native query carries with the same value. Native
  * queries that disagree on a filter are left for the schema to reject.
  */
 function repairSearchArguments(args: Record<string, unknown>) {
   const { nativeQueries: queries, provider, ...rest } = args
   const repaired: Record<string, unknown> = rest
   const repairs = new Set<string>()
-  if (typeof provider === 'string' && (rest.source === undefined || rest.source === provider)) {
-    repaired.source = provider
+  const providerId = liveSearchProviderSchema.safeParse(provider)
+  if (providerId.success && (rest.source === undefined || rest.source === providerId.data)) {
+    repaired.source = providerId.data
     repairs.add('providerAsSource')
   } else if (provider !== undefined) repaired.provider = provider
   if (Array.isArray(queries) && queries.length === 0) repairs.add('emptyNativeQueries')
@@ -90,7 +93,7 @@ export function repairToolCallMessage(message: Record<string, unknown>) {
  */
 export function toolCallInputIssues(message: Record<string, unknown>) {
   const call = readToolCall(message)
-  const schema = call ? TOOL_INPUT_SCHEMAS[call.name] : undefined
+  const schema = call ? TOOL_INPUT_SCHEMAS.get(call.name) : undefined
   if (!call || !schema) return undefined
   const parsed = schema.safeParse(call.arguments ?? {})
   if (parsed.success) return undefined

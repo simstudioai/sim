@@ -58,8 +58,8 @@ urlsMockFns.mockGetBaseUrl.mockReturnValue('http://localhost')
 const handlers = createKnowledgeMcpHandlers()
 const principal = createPersonalApiKeyPrincipal({ userId: 'person-1' })
 
-/** Calls the search tool over the real route, SDK transport, and Search MCP server. */
-async function callSearch(args: Record<string, unknown>) {
+/** Calls a tool over the real route, SDK transport, and Search MCP server. */
+async function callTool(name: string, args: Record<string, unknown>) {
   const response = await handlers.POST(
     createMockRequest({
       method: 'POST',
@@ -74,12 +74,16 @@ async function callSearch(args: Record<string, unknown>) {
         jsonrpc: '2.0',
         id: 1,
         method: 'tools/call',
-        params: { name: 'search', arguments: args },
+        params: { name, arguments: args },
       },
     }),
     createRouteContext({ organizationId: 'org-1' })
   )
   return { status: response.status, body: await response.json() }
+}
+
+function callSearch(args: Record<string, unknown>) {
+  return callTool('search', args)
 }
 
 function searchedInput() {
@@ -174,4 +178,19 @@ describe('Search MCP tool arguments with one possible reading', () => {
     expect(JSON.stringify(body)).toContain('startDate')
     expect(mocks.liveSearch).not.toHaveBeenCalled()
   })
+
+  it('still rejects a top-level provider that names no provider', async () => {
+    const { body } = await callSearch({ query: 'standup', provider: 'Google Calendar' })
+    expect(JSON.stringify(body)).toContain('provider')
+    expect(mocks.liveSearch).not.toHaveBeenCalled()
+  })
+
+  it.each(['constructor', 'toString', '__proto__'])(
+    'answers a call to the unknown tool %s with an MCP error, not a server error',
+    async (name) => {
+      const { status, body } = await callTool(name, {})
+      expect(status).toBe(200)
+      expect(JSON.stringify(body)).toContain(name)
+    }
+  )
 })
