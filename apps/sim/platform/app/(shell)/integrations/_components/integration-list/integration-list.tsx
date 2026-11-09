@@ -1,4 +1,7 @@
-import { IntegrationCenter } from '@/platform/app/(shell)/integrations/_components/integration-center/integration-center'
+import {
+  IntegrationCenter,
+  type SkillsTab,
+} from '@/platform/app/(shell)/integrations/_components/integration-center/integration-center'
 import type { AppSummary } from '@/platform/lib/integrations/center-model'
 import type { GenericSecrets, OrganizationIntegration } from '@/platform/shared/integrations'
 
@@ -9,6 +12,8 @@ interface IntegrationListProps {
   secretsHref: string
   /** False while a read could still add rows, so an empty list is not claimed too early. */
   settled: boolean
+  /** The workspace skills tab, on live data. */
+  skills?: SkillsTab
 }
 
 export function IntegrationList({
@@ -17,6 +22,7 @@ export function IntegrationList({
   integrationHref,
   secretsHref,
   settled,
+  skills,
 }: IntegrationListProps) {
   const apps: AppSummary[] = integrations.map((item) => ({
     id: item.id,
@@ -43,5 +49,7 @@ export function IntegrationList({
         },
       ]
     : []
-  return <IntegrationCenter apps={apps} credentials={credentials} settled={settled} />
+  return (
+    <IntegrationCenter apps={apps} credentials={credentials} skills={skills} settled={settled} />
+  )
 }
