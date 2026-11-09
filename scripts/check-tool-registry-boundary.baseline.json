@@ -226,7 +226,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/changelog/[entryId]/page.tsx": {
-      "modules": 2365,
+      "modules": 2298,
       "gateways": {
         "apps/sim/platform/lib/data/workspace-tab-flags.ts": 1792,
         "apps/sim/platform/lib/data/server-read.ts": 1351,
@@ -265,7 +265,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/dashboards/page.tsx": {
-      "modules": 2218,
+      "modules": 2195,
       "gateways": {
         "apps/sim/platform/lib/data/workspace-tab-flags.ts": 1822,
         "apps/sim/platform/lib/data/server-read.ts": 1352,
@@ -295,7 +295,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/files/page.tsx": {
-      "modules": 315,
+      "modules": 302,
       "gateways": {
         "apps/sim/app/(product)/workspace/[workspaceId]/files/_components/file-browser/file-browser.tsx": 313,
         "apps/sim/lib/api/contracts/index.ts": 73,
@@ -457,7 +457,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/tables/[tableId]/page.tsx": {
-      "modules": 1620,
+      "modules": 1619,
       "gateways": {
         "apps/sim/app/(product)/_components/workspace/tables/table-route/table-route.tsx": 1852,
         "apps/sim/platform/lib/data/workflows/index.ts": 1323,
@@ -517,7 +517,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/workflows/[workflowId]/page.tsx": {
-      "modules": 2235,
+      "modules": 2191,
       "gateways": {
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/workflow-editor/workflow-editor.tsx": 2233,
         "apps/sim/triggers/registry.ts": 597,

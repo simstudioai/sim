@@ -1,7 +1,5 @@
-import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { listLogsQuerySchema } from '@/lib/api/contracts/logs'
 import {
   MENTION_FAMILIES,
   type MentionFamily,
@@ -11,34 +9,37 @@ import {
   defineAuthorizedOrganizationUseCase,
   type OrganizationUseCaseContext,
 } from '@/lib/core/application/authorized-organization-use-case'
-import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
-import { readWorkspaceDashboard } from '@/lib/dashboards/application/dashboards'
-import { listWorkspaceFoldersUseCase } from '@/lib/folders/application/list-folders'
-import { listInternalKnowledgeBases } from '@/lib/knowledge/application/knowledge-bases'
-import { listLogsUseCase } from '@/lib/logs/application/list-logs'
+import type { ApplicationOperation } from '@/lib/core/application/operation'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { dashboardOperations } from '@/lib/dashboards/application/operations'
+import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
+import { folderOperations } from '@/lib/folders/application/operations'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { logOperations } from '@/lib/logs/application/operations'
 import { mentionOperations } from '@/lib/mentions/application/operations'
-import { listWorkspaceChats } from '@/lib/mothership/chat/application/use-cases'
-import { listAvailableSkillsUseCase } from '@/lib/skills/application/use-cases'
-import { listTableDefinitionsUseCase } from '@/lib/table/application/tables'
-import { listWorkspaceWorkflowItemsUseCase } from '@/lib/workflows/application/list-workflows'
-import { isBuiltinSkillId } from '@/lib/workflows/skills/builtin-skills'
-import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/folders'
 import {
-  listWorkspaceFileCollection,
-  searchWorkspaceFiles,
-} from '@/lib/workspace-files/application/list-workspace-files'
+  type MentionReadSpec,
+  type MentionRecord,
+  readChatMentions,
+  readDashboardMentions,
+  readFileFolderMentions,
+  readFileMentions,
+  readFolderMentions,
+  readKnowledgeBaseMentions,
+  readLogMentions,
+  readSkillMentions,
+  readTableMentions,
+  readWorkflowMentions,
+} from '@/lib/mentions/queries'
+import { mothershipChatOperations } from '@/lib/mothership/chat/application/operations'
+import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
+import { skillOperations } from '@/lib/skills/application/operations'
+import { tableOperations } from '@/lib/table/application/operations'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
 const logger = createLogger('SearchMentions')
-
-/** The most recently updated files a workspace offers before anything is typed. */
-const RECENT_FILE_LIMIT = 100
-/** The file search's own picker cap. */
-const FILE_SEARCH_LIMIT = 50
-/** The latest runs a workspace offers. */
-const LOG_LIMIT = 50
-/** Workspaces read at once; each reads its families in parallel. */
-const WORKSPACE_READ_CONCURRENCY = 4
 
 interface SearchMentionsInput {
   organizationId: string
@@ -46,322 +47,65 @@ interface SearchMentionsInput {
   workspaceId?: string
   family?: MentionFamily
   folderId?: string
+  cursor?: string
   limit: number
 }
 
 export interface SearchMentionsResult {
   rows: MentionRow[]
-  families?: MentionFamily[]
+  families?: { family: MentionFamily; nextCursor?: string }[]
+  nextCursor?: string
   unavailableWorkspaces: { id: string; name: string }[]
+  unavailableFamilies: MentionFamily[]
 }
 
 interface MentionWorkspace {
   id: string
   name: string
-  updatedAt: number
-}
-
-interface Candidate {
-  row: MentionRow
-  updatedAt: number
-  /** The folder holding the row, or the parent of a folder row; `null` at the root. */
-  parentId?: string | null
+  updatedAt: Date
 }
 
 type ResourceFamily = Exclude<MentionFamily, 'workspaces'>
-type FamilyReader = (
-  principal: Principal,
-  workspace: MentionWorkspace,
-  query: string
-) => Promise<Candidate[]>
 
-const time = (value: Date | string) => new Date(value).getTime()
-
-function owned(
-  family: ResourceFamily,
-  workspace: MentionWorkspace,
-  record: { id: string; name: string },
-  extra: Partial<MentionRow> = {}
-): MentionRow {
-  return {
-    family,
-    id: record.id,
-    name: record.name,
-    workspaceId: workspace.id,
-    workspaceName: workspace.name,
-    ...extra,
-  }
-}
-
-const FOLDER_FAMILIES = [
-  ['workflow', 'Workflow folders'],
-  ['table', 'Table folders'],
-  ['knowledge_base', 'Knowledge base folders'],
-] as const
-
-/** Each family through the workspace operation its own list route runs. */
-const READERS: Record<ResourceFamily, FamilyReader> = {
-  async workflows(principal, workspace) {
-    const workflows = await listWorkspaceWorkflowItemsUseCase.execute({
-      principal,
-      input: { workspaceId: workspace.id, scope: 'active' },
-    })
-    return workflows.map((workflow) => ({
-      row: owned('workflows', workspace, workflow),
-      updatedAt: time(workflow.updatedAt),
-      parentId: workflow.folderId,
-    }))
-  },
-  async skills(principal, workspace) {
-    const { skills } = await listAvailableSkillsUseCase.execute({
-      principal,
-      input: { workspaceId: workspace.id },
-    })
-    return skills.map((skill) => ({
-      row: isBuiltinSkillId(skill.id)
-        ? { family: 'skills', id: skill.id, name: skill.name, detail: skill.description }
-        : owned('skills', workspace, skill, { detail: skill.description }),
-      updatedAt: time(skill.updatedAt),
-    }))
-  },
-  async chats(principal, workspace) {
-    const chats = await listWorkspaceChats.execute({
-      principal,
-      input: { workspaceId: workspace.id, scope: 'active' },
-    })
-    return chats.map((chat) => ({
-      row: owned('chats', workspace, { id: chat.id, name: chat.title ?? 'New chat' }),
-      updatedAt: time(chat.updatedAt),
-    }))
-  },
-  async tables(principal, workspace) {
-    const { tables } = await listTableDefinitionsUseCase.execute({
-      principal,
-      input: { workspaceId: workspace.id, scope: 'active' },
-    })
-    return tables.map((table) => ({
-      row: owned('tables', workspace, table),
-      updatedAt: time(table.updatedAt),
-      parentId: table.folderId ?? null,
-    }))
-  },
-  async files(principal, workspace, query) {
-    const { files } = query
-      ? await searchWorkspaceFiles.execute({
-          principal,
-          input: { workspaceId: workspace.id, query, recursive: true, limit: FILE_SEARCH_LIMIT },
-        })
-      : await listWorkspaceFileCollection.execute({
-          principal,
-          input: {
-            workspaceId: workspace.id,
-            scope: 'active',
-            page: { sortBy: 'updatedAt', sortOrder: 'desc', limit: RECENT_FILE_LIMIT },
-          },
-        })
-    return files.map((file) => ({
-      row: owned('files', workspace, file, query ? { matchedQuery: query } : {}),
-      updatedAt: time(file.updatedAt),
-      parentId: file.folderId ?? null,
-    }))
-  },
-  async file_folders(principal, workspace) {
-    const { folders } = await listWorkspaceFileFoldersOperation.execute({
-      principal,
-      input: { workspaceId: workspace.id, scope: 'active' },
-    })
-    return folders.map((folder) => ({
-      row: owned('file_folders', workspace, folder),
-      updatedAt: time(folder.updatedAt),
-      parentId: folder.parentId,
-    }))
-  },
-  async knowledge_bases(principal, workspace) {
-    const { knowledgeBases } = await listInternalKnowledgeBases.execute({
-      principal,
-      input: { workspaceId: workspace.id, scope: 'active', includeCounts: false },
-    })
-    return knowledgeBases.map((base) => ({
-      row: owned('knowledge_bases', workspace, base),
-      updatedAt: time(base.updatedAt),
-      parentId: base.folderId,
-    }))
-  },
-  async dashboards(principal, workspace) {
-    const { dashboard } = await readWorkspaceDashboard.execute({
-      principal,
-      input: { workspaceId: workspace.id },
-    })
-    return dashboard
-      ? [{ row: owned('dashboards', workspace, dashboard), updatedAt: time(dashboard.updatedAt) }]
-      : []
-  },
-  async folders(principal, workspace) {
-    const families = await Promise.all(
-      FOLDER_FAMILIES.map(async ([resourceType, folderFamily]) => {
-        const folders = await listWorkspaceFoldersUseCase.execute({
-          principal,
-          input: { workspaceId: workspace.id, resourceType, scope: 'active' },
-        })
-        return folders.map((folder) => ({
-          row: owned('folders', workspace, folder, { folderFamily }),
-          updatedAt: time(folder.updatedAt),
-          parentId: folder.parentId,
-        }))
-      })
-    )
-    return families.flat()
-  },
-  async logs(principal, workspace) {
-    const { data } = await listLogsUseCase.execute({
-      principal,
-      input: listLogsQuerySchema.parse({
-        workspaceId: workspace.id,
-        limit: LOG_LIMIT,
-        sortBy: 'date',
-        sortOrder: 'desc',
-      }),
-    })
-    return data.map((log) => {
-      const executionId = log.executionId ?? log.id
-      return {
-        row: owned(
-          'logs',
-          workspace,
-          { id: executionId, name: log.workflow?.name ?? log.workflowId ?? 'Unknown' },
-          {
-            executionId,
-            createdAt: log.createdAt,
-            workflowLabel: log.workflow?.name ?? log.workflowId ?? 'Unknown',
-          }
-        ),
-        updatedAt: time(log.createdAt),
-      }
-    })
-  },
-}
-
-/** The family label a query also matches, as the picker lists folder and log rows. */
-function familyLabel(row: MentionRow): string | undefined {
-  return row.folderFamily ?? (row.family === 'logs' ? 'Logs' : undefined)
+interface FamilyReadContext {
+  userId: string
+  organizationId: string
 }
 
 /**
- * The picker's own ranking for an `@` query: exact name, name prefix, name substring, then a
- * workspace or family match, or a file the server matched by its folder path. `null` drops it.
+ * Each family's batched read and the workspace operation its own list route authorizes. Every
+ * operation here requires the read role, which each accessible workspace grants, so what remains
+ * per workspace is the operation's permission-group capability.
  */
-function rank(row: MentionRow, search: string): number | null {
-  const name = row.name.toLowerCase()
-  if (name === search) return 0
-  if (name.startsWith(search)) return 1
-  if (name.includes(search)) return 2
-  if (row.matchedQuery?.toLowerCase() === search) return 3
-  return [row.workspaceName, familyLabel(row)].some((field) =>
-    field?.toLowerCase().includes(search)
-  )
-    ? 3
-    : null
-}
-
-/** A suggestion page: the query's best matches, or the most recently updated rows. */
-function suggest(candidates: readonly Candidate[], query: string, limit: number): MentionRow[] {
-  const search = query.toLowerCase()
-  const ranked = candidates.flatMap((candidate) => {
-    const order = search ? rank(candidate.row, search) : 0
-    return order === null ? [] : [{ candidate, order }]
-  })
-  return ranked
-    .sort(
-      (left, right) =>
-        left.order - right.order || right.candidate.updatedAt - left.candidate.updatedAt
-    )
-    .slice(0, limit)
-    .map(({ candidate }) => candidate.row)
-}
-
-function isDenial(error: unknown): boolean {
-  const code = asOrchestrationError(error)?.code
-  return code === 'forbidden' || code === 'not_found' || code === 'unauthorized'
-}
-
-/**
- * Reads one workspace's families. A family its own operation refuses is absent, as its list was
- * for the legacy picker; any other failure fails the workspace, which the caller reports.
- */
-async function readWorkspace(
-  principal: Principal,
-  workspace: MentionWorkspace,
-  families: readonly ResourceFamily[],
-  query: string
-): Promise<Map<ResourceFamily, Candidate[]>> {
-  const read = await Promise.all(
-    families.map(async (family): Promise<[ResourceFamily, Candidate[]]> => {
-      try {
-        return [family, await READERS[family](principal, workspace, query)]
-      } catch (error) {
-        if (isDenial(error)) return [family, []]
-        throw error
-      }
-    })
-  )
-  return new Map(read)
-}
-
-async function readWorkspaces(
-  principal: Principal,
-  workspaces: readonly MentionWorkspace[],
-  families: readonly ResourceFamily[],
-  query: string
-) {
-  const read = new Map<string, Map<ResourceFamily, Candidate[]>>()
-  const unavailable: MentionWorkspace[] = []
-  let next = 0
-  async function worker() {
-    for (let index = next++; index < workspaces.length; index = next++) {
-      const workspace = workspaces[index]
-      try {
-        read.set(workspace.id, await readWorkspace(principal, workspace, families, query))
-      } catch (error) {
-        logger.warn('Mention reads failed for a workspace', {
-          workspaceId: workspace.id,
-          error: getErrorMessage(error),
-        })
-        unavailable.push(workspace)
-      }
-    }
+const FAMILIES: Record<
+  ResourceFamily,
+  {
+    operation: ApplicationOperation
+    read(spec: MentionReadSpec, context: FamilyReadContext): Promise<MentionRecord[]>
+    /** An organization-wide switch the family's operation also requires. */
+    enabled?(context: FamilyReadContext): Promise<boolean>
   }
-  await Promise.all(
-    Array.from({ length: Math.min(WORKSPACE_READ_CONCURRENCY, workspaces.length) }, worker)
-  )
-  const candidates = (family: ResourceFamily) =>
-    workspaces.flatMap((workspace) => read.get(workspace.id)?.get(family) ?? [])
-  return {
-    candidates,
-    unavailableWorkspaces: unavailable.map(({ id, name }) => ({ id, name })),
-  }
-}
-
-/** Built-in skills belong to no workspace; each lists once, as the first workspace offers it. */
-function uniqueSkills(candidates: readonly Candidate[]): Candidate[] {
-  const seen = new Set<string>()
-  return candidates.filter(({ row }) => {
-    if (row.workspaceId) return true
-    if (seen.has(row.id)) return false
-    seen.add(row.id)
-    return true
-  })
-}
-
-function workspaceRow(workspace: MentionWorkspace): Candidate {
-  return {
-    row: {
-      family: 'workspaces',
-      id: workspace.id,
-      name: workspace.name,
-      workspaceId: workspace.id,
-    },
-    updatedAt: workspace.updatedAt,
-  }
+> = {
+  workflows: { operation: workflowOperations.list, read: readWorkflowMentions },
+  skills: { operation: skillOperations.listAvailable, read: readSkillMentions },
+  chats: {
+    operation: mothershipChatOperations.listWorkspace,
+    read: (spec, { userId }) => readChatMentions(spec, userId),
+  },
+  tables: { operation: tableOperations.list, read: readTableMentions },
+  files: { operation: fileOperations.list, read: readFileMentions },
+  file_folders: { operation: fileOperations.listFolders, read: readFileFolderMentions },
+  knowledge_bases: { operation: knowledgeOperations.list, read: readKnowledgeBaseMentions },
+  dashboards: {
+    operation: dashboardOperations.read,
+    read: readDashboardMentions,
+    enabled: ({ organizationId }) => isDashboardsEnabled(organizationId),
+  },
+  folders: {
+    operation: folderOperations.list,
+    read: (spec) => readFolderMentions(spec, ['workflow', 'table', 'knowledge_base']),
+  },
+  logs: { operation: logOperations.list, read: readLogMentions },
 }
 
 const RESOURCE_FAMILIES = MENTION_FAMILIES.filter(
@@ -371,14 +115,132 @@ const RESOURCE_FAMILIES = MENTION_FAMILIES.filter(
 const AT_FAMILIES = RESOURCE_FAMILIES.filter((family) => family !== 'skills')
 
 /**
- * What a composer may mention across the viewer's workspaces in one organization, in one read:
- * an `@` query's best matches per family (the most recent rows when empty), one browsed workspace's
- * families and their first rows, one family's page in a workspace or folder, or every skill.
+ * The workspaces each family may read: those whose permission group leaves its operation's
+ * capability. Each workspace's config resolves once (configs are cached) and serves every family;
+ * a workspace whose config cannot be read is reported and read for nothing.
+ */
+async function readableWorkspaces(
+  context: FamilyReadContext,
+  workspaces: readonly MentionWorkspace[],
+  families: readonly ResourceFamily[]
+) {
+  const capabilities = [
+    ...new Set(
+      families.flatMap((family) => {
+        const { capability } = FAMILIES[family].operation
+        return capability === 'none' ? [] : [capability]
+      })
+    ),
+  ]
+  const withheld = new Map<string, Set<string>>()
+  const unavailable: MentionWorkspace[] = []
+  await Promise.all(
+    workspaces.map(async (workspace) => {
+      try {
+        const denied = await Promise.all(
+          capabilities.map(async (capability) =>
+            (await isWorkspaceCapabilityWithheld(
+              context.userId,
+              workspace.id,
+              capability,
+              context.organizationId
+            ))
+              ? [capability]
+              : []
+          )
+        )
+        withheld.set(workspace.id, new Set<string>(denied.flat()))
+      } catch (error) {
+        logger.warn('Mention access could not be read for a workspace', {
+          workspaceId: workspace.id,
+          error: getErrorMessage(error),
+        })
+        unavailable.push(workspace)
+      }
+    })
+  )
+  const enabled = new Map(
+    await Promise.all(
+      families.map(
+        async (family) => [family, (await FAMILIES[family].enabled?.(context)) ?? true] as const
+      )
+    )
+  )
+  return {
+    unavailableWorkspaces: unavailable.map(({ id, name }) => ({ id, name })),
+    workspaceIdsFor(family: ResourceFamily): string[] {
+      if (!enabled.get(family)) return []
+      const { capability } = FAMILIES[family].operation
+      return workspaces.flatMap(({ id }) => {
+        const denied = withheld.get(id)
+        return denied && (capability === 'none' || !denied.has(capability)) ? [id] : []
+      })
+    },
+  }
+}
+
+function toRow(
+  family: ResourceFamily,
+  record: MentionRecord,
+  names: ReadonlyMap<string, string>
+): MentionRow {
+  return {
+    family,
+    id: record.id,
+    name: record.name,
+    ...(record.workspaceId
+      ? { workspaceId: record.workspaceId, workspaceName: names.get(record.workspaceId) }
+      : {}),
+    ...(record.folderFamily ? { folderFamily: record.folderFamily } : {}),
+    ...(record.detail !== undefined ? { detail: record.detail } : {}),
+    ...(record.executionId
+      ? {
+          executionId: record.executionId,
+          createdAt: record.updatedAt.toISOString(),
+          workflowLabel: record.workflowLabel,
+        }
+      : {}),
+  }
+}
+
+function workspaceRank(name: string, query: string): number | null {
+  if (!query || name === query) return 0
+  if (name.startsWith(query)) return 1
+  return name.includes(query) ? 2 : null
+}
+
+/** The picker's ranking of the workspaces themselves, which are already in hand. */
+function workspaceRows(workspaces: readonly MentionWorkspace[], query: string, limit: number) {
+  return workspaces
+    .flatMap((workspace) => {
+      const order = workspaceRank(workspace.name.toLowerCase(), query)
+      return order === null ? [] : [{ workspace, order }]
+    })
+    .sort(
+      (left, right) =>
+        left.order - right.order ||
+        right.workspace.updatedAt.getTime() - left.workspace.updatedAt.getTime()
+    )
+    .slice(0, limit)
+    .map(
+      ({ workspace }): MentionRow => ({
+        family: 'workspaces',
+        id: workspace.id,
+        name: workspace.name,
+        workspaceId: workspace.id,
+      })
+    )
+}
+
+/**
+ * What a composer may mention across the viewer's workspaces in one organization: an `@` query's
+ * best rows per family (the most recently updated when empty), the organization's workspaces, one
+ * browsed workspace's families and first pages, one family's next page in a workspace or folder,
+ * or every skill. Each family is one query across the workspaces its operation allows.
  */
 export const searchMentions = defineAuthorizedOrganizationUseCase({
   operation: mentionOperations.search,
   async execute({
-    principal,
     input,
     context,
   }: OrganizationUseCaseContext<SearchMentionsInput>): Promise<SearchMentionsResult> {
@@ -390,67 +252,84 @@ export const searchMentions = defineAuthorizedOrganizationUseCase({
     const all = accessible.map(({ workspace }) => ({
       id: workspace.id,
       name: workspace.name,
-      updatedAt: workspace.updatedAt.getTime(),
+      updatedAt: workspace.updatedAt,
     }))
     const workspaces = input.workspaceId
       ? all.filter((workspace) => workspace.id === input.workspaceId)
       : all
     if (input.workspaceId && !workspaces.length)
       throw new OrchestrationError('not_found', 'Workspace not found')
+    const query = input.query.toLowerCase()
 
     if (input.family === 'workspaces')
       return {
-        rows: suggest(workspaces.map(workspaceRow), input.query, input.limit),
+        rows: workspaceRows(workspaces, query, input.limit),
         unavailableWorkspaces: [],
+        unavailableFamilies: [],
       }
 
-    if (input.family) {
-      const family = input.family
-      const { candidates, unavailableWorkspaces } = await readWorkspaces(
-        principal,
-        workspaces,
-        [family],
-        input.query
+    const names = new Map(all.map(({ id, name }) => [id, name]))
+    const matchedWorkspaceIds = query
+      ? workspaces
+          .filter((workspace) => workspace.name.toLowerCase().includes(query))
+          .map(({ id }) => id)
+      : []
+    const families: readonly ResourceFamily[] = input.family ? [input.family] : AT_FAMILIES
+    const readContext = { userId: context.userId, organizationId: context.organizationId }
+    const access = await readableWorkspaces(readContext, workspaces, families)
+    const browsing = Boolean(input.workspaceId) || input.family === 'skills'
+    const offset = input.cursor ? Number(input.cursor) : 0
+    const unavailableFamilies: MentionFamily[] = []
+    const read = new Map<ResourceFamily, MentionRecord[]>(
+      await Promise.all(
+        families.map(async (family): Promise<[ResourceFamily, MentionRecord[]]> => {
+          try {
+            return [
+              family,
+              await FAMILIES[family].read(
+                {
+                  workspaceIds: access.workspaceIdsFor(family),
+                  query,
+                  matchedWorkspaceIds,
+                  // A browse page reads one row past its end to know whether another follows.
+                  limit: browsing ? input.limit + 1 : input.limit,
+                  page: browsing ? { offset, folderId: input.folderId } : undefined,
+                },
+                readContext
+              ),
+            ]
+          } catch (error) {
+            logger.warn('Mention family read failed', { family, error: getErrorMessage(error) })
+            unavailableFamilies.push(family)
+            return [family, []]
+          }
+        })
       )
-      const rows =
-        family === 'skills'
-          ? uniqueSkills(candidates(family))
-          : candidates(family).filter(
-              (candidate) => input.folderId === undefined || candidate.parentId === input.folderId
-            )
+    )
+    const page = (family: ResourceFamily) => {
+      const records = read.get(family) ?? []
       return {
-        rows: input.query
-          ? suggest(rows, input.query, input.limit)
-          : rows.slice(0, input.limit).map(({ row }) => row),
-        unavailableWorkspaces,
+        rows: records.slice(0, input.limit).map((record) => toRow(family, record, names)),
+        nextCursor: records.length > input.limit ? String(offset + input.limit) : undefined,
       }
     }
+    const status = { unavailableWorkspaces: access.unavailableWorkspaces, unavailableFamilies }
 
-    const families = AT_FAMILIES
-    const { candidates, unavailableWorkspaces } = await readWorkspaces(
-      principal,
-      workspaces,
-      families,
-      input.query
-    )
+    if (input.family) return { ...page(input.family), ...status }
     if (input.workspaceId) {
-      const present = families.filter((family) => candidates(family).length > 0)
+      const present = families.filter((family) => (read.get(family) ?? []).length > 0)
       return {
-        rows: present.flatMap((family) =>
-          candidates(family)
-            .slice(0, input.limit)
-            .map(({ row }) => row)
-        ),
-        families: present,
-        unavailableWorkspaces,
+        rows: present.flatMap((family) => page(family).rows),
+        families: present.map((family) => ({ family, nextCursor: page(family).nextCursor })),
+        ...status,
       }
     }
     return {
       rows: [
-        ...suggest(workspaces.map(workspaceRow), input.query, input.limit),
-        ...families.flatMap((family) => suggest(candidates(family), input.query, input.limit)),
+        ...workspaceRows(workspaces, query, input.limit),
+        ...families.flatMap((family) => page(family).rows),
       ],
-      unavailableWorkspaces,
+      ...status,
     }
   },
 })

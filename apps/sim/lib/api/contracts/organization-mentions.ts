@@ -38,6 +38,11 @@ const querySchema = z
     family: z.enum(MENTION_FAMILIES).optional(),
     /** Browse inside a folder of `family`; only workflows, tables, knowledge bases and files nest. */
     folderId: z.string().min(1).max(128).optional(),
+    /** A browse page's position: the `nextCursor` the previous page returned. */
+    cursor: z
+      .string()
+      .regex(/^\d{1,6}$/)
+      .optional(),
     limit: z.coerce
       .number()
       .int()
@@ -61,6 +66,10 @@ const querySchema = z
     message: 'folderId requires family',
     path: ['folderId'],
   })
+  .refine((query) => !query.cursor || query.family, {
+    message: 'cursor requires family',
+    path: ['cursor'],
+  })
 
 const mentionRowSchema = z.object({
   family: z.enum(MENTION_FAMILIES),
@@ -71,8 +80,6 @@ const mentionRowSchema = z.object({
   workspaceName: z.string().optional(),
   /** A folder row's own family: "Workflow folders", "Table folders" or "Knowledge base folders". */
   folderFamily: z.string().optional(),
-  /** The query a file is the server's ranked match for. */
-  matchedQuery: z.string().optional(),
   /** A skill's description. */
   detail: z.string().optional(),
   /** A log row's run: its execution id and start time. */
@@ -92,10 +99,19 @@ export const searchOrganizationMentionsContract = defineRouteContract({
     mode: 'json',
     schema: z.object({
       rows: z.array(mentionRowSchema),
-      /** Families with rows in a browsed workspace, when the read names a workspace alone. */
-      families: z.array(z.enum(MENTION_FAMILIES)).optional(),
-      /** Workspaces whose reads failed; their rows are missing and every other row stands. */
+      /**
+       * Families with rows in a browsed workspace, when the read names a workspace alone, each with
+       * the cursor of its second page when its first page is not all of it.
+       */
+      families: z
+        .array(z.object({ family: z.enum(MENTION_FAMILIES), nextCursor: z.string().optional() }))
+        .optional(),
+      /** A family page's next page, when there is one. */
+      nextCursor: z.string().optional(),
+      /** Workspaces whose access could not be read; their rows are missing and the rest stand. */
       unavailableWorkspaces: z.array(z.object({ id: z.string(), name: z.string() })),
+      /** Families whose read failed; every other family's rows stand. */
+      unavailableFamilies: z.array(z.enum(MENTION_FAMILIES)),
     }),
   },
 })

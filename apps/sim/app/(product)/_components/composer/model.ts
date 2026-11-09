@@ -140,6 +140,8 @@ export interface ComposerController extends ComposerInventory {
   onBrowseWorkspace?: (workspaceId: string) => void
   /** The resource menu's search, which the host answers. */
   onBrowseSearch?: (query: string) => void
+  /** Loads the next page of a browsed workspace's group, when the host has one. */
+  browseMore?: (workspaceId: string, group: string) => (() => void) | undefined
   settings?: ComposerSettings
   drop?: ComposerDropHandlers
   voice?: ComposerVoice
