@@ -22,6 +22,7 @@ import { isToolDone } from '@/components/mothership-chat/message-content/tool-st
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { searchConnectionTargetSchema } from '@/lib/knowledge/search/connection-target'
 import { isChatContext } from '@/lib/mothership/chat/context'
+import { linkSiteName } from '@/lib/mothership/chat/source-link'
 import {
   type ContentSegment,
   type CredentialItemData,
@@ -29,6 +30,7 @@ import {
   parseLastCredentialTag,
   parseLastQuestionTag,
   parseSpecialTags,
+  type SourceTagData,
 } from '@/lib/mothership/chat/special-tags'
 import type { ChatMessage, ChatMessageContext, ToolCallData } from '@/lib/mothership/chat/types'
 import {
@@ -51,6 +53,7 @@ import type {
   PlatformTurn,
 } from '@/app/(product)/_components/chat/model'
 import type { ChatAttachment } from '@/app/(product)/_components/composer/model'
+import { formatInstantDate } from '@/platform/shared/time'
 import { getToolMetadata } from '@/tools/metadata'
 
 /** Tool payloads are diagnostic text, never the whole of a file a tool wrote. */
@@ -302,10 +305,46 @@ function toLane(
   }
 }
 
+type CitedSource = NonNullable<Extract<PlatformTurn, { role: 'assistant' }>['sources']>[number]
+
+/** Where a source lives, who wrote it and when it changed, in the order a result row reads them. */
+function sourceMeta(source: SourceTagData): string {
+  const updatedAt = source.updatedAt ? new Date(source.updatedAt) : null
+  return [
+    linkSiteName(source.url, source.siteName),
+    source.author?.trim(),
+    updatedAt && !Number.isNaN(updatedAt.getTime()) ? formatInstantDate(updatedAt) : undefined,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+/**
+ * Each document the answer's own prose cites, once by URL in first-cited order. Text a lane folds
+ * into its agent group is scratch work, so only the top-level text segments count.
+ */
+function citedSources(segments: readonly MessageSegment[]): CitedSource[] {
+  const byUrl = new Map<string, CitedSource>()
+  for (const segment of segments) {
+    if (segment.type !== 'text') continue
+    for (const part of parseSpecialTags(segment.content, false).segments) {
+      if (part.type !== 'source' || byUrl.has(part.data.url)) continue
+      const source = part.data
+      byUrl.set(source.url, {
+        id: source.url,
+        url: source.url,
+        title: source.title?.trim() || linkSiteName(source.url, source.siteName),
+        meta: sourceMeta(source),
+      })
+    }
+  }
+  return [...byUrl.values()]
+}
+
 /** A settled message never changes, so a long transcript re-parses only the turn in progress. */
 const SETTLED_TURNS = new WeakMap<
   ChatMessage,
-  { pairing: string; parts: PlatformPart[]; copyText: string }
+  { pairing: string; parts: PlatformPart[]; copyText: string; sources: CitedSource[] }
 >()
 
 function toParts(
@@ -572,9 +611,11 @@ export function toPlatformTurns(
     const settled = SETTLED_TURNS.get(message)
     let parts: PlatformPart[]
     let copyText = ''
+    let sources: CitedSource[] | undefined
     if (!live && settled?.pairing === pairingKey) {
       parts = settled.parts
       copyText = settled.copyText
+      sources = settled.sources
     } else {
       const cited = resolveMessageCitations(
         blocks,
@@ -590,7 +631,8 @@ export function toPlatformTurns(
       parts = toParts(segments, message, live, now, pairing)
       if (!live) {
         copyText = getOrchestratorMessageText(blocks, message.content)
-        SETTLED_TURNS.set(message, { pairing: pairingKey, parts, copyText })
+        sources = citedSources(segments)
+        SETTLED_TURNS.set(message, { pairing: pairingKey, parts, copyText, sources })
       }
     }
     const stopped = parts.some((part) => part.kind === 'stopped')
@@ -607,6 +649,7 @@ export function toPlatformTurns(
         userQuery: lastUserText,
         endsWithInteraction: endsWithInteraction(parts),
         forkable: isPersisted(message.id),
+        sources,
       })
     )
   })

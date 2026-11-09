@@ -8,6 +8,7 @@ import { StaleSession } from '@/app/(product)/_components/live-shell/stale-sessi
 import { ProductSession } from '@/app/(product)/_components/product-session'
 import { SessionState } from '@/app/(product)/_components/session-state/session-state'
 import { AccessDenied, SurfaceUnavailable } from '@/app/(product)/_components/shell-gate/shell-gate'
+import { LiveSourceLinks } from '@/app/(product)/_components/source-row/live-source-links'
 import {
   OUTSIDE_ORGANIZATION_HREF,
   resolveSurfaceRedirect,
@@ -66,7 +67,7 @@ export async function LiveShell({
             banner={<SessionState />}
             sidebarCollapsed={cookieStore.get('sidebar_collapsed')?.value === '1'}
           >
-            {children}
+            <LiveSourceLinks>{children}</LiveSourceLinks>
           </ProductSession>
         </LiveComposerHost>
       </Suspense>
