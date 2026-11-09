@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import type { Locator, Page, Request } from '@playwright/test'
+import { waitUntilHydrated } from '@/platform/checks/test'
 import { expect } from '@/scripts/org-redesign-e2e/harness'
 
 declare global {
@@ -26,12 +27,11 @@ export const searchField = (page: Page) =>
 export const dialog = (page: Page, name: string | RegExp) => page.getByRole('dialog', { name })
 export const orgChip = (page: Page) => page.getByRole('button', { name: 'Organization menu' })
 export const orgCard = (page: Page) => dialog(page, 'Organization menu')
-/** Clicks until its menu opens, since a click that lands before the rail hydrates does nothing. */
+/** Opens a menu with one click once the page has hydrated: server-rendered markup has no handler. */
 export async function openMenu(trigger: Locator, menu: Locator) {
-  await expect(async () => {
-    await trigger.click()
-    await expect(menu).toBeVisible({ timeout: 1_000 })
-  }).toPass({ timeout: 20_000 })
+  await hydrated(trigger.page())
+  await trigger.click()
+  await expect(menu).toBeVisible()
   return menu
 }
 export const openOrgCard = (page: Page) => openMenu(orgChip(page), orgCard(page))
@@ -125,6 +125,15 @@ export async function pageTurn(page: Page) {
   await page.evaluate(
     () => new Promise((settled) => requestAnimationFrame(() => setTimeout(settled)))
   )
+}
+
+/**
+ * Waits until React has hydrated the whole document, then lets the effects that commit scheduled
+ * run, so a press or click reaches the listener they attach.
+ */
+export async function hydrated(page: Page) {
+  await waitUntilHydrated(page)
+  await pageTurn(page)
 }
 
 /**

@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import type { Page } from '@playwright/test'
-import { sleep } from '@sim/utils/helpers'
 import { workspaceResourcePath } from '@/lib/resources/urls'
 import {
   ADMIN,
@@ -19,7 +18,13 @@ import {
   url,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
-import { composer, dialog, menuEntry, searchField } from '@/scripts/org-redesign-e2e/locators'
+import {
+  composer,
+  dialog,
+  hydrated,
+  menuEntry,
+  searchField,
+} from '@/scripts/org-redesign-e2e/locators'
 
 /** Search's view switch: a radio group in whichever view is showing. */
 const modeRadio = (page: Page, name: 'Search' | 'Assistant') =>
@@ -69,11 +74,10 @@ export async function chatChecks() {
           // The panel links a file out to its workspace page, which is where it is shared.
           const panel = page.getByRole('complementary', { name: 'Chat panel' })
           const open = panel.getByRole('link', { name: 'Open share-check.md' })
-          await expect(async () => {
-            if (!(await open.isVisible()))
-              await page.getByRole('button', { name: 'Open chat panel' }).click()
-            await expect(open).toBeVisible({ timeout: 1_000 })
-          }).toPass({ timeout: 20_000 })
+          const openPanel = page.getByRole('button', { name: 'Open chat panel' })
+          await hydrated(page)
+          if (await openPanel.isVisible()) await openPanel.click()
+          await expect(open).toBeVisible()
           await expect(open).toHaveAttribute('href', filePath)
           await page.goto(url(filePath))
           await page.getByRole('main').getByRole('button', { name: 'Share', exact: true }).click()
@@ -122,9 +126,10 @@ export async function chatChecks() {
         await modeRadio(page, 'Search').click()
         await expect(page).toHaveURL((address) => address.searchParams.get('mode') === 'search')
         await expect(searchField(page)).toBeVisible()
-        // Still mounted, behind the Search view where nothing can reach it.
-        await expect(page.locator('[hidden] [data-elevation="composer"] textarea')).toHaveCount(1)
-        await sleep(2_500)
+        // Still mounted, behind the Search view where nothing can reach it, and still streaming.
+        const hidden = page.locator('[hidden]')
+        await expect(hidden.locator('[data-elevation="composer"] textarea')).toHaveCount(1)
+        await expect(hidden.getByText(/(^|\s)4(\s|$)/).first()).toBeAttached()
         await modeRadio(page, 'Assistant').click()
         await expect(stop).toBeVisible()
         await expect(

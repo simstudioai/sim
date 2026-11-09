@@ -34,6 +34,7 @@ import {
   accountChip,
   dialog,
   expectPageNotFound,
+  hydrated,
   menuEntry,
   pageTurn,
   sidebar,
@@ -377,10 +378,9 @@ export async function settingsChecks() {
         const rail = sidebar(page)
         const field = rail.getByRole('searchbox', { name: 'Search settings' })
         // Answered from hydration on, which the server-rendered field does not wait for.
-        await expect(async () => {
-          await page.keyboard.press('/')
-          await expect(field).toBeFocused({ timeout: 1_000 })
-        }).toPass({ timeout: 20_000 })
+        await hydrated(page)
+        await page.keyboard.press('/')
+        await expect(field).toBeFocused()
         await field.fill('password')
         await rail.getByRole('link', { name: 'Reset password', exact: true }).click()
         await expect(page).toHaveURL(settingsUrl('general'))
