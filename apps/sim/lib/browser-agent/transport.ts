@@ -473,7 +473,7 @@ export function onBrowserFindResult(
  * Reports the panel's current rect (viewport CSS pixels), or null when the
  * panel is hidden/unmounted. The embedded view tracks this rect.
  */
-export function reportBrowserPanelBounds(
+function reportBrowserPanelBounds(
   bounds: BrowserPanelBounds | null,
   anchor: BrowserPanelAnchor | null = null,
   scopeId = currentBrowserScopeId()
