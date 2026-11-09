@@ -114,6 +114,7 @@ export async function assertCanFork(
     userId,
     activeOrganizationId: source.organizationId,
     pinOrganization: true,
+    pinnedToAuthorizedSource: true,
   })
   if (!policy.canCreate) {
     throw new ForkError(

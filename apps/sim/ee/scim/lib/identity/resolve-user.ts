@@ -1,4 +1,11 @@
-import { member, type ScimUserAttributes, scimUserTombstone, ssoDomain, user } from '@sim/db/schema'
+import {
+  member,
+  organization,
+  type ScimUserAttributes,
+  scimUserTombstone,
+  ssoDomain,
+  user,
+} from '@sim/db/schema'
 import { normalizeSSODomain } from '@sim/utils/sso-domain'
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { and, eq, sql } from 'drizzle-orm'
@@ -135,10 +142,12 @@ export async function resolveProvisionedIdentity(
    * cannot succeed, and reporting it as a conflict is what tells the directory
    * administrator to resolve it rather than retrying forever.
    */
+  /** A personal organization is retired on provisioning, so only another team conflicts. */
   const [membership] = await tx
     .select({ organizationId: member.organizationId })
     .from(member)
-    .where(eq(member.userId, existing.id))
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(and(eq(member.userId, existing.id), eq(organization.kind, 'team')))
     .limit(1)
 
   if (membership && membership.organizationId !== params.organizationId) {

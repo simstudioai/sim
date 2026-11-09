@@ -568,7 +568,10 @@ export async function saveLicenseContact(
   return license
 }
 
-/** Organizations the user owns or administers, which are the ones a license may be linked to. */
+/**
+ * Teams the user owns or administers, which are the ones a license may be linked to. A personal
+ * organization bills its owner personally and cannot hold a license.
+ */
 export async function listAdministeredOrganizations(
   userId: string
 ): Promise<Array<{ id: string; name: string }>> {
@@ -576,7 +579,13 @@ export async function listAdministeredOrganizations(
     .select({ id: organization.id, name: organization.name })
     .from(member)
     .innerJoin(organization, eq(member.organizationId, organization.id))
-    .where(and(eq(member.userId, userId), inArray(member.role, ['owner', 'admin'])))
+    .where(
+      and(
+        eq(member.userId, userId),
+        inArray(member.role, ['owner', 'admin']),
+        eq(organization.kind, 'team')
+      )
+    )
     .orderBy(asc(organization.name))
 }
 

@@ -2,9 +2,15 @@ import { db } from '@sim/db'
 import { member, organization } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
 import { and, eq, ne } from 'drizzle-orm'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
+import {
+  acquireOrganizationMutationLock,
+  acquireUserBillingIdentityLock,
+} from '@/lib/billing/organizations/identity-lock'
 import type { DbTransaction } from '@/lib/db/types'
-import { convertPersonalOrganizationToTeamTx } from '@/lib/organizations/personal'
+import {
+  convertPersonalOrganizationToTeamTx,
+  getPersonalOrganizationId,
+} from '@/lib/organizations/personal'
 
 const ORGANIZATION_SLUG_REGEX = /^[a-z0-9-_]+$/
 
@@ -93,6 +99,12 @@ export async function createOrganizationWithOwnerTx(
   const memberId = generateId()
   const now = new Date()
 
+  /**
+   * A personal organization's lock precedes the owner's billing-identity lock, the order
+   * workspace creation inside it takes them in.
+   */
+  const personalOrganizationId = await getPersonalOrganizationId(ownerUserId, tx)
+  if (personalOrganizationId) await acquireOrganizationMutationLock(tx, personalOrganizationId)
   await acquireUserBillingIdentityLock(tx, ownerUserId)
   const existingOrganization = await tx
     .select({ id: organization.id })

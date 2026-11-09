@@ -248,8 +248,7 @@ export const getOrganizationDataRetention = defineOrganizationConfigurationUseCa
       .where(eq(organization.id, input.organizationId))
       .limit(1)
     const current = requireOrganization(row)
-    const isEnterprise =
-      !isBillingEnabled || (await isOrganizationOnEnterprisePlan(input.organizationId))
+    const isEnterprise = await isOrganizationOnEnterprisePlan(input.organizationId)
     const configured = configuredRetention(current.settings)
     const defaults = retentionDefaults()
     return { isEnterprise, defaults, configured, effective: isEnterprise ? configured : defaults }
@@ -260,10 +259,13 @@ export const updateOrganizationDataRetention = defineOrganizationConfigurationUs
   operation: organizationConfigurationOperations.updateDataRetention,
   administratorError: 'Forbidden - Only organization owners and admins can update data retention',
   async execute({ input }: { input: DataRetentionInput }) {
-    if (isBillingEnabled && !(await isOrganizationOnEnterprisePlan(input.organizationId))) {
+    /** Without billing every team is entitled; a personal organization never is. */
+    if (!(await isOrganizationOnEnterprisePlan(input.organizationId))) {
       throw new OrchestrationError(
         'forbidden',
-        'Data Retention is available on Enterprise plans only'
+        isBillingEnabled
+          ? 'Data Retention is available on Enterprise plans only'
+          : 'Data Retention is available to teams only'
       )
     }
     const [row] = await db

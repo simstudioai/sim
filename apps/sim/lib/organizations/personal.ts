@@ -22,8 +22,9 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, getTableName, inArray, sql } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -33,7 +34,7 @@ import { transferWorkspaceProjects } from '@/lib/projects/membership'
 const logger = createLogger('PersonalOrganization')
 
 /** The user's personal organization, or null when they have none (or belong to a team). */
-async function getPersonalOrganizationId(
+export async function getPersonalOrganizationId(
   userId: string,
   executor: DbOrTx = db
 ): Promise<string | null> {
@@ -103,7 +104,7 @@ export async function createPersonalOrganizationTx(
  * personal state it had before personal organizations: no organization on the workspace or its
  * Project, the same billed account, and so the same payer — no storage ledger moves.
  */
-async function detachPersonalOrganizationWorkspacesTx(
+export async function detachPersonalOrganizationWorkspacesTx(
   tx: DbTransaction,
   personalOrganizationId: string
 ): Promise<string[]> {
@@ -202,7 +203,6 @@ const OWNED_ORGANIZATION_CONTENT: ReadonlyArray<{ table: PgTable; organizationId
   { table: mcpServers, organizationId: mcpServers.organizationId },
   { table: mcpServerOauth, organizationId: mcpServerOauth.organizationId },
   { table: credential, organizationId: credential.organizationId },
-  { table: customBlock, organizationId: customBlock.organizationId },
   { table: simLink, organizationId: simLink.organizationId },
   { table: assistantToolPermission, organizationId: assistantToolPermission.organizationId },
   { table: pendingCredentialDraft, organizationId: pendingCredentialDraft.organizationId },
@@ -236,10 +236,21 @@ const PER_PERSON_ORGANIZATION_STATE: ReadonlyArray<{
 
 async function moveOrganizationContentTx(tx: DbTransaction, from: string, to: string) {
   for (const { table, organizationId } of OWNED_ORGANIZATION_CONTENT) {
-    await tx.execute(sql`
-      UPDATE ${table} SET ${sql.identifier(organizationId.name)} = ${to}
-      WHERE ${organizationId} = ${from}
-    `)
+    /** A savepoint, so a name or account the target already holds refuses the join cleanly. */
+    try {
+      await tx.transaction((savepoint) =>
+        savepoint.execute(sql`
+          UPDATE ${table} SET ${sql.identifier(organizationId.name)} = ${to}
+          WHERE ${organizationId} = ${from}
+        `)
+      )
+    } catch (error) {
+      if (getPostgresErrorCode(error) !== '23505') throw error
+      throw new OrchestrationError(
+        'conflict',
+        `Something in this account's personal organization (${getTableName(table)}) has the same name as something in the organization being joined. Rename or remove it, then try again.`
+      )
+    }
   }
   for (const { table, organizationId, key } of PER_PERSON_ORGANIZATION_STATE) {
     const keyMatch = sql.join(
@@ -265,6 +276,14 @@ async function moveOrganizationContentTx(tx: DbTransaction, from: string, to: st
  * organization should never hold — refuses the join instead of being lost.
  */
 async function assertNothingCascadesTx(tx: DbTransaction, organizationId: string) {
+  const members = await tx
+    .select({ userId: member.userId })
+    .from(member)
+    .where(eq(member.organizationId, organizationId))
+    .limit(2)
+  if (members.length > 1) {
+    throw new OrchestrationError('conflict', 'A personal organization has more than one member.')
+  }
   const references = await tx.execute<{ table_name: string; column_name: string }>(sql`
     SELECT c.conrelid::regclass::text AS table_name, a.attname AS column_name
     FROM pg_constraint c
@@ -316,6 +335,18 @@ export async function retirePersonalOrganizationTx(
   if (!personalOrganizationId) return { retiredOrganizationId: null, detachedWorkspaceIds: [] }
   if (personalOrganizationId === targetOrganizationId) {
     throw new Error('A personal organization cannot be retired into itself')
+  }
+
+  const [publishedBlock] = await tx
+    .select({ id: customBlock.id })
+    .from(customBlock)
+    .where(eq(customBlock.organizationId, personalOrganizationId))
+    .limit(1)
+  if (publishedBlock) {
+    throw new OrchestrationError(
+      'conflict',
+      'Custom blocks published from your personal workspaces would run inside the organization you are joining while those workspaces stay private. Unpublish them, then try again.'
+    )
   }
 
   const detachedWorkspaceIds = await detachPersonalOrganizationWorkspacesTx(

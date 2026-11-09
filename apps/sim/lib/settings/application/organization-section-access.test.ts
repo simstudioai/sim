@@ -11,11 +11,13 @@ import {
   knowledgeAvailabilityMock,
   knowledgeAvailabilityMockFns,
 } from '@sim/testing/mocks/knowledge-availability.mock'
+import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
   canOpen: vi.fn(),
 }))
+vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
 vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)
 vi.mock('@/lib/organizations/settings-access', () => ({

@@ -45,6 +45,7 @@ export function settingsSurface(scenario: Scenario, plan: PreviewPlan): Platform
       governanceActive: enterprise,
       hosted: true,
       selfHosted: {},
+      personal: false,
     },
     deployment: {
       hosted: true,

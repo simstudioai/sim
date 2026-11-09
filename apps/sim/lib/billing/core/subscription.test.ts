@@ -10,11 +10,13 @@ import {
 } from '@sim/testing/mocks/billing-subscription-utils.mock'
 import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing/mocks/database.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { inArray } from 'drizzle-orm'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
 vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 
 vi.mock('@/lib/billing/core/plan', () => billingPlanMock)

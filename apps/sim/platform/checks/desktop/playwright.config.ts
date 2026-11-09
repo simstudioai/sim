@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { defineConfig } from '@playwright/test'
-import { DESKTOP_PORT, fixtureServer } from '../routes'
+import { DESKTOP_PORT, fixtureServer } from '@/platform/checks/routes'
 
 const appRoot = path.resolve(__dirname, '../../..')
 const report =

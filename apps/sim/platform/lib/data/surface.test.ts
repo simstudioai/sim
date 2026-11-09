@@ -38,6 +38,7 @@ const SURFACE: OrganizationSurfaceResponse = {
     governanceActive: false,
     hosted: false,
     selfHosted: {},
+    personal: false,
   },
   deployment: {
     hosted: false,
@@ -103,6 +104,15 @@ describe('readOrganizationSurface', () => {
     const { navFlags, ...drifted } = SURFACE
     execute.mockResolvedValueOnce(drifted)
     expect(await readOrganizationSurface('org-1')).toEqual({ status: 'unavailable' })
+  })
+
+  it("keeps a personal organization's kind through the contract, so its Settings stay personal", async () => {
+    execute.mockResolvedValueOnce({
+      ...SURFACE,
+      settingsFeatures: { ...SURFACE.settingsFeatures, personal: true },
+    })
+    const read = await readOrganizationSurface('org-1')
+    expect(read.status === 'ok' && read.organization.settingsFeatures.personal).toBe(true)
   })
 
   it('denies a viewer outside the named organization', async () => {

@@ -36,7 +36,10 @@ import {
   assertNoUnresolvedEnterpriseIssuance,
   resolveEnterpriseMetadataIntent,
 } from '@/lib/billing/enterprise-outbox'
-import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
+import {
+  acquireOrganizationMutationLock,
+  acquireUserBillingIdentityLock,
+} from '@/lib/billing/organizations/identity-lock'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import { MEMBER_BILLING_RECONCILIATION_EVENT_TYPE } from '@/lib/billing/organizations/membership-reconciliation-event'
 import { reassignOrganizationSharedResourcesTx } from '@/lib/billing/organizations/resource-handoff'
@@ -84,27 +87,15 @@ import { WorkspaceBillingAccountRemovalError } from '@/lib/workspaces/utils'
 import { endDirectoryMembershipTx } from '@/ee/scim/lib/identity/end-directory-membership'
 import { assertSelfLeaveNotScimManaged } from '@/ee/scim/lib/managed-membership'
 
-export { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
+export {
+  acquireOrganizationMutationLock,
+  acquireUserBillingIdentityLock,
+} from '@/lib/billing/organizations/identity-lock'
 export { WORKSPACE_BILLING_ACCOUNT_REMOVAL_ERROR } from '@/lib/workspaces/utils'
 
 const logger = createLogger('OrganizationMembership')
 
 const ORG_MEMBERSHIP_LOCK_TIMEOUT_MS = 5_000
-
-/** Serializes organization-wide owner, seat, move, and membership decisions. */
-export async function acquireOrganizationMutationLock(
-  tx: DbTransaction,
-  organizationId: string
-): Promise<void> {
-  await tx.execute(
-    sql`select set_config('lock_timeout', ${`${ORG_MEMBERSHIP_LOCK_TIMEOUT_MS}ms`}, true)`
-  )
-  await acquireAdvisoryXactLock(
-    tx,
-    'organization_mutation',
-    `organization-mutation:${organizationId}`
-  )
-}
 
 /**
  * Serialize concurrent membership changes for a `(user, org)` pair via a
@@ -720,7 +711,7 @@ export async function ensureUserInOrganizationTx(
   const [[userRow], [organizationRow]] = await Promise.all([
     tx.select({ id: user.id }).from(user).where(eq(user.id, userId)).limit(1),
     tx
-      .select({ id: organization.id })
+      .select({ id: organization.id, kind: organization.kind })
       .from(organization)
       .where(eq(organization.id, organizationId))
       .limit(1),
@@ -740,6 +731,16 @@ export async function ensureUserInOrganizationTx(
       alreadyMember: false,
       failureCode: 'organization-not-found',
       error: 'Organization not found',
+      billingActions: emptyBillingActions,
+    }
+  }
+  /** A personal organization has exactly one member, its owner; nobody joins one. */
+  if (organizationRow.kind === 'personal') {
+    return {
+      success: false,
+      alreadyMember: false,
+      failureCode: 'organization-not-found',
+      error: 'A personal organization cannot take members',
       billingActions: emptyBillingActions,
     }
   }

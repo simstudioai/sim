@@ -18,10 +18,28 @@ export function organizationMemberSectionAccess(
  * Applies deployment and target-organization plan gates without consulting the
  * viewer's active organization.
  */
+/**
+ * What a personal organization offers: its owner's plan and usage and their own content. No
+ * members to invite or govern, and no team or Enterprise configuration.
+ */
+const PERSONAL_ORGANIZATION_SECTIONS: ReadonlySet<OrganizationSettingsSection> = new Set([
+  'billing',
+  'usage',
+  'recently-deleted',
+  'knowledge-graphs',
+  'search-mcp',
+])
+
 export function organizationPlanAllowsSettingsSection(
   section: OrganizationSettingsSection,
   features: OrganizationSettingsFeatures
 ): boolean {
+  if (features.personal) {
+    if (!PERSONAL_ORGANIZATION_SECTIONS.has(section)) return false
+    if (section === 'billing') return features.billingEnabled
+    if (section === 'usage') return features.hosted || (features.selfHosted.usage ?? false)
+    return true
+  }
   if (
     section === 'members' ||
     section === 'search-mcp' ||

@@ -2,6 +2,7 @@ import {
   getOrganizationSettingsFeatures,
   type OrganizationSettingsSection,
 } from '@/components/settings/navigation'
+import { isTeamOrganization } from '@/lib/billing/core/payer-organization'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
@@ -24,6 +25,16 @@ export async function authorizeOrganizationSettingsSection({
   section,
 }: AuthorizeOrganizationSettingsSectionInput): Promise<boolean> {
   if (!(await canOpenOrganizationSettingsSection(organizationId, userId, section))) return false
+  const deployment = getDeploymentShape()
+  const isTeam = await isTeamOrganization(organizationId)
+  if (
+    !isTeam &&
+    !organizationPlanAllowsSettingsSection(
+      section,
+      getOrganizationSettingsFeatures(false, deployment, false, true)
+    )
+  )
+    return false
 
   if (section === 'knowledge-graphs') return isMemorySpacesEnabled(userId)
 
@@ -33,7 +44,6 @@ export async function authorizeOrganizationSettingsSection({
   if (section === 'search-mcp' || section === 'search-slack' || section === 'integrations')
     return isKnowledgeMemberAccessAvailable({ organizationId })
 
-  const deployment = getDeploymentShape()
   const needsEnterprisePlan =
     deployment.hosted && section !== 'members' && section !== 'billing' && section !== 'requests'
   /** Access Control follows the permission regime rather than the plan gate. */
@@ -47,6 +57,6 @@ export async function authorizeOrganizationSettingsSection({
 
   return organizationPlanAllowsSettingsSection(
     section,
-    getOrganizationSettingsFeatures(hasEnterprisePlan, deployment, governanceActive)
+    getOrganizationSettingsFeatures(hasEnterprisePlan, deployment, governanceActive, !isTeam)
   )
 }

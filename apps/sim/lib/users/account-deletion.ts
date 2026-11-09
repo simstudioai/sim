@@ -26,6 +26,7 @@ import type {
   AccountDeletionPlan,
   AccountDeletionResource,
 } from '@/lib/api/contracts/user'
+import { payerOrganizationIdSql } from '@/lib/billing/core/payer-organization'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import { invalidateReportingUsagePrefixes } from '@/lib/billing/core/reporting-usage-epoch'
 import {
@@ -54,6 +55,10 @@ import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/rep
 import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
+import {
+  detachPersonalOrganizationWorkspacesTx,
+  getPersonalOrganizationId,
+} from '@/lib/organizations/personal'
 import {
   getProjectAccountDeletionBlockers,
   prepareProjectsForAccountDeletion,
@@ -117,13 +122,14 @@ export class AccountDeletionBlockedError extends OrchestrationError {
 export interface WorkspaceRow {
   id: string
   name: string
+  /** The team the workspace belongs to; null for a personal workspace, in a personal organization or none. */
   organizationId: string | null
 }
 
 const WORKSPACE_COLUMNS = {
   id: workspaceTable.id,
   name: workspaceTable.name,
-  organizationId: workspaceTable.organizationId,
+  organizationId: payerOrganizationIdSql(workspaceTable.organizationId),
 } as const
 
 /**
@@ -227,12 +233,13 @@ async function loadWorkspaceCompany(
   return company
 }
 
+/** The teams the account belongs to; a personal organization is deleted with the account. */
 async function loadOrganizationNames(userId: string): Promise<string[]> {
   const rows = await db
     .select({ name: organization.name })
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
-    .where(eq(member.userId, userId))
+    .where(and(eq(member.userId, userId), eq(organization.kind, 'team')))
 
   return rows.map((row) => row.name)
 }
@@ -819,12 +826,24 @@ export async function deleteUserAccount(
       userId,
       sharedOrganizationIds
     )
+    const personalOrganizationId = await getPersonalOrganizationId(userId, tx)
     const lockedOrganizationIds = [
       ...sharedOrganizationIds,
       ...leftoverSimLinkOrganizationIds,
     ].sort(compareStrings)
-    for (const organizationId of lockedOrganizationIds) {
+    for (const organizationId of [
+      ...lockedOrganizationIds,
+      ...(personalOrganizationId ? [personalOrganizationId] : []),
+    ].sort(compareStrings)) {
       await acquireOrganizationMutationLock(tx, organizationId)
+    }
+    /**
+     * The personal organization's workspaces return to the organization-less personal state first,
+     * so everything below deletes, hands over and bills them exactly as before personal
+     * organizations; the organization itself goes with the account.
+     */
+    if (personalOrganizationId) {
+      await detachPersonalOrganizationWorkspacesTx(tx, personalOrganizationId)
     }
     const workspaceIds = new Set([
       ...doomedWorkspaceIds,
@@ -1050,6 +1069,12 @@ export async function deleteUserAccount(
     ])
 
     if (recordIdentity) await recordDeletedAccountIdentities(tx, userId)
+
+    if (personalOrganizationId) {
+      await tx
+        .delete(organization)
+        .where(and(eq(organization.id, personalOrganizationId), eq(organization.kind, 'personal')))
+    }
 
     try {
       await tx.delete(user).where(eq(user.id, userId))

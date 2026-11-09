@@ -553,6 +553,7 @@ const organizationSurfaceResponseSchema = z.object({
     governanceActive: z.boolean(),
     hosted: z.boolean(),
     selfHosted: z.record(z.string(), z.boolean().optional()),
+    personal: z.boolean(),
   }),
   deployment: deploymentShapeSchema,
   /** Which destinations the viewer's navigation lists; none of these authorizes the page behind it. */

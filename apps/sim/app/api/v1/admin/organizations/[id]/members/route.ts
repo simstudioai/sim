@@ -33,7 +33,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
 import { member, organization, user, userStats, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { count, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import {
   adminV1AddOrganizationMemberContract,
   adminV1ListOrganizationMembersContract,
@@ -194,6 +194,7 @@ export const POST = withRouteHandler(
         return adminNotFoundResponse('User')
       }
 
+      /** A personal organization is retired when its owner is added, so only a team counts. */
       const [existingMember] = await db
         .select({
           id: member.id,
@@ -202,7 +203,8 @@ export const POST = withRouteHandler(
           organizationId: member.organizationId,
         })
         .from(member)
-        .where(eq(member.userId, userId))
+        .innerJoin(organization, eq(organization.id, member.organizationId))
+        .where(and(eq(member.userId, userId), eq(organization.kind, 'team')))
         .limit(1)
 
       if (existingMember) {

@@ -1,3 +1,4 @@
+import { db } from '@sim/db'
 import { organization } from '@sim/db/schema'
 import { and, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import type { AnyPgColumn } from 'drizzle-orm/pg-core'
@@ -37,4 +38,16 @@ export async function resolvePayerOrganizationId(
   if (!organizationId) return null
   const payers = await selectPayerOrganizationIds(executor, [organizationId])
   return payers.has(organizationId) ? organizationId : null
+}
+
+/**
+ * Whether an organization is a team. A personal organization has one member, bills its owner and
+ * is never entitled to team or Enterprise features (SSO, SCIM, permission groups, custom blocks,
+ * data drains, whitelabeling, data retention, session policy), whatever the deployment enables.
+ */
+export async function isTeamOrganization(
+  organizationId: string,
+  executor: DbOrTx = db
+): Promise<boolean> {
+  return (await resolvePayerOrganizationId(executor, organizationId)) !== null
 }

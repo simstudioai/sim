@@ -8,6 +8,7 @@ import {
   type WorkspaceSettingsSection,
   workspaceSectionUsesPermissionConfig,
 } from '@/components/settings/navigation'
+import { isTeamOrganization } from '@/lib/billing/core/payer-organization'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { canOpenOrganizationSettingsSection } from '@/lib/organizations/settings-access'
@@ -103,13 +104,18 @@ async function canOpenOrganizationSection(
   if (!deployment.billingEnabled && input.section === 'billing') {
     return false
   }
-  if (!workspace.organizationId) {
+  /** A workspace in a personal organization has the settings of a personal workspace. */
+  const organizationId =
+    workspace.organizationId && (await isTeamOrganization(workspace.organizationId))
+      ? workspace.organizationId
+      : null
+  if (!organizationId) {
     return input.section === 'billing' && workspace.billedAccountUserId === input.userId
   }
 
   if (organizationSection === 'connected-accounts') {
     return authorizeOrganizationSettingsSection({
-      organizationId: workspace.organizationId,
+      organizationId: organizationId,
       userId: input.userId,
       section: organizationSection,
     })
@@ -121,13 +127,11 @@ async function canOpenOrganizationSection(
     organizationSection !== 'requests'
   const readsRegime = needsEnterprisePlan && organizationSection === 'access-control'
   const [canOpenSection, isEnterpriseOrganization, governanceActive] = await Promise.all([
-    canOpenOrganizationSettingsSection(workspace.organizationId, input.userId, organizationSection),
+    canOpenOrganizationSettingsSection(organizationId, input.userId, organizationSection),
     needsEnterprisePlan && !readsRegime
-      ? isOrganizationOnEnterprisePlan(workspace.organizationId)
+      ? isOrganizationOnEnterprisePlan(organizationId)
       : Promise.resolve(false),
-    readsRegime
-      ? isOrganizationPermissionRegimeActive(workspace.organizationId)
-      : Promise.resolve(false),
+    readsRegime ? isOrganizationPermissionRegimeActive(organizationId) : Promise.resolve(false),
   ])
   return (
     canOpenSection &&

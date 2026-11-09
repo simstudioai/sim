@@ -12,6 +12,7 @@ import {
   organizationMembershipMock,
   organizationMembershipMockFns,
 } from '@sim/testing/mocks/organization-membership.mock'
+import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
 import {
   permissionGroupLocksMock,
   permissionGroupLocksMockFns,
@@ -32,6 +33,8 @@ vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMo
 vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
 vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
+
+vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
 
 import {
   getWorkspaceCreationPolicy,
