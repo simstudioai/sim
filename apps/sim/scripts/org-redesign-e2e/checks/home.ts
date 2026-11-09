@@ -569,7 +569,7 @@ export async function homeChecks() {
     })
   })
   await check(
-    'the agent composer with its tools and the Tasks run chart, without Suggested actions',
+    'the agent composer with its tools, Suggested actions, and the Tasks run chart',
     async () => {
       await onHome(ADMIN, async ({ page }) => {
         await expect(page).toHaveURL(homeUrl)
@@ -578,7 +578,8 @@ export async function homeChecks() {
         await expect(page.getByRole('button', { name: 'Add attachment' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Attach file' })).toBeVisible()
         await expect(page.getByRole('button', { name: /Skills/ }).first()).toBeVisible()
-        await expect(page.getByText('Suggested actions', { exact: true })).toHaveCount(0)
+        // Restored from legacy's block template catalog (platform/docs/org-parity.md, Home rows).
+        await expect(homeRegion(page, 'Suggested actions')).toBeVisible()
         await expect(homeRegion(page, 'Tasks run')).toBeVisible()
         await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeDisabled()
       })
