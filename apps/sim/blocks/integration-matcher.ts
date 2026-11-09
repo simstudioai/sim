@@ -116,7 +116,7 @@ export function mentionifyIntegrations(text: string): string {
  * scan with {@link getIntegrationMatcher} so the registry is iterated at most
  * once per call site.
  */
-export function listIntegrations(): readonly IntegrationDescriptor[] {
+function listIntegrations(): readonly IntegrationDescriptor[] {
   if (cachedList) return cachedList
   const { byName } = getIntegrationMatcher()
   cachedList = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name))

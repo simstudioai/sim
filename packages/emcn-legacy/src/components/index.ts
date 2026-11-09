@@ -76,7 +76,6 @@ export {
   DropdownMenuRadioGroup,
   DropdownMenuSearchInput,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,

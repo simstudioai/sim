@@ -4,6 +4,7 @@ import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
 import {
+  ACTIVE_MATCH_CLASS,
   getFindTally,
   replaceActiveFindMatch,
   replaceAllFindMatches,
@@ -13,8 +14,7 @@ import {
 import { useFindShortcut } from '@/components/find-bar/use-find-shortcut'
 import { toast } from '@/lib/toast/sink'
 
-/** The class the find plugin puts on the active match. */
-const ACTIVE_MATCH_SELECTOR = "[class~='rich-find-match-active']"
+const ACTIVE_MATCH_SELECTOR = `[class~='${ACTIVE_MATCH_CLASS}']`
 
 interface MarkdownFindController {
   isOpen: boolean
