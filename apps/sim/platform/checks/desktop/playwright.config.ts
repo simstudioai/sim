@@ -14,9 +14,10 @@ const report =
 export default defineConfig({
   testDir: __dirname,
   workers: 1,
-  // The one spec walks both themes through several routes, and each Electron load on the macOS
-  // runner's development server takes 10-17s to commit and finish.
+  // The one spec walks both themes through several routes on a development server, which renders
+  // each route's first client navigation on demand, past the default five-second expectation.
   timeout: 360_000,
+  expect: { timeout: 20_000 },
   reporter: [['list'], ['json', { outputFile: report }]],
   outputDir: path.join(path.dirname(report), 'artifacts'),
   globalSetup: path.join(__dirname, 'warm-routes.ts'),
