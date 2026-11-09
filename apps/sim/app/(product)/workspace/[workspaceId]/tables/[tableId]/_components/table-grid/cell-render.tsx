@@ -3,7 +3,7 @@
 import { type ReactElement, useEffect, useReducer, useRef, useState } from 'react'
 import { Checkbox } from '@sim/emcn/checkbox'
 import { Icon } from '@sim/emcn/icon'
-import { StatusTag } from '@sim/emcn/status'
+import { StatusTag, StatusText } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { LRUCache } from 'lru-cache'
 import Link from 'next/link'
@@ -485,11 +485,11 @@ interface StatusCellProps {
   hidden: boolean
 }
 
-/** A run state as a status tag, with its explanation on hover. */
+/** A run state in its semantic ink, as Logs shows a run's status, with its explanation on hover. */
 function StatusCell({ label, intent, tip, hidden }: StatusCellProps) {
   const tag = (
     <span className={styles.statusCell} data-hidden={hidden || undefined}>
-      <StatusTag label={label} intent={intent} />
+      <StatusText label={label} intent={intent} />
     </span>
   )
   return tip ? <Tooltip label={tip}>{tag}</Tooltip> : tag

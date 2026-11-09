@@ -398,7 +398,7 @@ export function EditorPanel() {
               <input
                 ref={nameInputRef}
                 className={styles.nameInput}
-                data-type='T062'
+                data-type='T059'
                 aria-label='Block name'
                 value={editedName}
                 onChange={(event) => setEditedName(event.target.value)}
@@ -411,7 +411,7 @@ export function EditorPanel() {
             ) : (
               <h2
                 className={styles.title}
-                data-type='T062'
+                data-type='T059'
                 title={title}
                 onDoubleClick={handleStartRename}
                 onMouseDown={(event) => {

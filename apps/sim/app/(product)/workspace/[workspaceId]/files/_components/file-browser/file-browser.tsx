@@ -952,16 +952,18 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
         />
       }
       trail={
-        <Breadcrumbs
-          label='Location'
-          items={folderTrail({
-            rootLabel: ROOT_LABEL,
-            chain,
-            hrefFor,
-            currentActions: currentFolder && crumbActions(currentFolder),
-            drop: drag.crumb,
-          })}
-        />
+        chain.length > 0 && (
+          <Breadcrumbs
+            label='Location'
+            items={folderTrail({
+              rootLabel: ROOT_LABEL,
+              chain,
+              hrefFor,
+              currentActions: currentFolder && crumbActions(currentFolder),
+              drop: drag.crumb,
+            })}
+          />
+        )
       }
     >
       {filtered && (

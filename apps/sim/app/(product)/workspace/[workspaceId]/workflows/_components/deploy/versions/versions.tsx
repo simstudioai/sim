@@ -5,6 +5,7 @@ import { DataTable } from '@sim/emcn/data-display'
 import { Input } from '@sim/emcn/field/inputs'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
+import { StatusText } from '@sim/emcn/status'
 import { useMinuteClock } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/rename-dialog'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/versions/versions.module.css'
 import {
@@ -25,11 +26,12 @@ interface VersionsProps {
 
 /** The one state a row shows: live, or the latest attempt of a version that is not. */
 function versionState(version: DeploymentVersion) {
-  if (version.isActive) return 'Live'
+  if (version.isActive) return { label: 'Live', intent: 'success' } as const
   const operation = version.latestOperationStatus
-  if (operation === 'preparing' || operation === 'activating') return 'Pending'
-  if (operation === 'failed') return 'Failed'
-  return ''
+  if (operation === 'preparing' || operation === 'activating')
+    return { label: 'Pending', intent: 'warning' } as const
+  if (operation === 'failed') return { label: 'Failed', intent: 'danger' } as const
+  return null
 }
 
 const COLUMNS = [
@@ -129,11 +131,12 @@ export function Versions({
       id: version.id,
       values: {
         version: version.name || `v${version.version}`,
-        status: state,
+        status: state?.label ?? '',
         deployedBy: version.deployedBy || 'Unknown',
         deployed: formatRelativeTime(Date.parse(version.createdAt), now),
       },
       cells: {
+        status: state && <StatusText label={state.label} intent={state.intent} />,
         version: (
           <span className={styles.version}>
             <span className={styles.number}>v{version.version}</span>

@@ -24,6 +24,23 @@
   color: var(--control-danger);
 }
 
+.text {
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.text[data-intent="info"] {
+  color: var(--status-info);
+}
+.text[data-intent="success"] {
+  color: var(--status-success);
+}
+.text[data-intent="warning"] {
+  color: var(--status-warning);
+}
+.text[data-intent="danger"] {
+  color: var(--control-danger);
+}
+
 .tag {
   display: inline-flex;
   align-items: center;

@@ -13,7 +13,7 @@ import {
 } from 'react'
 import { Icon } from '@sim/emcn/icon'
 import { OverflowText } from '@sim/emcn/overflow-text'
-import { StatusTag } from '@sim/emcn/status'
+import { StatusText } from '@sim/emcn/status'
 import { BlockTile } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/block-tile/block-tile'
 import { humanizeBlockName } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-block/humanize-block-name'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/compare-versions/compare-versions.module.css'
@@ -260,7 +260,7 @@ const BlockCard = memo(function BlockCard({
             {humanizeBlockName(entry.name)}
           </OverflowText>
         </span>
-        <StatusTag label={status.label} intent={status.intent} />
+        <StatusText label={status.label} intent={status.intent} />
         {hasBody && (
           <span className={styles.chevron}>
             <Icon name={open ? 'I051' : 'I090'} />

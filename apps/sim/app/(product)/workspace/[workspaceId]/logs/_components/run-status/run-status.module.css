@@ -1,16 +1,3 @@
-/* Settled runs read in secondary ink, as in Paper's RunRow; a run that needs attention keeps its tone. */
-.status {
-  color: var(--ui-secondary);
-}
-.status[data-status="failed"] {
-  color: var(--control-danger);
-}
-.status[data-status="waiting"] {
-  color: var(--status-warning);
-}
-.status[data-status="running"] {
-  color: var(--status-info);
-}
 .trigger {
   display: flex;
   align-items: center;
