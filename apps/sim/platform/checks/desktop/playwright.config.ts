@@ -28,7 +28,5 @@ export default defineConfig({
         env: FIXTURE_SERVER_ENV,
         timeout: DESKTOP_FIXTURE_READY_TIMEOUT_MS,
         url: `http://127.0.0.1:${DESKTOP_PORT}/api/health`,
-        // Turbopack writes its dev cache out on SIGINT; a killed server leaves a partial one.
-        gracefulShutdown: { signal: 'SIGINT', timeout: 30_000 },
       },
 })
