@@ -4,8 +4,8 @@
  * A first-paint read is only worth its seat if the client finds it, and may never cost the page.
  * Failure modes: an entry under a key the hook does not read, a read for a viewer the route would
  * refuse, a failed read or one outside its route contract hydrating as success or taking its
- * neighbours down, and a Links list whose input or cached shape differs from what the page's
- * infinite query reads.
+ * neighbours down, a slow read holding the shell past its budget, and a Links list whose input or
+ * cached shape differs from what the page's infinite query reads.
  */
 import type { DehydratedState } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,6 +21,9 @@ const mocks = vi.hoisted(() => ({
   integrations: vi.fn(),
   history: vi.fn(),
   links: vi.fn(),
+  workspaces: vi.fn(),
+  profile: vi.fn(),
+  settings: vi.fn(),
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/credential-groups/application/organization-accounts', () => ({
@@ -35,10 +38,16 @@ vi.mock('@/lib/knowledge/application/search-history', () => ({
 vi.mock('@/lib/sim-links/application/use-cases', () => ({
   listSimLinks: { execute: mocks.links },
 }))
+vi.mock('@/lib/workspaces/list', () => ({ listWorkspacesForViewer: mocks.workspaces }))
+vi.mock('@/lib/users/application/read-current-user', () => ({
+  getCurrentUserProfileUseCase: { execute: mocks.profile },
+  getCurrentUserSettingsUseCase: { execute: mocks.settings },
+}))
 
 import { prefetchHome } from '@/platform/lib/data/prefetch-home'
 import { prefetchIntegrations } from '@/platform/lib/data/prefetch-integrations'
 import { prefetchSearch } from '@/platform/lib/data/prefetch-search'
+import { prefetchShell } from '@/platform/lib/data/prefetch-shell'
 import { prefetchSimLinks } from '@/platform/lib/data/prefetch-sim-links'
 
 function organization(memberScoped = true, canConnect = true) {
@@ -166,5 +175,25 @@ describe('a failed read', () => {
     vi.mocked(getSession).mockResolvedValue(null)
     await expect(prefetchSimLinks('org-1', {})).resolves.toMatchObject({ queries: [] })
     await expect(prefetchSearch(organization())).resolves.toMatchObject({ queries: [] })
+  })
+})
+
+describe('a slow read', () => {
+  it('gives the shell back its workspace list seat at the budget instead of holding the page', async () => {
+    vi.useFakeTimers()
+    try {
+      mocks.workspaces.mockReturnValue(new Promise(() => {}))
+      mocks.profile.mockRejectedValue(new Error('not under test'))
+      mocks.settings.mockRejectedValue(new Error('not under test'))
+      const shell = prefetchShell({
+        ...organization(),
+        mothershipAvailable: false,
+        // double-cast-allowed: only the fields the shell's reads gate on matter to what they seed
+      } as unknown as PlatformOrganization)
+      await vi.advanceTimersByTimeAsync(2_000)
+      await expect(shell).resolves.toMatchObject({ queries: [] })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
