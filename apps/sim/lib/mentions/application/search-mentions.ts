@@ -295,11 +295,11 @@ async function readWorkspace(
   query: string
 ): Promise<Map<ResourceFamily, Candidate[]>> {
   const read = await Promise.all(
-    families.map(async (family) => {
+    families.map(async (family): Promise<[ResourceFamily, Candidate[]]> => {
       try {
-        return [family, await READERS[family](principal, workspace, query)] as const
+        return [family, await READERS[family](principal, workspace, query)]
       } catch (error) {
-        if (isDenial(error)) return [family, []] as const
+        if (isDenial(error)) return [family, []]
         throw error
       }
     })
