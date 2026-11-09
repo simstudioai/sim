@@ -9,7 +9,6 @@ export {
 } from '@/lib/mcp/tool-validation'
 export type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 export { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
-export { type CreatedApiKey, useApiKeys, useCreateApiKey } from '@/hooks/queries/api-keys'
 export {
   type McpServer,
   type McpServerTestResult,
@@ -27,7 +26,6 @@ export {
   useUpdateMcpServer,
 } from '@/hooks/queries/mcp'
 export {
-  type DeployedWorkflow,
   useAddWorkflowMcpTool,
   useCreateWorkflowMcpServer,
   useDeleteWorkflowMcpServer,

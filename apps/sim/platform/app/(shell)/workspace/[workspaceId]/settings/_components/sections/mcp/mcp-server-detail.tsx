@@ -12,6 +12,7 @@ import {
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
+import { MetadataFields } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/metadata-fields/metadata-fields'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/settings/_components/sections/mcp/mcp-server-detail.module.css'
 import {
   formatTransportLabel,
@@ -109,29 +110,20 @@ export function McpServerDetail({
       </DetailHeader>
       <SettingsSection title='Server'>
         <FieldStack>
-          <PropertyList
-            titleHidden
-            title='Server details'
-            properties={[
-              { id: 'name', label: 'Server name', kind: 'text', value: name },
+          <MetadataFields
+            label='Server details'
+            fields={[
+              { id: 'name', label: 'Server name', value: name },
               {
                 id: 'transport',
                 label: 'Transport',
-                kind: 'text',
                 value: formatTransportLabel(server.transport),
               },
               ...(server.url
-                ? [{ id: 'url', label: 'URL', kind: 'text' as const, value: server.url }]
+                ? [{ id: 'url', label: 'URL', value: server.url, copyable: true }]
                 : []),
               ...(server.managedConnectorId
-                ? [
-                    {
-                      id: 'managed-by',
-                      label: 'Managed by',
-                      kind: 'text' as const,
-                      value: 'Connected accounts',
-                    },
-                  ]
+                ? [{ id: 'managed-by', label: 'Managed by', value: 'Connected accounts' }]
                 : []),
             ]}
           />
