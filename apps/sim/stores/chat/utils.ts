@@ -23,22 +23,6 @@ export const MAX_CHAT_HEIGHT = 600
 const CONTENT_WINDOW_GAP = 8
 
 /**
- * Calculate default position in top right of canvas, offset from panel edge
- */
-const calculateDefaultPosition = (width: number): ChatPosition => {
-  if (typeof window === 'undefined') {
-    return { x: 100, y: 100 }
-  }
-
-  const panelWidth = getPanelWidth()
-
-  const x = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - 32 - width
-  const y = CONTENT_WINDOW_GAP + 32
-
-  return { x, y }
-}
-
-/**
  * Calculate constrained position ensuring chat stays within bounds
  */
 export const constrainChatPosition = (
@@ -65,35 +49,4 @@ export const constrainChatPosition = (
     x: Math.max(minX, Math.min(maxX, position.x)),
     y: Math.max(minY, Math.min(maxY, position.y)),
   }
-}
-
-/**
- * Get chat position (default if not set or if invalid)
- * @param storedPosition - Stored position from store
- * @param width - Chat width
- * @param height - Chat height
- * @returns Valid chat position
- */
-export const getChatPosition = (
-  storedPosition: ChatPosition | null,
-  width: number = DEFAULT_WIDTH,
-  height: number = DEFAULT_HEIGHT
-): ChatPosition => {
-  if (!storedPosition) {
-    return calculateDefaultPosition(width)
-  }
-
-  // Validate stored position is still within bounds
-  const constrained = constrainChatPosition(storedPosition, width, height)
-
-  // If position significantly changed, it's likely invalid (window resized, etc)
-  // Return default position
-  const deltaX = Math.abs(constrained.x - storedPosition.x)
-  const deltaY = Math.abs(constrained.y - storedPosition.y)
-
-  if (deltaX > 100 || deltaY > 100) {
-    return calculateDefaultPosition(width)
-  }
-
-  return constrained
 }

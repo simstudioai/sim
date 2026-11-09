@@ -46,8 +46,6 @@ export interface CustomToolDefinition {
   updatedAt?: string
 }
 
-export type CustomTool = CustomToolDefinition
-
 type ApiCustomTool = Partial<CustomToolDefinition> & {
   id: string
   title: string
@@ -171,7 +169,7 @@ async function fetchCustomTools(
 }
 
 /** A workspace's custom tools list, shared by {@link useCustomTools} and the settings intent warmer. */
-export function customToolsQueryOptions(workspaceId: string) {
+function customToolsQueryOptions(workspaceId: string) {
   return queryOptions({
     queryKey: customToolsKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchCustomTools(workspaceId, signal),

@@ -2,7 +2,7 @@ import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
 import { SORT_DIRECTIONS } from '@/lib/url-state'
 
 /** Default sort direction applied when a sort column is selected. */
-export const DEFAULT_TABLE_DETAIL_SORT_DIRECTION = 'asc'
+const DEFAULT_TABLE_DETAIL_SORT_DIRECTION = 'asc'
 
 /**
  * Co-located, typed URL query-param definitions for the table-detail view.
@@ -33,7 +33,7 @@ export const tableDetailParsers = {
   /**
    * Active view, as a tri-state:
    * - absent (`null`) — nothing chosen yet, so the table's default view is adopted
-   * - {@link ALL_VIEW_PARAM} — "All" chosen *explicitly*; never overridden by a default
+   * - `'all'` — "All" chosen *explicitly*; never overridden by a default
    * - any other value — a saved view id
    *
    * The sentinel exists because clearing the param and explicitly picking "All"
@@ -47,9 +47,6 @@ export const tableDetailParsers = {
    */
   view: parseAsString,
 } as const
-
-/** Sentinel for an explicit "All" selection. See `tableDetailParsers.view`. */
-export const ALL_VIEW_PARAM = 'all'
 
 /**
  * Sort + view state: clean URLs, no back-stack churn.

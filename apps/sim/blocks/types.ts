@@ -116,7 +116,7 @@ export type IntegrationTag =
   | 'events'
   | 'feature-flags'
 
-export type ModuleTag = 'knowledge-base' | 'tables' | 'files' | 'workflows' | 'scheduled' | 'agent'
+type ModuleTag = 'knowledge-base' | 'tables' | 'files' | 'workflows' | 'scheduled' | 'agent'
 
 export type TemplateCategory =
   | 'popular'

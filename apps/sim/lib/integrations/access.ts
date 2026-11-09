@@ -38,11 +38,6 @@ export function isIntegrationUsable(access: IntegrationAccess | undefined): bool
   return access === 'available'
 }
 
-/** Whether the policy permits an integration, whether or not the deployment configured it. */
-export function isIntegrationPermitted(access: IntegrationAccess | undefined): boolean {
-  return access === 'available' || access === 'unconfigured'
-}
-
 /** The inputs one access decision reads, in the resolved allowlist vocabulary. */
 export interface IntegrationAccessPolicy {
   /** The permission group intersected with the deployment allowlist; `null` is unrestricted. */

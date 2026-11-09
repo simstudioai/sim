@@ -1,26 +1,14 @@
 import {
   ACCOUNT_SETTINGS_ITEMS,
   type AccountSettingsSection,
-  getSettingsSectionMeta,
   ORGANIZATION_SETTINGS_GROUPS,
   ORGANIZATION_SETTINGS_ITEMS,
   type OrganizationSettingsFeatures,
   type OrganizationSettingsSection,
   parseSettingsPathSection,
   type SettingsNavigationItem,
-  toSettingsHeaderMeta,
 } from '@/components/settings/navigation'
-import type { SettingsHeaderMeta } from '@/components/settings/settings-header'
 import { organizationSupportsSettingsSection } from '@/lib/settings/section-availability'
-
-/**
- * A section on the organization surface's settings, tagged with the plane that
- * renders it: the organization's own sections, or the viewer's account sections
- * hosted beside them so one settings surface serves the whole organization view.
- */
-export type OrganizationSurfaceSettingsSection =
-  | { plane: 'organization'; section: OrganizationSettingsSection }
-  | { plane: 'account'; section: AccountSettingsSection }
 
 /**
  * The account sections the organization surface hosts, rendered by the account
@@ -47,35 +35,6 @@ export function resolveOrganizationSettingsSection(
       sessions: 'security',
     },
   })
-}
-
-/**
- * Resolves a settings path on the organization surface to the plane that owns
- * it. Organization sections win, so `billing` is the organization's Subscription.
- */
-export function resolveOrganizationSurfaceSection(
-  path: string
-): OrganizationSurfaceSettingsSection | null {
-  const organization = resolveOrganizationSettingsSection(path)
-  if (organization) return { plane: 'organization', section: organization }
-  const account = parseSettingsPathSection<AccountSettingsSection, null>({
-    path,
-    items: ORGANIZATION_SURFACE_ACCOUNT_ITEMS,
-    defaultSection: null,
-  })
-  return account ? { plane: 'account', section: account } : null
-}
-
-/** The heading an organization-surface section path renders with, or null for an unknown path. */
-export function resolveOrganizationSurfaceHeaderMeta(path: string): SettingsHeaderMeta | null {
-  const resolved = resolveOrganizationSurfaceSection(path)
-  const item =
-    resolved?.plane === 'organization'
-      ? ORGANIZATION_SETTINGS_ITEMS.find(({ id }) => id === resolved.section)
-      : resolved
-        ? getSettingsSectionMeta('account', resolved.section)
-        : null
-  return item ? toSettingsHeaderMeta(item) : null
 }
 
 export function organizationSettingsNavigation(

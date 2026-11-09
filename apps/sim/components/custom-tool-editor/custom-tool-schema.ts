@@ -40,15 +40,6 @@ export const CODE_PLACEHOLDER = 'return schemaVariable + {{environmentVariable}}
 export const FUNCTION_NAME_LOCKED =
   'Function name cannot be changed after creation. To use a different name, delete this tool and create a new one.'
 
-/** Delete-confirmation copy, shared by both editing surfaces. */
-export const CUSTOM_TOOL_DELETE_CONFIRM_TEXT = [
-  {
-    text: 'This will permanently delete the tool and remove it from any workflows that are using it.',
-    error: true,
-  },
-  ' This action cannot be undone.',
-] as const
-
 /** Validates the shape the executor and providers expect. */
 export function validateCustomToolSchema(schema: string): SchemaValidation {
   if (!schema) return { isValid: false, error: null }
@@ -81,27 +72,6 @@ export function validateCustomToolSchema(schema: string): SchemaValidation {
     return { isValid: true, error: null }
   } catch {
     return { isValid: false, error: 'Invalid JSON format' }
-  }
-}
-
-/**
- * The tool's identity as declared inside its schema. Name and description have
- * no separate storage — `schema.function.name` IS the tool's title (the save
- * path derives it), so surfaces read them back out rather than offering a second
- * place to edit them.
- */
-export function extractSchemaIdentity(jsonSchema: string): {
-  name: string | null
-  description: string | null
-} {
-  try {
-    const fn = JSON.parse(jsonSchema)?.function
-    return {
-      name: typeof fn?.name === 'string' && fn.name ? fn.name : null,
-      description: typeof fn?.description === 'string' && fn.description ? fn.description : null,
-    }
-  } catch {
-    return { name: null, description: null }
   }
 }
 

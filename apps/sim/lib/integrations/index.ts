@@ -59,14 +59,10 @@ export function toIntegrationSummary(integration: Integration): IntegrationSumma
   }
 }
 
-export {
-  type CredentialDisplay,
-  resolveCredentialDisplay,
-} from '@/lib/integrations/credential-display'
+export type { CredentialDisplay } from '@/lib/integrations/credential-display'
 export { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
 export {
   type OAuthServiceMatch,
-  resolveOAuthServiceForIntegration,
   resolveOAuthServiceForSlug,
 } from '@/lib/integrations/oauth-service'
 export type { AuthType, FAQItem, Integration, IntegrationSummary } from '@/lib/integrations/types'

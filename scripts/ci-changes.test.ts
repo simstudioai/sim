@@ -420,7 +420,7 @@ describe('CI task attribution through real Turborepo', () => {
     'packages/emcn/src/components/button/button.tsx',
     'packages/emcn/src/components/button/button.module.css',
     'packages/emcn/src/styles/generated/tokens.css',
-    'packages/emcn-platform/src/components/surface/surface.tsx',
+    'packages/emcn-platform/src/components/surface/platform-surface.tsx',
   ])('changes the build hash and selects every boundary for code the product ships: %s', (file) => {
     const { repo } = fixture()
     write(repo, file, 'base\n')

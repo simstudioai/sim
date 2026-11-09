@@ -20,8 +20,6 @@ export const HELP_REQUEST_TYPE_OPTIONS: { label: string; value: HelpFormBody['ty
   { label: 'Other', value: 'other' },
 ]
 
-export const DEFAULT_HELP_REQUEST_TYPE = 'bug'
-
 /** Why `file` cannot be attached to a help request, or null when it can. */
 export function validateHelpImage(file: Pick<File, 'size' | 'type'>): string | null {
   if (file.size > MAX_HELP_IMAGE_BYTES) return 'Images must be 20MB or smaller.'

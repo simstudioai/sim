@@ -1,1 +1,1 @@
-export { type RowAction, RowActionsMenu } from './row-actions-menu'
+export { RowActionsMenu } from './row-actions-menu'

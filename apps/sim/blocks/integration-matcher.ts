@@ -1,5 +1,4 @@
 import { escapeRegExp } from '@sim/utils/string'
-import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockIcon } from '@/blocks/types'
 import { registerBlockCacheInvalidator } from '@/blocks/visibility/context'
@@ -109,24 +108,6 @@ export function mentionifyIntegrations(text: string): string {
   return text.replace(regex, (match: string, _name: string, offset: number) =>
     offset > 0 && text[offset - 1] === '@' ? match : `@${match}`
   )
-}
-
-/**
- * Stores a CURATED prompt (a suggested action, template, or showcase CTA — never
- * free-form user prose) for the home chat input to consume after navigation,
- * running it through {@link mentionifyIntegrations} first so its integration
- * names chip with brand icons on arrival.
- *
- * This is the single seam every curated-prompt producer that hands off via
- * {@link LandingPromptStorage} must use — it pairs the rewrite with the store so
- * a new producer cannot forget the rewrite (the regression class this guards
- * against). User-typed prose (e.g. the landing preview panel) intentionally
- * bypasses this and calls {@link LandingPromptStorage.store} directly, since
- * bare integration names in prose must never be auto-chipped (the scunthorpe
- * problem).
- */
-export function storeCuratedPrompt(prompt: string): boolean {
-  return LandingPromptStorage.store(mentionifyIntegrations(prompt))
 }
 
 /**

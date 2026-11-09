@@ -1,4 +1,4 @@
-import { createSerializer, parseAsArrayOf, parseAsString } from 'nuqs/server'
+import { parseAsArrayOf, parseAsString } from 'nuqs/server'
 import { parseAsTimeRange } from '@/lib/logs/time-range-params'
 import { parseAsDateString } from '@/lib/url-state'
 import type { TimeRange } from '@/stores/logs/filters/types'
@@ -41,13 +41,3 @@ export const auditLogFilterUrlKeys = {
     endDate: 'end-date',
   },
 } as const
-
-/**
- * Outbound links into the audit feed — the usage panel's workspace drill-down builds
- * one — serialized from the map the feed itself parses rather than by concatenation,
- * which emitted a bare `?workspace=` for a null id and left the value unencoded.
- */
-export const serializeAuditLogFilters = createSerializer(auditLogFilterParsers, {
-  clearOnDefault: true,
-  urlKeys: auditLogFilterUrlKeys.urlKeys,
-})

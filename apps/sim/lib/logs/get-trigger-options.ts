@@ -8,7 +8,6 @@ export interface TriggerOption {
 }
 
 let cachedTriggerOptions: TriggerOption[] | null = null
-let cachedTriggerMetadataMap: Map<string, { label: string; color: string }> | null = null
 
 /**
  * Dynamically generates trigger filter options from the trigger registry and block definitions.
@@ -70,38 +69,4 @@ function formatProviderName(provider: string): string {
     .split(/[-_]/)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
-}
-
-/**
- * Internal: Initialize metadata map for O(1) lookups
- * Converts array of options to Map for fast access
- */
-function initializeTriggerMetadataMap(): Map<string, { label: string; color: string }> {
-  if (cachedTriggerMetadataMap) {
-    return cachedTriggerMetadataMap
-  }
-
-  const options = getTriggerOptions()
-  cachedTriggerMetadataMap = new Map(
-    options.map((opt) => [opt.value, { label: opt.label, color: opt.color }])
-  )
-
-  return cachedTriggerMetadataMap
-}
-
-/**
- * Gets integration metadata (label and color) for a specific trigger type.
- */
-export function getIntegrationMetadata(triggerType: string): { label: string; color: string } {
-  const metadataMap = initializeTriggerMetadataMap()
-  const found = metadataMap.get(triggerType)
-
-  if (found) {
-    return found
-  }
-
-  return {
-    label: formatProviderName(triggerType),
-    color: '#6b7280', // gray
-  }
 }

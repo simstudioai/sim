@@ -49,14 +49,12 @@ import {
   cancelTableRunsContract,
   createTableContract,
   createTableRowContract,
-  createTableViewContract,
   type DeleteTableRowsAsyncBody,
   deleteTableColumnContract,
   deleteTableContract,
   deleteTableRowContract,
   deleteTableRowsAsyncContract,
   deleteTableRowsContract,
-  deleteTableViewContract,
   deleteWorkflowGroupContract,
   findTableRowsContract,
   getEnrichmentDetailContract,
@@ -66,7 +64,6 @@ import {
   listTableJobsContract,
   listTableRowsContract,
   listTablesContract,
-  listTableViewsContract,
   type RunLimit,
   type RunMode,
   renameTableContract,
@@ -123,7 +120,6 @@ import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import {
   TABLE_LIST_STALE_TIME,
-  TABLE_VIEWS_STALE_TIME,
   type TableQueryScope,
   tableKeys,
 } from '@/hooks/queries/utils/table-keys'
@@ -702,46 +698,6 @@ export function useUpdateTableLocks(workspaceId: string) {
     onSettled: (_data, _error, { tableId }) => {
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
-    },
-  })
-}
-
-/**
- * Move a table into a folder, or to the workspace root with `folderId: null`.
- *
- * Optimistically repoints `folderId` in the cached active list so the row leaves
- * the current folder the instant the move is issued; the list is the only surface
- * that renders folder placement, so no other cache entry needs patching.
- */
-export function useMoveTable(workspaceId: string) {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ tableId, folderId }: { tableId: string; folderId: string | null }) => {
-      return requestJson(updateTableContract, {
-        params: { tableId },
-        body: { workspaceId, folderId },
-      })
-    },
-    onMutate: async ({ tableId, folderId }) => {
-      const listKey = tableKeys.list(workspaceId, 'active')
-      await queryClient.cancelQueries({ queryKey: listKey })
-      const snapshot = queryClient.getQueryData<TableDefinition[]>(listKey)
-      queryClient.setQueryData<TableDefinition[]>(listKey, (old) =>
-        old?.map((table) => (table.id === tableId ? { ...table, folderId } : table))
-      )
-      return { snapshot }
-    },
-    onError: (error, _variables, context) => {
-      if (context?.snapshot) {
-        queryClient.setQueryData(tableKeys.list(workspaceId, 'active'), context.snapshot)
-      }
-      if (isValidationError(error)) return
-      toast.error(error.message, { duration: 5000 })
-    },
-    onSettled: (_data, _error, { tableId }) => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
     },
   })
 }
@@ -1556,52 +1512,6 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
   })
 }
 
-/**
- * Saved views on a table. The built-in "All" entry is the absence of a view and
- * is rendered client-side, so this list contains only user-created views and is
- * legitimately empty for a table nobody has saved a view on.
- */
-export function useTableViews({ workspaceId, tableId }: RowMutationContext) {
-  // rq-lint-allow: tableId is a globally-unique id; workspaceId is only an authz scope on the fetch and cannot collide across workspaces
-  return useQuery({
-    queryKey: tableKeys.views(tableId),
-    queryFn: async ({ signal }) => {
-      const response = await requestJson(listTableViewsContract, {
-        params: { tableId },
-        query: { workspaceId },
-        signal,
-      })
-      return response.data.views
-    },
-    enabled: Boolean(workspaceId && tableId),
-    staleTime: TABLE_VIEWS_STALE_TIME,
-  })
-}
-
-export function useCreateTableView({ workspaceId, tableId }: RowMutationContext) {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ name, config }: { name: string; config: TableViewConfigInput }) => {
-      const response = await requestJson(createTableViewContract, {
-        params: { tableId },
-        body: { workspaceId, name, config },
-      })
-      return response.data.view
-    },
-    // Seed the new view into the list before the refetch lands, so the URL can
-    // select it immediately without naming a view the dropdown doesn't have yet.
-    onSuccess: (view) => {
-      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
-        prev ? [...prev, view] : [view]
-      )
-    },
-    // Keep creation pending until the refetch settles so the newly selected
-    // view does not briefly resolve against an incomplete list.
-    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
-  })
-}
-
 interface UpdateTableViewParams {
   viewId: string
   name?: string
@@ -1669,26 +1579,6 @@ export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext)
       // every rapid visibility toggle wait for a full list refetch.
       void queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) })
     },
-  })
-}
-
-export function useDeleteTableView({ workspaceId, tableId }: RowMutationContext) {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async (viewId: string) => {
-      await requestJson(deleteTableViewContract, {
-        params: { tableId, viewId },
-        body: { workspaceId },
-      })
-      return viewId
-    },
-    onSuccess: (viewId) => {
-      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) =>
-        prev?.filter((view) => view.id !== viewId)
-      )
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) }),
   })
 }
 
@@ -1856,15 +1746,6 @@ export function useRestoreTable() {
   })
 }
 
-interface ImportCsvAsyncParams {
-  workspaceId: string
-  /** Folder to create the imported table in; omitted imports to the workspace root. */
-  folderPath?: string
-  file: File
-  onCreated?: (importId: string) => void
-  onProgress?: (percent: number) => void
-}
-
 async function createAndUploadTableImport(params: {
   workspaceId: string
   source: V2TableImportSource
@@ -1927,51 +1808,6 @@ async function createAndUploadTableImport(params: {
     : uploadFileSession({ ...common, transfer, getPartUrls })
 }
 
-/** Uploads a CSV/TSV through a signed upload session and creates a table from it. */
-export function useImportCsv() {
-  const queryClient = useQueryClient()
-  const timezone = useTimezone()
-  return useMutation({
-    mutationFn: async ({
-      workspaceId,
-      folderPath,
-      file,
-      onCreated,
-      onProgress,
-    }: ImportCsvAsyncParams) => {
-      const imported = await createAndUploadTableImport({
-        workspaceId,
-        source: {
-          type: 'upload',
-          name: file.name,
-          contentType: file.type || 'text/csv',
-          size: file.size,
-        },
-        target: {
-          type: 'new',
-          name: sanitizeName(file.name.replace(/\.[^.]+$/, ''), 'imported_table').slice(
-            0,
-            TABLE_LIMITS.MAX_TABLE_NAME_LENGTH
-          ),
-          folderPath,
-        },
-        file,
-        timezone,
-        onCreated,
-        onProgress,
-      })
-      return { tableId: imported.tableId, importId: imported.id }
-    },
-    onError: (error) => {
-      logger.error('Failed to start CSV import:', error)
-      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
-    },
-  })
-}
-
 interface ImportFileAsTableParams {
   workspaceId: string
   fileId: string
@@ -2013,72 +1849,6 @@ export function useImportFileAsTable() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
     },
-  })
-}
-
-export type CsvImportMode = 'append' | 'replace'
-
-interface ImportCsvIntoTableAsyncParams {
-  workspaceId: string
-  tableId: string
-  file: File
-  mode: CsvImportMode
-  mapping?: CsvHeaderMapping
-  createColumns?: string[]
-  onCreated?: (importId: string) => void
-  onProgress?: (percent: number) => void
-}
-
-/** Imports a CSV/TSV into an existing table through the same durable resource for every size. */
-export function useImportCsvIntoTable() {
-  const queryClient = useQueryClient()
-  const timezone = useTimezone()
-  return useMutation({
-    mutationFn: async ({
-      workspaceId,
-      tableId,
-      file,
-      mode,
-      mapping,
-      createColumns,
-      onCreated,
-      onProgress,
-    }: ImportCsvIntoTableAsyncParams) => {
-      const imported = await createAndUploadTableImport({
-        workspaceId,
-        source: {
-          type: 'upload',
-          name: file.name,
-          contentType: file.type || 'text/csv',
-          size: file.size,
-        },
-        target: { type: 'existing', tableId, mode },
-        file,
-        mapping,
-        createColumns,
-        timezone,
-        onCreated,
-        onProgress,
-      })
-      return { tableId: imported.tableId, importId: imported.id }
-    },
-    onError: (error, variables) => {
-      if (handleTableLockRejection(error, queryClient, variables.tableId)) return
-      logger.error('Failed to start CSV import:', error)
-      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
-    },
-    onSettled: (_data, _error, variables) => {
-      invalidateRowCount(queryClient, variables.tableId)
-    },
-  })
-}
-
-/** Cancels an in-flight table import resource. */
-export async function cancelTableImport(workspaceId: string, importId: string): Promise<void> {
-  await requestJson(cancelTableImportResourceContract, {
-    params: { importId },
-    query: { workspaceId },
-    headers: {},
   })
 }
 

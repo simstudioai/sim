@@ -45,7 +45,7 @@ const SOURCE_ROW_MARK_CLASSES = cn(chipIconSlotClass, 'mt-0.5')
  * document matched. Terms are matched as whole words in any script,
  * case-insensitively, by the same rule the snippet was centred with.
  */
-export function highlightTerms(
+function highlightTerms(
   text: string,
   query: string | undefined,
   termClassName = 'font-medium text-[var(--text-primary)]'
@@ -74,7 +74,7 @@ function parseUpdatedAt(value: string | undefined): Date | null {
 }
 
 /** Where a source lives, who wrote it and when it changed, in the order a result row reads them. */
-export function sourceMeta(source: SourceTagData): string {
+function sourceMeta(source: SourceTagData): string {
   const updatedAt = parseUpdatedAt(source.updatedAt)
   return [
     sourceSiteName(source),

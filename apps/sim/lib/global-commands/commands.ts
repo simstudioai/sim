@@ -140,13 +140,3 @@ export function createCommand(input: CreateCommandInput): GlobalCommand {
     handler: input.handler,
   }
 }
-
-/**
- * Convenience helper to create multiple commands from the registry in one call.
- *
- * @param inputs - List of command inputs to materialize.
- * @returns Array of {@link GlobalCommand} instances ready for registration.
- */
-export function createCommands(inputs: CreateCommandInput[]): GlobalCommand[] {
-  return inputs.map((input) => createCommand(input))
-}

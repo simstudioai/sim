@@ -50,9 +50,6 @@ const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
   chart: 'chart',
 }
 
-/** All extensions that have a rich preview renderer. */
-export const RICH_PREVIEWABLE_EXTENSIONS = new Set(Object.keys(PREVIEWABLE_EXTENSIONS))
-
 export function resolvePreviewType(mimeType: string | null, filename: string): PreviewType {
   mimeType = normalizeMimeType(mimeType)
   if (mimeType && PREVIEWABLE_MIME_TYPES[mimeType]) return PREVIEWABLE_MIME_TYPES[mimeType]

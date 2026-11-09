@@ -1,1 +1,1 @@
-export { SettingsPanel, SettingsSectionProvider } from './settings-panel'
+export { SettingsPanel } from './settings-panel'

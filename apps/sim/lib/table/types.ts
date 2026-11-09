@@ -113,7 +113,7 @@ export interface WorkflowGroupDependencies {
  * launch / input-editing affordances in the config sidebar. Defaults to
  * `'manual'` when absent (pre-feature groups).
  */
-export type WorkflowGroupType = 'manual' | 'enrichment'
+type WorkflowGroupType = 'manual' | 'enrichment'
 
 /**
  * Which workflow state a group's per-cell runs execute against: `'live'` runs
@@ -455,9 +455,6 @@ export interface TableDefinition {
   jobError?: string | null
   jobRowsProcessed?: number
 }
-
-/** Minimal table info for UI components. */
-export type TableInfo = Pick<TableDefinition, 'id' | 'name' | 'schema'>
 
 /** Simplified table summary for LLM enrichment and display contexts. */
 export interface TableSummary {

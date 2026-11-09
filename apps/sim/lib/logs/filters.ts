@@ -2,31 +2,6 @@ import { folder, workflow, workflowExecutionLogs } from '@sim/db/schema'
 import { and, eq, gt, gte, inArray, lt, lte, ne, type SQL, sql } from 'drizzle-orm'
 import { z } from 'zod'
 
-interface FilterValues {
-  timeRange: string
-  level: string
-  workflowIds: string[]
-  folderIds: string[]
-  triggers: string[]
-  searchQuery: string
-}
-
-/**
- * Determines if any filters are currently active.
- * @param filters - Current filter values
- * @returns True if any filter is active
- */
-export function hasActiveFilters(filters: FilterValues): boolean {
-  return (
-    filters.timeRange !== 'All time' ||
-    filters.level !== 'all' ||
-    filters.workflowIds.length > 0 ||
-    filters.folderIds.length > 0 ||
-    filters.triggers.length > 0 ||
-    filters.searchQuery.trim() !== ''
-  )
-}
-
 /**
  * Shared schema for log filter parameters.
  * Used by both the logs list API and export API.

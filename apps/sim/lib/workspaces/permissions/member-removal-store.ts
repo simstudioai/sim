@@ -54,7 +54,7 @@ export async function removeWorkspaceMemberRecord(
    * replaced — while the seat reconciliation below counts rows only, so
    * that no-op could still drop the admin's organization membership.
    *
-   * Mirrored by `workspaceMemberRemovalLockReason` on the client, and by the
+   * Mirrored by the workspace teammates section's removal lock reason, and by the
    * same guard on `PATCH /api/workspaces/[id]/permissions`, which refuses to
    * re-role an organization admin for the same reason.
    */

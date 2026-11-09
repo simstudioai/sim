@@ -8,7 +8,7 @@ import type { SearchBlockItem, SearchToolOperationItem } from '@/stores/modals/s
  * with two page-aware insertions at the front — the page's action group, then
  * its own entity section hoisted above `actions`' platform group.
  */
-export const SEARCH_SECTIONS = [
+const SEARCH_SECTIONS = [
   'actions',
   'blocks',
   'triggers',
@@ -29,13 +29,7 @@ export const SEARCH_SECTIONS = [
 /** A single search-modal result group. */
 export type SearchSection = (typeof SEARCH_SECTIONS)[number]
 
-/**
- * Canvas building-block sections. They render between the page's action group
- * and the Sim group; off the canvas they carry no items and render nothing.
- */
-export const CANVAS_SECTIONS = ['blocks', 'triggers', 'tools', 'toolOperations'] as const
-
-export interface IntegrationSearchItem {
+interface IntegrationSearchItem {
   id: string
   name: string
   href: string
@@ -43,7 +37,7 @@ export interface IntegrationSearchItem {
   bgColor: string
 }
 
-export interface TaskItem {
+interface TaskItem {
   id: string
   name: string
   href: string
@@ -60,11 +54,11 @@ export interface FolderedItem extends TaskItem {
   folderPath?: string[]
 }
 
-export interface WorkflowItem extends FolderedItem {
+interface WorkflowItem extends FolderedItem {
   isCurrent?: boolean
 }
 
-export interface WorkspaceItem {
+interface WorkspaceItem {
   id: string
   name: string
   href: string
@@ -72,7 +66,7 @@ export interface WorkspaceItem {
   logoUrl?: string | null
 }
 
-export interface PageItem {
+interface PageItem {
   id: string
   name: string
   icon: ComponentType<{ className?: string }>
@@ -82,9 +76,9 @@ export interface PageItem {
   hidden?: boolean
 }
 
-export type FileItem = FolderedItem
+type FileItem = FolderedItem
 
-export interface LogItem {
+interface LogItem {
   id: string
   /** Workflow (or job) name the execution belongs to. */
   name: string
@@ -98,7 +92,7 @@ export interface LogItem {
  * registers its handlers as global commands on mount; the palette invokes
  * them by id and only offers them while the matching route is mounted.
  */
-export type PageActionContext =
+type PageActionContext =
   | 'workflow'
   | 'tables'
   | 'tableDetail'
@@ -139,69 +133,7 @@ export interface ActionItem {
 
 export type ActionGroupLabel = 'Sim' | 'Actions'
 
-/**
- * The page's own entity section, hoisted directly under its action group in
- * both the browse list and the search tie-break.
- */
-export const PAGE_CONTEXT_HOISTED_SECTION: Partial<Record<PageActionContext, SearchSection>> = {
-  tables: 'tables',
-  tableDetail: 'tables',
-  files: 'files',
-  fileDetail: 'files',
-  knowledge: 'knowledgeBases',
-  knowledgeBase: 'knowledgeBases',
-  logs: 'logs',
-  logsDashboard: 'logs',
-}
-
-/** Presentation group for an action without changing its stable result identity. */
-export function getActionGroupLabel(action: ActionItem): ActionGroupLabel {
-  return action.context === 'global' ? 'Sim' : 'Actions'
-}
-
-export interface SearchModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  workflows?: WorkflowItem[]
-  workspaces?: WorkspaceItem[]
-  chats?: TaskItem[]
-  /**
-   * Tables, files, and knowledge bases are NOT passed in: the content component reads them
-   * itself, so those three workspace-wide lists are queried only while the palette is open.
-   * The sidebar renders on every workspace route, so fetching them there registered the keys
-   * in the cache on routes that never show them.
-   */
-  logs?: LogItem[]
-  integrations?: IntegrationSearchItem[]
-  connectedAccounts?: IntegrationSearchItem[]
-  /** Page the palette was opened on, when that page contributes actions. */
-  pageContext?: PageActionContext | null
-  canEdit?: boolean
-  canAdmin?: boolean
-  onCreateWorkflow?: () => void
-  onCreateFolder?: () => void
-  onImportWorkflow?: () => void
-}
-
-export interface CommandItemProps {
-  value: string
-  onSelect: () => void
-  icon: ComponentType<{ className?: string }>
-  bgColor: string
-  /**
-   * Block the row names, when it names one. Decides whether the tile takes the
-   * canvas role accent or the row's own `bgColor`. @see hasBlockAccent
-   */
-  blockType?: string
-  /** Primary text of the row. */
-  label: string
-  /** De-emphasized lead-in before the label (e.g. a tool operation's service). */
-  labelPrefix?: string
-  /** Right-aligned trailing metadata. */
-  meta?: string
-}
-
-export const SECTION_LABELS: Record<SearchSection, string> = {
+const SECTION_LABELS: Record<SearchSection, string> = {
   actions: 'Sim',
   blocks: 'Blocks',
   triggers: 'Triggers',
@@ -232,24 +164,6 @@ export type SearchEntry =
   | { section: 'workspaces'; score: number; item: WorkspaceItem }
   | { section: 'pages'; score: number; item: PageItem }
 
-export interface SearchEntryHandlers {
-  onSelectAction: (item: ActionItem) => void
-  onSelectBlock: (item: SearchBlockItem) => void
-  onSelectTool: (item: SearchBlockItem) => void
-  onSelectTrigger: (item: SearchBlockItem) => void
-  onSelectToolOperation: (item: SearchToolOperationItem) => void
-  onSelectConnectedAccount: (item: IntegrationSearchItem) => void
-  onSelectIntegration: (item: IntegrationSearchItem) => void
-  onSelectChat: (item: TaskItem) => void
-  onSelectWorkflow: (item: WorkflowItem) => void
-  onSelectTable: (item: FolderedItem) => void
-  onSelectFile: (item: FileItem) => void
-  onSelectKnowledgeBase: (item: FolderedItem) => void
-  onSelectLog: (item: LogItem) => void
-  onSelectWorkspace: (item: WorkspaceItem) => void
-  onSelectPage: (item: PageItem) => void
-}
-
 /** Merge-ranks every match from the visible sections into one flat result list. */
 export function getGlobalSearchResults(
   entriesBySection: Partial<Record<SearchSection, readonly SearchEntry[]>>,
@@ -261,20 +175,6 @@ export function getGlobalSearchResults(
     .flatMap((section) => entriesBySection[section] ?? [])
     .sort((a, b) => b.score - a.score)
 }
-
-/**
- * `scroll-mt-12` mirrors the list's `pt-12`: the search input floats over the
- * top 48px of the scrollport, and cmdk keeps the selection visible with
- * `scrollIntoView({ block: 'nearest' })` — without the scroll margin, arrowing
- * upward (or loop-wrapping to the first row) parks the row under the input.
- * Group headings need the same margin because cmdk scrolls the heading into
- * view when the selection is its group's first row.
- */
-export const GROUP_HEADING_CLASSNAME =
-  '[&_[cmdk-group-heading]]:flex [&_[cmdk-group-heading]]:h-[18px] [&_[cmdk-group-heading]]:items-center [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:mb-2 [&_[cmdk-group-heading]]:scroll-mt-12 [&_[cmdk-group-heading]]:text-small [&_[cmdk-group-heading]]:text-[var(--text-muted)]'
-
-export const COMMAND_ITEM_CLASSNAME =
-  'group mx-0.5 flex h-[30px] w-full cursor-pointer items-center gap-2 rounded-lg border border-transparent px-2 text-left text-sm scroll-mt-12 scroll-mb-1.5 aria-selected:border-[var(--border-1)] aria-selected:bg-[var(--surface-active)] data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50'
 
 /** Characters that begin a new word — a match here scores higher. */
 const SEPARATORS = new Set([' ', '-', '_', '/', '.', ':', '(', ')'])
@@ -442,7 +342,7 @@ const SECTION_MATCH_TIER = 2_000_000
  * Logs page itself first, then its contents (the section lifted into
  * {@link SECTION_MATCH_TIER}) beneath it.
  */
-export const PAGE_MATCH_TIER = 3_000_000
+const PAGE_MATCH_TIER = 3_000_000
 
 /**
  * Matches a query against secondary search text: a space-separated list of

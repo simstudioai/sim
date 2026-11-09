@@ -8,12 +8,6 @@ export type MothershipResourceType =
   | 'task'
   | 'generic'
 
-export interface MothershipResource {
-  type: MothershipResourceType
-  id: string
-  title: string
-}
-
 export const VFS_DIR_TO_RESOURCE: Record<string, MothershipResourceType> = {
   tables: 'table',
   files: 'file',

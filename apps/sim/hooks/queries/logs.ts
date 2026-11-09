@@ -9,7 +9,6 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
-import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type DashboardStatsResponse,
@@ -22,7 +21,6 @@ import {
   listLogsContract,
   type WorkflowLogDetail,
   type WorkflowLogSummary,
-  type WorkflowStats,
 } from '@/lib/api/contracts/logs'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { parseQuery, queryToApiParams } from '@/lib/logs/query-parser'
@@ -30,9 +28,9 @@ import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/t
 import { logKeys } from '@/hooks/queries/utils/log-keys'
 import type { TimeRange } from '@/stores/logs/filters/types'
 
-export type { DashboardStatsResponse, WorkflowStats }
+export type { DashboardStatsResponse }
 
-export type LogSortBy = 'date' | 'duration' | 'cost' | 'status'
+type LogSortBy = 'date' | 'duration' | 'cost' | 'status'
 export type LogSortOrder = 'asc' | 'desc'
 
 export const LOG_LIST_STALE_TIME = 30 * 1000
@@ -304,22 +302,6 @@ interface UseLogDetailOptions {
     | ((query: { state: { data?: WorkflowLogDetail } }) => number | false | undefined)
 }
 
-export function useLogDetail(
-  logId: string | undefined,
-  workspaceId: string | undefined,
-  options?: UseLogDetailOptions
-) {
-  return useQuery({
-    queryKey: logKeys.detail(workspaceId, logId),
-    queryFn: ({ signal }) => fetchLogDetail(logId as string, workspaceId as string, signal),
-    enabled: Boolean(logId) && Boolean(workspaceId) && (options?.enabled ?? true),
-    refetchInterval: options?.refetchInterval ?? false,
-    staleTime: LOG_DETAIL_STALE_TIME,
-    retry: (failureCount, err) =>
-      !(isApiClientError(err) && err.status === 404) && failureCount < 3,
-  })
-}
-
 async function fetchLogByExecutionId(
   workspaceId: string,
   executionId: string,
@@ -414,14 +396,6 @@ async function pollForTerminalExecution(params: {
     )
   }
   throw new Error('Run stop was requested, but cancellation was not confirmed in time')
-}
-
-export function prefetchLogDetail(queryClient: QueryClient, logId: string, workspaceId: string) {
-  queryClient.prefetchQuery({
-    queryKey: logKeys.detail(workspaceId, logId),
-    queryFn: ({ signal }) => fetchLogDetail(logId, workspaceId, signal),
-    staleTime: LOG_DETAIL_STALE_TIME,
-  })
 }
 
 async function fetchDashboardStats(

@@ -9,7 +9,6 @@ import {
   updateInvitationContract,
 } from '@/lib/api/contracts/invitations'
 import {
-  createOrganizationContract,
   getMemberRemovalImpactContract,
   getOrganizationContract,
   getOrganizationMemberUsageLimitContract,
@@ -18,7 +17,6 @@ import {
   type OrganizationMemberUsageLimitData,
   type OrganizationRoster,
   type RemovalImpactCredential,
-  type RosterMember,
   type RosterPendingInvitation,
   type RosterWorkspaceAccess,
   removeOrganizationMemberContract,
@@ -72,7 +70,7 @@ export function useOrganizationSummary(
   })
 }
 
-export type { OrganizationRoster, RosterMember, RosterPendingInvitation, RosterWorkspaceAccess }
+export type { OrganizationRoster, RosterPendingInvitation, RosterWorkspaceAccess }
 
 async function fetchOrganizationRoster(
   orgId: string,
@@ -505,44 +503,6 @@ export function useResendInvitation() {
       queryClient.invalidateQueries({
         queryKey: organizationKeys.roster(variables.orgId),
       })
-    },
-  })
-}
-
-/**
- * Create organization mutation
- */
-type CreateOrganizationParams = Pick<
-  ContractBodyInput<typeof createOrganizationContract>,
-  'slug'
-> & {
-  name: string
-}
-
-export function useCreateOrganization() {
-  const queryClient = useQueryClient()
-  const router = useRouter()
-
-  return useMutation({
-    mutationFn: async ({ name, slug }: CreateOrganizationParams) => {
-      const data = await requestJson(createOrganizationContract, {
-        body: {
-          name,
-          slug: slug || name.toLowerCase().replace(/\s+/g, '-'),
-        },
-      })
-
-      const { error } = await client.organization.setActive({
-        organizationId: data.organizationId,
-      })
-      if (error) throw new Error(error.message || 'Failed to activate organization')
-
-      return data
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: organizationKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
-      router.refresh()
     },
   })
 }

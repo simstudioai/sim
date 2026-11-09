@@ -1,22 +1,16 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useMemo, useState } from 'react'
 import {
   cn,
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuItemLabel,
   DropdownMenuSearchInput,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-  NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
-  TabStripAction,
-  Tooltip,
 } from '@sim/emcn-legacy'
-import { Folder, Plus } from '@sim/emcn-legacy/icons'
+import { Folder } from '@sim/emcn-legacy/icons'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
 import {
   type AvailableItemsByType,
@@ -27,10 +21,6 @@ import {
   useAvailableResources,
 } from '@/components/mothership-chat/mothership-view/components/add-resource-dropdown/available-resources'
 import {
-  mergeOrganizationResourceInventories,
-  OrganizationResourceInventory,
-} from '@/components/mothership-chat/mothership-view/components/add-resource-dropdown/organization-resource-inventory'
-import {
   buildResourceFolderTree,
   isServerMatchFor,
   type ResourceTreeNode,
@@ -40,36 +30,9 @@ import {
   byResourceMenuOrder,
   getResourceConfig,
 } from '@/components/mothership-chat/mothership-view/components/resource-registry'
-import { RESOURCE_TAB_ICON_CLASS } from '@/components/mothership-chat/mothership-view/components/resource-tabs/resource-tab-controls'
-import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import type { MothershipResource, MothershipResourceType } from '@/lib/mothership/chat/types'
-import { isTerminalAvailable } from '@/lib/terminal/transport'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
-import { useOrderedWorkspacesQuery, type Workspace } from '@/hooks/queries/workspace'
-
-export interface AddResourceDropdownProps {
-  workspaceId?: string
-  organizationId?: string
-  onAdd: (resource: MothershipResource) => void
-  /**
-   * Resource types to hide from the dropdown. Must be referentially stable
-   * (a module constant) — it keys the underlying group memo.
-   */
-  excludeTypes?: readonly MothershipResourceType[]
-  /** Delays mounting the menu until a native surface beneath it is hidden. */
-  onRequestOpen?: (open: () => void) => void
-  /** Restores any native surface hidden for this menu. */
-  onClose?: () => Promise<void>
-}
-
-/** Hide Radix's still-mounted exit surface before a full-screen effect paints. */
-function hideMountedMenuSurfaces(): void {
-  for (const menu of document.querySelectorAll<HTMLElement>(
-    '[data-native-surface-overlay][role="menu"]'
-  )) {
-    menu.style.setProperty('visibility', 'hidden', 'important')
-  }
-}
+import type { Workspace } from '@/hooks/queries/workspace'
 
 interface ResourceFolderTreeItemsProps {
   nodes: ResourceTreeNode[]
@@ -516,146 +479,5 @@ export function WorkspaceResourceSubmenu({
         />
       </DropdownMenuSubContent>
     </DropdownMenuSub>
-  )
-}
-
-const WORKSPACE_FLYOUT_EXCLUDED_TYPES: readonly MothershipResourceType[] = ['browser', 'terminal']
-
-export function AddResourceDropdown({
-  workspaceId: suppliedWorkspaceId,
-  organizationId,
-  onAdd,
-  excludeTypes,
-  onRequestOpen,
-  onClose,
-}: AddResourceDropdownProps) {
-  const [open, setOpen] = useState(false)
-  const { data: allWorkspaces = [] } = useOrderedWorkspacesQuery(open && Boolean(organizationId))
-  const workspaces = allWorkspaces.filter(
-    (workspace) => workspace.organizationId === organizationId
-  )
-  const flyoutExcludedTypes = useMemo(
-    () => [...(excludeTypes ?? []), ...WORKSPACE_FLYOUT_EXCLUDED_TYPES],
-    [excludeTypes]
-  )
-  const [inventories, setInventories] = useState<Record<string, AvailableResources>>({})
-  const [organizationSearch, setOrganizationSearch] = useState('')
-  const receiveInventory = useCallback((workspaceId: string, inventory: AvailableResources) => {
-    setInventories((current) =>
-      current[workspaceId] === inventory ? current : { ...current, [workspaceId]: inventory }
-    )
-  }, [])
-  const organizationInventory = mergeOrganizationResourceInventories(workspaces, inventories)
-  const contentRef = useRef<HTMLDivElement>(null)
-  const { groups } = useAvailableResources('', {
-    enabled: open && !suppliedWorkspaceId,
-    excludeTypes,
-  })
-  const nativeGroups = groups.filter(
-    (group) => group.type === 'browser' || group.type === 'terminal'
-  )
-  const hasNativeResourceSurface = isBrowserAgentAvailable() || isTerminalAvailable()
-  const closeMenu = useCallback(() => {
-    setOpen(false)
-    setOrganizationSearch('')
-    return onClose?.() ?? Promise.resolve()
-  }, [onClose])
-
-  // This popover is shared by Browser and Terminal and sits above the modal
-  // z-layer. Close it inside the pre-paint handshake so resource chrome cannot
-  // remain floating over a newly opened full-screen effect.
-  useEffect(() => {
-    if (!hasNativeResourceSurface) return
-    const handlePrepare = () => {
-      if (open || contentRef.current) hideMountedMenuSurfaces()
-      if (open) void closeMenu()
-    }
-    window.addEventListener(NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, handlePrepare)
-    return () => window.removeEventListener(NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT, handlePrepare)
-  }, [closeMenu, hasNativeResourceSurface, open])
-
-  const handleOpenChange = (next: boolean) => {
-    if (next) {
-      if (onRequestOpen) {
-        onRequestOpen(() => setOpen(true))
-      } else {
-        setOpen(true)
-      }
-      return
-    }
-    void closeMenu()
-  }
-
-  const select = (resource: MothershipResource) => {
-    void closeMenu().then(() => onAdd(resource))
-  }
-
-  return (
-    <DropdownMenu open={open} onOpenChange={handleOpenChange} modal={false}>
-      {open &&
-        organizationId &&
-        workspaces.map((workspace) => (
-          <OrganizationResourceInventory
-            key={workspace.id}
-            workspaceId={workspace.id}
-            fileSearch={organizationSearch}
-            onChange={receiveInventory}
-          />
-        ))}
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <DropdownMenuTrigger asChild>
-            <TabStripAction variant='subtle' aria-label='Add resource tab'>
-              <Plus className={RESOURCE_TAB_ICON_CLASS} />
-            </TabStripAction>
-          </DropdownMenuTrigger>
-        </Tooltip.Trigger>
-        <Tooltip.Content side='bottom'>
-          <p>Add resource</p>
-        </Tooltip.Content>
-      </Tooltip.Root>
-      <DropdownMenuContent
-        ref={contentRef}
-        align='start'
-        sideOffset={8}
-        className='flex w-[320px] flex-col overflow-hidden'
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        {suppliedWorkspaceId ? (
-          <WorkspaceResourceMenuContent
-            workspaceId={suppliedWorkspaceId}
-            enabled={open}
-            excludeTypes={excludeTypes}
-            onSelect={select}
-          />
-        ) : (
-          <ResourceMenuSearch
-            groups={[
-              ...organizationInventory.groups.filter(
-                (group) => !excludeTypes?.includes(group.type)
-              ),
-              ...nativeGroups,
-            ]}
-            isHydrating={organizationInventory.isHydrating}
-            search={organizationSearch}
-            onSearchChange={setOrganizationSearch}
-            onSelect={select}
-          >
-            {workspaces.map((workspace) => (
-              <WorkspaceResourceSubmenu
-                key={workspace.id}
-                workspace={workspace}
-                excludeTypes={flyoutExcludedTypes}
-                onSelect={select}
-              />
-            ))}
-            {!workspaces.length && (
-              <DropdownMenuItem disabled>No accessible workspaces</DropdownMenuItem>
-            )}
-            <ResourceMenuSections sections={[]} groups={nativeGroups} onSelect={select} />
-          </ResourceMenuSearch>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
   )
 }

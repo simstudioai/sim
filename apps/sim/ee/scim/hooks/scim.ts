@@ -21,7 +21,7 @@ export const SCIM_MAPPINGS_STALE_TIME = 30 * 1000
 export const SCIM_ACTIVITY_STALE_TIME = 10 * 1000
 export const SCIM_ACTIVITY_REFETCH_INTERVAL = 15 * 1000
 
-export const scimKeys = {
+const scimKeys = {
   all: ['scim'] as const,
   connections: () => [...scimKeys.all, 'connection'] as const,
   connection: (organizationId?: string) =>

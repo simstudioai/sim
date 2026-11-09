@@ -106,5 +106,4 @@ export const updateChangelogReleaseContract = defineRouteContract({
 })
 
 export type ChangelogRelease = z.output<typeof changelogReleaseSchema>
-export type ChangelogReleaseWorkflow = ChangelogRelease['workflows'][number]
 export type UpdateChangelogReleaseBody = z.input<typeof updateChangelogReleaseBodySchema>

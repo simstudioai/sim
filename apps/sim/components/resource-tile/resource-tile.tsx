@@ -1,15 +1,6 @@
-import type { ComponentType } from 'react'
-import { cn } from '@sim/emcn-legacy'
-import { getTileIconColorClass } from '@/blocks/icon-color'
-
-interface ResourceTileProps {
-  icon: ComponentType<{ className?: string }>
-}
-
 /**
  * Geometry and border of the square resource tile — the single source for that
- * chrome, shared by {@link ResourceTile} and `SettingsResourceRow` so the skills,
- * custom tools, and settings surfaces cannot drift apart. Pair with a fill. Sizing
+ * chrome, so the skills, custom tools, and settings surfaces cannot drift apart. Pair with a fill. Sizing
  * the glyph is the tile's job: the descendant rule outranks an icon's own class.
  */
 export const RESOURCE_TILE_BASE =
@@ -20,35 +11,3 @@ export const RESOURCE_TILE_FILL = 'bg-[var(--surface-4)] dark:bg-[var(--surface-
 
 /** Page-background fill, for tiles holding a brand logo or a site favicon. */
 export const RESOURCE_TILE_PLAIN = 'bg-[var(--bg)]'
-
-/**
- * Square glyph tile identifying a workspace resource — the leading visual on a
- * resource's row and on its detail heading.
- */
-export function ResourceTile({ icon: Icon }: ResourceTileProps) {
-  return (
-    <div className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_FILL)}>
-      <Icon className='text-[var(--text-icon)]' />
-    </div>
-  )
-}
-
-interface BrandTileProps {
-  icon: ComponentType<{ className?: string }>
-  background: string | null | undefined
-}
-
-/** Shared brand treatment for integration and credential rows. */
-export function BrandTile({ icon: Icon, background }: BrandTileProps) {
-  return (
-    <div
-      aria-hidden
-      className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}
-      style={background ? { background } : undefined}
-    >
-      <Icon
-        className={background ? getTileIconColorClass(background) : 'text-[var(--text-icon)]'}
-      />
-    </div>
-  )
-}

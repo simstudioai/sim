@@ -332,19 +332,6 @@ export const copilotChatListItemSchema = z.object({
   activeStreamId: z.string().nullable(),
   updatedAt: z.string().nullable(),
 })
-export type CopilotChatListItem = z.output<typeof copilotChatListItemSchema>
-
-export const listCopilotChatsContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/copilot/chats',
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      chats: z.array(copilotChatListItemSchema),
-    }),
-  },
-})
 
 export const generateCopilotApiKeyContract = defineRouteContract({
   method: 'POST',

@@ -1,4 +1,3 @@
-import type { QueryClient } from '@tanstack/react-query'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
@@ -39,26 +38,6 @@ export function useSubscriptionData(options: UseSubscriptionDataOptions = {}) {
   const { includeOrg = false, enabled = true, staleTime = SUBSCRIPTION_DATA_STALE_TIME } = options
 
   return useQuery({ ...subscriptionDataQueryOptions(includeOrg, staleTime), enabled })
-}
-
-/**
- * Prefetch the billing queries the Upgrade page gates on: the
- * organization-scoped subscription variant (`includeOrg: true`, a different
- * cache key than the credits chip's `false` variant) and the usage-limit
- * metadata. Use on hover to warm both before navigating to `/upgrade`.
- *
- * Org-scoped subscribers additionally gate on the organization-billing query,
- * which is intentionally not prewarmed here: its key depends on the resolved
- * billing organization id, which is only derivable after the subscription and
- * workspace queries land, so it cannot be warmed at hover time.
- */
-export function prefetchUpgradeBillingData(queryClient: QueryClient) {
-  queryClient.prefetchQuery(subscriptionDataQueryOptions(true))
-  queryClient.prefetchQuery({
-    queryKey: subscriptionKeys.usage(),
-    queryFn: ({ signal }) => fetchUsageLimitData(signal),
-    staleTime: USAGE_LIMIT_STALE_TIME,
-  })
 }
 
 /**

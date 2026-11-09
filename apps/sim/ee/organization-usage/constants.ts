@@ -2,7 +2,6 @@ import {
   ORGANIZATION_USAGE_BREAKDOWN_DEFAULT_LIMIT,
   ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT,
   type OrganizationUsageSource,
-  USAGE_WINDOW_PRESETS,
   type UsageBreakdownDimension,
   type UsageWindowPreset,
 } from '@/lib/api/contracts/organization-usage'
@@ -18,11 +17,6 @@ export const PERIOD_LABELS: Record<UsageWindowPreset, string> = {
   '30d': 'Last 30 days',
   custom: 'Custom range',
 }
-
-export const PERIOD_OPTIONS = USAGE_WINDOW_PRESETS.map((preset) => ({
-  value: preset,
-  label: PERIOD_LABELS[preset],
-}))
 
 export const USAGE_OVERVIEW_TAB = 'overview' as const
 export type UsageTab =
@@ -91,19 +85,11 @@ export const EXPANDED_ROW_COUNT = ORGANIZATION_USAGE_BREAKDOWN_MAX_LIMIT
 export const DEFAULT_USAGE_PRESET = '30d' as const
 export const DEFAULT_USAGE_TAB = USAGE_OVERVIEW_TAB
 
-/**
- * The Insights chart palette, declared on each chart's root so a layer, its legend
- * dot, and its tooltip swatch resolve to one color. Muted hues in light mode and
- * soft pastels in dark mode keep dense daily series legible.
- */
-export const USAGE_PALETTE_CLASS =
-  '[--usage-workflow:#6476c7] [--usage-chat:#268967] [--usage-enrichment:#b66d99] [--usage-knowledge:#268f97] [--usage-agent:#8d68c9] [--usage-other:#77848f] [--usage-failed:#c46b6b] dark:[--usage-workflow:#a3adf7] dark:[--usage-chat:#7bdcb5] dark:[--usage-enrichment:#e9a0cc] dark:[--usage-knowledge:#6bcbd0] dark:[--usage-agent:#bd9aee] dark:[--usage-other:#8c9ba9] dark:[--usage-failed:#e69494]'
-
 /** Sim Chat's color, shared by its credit layer and the chat-runs chart. */
-export const USAGE_CHAT_COLOR = 'var(--usage-chat)'
+const USAGE_CHAT_COLOR = 'var(--usage-chat)'
 
 /** The neutral remainder, shared by the credit and outcome stacks. */
-export const USAGE_OTHER_COLOR = 'var(--usage-other)'
+const USAGE_OTHER_COLOR = 'var(--usage-other)'
 
 /**
  * The credit chart's layers, bottom-up. Each one owns a fixed color, so a layer keeps

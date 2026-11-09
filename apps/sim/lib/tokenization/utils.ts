@@ -105,16 +105,6 @@ export function validateTokenizationInput(
 }
 
 /**
- * Formats token count for display
- */
-export function formatTokenCount(count: number): string {
-  if (count === 0) return '0'
-  if (count < 1000) return count.toString()
-  if (count < 1000000) return `${(count / 1000).toFixed(1)}K`
-  return `${(count / 1000000).toFixed(1)}M`
-}
-
-/**
  * Logs tokenization operation details
  */
 export function logTokenizationDetails(

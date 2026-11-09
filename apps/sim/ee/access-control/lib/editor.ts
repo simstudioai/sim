@@ -90,10 +90,6 @@ const ACCESS_OPTIONS = [
   { value: 'unavailable', label: 'Unavailable' },
 ] as const
 
-export function accessStateLabel(state: PermissionGroupAccessState): string | undefined {
-  return ACCESS_OPTIONS.find((option) => option.value === state)?.label
-}
-
 /** A row's choices, retaining an unsupported inherited value while the row is disabled. */
 export function accessStateOptions(
   canRequest: boolean,
@@ -300,7 +296,7 @@ export const FEATURE_PERMISSION_GRIDS = {
 /** Sentinel for "no default chosen" in the Agent default picker. */
 export const PLATFORM_DEFAULT_MODEL = '__platform-default__'
 
-export function agentDefaultModelId(provider: string, model: string): string {
+function agentDefaultModelId(provider: string, model: string): string {
   return provider === 'ollama' && !model.toLowerCase().startsWith('ollama/')
     ? `ollama/${model}`
     : model

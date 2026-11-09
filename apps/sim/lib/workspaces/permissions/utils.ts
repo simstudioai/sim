@@ -496,7 +496,7 @@ export interface WorkspacePermissionsForViewer {
  * {@link checkWorkspaceAccess}; API boundaries should use
  * {@link getWorkspacePermissionsForViewer} instead.
  */
-export async function getWorkspacePermissionsForAuthorizedViewer(
+async function getWorkspacePermissionsForAuthorizedViewer(
   workspaceId: string,
   userId: string,
   permission: PermissionType,

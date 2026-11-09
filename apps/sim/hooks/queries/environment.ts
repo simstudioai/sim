@@ -26,7 +26,7 @@ export const environmentKeys = {
   workspace: (workspaceId: string) => [...environmentKeys.workspaces(), workspaceId] as const,
 }
 
-export function personalEnvironmentQueryOptions() {
+function personalEnvironmentQueryOptions() {
   return queryOptions({
     queryKey: environmentKeys.personal(),
     queryFn: ({ signal }) => fetchPersonalEnvironment(signal),
@@ -39,7 +39,7 @@ export function personalEnvironmentQueryOptions() {
   })
 }
 
-export function workspaceEnvironmentQueryOptions(workspaceId: string) {
+function workspaceEnvironmentQueryOptions(workspaceId: string) {
   return queryOptions({
     queryKey: environmentKeys.workspace(workspaceId),
     queryFn: ({ signal }) => fetchWorkspaceEnvironment(workspaceId, signal),

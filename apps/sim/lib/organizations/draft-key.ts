@@ -14,5 +14,3 @@ export function organizationDraftKey(
 
 /** The slot Search's Assistant keeps its unsent question under. */
 export const SEARCH_ASSISTANT_DRAFT_SLOT = 'search-assistant'
-/** The slot Home's Assistant keeps its unsent question under. */
-export const HOME_ASSISTANT_DRAFT_SLOT = 'home-assistant'

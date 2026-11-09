@@ -47,7 +47,7 @@ export interface VariablesStore {
 /**
  * 2D position used by the floating variables modal.
  */
-export interface VariablesPosition {
+interface VariablesPosition {
   x: number
   y: number
 }

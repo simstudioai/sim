@@ -1,18 +1,4 @@
-import type React from 'react'
 import type { ColumnDefinition } from '@/lib/table'
-
-export interface BlockIconInfo {
-  icon: React.ComponentType<{ className?: string }>
-  color: string
-}
-
-export interface ColumnSourceInfo {
-  blockIconInfo?: BlockIconInfo
-  blockName?: string
-  /** Workflow loaded but the column's source block no longer exists — the
-   *  header renders a "Not found" badge. Only set for loaded states. */
-  blockMissing?: boolean
-}
 
 /**
  * One visual column in the rendered grid. With the flat schema there's exactly
