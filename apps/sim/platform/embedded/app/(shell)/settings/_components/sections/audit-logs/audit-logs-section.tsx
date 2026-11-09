@@ -13,6 +13,7 @@ import { SectionSearch } from '@sim/emcn/search-field/section-search'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { LoadingRows } from '@sim/emcn/status/query-boundary'
+import { toast } from '@/lib/toast/sink'
 import { RESOURCE_TYPE_OPTIONS } from '@/ee/audit-logs/constants'
 import {
   AUDIT_TIME_RANGE_OPTIONS,
@@ -35,7 +36,6 @@ import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/setti
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/audit-logs/audit-logs-section.module.css'
 import { useAuditLogFeed } from '@/platform/embedded/lib/data/audit-logs/feed'
 import { formatTimestamp } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 const ALL_TYPES = '__all_types__'
 

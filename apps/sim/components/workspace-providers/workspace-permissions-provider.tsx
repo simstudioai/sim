@@ -2,11 +2,11 @@
 
 import type React from 'react'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react'
-import { useToast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useSocket } from '@/components/workspace-providers/socket-provider'
+import { toast } from '@/lib/toast/sink'
 import {
   useWorkspacePermissionsQuery,
   type WorkspacePermissions,
@@ -40,7 +40,6 @@ interface PersistentToastOptions {
  * owning component unmounts.
  */
 function usePersistentErrorToast(message: string | null, options?: PersistentToastOptions) {
-  const { toast } = useToast()
   const toastIdRef = useRef<string | null>(null)
   const shownMessageRef = useRef<string | null>(null)
   const optionsRef = useRef(options)

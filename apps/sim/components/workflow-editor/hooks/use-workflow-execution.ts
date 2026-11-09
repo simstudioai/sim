@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
@@ -37,6 +36,7 @@ import {
   isRunToolActiveForWorkflow,
   subscribeToRunToolRelease,
 } from '@/lib/mothership/tools/client/run-tool-execution'
+import { toast } from '@/lib/toast/sink'
 import { processStreamingBlockLogs } from '@/lib/tokenization'
 import type {
   ExecutionPausedData,

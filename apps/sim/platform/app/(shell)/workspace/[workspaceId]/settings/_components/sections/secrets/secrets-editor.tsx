@@ -19,6 +19,7 @@ import { SettingsSection } from '@sim/emcn/settings-section'
 import { SaveActions } from '@sim/emcn/settings-section/save-actions'
 import { getErrorMessage } from '@sim/utils/errors'
 import { countPasteRows } from '@sim/utils/paste'
+import { toast } from '@/lib/toast/sink'
 import {
   SectionStack,
   SectionToolbar,
@@ -44,7 +45,6 @@ import {
   validateEnvVarKey,
 } from '@/platform/lib/data/secrets'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
-import { toast } from '@/platform/shared/toast'
 
 const MAX_ENV_PASTE_ROWS = 10_000
 /** A pending create request older than this came from a tab the viewer has moved on from. */

@@ -1,9 +1,9 @@
 'use client'
 
 import { useCallback } from 'react'
-import { toast } from '@sim/emcn-legacy'
 import { useParams, useRouter } from 'next/navigation'
 import { buildUpgradeHref, type UpgradeReason } from '@/lib/billing/upgrade-reasons'
+import { toast } from '@/lib/toast/sink'
 
 /**
  * Returns a callback that surfaces a usage-limit error as an actionable toast

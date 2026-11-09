@@ -11,6 +11,7 @@ import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
+import { toast } from '@/lib/toast/sink'
 import { ExternalLink } from '@/platform/embedded/app/(shell)/people/_components/external-link/external-link'
 import styles from '@/platform/embedded/app/(shell)/people/_components/import/import.module.css'
 import { usePeopleViewer } from '@/platform/embedded/lib/data/people'
@@ -23,7 +24,6 @@ import {
   useProvisioningConnection,
 } from '@/platform/shared/people'
 import { plural } from '@/platform/shared/plural'
-import { toast } from '@/platform/shared/toast'
 
 const ACCEPTED_FILES = '.csv,.tsv,.xlsx,.xls'
 

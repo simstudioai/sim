@@ -16,6 +16,7 @@ import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { usePopoverContainer } from '@sim/emcn/menu/use-popover-container'
 import { Calendar } from '@sim/emcn/picker/calendar'
 import { createPortal } from 'react-dom'
+import { toast } from '@/lib/toast/sink'
 import { selectedOptionIds } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/select-field/select-field'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/table-grid.module.css'
 import {
@@ -33,7 +34,6 @@ import {
   ttlValueToPickerParts,
   useTimezoneState,
 } from '@/platform/lib/data/tables'
-import { toast } from '@/platform/shared/toast'
 
 interface InlineEditorProps {
   value: unknown

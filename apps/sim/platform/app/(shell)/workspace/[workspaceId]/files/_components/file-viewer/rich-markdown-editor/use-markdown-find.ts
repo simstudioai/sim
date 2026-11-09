@@ -3,6 +3,7 @@
 import type React from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react'
+import { toast } from '@/lib/toast/sink'
 import {
   getFindTally,
   replaceActiveFindMatch,
@@ -11,7 +12,6 @@ import {
   stepFindMatch,
   useFindShortcut,
 } from '@/platform/lib/data/files/markdown'
-import { toast } from '@/platform/shared/toast'
 
 /** The class the find plugin puts on the active match. */
 const ACTIVE_MATCH_SELECTOR = "[class~='rich-find-match-active']"

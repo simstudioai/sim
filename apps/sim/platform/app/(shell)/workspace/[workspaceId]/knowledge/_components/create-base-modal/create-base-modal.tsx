@@ -7,6 +7,7 @@ import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
 import { FileField } from '@sim/emcn/field/file-field'
 import { Modal } from '@sim/emcn/modal'
 import { generateId } from '@sim/utils/id'
+import { toast } from '@/lib/toast/sink'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/knowledge/_components/create-base-modal/create-base-modal.module.css'
 import {
   ACCEPT_ATTRIBUTE,
@@ -21,7 +22,6 @@ import {
   useKnowledgeUpload,
   validateKnowledgeBaseFile,
 } from '@/platform/lib/data/knowledge'
-import { toast } from '@/platform/shared/toast'
 
 const STRATEGIES = [
   { value: 'auto', label: 'Auto (detect from content)' },

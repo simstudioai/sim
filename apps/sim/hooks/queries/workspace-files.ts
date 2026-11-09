@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
-import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
@@ -36,6 +35,7 @@ import {
   updateWorkspaceFileDimensionsContract,
   workspaceFileFolderStatsContract,
 } from '@/lib/api/contracts/workspace-files'
+import { toast } from '@/lib/toast/sink'
 import { uploadWorkspaceFileSession } from '@/lib/uploads/client/session-upload'
 import { FileTextSizeError, readFileText } from '@/lib/uploads/client/text-content'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'

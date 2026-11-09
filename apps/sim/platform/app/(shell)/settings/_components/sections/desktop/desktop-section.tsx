@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
+import { toast } from '@/lib/toast/sink'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { ComputerUse } from '@/platform/app/(shell)/settings/_components/sections/desktop/computer-use'
 import {
@@ -14,7 +15,6 @@ import {
   useDesktopRead,
   useDesktopUpdateState,
 } from '@/platform/lib/data/desktop'
-import { toast } from '@/platform/shared/toast'
 
 interface PreferenceRowProps {
   label: string

@@ -11,6 +11,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { Switch } from '@sim/emcn/switch'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import type {
   PermissionGroup,
   PermissionGroupWorkspaceRef,
@@ -24,7 +25,6 @@ import {
 } from '@/platform/embedded/lib/data/access-control'
 import { plural } from '@/platform/shared/plural'
 import { formatTimestamp } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 interface GroupMembersProps {
   group: PermissionGroup

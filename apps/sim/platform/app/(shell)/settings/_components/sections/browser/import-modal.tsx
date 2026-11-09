@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { SelectField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
 import { InlineNotice } from '@sim/emcn/status'
+import { toast } from '@/lib/toast/sink'
 import { Muted } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import {
   type BrowserChromeImportResult,
@@ -12,7 +13,6 @@ import {
   getDesktopBridge,
   useBrowserImportProfiles,
 } from '@/platform/lib/data/desktop'
-import { toast } from '@/platform/shared/toast'
 
 const IMPORT_ERROR_MESSAGES: Record<BrowserImportError, string> = {
   'unsupported-platform': 'Importing from another browser is only supported on macOS.',

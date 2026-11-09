@@ -9,6 +9,7 @@ import { RowList } from '@sim/emcn/settings-section/row-list'
 import { FailureNotice } from '@sim/emcn/status'
 import { errorMessageOr, LoadingRows, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { toError } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   type EditingPolicy,
   newOverrideDraft,
@@ -34,7 +35,6 @@ import { useServerDraft } from '@/platform/embedded/app/(shell)/_components/use-
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { PolicyDetail } from '@/platform/embedded/app/(shell)/settings/_components/sections/data-retention/policy-detail'
 import { useRetentionSettings, useRetentionWrites } from '@/platform/embedded/lib/data/drains'
-import { toast } from '@/platform/shared/toast'
 
 type PolicySelection =
   | { kind: 'organization' }

@@ -15,6 +15,7 @@ import { cn } from '@sim/emcn/lib/cn'
 import { AnchoredPopover } from '@sim/emcn/menu/anchored-popover'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { useShallow } from 'zustand/react/shallow'
+import { toast } from '@/lib/toast/sink'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/canvas/action-bar/action-bar.module.css'
 import {
   Ban,
@@ -41,7 +42,6 @@ import {
   useWorkflowStore,
   validateTriggerPaste,
 } from '@/platform/lib/data/workflows'
-import { toast } from '@/platform/shared/toast'
 
 const DEFAULT_DUPLICATE_OFFSET = { x: 50, y: 50 }
 

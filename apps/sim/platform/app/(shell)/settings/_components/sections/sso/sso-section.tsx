@@ -9,6 +9,7 @@ import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   ResourceList,
   SectionStack,
@@ -29,7 +30,6 @@ import {
   useSSOProviders,
   useSsoSettingsParams,
 } from '@/platform/lib/data/sso'
-import { toast } from '@/platform/shared/toast'
 
 const DOCS_LINKS = {
   'sign-in': 'https://docs.sim.ai/platform/enterprise/sso',

@@ -11,11 +11,11 @@ import {
 } from '@/lib/api/contracts/user'
 import { formatApportionedCreditCost, formatCreditsLabel } from '@/lib/billing/credits/conversion'
 import { BILLING_USAGE_LOG_SOURCE_LABELS } from '@/lib/billing/usage-sources'
+import { toast } from '@/lib/toast/sink'
 import { saveBlob } from '@/lib/uploads/client/download'
 import { useUsageLogs, useUsageSummary } from '@/hooks/queries/usage-logs'
 import { platformHref } from '@/platform/lib/navigation'
 import { loadMoreOf, queryView } from '@/platform/shared/query-view'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('PlatformCreditUsage')
 

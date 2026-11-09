@@ -25,6 +25,7 @@ import {
   defaultLiveSearchPolicy,
   LIVE_SEARCH_SCOPE_FIELDS,
 } from '@/lib/sim-search/live/policy-schema'
+import { toast } from '@/lib/toast/sink'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   type SlackManagedUsersSetupOptions,
@@ -76,7 +77,6 @@ import {
 } from '@/platform/embedded/lib/data/integrations-model'
 import { usePlatformNotices } from '@/platform/embedded/lib/notices'
 import type { OrganizationIntegration, ToolPermissionChange } from '@/platform/shared/integrations'
-import { toast } from '@/platform/shared/toast'
 
 const ACTION_NOTICE_ID = 'integrations-action'
 

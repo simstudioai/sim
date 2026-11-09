@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { toast } from '@sim/emcn-legacy'
 import { sleep } from '@sim/utils/helpers'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
@@ -32,6 +31,7 @@ import { SETTINGS_RETURN_URL_KEY } from '@/lib/navigation/settings-return'
 import { stripMicrosoftDataverseEnvironmentFromOAuthCallback } from '@/lib/oauth/microsoft-dataverse'
 import { searchSetupAccessParam } from '@/lib/sim-search/params'
 import { organizationSearchSetupPath } from '@/lib/sim-search/setup-navigation'
+import { toast } from '@/lib/toast/sink'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/connections'
 import {
   organizationCredentialKeys,

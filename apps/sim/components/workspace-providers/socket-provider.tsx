@@ -53,7 +53,7 @@ import type {
 } from '@/stores/operation-queue/types'
 import { usePresenceStore } from '@/stores/presence/store'
 import type { PresenceUser } from '@/stores/presence/types'
-import { useWorkflowRegistry as useWorkflowRegistryStore } from '@/stores/workflows/registry/store'
+import { requireWorkflowState, useWorkflowRegistry } from '@/stores/workflows/state-port'
 
 const logger = createLogger('SocketContext')
 
@@ -785,21 +785,10 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
          * updated_at guard in persistMigratedBlocks).
          */
         const applyRawJoinStateFallback = async (workflowId: string, workflowState: any) => {
-          const [
-            { useOperationQueueStore },
-            { useWorkflowRegistry },
-            { useWorkflowStore },
-            { useSubBlockStore },
-            { useWorkflowDiffStore },
-          ] = await Promise.all([
-            import('@/stores/operation-queue/store'),
-            import('@/stores/workflows/registry/store'),
-            import('@/stores/workflows/workflow/store'),
-            import('@/stores/workflows/subblock/store'),
-            import('@/stores/workflow-diff/store'),
-          ])
+          const { useOperationQueueStore } = await import('@/stores/operation-queue/store')
+          const { registry, workflow, subBlock, diff } = requireWorkflowState()
 
-          const { activeWorkflowId } = useWorkflowRegistry.getState()
+          const { activeWorkflowId } = registry.getState()
           if (activeWorkflowId !== workflowId) {
             logger.info(`Skipping rehydration - workflow ${workflowId} is not active`)
             return false
@@ -813,7 +802,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             return false
           }
 
-          if (useWorkflowDiffStore.getState().hasActiveDiff) {
+          if (diff.getState().hasActiveDiff) {
             logger.info('Skipping rehydration - an active diff is in progress')
             return false
           }
@@ -827,7 +816,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             })
           })
 
-          useWorkflowStore.getState().replaceWorkflowState({
+          workflow.getState().replaceWorkflowState({
             blocks: workflowState.blocks || {},
             edges: workflowState.edges || [],
             loops: workflowState.loops || {},
@@ -835,7 +824,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
             lastSaved: workflowState.lastSaved || Date.now(),
           })
 
-          useSubBlockStore.setState((state: any) => ({
+          subBlock.setState((state: any) => ({
             workflowValues: {
               ...state.workflowValues,
               [workflowId]: subblockValues,
@@ -944,7 +933,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
 
           if (workflowData?.state) {
             const { canApplyDraftSnapshot, captureDraftVersions, syncLocalDraftFromServer } =
-              await import('@/stores/workflows/sync-local-draft')
+              requireWorkflowState().draft
             const versionsAtJoin = captureDraftVersions(workflowData.id)
 
             try {
@@ -1039,7 +1028,7 @@ export function SocketProvider({ children, user }: SocketProviderProps) {
     }
   }, [user?.id, authFailed])
 
-  const hydrationPhase = useWorkflowRegistryStore((s) => s.hydration.phase)
+  const hydrationPhase = useWorkflowRegistry((s) => s.hydration.phase)
 
   useEffect(() => {
     if (hydrationPhase === 'creating') {

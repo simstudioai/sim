@@ -4,13 +4,13 @@ import { Button } from '@sim/emcn/button'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { notFound, useSearchParams } from 'next/navigation'
+import { toast } from '@/lib/toast/sink'
 import { DetailSplit } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/detail-split/detail-split'
 import { RunDetails } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/run-details/run-details'
 import { useLiveRun, useRunCommands } from '@/platform/lib/data/logs'
 import { platformHref } from '@/platform/lib/navigation'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { withRunListView } from '@/platform/lib/workspace-views'
-import { toast } from '@/platform/shared/toast'
 
 interface LiveRunProps {
   workspaceId: string

@@ -13,6 +13,7 @@ import { FailureNotice } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { toast } from '@/lib/toast/sink'
 import {
   SectionStack,
   SectionToolbar,
@@ -37,7 +38,6 @@ import {
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 import { platformHref } from '@/platform/lib/navigation'
 import { formatInstantDate } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 const ROLE_OPTIONS = [
   { value: 'read', label: 'Read' },

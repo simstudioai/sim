@@ -11,6 +11,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   ResourceList,
   SectionStack,
@@ -44,7 +45,6 @@ import {
   useUpdateMcpServer,
 } from '@/platform/lib/data/mcp'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('McpSettings')
 

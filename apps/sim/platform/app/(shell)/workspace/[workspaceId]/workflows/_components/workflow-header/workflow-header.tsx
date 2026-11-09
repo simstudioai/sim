@@ -8,6 +8,7 @@ import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
+import { toast } from '@/lib/toast/sink'
 import { RequestAccessModal } from '@/platform/app/(shell)/_components/request-access-modal/request-access-modal'
 import { CANVAS_VIEWPORT_OPTIONS } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/canvas/workflow-canvas/workflow-canvas-constants'
 import { DeployButton } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/deploy-button/deploy-button'
@@ -42,7 +43,6 @@ import {
   type WorkflowFolder,
 } from '@/platform/lib/data/workflows'
 import { platformHref } from '@/platform/lib/navigation'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('WorkflowHeader')
 

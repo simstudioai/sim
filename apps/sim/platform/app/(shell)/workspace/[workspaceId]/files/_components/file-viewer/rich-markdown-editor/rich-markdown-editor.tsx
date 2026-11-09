@@ -19,6 +19,7 @@ import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
+import { toast } from '@/lib/toast/sink'
 import { FindBar } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/find-bar/find-bar'
 import { EditorBubbleMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/bubble-menu'
 import { createMarkdownEditorExtensions } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/editor-extensions'
@@ -77,7 +78,6 @@ import {
   useMarkdownSession,
   useUploadWorkspaceFile,
 } from '@/platform/lib/data/files/markdown'
-import { toast } from '@/platform/shared/toast'
 
 const PLACEHOLDER = "Write something, or press '/' for commands…"
 

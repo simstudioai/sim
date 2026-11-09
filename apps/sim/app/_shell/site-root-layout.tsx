@@ -7,6 +7,7 @@ import { SettingsNavigationGuard } from '@/components/settings/settings-navigati
 import { PasteAdmissionGuard } from '@/app/_shell/paste-admission-guard'
 import { BrowserTelemetry } from '@/app/_shell/providers/browser-telemetry'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
+import { ToastSink } from '@/app/_shell/toast-sink'
 import { generateThemeCSS } from '@/ee/whitelabeling'
 import '@/app/_styles/globals.css'
 import { env } from '@/lib/core/config/env'
@@ -53,6 +54,7 @@ export function SiteRootLayout({ children }: SiteRootLayoutProps) {
   const themeCSS = generateThemeCSS()
   const application = (
     <ToastProvider>
+      <ToastSink />
       <SettingsNavigationGuard />
       <DesktopUpdateNotification />
       <PasteAdmissionGuard />

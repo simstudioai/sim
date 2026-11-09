@@ -11,6 +11,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   SectionStack,
   SectionToolbar,
@@ -30,7 +31,6 @@ import {
 } from '@/platform/lib/data/api-keys'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 import { formatInstantDate } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('ApiKeysSection')
 

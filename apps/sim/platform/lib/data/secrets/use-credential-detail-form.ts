@@ -4,9 +4,9 @@ import { useCallback, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
+import { toast } from '@/lib/toast/sink'
 import { useUpdateWorkspaceCredential, type WorkspaceCredential } from '@/hooks/queries/credentials'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('CredentialDetailForm')
 

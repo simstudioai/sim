@@ -13,6 +13,7 @@ import { InlineNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { getErrorMessage } from '@sim/utils/errors'
 import { compareStrings } from '@sim/utils/string'
+import { toast } from '@/lib/toast/sink'
 import {
   DetailHeader,
   FieldStack,
@@ -41,7 +42,6 @@ import {
   useDeployedWorkflowState,
   useWorkflows,
 } from '@/platform/lib/data/workflows'
-import { toast } from '@/platform/shared/toast'
 
 const OUTPUT_SEP = '::'
 const ICON_ACCEPT = 'image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'

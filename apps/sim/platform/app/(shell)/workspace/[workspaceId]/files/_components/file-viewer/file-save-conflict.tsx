@@ -3,8 +3,8 @@
 import { Button } from '@sim/emcn/button'
 import { InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/file-save-conflict.module.css'
-import { toast } from '@/platform/shared/toast'
 
 interface FileSaveConflictProps {
   isReloading: boolean

@@ -27,7 +27,6 @@ import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
-import { OrganizationToastSink } from '@/app/o/[organizationId]/components/toast-sink'
 import { OrganizationSimLinkProvider } from '@/app/o/[organizationId]/links/organization-sim-link-provider'
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
@@ -123,7 +122,6 @@ export default async function OrganizationLayout({
         }}
       >
         <OrganizationProvider context={context}>
-          <OrganizationToastSink />
           <OrganizationSimLinkProvider organizationId={simLinkOrganizationId}>
             <GlobalCommandsProvider>
               <WorkspaceViewport

@@ -9,8 +9,8 @@ import type {
 } from '@/stores/workflows/sync-local-draft'
 import type { useWorkflowStore } from '@/stores/workflows/workflow/store'
 
-/** The real workflow stores, which only the Workflows tab loads. */
-export interface WorkflowStateModules {
+/** The real workflow stores, which pull in every block and trigger. */
+interface WorkflowStateModules {
   registry: typeof useWorkflowRegistry
   workflow: typeof useWorkflowStore
   subBlock: typeof useSubBlockStore
@@ -26,7 +26,7 @@ export interface WorkflowStateModules {
 let connected: WorkflowStateModules | null = null
 const listeners = new Set<() => void>()
 
-/** Hands the bridges the real stores. The Workflows tab's providers call it as they load. */
+/** Hands the port the real stores; `connect-stores.ts` is its one caller. */
 export function connectWorkflowState(modules: WorkflowStateModules) {
   if (connected) return
   connected = modules
@@ -45,12 +45,12 @@ export function onWorkflowStateConnected(listener: () => void): () => void {
 }
 
 /**
- * The real stores, for code that only runs inside a workflow room. A room is joined only after the
- * Workflows tab has connected them, so reaching this earlier is a bug, not a state to tolerate.
+ * The real stores, for code that only runs inside a workflow room. A room is joined only where the
+ * real stores are connected, so reaching this earlier is a bug, not a state to tolerate.
  */
 export function requireWorkflowState(): WorkflowStateModules {
   if (!connected) {
-    throw new Error('Workflow state is used before the Workflows tab connected it')
+    throw new Error('Workflow state is used before the workflow stores were connected')
   }
   return connected
 }

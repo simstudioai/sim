@@ -12,7 +12,7 @@ import {
 } from '@sim/testing/mocks/api-client-request.mock'
 import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { toast } from '@/platform/shared/toast'
+import { toast } from '@/lib/toast/sink'
 
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/lib/auth/client', () => authClientMock)

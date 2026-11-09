@@ -5,6 +5,7 @@ import { Button } from '@sim/emcn/button'
 import { CopyField } from '@sim/emcn/field/value-fields'
 import { PropertyList } from '@sim/emcn/property-list'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { toast } from '@/lib/toast/sink'
 import {
   DetailHeader,
   FieldStack,
@@ -17,7 +18,6 @@ import {
   ssoProviderCallbackUrl,
   useSsoOrigin,
 } from '@/platform/lib/data/sso'
-import { toast } from '@/platform/shared/toast'
 
 interface ProviderDetailProps {
   organizationId: string

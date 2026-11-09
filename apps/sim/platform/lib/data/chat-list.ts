@@ -3,6 +3,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
+import { toast } from '@/lib/toast/sink'
 import {
   MothershipChatDeleteError,
   mothershipChatHistoryQueryOptions,
@@ -17,7 +18,6 @@ import { prefetchQueryOnIntent } from '@/hooks/queries/utils/prefetch-query-on-i
 import type { ShellChatActions } from '@/platform/app/(shell)/_components/model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { canOpenOrganizationChat } from '@/platform/shared/chat-open'
-import { toast } from '@/platform/shared/toast'
 
 const CHAT_PREFETCH_DWELL_MS = 80
 

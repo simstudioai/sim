@@ -9,6 +9,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { getErrorMessage } from '@sim/utils/errors'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { parseAsString, useQueryStates } from 'nuqs'
+import { toast } from '@/lib/toast/sink'
 import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
 import {
   descendantIndex,
@@ -85,7 +86,6 @@ import {
 } from '@/platform/lib/data/workflows'
 import { platformHref, publicAssetPath } from '@/platform/lib/navigation'
 import { formatRelativeTime } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 const ROOT_LABEL = 'Workflows'
 const ROW_MIME = 'application/x-sim-workspace-workflow-rows'

@@ -13,6 +13,7 @@ import {
   integrationViewParsers,
   serializeIntegrationView,
 } from '@/lib/organizations/integrations-search-params'
+import { toast } from '@/lib/toast/sink'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import { IntegrationDetails } from '@/platform/embedded/app/(shell)/integrations/_components/integration-details/integration-details'
@@ -32,7 +33,6 @@ import {
 } from '@/platform/embedded/lib/data/integrations'
 import { integrationPath } from '@/platform/embedded/lib/data/integrations-model'
 import { GENERIC_SECRETS_SEGMENT } from '@/platform/shared/integrations'
-import { toast } from '@/platform/shared/toast'
 
 const LOADING_CONNECTIONS = 'Loading your connections'
 const LOADING_CONNECTION = 'Loading connection'

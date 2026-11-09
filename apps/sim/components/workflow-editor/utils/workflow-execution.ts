@@ -29,8 +29,7 @@ import {
   saveExecutionPointer,
   useTerminalConsoleStore,
 } from '@/stores/terminal'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useWorkflowRegistry, useWorkflowStore } from '@/stores/workflows/state-port'
 
 const logger = createLogger('workflow-execution-utils')
 const BLOCK_FAILURE_DISPLAY_MESSAGE = 'Block failed'

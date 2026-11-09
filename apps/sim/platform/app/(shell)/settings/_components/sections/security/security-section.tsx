@@ -9,6 +9,7 @@ import { Modal } from '@sim/emcn/modal'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   FieldStack,
@@ -26,7 +27,6 @@ import {
 } from '@/platform/lib/data/security'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { plural } from '@/platform/shared/plural'
-import { toast } from '@/platform/shared/toast'
 
 type SessionPolicy = NonNullable<ReturnType<typeof useOrganizationSessionPolicy>['data']>
 

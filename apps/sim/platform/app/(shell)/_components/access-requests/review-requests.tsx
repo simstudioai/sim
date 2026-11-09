@@ -8,6 +8,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSurface } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
+import { toast } from '@/lib/toast/sink'
 import styles from '@/platform/app/(shell)/_components/access-requests/access-requests.module.css'
 import { ReviewModal } from '@/platform/app/(shell)/_components/access-requests/review-modal'
 import {
@@ -16,7 +17,6 @@ import {
   useRequestsUrl,
   useReviewList,
 } from '@/platform/lib/data/requests'
-import { toast } from '@/platform/shared/toast'
 
 interface ReviewRequestsProps {
   organizationId: string

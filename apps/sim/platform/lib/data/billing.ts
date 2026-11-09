@@ -31,6 +31,7 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import { isUsageLimitDraftDirty, resolveUsageLimitDraft } from '@/lib/billing/usage-limit-draft'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { toast } from '@/lib/toast/sink'
 import { useAwsMarketplaceBilling } from '@/hooks/queries/aws-marketplace'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
@@ -41,7 +42,6 @@ import type { PlatformOrganization } from '@/platform/lib/data/organization-mode
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
 import { queryView } from '@/platform/shared/query-view'
 import { formatCalendarDate, formatInstantDate } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('PlatformBilling')
 

@@ -8,6 +8,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { useQueryStates } from 'nuqs'
+import { toast } from '@/lib/toast/sink'
 import { PasswordsView } from '@/platform/app/(shell)/settings/_components/sections/browser/passwords-view'
 import {
   browserParsers,
@@ -27,7 +28,6 @@ import {
   useDesktopPreferenceMutation,
   useDesktopRead,
 } from '@/platform/lib/data/desktop'
-import { toast } from '@/platform/shared/toast'
 
 interface DataRow {
   kind: BrowserDataKind

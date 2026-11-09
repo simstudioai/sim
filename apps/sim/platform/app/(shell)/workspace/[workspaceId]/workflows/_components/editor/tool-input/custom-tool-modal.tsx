@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { toast } from '@/lib/toast/sink'
 import { CustomToolCodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-code-field'
 import {
   CUSTOM_TOOL_DELETE_DESCRIPTION,
@@ -28,7 +29,6 @@ import {
   useUpdateCustomTool,
   validateCustomToolSchema,
 } from '@/platform/lib/data/workflow-editor/tool-input'
-import { toast } from '@/platform/shared/toast'
 
 type ToolSection = 'schema' | 'code'
 

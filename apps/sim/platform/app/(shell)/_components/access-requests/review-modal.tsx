@@ -8,9 +8,9 @@ import { DetailsField } from '@sim/emcn/field/details-field'
 import { Modal } from '@sim/emcn/modal'
 import { PropertyList } from '@sim/emcn/property-list'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
+import { toast } from '@/lib/toast/sink'
 import styles from '@/platform/app/(shell)/_components/access-requests/access-requests.module.css'
 import { useRequestReview } from '@/platform/lib/data/requests'
-import { toast } from '@/platform/shared/toast'
 
 interface ReviewModalProps {
   organizationId: string

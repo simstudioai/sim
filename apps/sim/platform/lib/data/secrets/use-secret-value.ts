@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSession } from '@/lib/auth/client'
+import { toast } from '@/lib/toast/sink'
 import type { WorkspaceCredential } from '@/hooks/queries/credentials'
 import {
   usePersonalEnvironment,
@@ -11,7 +12,6 @@ import {
   useUpsertWorkspaceEnvironment,
   useWorkspaceEnvironment,
 } from '@/hooks/queries/environment'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('SecretValue')
 

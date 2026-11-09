@@ -1,4 +1,3 @@
-import { toast } from '@sim/emcn-legacy'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -12,6 +11,7 @@ import {
   type VerifyPublicFileOtpResponse,
   verifyPublicFileOtpContract,
 } from '@/lib/api/contracts/public-shares'
+import { toast } from '@/lib/toast/sink'
 import { invalidateWorkspaceFileReads } from '@/hooks/queries/utils/workspace-file-cache'
 
 export const FILE_SHARE_STALE_TIME = 30 * 1000

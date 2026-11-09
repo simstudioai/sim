@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail.module.css'
 import {
   partitionSettledFailures,
@@ -21,7 +22,6 @@ import {
   useWorkspaceCredentialMembers,
   useWorkspacePermissionsQuery,
 } from '@/platform/lib/data/secrets'
-import { toast } from '@/platform/shared/toast'
 
 const MEMBER_ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },

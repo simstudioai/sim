@@ -36,8 +36,7 @@ import {
 } from '@/lib/mothership/tools/client/resource-display'
 import { getToolDisplayTitle, mvDisplayVerb } from '@/lib/mothership/tools/display'
 import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming-args'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { useWorkflowRegistry, useWorkflowStore } from '@/stores/workflows/state-port'
 
 export const FILE_SUBAGENT_ID = 'file'
 

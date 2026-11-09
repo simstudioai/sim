@@ -29,7 +29,7 @@
 import { workflowRegistryStoreMock } from '@sim/testing/mocks/workflow-registry-store.mock'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
+vi.mock('@/stores/workflows/state-port', () => workflowRegistryStoreMock)
 
 vi.unmock('@/stores/execution/store')
 vi.unmock('@/stores/execution/types')

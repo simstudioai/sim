@@ -7,27 +7,10 @@ import { ProviderModelsLoader } from '@/components/workspace-providers/provider-
 import { SettingsLoader } from '@/components/workspace-providers/settings-loader'
 import { WorkspacePermissionsProvider } from '@/components/workspace-providers/workspace-permissions-provider'
 import { WorkflowScopeSync } from '@/components/workspace-providers/workspace-scope-sync'
-import { connectWorkflowState } from '@/platform/lib/data/shims/workflow-state/connection'
-import { useVariablesStore } from '@/stores/variables/store'
-import { useWorkflowDiffStore } from '@/stores/workflow-diff/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
-import { useSubBlockStore } from '@/stores/workflows/subblock/store'
-import {
-  canApplyDraftSnapshot,
-  captureDraftVersions,
-  syncLocalDraftFromServer,
-} from '@/stores/workflows/sync-local-draft'
-import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+import { connectWorkflowStores } from '@/stores/workflows/state-port/connect-stores'
 
-// The shared socket provider reads workflow state through bridges; from here on they read these.
-connectWorkflowState({
-  registry: useWorkflowRegistry,
-  workflow: useWorkflowStore,
-  subBlock: useSubBlockStore,
-  diff: useWorkflowDiffStore,
-  variables: useVariablesStore,
-  draft: { canApplyDraftSnapshot, captureDraftVersions, syncLocalDraftFromServer },
-})
+// The socket provider and chat read workflow state through its port; from here on, the real stores.
+connectWorkflowStores()
 
 interface WorkflowWorkspaceProvidersProps {
   workspaceId: string

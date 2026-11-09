@@ -1,13 +1,13 @@
 'use client'
 
 import { MEMORY_SPACE_NAME_MAX_LENGTH } from '@/lib/api/contracts/memory-spaces'
+import { toast } from '@/lib/toast/sink'
 import {
   useCreateMemorySpace,
   useMemorySpaces,
   useSelectMemorySpace,
 } from '@/hooks/queries/memory-spaces'
 import { queryView } from '@/platform/shared/query-view'
-import { toast } from '@/platform/shared/toast'
 
 export function useKnowledgeGraphs(organizationId: string) {
   const spaces = useMemorySpaces(organizationId)

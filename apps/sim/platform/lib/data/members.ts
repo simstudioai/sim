@@ -11,6 +11,7 @@ import { isEnterprise } from '@/lib/billing/plan-helpers'
 import { buildInviteFailureMessage } from '@/lib/invitations/error-messages'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { toast } from '@/lib/toast/sink'
 import {
   useRemoveWorkspaceMember,
   useSendWorkspaceInvitations,
@@ -38,7 +39,6 @@ import { platformHref } from '@/platform/lib/navigation'
 import { toRosterModel, toSeatsModel, type WorkspacePermission } from '@/platform/shared/members'
 import { plural } from '@/platform/shared/plural'
 import { useBrowserTimezone } from '@/platform/shared/preferences'
-import { toast } from '@/platform/shared/toast'
 
 export type SettingsRoster = OrganizationRoster
 

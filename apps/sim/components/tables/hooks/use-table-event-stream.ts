@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { backoffWithJitter } from '@sim/utils/retry'
 import { useQueryClient } from '@tanstack/react-query'
@@ -15,6 +14,7 @@ import type {
   TableRow,
 } from '@/lib/table'
 import type { TableEvent, TableEventEntry } from '@/lib/table/events'
+import { toast } from '@/lib/toast/sink'
 import {
   consumeInitiatedExport,
   downloadExportResult,

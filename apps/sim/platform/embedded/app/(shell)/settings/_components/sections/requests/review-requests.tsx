@@ -9,6 +9,7 @@ import { SettingsRow, SettingsSurface } from '@sim/emcn/settings-section'
 import { StatusTag } from '@sim/emcn/status'
 import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { Switch } from '@sim/emcn/switch'
+import { toast } from '@/lib/toast/sink'
 import { ACCESS_REQUEST_MAX_SEARCH_LENGTH } from '@/ee/access-requests/lib/constants'
 import { HeadingRow } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import styles from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/requests.module.css'
@@ -19,7 +20,6 @@ import {
   useRequestsUrl,
   useReviewList,
 } from '@/platform/embedded/lib/data/requests'
-import { toast } from '@/platform/shared/toast'
 
 interface ReviewRequestsProps {
   organizationId: string

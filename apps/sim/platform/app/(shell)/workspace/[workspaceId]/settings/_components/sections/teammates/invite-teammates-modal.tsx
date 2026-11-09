@@ -5,6 +5,7 @@ import { SelectField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
+import { toast } from '@/lib/toast/sink'
 import {
   buildInviteFailureMessage,
   isEnterprise,
@@ -17,7 +18,6 @@ import {
   type WorkspacePermission,
 } from '@/platform/lib/data/teammates'
 import { plural } from '@/platform/shared/plural'
-import { toast } from '@/platform/shared/toast'
 
 const ACCESS_OPTIONS = [
   { value: 'admin', label: 'Admin' },

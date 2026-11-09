@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { create } from 'zustand'
+import { useVariablesStore, useWorkflowStore } from '@/stores/workflows/state-port'
 import type {
   OperationQueueState,
   QueuedOperation,
@@ -11,22 +12,12 @@ import type {
 
 function isBlockStillPresent(blockId: string | undefined): boolean {
   if (!blockId) return true
-  try {
-    const { useWorkflowStore } = require('@/stores/workflows/workflow/store')
-    return Boolean(useWorkflowStore.getState().blocks[blockId])
-  } catch {
-    return true
-  }
+  return Boolean(useWorkflowStore.getState().blocks[blockId])
 }
 
 function isVariableStillPresent(variableId: string | undefined): boolean {
   if (!variableId) return true
-  try {
-    const { useVariablesStore } = require('@/stores/variables/store')
-    return Boolean(useVariablesStore.getState().variables[variableId])
-  } catch {
-    return true
-  }
+  return Boolean(useVariablesStore.getState().variables[variableId])
 }
 
 const logger = createLogger('OperationQueue')

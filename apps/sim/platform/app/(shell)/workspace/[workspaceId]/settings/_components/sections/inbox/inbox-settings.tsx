@@ -9,6 +9,7 @@ import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import { FieldStack, Muted } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import {
   type InboxConfig,
@@ -19,7 +20,6 @@ import {
   useUpdateInboxAddress,
   useUpdateInboxSecretPolicy,
 } from '@/platform/lib/data/inbox'
-import { toast } from '@/platform/shared/toast'
 
 const SECRET_SCOPE_OPTIONS = [
   { value: 'all', label: 'All secrets' },

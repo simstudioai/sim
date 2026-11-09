@@ -1,13 +1,13 @@
 import { useSyncExternalStore } from 'react'
+import type { WorkflowRegistry } from '@/stores/workflows/registry/types'
 import {
   connectedWorkflowState,
   onWorkflowStateConnected,
-} from '@/platform/lib/data/shims/workflow-state/connection'
-import type { WorkflowRegistry } from '@/stores/workflows/registry/types'
+} from '@/stores/workflows/state-port/connection'
 
 type RegistryView = Pick<WorkflowRegistry, 'activeWorkflowId' | 'hydration' | 'setActiveWorkflow'>
 
-/** Before the Workflows tab loads, a chat run tool still names the workflow it targets here. */
+/** Before the real stores connect, a chat run tool still names the workflow it targets here. */
 const IDLE: RegistryView = {
   activeWorkflowId: null,
   hydration: { phase: 'idle', workspaceId: null, workflowId: null, requestId: null, error: null },
@@ -34,10 +34,10 @@ function subscribe(notify: () => void) {
 }
 
 /**
- * Stands in for `stores/workflows/registry/store` where the shared socket provider and the chat hook
- * and its run tool import it. The real store pulls in every block and trigger, and one of those two is on every
- * Platform page. This reads an idle registry until the Workflows tab connects the real one, then
- * follows it, so a room is never joined outside that tab. Only the fields those importers read exist.
+ * The workflow registry as the shared socket provider, the chat hook, its run tool and the execution
+ * store read it. The real store pulls in every block and trigger, and one of those modules is on
+ * every page, so they read this port instead: an idle registry until `connectWorkflowStores` hands
+ * it the real one, then the real one. Only the fields those importers read exist.
  */
 export function useWorkflowRegistry<T>(selector: (state: RegistryView) => T): T {
   return useSyncExternalStore(

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { HEX_COLOR_REGEX } from '@/lib/branding'
+import { toast } from '@/lib/toast/sink'
 import {
   findInvalidWhitelabelColor,
   normalizeHexInput,
@@ -16,7 +17,6 @@ import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { queryView } from '@/platform/shared/query-view'
-import { toast } from '@/platform/shared/toast'
 
 const TEXT_FIELDS = [
   'brandName',

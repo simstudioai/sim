@@ -9,6 +9,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   ResourceList,
   SectionStack,
@@ -37,7 +38,6 @@ import {
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 import { plural } from '@/platform/shared/plural'
-import { toast } from '@/platform/shared/toast'
 
 const LANGUAGE_LABEL = { python: 'Python', javascript: 'JavaScript' } as const
 

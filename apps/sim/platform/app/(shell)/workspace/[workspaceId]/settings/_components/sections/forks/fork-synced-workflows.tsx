@@ -5,6 +5,7 @@ import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsRow } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import { FieldStack, Muted } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import {
   CheckboxTree,
@@ -18,7 +19,6 @@ import {
   type WorkflowFolder,
   type WorkflowMetadata,
 } from '@/platform/lib/data/forks'
-import { toast } from '@/platform/shared/toast'
 
 /**
  * The sidebar's folder structure for the workspace's DEPLOYED workflows, the only ones that sync.

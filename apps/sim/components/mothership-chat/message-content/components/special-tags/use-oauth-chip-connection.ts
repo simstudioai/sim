@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { toast } from '@sim/emcn-legacy'
 import { useCredentialWorkspaceId } from '@/components/mothership-chat/message-content/components/special-tags/credential-workspace-context'
 import {
   addOAuthChatAttemptToAuthorizeUrl,
@@ -24,6 +23,7 @@ import { getDesktopBridge } from '@/lib/desktop'
 import { isAppSurfacePath } from '@/lib/navigation/paths'
 import type { OAuthProvider } from '@/lib/oauth/types'
 import { parseProvider, providerIdsForService } from '@/lib/oauth/utils'
+import { toast } from '@/lib/toast/sink'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 
 const OAUTH_POPUP_WINDOW_NAME = 'sim-oauth-connect'

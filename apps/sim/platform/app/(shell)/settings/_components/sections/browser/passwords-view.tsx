@@ -7,6 +7,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { Modal } from '@sim/emcn/modal'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { toast } from '@/lib/toast/sink'
 import {
   DetailHeader,
   ResourceList,
@@ -23,7 +24,6 @@ import {
   getDesktopBridge,
   useSettingsSearch,
 } from '@/platform/lib/data/desktop'
-import { toast } from '@/platform/shared/toast'
 
 function pluralize(count: number, noun: string): string {
   return `${count} ${count === 1 ? noun : `${noun}s`}`

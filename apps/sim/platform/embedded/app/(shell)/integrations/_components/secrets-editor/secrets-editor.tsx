@@ -24,6 +24,7 @@ import { setRecordValue } from '@/lib/core/utils/records'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { useOrganization } from '@/lib/organizations/provider'
+import { toast } from '@/lib/toast/sink'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import {
@@ -48,7 +49,6 @@ import {
 import styles from '@/platform/embedded/app/(shell)/integrations/_components/secrets-editor/secrets-editor.module.css'
 import { useGenericSecrets } from '@/platform/embedded/lib/data/generic-secrets'
 import { memberSecretMetadata } from '@/platform/embedded/lib/integrations/metadata.generated'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('SecretsManager')
 const MAX_ENV_PASTE_ROWS = 10_000

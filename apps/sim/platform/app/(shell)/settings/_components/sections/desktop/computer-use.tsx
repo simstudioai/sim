@@ -6,12 +6,12 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { Tooltip } from '@sim/emcn/tooltip'
+import { toast } from '@/lib/toast/sink'
 import {
   type ComputerUseAppPermission,
   getDesktopBridge,
   useComputerUseStatus,
 } from '@/platform/lib/data/desktop'
-import { toast } from '@/platform/shared/toast'
 
 const ACTION_LABELS: Record<string, string> = {
   status: 'Checking permissions',

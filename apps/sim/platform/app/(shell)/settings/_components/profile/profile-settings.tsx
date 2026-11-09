@@ -7,8 +7,8 @@ import { Icon } from '@sim/emcn/icon'
 import { IdentityButton } from '@sim/emcn/identity-button'
 import { Modal } from '@sim/emcn/modal'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { toast } from '@/lib/toast/sink'
 import { useInterfacePreferences } from '@/platform/app/(shell)/_components/session/interface-preferences'
-import { toast } from '@/platform/shared/toast'
 
 const NAME_MAX_LENGTH = 100
 const MAX_PICTURE_BYTES = 5 * 1024 * 1024

@@ -13,6 +13,7 @@ import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
+import { toast } from '@/lib/toast/sink'
 import {
   DirectoryBack,
   DirectoryHeading,
@@ -45,7 +46,6 @@ import {
   validateSkillName,
 } from '@/platform/lib/data/skills'
 import { resourceDetailParams } from '@/platform/lib/integrations/center-navigation'
-import { toast } from '@/platform/shared/toast'
 
 type SkillDraft = Pick<ParsedSkill, 'name' | 'description' | 'content'>
 type SkillErrors = Partial<Record<keyof SkillDraft, string>>

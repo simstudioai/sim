@@ -5,10 +5,10 @@ import { Button, IconButton } from '@sim/emcn/button'
 import { Input } from '@sim/emcn/field/inputs'
 import { Modal } from '@sim/emcn/modal'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { toast } from '@/lib/toast/sink'
 import { DetailHeader } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { CredentialIcon } from '@/platform/app/(shell)/settings/_components/sections/browser/credential-icon'
 import { type BrowserCredential, getDesktopBridge } from '@/platform/lib/data/desktop'
-import { toast } from '@/platform/shared/toast'
 
 const MASK_PLACEHOLDER = '•'.repeat(12)
 

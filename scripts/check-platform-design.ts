@@ -288,6 +288,11 @@ const serverSeamHelpers = new Set([
   'lib/workspaces/permissions/utils',
   'lib/workspaces/seed-workspace-list',
 ])
+/**
+ * Application modules every Platform file may import, views included, because the Platform and the
+ * legacy app share them: the toast sink each root connects its own toaster to.
+ */
+const platformHostModules: ReadonlySet<string> = new Set(['lib/toast/sink'])
 const isServerOnly = (file: string) => /^import 'server-only'$/m.test(read(file))
 /** A seam module that runs only on the server, or a test, which no bundle includes. */
 const runsOnServer = (file: string) => /\.test\.tsx?$/.test(file) || isServerOnly(file)
@@ -568,7 +573,6 @@ const seamHelpers = new Set([
   'tools/metadata',
   'tools/normalize',
   // The chat hook and the pure modules around it: Platform drives it rather than forking it.
-  // `next.config.ts` replaces what they would otherwise reach for a canvas with a named shim.
   'hooks/use-seed-deployment-shape',
   'hooks/use-settings-browser-navigation',
   'hooks/use-settings-leave-links',
@@ -781,6 +785,7 @@ const seamHelpers = new Set([
   'stores/workflows/subblock/store',
   'stores/workflows/utils',
   'stores/workflows/workflow/store',
+  'stores/workflows/state-port/connect-stores',
   'tools/params',
   'triggers/registry',
   // The block editor's sub-block logic, re-exported by `lib/data/workflow-editor` for its inputs.
@@ -1044,7 +1049,10 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
   if (
     (target &&
       (((target === 'platform' || target.startsWith(platform)) && !inPlatform) ||
-        (inPlatform && !target.startsWith(platform) && !isSystem(target))) &&
+        (inPlatform &&
+          !target.startsWith(platform) &&
+          !isSystem(target) &&
+          !platformHostModules.has(target))) &&
       !seamTarget &&
       !hostMountsWhatItShips &&
       !inEmbedded &&
@@ -1519,29 +1527,14 @@ function resolveSource(file: string, specifier: string): string | null {
 
 /**
  * Walks what the seam actually bundles, past the modules it names directly. A `.tsx` under `@/app`
- * or `@/components` is legacy UI riding in behind a hook. `next.config.ts` replaces its canvas
- * modules at build time, so the walk stops at them the same way, and skips a workflow state module
- * where a bridged importer names it, as webpack does. The workflow seam is walked under its own
- * exception; every other seam must reach neither the block, tool or trigger registry nor legacy views.
- * A server-only module is not walked from: it never reaches a browser bundle.
+ * or `@/components` is legacy UI riding in behind a hook, and so is any import of the legacy EMCN
+ * barrel. The workflow seam is walked under its own exception; every other seam must reach neither
+ * the block, tool or trigger registry nor legacy views, which holds the real workflow stores behind
+ * `stores/workflows/state-port`. A server-only module is not walked from: it never reaches a browser
+ * bundle.
  */
 function checkSeamClosure() {
   if (!existsSync(path.join(app, dataSeam))) return
-  const config = 'platform/next.config.ts'
-  const configSource = existsSync(path.join(app, config)) ? read(config) : ''
-  /** The requests a named array in `next.config.ts` lists, or the files it names. */
-  const configList = (name: string, pattern: RegExp) => {
-    const body =
-      configSource.match(new RegExp(`const ${name} = \\[([\\s\\S]*?)\\] as const`))?.[1] ?? ''
-    return new Set([...body.matchAll(pattern)].map(([, value]) => value))
-  }
-  const replaced = configList('canvasShims', /\['(@\/[^']+)', 'lib\/data\/shims\//g)
-  // Replaced only where these importers name them, so other importers still reach the real module.
-  const bridged = configList('workflowStateBridges', /\['(@\/[^']+)', 'lib\/data\/shims\//g)
-  const bridgedImporters = configList('bridgedImporters', /'([^']+\.tsx?)'/g)
-  const legacyShimmed =
-    existsSync(path.join(app, config)) &&
-    /resolve\.alias\[['"]@sim\/emcn-legacy\$['"]\]\s*=\s*emcnShim/.test(read(config))
   const roots = [...files(dataSeam)].filter(
     (file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file) && !isServerOnly(file)
   )
@@ -1559,42 +1552,11 @@ function checkSeamClosure() {
     const queue = [...seeds]
     for (let file = queue.pop(); file; file = queue.pop()) {
       for (const specifier of runtimeImports(file)) {
-        if (replaced.has(specifier)) continue
-        if (bridgedImporters.has(file) && bridged.has(specifier)) continue
         // Logic modules name glyphs from the legacy icon set (block configs, table column types,
         // enrichments). Icons are not chrome, and zone views never import them directly.
         if (specifier === '@sim/emcn-legacy/icons') continue
         if (/^@sim\/emcn-legacy(?:\/|$)/.test(specifier)) {
-          if (specifier !== '@sim/emcn-legacy' || !legacyShimmed)
-            report(
-              'seam-closure',
-              file,
-              `Legacy EMCN bypasses the toast-only runtime adapter: ${specifier}`
-            )
-          else {
-            const source = ts.createSourceFile(file, read(file), ts.ScriptTarget.Latest)
-            for (const statement of source.statements) {
-              if (
-                !ts.isImportDeclaration(statement) ||
-                !ts.isStringLiteral(statement.moduleSpecifier) ||
-                statement.moduleSpecifier.text !== specifier ||
-                isTypesOnly(statement)
-              )
-                continue
-              const bindings = statement.importClause?.namedBindings
-              if (
-                statement.importClause?.name ||
-                !bindings ||
-                !ts.isNamedImports(bindings) ||
-                bindings.elements.some(
-                  (binding) =>
-                    !binding.isTypeOnly &&
-                    !['toast', 'useToast'].includes((binding.propertyName ?? binding.name).text)
-                )
-              )
-                report('seam-closure', file, 'The legacy adapter exposes only toast and useToast')
-            }
-          }
+          report('seam-closure', file, `The data seam bundles legacy EMCN: ${specifier}`)
           continue
         }
         const target = resolveSource(file, specifier)
