@@ -19,23 +19,30 @@ export const organizationKnowledgeMcpContract = defineRouteContract({
 
 const LIVE_SEARCH_MCP_DEFAULT_TOP_K = { federated: 30, scoped: 20 } as const
 
+const HAS_UTC_OFFSET = /(Z|[+-]\d{2}:\d{2})$/
+
 /**
- * A datetime field without the regex its JSON Schema would otherwise carry beside
- * `format: "date-time"`. Every tools/list call resends the schema, and parsing still rejects a
- * string that is not an ISO datetime with an offset.
+ * An ISO datetime filter that reads a value without an offset as UTC, which is what a client
+ * resends after that value is rejected, so the call succeeds on the first try. Its JSON Schema
+ * keeps `format: "date-time"` and the field's description but not the regex, which every
+ * tools/list call would resend.
  */
-function withoutPatternInJsonSchema<T extends z.ZodType>(schema: T): T {
-  return schema.meta({ pattern: undefined })
+function mcpDateFilter(field: z.ZodOptional<z.ZodString>) {
+  return z.iso
+    .datetime({ offset: true, local: true })
+    .transform((value) => (HAS_UTC_OFFSET.test(value) ? value : `${value}Z`))
+    .optional()
+    .meta({ pattern: undefined, description: field.description })
 }
 
 const { startDate, endDate, modifiedAfter, modifiedBefore } = workspaceSearchFiltersSchema.shape
 
 /** The date filters of the Search MCP tools, as their tools/list schema presents them. */
 const mcpDateFilterFields = {
-  startDate: withoutPatternInJsonSchema(startDate),
-  endDate: withoutPatternInJsonSchema(endDate),
-  modifiedAfter: withoutPatternInJsonSchema(modifiedAfter),
-  modifiedBefore: withoutPatternInJsonSchema(modifiedBefore),
+  startDate: mcpDateFilter(startDate),
+  endDate: mcpDateFilter(endDate),
+  modifiedAfter: mcpDateFilter(modifiedAfter),
+  modifiedBefore: mcpDateFilter(modifiedBefore),
 }
 
 export const liveSearchMcpSchema = searchWorkspaceInputFieldsSchema

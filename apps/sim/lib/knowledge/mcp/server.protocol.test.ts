@@ -98,6 +98,26 @@ describe('Search MCP protocol', () => {
       expect(read.content).toEqual([
         { type: 'text', text: expect.stringContaining('Read evidence') },
       ])
+      const offsetless = await client.callTool({
+        name: 'search',
+        arguments: {
+          query: 'release',
+          startDate: '2026-09-28T00:00:00',
+          endDate: '2026-10-08T00:00',
+          modifiedAfter: '2026-09-01T08:00:00-07:00',
+        },
+      })
+      expect(offsetless.isError).not.toBe(true)
+      expect(mocks.liveSearch.mock.lastCall?.[0].input.filters).toMatchObject({
+        startDate: '2026-09-28T00:00:00Z',
+        endDate: '2026-10-08T00:00Z',
+        modifiedAfter: '2026-09-01T08:00:00-07:00',
+      })
+      const notADate = await client.callTool({
+        name: 'search',
+        arguments: { query: 'release', startDate: '2026-09-28' },
+      })
+      expect(notADate.isError).toBe(true)
     } finally {
       await client.close()
       await server.close()
