@@ -10,7 +10,9 @@ export async function checkCredentialFields(
   testInfo: TestInfo,
   readClipboard: () => Promise<string>
 ) {
-  await page.goto(fixtureUrl(`/integrations/gmail?state=full&theme=${theme}`, origin))
+  await page.goto(fixtureUrl(`/integrations/gmail?state=full&theme=${theme}`, origin), {
+    waitUntil: 'commit',
+  })
   await waitUntilHydrated(page)
   await page
     .getByRole('region', { name: 'Connected credentials', exact: true })

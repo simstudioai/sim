@@ -128,7 +128,11 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
         app.evaluate(({ clipboard }) => clipboard.readText())
       )
     }
-    await page.goto(fixtureUrl('/home?theme=dark&state=full', desktopOrigin))
+    // An Electron window's `load` can wait on a request the page never finishes; the document's
+    // commit and then its hydration are what the next step needs.
+    await page.goto(fixtureUrl('/home?theme=dark&state=full', desktopOrigin), {
+      waitUntil: 'commit',
+    })
     await waitUntilHydrated(page)
     await expect(page.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'inset')
     await expect(
@@ -154,7 +158,7 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
     const position = await nav.evaluate((element) => element.scrollTop)
     expect(position).toBeGreaterThan(0)
     await chatLink.click()
-    await expect(page).toHaveURL(/\/chat\/weekly-review\?/)
+    await page.waitForURL(/\/chat\/weekly-review\?/)
     expect(await nav.evaluate((element) => element.scrollTop)).toBe(position)
     await page.getByRole('button', { name: 'Open chat panel' }).press('Enter')
     const panel = page.getByRole('complementary', { name: 'Chat panel' })
