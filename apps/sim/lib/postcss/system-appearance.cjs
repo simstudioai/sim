@@ -1,5 +1,5 @@
 /** Reuse explicit Platform theme rules for system appearance before React hydrates. */
-module.exports = {
+const plugin = () => ({
   postcssPlugin: 'sim-system-appearance',
   OnceExit(root, { postcss }) {
     root.walkRules(/\[data-(?:platform-ui|emcn)\]\[data-theme=/, (rule) => {
@@ -20,4 +20,7 @@ module.exports = {
       }
     })
   },
-}
+})
+plugin.postcss = true
+
+module.exports = plugin
