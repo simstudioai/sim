@@ -72,10 +72,8 @@
   background: var(--ui-hover);
 }
 
-:is(.button, .iconButton):is(:enabled, a[href]):not(
-    [data-disabled],
-    [aria-disabled="true"]
-  ):active {
+:is(.button, .iconButton):is(:enabled, a[href]):not([data-disabled], [aria-disabled="true"]):active,
+.button[aria-pressed="true"] {
   background: var(--ui-selected);
 }
 
@@ -145,11 +143,15 @@
   }
 }
 
-.chip:where(a[href], :enabled):hover,
+/* A draggable row renders as a div with role button, so it takes the same states as a button row. */
+.chip:where(a[href], :enabled, [role="button"]:not([aria-disabled="true"])):hover,
 .chipRow:where(:hover, :has([aria-expanded="true"])) > .chip {
   background: var(--ui-hover);
 }
-.chip:where(a[href], :enabled):active,
+.chip[draggable="true"]:active {
+  cursor: grabbing;
+}
+.chip:where(a[href], :enabled, [role="button"]:not([aria-disabled="true"])):active,
 .chip:is(
     [aria-pressed="true"],
     [aria-expanded="true"],
