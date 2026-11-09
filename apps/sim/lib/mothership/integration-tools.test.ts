@@ -22,18 +22,18 @@ vi.mock('@/blocks/registry-maps', () => ({
   },
 }))
 
+vi.mock('@/tools/tool-ids', () => ({
+  getLatestToolIds: () => ['svc_send_v2', 'newsvc_do_v1'],
+}))
+
 import {
   filterExposedIntegrationTools,
   getExposedIntegrationTools,
   resetExposedIntegrationToolsCache,
 } from '@/lib/integrations/tool-catalog'
-import { tools } from '@/tools/registry'
+import { getToolMetadata } from '@/tools/metadata'
 
-Object.assign(tools as Record<string, unknown>, {
-  svc_send_v1: { name: 'Send (legacy)' },
-  svc_send_v2: { name: 'Send' },
-  newsvc_do_v1: { name: 'Do' },
-})
+vi.mocked(getToolMetadata).mockImplementation((id) => ({ id, params: {} }))
 
 const allowAllOwners = () => true
 const allowAllTools = () => true
@@ -89,11 +89,5 @@ describe('getExposedIntegrationTools', () => {
     )
 
     expect(visible.some((t) => t.toolId === 'svc_send_v2')).toBe(false)
-  })
-
-  it('exposes only the latest version of each tool', () => {
-    const exposed = getExposedIntegrationTools()
-    expect(exposed.some((t) => t.toolId === 'svc_send_v1')).toBe(false)
-    expect(exposed.some((t) => t.toolId === 'svc_send_v2')).toBe(true)
   })
 })

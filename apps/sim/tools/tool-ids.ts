@@ -54,6 +54,17 @@ function getLatestByBaseName(): Map<string, string> {
   return latestByBaseName
 }
 
+let latestToolIds: readonly string[] | null = null
+
+/**
+ * The newest version of every tool, in registry declaration order: the same ids, in the same
+ * order, as `getLatestVersionTools` over the registry in `@/tools/utils`. Frozen.
+ */
+export function getLatestToolIds(): readonly string[] {
+  latestToolIds ??= Object.freeze([...getLatestByBaseName().values()])
+  return latestToolIds
+}
+
 /** Every registered tool id, including versioned variants. Frozen — copy before sorting. */
 export function getToolIds(): readonly string[] {
   return toolIds

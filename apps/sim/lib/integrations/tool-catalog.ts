@@ -1,10 +1,10 @@
+import { stripVersionSuffix } from '@sim/utils/string'
 import type { BlockVisibilityState } from '@/lib/core/config/block-visibility'
 import type { IsToolAllowed } from '@/lib/permission-groups/operation-access'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import { isHiddenUnder } from '@/blocks/visibility/context'
-import { tools as toolRegistry } from '@/tools/registry'
-import type { ExecutableToolConfig } from '@/tools/types'
-import { getLatestVersionTools, stripVersionSuffix } from '@/tools/utils'
+import { getToolMetadata, type ToolMetadata } from '@/tools/metadata'
+import { getLatestToolIds } from '@/tools/tool-ids'
 
 export interface ExposedIntegrationToolOwner {
   service: string
@@ -19,7 +19,12 @@ export interface ExposedIntegrationTool extends ExposedIntegrationToolOwner {
    * callable id are all this exact value, matching the block's tools.access.
    */
   toolId: string
-  config: ExecutableToolConfig
+  /**
+   * Serializable metadata, so settings and product surfaces can read the catalog without the
+   * executable registry. Code that builds schemas from the executable config looks it up by
+   * `toolId`.
+   */
+  config: ToolMetadata
   /** Service directory name, e.g. "gmail". */
   service: string
   /** Operation stem within the service (used for the VFS path filename), e.g. "read". */
@@ -76,14 +81,12 @@ export function getExposedIntegrationTools(): ExposedIntegrationTool[] {
   }
 
   const exposed: ExposedIntegrationTool[] = []
-  const seen = new Set<string>()
-  for (const [toolId, config] of Object.entries(getLatestVersionTools(toolRegistry))) {
+  for (const toolId of getLatestToolIds()) {
     const baseName = stripVersionSuffix(toolId)
     const owners = toolToBlocks.get(toolId) ?? toolToBlocks.get(baseName)
-    if (!owners || owners.length === 0) continue
+    const config = getToolMetadata(toolId)
+    if (!owners || owners.length === 0 || !config) continue
     const owner = owners.find((candidate) => !candidate.preview) ?? owners[0]
-    if (seen.has(baseName)) continue
-    seen.add(baseName)
     const prefix = `${owner.service}_`
     const operation = baseName.startsWith(prefix) ? baseName.slice(prefix.length) : baseName
     exposed.push({
@@ -128,7 +131,7 @@ export function filterExposedIntegrationTools(
   })
 }
 
-/** Test-only: clears the memoized set so registry changes are picked up. */
+/** Test-only: clears the memoized set so changed tool or block fixtures are picked up. */
 export function resetExposedIntegrationToolsCache(): void {
   cached = null
 }
