@@ -32,6 +32,7 @@ const CHECK_MODE = process.argv.includes('--check')
 
 interface SunsetBlock {
   name: string
+  hideFromToolbar?: boolean
   sunset?: { status: string; replacedBy?: string }
 }
 
@@ -160,6 +161,9 @@ async function main(): Promise<void> {
   const registeredNames = Object.entries(registry)
     .map(([type, block]): [string, string] => [type, block.name])
     .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+  const hiddenTypes = Object.keys(registry)
+    .filter((type) => registry[type]?.hideFromToolbar === true)
+    .sort()
   const artifacts = [
     { path: OUTPUT_PATH, source: render(successors) },
     {
@@ -174,7 +178,14 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = ${JSON.stringify(Ob
  * Every registered block type's own name, retired types included and nothing added: exactly what
  * \`getBlock(type)?.name\` reads, for client modules that must not load the block registry.
  */
-export const REGISTERED_BLOCK_NAMES: Readonly<Record<string, string>> = ${JSON.stringify(Object.fromEntries(registeredNames), null, 2)}\n`,
+export const REGISTERED_BLOCK_NAMES: Readonly<Record<string, string>> = ${JSON.stringify(Object.fromEntries(registeredNames), null, 2)}
+
+/**
+ * Every registered block type whose config sets \`hideFromToolbar\`: exactly what
+ * \`getBlock(type)?.hideFromToolbar === true\` reads for a registered type, for the access-control
+ * exemption, which every integration listing judges in the browser without the block registry.
+ */
+export const HIDDEN_FROM_TOOLBAR_BLOCK_TYPES: readonly string[] = ${JSON.stringify(hiddenTypes, null, 2)}\n`,
     },
   ]
 

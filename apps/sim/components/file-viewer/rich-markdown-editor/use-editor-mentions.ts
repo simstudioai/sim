@@ -6,19 +6,21 @@ import type { Editor } from '@tiptap/react'
 import type { MentionMenuData } from '@/components/file-viewer/rich-markdown-editor/mention/mention-store'
 import type { MentionItem } from '@/components/file-viewer/rich-markdown-editor/mention/types'
 import { INTEGRATION_MENTIONS } from '@/components/file-viewer/rich-markdown-editor/mention-items'
+import { isIntegrationUsable } from '@/lib/integrations/access'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
 import { useSkills } from '@/hooks/queries/skills'
 import { useTablesList } from '@/hooks/queries/tables'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkspaceFileFolders } from '@/hooks/queries/workspace-file-folders'
 import { useWorkspaceFilePickerOptions } from '@/hooks/queries/workspace-files'
+import { useIntegrationAccess } from '@/hooks/use-integration-access'
 
 const NO_ITEMS: MentionItem[] = []
 
 /**
  * The workspace entities the `@` menu offers, from each resource's own query. Nothing is fetched
  * until the menu first opens. Files are not listed whole: the most recent, then the server's
- * matches for what is typed after the `@`.
+ * matches for what is typed after the `@`. Integrations are those the viewer may use in the workspace.
  */
 function useMentionItems(workspaceId: string, active: boolean, fileQuery: string): MentionMenuData {
   const ws = active ? workspaceId : undefined
@@ -33,6 +35,15 @@ function useMentionItems(workspaceId: string, active: boolean, fileQuery: string
   const knowledgeBases = useKnowledgeBasesQuery(ws, { enabled: active })
   const workflows = useQuery({ ...getWorkflowListQueryOptions(wsStr), enabled: active })
   const skills = useSkills(wsStr)
+  const { getAccess } = useIntegrationAccess(workspaceId, { enabled: active })
+  /** Only integrations the viewer can use now; none until the policy loads, so the list fails closed. */
+  const integrations = useMemo(
+    () =>
+      active
+        ? INTEGRATION_MENTIONS.filter((item) => isIntegrationUsable(getAccess(item.id)))
+        : NO_ITEMS,
+    [active, getAccess]
+  )
   const items = useMemo(() => {
     if (!active) return NO_ITEMS
     const next: MentionItem[] = []
@@ -54,7 +65,7 @@ function useMentionItems(workspaceId: string, active: boolean, fileQuery: string
       next.push({ kind: 'workflow', id: workflow.id, label: workflow.name, group: 'Workflows' })
     for (const skill of skills.data ?? [])
       next.push({ kind: 'skill', id: skill.id, label: skill.name, group: 'Skills' })
-    next.push(...INTEGRATION_MENTIONS)
+    next.push(...integrations)
     return next
   }, [
     active,
@@ -65,6 +76,7 @@ function useMentionItems(workspaceId: string, active: boolean, fileQuery: string
     knowledgeBases.data,
     workflows.data,
     skills.data,
+    integrations,
   ])
   const pending = active && filesPending
   return useMemo(() => ({ items, filesPending: pending }), [items, pending])
