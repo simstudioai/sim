@@ -6,7 +6,8 @@ import { ScrollArea } from '@sim/emcn/scroll-area'
 import { compareStrings } from '@sim/utils/string'
 import { workspacePath } from '@/lib/navigation/paths'
 import styles from '@/app/(product)/_components/chat/panel/workspace-resource/workspace-resource.module.css'
-import { useFolderMap, useWorkflowMap } from '@/platform/lib/data/folders'
+import { useFolderMap } from '@/platform/lib/data/folders'
+import { useWorkflowMap } from '@/platform/lib/data/workflow-editor'
 
 interface FolderResourceProps {
   workspaceId: string

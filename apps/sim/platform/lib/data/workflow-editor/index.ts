@@ -64,6 +64,7 @@ export {
 export { useCodeUndoRedo } from '@/hooks/use-code-undo-redo'
 export { useCollaborativeWorkflow } from '@/hooks/use-collaborative-workflow'
 export { useWebhookManagement } from '@/hooks/use-webhook-management'
+export { useWorkflowPreviewState } from '@/platform/lib/data/workflow-editor/preview-state'
 export type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 export { usePanelEditorSearchStore, usePanelEditorStore } from '@/stores/panel/editor/store'
 export { useWorkflowRegistry } from '@/stores/workflows/registry/store'

@@ -4,7 +4,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { FailureNotice } from '@sim/emcn/status'
 import styles from '@/app/(product)/_components/chat/panel/workspace-resource/workspace-resource.module.css'
 import { WorkflowPreview } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview'
-import { useWorkflowPreviewState } from '@/platform/lib/data/workflow-preview'
+import { useWorkflowPreviewState } from '@/platform/lib/data/workflow-editor'
 
 interface WorkflowResourceProps {
   workspaceId: string
