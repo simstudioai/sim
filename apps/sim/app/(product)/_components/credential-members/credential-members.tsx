@@ -11,7 +11,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
-import styles from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail.module.css'
+import styles from '@/app/(product)/_components/credential-members/credential-members.module.css'
 import {
   partitionSettledFailures,
   resolveAddEmail,
@@ -21,7 +21,7 @@ import {
   useUpsertWorkspaceCredentialMember,
   useWorkspaceCredentialMembers,
   useWorkspacePermissionsQuery,
-} from '@/platform/lib/data/secrets'
+} from '@/platform/lib/data/credentials'
 
 const MEMBER_ROLE_OPTIONS = [
   { value: 'member', label: 'Member' },
@@ -39,7 +39,7 @@ function credentialRoleLockReason(roleSource: 'explicit' | 'workspace-admin' | u
     : null
 }
 
-interface SecretMembersProps {
+interface CredentialMembersProps {
   credentialId: string
   credentialName: string
   isAdmin: boolean
@@ -48,15 +48,15 @@ interface SecretMembersProps {
 }
 
 /**
- * The secret's active members: role, removal for admins and leaving on the viewer's own row. The
+ * A workspace credential's active members: role, removal for admins and leaving on the viewer's own row. The
  * last explicit admin cannot be demoted, removed or leave.
  */
-export function SecretMembers({
+export function CredentialMembers({
   credentialId,
   credentialName,
   isAdmin,
   onLeft,
-}: SecretMembersProps) {
+}: CredentialMembersProps) {
   const { data: session } = useSession()
   const { data: members = [], isPending } = useWorkspaceCredentialMembers(credentialId)
   const upsertMember = useUpsertWorkspaceCredentialMember()
@@ -174,7 +174,7 @@ interface AddPeopleModalProps {
 }
 
 /**
- * Grants existing workspace members access to the secret with a role. Each add is an idempotent
+ * Grants existing workspace members access to the credential with a role. Each add is an idempotent
  * upsert; on a partial failure only the people still to add stay in the field.
  */
 export function AddPeopleModal({

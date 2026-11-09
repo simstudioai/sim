@@ -2,8 +2,9 @@
  * @vitest-environment node
  *
  * A workspace's Integrations directory lists apps by the same access verdict the workflow editor's
- * pickers apply. Failure modes: an app the permission group restricts appearing at all; an app this
- * deployment cannot connect offering a connection; an OAuth method whose service is unconfigured
+ * pickers apply. Failure modes: an app the permission group denies appearing at all; an app it
+ * restricts but lets the viewer request vanishing, or offering a connection; an app this
+ * deployment cannot connect offering a connection; GitLab's personal token not offered; an OAuth method whose service is unconfigured
  * opening a sign-in that cannot finish; and another app's or a secret's credential counted as
  * connected.
  */
@@ -64,8 +65,35 @@ function verdicts(
 }
 
 describe('projectWorkspaceApp', () => {
-  it.each(['requestable', 'denied'] as const)('hides an app the policy %s', (access) => {
-    expect(projectWorkspaceApp(gmail, verdicts(access))).toBeNull()
+  it('hides an app the policy denies', () => {
+    expect(projectWorkspaceApp(gmail, verdicts('denied'))).toBeNull()
+  })
+
+  it('lists an app the viewer may request as restricted, with no way to connect it', () => {
+    const app = projectWorkspaceApp(gmail, verdicts('requestable'))
+    expect(app?.access).toBe('restricted')
+    expect(app?.connections).toEqual([])
+  })
+
+  it("offers GitLab's personal access token", () => {
+    const gitlab: IntegrationCatalogEntry = {
+      ...gmail,
+      id: 'gitlab',
+      type: 'gitlab',
+      connections: [
+        {
+          id: 'gitlab-personal-token',
+          kind: 'personal_token',
+          label: 'Add personal token',
+          providerId: 'gitlab',
+          setup: 'fields',
+          fields: [],
+        },
+      ],
+    }
+    expect(
+      projectWorkspaceApp(gitlab, verdicts('available'))?.connections.map(({ kind }) => kind)
+    ).toEqual(['personal_token'])
   })
 
   it('lists an unconfigured app with no way to connect it', () => {

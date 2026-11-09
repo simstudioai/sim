@@ -1,4 +1,17 @@
+export { useSession } from '@/lib/auth/client'
 export type { ResourceScope } from '@/lib/core/resource-scope'
+export { partitionSettledFailures, resolveAddEmail } from '@/lib/workspaces/sharing'
+export {
+  useCreateWorkspaceCredential,
+  useLeaveCredential,
+  useRemoveWorkspaceCredentialMember,
+  useUpdateWorkspaceCredential,
+  useUpsertWorkspaceCredentialMember,
+  useWorkspaceCredential,
+  useWorkspaceCredentialMembers,
+} from '@/hooks/queries/credentials'
+export { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
+export { useCredentialDetailForm } from '@/platform/lib/data/secrets/use-credential-detail-form'
 export { useAtlassianServiceAccount } from './atlassian-service-account'
 export { checkEnvVarTrigger, useEnvVarSuggestions } from './env-var-suggestions'
 export { useGoogleServiceAccount } from './google-service-account'

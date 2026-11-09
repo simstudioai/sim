@@ -26,6 +26,11 @@ export interface AppSummary {
   people?: readonly IntegrationPerson[]
   peopleTotal?: number
   scope?: IntegrationScope
+  /**
+   * Set for an app the viewer's permission group withholds but lets them ask for: the row reads
+   * Restricted and opens the access request instead of the app.
+   */
+  requestAccess?: () => void
 }
 
 interface ResourceIdentity {
