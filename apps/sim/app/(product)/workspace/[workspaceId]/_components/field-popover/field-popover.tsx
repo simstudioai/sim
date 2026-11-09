@@ -18,6 +18,7 @@ import {
   size,
   type VirtualElement,
 } from '@floating-ui/dom'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { createPortal } from 'react-dom'
 import styles from '@/app/(product)/workspace/[workspaceId]/_components/field-popover/field-popover.module.css'
 
@@ -91,6 +92,7 @@ export function FieldPopover({
   children,
 }: FieldPopoverProps) {
   const popup = useRef<HTMLDivElement>(null)
+  const popupEdges = useScrollEdges<HTMLDivElement>('vertical', { viewport: popup })
   const [container, setContainer] = useState<HTMLElement | null>(null)
   const dismiss = useRef(onDismiss)
   dismiss.current = onDismiss
@@ -155,7 +157,7 @@ export function FieldPopover({
   if (!open || !container) return null
   return createPortal(
     <div
-      ref={popup}
+      ref={popupEdges}
       role='listbox'
       aria-label={label}
       className={styles.popup}

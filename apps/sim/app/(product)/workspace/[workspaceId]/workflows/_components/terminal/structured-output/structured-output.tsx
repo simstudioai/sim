@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react'
 import { Icon } from '@sim/emcn/icon'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { StatusTag } from '@sim/emcn/status'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/terminal/structured-output/structured-output.module.css'
@@ -591,12 +592,14 @@ export const StructuredOutput = memo(function StructuredOutput({
   const prevDataJsonRef = useRef<string | null>(null)
   const prevIsErrorRef = useRef(isError)
 
+  const measureEdges = useScrollEdges<HTMLDivElement>()
   const setRefs = useCallback(
     (element: HTMLDivElement | null) => {
       setViewport(element)
       contentRef.current = element
+      return measureEdges(element)
     },
-    [contentRef]
+    [contentRef, measureEdges]
   )
 
   // A new output (not a re-render of the same value) opens at its first level again.

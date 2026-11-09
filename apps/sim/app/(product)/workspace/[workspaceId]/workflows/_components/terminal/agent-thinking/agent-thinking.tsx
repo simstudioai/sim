@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Disclosure } from '@sim/emcn/disclosure'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/terminal/agent-thinking/agent-thinking.module.css'
 
 /** Within this distance of the end, new thinking keeps the reader at the bottom. */
@@ -23,6 +24,7 @@ export function AgentThinking({ thinking, isStreaming }: AgentThinkingProps) {
   const wasStreaming = useRef(isStreaming)
   const reopenFromTop = useRef(false)
   const body = useRef<HTMLDivElement>(null)
+  const bodyEdges = useScrollEdges<HTMLDivElement>('vertical', { viewport: body })
 
   useEffect(() => {
     const streamed = wasStreaming.current
@@ -63,7 +65,7 @@ export function AgentThinking({ thinking, isStreaming }: AgentThinkingProps) {
         }}
       >
         <div
-          ref={body}
+          ref={bodyEdges}
           className={styles.body}
           data-streaming={isStreaming || undefined}
           data-type='T048'

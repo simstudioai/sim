@@ -2,6 +2,7 @@
 
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { escapeRegExp } from '@sim/utils/string'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import Prism from 'prismjs'
@@ -299,12 +300,14 @@ export function CodeViewer({
     }
   }, [currentMatchIndex, query, matchCount, matchOffsets, visibleLineIndices, virtualizer])
 
+  const measureEdges = useScrollEdges<HTMLDivElement>()
   const setRefs = useCallback(
     (element: HTMLDivElement | null) => {
       setViewport(element)
       contentRef.current = element
+      return measureEdges(element)
     },
-    [contentRef]
+    [contentRef, measureEdges]
   )
 
   const items = virtualizer.getVirtualItems()
