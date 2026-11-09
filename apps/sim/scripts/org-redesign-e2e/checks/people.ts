@@ -15,7 +15,13 @@ import {
   url,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
-import { mainNav, navLabels, routePrefetched } from '@/scripts/org-redesign-e2e/locators'
+import {
+  mainNav,
+  navLabels,
+  pageTurn,
+  routePrefetched,
+  searchField,
+} from '@/scripts/org-redesign-e2e/locators'
 
 const directoryPath = `${org.people}?view=directory`
 
@@ -31,13 +37,19 @@ export async function peoplePhaseChecks() {
       assert.deepEqual(await navLabels(page), ['Search', 'People', 'Integrations'])
     })
   })
-  await check('loading rows sit on the page gutter the heading and content use', async () => {
+  // Loading paints nothing (platform/AGENTS.md): People has no loading.tsx, so the shell keeps the
+  // page it leaves on screen until People's own read lands.
+  await check('People keeps Search on screen while it loads, then replaces it', async () => {
     await withSession(MEMBER, async ({ page }) => {
       const hold = createDeferred<void>()
+      const requested = createDeferred<void>()
       const isPeoplePayload = (address: URL) =>
         address.pathname.endsWith('/people') && address.searchParams.has('_rsc')
       await page.route(isPeoplePayload, async (route) => {
-        if (route.request().headers()['next-router-prefetch'] === undefined) await hold.promise
+        if (route.request().headers()['next-router-prefetch'] === undefined) {
+          requested.resolve()
+          await hold.promise
+        }
         await route.continue()
       })
       const prefetched = routePrefetched(page, isPeoplePayload)
@@ -46,16 +58,17 @@ export async function peoplePhaseChecks() {
       await link.hover()
       await prefetched()
       await link.click()
-      const rows = page.getByRole('status', { name: 'Loading people…' })
-      await expect(rows).toBeVisible()
-      const heading = await page.getByRole('heading', { name: 'People', exact: true }).boundingBox()
-      const loading = await rows.boundingBox()
-      hold.resolve()
-      assert.ok(heading && loading, 'Nothing to measure')
-      assert.ok(
-        Math.abs(heading.x - loading.x) <= 1,
-        `Loading rows start at ${loading.x}, the heading at ${heading.x}`
-      )
+      await requested.promise
+      await pageTurn(page)
+      const heading = page.getByRole('heading', { name: 'People', exact: true })
+      try {
+        await expect(searchField(page)).toBeVisible()
+        await expect(heading).toHaveCount(0)
+        await expect(page.getByRole('status', { name: /loading/i })).toHaveCount(0)
+      } finally {
+        hold.resolve()
+      }
+      await expect(heading).toBeVisible()
     })
   })
   await check(
