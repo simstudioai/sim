@@ -8,6 +8,7 @@ import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { ConnectorApiKeyField } from '@/app/(product)/_components/connector-api-key-field/connector-api-key-field'
 import { OAuthConnectModal } from '@/app/(product)/_components/oauth-connect-modal/oauth-connect-modal'
 import { ServiceAccountModal } from '@/app/(product)/_components/service-account-modal/service-account-modal'
 import {
@@ -18,7 +19,6 @@ import {
   Muted,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
-import { ApiKeyField } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/api-key-field'
 import { ConnectorAccess } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/connector-access'
 import { ConnectorConfigFields } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/connector-config-fields'
 import { ContentCredentialField } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/content-credential-field'
@@ -233,7 +233,7 @@ export function SourceSetupForm({
                   />
                 )}
                 {isApiKeyMode ? (
-                  <ApiKeyField
+                  <ConnectorApiKeyField
                     label={apiKeyConfig?.label || 'API Key'}
                     value={form.apiKeyValue}
                     onChange={form.setApiKeyValue}

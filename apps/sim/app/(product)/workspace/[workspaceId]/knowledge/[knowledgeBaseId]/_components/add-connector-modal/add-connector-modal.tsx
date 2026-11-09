@@ -11,10 +11,10 @@ import { Modal } from '@sim/emcn/modal'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice } from '@sim/emcn/status'
+import { ConnectorApiKeyField } from '@/app/(product)/_components/connector-api-key-field/connector-api-key-field'
 import { OAuthConnectModal } from '@/app/(product)/_components/oauth-connect-modal/oauth-connect-modal'
 import { ServiceAccountModal } from '@/app/(product)/_components/service-account-modal/service-account-modal'
 import styles from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/add-connector-modal/add-connector-modal.module.css'
-import { ConnectorApiKeyField } from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/add-connector-modal/connector-api-key-field'
 import {
   ConnectorAccessField,
   ContentCredentialField,
