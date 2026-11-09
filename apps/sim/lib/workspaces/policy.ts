@@ -254,7 +254,7 @@ export async function lockWorkspaceCreationContext(
   let billedAccountUserId = userId
   if (organizationId && currentMembership?.kind === 'team') {
     if (isBillingEnabled) {
-      if (!currentMembership || !organizationWorkspaceCreationRoleAllowed(currentMembership.role)) {
+      if (!organizationWorkspaceCreationRoleAllowed(currentMembership.role)) {
         throw new WorkspaceCreationContextChangedError()
       }
       const currentSubscription = await getOrganizationSubscription(organizationId, {
