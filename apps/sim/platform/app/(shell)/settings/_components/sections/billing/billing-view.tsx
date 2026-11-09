@@ -7,8 +7,17 @@ import { SettingsRow, SettingsSection, SettingsSurface } from '@sim/emcn/setting
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { Tooltip } from '@sim/emcn/tooltip'
+import {
+  BooleanRow,
+  SavedSettingsSection,
+} from '@/platform/app/(shell)/_components/settings-parts/saved-settings'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
+import { AwsMarketplaceSubscription } from '@/platform/app/(shell)/settings/_components/sections/billing/aws-marketplace'
 import styles from '@/platform/app/(shell)/settings/_components/sections/billing/billing.module.css'
+import {
+  CreditUsage,
+  CreditUsageGlance,
+} from '@/platform/app/(shell)/settings/_components/sections/billing/credit-usage'
 import { useBillingSection, useUsageLimitField } from '@/platform/lib/data/billing'
 
 const ON_DEMAND_LABEL = 'Allow usage to go past included usage'
@@ -38,11 +47,15 @@ function UsageLimit(props: Parameters<typeof useUsageLimitField>[0]) {
   )
 }
 
-export function BillingView({ organization }: Pick<SettingsSectionProps, 'organization'>) {
+export function BillingView({
+  organization,
+  subpath,
+}: Pick<SettingsSectionProps, 'organization' | 'subpath'>) {
   const billing = useBillingSection(organization)
   if (billing.status === 'pending') return null
   if (billing.status === 'error')
     return <FailureNotice message={billing.error} onRetry={billing.retry} />
+  if (subpath[0] === 'credit-usage') return <CreditUsage available={billing.showCreditUsage} />
   return (
     <>
       <SettingsSurface>
@@ -89,6 +102,15 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
             </Tooltip>
           </SettingsRow>
         </SettingsSection>
+      )}
+      {billing.showUsageNotifications && (
+        <SavedSettingsSection title='Usage notifications'>
+          <BooleanRow
+            setting='billingUsageNotificationsEnabled'
+            label='Email me when I reach 80% usage'
+            description='Sent when usage reaches 80% of the monthly limit'
+          />
+        </SavedSettingsSection>
       )}
       {billing.showSubscription && (
         <SettingsSection title='Subscription'>
@@ -138,6 +160,14 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
           )}
         </SettingsSection>
       )}
+      <AwsMarketplaceSubscription
+        organizationId={organization.organization.id}
+        title='AWS Marketplace subscription'
+      />
+      <AwsMarketplaceSubscription
+        organizationId={null}
+        title='AWS Marketplace subscription on your account'
+      />
       {billing.invoicesFailed && (
         <FailureNotice message='Couldn’t load invoices.' onRetry={billing.retryInvoices} />
       )}
@@ -185,6 +215,7 @@ export function BillingView({ organization }: Pick<SettingsSectionProps, 'organi
           )}
         </SettingsSection>
       )}
+      {billing.showCreditUsage && <CreditUsageGlance />}
     </>
   )
 }

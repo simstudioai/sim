@@ -3,12 +3,16 @@ import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_comp
 import { BillingView } from '@/platform/app/(shell)/settings/_components/sections/billing/billing-view'
 import { prefetchBillingSummary } from '@/platform/lib/data/prefetch-billing'
 
-export default async function BillingSection({ organization, fixture }: SettingsSectionProps) {
-  if (fixture) return <BillingView organization={organization} />
+export default async function BillingSection({
+  organization,
+  fixture,
+  subpath,
+}: SettingsSectionProps) {
+  if (fixture) return <BillingView organization={organization} subpath={subpath} />
   const state = await prefetchBillingSummary(organization.organization.id)
   return (
     <HydrationBoundary state={state}>
-      <BillingView organization={organization} />
+      <BillingView organization={organization} subpath={subpath} />
     </HydrationBoundary>
   )
 }
