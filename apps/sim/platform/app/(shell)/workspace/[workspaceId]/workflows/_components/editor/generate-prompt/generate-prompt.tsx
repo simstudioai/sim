@@ -2,19 +2,26 @@
 
 import { useRef, useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/custom-tool-modal.module.css'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/generate-prompt/generate-prompt.module.css'
 
 interface GeneratePromptProps {
+  /** A generation is starting; Generate waits for it. */
   isLoading: boolean
   isStreaming: boolean
   onSubmit: (prompt: string) => void
+  placeholder?: string
 }
 
 /**
- * Generate, above a custom tool's editor: a quiet action that swaps into an inline prompt and
- * hands the trimmed prompt to the editor's AI stream.
+ * Generate: a quiet action that swaps into an inline prompt and hands the trimmed prompt to an AI
+ * stream, as a field's label row and the custom tool editor both offer it.
  */
-export function GeneratePrompt({ isLoading, isStreaming, onSubmit }: GeneratePromptProps) {
+export function GeneratePrompt({
+  isLoading,
+  isStreaming,
+  onSubmit,
+  placeholder = 'Describe what to generate...',
+}: GeneratePromptProps) {
   const [active, setActive] = useState(false)
   const [prompt, setPrompt] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -45,13 +52,13 @@ export function GeneratePrompt({ isLoading, isStreaming, onSubmit }: GeneratePro
     )
 
   return (
-    <span className={styles.generate}>
+    <span className={styles.prompt}>
       <input
         ref={inputRef}
-        className={styles.generateInput}
+        className={styles.input}
         data-type='T060'
-        aria-label='Describe what to generate'
-        placeholder='Describe what to generate...'
+        aria-label={placeholder.replace(/\.+$/, '')}
+        placeholder={placeholder}
         value={isStreaming ? 'Generating...' : prompt}
         disabled={isStreaming}
         autoComplete='off'
