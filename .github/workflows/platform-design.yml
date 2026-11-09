@@ -14,6 +14,8 @@ on:
       - 'apps/sim/platform/docs/org-parity.md'
       - 'apps/sim/proxy.ts'
       - 'apps/sim/next.config.ts'
+      - 'apps/sim/turbo.json'
+      - 'apps/sim/lib/core/config/platform-fixtures.ts'
       - 'apps/sim/lib/api/contracts/**'
       - 'apps/sim/hooks/queries/**'
       - 'apps/sim/lib/mothership/chat/types.ts'
@@ -57,7 +59,7 @@ concurrency:
   group: platform-design-${{ github.ref }}
   cancel-in-progress: true
 
-# What the main app reads at build and start. Fixture servers never open the database; the live
+# What the main app reads at build and start. A fixture build never opens the database; the live
 # jobs point it at their own Postgres.
 env:
   NEXT_PUBLIC_APP_URL: 'http://localhost:3000'
@@ -106,13 +108,49 @@ jobs:
           compression-level: 0
           retention-days: 1
 
-  # The design suites against fixture data: the development server, started with
-  # SIM_PLATFORM_FIXTURES=1 by the Playwright config. A production build never serves fixtures.
+  # The main app as a fixture build, built once here for the browser and desktop jobs below.
+  # SIM_PLATFORM_FIXTURES=1 at build time inlines example data with no sign-in
+  # (`lib/core/config/platform-fixtures.ts`); the live build above, like every normal build, carries
+  # none. Its own Turbo cache, and turbo.json keys the build on the variable, so neither build can
+  # restore as the other.
+  fixture-build:
+    if: ${{ !inputs.live_only }}
+    runs-on: ${{ (vars.CI_PROVIDER == '' || vars.CI_PROVIDER == 'blacksmith') && 'blacksmith-16vcpu-ubuntu-2404' || 'linux-x64-8-core' }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          provider: ${{ vars.CI_PROVIDER }}
+          turbo-cache-key: turbo-cache-platform-fixtures
+      - name: Build the main app with example data
+        env:
+          NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
+          TURBO_CACHE_DIR: .turbo
+          NEXT_BUILD_SKIP_TYPE_CHECK: 'true'
+          SIM_PLATFORM_FIXTURES: '1'
+        run: bunx turbo run build --filter=@sim/app
+      - name: Package the build
+        run: >-
+          tar -I 'zstd -T0' -cf "$RUNNER_TEMP/fixture-build.tar.zst" -C apps/sim
+          --exclude .next/cache --exclude .next/trace --exclude '*.map' .next
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: platform-fixture-build
+          path: ${{ runner.temp }}/fixture-build.tar.zst
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1
+
+  # The design suites against the fixture build, which the Playwright config serves with
+  # `next start`.
   browser:
+    needs: fixture-build
     if: ${{ !inputs.live_only }}
     runs-on: ubuntu-24.04
-    # The development server's cold compile alone can take up to ten minutes.
-    timeout-minutes: 35
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
@@ -122,6 +160,11 @@ jobs:
           provider: github
       - run: bunx --no-install playwright install --with-deps --only-shell chromium
         working-directory: apps/sim
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: platform-fixture-build
+          path: ${{ runner.temp }}
+      - run: tar -I zstd -xf "$RUNNER_TEMP/fixture-build.tar.zst" -C apps/sim
       - run: bun run --cwd apps/sim test:platform:e2e
         env:
           PLATFORM_REPORT_PATH: ${{ runner.temp }}/platform-design/report.json
@@ -132,13 +175,15 @@ jobs:
           path: ${{ runner.temp }}/platform-design
           retention-days: 7
 
-  # The real Electron shell against the fixture development server. Native modules come from this
-  # runner's own install. The standard macOS runner's three cores cold-compile the development
-  # server for 17-40 minutes; the arm64 xlarge runner keeps the native-module cache compatible.
+  # The real Electron shell against the fixture build, served here with `next start` from the
+  # Linux build: the server bundles are JavaScript, and `.next/node_modules` links resolve to this
+  # runner's own install, native modules included. The arm64 runner matches desktop-e2e.yml's, so
+  # the native-module cache stays compatible.
   desktop:
+    needs: fixture-build
     if: ${{ !inputs.live_only }}
-    runs-on: macos-26-xlarge
-    timeout-minutes: 55
+    runs-on: macos-26
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
         with:
@@ -162,9 +207,14 @@ jobs:
         run: node "$(node -p "require.resolve('electron/install.js')")"
       - uses: ./.github/actions/desktop-native-cache
       - run: bun run --cwd apps/desktop build
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: platform-fixture-build
+          path: ${{ runner.temp }}
+      # macOS tar's `-I` names a file list, so the archive is decompressed through a pipe.
+      - run: zstd -dc "$RUNNER_TEMP/fixture-build.tar.zst" | tar -xf - -C apps/sim
       - run: bun run --cwd apps/sim test:platform:desktop
         env:
-          NODE_OPTIONS: '--no-warnings --max-old-space-size=6144'
           PLATFORM_DESKTOP_REPORT_PATH: ${{ runner.temp }}/platform-desktop/report.json
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()

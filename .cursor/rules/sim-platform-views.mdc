@@ -39,8 +39,11 @@ like that" is not one.
 
 ## Page gates
 
-Each page reads `resolvePlatformMode()` (`@/platform/lib/data/mode`) and loads the data seam with a
-dynamic import only in `live` mode. The shell (`_components/live-shell/live-shell.tsx`) already sent
+Fixture mode is a build-time constant. A page that renders example data tests
+`process.env.SIM_PLATFORM_FIXTURES === '1'` inline and loads fixture code with a dynamic import inside
+that branch, so a normal build drops it; it loads the data seam with a dynamic import on the live path.
+A page that only answers not found outside live data reads `resolvePlatformMode()`
+(`@/platform/lib/data/mode`). The shell (`_components/live-shell/live-shell.tsx`) already sent
 a signed-out viewer to sign-in and answered failed surface reads. `o/[organizationId]/layout.tsx` and
 `workspace/[workspaceId]/layout.tsx` authorize their resource and answer not found for a viewer
 without access; a page adds only its own gate (People's `requirePeopleAccess`, a Settings section's

@@ -1,9 +1,6 @@
 import { test as base, type Page } from '@playwright/test'
 import { fixtureOrigin } from '@/platform/checks/routes'
 
-/** How long a loaded page may take to hydrate on a busy runner before a check gives up on it. */
-const HYDRATION_TIMEOUT_MS = 60_000
-
 /** The parts of a React fiber the hydration check reads. */
 interface Fiber {
   child: Fiber | null
@@ -16,7 +13,9 @@ interface Fiber {
  * server-rendered markup awaiting hydration. The root commits first and each Suspense or Activity
  * boundary hydrates in a later pass, so the whole tree is walked for a boundary whose state still
  * holds its dehydrated markup. A press or pointer move on markup React has not hydrated reaches
- * no handler and is lost.
+ * no handler and is lost, and Playwright's actionability checks cannot see the difference: on a
+ * production build the live suite lost a tab click this way. The app exposes no hydration signal
+ * of its own, so this reads React's.
  */
 function isHydrated() {
   const key = Object.keys(document).find((name) => name.startsWith('__reactContainer$'))
@@ -46,10 +45,7 @@ function isHydrated() {
  * such as an Electron window's.
  */
 export async function waitUntilHydrated(page: Page) {
-  await page.waitForFunction(isHydrated, undefined, {
-    polling: 100,
-    timeout: HYDRATION_TIMEOUT_MS,
-  })
+  await page.waitForFunction(isHydrated, undefined, { polling: 100 })
 }
 
 async function waitForHydration(page: Page, appOrigin: string) {
