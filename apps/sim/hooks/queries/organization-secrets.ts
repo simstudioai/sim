@@ -1,8 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  type ConfigureSecretSourceBody,
+  configureSecretSourceContract,
   getOrganizationSecretsContract,
   getSecretSourceContract,
+  removeSecretSourceContract,
   type SaveOrganizationSecretsBody,
   saveOrganizationSecretsContract,
 } from '@/lib/api/contracts/organization-secrets'
@@ -19,6 +22,33 @@ export function useOrganizationSecretSource(organizationId: string) {
       requestJson(getSecretSourceContract, { params: { id: organizationId }, signal }),
     staleTime: ORGANIZATION_SECRET_STALE_TIME,
     enabled: Boolean(organizationId),
+  })
+}
+
+export function useConfigureOrganizationSecretSource(organizationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (body: ConfigureSecretSourceBody) =>
+      requestJson(configureSecretSourceContract, { params: { id: organizationId }, body }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(organizationSecretKeys.source(organizationId), data)
+      queryClient.removeQueries({ queryKey: organizationSecretKeys.environments(organizationId) })
+    },
+  })
+}
+
+export function useRemoveOrganizationSecretSource(organizationId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (sourceId: string) =>
+      requestJson(removeSecretSourceContract, {
+        params: { id: organizationId },
+        body: { sourceId },
+      }),
+    onSuccess: () => {
+      queryClient.setQueryData(organizationSecretKeys.source(organizationId), { source: null })
+      queryClient.removeQueries({ queryKey: organizationSecretKeys.environments(organizationId) })
+    },
   })
 }
 
