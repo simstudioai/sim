@@ -14,6 +14,7 @@ import type { auth } from '@/lib/auth'
 import { SessionContext, type SessionHookResult } from '@/lib/auth/session-context'
 import { isBillingEnabled, isOrganizationsEnabled, isSsoEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl, getBrowserOrigin } from '@/lib/core/utils/urls'
+import { useHydrated } from '@/hooks/use-hydrated'
 
 function getAuthBaseUrl(): string {
   return getBrowserOrigin() ?? getBaseUrl()
@@ -44,14 +45,20 @@ export const client = createAuthClient({
   ],
 })
 
+/**
+ * The viewer's session. It reads as pending until the calling component has hydrated, even when
+ * the server seeded it: views key browser storage by the viewer, which the server cannot read, so
+ * a viewer revealed during hydration would paint server and client differently.
+ */
 export function useSession(): SessionHookResult {
   const ctx = useContext(SessionContext)
+  const hydrated = useHydrated()
   if (!ctx) {
     throw new Error(
       'SessionProvider is not mounted. Wrap your app with <SessionProvider> in app/_shell/site-root-layout.tsx.'
     )
   }
-  return ctx
+  return hydrated ? ctx : { ...ctx, data: null, isPending: true }
 }
 
 export const useActiveOrganization = isOrganizationsEnabled

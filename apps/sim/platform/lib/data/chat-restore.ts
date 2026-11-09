@@ -2,18 +2,12 @@
 
 import { useSession } from '@/lib/auth/client'
 import { useRestoredChatEntry } from '@/hooks/mothership-chat/use-restored-chat-entry'
-import { useHydrated } from '@/hooks/use-hydrated'
 
 const CHAT_PATHS = { agent: /^\/chat\/[^/]+$/, assistant: /^\/search\/chat\/[^/]+$/ }
 
-/**
- * The signed-in viewer's id, or undefined until hydration ends. The session is read only in the
- * browser, so the server never has it; a session that settles before a late route boundary hydrates
- * would otherwise render over empty server markup.
- */
+/** The signed-in viewer's id, or undefined until this component has hydrated. */
 export function useViewerId(): string | undefined {
-  const userId = useSession().data?.user?.id
-  return useHydrated() ? userId : undefined
+  return useSession().data?.user?.id
 }
 
 /**
