@@ -787,7 +787,6 @@ const seamHelpers = new Set([
   'components/workflow-editor/components/panel/components/editor/components/sub-block/components/combobox/missing-option',
   'components/workflow-editor/components/panel/components/editor/components/sub-block/components/credential-selector/microsoft-dataverse-policy',
   'components/workflow-editor/components/panel/components/editor/components/sub-block/components/dropdown/stale-selections',
-  'hooks/use-env-var-suggestions',
   'components/workflow-editor/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents',
   'components/workflow-editor/components/panel/components/editor/components/sub-block/components/tool-input/utils',
   'components/workflow-editor/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value',
@@ -1858,6 +1857,40 @@ for (const [name, props] of Object.entries(variants)) {
   }
 }
 checkSeamClosure()
+
+/**
+ * Every allowlist entry must still name a module, so an exception cannot outlive the file it was
+ * granted for. The entries name this repository's files, so a fixture root is not held to them.
+ */
+function checkAllowlists() {
+  if (root !== path.resolve(import.meta.dir, '..')) return
+  const allowlists: Record<string, Iterable<string>> = {
+    seamHelpers,
+    serverSeamHelpers,
+    platformHostModules,
+    seamClosureViews,
+    workflowClosureViews,
+    FRAMES_OUTSIDE_SURFACE,
+    LOCAL_TOKEN_OWNERS,
+  }
+  const candidates = (entry: string) =>
+    ['', '.ts', '.tsx', '/index.ts', '/index.tsx'].map((suffix) => path.join(app, entry + suffix))
+  for (const [name, entries] of Object.entries(allowlists)) {
+    for (const entry of entries) {
+      if (
+        !candidates(entry).some(
+          (candidate) => existsSync(candidate) && statSync(candidate).isFile()
+        )
+      )
+        report(
+          'stale-allowlist',
+          'scripts/check-platform-design.ts',
+          `${name} names ${entry}, which does not exist`
+        )
+    }
+  }
+}
+checkAllowlists()
 
 function compareRendered(a: string, b: string) {
   return a < b ? -1 : a > b ? 1 : 0
