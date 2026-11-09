@@ -233,7 +233,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
               disabled={refreshing}
               onClick={() => void refresh()}
             >
-              {refreshing ? 'Refreshing…' : 'Refresh'}
+              Refresh
             </Button>
             <Button
               size='compact'

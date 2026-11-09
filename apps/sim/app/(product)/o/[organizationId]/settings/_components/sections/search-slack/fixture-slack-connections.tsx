@@ -47,7 +47,6 @@ export function FixtureSlackConnections({
         retry: () => {},
         busy: false,
         canSetUp: Boolean(prospective),
-        updating: false,
         toggle: (bot) =>
           update((current) =>
             current.map((row) => (row.id === bot.id ? { ...row, enabled: !row.enabled } : row))

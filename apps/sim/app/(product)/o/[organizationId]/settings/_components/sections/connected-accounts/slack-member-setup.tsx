@@ -59,11 +59,7 @@ export function SlackMemberSetup({
                 }
         }
       >
-        {setup.checkingSetup ? (
-          <FieldFrame label='Sim Search app'>
-            <Muted>Checking the installed Slack app…</Muted>
-          </FieldFrame>
-        ) : setup.failure ? (
+        {setup.checkingSetup ? null : setup.failure ? (
           <FailureNotice
             title='Sim Search app'
             message={setup.failure.message}

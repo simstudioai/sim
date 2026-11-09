@@ -54,7 +54,6 @@ export interface AdminConsole {
     searching: boolean
     error?: string
     warning?: string
-    status?: string
     recent: DirectoryUser[]
     impersonating: boolean
     busy: (userId: string) => boolean

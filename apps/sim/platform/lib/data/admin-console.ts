@@ -152,11 +152,6 @@ export function useLiveAdminConsole(
       searching: users.isLoading,
       error: users.error ? getErrorMessage(users.error, 'Failed to fetch users') : undefined,
       warning,
-      status: impersonating
-        ? 'Switching to that user…'
-        : sendPasswordReset.isPending && sendPasswordReset.variables
-          ? `Sending a password reset email to ${sendPasswordReset.variables.email}...`
-          : undefined,
       recent: recent.data?.map(toDirectoryUser) ?? [],
       impersonating,
       busy: (userId) => pendingUserIds.has(userId),
