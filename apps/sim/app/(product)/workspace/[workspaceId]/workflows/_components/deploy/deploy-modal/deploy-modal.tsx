@@ -456,14 +456,6 @@ function DeployDialog({
           onSelect={(next) => {
             if (isDeployTab(next)) onTabChange(next)
           }}
-          actions={
-            <DeployStatus
-              isDeployed={isDeployed}
-              needsRedeployment={needsRedeployment}
-              attemptStatus={attemptStatus}
-              attemptError={attemptError}
-            />
-          }
           items={visibleTabs.map((entry) => ({
             id: entry.id,
             label: entry.label,
@@ -471,6 +463,11 @@ function DeployDialog({
               <div className={styles.pane}>
                 {entry.id === 'general' && (
                   <>
+                    <DeployStatus
+                      isDeployed={isDeployed}
+                      attemptStatus={attemptStatus}
+                      attemptError={attemptError}
+                    />
                     {deployError && <InlineNotice intent='danger' message={deployError} />}
                     {blockedMessage && <InlineNotice intent='warning' message={blockedMessage} />}
                     {versions.length > 0 ? (
