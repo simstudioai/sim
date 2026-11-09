@@ -262,8 +262,9 @@ export default function LoginPage({
       // Clear reset success message on successful login
       setResetSuccessMessage(null)
 
-      /** Fallback when better-auth does not redirect: a document navigation, like signup's, so the workspace shell initializes its own theme store. */
-      window.location.href = safeCallbackUrl
+      // better-auth's redirect plugin has already started this navigation; assigning it again
+      // cancels that request mid-flight.
+      if (!result.data.redirect) window.location.href = safeCallbackUrl
     } catch (err: any) {
       if (err.message?.includes('not verified') || err.code?.includes('EMAIL_NOT_VERIFIED')) {
         redirectToVerify(email)
