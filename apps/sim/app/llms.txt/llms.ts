@@ -81,6 +81,7 @@ export const SECURITY_LINES = [
     `${DOCS_URL}/platform/enterprise/access-control`,
     'Restrict features, models, blocks, and tools by workspace and member'
   ),
+  '',
   'On Sim Cloud, single sign-on, directory provisioning, audit logs, and permission groups are part of the Enterprise plan.',
 ]
 
