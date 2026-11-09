@@ -11,7 +11,7 @@ import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
  * portal and their subscription (cancelled or restored without an organization reference). A team
  * acts on the organization.
  */
-export function resolveBillingScope(organizationId: string, personal: boolean) {
+function resolveBillingScope(organizationId: string, personal: boolean) {
   return personal
     ? {
         personal: true as const,

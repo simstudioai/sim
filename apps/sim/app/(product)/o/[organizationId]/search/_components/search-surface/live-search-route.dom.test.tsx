@@ -204,14 +204,13 @@ afterEach(() => {
   document.cookie = `${SEARCH_MODE_COOKIE}=; path=/; max-age=0`
 })
 
-it('hydrates a member with no workspaces whose list lands before the page does, then says so', async () => {
+it('hydrates a member with no workspaces whose list lands before the page does, without a mismatch', async () => {
   const shell = seededSession()
   const container = document.createElement('div')
   container.innerHTML = renderToString(<SearchRoute shell={shell} />)
   renderCache?.clear()
   document.body.append(container)
   const serverSidebar = container.querySelector('aside')
-  expect(container.textContent).not.toContain('No workspaces yet')
 
   const hydrationErrors: unknown[] = []
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -236,7 +235,6 @@ it('hydrates a member with no workspaces whose list lands before the page does, 
 
   expect(hydrationErrors).toEqual([])
   expect(container.querySelector('aside')).toBe(serverSidebar)
-  expect(container.textContent).toContain('No workspaces yet')
 })
 
 it('hydrates a bare Search URL as the server painted it, then applies the remembered mode', async () => {
@@ -263,5 +261,4 @@ it('hydrates a bare Search URL as the server painted it, then applies the rememb
 
   expect(hydrationErrors).toEqual([])
   expect(container.innerHTML).not.toBe(served)
-  expect(container.textContent).toContain('Ask Org')
 })

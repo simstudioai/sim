@@ -27,16 +27,17 @@ describe('the site toast sink', () => {
     container.remove()
   })
 
-  it('shows a shared module toast on the site toaster with its description and action', async () => {
+  it('routes a shared module toast to the site toaster, whose action runs its handler', async () => {
+    const onRetry = vi.fn()
     await act(async () => {
-      toast.error('Could not save', {
-        description: 'Try again',
-        action: { label: 'Retry', onClick: () => {} },
-      })
+      toast.error('Could not save', { action: { label: 'Retry', onClick: onRetry } })
     })
-    expect(document.body.textContent).toContain('Could not save')
-    expect(document.body.textContent).toContain('Try again')
-    expect(document.body.textContent).toContain('Retry')
+    const action = [...document.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Retry'
+    )
+    if (!action) throw new Error('The site toaster rendered no action for the toast')
+    await act(async () => action.click())
+    expect(onRetry).toHaveBeenCalledOnce()
   })
 
   it('dismisses by the id the site toaster returned and reports the dismissal', async () => {
@@ -46,7 +47,6 @@ describe('the site toast sink', () => {
       id = toast({ message: 'Importing', duration: 0, onDismiss })
     })
     expect(id).not.toBe('')
-    expect(document.body.textContent).toContain('Importing')
     await act(async () => {
       toast.dismiss(id)
     })

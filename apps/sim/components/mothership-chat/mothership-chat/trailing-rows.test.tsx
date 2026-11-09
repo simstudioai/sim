@@ -1,10 +1,10 @@
 /**
  * @vitest-environment jsdom
  *
- * Messages on their way into a turn, or shown as not delivered, render after its answer. Failure
- * modes: the running answer loses its thinking indicator because a steered message trails it (an
- * empty one disappears altogether); the last answer's choices stop responding because a message
- * not delivered trails it; a real next message leaves the old answer's choices live.
+ * Messages shown as not delivered render after the answer they trail. Failure modes: the last
+ * answer's choices stop responding because a message not delivered trails it; a real next message
+ * leaves the old answer's choices live. A steered message trailing a running answer is the live
+ * chat suite's ("A message sent during a running turn steers it").
  */
 import { act } from 'react'
 import { integrationMatcherMock } from '@sim/testing/mocks/integration-matcher.mock'
@@ -22,13 +22,6 @@ vi.mock('@/lib/desktop', () => libDesktopMock)
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 
 const owner: ChatMessage = { id: 'turn', role: 'user', content: 'Count' }
-const steered: ChatMessage = {
-  id: 'steer',
-  role: 'user',
-  content: 'Stop at two',
-  steering: { streamId: 'turn' },
-  delivery: 'sending',
-}
 const notDelivered: ChatMessage = {
   id: 'failed',
   role: 'user',
@@ -114,15 +107,6 @@ function findOption(): HTMLElement {
 }
 
 describe('rows trailing an answer', () => {
-  it('keeps the thinking indicator on a running answer a steered message trails', async () => {
-    await renderChat(
-      [owner, { id: 'live', role: 'assistant', content: '', contentBlocks: [] }, steered],
-      true
-    )
-    expect(container.textContent).toContain('Stop at two')
-    expect(container.textContent).toContain('Thinking')
-  })
-
   it('keeps the last answer’s choices live under a message shown as not delivered', async () => {
     await renderChat([owner, choices, notDelivered], false)
     await act(async () => findOption().click())
