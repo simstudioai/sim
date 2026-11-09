@@ -94,8 +94,10 @@ const filesPath = workspacePath(workspaceId, 'files')
 const logsPath = workspacePath(workspaceId, 'logs')
 const tablePath = workspaceResourcePath(workspaceId, 'table', tableId)
 const workflowPath = workspaceResourcePath(workspaceId, 'workflow', workflowId)
-/** The EMCN compact control (`--spacing-app-control-sm`), the face every workflow action keeps. */
+/** The EMCN compact control (`--spacing-app-control-sm`): Run, Deploy and a filled icon's face. */
 const COMPACT_CONTROL_HEIGHT = 28
+/** The EMCN touch target (`--spacing-app-touch-target`), the box a quiet icon takes on touch. */
+const TOUCH_TARGET_SIZE = 44
 /** The shell swaps its sidebar for the navigation drawer at `48rem` and below. */
 const COMPACT_NAVIGATION_WIDTH = 768
 const startedAt = new Date().toISOString()
@@ -946,18 +948,13 @@ async function exerciseViewport(
         if (compact) {
           const send = page.getByRole('button', { name: 'Send message', exact: true })
           await expectContained(page, send)
+          // Emir's filled icon keeps its drawn face on touch; only its target grows past it.
           const bounds = await send.boundingBox()
           assert(
-            bounds && bounds.width >= 44 && bounds.height >= 44,
-            `Send must be touch-sized: ${JSON.stringify({
-              bounds,
-              media: await send.evaluate((element) => ({
-                viewportWidth: innerWidth,
-                coarse: matchMedia('(pointer: coarse)').matches,
-                minWidth: getComputedStyle(element).minWidth,
-                minHeight: getComputedStyle(element).minHeight,
-              })),
-            })}`
+            bounds &&
+              bounds.width === COMPACT_CONTROL_HEIGHT &&
+              bounds.height === COMPACT_CONTROL_HEIGHT,
+            `Send keeps its drawn face: ${JSON.stringify(bounds)}`
           )
           await chatComposer.press('Enter')
           await expect(chatComposer).toHaveValue('Keep this draft\n')
@@ -1407,18 +1404,28 @@ async function exerciseViewport(
           // The control bar precedes the panel, whose toolbar lists blocks by name.
           const run = editor.getByRole('button', { name: 'Run', exact: true }).first()
           const deploy = editor.getByRole('button', { name: 'Deploy', exact: true }).first()
-          for (const control of [actions, run, deploy]) {
+          for (const control of [run, deploy]) {
             await expectContained(page, control)
             const bounds = await control.boundingBox()
             assert(
               bounds && bounds.height === COMPACT_CONTROL_HEIGHT,
-              `Workflow action faces must stay compact: ${JSON.stringify(bounds)}`
+              `Run and Deploy keep the compact face: ${JSON.stringify(bounds)}`
             )
           }
+          // Emir's quiet icon takes the touch target as its box on touch, the compact face elsewhere.
+          await expectContained(page, actions)
+          const actionsSize = viewport.touch ? TOUCH_TARGET_SIZE : COMPACT_CONTROL_HEIGHT
+          const actionsBounds = await actions.boundingBox()
+          assert(
+            actionsBounds &&
+              actionsBounds.width === actionsSize &&
+              actionsBounds.height === actionsSize,
+            `Workflow actions takes ${actionsSize}px: ${JSON.stringify(actionsBounds)}`
+          )
           if (compact) {
             const bounds = await actions.boundingBox()
             assert(bounds)
-            await page.touchscreen.tap(bounds.x + bounds.width / 2, bounds.y - 5)
+            await page.touchscreen.tap(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
             await expect(
               page.getByRole('menuitem', { name: 'Auto layout', exact: true })
             ).toBeVisible()
