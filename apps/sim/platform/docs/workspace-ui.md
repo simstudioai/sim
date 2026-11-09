@@ -5,10 +5,10 @@ Open [a workspace](http://localhost:3125/workspace/it/dashboards?state=full) on 
 | Route under `/workspace/[workspaceId]` | UI owner |
 | --- | --- |
 | The workspace itself | Redirects to `dashboards` on example data and `workflows` on live data (`workspaceHome`). |
-| `dashboards` | The workspace's read-only production snapshot: metric groups, charts, a text summary, an agent roster and typed tables. |
+| `dashboards` | The workspace's read-only dashboard: example snapshots on fixtures, and the dashboard document Sim wrote on live data. |
 | `issues`, `issues/[issueId]` | Agent-proposed issues in four groups, and an issue's proposal, impact and evidence with decisions in its control bar. |
-| `changelog`, `changelog/[entryId]` | Applied changes by day, and a change's details with the workspace items it touched. |
-| `logs`, `logs/[runId]` | Runs with filters and sort, and a run's trace, selected step and payloads. |
+| `changelog`, `changelog/[entryId]` | Applied changes (live: published releases) by day, and a change's details with the workspace items it touched. |
+| `logs`, `logs/[runId]` | Runs with a period, filters and sort, and a run's trace, selected step and payloads, with Stop and Retry on live data. |
 | `tables`, `tables/[tableId]` | Live only. The workspace's tables and folders, and a table's grid. |
 | `files`, `files/[fileId]` | Live only. Files and folders, and a file's viewer and editor. |
 | `knowledge`, `knowledge/[knowledgeBaseId]`, `knowledge/[knowledgeBaseId]/[documentId]` | Live only. Knowledge bases and folders, a base's documents and connectors, and a document's chunks. |
@@ -28,9 +28,12 @@ Dashboard, Issues, Changelog and Logs are one family of Platform pages, styled f
 - **URL state.** Issues' search, the filters, sort and period live in the URL through nuqs (`lib/workspace-views.ts`). A row carries its list's view into the record's URL, so the Back chip returns to the same filtered, sorted list.
 - **Reading position.** A list remembers its scroll position when a click leaves it. Browser Back and Forward and the record's Back chip restore it; a tab or sidebar visit starts at the top. The router renders a history step inside the popstate dispatch and scrolls a link's destination into view itself, so the page restores on the next frame and marks the shell's scroller so the shell does not reset it.
 - **Paging.** Lists reveal records in pages as the reader nears the end, with no label, spinner or end marker; the shell's edge fade shows content continues. A revealed count survives Back.
-- **Refresh.** Pages refresh themselves; there is no refresh control. Dashboard and Changelog say when their data last updated, and new runs join Logs as they arrive. Example time is fixed, so on fixtures the update age and the list hold still; live data will refetch in the background through the adapters.
+- **Refresh.** Pages refresh themselves; there is no refresh control. On fixtures Dashboard and Changelog say when their data last updated, new runs join Logs as they arrive, and example time holds the age and the list still. On live data the dashboard's range rolls forward every minute, the changelog says when it was read, and Logs reads its snapshot again once the server reports new or changed matching runs.
 - **Session.** Example decisions on issues change only the browser session (`workspace-session/`). Nothing is sent or stored.
-- **Data.** Each route is a server component that loads server-gated fixtures and passes `data` to a client route, which supplies `actions` from the session. A live workspace row opens the authorized legacy workspace, and live Dashboard, Changelog and Logs URLs redirect there until an adapter maps the existing hooks onto the same props. Issues has no backend, so its live URLs answer 404. See the [parity ledger](org-parity.md#workspace-pages).
+- **Data.** Each route is a server component. On fixtures it loads server-gated data and passes `data` to a client route, which supplies `actions` from the session. On live data it renders a live component (`live-dashboard`, `live-changelog`, `live-release`, `live-runs`, `live-run`) that reads the legacy hooks through `lib/data` and passes the same views their props; the frame names the workspace through `WorkspaceTabPage`. Issues has no backend, so its live URLs answer 404. See the [parity ledger](org-parity.md#workspace-pages).
+- **Live Dashboard.** The dashboard is the one document Sim writes, not per-period snapshots, so live renders legacy's spec: its title and description, text, rows, tabs and stat, chart and table panels (the markdown embed's `_components/dashboard-panel`), with legacy's range presets, time zone, chart zoom and Reset in the URL. Behind the `dashboards` flag, as legacy is.
+- **Live Changelog.** Releases have a version and a reason but no contributor or issue, so live entries show the version where the ticket goes. A release's details show its notes (read-only; Edit notes opens the file in Files), its change lines and the workflows it shipped, and an editor can change its title, version and reason. Behind the `changelog` flag.
+- **Live Logs.** The server pages the list in the URL's period, filters and sort (`period` is new beside status, trigger and workflow). A run is addressed by its execution ID; its trace is rooted at the workflow with its input and output. Stop (editors, while it runs), Retry and Open workflow sit in the record's bar. Legacy `logs?executionId=` links open the run.
 
 ## Resource tabs
 
