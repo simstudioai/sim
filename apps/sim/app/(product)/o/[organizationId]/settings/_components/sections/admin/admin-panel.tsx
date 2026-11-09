@@ -4,22 +4,17 @@ import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { FailureNotice, InlineNotice } from '@sim/emcn/status'
+import { FailureNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { AdminDirectory } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/admin-directory'
 import type {
-  AdminExample,
-  AdminPreferences,
+  AdminConsole,
+  ImportInputs,
 } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/model'
-import {
-  type ImportInputs,
-  WorkflowImport,
-} from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/workflow-import'
+import { WorkflowImport } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/workflow-import'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
-import { useSettingsFixtureDraft } from '@/platform/lib/data/settings-providers'
 
 const ENVIRONMENTS = [
   { value: 'default', label: 'Default' },
@@ -28,140 +23,76 @@ const ENVIRONMENTS = [
   { value: 'prod', label: 'Prod' },
 ] as const
 
-interface AdminPanelProps {
-  preferences: AdminPreferences | null
-  example: AdminExample | null
-  benchmarkAvailable: boolean
-  benchmarkHref?: string
-  manageHref: string
-}
+const BENCHMARK_HREF = '/benchmark'
 
-export function AdminPanel({
-  preferences,
-  example,
-  benchmarkAvailable,
-  benchmarkHref,
-  manageHref,
-}: AdminPanelProps) {
-  const router = useRouter()
-  const { data: draft, update } = useSettingsFixtureDraft('admin', example)
-  function setDraft(value: AdminExample) {
-    update(() => value)
-  }
-  const [viewingAs, setViewingAs] = useState<string>()
+export function AdminPanel({ console: admin }: { console: AdminConsole }) {
+  const { settings, importer, directory } = admin
   const [inputs, setInputs] = useState<ImportInputs>({ workflow: '', target: '' })
   const guard = useSettingsUnsavedGuard({
     isDirty: Boolean(inputs.workflow.trim() || inputs.target.trim()),
+    navigationBlocked: importer.pending || directory.impersonating,
     onDiscard: () => setInputs({ workflow: '', target: '' }),
   })
-  const settings = draft ?? preferences
-
-  if (viewingAs) {
-    return (
-      <InlineNotice
-        title='Impersonation preview'
-        message={`Viewing as ${viewingAs}.`}
-        action={
-          <Button size='compact' onClick={() => setViewingAs(undefined)}>
-            End impersonation
-          </Button>
-        }
-      />
-    )
-  }
 
   return (
     <SectionStack>
       <SettingsSection title='Administration'>
-        {settings ? (
-          <>
-            <SettingsRow label='Super admin mode'>
-              {draft ? (
+        {settings === null ? (
+          <FailureNotice message='Could not load admin settings.' onRetry={admin.retrySettings} />
+        ) : (
+          settings && (
+            <>
+              <SettingsRow label='Super admin mode'>
                 <Switch
                   label='Super admin mode'
                   checked={settings.superUserModeEnabled}
-                  onCheckedChange={(superUserModeEnabled) =>
-                    setDraft({ ...draft, superUserModeEnabled })
-                  }
+                  disabled={admin.savingSetting}
+                  onCheckedChange={admin.setSuperUserMode}
                 />
-              ) : (
-                <Button
-                  size='compact'
-                  render={<Link href={manageHref}>Manage admin settings</Link>}
-                >
-                  {settings.superUserModeEnabled ? 'Manage · On' : 'Manage · Off'}
-                </Button>
-              )}
-            </SettingsRow>
-            {settings.superUserModeEnabled && benchmarkAvailable && (
-              <SettingsRow
-                label='Benchmarks'
-                description={
-                  benchmarkHref ? undefined : 'The benchmark console opens in the main Sim app.'
-                }
-              >
-                <Button
-                  size='compact'
-                  disabled={!benchmarkHref}
-                  render={
-                    benchmarkHref ? <Link href={benchmarkHref}>Open benchmarks</Link> : undefined
-                  }
-                >
-                  Open benchmarks
-                </Button>
               </SettingsRow>
-            )}
-            {settings.superUserModeEnabled && (
-              <SettingsRow
-                label='Mothership environment'
-                description='Default uses the configured Sim agent URL.'
-              >
-                {draft ? (
+              {settings.superUserModeEnabled && admin.benchmarkAvailable && (
+                <SettingsRow label='Benchmarks'>
+                  <Button
+                    size='compact'
+                    render={<Link href={BENCHMARK_HREF}>Open benchmarks</Link>}
+                  >
+                    Open benchmarks
+                  </Button>
+                </SettingsRow>
+              )}
+              {settings.superUserModeEnabled && (
+                <SettingsRow
+                  label='Mothership environment'
+                  description='Default uses the configured Sim agent URL.'
+                >
                   <ChoiceMenu
                     label='Mothership environment'
                     value={settings.mothershipEnvironment}
                     options={ENVIRONMENTS}
-                    onValueChange={(mothershipEnvironment) =>
-                      setDraft({ ...draft, mothershipEnvironment })
-                    }
+                    disabled={admin.savingSetting}
+                    onValueChange={(value) => {
+                      const choice = ENVIRONMENTS.find((item) => item.value === value)
+                      if (choice) admin.setMothershipEnvironment(choice.value)
+                    }}
                   />
-                ) : (
-                  <Button
-                    size='compact'
-                    render={<Link href={manageHref}>Manage admin settings</Link>}
-                  >{`Change · ${ENVIRONMENTS.find((item) => item.value === settings.mothershipEnvironment)?.label ?? settings.mothershipEnvironment}`}</Button>
-                )}
-              </SettingsRow>
-            )}
-          </>
-        ) : (
-          <FailureNotice
-            message='Could not load admin settings.'
-            onRetry={() => router.refresh()}
-          />
+                </SettingsRow>
+              )}
+            </>
+          )
         )}
       </SettingsSection>
       <WorkflowImport
-        example={draft}
-        onEdit={setDraft}
-        manageHref={manageHref}
+        importer={importer}
         inputs={inputs}
-        onChange={setInputs}
+        onChange={(next) => {
+          setInputs(next)
+          importer.reset()
+        }}
+        onImported={() => setInputs({ workflow: '', target: '' })}
       />
       <AdminDirectory
-        example={draft}
-        onEdit={setDraft}
-        manageHref={manageHref}
-        onImpersonate={(user) =>
-          guard.guardBack(() => {
-            if (!draft) return
-            setDraft({
-              ...draft,
-              recent: [user.id, ...draft.recent.filter((id) => id !== user.id)].slice(0, 5),
-            })
-            setViewingAs(user.email)
-          })
-        }
+        directory={directory}
+        onImpersonate={(user) => guard.guardBack(() => directory.impersonate(user))}
       />
     </SectionStack>
   )
