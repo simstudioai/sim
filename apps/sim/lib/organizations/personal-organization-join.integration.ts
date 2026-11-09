@@ -38,6 +38,7 @@ import {
 import type { DbTransaction } from '@/lib/db/types'
 import { personalOrganizationAuditOutboxHandlers } from '@/lib/organizations/lifecycle-audit'
 import { PERSONAL_ORGANIZATION_AUDIT_EVENT } from '@/lib/organizations/lifecycle-audit-event'
+import { findCascadingOrganizationContentTx } from '@/lib/organizations/personal'
 import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
 
 const userIds: string[] = []
@@ -507,5 +508,30 @@ describe('team-only configuration on a personal organization', () => {
       'sim_link',
       'workspace_files',
     ])
+  })
+})
+
+describe('checking what would cascade away with a personal organization', () => {
+  it('sees a cascading table a migration added after an earlier check in the same process', async () => {
+    const personalId = await personalOrganizationOf(await createUser())
+    const table = `cascade_probe_${generateId().replaceAll('-', '')}`
+    expect(
+      await db.transaction((tx) => findCascadingOrganizationContentTx(tx, personalId))
+    ).toBeNull()
+
+    try {
+      await db.execute(sql`
+        CREATE TABLE ${sql.identifier(table)} (
+          organization_id text NOT NULL REFERENCES organization(id) ON DELETE CASCADE
+        )
+      `)
+      await db.execute(sql`INSERT INTO ${sql.identifier(table)} VALUES (${personalId})`)
+
+      expect(await db.transaction((tx) => findCascadingOrganizationContentTx(tx, personalId))).toBe(
+        table
+      )
+    } finally {
+      await db.execute(sql`DROP TABLE IF EXISTS ${sql.identifier(table)}`)
+    }
   })
 })

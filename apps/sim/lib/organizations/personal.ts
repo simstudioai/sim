@@ -373,51 +373,42 @@ export async function releasePersonalOrganizationInvitationsTx(
   await tx.delete(invitation).where(eq(invitation.organizationId, organizationId))
 }
 
-interface CascadingReference {
-  schema: string
-  table: string
-  column: string
-}
-
-let cascadingReferences: Promise<CascadingReference[]> | undefined
-
 /**
  * Every single-column foreign key that deletes its rows with an organization, membership aside,
- * read from the catalog once per process (the schema only changes with a release), on the first
- * retirement's transaction. A composite one
- * could not be checked by organization id alone, so it fails loudly rather than being skipped.
+ * read from the catalog on every call: a rollout runs old processes beside a migration that adds
+ * such a table, and a stale list would let that table's rows cascade away unchecked. A composite
+ * one could not be checked by organization id alone, so it fails loudly rather than being skipped.
  */
-function loadCascadingReferences(tx: DbTransaction): Promise<CascadingReference[]> {
-  cascadingReferences ??= tx
-    .execute<{ schema_name: string; table_name: string; column_name: string; columns: number }>(sql`
-      SELECT n.nspname AS schema_name, t.relname AS table_name, a.attname AS column_name,
-        cardinality(c.conkey) AS columns
-      FROM pg_constraint c
-      JOIN pg_class t ON t.oid = c.conrelid
-      JOIN pg_namespace n ON n.oid = t.relnamespace
-      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
-      WHERE c.contype = 'f'
-        AND c.confrelid = 'organization'::regclass
-        AND c.confdeltype = 'c'
-        AND t.relname <> 'member'
-      ORDER BY 1, 2, 3
-    `)
-    .then((rows) => {
-      const composite = rows.find((row) => row.columns > 1)
-      if (composite) {
-        throw new Error(`Composite cascading organization reference on ${composite.table_name}`)
-      }
-      return rows.map((row) => ({
-        schema: row.schema_name,
-        table: row.table_name,
-        column: row.column_name,
-      }))
-    })
-    .catch((error: unknown) => {
-      cascadingReferences = undefined
-      throw error
-    })
-  return cascadingReferences
+async function loadCascadingReferences(
+  tx: DbTransaction
+): Promise<Array<{ schema: string; table: string; column: string }>> {
+  const rows = await tx.execute<{
+    schema_name: string
+    table_name: string
+    column_name: string
+    columns: number
+  }>(sql`
+    SELECT n.nspname AS schema_name, t.relname AS table_name, a.attname AS column_name,
+      cardinality(c.conkey) AS columns
+    FROM pg_constraint c
+    JOIN pg_class t ON t.oid = c.conrelid
+    JOIN pg_namespace n ON n.oid = t.relnamespace
+    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+    WHERE c.contype = 'f'
+      AND c.confrelid = 'organization'::regclass
+      AND c.confdeltype = 'c'
+      AND t.relname <> 'member'
+    ORDER BY 1, 2, 3
+  `)
+  const composite = rows.find((row) => row.columns > 1)
+  if (composite) {
+    throw new Error(`Composite cascading organization reference on ${composite.table_name}`)
+  }
+  return rows.map((row) => ({
+    schema: row.schema_name,
+    table: row.table_name,
+    column: row.column_name,
+  }))
 }
 
 /**
