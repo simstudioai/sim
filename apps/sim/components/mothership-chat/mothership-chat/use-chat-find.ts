@@ -13,7 +13,7 @@ import {
 import { forEachSearchOccurrence } from '@sim/utils/string'
 import type { Virtualizer } from '@tanstack/react-virtual'
 import { LRUCache } from 'lru-cache'
-import { useFindShortcut } from '@/components/find-bar'
+import { useFindShortcut } from '@/components/find-bar/use-find-shortcut'
 import { getOrchestratorMessageTextSegments } from '@/components/mothership-chat/message-content'
 import { sanitizeChatDisplayContent } from '@/components/mothership-chat/message-content/components/chat-content/chat-sanitize'
 import { parseSpecialTags } from '@/components/mothership-chat/message-content/components/special-tags'

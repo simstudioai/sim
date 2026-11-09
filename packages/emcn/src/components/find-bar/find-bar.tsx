@@ -1,9 +1,9 @@
 'use client'
 
-import { type KeyboardEvent, type RefObject, useRef, useState } from 'react'
-import { Button, IconButton } from '@sim/emcn/button'
-import { Input } from '@sim/emcn/field/inputs'
-import styles from '@/app/(product)/_components/find-bar/find-bar.module.css'
+import { type KeyboardEvent, memo, type RefObject, useRef, useState } from 'react'
+import { Button, IconButton } from '#emcn/components/button/button'
+import { Input } from '#emcn/components/field/inputs'
+import styles from '#emcn/components/find-bar/find-bar.module.css'
 
 /** Replacing matches, offered only where the content is editable. */
 interface FindReplace {
@@ -42,7 +42,7 @@ function isComposing(event: KeyboardEvent) {
  * the content is editable. Enter searches a pending term or steps forward, Shift+Enter steps back
  * and Escape closes. Its consumer places it over the content it searches.
  */
-export function FindBar({
+export const FindBar = memo(function FindBar({
   label,
   query,
   onQueryChange,
@@ -191,4 +191,4 @@ export function FindBar({
       )}
     </div>
   )
-}
+})

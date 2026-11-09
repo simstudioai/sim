@@ -12,6 +12,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { FindBar } from '@sim/emcn/find-bar'
 import {
   Chip,
   type ClipboardContent,
@@ -21,14 +22,15 @@ import {
   scrollFadeClass,
   useScrollEdges,
 } from '@sim/emcn-legacy'
+import '@sim/emcn/styles/global.css'
 import { useQueryClient } from '@tanstack/react-query'
 import { defaultRangeExtractor, type Range, useVirtualizer } from '@tanstack/react-virtual'
+import { useTheme } from 'next-themes'
 import {
   AssistantActionReviewMessage,
   useHasAssistantActionReview,
 } from '@/components/assistant-actions'
 import { ComputerUseActivity } from '@/components/computer-use/activity'
-import { FindBar } from '@/components/find-bar'
 import { MessageActions } from '@/components/message-actions'
 import { ChatMessageAttachments } from '@/components/mothership-chat/chat-message-attachments'
 import {
@@ -781,6 +783,7 @@ export function MothershipChat({
     useAnimationFrameWithResizeObserver: true,
   })
 
+  const { resolvedTheme } = useTheme()
   const find = useChatFind({
     chatId,
     messages,
@@ -944,20 +947,27 @@ export function MothershipChat({
         )}
       >
         {find.isOpen && (
-          <FindBar
-            ariaLabel='Find in chat'
-            query={find.query}
-            onQueryChange={find.onQueryChange}
-            onNext={find.next}
-            onPrev={find.prev}
-            onClose={find.close}
-            count={find.count}
-            currentIndex={find.currentIndex}
-            truncated={find.truncated}
-            isLoading={find.isStale}
-            canNavigate={!find.isStale}
-            inputRef={find.inputRef}
-          />
+          // The shared find bar is drawn by the design system, so it carries its own scoped surface.
+          <div
+            data-emcn=''
+            data-theme={resolvedTheme === 'dark' ? 'dark' : 'light'}
+            className='absolute top-2 right-2 z-[var(--z-dropdown)] max-w-[calc(100%_-_1rem)]'
+          >
+            <FindBar
+              label='Find in chat'
+              query={find.query}
+              onQueryChange={find.onQueryChange}
+              inputRef={find.inputRef}
+              results={
+                find.isStale && find.count === 0
+                  ? undefined
+                  : { index: find.currentIndex, count: find.count, truncated: find.truncated }
+              }
+              canStep={!find.isStale && find.count > 0}
+              onStep={(direction) => (direction === 1 ? find.next() : find.prev())}
+              onClose={find.close}
+            />
+          </div>
         )}
         <div
           ref={setScrollElement}
