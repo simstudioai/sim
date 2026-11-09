@@ -287,8 +287,6 @@ const LOCAL_TOKEN_OWNERS: ReadonlySet<string> = new Set([
 const LOADING_COPY_OWNERS: ReasonedAllowlist = {
   [`${PRODUCT_ROUTES}_components/composer/message-composer.tsx`]:
     "Emir's composer: the @ menu names its pending list while the draft keeps focus and typing",
-  [`${PRODUCT_ROUTES}_components/composer/resource-menu.tsx`]:
-    'Home lane: a workspace submenu names its pending resources; reported to that lane for removal',
 }
 /** The calendar day column, which places each event by its time through an inline style. */
 const CALENDAR_DAY = `${ORGANIZATION_ROUTES}home/_components/calendar/calendar-day.tsx`
