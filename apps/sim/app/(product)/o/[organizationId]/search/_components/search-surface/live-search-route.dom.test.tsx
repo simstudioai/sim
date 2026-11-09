@@ -2,14 +2,12 @@
  * @vitest-environment jsdom
  *
  * The live shell's provider hydrates above the shell's Suspense boundary, so its reads start before
- * the sidebar and the Search page hydrate. Failure modes: a read the server did not seed (a member
- * with no workspaces, whose empty list `prefetchShell` never seeds) landing first and painting the
- * sidebar differently from the server's markup, which React answers with #418 and a client
- * re-render; and the gate holding the first paint after hydration, so the sidebar never says there
- * are no workspaces. The server seeds the session, as `prefetchShell` does; the workspace list is
- * the one read that answers, and every other read stays in flight on both sides. The viewer's
- * remembered Search mode lives in a browser cookie the server markup never saw: read during
- * hydration, it paints a different mode than the server did.
+ * the sidebar and the Search page hydrate. Failure modes: the sidebar of a member with no
+ * workspaces painting differently from the server's markup, which React answers with #418 and a
+ * client re-render. The server seeds the session and the workspace list, as `prefetchShell` does,
+ * and every other read stays in flight on both sides. The viewer's remembered Search mode lives in
+ * a browser cookie the server markup never saw: read during hydration, it paints a different mode
+ * than the server did.
  */
 
 import { act, type ReactNode, Suspense } from 'react'
@@ -35,6 +33,7 @@ vi.mock('nuqs/adapters/next/app', () => ({
 
 import { ProductSession } from '@/app/(product)/_components/product-session'
 import { SearchSurface } from '@/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface'
+import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { LiveProviders } from '@/platform/lib/data/providers'
 
@@ -107,9 +106,15 @@ const NARROW_MEMBER_SURFACE = {
   settingsSections: [],
 } satisfies PlatformOrganization
 
-/** The session entry `prefetchShell` seeds, under the key the session query reads. */
+/** The session and workspace list `prefetchShell` seeds, under the keys their queries read. */
 function seededSession(): DehydratedState {
   const client = new QueryClient()
+  client.setQueryData(workspaceKeys.list('active'), {
+    workspaces: [],
+    lastActiveWorkspaceId: null,
+    pinnedWorkspaceIds: [],
+    creationPolicy: null,
+  })
   client.setQueryData(['session', 'detail'], {
     user: { id: 'viewer-narrow', email: 'narrow@example.com', name: 'Nia Narrow', image: null },
     session: {
@@ -204,14 +209,14 @@ afterEach(() => {
   document.cookie = `${SEARCH_MODE_COOKIE}=; path=/; max-age=0`
 })
 
-it('hydrates a member with no workspaces whose list lands before the page does, then says so', async () => {
+it('hydrates the sidebar of a member with no workspaces as the server painted it', async () => {
   const shell = seededSession()
   const container = document.createElement('div')
   container.innerHTML = renderToString(<SearchRoute shell={shell} />)
   renderCache?.clear()
   document.body.append(container)
   const serverSidebar = container.querySelector('aside')
-  expect(container.textContent).not.toContain('No workspaces yet')
+  expect(container.textContent).toContain('No workspaces yet')
 
   const hydrationErrors: unknown[] = []
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -224,9 +229,6 @@ it('hydrates a member with no workspaces whose list lands before the page does, 
     )
   })
   await act(flushMacrotask)
-  expect(vi.mocked(fetch).mock.calls.map(([input]) => String(input))).toContain(
-    '/api/workspaces?scope=active'
-  )
 
   await act(async () => {
     pagePayloadArrived = true
