@@ -229,7 +229,12 @@ async function cleanup() {
       if (userIds.length) await tx`delete from project where owner_id in ${tx(userIds)}`
       await tx`delete from project where organization_id = ${fixture.orgId}`
       await tx`delete from organization where id = ${fixture.orgId}`
-      if (userIds.length) await tx`delete from "user" where id in ${tx(userIds)}`
+      if (userIds.length) {
+        await tx`delete from organization where kind = 'personal' and id in (
+          select organization_id from member where user_id in ${tx(userIds)}
+        )`
+        await tx`delete from "user" where id in ${tx(userIds)}`
+      }
     })
   }
 }
@@ -1715,7 +1720,21 @@ async function run() {
       await scim(token, `/Users/${bobId}`, { method: 'DELETE', expected: 204 })
       await scim(token, `/Users/${bobId}`, { expected: 404 })
       await scim(token, `/Users/${bobId}`, { method: 'DELETE', expected: 404 })
-      assert.equal((await sql`select id from member where user_id = ${bobUserId}`).length, 0)
+      assert.equal(
+        (
+          await sql`select id from member
+            where user_id = ${bobUserId} and organization_id = ${primary.orgId}`
+        ).length,
+        0
+      )
+      /** Leaving a team leaves the person in their own personal organization, never in none. */
+      assert.deepEqual(
+        (
+          await sql`select o.kind from member m join organization o on o.id = m.organization_id
+            where m.user_id = ${bobUserId}`
+        ).map((row) => row.kind),
+        ['personal']
+      )
       assert.equal((await sql`select id from "user" where id = ${bobUserId}`).length, 1)
       const rehired = (
         await scim(token, '/Users', {

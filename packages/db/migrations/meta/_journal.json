@@ -3186,6 +3186,13 @@
       "when": 1794202639922,
       "tag": "0455_personal_organizations",
       "breakpoints": true
+    },
+    {
+      "idx": 456,
+      "version": "7",
+      "when": 1794207548776,
+      "tag": "0456_personal_organization_team_settings",
+      "breakpoints": true
     }
   ]
 }

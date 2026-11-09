@@ -2,7 +2,8 @@
  * Personal organizations against real PostgreSQL: provisioning is idempotent and resumable and
  * leaves billing where it was; joining another organization retires the personal organization
  * without losing anything; starting a team converts it in place; its organization-level activity
- * bills its owner; and leaving a team never leaves a person without an organization.
+ * bills its owner; leaving a team never leaves a person without an organization; and deleting an
+ * account behaves as it did before personal organizations.
  */
 import { db } from '@sim/db'
 import {
@@ -12,6 +13,7 @@ import {
   organization,
   permissions,
   project,
+  simLink,
   subscription,
   user,
   userStats,
@@ -30,12 +32,15 @@ import { ensureOrganizationForTeamSubscription } from '@/lib/billing/organizatio
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import {
   addUserToOrganization,
+  ensureUserInOrganizationTx,
   removeUserFromOrganization,
 } from '@/lib/billing/organizations/membership'
 import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
 import { provisionPersonalOrganization } from '@/lib/organizations/provision-personal'
+import { deleteUserAccount, getAccountDeletionPlan } from '@/lib/users/account-deletion'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
 import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
+import { getWorkspaceCreationPolicy } from '@/lib/workspaces/policy'
 
 const userIds: string[] = []
 
@@ -571,5 +576,158 @@ describe('leaving a team', () => {
 
     expect(removed).toMatchObject({ success: true })
     expect((await membershipOf(leaverId))?.kind).toBe('personal')
+  })
+})
+
+describe('deleting an account', () => {
+  it('is not blocked by the personal organization and leaves nothing of it behind', async () => {
+    const ownerId = await createUser()
+    const privateWorkspace = await createLegacyPersonalWorkspace(ownerId, 'Private')
+    const provisioned = await provisionPersonalOrganization(ownerId)
+    if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
+    await createOrganizationContent(ownerId, provisioned.organizationId)
+
+    const plan = await getAccountDeletionPlan(ownerId)
+    expect(plan.blockers).toEqual([])
+    expect(plan.workspacesToDelete.map((row) => row.id)).toEqual([privateWorkspace])
+
+    await deleteUserAccount(ownerId, { recordIdentity: false })
+
+    expect(await organizationExists(provisioned.organizationId)).toBe(false)
+    const [privateRow] = await db
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(eq(workspace.id, privateWorkspace))
+    expect(privateRow).toBeUndefined()
+    const [membership] = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(eq(member.organizationId, provisioned.organizationId))
+    expect(membership).toBeUndefined()
+  })
+})
+
+describe('joining another organization, refused cleanly', () => {
+  it('refuses with a conflict when moved content collides with the target, changing nothing', async () => {
+    const teamOwnerId = await createUser()
+    const joinerId = await createUser()
+    const { organizationId: teamId } = await createOrganizationWithOwner({
+      ownerUserId: teamOwnerId,
+      name: 'Colliding Team',
+      slug: `colliding-${generateId()}`.toLowerCase(),
+    })
+    const provisioned = await provisionPersonalOrganization(joinerId)
+    if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
+    for (const [organizationId, createdBy] of [
+      [teamId, teamOwnerId],
+      [provisioned.organizationId, joinerId],
+    ]) {
+      await db.insert(simLink).values({
+        id: generateId(),
+        organizationId,
+        name: 'docs',
+        normalizedName: 'docs',
+        url: 'https://example.com/docs',
+        createdBy,
+      })
+    }
+
+    await expect(
+      db.transaction((tx) =>
+        ensureUserInOrganizationTx(tx, {
+          userId: joinerId,
+          organizationId: teamId,
+          role: 'member',
+          skipBillingLogic: true,
+          skipSeatValidation: true,
+        })
+      )
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(await membershipOf(joinerId)).toMatchObject({
+      organizationId: provisioned.organizationId,
+      kind: 'personal',
+    })
+  })
+
+  it('never lets anyone join a personal organization', async () => {
+    const ownerId = await createUser()
+    const outsiderId = await createUser()
+    const provisioned = await provisionPersonalOrganization(ownerId)
+    if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
+
+    const joined = await addUserToOrganization({
+      userId: outsiderId,
+      organizationId: provisioned.organizationId,
+      role: 'member',
+      skipBillingLogic: true,
+      skipSeatValidation: true,
+    })
+
+    expect(joined.success).toBe(false)
+    expect(await membershipOf(outsiderId)).toBeNull()
+  })
+})
+
+describe('forking a workspace in a personal organization', () => {
+  it('lands a collaborator fork beside its source, billed to the collaborator', async () => {
+    const ownerId = await createUser()
+    const collaboratorId = await createUser()
+    const ownerPersonal = await provisionPersonalOrganization(ownerId)
+    const collaboratorPersonal = await provisionPersonalOrganization(collaboratorId)
+    if (ownerPersonal.status !== 'provisioned' || collaboratorPersonal.status !== 'provisioned') {
+      throw new Error('expected provisioning')
+    }
+
+    const policy = await getWorkspaceCreationPolicy({
+      userId: collaboratorId,
+      activeOrganizationId: ownerPersonal.organizationId,
+      pinOrganization: true,
+      pinnedToAuthorizedSource: true,
+    })
+    expect(policy).toMatchObject({
+      canCreate: true,
+      organizationId: ownerPersonal.organizationId,
+      workspaceMode: 'personal',
+      billedAccountUserId: collaboratorId,
+    })
+    const fork = await db.transaction((tx) =>
+      createWorkspaceInTransaction(tx, {
+        userId: collaboratorId,
+        name: 'Fork',
+        organizationId: policy.organizationId,
+        observedOrganizationId: policy.observedOrganizationId,
+        governingPermissionGroupOrganizationId: policy.governingPermissionGroupOrganizationId,
+        workspaceMode: policy.workspaceMode,
+        billedAccountUserId: policy.billedAccountUserId,
+        skipDefaultWorkflow: true,
+      })
+    )
+    expect(fork.organizationId).toBe(ownerPersonal.organizationId)
+    expect((await resolveWorkspaceBillingPayer(fork.id))?.billedAccountUserId).toBe(collaboratorId)
+
+    const unpinned = await getWorkspaceCreationPolicy({
+      userId: collaboratorId,
+      activeOrganizationId: ownerPersonal.organizationId,
+      pinOrganization: true,
+    })
+    expect(unpinned.canCreate).toBe(false)
+  })
+
+  it('keeps an organization-less source fork organization-less, as before', async () => {
+    const ownerId = await createUser()
+    await provisionPersonalOrganization(ownerId)
+
+    const policy = await getWorkspaceCreationPolicy({
+      userId: ownerId,
+      activeOrganizationId: null,
+      pinOrganization: true,
+      pinnedToAuthorizedSource: true,
+    })
+
+    expect(policy).toMatchObject({
+      canCreate: true,
+      organizationId: null,
+      workspaceMode: 'personal',
+    })
   })
 })

@@ -4,11 +4,16 @@
  * Gives every account outside a team its personal organization and attaches the workspaces it
  * owns without one (with their Projects), so every person belongs to an organization.
  *
- * Run it only once the app version that reads `organization.kind` is fully deployed. That
- * version bills a personal organization's workspaces to their owner exactly as before; the
- * version before it would bill them to an organization with no plan. New signups already get
- * their personal organization at signup, and opening the workspace list provisions one for
- * anyone this script has not reached yet, so the order of users does not matter.
+ * Deploy order (see scripts/backfill-personal-organizations.md): migrations 0455 and 0456, then the
+ * app, background workers and Trigger.dev tasks on the release that reads `organization.kind`,
+ * all fully rolled out; only then run this script. That release bills a personal organization's
+ * workspaces to their owner exactly as before; the previous one would bill them to an
+ * organization with no plan. New signups already get their personal organization at signup, and
+ * opening the workspace list provisions one for anyone this script has not reached yet, so the
+ * order of users does not matter.
+ *
+ * On an instance-organization deployment (`INSTANCE_ORG_NAME`), users outside every organization
+ * join the instance organization instead, as signup does there.
  *
  * Every write goes through `provisionPersonalOrganization`, the helper signup uses: one short
  * transaction per user under the invitation, organization and billing-identity locks every
@@ -44,6 +49,10 @@ import { member, organization, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, count, eq, exists, gt, isNull, notExists, or, type SQL } from 'drizzle-orm'
+import {
+  isInstanceOrganizationMode,
+  joinInstanceOrganization,
+} from '@/lib/organizations/instance-org'
 import { provisionPersonalOrganization } from '@/lib/organizations/provision-personal'
 
 const logger = createLogger('BackfillPersonalOrganizations', { enabled: true, logLevel: 'INFO' })
@@ -69,7 +78,7 @@ interface BackfillReport {
  * Users the backfill still has work for: in no organization, or in their personal organization
  * while still owning a workspace that has none.
  */
-function candidateUsersWhere(): SQL {
+function candidateUsersWhere(instanceMode: boolean): SQL {
   const inPersonalOrganization = exists(
     db
       .select({ id: member.id })
@@ -86,6 +95,7 @@ function candidateUsersWhere(): SQL {
   const inNoOrganization = notExists(
     db.select({ id: member.id }).from(member).where(eq(member.userId, user.id))
   )
+  if (instanceMode) return inNoOrganization
   return or(inNoOrganization, and(inPersonalOrganization, ownsUnassignedWorkspace)) as SQL
 }
 
@@ -118,6 +128,7 @@ async function main(): Promise<void> {
     logger.info('See the header of scripts/backfill-personal-organizations.ts for usage')
     return
   }
+  const instanceMode = isInstanceOrganizationMode()
 
   const report: BackfillReport = {
     apply: options.apply,
@@ -137,7 +148,9 @@ async function main(): Promise<void> {
     .select({ value: count() })
     .from(user)
     .where(
-      options.after ? and(gt(user.id, options.after), candidateUsersWhere()) : candidateUsersWhere()
+      options.after
+        ? and(gt(user.id, options.after), candidateUsersWhere(instanceMode))
+        : candidateUsersWhere(instanceMode)
     )
   report.candidates = candidates
   logger.info('Users to provision', { candidates, after: options.after })
@@ -148,13 +161,22 @@ async function main(): Promise<void> {
       const batch = await db
         .select({ id: user.id })
         .from(user)
-        .where(cursor ? and(gt(user.id, cursor), candidateUsersWhere()) : candidateUsersWhere())
+        .where(
+          cursor
+            ? and(gt(user.id, cursor), candidateUsersWhere(instanceMode))
+            : candidateUsersWhere(instanceMode)
+        )
         .orderBy(asc(user.id))
         .limit(options.batchSize)
       if (batch.length === 0) break
 
       for (const { id: userId } of batch) {
         try {
+          if (instanceMode) {
+            await joinInstanceOrganization(userId)
+            report.provisioned += 1
+            continue
+          }
           const result = await provisionPersonalOrganization(userId)
           if (result.status === 'provisioned') {
             report.provisioned += 1

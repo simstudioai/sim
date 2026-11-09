@@ -18,3 +18,20 @@ export async function acquireUserBillingIdentityLock(
   )
   await acquireAdvisoryXactLock(tx, 'user_billing_identity', `user-billing-identity:${userId}`)
 }
+
+const ORGANIZATION_MUTATION_LOCK_TIMEOUT_MS = 5_000
+
+/** Serializes organization-wide owner, seat, move, and membership decisions. */
+export async function acquireOrganizationMutationLock(
+  tx: DbTransaction,
+  organizationId: string
+): Promise<void> {
+  await tx.execute(
+    sql`select set_config('lock_timeout', ${`${ORGANIZATION_MUTATION_LOCK_TIMEOUT_MS}ms`}, true)`
+  )
+  await acquireAdvisoryXactLock(
+    tx,
+    'organization_mutation',
+    `organization-mutation:${organizationId}`
+  )
+}
