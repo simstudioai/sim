@@ -42,20 +42,24 @@ vi.mock('@/blocks/registry-maps', () => ({
 
 vi.mock('@/lib/integrations/availability.server', () => integrationsAvailabilityMock)
 
+vi.mock('@/tools/tool-ids', () => ({
+  getLatestToolIds: () => [
+    'slack_message_v1',
+    'slack_canvas_v1',
+    'gmail_send_v1',
+    'sqs_send_v1',
+    'sqs_receive_v1',
+  ],
+}))
+
 import { resetExposedIntegrationToolsCache } from '@/lib/integrations/tool-catalog'
 import {
   projectIntegrationToolsForViewer,
   resolveDeniedBlockOperations,
 } from '@/lib/integrations/tool-projection'
-import { tools } from '@/tools/registry'
+import { getToolMetadata } from '@/tools/metadata'
 
-Object.assign(tools, {
-  slack_message_v1: { name: 'Send Message' },
-  slack_canvas_v1: { name: 'Create Canvas' },
-  gmail_send_v1: { name: 'Send Email' },
-  sqs_send_v1: { name: 'Send' },
-  sqs_receive_v1: { name: 'Receive' },
-})
+vi.mocked(getToolMetadata).mockImplementation((id) => ({ id, params: {} }))
 
 function toolIds(config: Parameters<typeof projectIntegrationToolsForViewer>[1]): string[] {
   return projectIntegrationToolsForViewer(null, config)

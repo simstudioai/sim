@@ -47,6 +47,7 @@ import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
 import { deriveHostedApiKeySupport } from '@/tools/hosted-api-key'
 import { getToolMetadata } from '@/tools/metadata'
+import { tools as toolRegistry } from '@/tools/registry'
 
 const EMAIL_TAGLINE_CACHE_TTL_MS = 5_000
 const EMAIL_TAGLINE_CACHE_MAX_ENTRIES = 20_000
@@ -281,8 +282,9 @@ async function buildIntegrationToolSchemaVariant(
   const withEmailTagline = new Map<string, ToolSchema>()
   const { createUserToolSchema } = await import('@/tools/params')
 
-  for (const { toolId, config: toolConfig, service, operation } of getExposedIntegrationTools()) {
+  for (const { toolId, service, operation } of getExposedIntegrationTools()) {
     await yieldWhenSliceExpires()
+    const toolConfig = toolRegistry[toolId]
     const metadata = getToolMetadata(toolId)
     if (options.personalAccountsOnly && !isAssistantIntegrationTool(metadata)) continue
     const projectedTool = options.personalAccountsOnly

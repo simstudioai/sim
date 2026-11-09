@@ -7,8 +7,8 @@ import { getExposedIntegrationTools } from '@/lib/integrations/tool-catalog'
 import type { ToolSchema } from '@/lib/mothership/chat/payload'
 import { projectIntegrationCatalog } from '@/lib/mothership/integrations/application/catalog'
 
-/** Registration assertions must exercise the executable registry, not the global empty mock. */
-vi.unmock('@/tools/registry')
+/** Registration assertions must exercise the generated tool metadata, not the global empty mock. */
+vi.unmock('@/tools/metadata')
 vi.mock('@/lib/mothership/chat/payload', () => mothershipChatPayloadMock)
 vi.mock('@/lib/mothership/mcp-tools', () => ({ buildMcpToolSchemas: vi.fn() }))
 vi.mock('@/lib/mcp/application/use-cases', () => mcpUseCasesMock)

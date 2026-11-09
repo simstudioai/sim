@@ -11,15 +11,6 @@ import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { tools } from '@/tools/registry'
 import type { ExecutableToolConfig, InternalToolConfig } from '@/tools/types'
 
-/**
- * Strips version suffix (_v2, _v3, etc.) from a tool ID or name.
- * Re-exported from the canonical `@sim/utils/string` helper so existing
- * `@/tools/utils` consumers keep working unchanged.
- * @example stripVersionSuffix('notion_search_v2') => 'notion_search'
- * @example stripVersionSuffix('github_create_pr_v3') => 'github_create_pr'
- */
-export { stripVersionSuffix } from '@sim/utils/string'
-
 /** Materialized HTTP request accepted by the legacy executeRequest helper. */
 export interface RequestParams {
   url: string
