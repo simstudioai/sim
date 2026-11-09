@@ -7,8 +7,11 @@
  * every account again. The inverse of `scripts/backfill-personal-organizations.ts`; the runbook is
  * `scripts/backfill-personal-organizations.md`.
  *
- * Turn the `pause-personal-organizations` flag on first, or the product shell provisions a new
- * personal organization for anyone this script leaves in none; `--apply` refuses while it is off.
+ * Turn the `pause-personal-organizations` flag on first (AppConfig and the secret), or the product
+ * shell provisions a new personal organization for anyone this script leaves in none; `--apply`
+ * refuses while it is off. Run it straight through and roll the release back right after: a
+ * reverted account sees Access denied until the previous release is live. The run prints its
+ * elapsed time and organizations per second to size that window.
  *
  * A personal organization holding content of its own (organization chats, memory spaces, Search,
  * go links, ...) is skipped and reported with the first table found, because deleting it would
@@ -82,6 +85,10 @@ interface RevertReport {
   skippedWithContent: Array<{ organizationId: string; table: string }>
   failures: Array<{ organizationId: string; error: string }>
   lastCursor: string | null
+  /** Seconds spent reverting, to size the rollback window. */
+  elapsedSeconds: number
+  /** Organizations processed (reverted, skipped or failed) per second. */
+  organizationsPerSecond: number
 }
 
 /** Rolls the detach back when a personal organization holds content the run may not delete. */
@@ -199,6 +206,15 @@ async function main(): Promise<void> {
     skippedWithContent: [],
     failures: [],
     lastCursor: options.after,
+    elapsedSeconds: 0,
+    organizationsPerSecond: 0,
+  }
+  const startedAt = performance.now()
+  const recordPace = () => {
+    const processed = report.reverted + report.skippedWithContent.length + report.failures.length
+    report.elapsedSeconds = Math.round((performance.now() - startedAt) / 100) / 10
+    report.organizationsPerSecond =
+      report.elapsedSeconds > 0 ? Math.round((processed / report.elapsedSeconds) * 10) / 10 : 0
   }
 
   const [{ value: candidates }] = await db
@@ -242,16 +258,20 @@ async function main(): Promise<void> {
 
       cursor = batch[batch.length - 1].id
       report.lastCursor = cursor
+      recordPace()
       logger.info('Reverted batch', {
         cursor,
         reverted: report.reverted,
         detachedWorkspaces: report.detachedWorkspaces,
         skippedWithContent: report.skippedWithContent.length,
         failures: report.failures.length,
+        elapsedSeconds: report.elapsedSeconds,
+        organizationsPerSecond: report.organizationsPerSecond,
       })
     }
   }
 
+  recordPace()
   report.finishedAt = new Date().toISOString()
   if (options.reportPath) {
     await writeFile(options.reportPath, `${JSON.stringify(report, null, 2)}\n`)
@@ -265,6 +285,8 @@ async function main(): Promise<void> {
     skippedWithContent: report.skippedWithContent.length,
     failures: report.failures.length,
     lastCursor: report.lastCursor,
+    elapsedSeconds: report.elapsedSeconds,
+    organizationsPerSecond: report.organizationsPerSecond,
   })
   if (report.failures.length > 0) process.exitCode = 1
 }
