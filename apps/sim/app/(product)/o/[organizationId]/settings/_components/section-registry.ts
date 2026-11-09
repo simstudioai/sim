@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react'
+import dynamic from 'next/dynamic'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import type { LiveSettingsKey } from '@/platform/lib/data/settings-navigation'
 
@@ -13,175 +14,158 @@ export interface SettingsSectionProps {
   query: Record<string, string | string[] | undefined>
 }
 
+type SettingsSectionKey = LiveSettingsKey | 'keyboard-shortcuts' | 'links'
+
+/** Sections that read or gate on the server before they render. */
+type ServerSettingsSectionKey =
+  | 'connected-accounts'
+  | 'integrations'
+  | 'search-slack'
+  | 'keyboard-shortcuts'
+  | 'links'
+  | 'admin'
+  | 'mothership'
+  | 'general'
+  | 'members'
+  | 'billing'
+  | 'self-host'
+  | 'requests'
+
+/** Sections that render only in the browser, loaded by `OrganizationSettingsSection`. */
+export type ClientSettingsSectionKey = Exclude<SettingsSectionKey, ServerSettingsSectionKey>
+
 interface SettingsSectionEntry {
-  load: () => Promise<{ default: ComponentType<SettingsSectionProps> }>
   subpaths?: readonly string[]
+  /** A server section's component; a client section loads in the browser instead. */
+  Section?: ComponentType<SettingsSectionProps>
 }
 
 /**
- * One lazily loaded folder per live section, so a section's owner edits only that folder. The
- * `Record` makes a section missing from either side of this map and its navigation entry a
- * compile error. Navigation and gates live in `lib/data/settings-navigation.ts`.
+ * One lazily loaded folder per live section, so a section's owner edits only that folder and a
+ * section's code ships only where it opens. A server section loads through `next/dynamic` here,
+ * which lazy-loads the client components it renders; a client section loads in the browser, since
+ * a server component that imports a client component dynamically does not split it. The `Record`
+ * makes a section missing from either side of this map and its navigation entry a compile error.
+ * Navigation and gates live in `lib/data/settings-navigation.ts`.
  */
-export const SETTINGS_SECTIONS: Record<
-  LiveSettingsKey | 'keyboard-shortcuts' | 'links',
-  SettingsSectionEntry
-> = {
+export const SETTINGS_SECTIONS: Record<SettingsSectionKey, SettingsSectionEntry> = {
   'connected-accounts': {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/connected-accounts-section'
-      ),
+    Section: dynamic(
+      () =>
+        import(
+          '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/connected-accounts-section'
+        )
+    ),
   },
   integrations: {
     subpaths: ['secrets', 'providers/:connectorType', 'sources/:connectorId'],
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/integrations-section'
-      ),
+    Section: dynamic(
+      () =>
+        import(
+          '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/integrations-section'
+        )
+    ),
   },
-  'search-mcp': {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/search-mcp/search-mcp-section'
-      ),
-  },
+  'search-mcp': {},
   'search-slack': {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/search-slack/search-slack-section'
-      ),
+    Section: dynamic(
+      () =>
+        import(
+          '@/app/(product)/o/[organizationId]/settings/_components/sections/search-slack/search-slack-section'
+        )
+    ),
   },
   'keyboard-shortcuts': {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/keyboard-shortcuts/keyboard-shortcuts-section'
-      ),
+    Section: dynamic(
+      () =>
+        import(
+          '@/app/(product)/o/[organizationId]/settings/_components/sections/keyboard-shortcuts/keyboard-shortcuts-section'
+        )
+    ),
   },
   links: {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/links/links-section'
-      ),
+    Section: dynamic(
+      () =>
+        import(
+          '@/app/(product)/o/[organizationId]/settings/_components/sections/links/links-section'
+        )
+    ),
   },
   admin: {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/admin-section'
-      ),
+    Section: dynamic(
+      () =>
+        import(
+          '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/admin-section'
+        )
+    ),
   },
   mothership: {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/mothership/mothership-section'
-      ),
+    Section: dynamic(
+      () =>
+        import(
+          '@/app/(product)/o/[organizationId]/settings/_components/sections/mothership/mothership-section'
+        )
+    ),
   },
   general: {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/general/general-section'
-      ),
+    Section: dynamic(
+      () =>
+        import(
+          '@/app/(product)/o/[organizationId]/settings/_components/sections/general/general-section'
+        )
+    ),
   },
-  'knowledge-graphs': {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/knowledge-graphs/knowledge-graphs-section'
-      ),
-  },
-  'recently-deleted': {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/recently-deleted/recently-deleted-section'
-      ),
-  },
+  'knowledge-graphs': {},
+  'recently-deleted': {},
   members: {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/members/members-section'
-      ),
+    Section: dynamic(
+      () =>
+        import(
+          '@/app/(product)/o/[organizationId]/settings/_components/sections/members/members-section'
+        )
+    ),
   },
   billing: {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/billing/billing-section'
-      ),
     subpaths: ['credit-usage'],
+    Section: dynamic(
+      () =>
+        import(
+          '@/app/(product)/o/[organizationId]/settings/_components/sections/billing/billing-section'
+        )
+    ),
   },
-  desktop: {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/desktop/desktop-section'
-      ),
-  },
-  browser: {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/browser/browser-section'
-      ),
-  },
-  terminal: {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/terminal/terminal-section'
-      ),
-  },
+  desktop: {},
+  browser: {},
+  terminal: {},
   'self-host': {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/self-host/self-host-section'
-      ),
+    Section: dynamic(
+      () =>
+        import(
+          '@/app/(product)/o/[organizationId]/settings/_components/sections/self-host/self-host-section'
+        )
+    ),
   },
   usage: {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/usage-section'
-      ),
     subpaths: ['events'],
   },
-  whitelabeling: {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/whitelabeling/whitelabeling-section'
-      ),
-  },
+  whitelabeling: {},
   requests: {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/requests/requests-section'
-      ),
+    Section: dynamic(
+      () =>
+        import(
+          '@/app/(product)/o/[organizationId]/settings/_components/sections/requests/requests-section'
+        )
+    ),
   },
-  'audit-logs': {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/audit-logs/audit-logs-section'
-      ),
-  },
-  'access-control': {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/access-control/access-control-section'
-      ),
-  },
-  sso: {
-    load: () =>
-      import('@/app/(product)/o/[organizationId]/settings/_components/sections/sso/sso-section'),
-  },
-  security: {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/security/security-section'
-      ),
-  },
-  'data-retention': {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/data-retention/data-retention-section'
-      ),
-  },
-  'data-drains': {
-    load: () =>
-      import(
-        '@/app/(product)/o/[organizationId]/settings/_components/sections/data-drains/data-drains-section'
-      ),
-  },
+  'audit-logs': {},
+  'access-control': {},
+  sso: {},
+  security: {},
+  'data-retention': {},
+  'data-drains': {},
+}
+
+/** Whether a section renders in the browser, where `OrganizationSettingsSection` loads it. */
+export function isClientSettingsSection(key: SettingsSectionKey): key is ClientSettingsSectionKey {
+  return !SETTINGS_SECTIONS[key].Section
 }

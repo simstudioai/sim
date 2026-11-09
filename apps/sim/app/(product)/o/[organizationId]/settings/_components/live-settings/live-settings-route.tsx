@@ -1,7 +1,11 @@
 import { notFound, redirect } from 'next/navigation'
 import { SettingsLeaveGuard } from '@/app/(product)/_components/session-state/settings-leave-guard'
-import { SETTINGS_SECTIONS } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
+import {
+  isClientSettingsSection,
+  SETTINGS_SECTIONS,
+} from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { SettingsScreen } from '@/app/(product)/o/[organizationId]/settings/_components/settings-screen/settings-screen'
+import { OrganizationSettingsSection } from '@/app/(product)/o/[organizationId]/settings/_components/settings-section/settings-section'
 import { resolveLegacyRequestLink } from '@/platform/lib/data/legacy-request-link'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { resolveLiveSetting } from '@/platform/lib/data/settings-navigation'
@@ -64,11 +68,23 @@ export async function LiveSettingsRoute({
     })
   )
     notFound()
-  const { default: Section } = await entry.load()
+  const { Section } = entry
   return (
     <SettingsScreen title={setting.title}>
       {fixture && <SettingsLeaveGuard />}
-      <Section fixture={fixture} organization={organization} subpath={subpath} query={query} />
+      {isClientSettingsSection(setting.key) ? (
+        <OrganizationSettingsSection
+          section={setting.key}
+          fixture={fixture}
+          organization={organization}
+          subpath={subpath}
+          query={query}
+        />
+      ) : (
+        Section && (
+          <Section fixture={fixture} organization={organization} subpath={subpath} query={query} />
+        )
+      )}
     </SettingsScreen>
   )
 }
