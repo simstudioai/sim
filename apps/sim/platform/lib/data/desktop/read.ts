@@ -4,6 +4,8 @@ import { type Dispatch, type SetStateAction, useEffect, useEffectEvent, useState
 import { useRouter } from 'next/navigation'
 import { getDesktopBridge } from '@/lib/desktop'
 import type { BrowserCredential, DesktopApi } from '@/platform/lib/data/desktop/model'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface DesktopRead<T> {
   data: T | null
@@ -22,6 +24,7 @@ export function useDesktopRead<T>(
   offers: (bridge: DesktopApi) => boolean = () => true
 ): DesktopRead<T> {
   const router = useRouter()
+  const generalHref = surfaceHref(useSurfaceScope(), '/settings/general')
   const [data, setData] = useState<T | null>(null)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -30,7 +33,7 @@ export function useDesktopRead<T>(
   useEffect(() => {
     const bridge = getDesktopBridge()
     if (!bridge || !isOffered(bridge)) {
-      router.replace('/settings/general')
+      router.replace(generalHref)
       return
     }
     let current = true
@@ -45,7 +48,7 @@ export function useDesktopRead<T>(
     return () => {
       current = false
     }
-  }, [router, attempt])
+  }, [router, attempt, generalHref])
   return {
     data,
     setData,

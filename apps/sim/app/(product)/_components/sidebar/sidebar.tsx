@@ -8,7 +8,7 @@ import { IdentityButton } from '@sim/emcn/identity-button'
 import { ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { ScrollArea } from '@sim/emcn/scroll-area'
 import { useSearchParams } from 'next/navigation'
-import { PLATFORM_DESTINATIONS } from '@/app/(product)/_components/destinations'
+import { platformDestinations } from '@/app/(product)/_components/destinations'
 import type { ShellActions, ShellChat, ShellData } from '@/app/(product)/_components/model'
 import { OrganizationMenu } from '@/app/(product)/_components/organization-menu/organization-menu'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
@@ -19,7 +19,9 @@ import { HelpMenu } from '@/app/(product)/_components/sidebar/help-menu'
 import { linkMenuActions } from '@/app/(product)/_components/sidebar/row-links'
 import styles from '@/app/(product)/_components/sidebar/sidebar.module.css'
 import { WorkspacesSection } from '@/app/(product)/_components/sidebar/workspaces-section'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { workspaceLocation } from '@/platform/lib/workspace-navigation'
 import type { ShellDestination } from '@/platform/shared/shell'
 
@@ -51,12 +53,14 @@ export function Sidebar({
   const settings = Boolean(settingsSection)
   const activeWorkspace = workspaceLocation(pathname)?.id
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const sidebarHeader = useRef<HTMLDivElement>(null)
   const sidebarFooter = useRef<HTMLElement>(null)
   const preferences = useInterfacePreferences()
   const accountPhoto = preferences?.picture ?? data?.user.image
   const accountName = preferences?.profileName ?? data?.user.name ?? ''
-  const destinations: readonly ShellDestination[] = data?.destinations ?? PLATFORM_DESTINATIONS
+  const destinations: readonly ShellDestination[] =
+    data?.destinations ?? platformDestinations(scope)
   return (
     <aside className={styles.sidebar} data-material='shell' aria-label='Platform sidebar'>
       <div ref={sidebarHeader} className={styles.sidebarHeader}>
@@ -69,7 +73,7 @@ export function Sidebar({
             anchor={sidebarHeader}
             organization={data?.organization}
             actions={actions.organization}
-            onSettings={() => navigate('/settings/members')}
+            onSettings={() => navigate(surfaceHref(scope, '/settings/members'))}
           />
         )}
         {toolbar}
@@ -135,7 +139,7 @@ export function Sidebar({
               anchor={sidebarFooter}
               name={accountName}
               image={accountPhoto}
-              onSettings={() => navigate('/settings')}
+              onSettings={() => navigate(surfaceHref(scope, '/settings'))}
               onSignOut={actions.signOut}
             />
           ) : (
@@ -150,7 +154,7 @@ export function Sidebar({
                   <Avatar name={accountName} size='inline' />
                 )
               }
-              onClick={() => navigate('/settings')}
+              onClick={() => navigate(surfaceHref(scope, '/settings'))}
             >
               {accountName}
             </IdentityButton>

@@ -47,6 +47,7 @@ import { useVoiceInput } from '@/hooks/use-voice-input'
 import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { attachmentKind } from '@/platform/lib/data/chat-model'
 import { useOrganization } from '@/platform/lib/data/organization'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useStartSearch } from '@/platform/lib/data/search'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import {
@@ -397,7 +398,8 @@ function useOrganizationInventory(enabled: boolean, organizationId: string) {
 
 /** Home's Build entry: hand the draft to a new chat surface, which sends it on mount. */
 function useLiveStartChat() {
-  const { organization } = useOrganization()
+  const surface = useOrganization()
+  const { organization } = surface
   const router = useRouter()
   return (draft: ComposerDraft): false | undefined => {
     if (draft.attachments.some((attachment) => attachment.uploading)) return false
@@ -413,7 +415,7 @@ function useLiveStartChat() {
       { organizationId: organization.id }
     )
     if (!stored) return false
-    router.push('/chat')
+    router.push(surfaceHref(surface, '/chat'))
     return undefined
   }
 }

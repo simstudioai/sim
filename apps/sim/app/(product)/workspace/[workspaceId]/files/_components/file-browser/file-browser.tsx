@@ -102,8 +102,10 @@ import {
   useWorkspaceMembersQuery,
   type WorkspaceFileFolderApi,
 } from '@/platform/lib/data/folders'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/platform/lib/data/pins'
-import { platformHref, publicAssetPath } from '@/platform/lib/navigation'
+import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatRelativeTime } from '@/platform/shared/time'
 
@@ -212,6 +214,7 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const scope = useSurfaceScope()
   const now = useMinuteClock()
   const access = useResourceListAccess(workspaceId, 'hideFilesTab')
   const canEdit = access.canEdit
@@ -499,7 +502,9 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
       action: {
         label: 'Upgrade',
         onClick: () =>
-          router.push(platformHref('/settings/billing/plans?reason=storage', searchParams)),
+          router.push(
+            platformHref(surfaceHref(scope, '/settings/billing/plans?reason=storage'), searchParams)
+          ),
       },
     })
 
@@ -691,7 +696,7 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
   }
   const absoluteHref = (file: WorkspaceFileRecord) =>
     new URL(
-      publicAssetPath(`${workspacePath(workspaceId, 'files')}/${encodeURIComponent(file.id)}`),
+      `${workspacePath(workspaceId, 'files')}/${encodeURIComponent(file.id)}`,
       window.location.origin
     ).href
   const togglePin = (resourceType: 'file' | 'folder', id: string, pinned: boolean) =>

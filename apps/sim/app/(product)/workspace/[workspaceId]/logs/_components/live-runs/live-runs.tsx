@@ -10,7 +10,6 @@ import {
   RunList,
   type RunRowActions,
 } from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-list/run-list'
-import { platformUrl } from '@/platform/lib/data/base-path'
 import {
   RUN_TRIGGER_OPTIONS,
   type RunCommandsTarget,
@@ -62,7 +61,7 @@ export function LiveRuns({ workspaceId, integrationTriggers }: LiveRunsProps) {
   }
   const openWorkflow = (workflowId: string) =>
     window.open(
-      platformUrl(workspacePath(workspaceId, `workflows/${encodeURIComponent(workflowId)}`)),
+      workspacePath(workspaceId, `workflows/${encodeURIComponent(workflowId)}`),
       '_blank',
       'noopener,noreferrer'
     )

@@ -58,7 +58,6 @@ import { WorkflowInputMapper } from '@/app/(product)/workspace/[workspaceId]/wor
 import { WorkflowOutputSelector } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/workflow-output-selector/workflow-output-selector'
 import { WorkflowSelectorInput } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/workflow-selector/workflow-selector'
 import { WorkspaceFolderSelector } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/workspace-folder-selector/workspace-folder-selector'
-import { platformUrl } from '@/platform/lib/data/base-path'
 import {
   buildSubBlockValues,
   isFieldRequired,
@@ -208,7 +207,7 @@ function SubBlockComponent({
   }, [config.id, config.type, subBlockValues, workspaceId])
 
   const openLinkedResource = useCallback(() => {
-    if (linkedResource) window.open(platformUrl(linkedResource.href), '_blank', 'noopener')
+    if (linkedResource) window.open(linkedResource.href, '_blank', 'noopener')
   }, [linkedResource])
 
   const renderInput = (): ReactNode => {

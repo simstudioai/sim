@@ -23,6 +23,7 @@ import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import {
   buildSsoRegistrationBody,
   DEFAULT_SSO_FORM,
+  getBaseUrl,
   hasSsoFormErrors,
   maskedClientSecret,
   OIDC_DEFAULT_MAPPING,
@@ -34,7 +35,6 @@ import {
   type SsoProviderView,
   ssoFormCallbackUrl,
   useConfigureSSO,
-  useSsoOrigin,
   validateSsoProviderForm,
 } from '@/platform/lib/data/sso'
 
@@ -133,7 +133,7 @@ export function ProviderForm({
   const configure = useConfigureSSO()
   const isEditing = Boolean(existingProvider)
   const original = initialForm ?? DEFAULT_SSO_FORM
-  const baseUrl = useSsoOrigin()
+  const baseUrl = getBaseUrl()
   const [form, setForm] = useState<SsoProviderForm>(original)
   const [showErrors, setShowErrors] = useState(false)
   const [isReplacing, setIsReplacing] = useState(false)

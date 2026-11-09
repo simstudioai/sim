@@ -5,6 +5,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { ChangelogRelease } from '@/lib/api/contracts/changelog'
 import { useChangelogReleases, useUpdateChangelogRelease } from '@/hooks/queries/changelog'
 import { useWorkspaceFileContent, useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
+import { useOrganization } from '@/platform/lib/data/organization'
+import { type SurfaceScope, surfaceHref } from '@/platform/lib/data/organization-model'
 import { useWorkspaceUserPermissions } from '@/platform/lib/data/tables/permissions'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import {
@@ -35,6 +37,7 @@ function toEntry(release: ChangelogRelease): ChangelogEntry {
 }
 
 function toDetail(
+  scope: SurfaceScope,
   release: ChangelogRelease,
   workspace: { id: string; name: string }
 ): ChangelogDetail {
@@ -46,7 +49,9 @@ function toDetail(
     changes: release.changes.map((change) => ({
       id: change.id,
       text: change.text,
-      href: change.chatId ? `/chat/${encodeURIComponent(change.chatId)}` : undefined,
+      href: change.chatId
+        ? surfaceHref(scope, `/chat/${encodeURIComponent(change.chatId)}`)
+        : undefined,
     })),
     workspaceChanges: release.workflows.map((workflow) => ({
       id: workflow.id,
@@ -104,6 +109,7 @@ export function useLiveRelease(
   releaseId: string,
   workspace: { id: string; name: string } | undefined
 ) {
+  const organization = useOrganization()
   const { query, read, releases } = useReleases(workspaceId)
   const release = releases.find((item) => item.id === releaseId)
   const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = query
@@ -125,7 +131,7 @@ export function useLiveRelease(
     read: releaseRead,
     missing: query.status === 'success' && !release && !hasNextPage,
     release,
-    detail: release && workspace && toDetail(release, workspace),
+    detail: release && workspace && toDetail(organization, release, workspace),
   }
 }
 

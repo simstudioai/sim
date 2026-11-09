@@ -3,7 +3,6 @@
 import { IconButton } from '@sim/emcn/button'
 import { WorkflowPreview } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/workflow-block-preview/workflow-block-preview.module.css'
-import { platformUrl } from '@/platform/lib/data/base-path'
 import { useWorkflowState } from '@/platform/lib/data/workflow-editor'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 
@@ -52,7 +51,7 @@ export function WorkflowBlockPreview({ workspaceId, workflowId }: WorkflowBlockP
                 tooltip
                 onClick={() =>
                   window.open(
-                    platformUrl(`${workspacePath(workspaceId, 'workflows')}/${workflowId}`),
+                    `${workspacePath(workspaceId, 'workflows')}/${workflowId}`,
                     '_blank',
                     'noopener,noreferrer'
                   )

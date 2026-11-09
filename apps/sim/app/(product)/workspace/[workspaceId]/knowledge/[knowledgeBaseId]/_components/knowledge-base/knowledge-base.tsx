@@ -87,7 +87,6 @@ import {
   useOAuthReturnForKBConnectors,
 } from '@/platform/lib/data/knowledge/connectors'
 import { folderChain } from '@/platform/lib/folder-chain'
-import { publicAssetPath } from '@/platform/lib/navigation'
 
 const DOCUMENTS_PER_PAGE = 50
 /** While a document indexes, its own status is what moves. */
@@ -345,7 +344,7 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
 
   function openInNewTab(document: DocumentData) {
     window.open(
-      publicAssetPath(documentHref(workspaceId, knowledgeBaseId, document.id, search)),
+      documentHref(workspaceId, knowledgeBaseId, document.id, search),
       '_blank',
       'noopener'
     )

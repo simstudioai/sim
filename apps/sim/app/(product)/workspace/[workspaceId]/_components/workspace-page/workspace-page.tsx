@@ -16,8 +16,10 @@ import {
   useWorkspaceDataMode,
   useWorkspaceTabFlags,
 } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useLiveWorkspace } from '@/platform/lib/data/workspace-summary'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import {
   type WorkspaceTab,
   workspacePath,
@@ -222,5 +224,5 @@ export function WorkspaceEmpty({ title, description, action }: WorkspaceEmptyPro
 
 /** The organization's New chat, keeping the preview's scenario and theme. */
 export function useNewChatHref() {
-  return platformHref('/chat', useSearchParams())
+  return platformHref(surfaceHref(useSurfaceScope(), '/chat'), useSearchParams())
 }

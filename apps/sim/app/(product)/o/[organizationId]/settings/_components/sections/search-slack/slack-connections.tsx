@@ -7,6 +7,7 @@ import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ActionRow } from '@/app/(product)/_components/settings-parts/settings-parts'
 import {
@@ -82,7 +83,9 @@ export function SlackConnections({
           <Button
             size='compact'
             variant='primary'
-            render={prospective ? undefined : <a href={manageHref}>Manage Slack connection</a>}
+            render={
+              prospective ? undefined : <Link href={manageHref}>Manage Slack connection</Link>
+            }
             onClick={
               prospective ? () => setSetup({ mode: shared ? 'shared' : 'custom' }) : undefined
             }
@@ -163,7 +166,10 @@ export function SlackConnections({
                     ]}
                   />
                 ) : (
-                  <Button size='compact' render={<a href={manageHref}>Manage Slack connection</a>}>
+                  <Button
+                    size='compact'
+                    render={<Link href={manageHref}>Manage Slack connection</Link>}
+                  >
                     Manage
                   </Button>
                 )}

@@ -15,7 +15,9 @@ import { linkMenuActions, pinAction } from '@/app/(product)/_components/sidebar/
 import { SectionStatus } from '@/app/(product)/_components/sidebar/section-status'
 import styles from '@/app/(product)/_components/sidebar/sidebar-collections.module.css'
 import { useSidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layout'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { readFormText } from '@/platform/shared/row-links'
 import type { ShellQueryStatus } from '@/platform/shared/shell'
 
@@ -50,6 +52,7 @@ type ChatEdit = { kind: 'rename'; chatId: string } | { kind: 'remove'; chats: re
 
 export function ChatsSection({ chats, status, activeChat, actions, navigate }: ChatsSectionProps) {
   const query = useSearchParams()
+  const scope = useSurfaceScope()
   const { chatsOpen, setChatsOpen, chatOrder, setChatOrder } = useSidebarLayout()
   const [editing, setEditing] = useState<ChatEdit | null>(null)
   const [selected, setSelected] = useState(NO_SELECTION)
@@ -147,7 +150,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
   /** A removal that only partly lands narrows the dialog to what is left and reports the rest. */
   async function confirmRemoval(targets: readonly ShellChat[]) {
     const { removedIds, failure } = await actions.remove(targets.map((chat) => chat.id))
-    if (activeChat && removedIds.includes(activeChat)) navigate('/home')
+    if (activeChat && removedIds.includes(activeChat)) navigate(surfaceHref(scope, '/home'))
     if (!failure) {
       setSelected(NO_SELECTION)
       return
@@ -185,7 +188,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
             onRetry={actions.retry}
           />
           {chats.map((item) => {
-            const href = item.href ?? `/chat/${item.id}`
+            const href = item.href ?? surfaceHref(scope, `/chat/${item.id}`)
             const rows = rowActions(item)
             const isCurrent = activeChat === item.id
             const selectOnMenuOpen = (open: boolean) => {

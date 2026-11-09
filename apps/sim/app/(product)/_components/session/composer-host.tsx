@@ -23,7 +23,9 @@ import { useDesktopHost } from '@/app/(product)/_components/desktop/desktop-host
 import { useChatChanges } from '@/app/(product)/_components/session/chat-changes'
 import { useComposerDraft } from '@/app/(product)/_components/session/composer-drafts'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 export interface ComposerOptions extends Partial<ComposerInventory> {
   draftKey: string
@@ -119,10 +121,11 @@ function useMemoryComposer({
 function useMemoryStartChat() {
   const router = useRouter()
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const { createChat } = useChatChanges()
   return (draft: ComposerDraft): undefined => {
     const id = createChat(draftTitle(draft), [userTurn(draft)])
-    router.push(platformHref(`/chat/${id}`, search))
+    router.push(platformHref(surfaceHref(scope, `/chat/${id}`), search))
   }
 }
 
@@ -207,11 +210,12 @@ export function useHomePrompt() {
   const focus = useContext(FocusContext)
   const router = useRouter()
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   if (!append) return null
   return (prompt: string) => {
     append(prompt)
     preferences?.setHomeMode('Build')
     focus?.request('home')
-    router.push(platformHref('/home', search))
+    router.push(platformHref(surfaceHref(scope, '/home'), search))
   }
 }

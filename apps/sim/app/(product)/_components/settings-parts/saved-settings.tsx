@@ -8,7 +8,6 @@ import { Switch } from '@sim/emcn/switch'
 import { Tooltip } from '@sim/emcn/tooltip'
 import styles from '@/app/(product)/_components/settings-parts/saved-settings.module.css'
 import { useBooleanSetting, useSavedSettingsRead } from '@/platform/lib/data/preferences'
-import { publicAssetPath } from '@/platform/lib/navigation'
 
 interface SavedSettingsSectionProps {
   title: string
@@ -48,7 +47,7 @@ export function BooleanRow({ setting, label, description, preview }: BooleanRowP
                 muted
                 playsInline
                 loop={preview !== 'canvas-error-notification'}
-                src={publicAssetPath(`/tooltips/${preview}.mp4`)}
+                src={`/tooltips/${preview}.mp4`}
               />
             </span>
           }

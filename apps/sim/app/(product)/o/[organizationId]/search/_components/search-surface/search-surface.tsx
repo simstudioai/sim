@@ -11,7 +11,9 @@ import { RecentItems } from '@sim/emcn-platform/recent-items'
 import { LiveChat } from '@/app/(product)/_components/chat/live/live-chat'
 import { SearchResults } from '@/app/(product)/_components/search/search-results'
 import styles from '@/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface.module.css'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSearchSurface } from '@/platform/lib/data/search'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface SearchSurfaceProps {
   chatId?: string
@@ -19,6 +21,7 @@ interface SearchSurfaceProps {
 
 export function SearchSurface({ chatId }: SearchSurfaceProps) {
   const surface = useSearchSurface(chatId)
+  const scope = useSurfaceScope()
   const { mode, query, assistantAvailable, history } = surface
   const [draft, setDraft] = useState(query)
   const [draftQuery, setDraftQuery] = useState(query)
@@ -49,7 +52,7 @@ export function SearchSurface({ chatId }: SearchSurfaceProps) {
           <LiveChat
             chatId={chatId}
             destination='assistant'
-            chatPath={(id) => `/search/chat/${id}`}
+            chatPath={(id) => surfaceHref(scope, `/search/chat/${id}`)}
             summaryRequest={surface.pendingSummary}
             onSummaryConsumed={surface.consumeSummary}
             header={<div className={styles.switch}>{modeSwitch}</div>}

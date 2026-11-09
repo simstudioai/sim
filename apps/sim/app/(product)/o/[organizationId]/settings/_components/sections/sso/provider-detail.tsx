@@ -13,10 +13,10 @@ import {
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { ProviderForm } from '@/app/(product)/o/[organizationId]/settings/_components/sections/sso/provider-form'
 import {
+  getBaseUrl,
   type SsoProviderView,
   ssoFormFromProvider,
   ssoProviderCallbackUrl,
-  useSsoOrigin,
 } from '@/platform/lib/data/sso'
 
 interface ProviderDetailProps {
@@ -37,7 +37,7 @@ export function ProviderDetail({
   onDelete,
   onMakePrimary,
 }: ProviderDetailProps) {
-  const baseUrl = useSsoOrigin()
+  const baseUrl = getBaseUrl()
   const [editing, setEditing] = useState<EditForm | null>(null)
 
   if (editing) {

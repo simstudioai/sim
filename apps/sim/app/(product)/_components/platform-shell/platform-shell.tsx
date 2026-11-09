@@ -32,7 +32,8 @@ import { Sidebar } from '@/app/(product)/_components/sidebar/sidebar'
 import { useSidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layout'
 import { SidebarToolbar } from '@/app/(product)/_components/sidebar/sidebar-toolbar'
 import { useLiveShellActions } from '@/platform/lib/data/shell-context'
-import { isAbsoluteHref, platformHref } from '@/platform/lib/navigation'
+import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { workspaceLocation } from '@/platform/lib/workspace-navigation'
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -56,6 +57,11 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   const pathname = usePathname()
   const search = useSearchParams()
   const router = useRouter()
+  const { routePrefix } = useSurfaceScope()
+  const surfacePath =
+    pathname === routePrefix || pathname.startsWith(`${routePrefix}/`)
+      ? pathname.slice(routePrefix.length)
+      : pathname
   const { collapsed, setCollapsed, chatOrder, workspaceOrder } = useSidebarLayout()
   const [drawer, setDrawer] = useState(false)
   const [command, setCommand] = useState(false)
@@ -66,18 +72,18 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   const session = useSessionShell(liveActions ? null : data)
   const actions = liveActions ?? session.actions
   const settingsEntry = useRef<string | null>(null)
-  const settings = pathname.startsWith('/settings')
+  const settings = surfacePath.startsWith('/settings')
   const settingsDestinations: readonly { key: string; title: string }[] =
     data?.settingsNavigation?.flatMap((group) => group.items) ?? []
   const section = settings
-    ? settingsDestinations.find((item) => item.key === (pathname.split('/')[2] || 'general'))
+    ? settingsDestinations.find((item) => item.key === (surfacePath.split('/')[2] || 'general'))
     : undefined
   const location = workspaceLocation(pathname)
-  const conversation = pathname.startsWith('/chat')
-  const activeChat = conversation ? pathname.split('/')[2] : undefined
-  const home = pathname === '/home'
-  const integrations = pathname === '/integrations' || pathname.startsWith('/integrations/')
-  const people = pathname === '/people' || pathname.startsWith('/people/')
+  const conversation = surfacePath.startsWith('/chat')
+  const activeChat = conversation ? surfacePath.split('/')[2] : undefined
+  const home = surfacePath === '/home'
+  const integrations = surfacePath === '/integrations' || surfacePath.startsWith('/integrations/')
+  const people = surfacePath === '/people' || surfacePath.startsWith('/people/')
   const workspace = data?.workspaces.find((item) => item.id === location?.id)
   const scrollingPage = home || integrations || Boolean(location && !location.detail)
   const chats = orderSidebarItems(
@@ -162,10 +168,7 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   function navigate(path: string) {
     setCommand(false)
     setDrawer(false)
-    actions.requestLeave(() => {
-      if (isAbsoluteHref(path)) window.location.assign(path)
-      else router.push(platformHref(path, search))
-    })
+    actions.requestLeave(() => router.push(platformHref(path, search)))
   }
   function toggle() {
     if (compact) setDrawer((previous) => !previous)
@@ -187,7 +190,7 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
       chats={chats}
       activeChat={activeChat}
       pathname={pathname}
-      settingsSection={settings ? pathname.split('/')[2] || 'general' : undefined}
+      settingsSection={settings ? surfacePath.split('/')[2] || 'general' : undefined}
       toolbar={(!desktop || compact) && toolbar}
       onBack={() => navigate(settingsEntry.current ?? actions.settingsLanding)}
       navigate={navigate}

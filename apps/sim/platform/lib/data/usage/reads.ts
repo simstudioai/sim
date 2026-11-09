@@ -38,7 +38,9 @@ import {
   useOrganizationUsageOverview,
 } from '@/hooks/queries/organization-usage'
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { DAY_MS } from '@/platform/shared/time'
 import { dayLabel, formatDurationMs, toCreditChart } from '@/platform/shared/usage'
 
@@ -50,16 +52,26 @@ const PERIOD_OPTIONS = USAGE_WINDOW_PRESETS.map((preset) => PERIOD_LABELS[preset
 export function useUsageView() {
   const view = useUsageWindow()
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const { setState } = view
   return {
     ...view,
     periodOptions: PERIOD_OPTIONS,
-    eventsHref: usageWindowHref(platformHref('/settings/usage/events', search), view.window),
-    backHref: usageWindowHref(platformHref('/settings/usage', search), view.window),
+    eventsHref: usageWindowHref(
+      platformHref(surfaceHref(scope, '/settings/usage/events'), search),
+      view.window
+    ),
+    backHref: usageWindowHref(
+      platformHref(surfaceHref(scope, '/settings/usage'), search),
+      view.window
+    ),
     auditLogsHref: (workspaceId: string) =>
-      serializeOrganizationUsageParams(platformHref('/settings/audit-logs', search), {
-        workspace: workspaceId,
-      }),
+      serializeOrganizationUsageParams(
+        platformHref(surfaceHref(scope, '/settings/audit-logs'), search),
+        {
+          workspace: workspaceId,
+        }
+      ),
     selectTab: (tab: UsageTab) =>
       void setState({ tab, workspace: null, expanded: null, activityPage: 0 }),
     /** Whether the viewer chose a custom range, which has no dates until they pick some. */

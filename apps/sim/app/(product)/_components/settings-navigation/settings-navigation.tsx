@@ -7,7 +7,9 @@ import { useSearchParams } from 'next/navigation'
 import { useDesktopHost } from '@/app/(product)/_components/desktop/desktop-host'
 import type { SettingsNavGroup } from '@/app/(product)/_components/model'
 import styles from '@/app/(product)/_components/settings-navigation/settings-navigation.module.css'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { plural } from '@/platform/shared/plural'
 
 interface SettingsNavigationProps {
@@ -18,6 +20,7 @@ interface SettingsNavigationProps {
 
 export function SettingsNavigation({ section = 'general', groups = [] }: SettingsNavigationProps) {
   const params = useSearchParams()
+  const scope = useSurfaceScope()
   const [query, setQuery] = useState('')
   const desktop = useDesktopHost()
   const filter = query.trim().toLowerCase()
@@ -48,7 +51,7 @@ export function SettingsNavigation({ section = 'general', groups = [] }: Setting
           <Chip
             key={entry.key}
             selected={section === entry.key}
-            href={entry.href ?? platformHref(`/settings/${entry.key}`, params)}
+            href={entry.href ?? platformHref(surfaceHref(scope, `/settings/${entry.key}`), params)}
             icon={entry.icon}
           >
             {entry.label}

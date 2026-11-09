@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useCallback, useMemo } from 'react'
+import { type ReactNode, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { clearBrowserUserData } from '@/lib/auth/browser-storage'
 import { signOut, useSession } from '@/lib/auth/client'
@@ -9,7 +9,6 @@ import { useSessionExpiry } from '@/lib/auth/session-expiry'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { useStopImpersonating } from '@/hooks/queries/admin-users'
 import { useSessionQuery } from '@/hooks/queries/session'
-import { useOrganization } from '@/platform/lib/data/organization'
 
 const logger = createLogger('PlatformSession')
 
@@ -47,15 +46,16 @@ export async function signOutAndLeave(loginUrl: string): Promise<boolean> {
   return true
 }
 
+function recoverSession() {
+  return signOutAndLeave('/login')
+}
+
 /** The shared expiry rule, recovering through this app's sign-out. */
 export function useSessionRecovery() {
-  const { legacyOrigin } = useOrganization()
-  const recover = useCallback(() => signOutAndLeave(`${legacyOrigin}/login`), [legacyOrigin])
-  return useSessionExpiry(recover)
+  return useSessionExpiry(recoverSession)
 }
 
 export function useImpersonation() {
-  const { legacyOrigin } = useOrganization()
   const { data: session, isPending } = useSession()
   const stopImpersonating = useStopImpersonating()
   return {
@@ -67,7 +67,7 @@ export function useImpersonation() {
       stopImpersonating.mutate(undefined, {
         onSuccess: () => {
           clearBrowserUserData({ preserveRecentImpersonations: true })
-          window.location.assign(`${legacyOrigin}${APP_ENTRY_PATH}`)
+          window.location.assign(APP_ENTRY_PATH)
         },
       }),
   }

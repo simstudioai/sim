@@ -1,7 +1,7 @@
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { CredentialGroups } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/credential-groups'
 import { loadCredentialGroupsData } from '@/platform/fixtures'
-import { legacyRoutes } from '@/platform/lib/data/organization-model'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { readScenario } from '@/platform/lib/navigation'
 
 export default async function ConnectedAccountsSection({
@@ -20,7 +20,7 @@ export default async function ConnectedAccountsSection({
     <CredentialGroups
       data={data}
       editable={Boolean(fixture)}
-      managementHref={legacyRoutes(organization).settingsSection('connected-accounts')}
+      managementHref={surfaceHref(organization, '/settings/connected-accounts')}
     />
   )
 }

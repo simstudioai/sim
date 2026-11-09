@@ -27,6 +27,7 @@ import {
   useOrganizationWorkspaces,
   usePermissionGroups,
 } from '@/platform/lib/data/access-control'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
 import { plural } from '@/platform/shared/plural'
 
@@ -221,7 +222,11 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
         <SettingsRow label='Access requests'>
           <Button
             size='compact'
-            render={<Link href={platformHref('/settings/requests', searchParams)} />}
+            render={
+              <Link
+                href={platformHref(surfaceHref(organization, '/settings/requests'), searchParams)}
+              />
+            }
           >
             Review requests
           </Button>

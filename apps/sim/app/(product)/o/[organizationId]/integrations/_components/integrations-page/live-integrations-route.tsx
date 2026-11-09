@@ -1,7 +1,6 @@
 import { HydrationBoundary } from '@tanstack/react-query'
 import { notFound } from 'next/navigation'
 import { IntegrationsRoute } from '@/app/(product)/o/[organizationId]/integrations/_components/integrations-page/integrations-route'
-import { legacyRoutes } from '@/platform/lib/data/organization-model'
 import { prefetchIntegrations } from '@/platform/lib/data/prefetch-integrations'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
@@ -14,12 +13,7 @@ export async function LiveIntegrationsRoute({ section }: { section?: string }) {
   if (!organization.searchAccess.memberScoped) notFound()
   return (
     <HydrationBoundary state={await prefetchIntegrations(organization)}>
-      <IntegrationsRoute
-        organizationId={organization.organization.id}
-        section={section}
-        basePath='/integrations'
-        memberSecretsPath={legacyRoutes(organization).memberSecrets}
-      />
+      <IntegrationsRoute organizationId={organization.organization.id} section={section} />
     </HydrationBoundary>
   )
 }

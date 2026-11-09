@@ -32,7 +32,6 @@ import {
   RunStatusText,
   RunTriggerLabel,
 } from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-status/run-status'
-import { platformUrl } from '@/platform/lib/data/base-path'
 import { platformHref } from '@/platform/lib/navigation'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import {
@@ -169,8 +168,7 @@ export function RunList({
         id: 'copy-link',
         label: 'Copy link',
         icon: 'link',
-        onSelect: () =>
-          void copy(new URL(platformUrl(runPath(run.id)), window.location.origin).href),
+        onSelect: () => void copy(new URL(runPath(run.id), window.location.origin).href),
       },
       ...(own?.links ?? []),
       ...(filteredByThis

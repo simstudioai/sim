@@ -4,6 +4,7 @@ import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import Link from 'next/link'
 import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { ActionRow, SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { GroupAccess } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/group-access'
@@ -35,7 +36,7 @@ export function CredentialGroups({ data, editable, managementHref }: CredentialG
   if (!groups.canManage)
     return <EmptyState title='An organization admin manages Credential Groups.' />
   const manageLink = (
-    <Button size='compact' render={<a href={managementHref}>Manage Credential Groups</a>}>
+    <Button size='compact' render={<Link href={managementHref}>Manage Credential Groups</Link>}>
       Manage Credential Groups
     </Button>
   )

@@ -4,5 +4,5 @@ import { MothershipPanel } from '@/app/(product)/o/[organizationId]/settings/_co
 
 export default function MothershipSection({ organization }: SettingsSectionProps) {
   if (!organization.navFlags.platformAdmin) notFound()
-  return <MothershipPanel organization={organization} referenceTime={Date.now()} />
+  return <MothershipPanel referenceTime={Date.now()} />
 }

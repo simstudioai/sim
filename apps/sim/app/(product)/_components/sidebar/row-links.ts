@@ -1,8 +1,7 @@
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
-import { isAbsoluteHref, publicAssetPath } from '@/platform/lib/navigation'
 import { createRowLinks } from '@/platform/shared/row-links'
 
-const links = createRowLinks((href) => (isAbsoluteHref(href) ? href : publicAssetPath(href)))
+const links = createRowLinks()
 
 export const { openLinkInNewTab, openInNewTabAction } = links
 

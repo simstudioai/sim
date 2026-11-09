@@ -4,20 +4,10 @@ import { useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSettingsBrowserNavigation } from '@/hooks/use-settings-browser-navigation'
 import { useSettingsLeaveLinks } from '@/hooks/use-settings-leave-links'
-import { publicAssetPath } from '@/platform/lib/navigation'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
-
-const BASE_PATH = publicAssetPath('')
 
 export function requestSettingsLeave(leave: () => void) {
   useSettingsDirtyStore.getState().requestLeave(leave)
-}
-
-/** Links are written against this zone and the router adds the base path itself. */
-function zoneRoute(url: URL): string | null {
-  if (!BASE_PATH) return `${url.pathname}${url.search}${url.hash}`
-  if (url.pathname !== BASE_PATH && !url.pathname.startsWith(`${BASE_PATH}/`)) return null
-  return `${url.pathname.slice(BASE_PATH.length) || '/'}${url.search}${url.hash}`
 }
 
 /**
@@ -30,11 +20,8 @@ export function useSettingsLeaveGuard() {
   useSettingsBrowserNavigation()
   useSettingsLeaveLinks(
     useCallback(
-      (destination: URL) => {
-        const route = zoneRoute(destination)
-        if (route) router.push(route)
-        else window.location.assign(destination.href)
-      },
+      (destination: URL) =>
+        router.push(`${destination.pathname}${destination.search}${destination.hash}`),
       [router]
     )
   )

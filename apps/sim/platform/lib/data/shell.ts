@@ -12,7 +12,11 @@ import {
 } from '@/hooks/queries/workspace'
 import { useCanOpenOrganizationChat, useChatListActions } from '@/platform/lib/data/chat-list'
 import { useOrganization } from '@/platform/lib/data/organization'
-import { canListOrganizationChats } from '@/platform/lib/data/organization-model'
+import {
+  canListOrganizationChats,
+  type SurfaceScope,
+  surfaceHref,
+} from '@/platform/lib/data/organization-model'
 import { useLiveAccountActions } from '@/platform/lib/data/shell-actions'
 import type { LiveShell } from '@/platform/lib/data/shell-context'
 import { useWorkspaceActions } from '@/platform/lib/data/workspaces'
@@ -39,12 +43,15 @@ function toShellWorkspace(
 }
 
 /** Assistant chats live under Search. */
-function toShellChat(chat: MothershipChatMetadata): ShellChat {
+function toShellChat(scope: SurfaceScope, chat: MothershipChatMetadata): ShellChat {
   return {
     id: chat.id,
     title: chat.name,
     mode: chat.mode,
-    href: chat.mode === 'assistant' ? `/search/chat/${chat.id}` : `/chat/${chat.id}`,
+    href: surfaceHref(
+      scope,
+      chat.mode === 'assistant' ? `/search/chat/${chat.id}` : `/chat/${chat.id}`
+    ),
     isActive: chat.isActive,
     isUnread: chat.isUnread,
     isPinned: chat.isPinned,
@@ -106,7 +113,7 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
       workspaces: (workspaces.data ?? [])
         .filter((workspace) => workspace.organizationId === organizationId)
         .map((workspace) => toShellWorkspace(workspace, pinnedIds.data)),
-      chats: (chats.data ?? []).filter(canOpenChat).map(toShellChat),
+      chats: (chats.data ?? []).filter(canOpenChat).map((chat) => toShellChat(organization, chat)),
       inbox: [],
       notifications: [],
       unbacked: ['inbox'],

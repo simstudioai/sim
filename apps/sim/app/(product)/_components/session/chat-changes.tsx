@@ -11,7 +11,9 @@ import type {
 import type { ChatTurn, ComposerDraft } from '@/app/(product)/_components/composer/model'
 import { draftTitle, userTurn } from '@/app/(product)/_components/composer/user-turn'
 import type { ShellChat } from '@/app/(product)/_components/model'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface ChatEdits {
   title?: string
@@ -143,6 +145,7 @@ export function useFixtureChatRuntime(
   const changes = useChatChanges()
   const router = useRouter()
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const thread = threads?.find((item) => item.id === chatId)
   const id = chatId ?? ''
   const removed = changes.isRemoved(id)
@@ -173,7 +176,7 @@ export function useFixtureChatRuntime(
       return
     }
     const newId = changes.createChat(draftTitle(draft), [next])
-    router.replace(platformHref(`/chat/${newId}`, search))
+    router.replace(platformHref(surfaceHref(scope, `/chat/${newId}`), search))
   }
   return {
     chatId,

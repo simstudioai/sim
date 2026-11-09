@@ -6,7 +6,9 @@ import type {
   ShellHelp,
 } from '@/app/(product)/_components/model'
 import { useChatChanges } from '@/app/(product)/_components/session/chat-changes'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 export const SESSION_HELP: ShellHelp = {
   documentationUrl: 'https://docs.sim.ai',
@@ -17,6 +19,7 @@ export const SESSION_HELP: ShellHelp = {
 /** The shell's actions when nothing is behind them: chat edits last for this interface session. */
 export function useSessionShell(data: ShellData | null) {
   const changes = useChatChanges()
+  const scope = useSurfaceScope()
   const [workspacePins, setWorkspacePins] = useState<Record<string, boolean>>({})
   const [chatPins, setChatPins] = useState<Record<string, boolean>>({})
   const workspaces = (data?.workspaces ?? []).map((item) => ({
@@ -46,7 +49,7 @@ export function useSessionShell(data: ShellData | null) {
     },
     help: SESSION_HELP,
     requestLeave: requestSettingsLeave,
-    settingsLanding: '/home',
+    settingsLanding: surfaceHref(scope, '/home'),
   }
   return { actions, chats, workspaces }
 }

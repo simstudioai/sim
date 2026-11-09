@@ -13,7 +13,7 @@ import {
   type ConnectorMeta,
   useConnectorAccessField,
 } from '@/platform/lib/data/knowledge/connectors'
-import { useOrganization } from '@/platform/lib/data/organization'
+import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 const CONNECTED_MEMBERS = '__connected_members__'
 
@@ -100,7 +100,6 @@ export function ConnectorAccessField({
   footer,
   onSetupNavigate,
 }: ConnectorAccessFieldProps) {
-  const organization = useOrganization()
   const field = useConnectorAccessField({
     workspaceId,
     connectorConfig,
@@ -121,7 +120,7 @@ export function ConnectorAccessField({
       : accessMode === 'workspace'
         ? 'Everyone in this workspace can search these documents.'
         : undefined
-  const slackSetupHref = `${organization.legacyOrigin}/workspace/${encodeURIComponent(workspaceId)}/settings/credential-groups`
+  const slackSetupHref = workspacePath(workspaceId, 'settings/credential-groups')
 
   return (
     <DetailsField label={label}>

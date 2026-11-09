@@ -1,4 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
+import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { organizationRoutes } from '@/lib/navigation/paths'
@@ -30,7 +31,7 @@ import {
   toToolPermissions,
 } from '@/platform/lib/data/integrations-model'
 import { useOrganization } from '@/platform/lib/data/organization'
-import { legacyRoutes } from '@/platform/lib/data/organization-model'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import type { OrganizationIntegration, ToolPermissionChange } from '@/platform/shared/integrations'
 
 const ACTION_NOTICE_ID = 'integrations-action'
@@ -61,11 +62,12 @@ export function useMemberIntegrations(organizationId: string) {
 const SAVED_PROVIDER_SUFFIX = /-service-account$/
 
 /**
- * The zone has no dialog for an account the member saves by hand, so connecting one happens on the
- * legacy provider page, a route the legacy layout does not map back here.
+ * The product has no dialog for an account the member saves by hand, so connecting one happens on
+ * the provider page.
  */
 export function useIntegrationActions(organizationId: string) {
   const organization = useOrganization()
+  const router = useRouter()
   const savedAccounts = useOrganizationAccounts(organizationId).data?.viewerSavedAccounts ?? []
   const removeSaved = useRemovePersonalSearchCredential()
   const connect = useConnectOrganizationAccount()
@@ -74,8 +76,11 @@ export function useIntegrationActions(organizationId: string) {
   const onError = reportActionFailure
   const connecting = connect.isPending || reconnect.isPending
   const openSavedConnection = (providerId: string) =>
-    window.location.assign(
-      legacyRoutes(organization).integration(providerId.replace(SAVED_PROVIDER_SUFFIX, ''))
+    router.push(
+      surfaceHref(
+        organization,
+        `/integrations/${encodeURIComponent(providerId.replace(SAVED_PROVIDER_SUFFIX, ''))}`
+      )
     )
   return {
     connecting,

@@ -5,7 +5,9 @@ import { Modal } from '@sim/emcn/modal'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { FieldStack, Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface SlackAppSettingsProps {
   value: string | null
@@ -15,6 +17,7 @@ interface SlackAppSettingsProps {
 
 export function SlackAppSettings({ value, close, save }: SlackAppSettingsProps) {
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   return (
     <Modal
       open
@@ -31,7 +34,9 @@ export function SlackAppSettings({ value, close, save }: SlackAppSettingsProps) 
         </Muted>
         <Button
           size='compact'
-          render={<Link href={platformHref('/settings/search-slack', search)} />}
+          render={
+            <Link href={platformHref(surfaceHref(scope, '/settings/search-slack'), search)} />
+          }
         >
           {value ? 'Manage app' : 'Set up Sim Search in Slack'}
         </Button>

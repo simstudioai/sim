@@ -27,10 +27,6 @@ export interface IntegrationsRouteProps {
   organizationId: string
   /** The `/integrations/[provider]` segment; absent on the index. */
   section?: string
-  /** Where this page is served. Defaults to the organization surface's route. */
-  basePath?: string
-  /** The personal secrets editor, which stays on the organization surface. */
-  memberSecretsPath?: string
   /** The host's confirmation of a connection a link asked for. */
   connectionRequest?: ReactNode
   /** The host's handoff from Slack onboarding, beside the heading. */
@@ -40,8 +36,6 @@ export interface IntegrationsRouteProps {
 export function IntegrationsRoute({
   organizationId,
   section,
-  basePath,
-  memberSecretsPath,
   connectionRequest,
   handoff,
 }: IntegrationsRouteProps) {
@@ -52,15 +46,14 @@ export function IntegrationsRoute({
   const { search, account, clearAccount, serialize } = useIntegrationsView()
   const skills = useLiveSkills()
   const defaults = defaultIntegrationPaths(organizationId)
-  const indexPath = basePath ?? defaults.index
+  const indexPath = defaults.index
   const pathOf = (id: string) => `${indexPath}/${encodeURIComponent(id)}`
   const integrationHref = (id: string) =>
     serialize(integrationCenterHref(pathOf(id), params), { q: search })
   const indexHref = serialize(integrationCenterHref(indexPath, params), { q: search })
-  const memberSecretsHref = serialize(
-    integrationCenterHref(memberSecretsPath ?? defaults.memberSecrets, params),
-    { q: search }
-  )
+  const memberSecretsHref = serialize(integrationCenterHref(defaults.memberSecrets, params), {
+    q: search,
+  })
 
   const inventoryFailure = inventory.error ? (
     <QueryFailure message='Could not load your connections' query={inventory} />
