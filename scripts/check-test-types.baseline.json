@@ -452,13 +452,13 @@
   "apps/sim/app/api/workspaces/route.test.ts": {
     "TS2554": 2
   },
-  "apps/sim/app/credential-groups/enroll/[token]/page.test.tsx": {
+  "apps/sim/app/(site)/credential-groups/enroll/[token]/page.test.tsx": {
     "TS2322": 1
   },
-  "apps/sim/app/desktop/auth/page.test.tsx": {
+  "apps/sim/app/(site)/desktop/auth/page.test.tsx": {
     "TS2345": 1
   },
-  "apps/sim/app/desktop/connect/page.test.tsx": {
+  "apps/sim/app/(site)/desktop/connect/page.test.tsx": {
     "TS2345": 1
   },
   "apps/sim/components/knowledge/base/components/connector-dialogs.test.tsx": {

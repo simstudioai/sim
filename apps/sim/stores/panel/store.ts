@@ -44,7 +44,7 @@ export const usePanelStore = create<PanelState>()(
       name: 'panel-state',
       /**
        * Persist only the durable panel preferences. `activeTab` MUST be kept:
-       * the blocking script in `app/layout.tsx` reads it from this persisted
+       * the blocking script in `app/_shell/site-root-layout.tsx` reads it from this persisted
        * `panel-state` entry to set `data-panel-active-tab` before hydration,
        * preventing a tab flash. The `_hasHydrated` hydration marker is
        * excluded.

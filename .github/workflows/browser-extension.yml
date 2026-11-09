@@ -6,7 +6,7 @@ on:
       - '.github/workflows/browser-extension.yml'
       - 'apps/extension/**'
       - 'packages/browser-extension-protocol/**'
-      - 'apps/sim/app/extension/**'
+      - 'apps/sim/app/(site)/extension/**'
       - 'apps/sim/app/workspace/**/home/**'
       - 'apps/sim/stores/mothership-drafts/**'
       - 'apps/sim/scripts/test-browser-extension-e2e.ts'

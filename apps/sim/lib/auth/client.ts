@@ -48,7 +48,7 @@ export function useSession(): SessionHookResult {
   const ctx = useContext(SessionContext)
   if (!ctx) {
     throw new Error(
-      'SessionProvider is not mounted. Wrap your app with <SessionProvider> in app/layout.tsx.'
+      'SessionProvider is not mounted. Wrap your app with <SessionProvider> in app/_shell/site-root-layout.tsx.'
     )
   }
   return ctx
