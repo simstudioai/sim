@@ -539,9 +539,8 @@ describe('organization-level activity in a personal organization', () => {
       billingEntity: { type: 'user', id: ownerId },
     })
     expect(attribution.payerSubscription?.id).toBe(proId)
-    expect(assertBillingAttributionSnapshot(JSON.parse(JSON.stringify(attribution)))).toEqual(
-      attribution
-    )
+    const wire = JSON.stringify(attribution)
+    expect(assertBillingAttributionSnapshot(JSON.parse(wire))).toEqual(attribution)
   })
 })
 
