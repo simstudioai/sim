@@ -55,6 +55,8 @@ test('a member withheld the directory gets no People, from the sidebar or a save
   try {
     const member = await context.newPage()
     await signIn(member, memberEmail(), liveRoute(''))
+    // The bare organization URL redirects in the browser; a navigation started first is aborted.
+    await expect(member).toHaveURL(liveRoutePattern('', '/'))
     await expect(member.getByRole('button', { name: 'Organization menu' })).toBeVisible()
     await expect(member.getByRole('link', { name: 'People', exact: true })).toHaveCount(0)
     await member.goto(liveRoute('/people'))
