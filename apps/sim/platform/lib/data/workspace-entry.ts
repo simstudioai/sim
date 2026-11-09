@@ -11,6 +11,7 @@ import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflo
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
+import { readShellOrganizationId } from '@/platform/lib/data/shell-scope'
 
 const logger = createLogger('PlatformWorkspaceEntry')
 
@@ -61,6 +62,8 @@ export async function resolveWorkspaceEntry(
   query: WorkspaceEntryQuery
 ): Promise<WorkspaceEntryDecision> {
   const { principal, activeOrganizationId } = await requireSessionViewer()
+  /** The shell's organization, provisioned for an account in none, before the list decides. */
+  await readShellOrganizationId()
   const list = await listWorkspacesForViewer({
     userId: principal.userId,
     activeOrganizationId,

@@ -24,9 +24,14 @@ payer:
 - invitations, SSO admission and the organization creation route refuse the owner as
   "already in another organization".
 
-Before the backfill runs, the new release creates personal organizations only for new signups,
-for accounts that open the workspace list without belonging to any organization and without a
-workspace, and for members removed from a team. Their workspaces are new and belong to accounts
-without a paid plan, so the exposure during a rolling deploy is limited to those accounts' new
-storage counters; running the backfill only after step 2 completes keeps every existing paid
-account off the previous release's code path.
+Before the backfill runs, the new release creates personal organizations for new signups, for
+members removed from a team, and for any account in no organization that opens a product page (the
+product shell provisions one so every page has an organization to open in). Each of these creates
+the organization and its owner membership only: it never attaches an existing workspace, so no
+existing workspace changes payer bookkeeping before the backfill. Workspaces those accounts create
+afterwards land in the personal organization; they are new and billed to their creator as before,
+so the exposure during a rolling deploy is limited to those new workspaces' storage counters.
+Accounts that already own workspaces keep them organization-less (they open inside the personal
+organization's shell, billed exactly as before) until the backfill attaches them, which is why it
+runs only after step 2 completes: every existing paid account stays off the previous release's code
+path.
