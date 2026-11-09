@@ -46,14 +46,7 @@ export type MenuAction = {
   detail?: string
   separatorBefore?: boolean
 } & (
-  | {
-      /** Empty while its rows are still being read: the submenu then opens no panel. */
-      children: readonly MenuAction[]
-      /** Called as the submenu opens, so a caller can read what it lists on demand. */
-      onOpen?: () => void
-      onSelect?: never
-      trailingIcon?: never
-    }
+  | { children: readonly [MenuAction, ...MenuAction[]]; onSelect?: never; trailingIcon?: never }
   | {
       children?: never
       onSelect?: () => void
@@ -65,8 +58,6 @@ export type MenuAction = {
       disabledReason?: string
       destructive?: boolean
       shortcut?: string
-      /** Keeps the menu open after the row runs, for a row that adds to the list it sits in. */
-      keepOpen?: boolean
     }
 )
 
@@ -138,13 +129,8 @@ function actionRows(actions: readonly MenuAction[]): ReactNode {
         </div>
       )}
       {action.children ? (
-        <SubmenuItem
-          label={action.label}
-          icon={action.icon}
-          detail={action.detail}
-          onOpen={action.onOpen}
-        >
-          {action.children.length > 0 ? actionRows(action.children) : null}
+        <SubmenuItem label={action.label} icon={action.icon} detail={action.detail}>
+          {actionRows(action.children)}
         </SubmenuItem>
       ) : (
         <MenuItem
@@ -159,7 +145,6 @@ function actionRows(actions: readonly MenuAction[]): ReactNode {
           shortcut={action.shortcut}
           href={action.href}
           onSelect={action.onSelect}
-          keepOpen={action.keepOpen}
         />
       )}
     </Fragment>
@@ -443,18 +428,12 @@ interface SubmenuItemProps {
   label: string
   icon?: IconName
   children: ReactNode
-  /** Called as the submenu opens. */
-  onOpen?: () => void
 }
 
-export function SubmenuItem({ label, icon, children, detail, onOpen }: SubmenuItemProps) {
+export function SubmenuItem({ label, icon, children, detail }: SubmenuItemProps) {
   const { trigger, container } = usePopoverContainer()
   return (
-    <Menu.SubmenuRoot
-      onOpenChange={(open) => {
-        if (open) onOpen?.()
-      }}
-    >
+    <Menu.SubmenuRoot>
       <Menu.SubmenuTrigger
         ref={trigger}
         render={<button type='button' />}
@@ -474,11 +453,9 @@ export function SubmenuItem({ label, icon, children, detail, onOpen }: SubmenuIt
           <Icon name='I032' />
         </span>
       </Menu.SubmenuTrigger>
-      {children != null && (
-        <ActionMenuPopup label={label} container={container} submenu>
-          {children}
-        </ActionMenuPopup>
-      )}
+      <ActionMenuPopup label={label} container={container} submenu>
+        {children}
+      </ActionMenuPopup>
     </Menu.SubmenuRoot>
   )
 }
@@ -555,8 +532,6 @@ interface MenuItemProps {
   selected?: boolean
   href?: string
   onSelect?: () => void
-  /** Keeps a floating menu open after the row runs. */
-  keepOpen?: boolean
 }
 
 export function MenuItem({
@@ -573,7 +548,6 @@ export function MenuItem({
   disabledReason,
   href,
   onSelect,
-  keepOpen,
 }: MenuItemProps) {
   const inline = useContext(InlineMenu)
   const floating = useContext(FloatingMenu)
@@ -589,11 +563,7 @@ export function MenuItem({
       {icon && <Icon name={icon} />}
       <span className={popup.label}>{label}</span>
       {!(choice || checked !== undefined) && shortcut && (
-        <kbd
-          className={styles.hint}
-          data-type={inline?.layout === 'browser' ? 'T052' : 'T001'}
-          aria-hidden
-        >
+        <kbd className={styles.hint} data-type={inline?.layout === 'browser' ? 'T052' : 'T001'}>
           {shortcut}
         </kbd>
       )}
@@ -663,7 +633,6 @@ export function MenuItem({
         label={label}
         data-type={type}
         onClick={onSelect}
-        closeOnClick={!keepOpen}
       >
         {content}
       </Menu.Item>

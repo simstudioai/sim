@@ -30,10 +30,7 @@ export interface PanelPicker {
   items: ComposerController['browse']
   /** The picker opened, which is when its reads start. */
   onOpen: () => void
-  onWorkspaceOpen: (workspaceId: string) => void
   onSearchChange: (query: string) => void
-  moreFor: (workspaceId: string, group: string) => (() => void) | undefined
-  workspaceLoaded: (workspaceId: string) => boolean
   onSelect: (item: ComposerReference) => void
 }
 

@@ -39,10 +39,7 @@ export function ResourcePanels({ panel, alwaysOpenable, children }: ResourcePane
       onOpenChange={(open) => {
         if (open) picker.onOpen()
       }}
-      onWorkspaceOpen={picker.onWorkspaceOpen}
       onSearchChange={picker.onSearchChange}
-      moreFor={picker.moreFor}
-      workspaceLoaded={picker.workspaceLoaded}
       selectWorkspaces={false}
     />
   )

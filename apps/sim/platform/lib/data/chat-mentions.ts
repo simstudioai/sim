@@ -9,9 +9,7 @@ import {
 } from '@/lib/api/contracts/organization-mentions'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
-  type MentionRequest,
   useMentionsFollowMutations,
-  useOrganizationMentionPages,
   useOrganizationMentions,
 } from '@/hooks/queries/organization-mentions'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
@@ -120,10 +118,6 @@ function mentionReference(row: MentionRow): MentionReference {
   }
 }
 
-const FAMILY_BY_GROUP = new Map(
-  Object.entries(GROUPS).map(([family, group]) => [group, family as MentionFamily])
-)
-
 /** Whether the `/` list has landed, which a message naming a `/skill` waits for. */
 export type SkillListStatus = 'pending' | 'landed' | 'failed'
 
@@ -141,16 +135,12 @@ export function grouped(rows: readonly MentionRow[] | undefined) {
 }
 
 /**
- * The resource menu's reads: the organization's workspaces, each workspace opened in the menu with
- * its families' first pages, a family's later pages as the menu asks for them, and the menu's own
- * search, which the server answers. Nothing is read while `enabled` is false.
+ * The resource menu's reads: the organization's workspaces and the menu's own search, which the
+ * server answers. Nothing is read while `enabled` is false.
  */
 export function useMentionBrowse(enabled: boolean, organizationId: string) {
   const [browseSearch, setBrowseSearch] = useState('')
   const browseQuery = useSearchFilterValue(browseSearch, SEARCH_DEBOUNCE_MS).trim()
-  const [openedWorkspaces, setOpenedWorkspaces] = useState<readonly string[]>([])
-  /** Each browsed family's later pages, by `workspaceId:family`, as the cursors that read them. */
-  const [laterPages, setLaterPages] = useState<Readonly<Record<string, readonly string[]>>>({})
   const workspaces = useOrganizationMentions(
     organizationId,
     { query: '', family: 'workspaces', limit: MENTION_BROWSE_LIMIT },
@@ -161,72 +151,13 @@ export function useMentionBrowse(enabled: boolean, organizationId: string) {
     { query: browseQuery, limit: MENTION_SUGGESTION_LIMIT },
     { enabled: enabled && Boolean(browseQuery) }
   )
-  const browsed = useOrganizationMentionPages(
-    organizationId,
-    enabled
-      ? openedWorkspaces.map((workspaceId) => ({
-          query: '',
-          workspaceId,
-          limit: MENTION_BROWSE_LIMIT,
-        }))
-      : []
-  )
-  const pageRequests: (MentionRequest & { key: string })[] = enabled
-    ? Object.entries(laterPages).flatMap(([key, cursors]) => {
-        const [workspaceId, family] = key.split(':') as [string, MentionFamily]
-        return cursors.map((cursor) => ({
-          key,
-          query: '',
-          workspaceId,
-          family,
-          cursor,
-          limit: MENTION_BROWSE_LIMIT,
-        }))
-      })
-    : []
-  const pages = useOrganizationMentionPages(
-    organizationId,
-    pageRequests.map(({ key: _key, ...request }) => request)
-  )
-  /** The cursor of a browsed family's next unread page, once the page before it has arrived. */
-  function nextCursor(workspaceId: string, family: MentionFamily): string | undefined {
-    const key = `${workspaceId}:${family}`
-    const read = pageRequests.flatMap((request, index) =>
-      request.key === key ? [pages[index]] : []
-    )
-    if (read.length) return read[read.length - 1]?.data?.nextCursor
-    const opened = browsed[openedWorkspaces.indexOf(workspaceId)]
-    return opened?.data?.families?.find((entry) => entry.family === family)?.nextCursor
-  }
   return {
-    /** Whether the rows are the search's matches rather than the browsed tree. */
+    /** Whether the rows are the search's matches rather than the workspaces. */
     searching: Boolean(browseSearch.trim()),
     rows: browseSearch.trim()
       ? (browseMatches.data?.rows ?? [])
-      : [
-          ...(workspaces.data?.rows ?? []),
-          ...browsed.flatMap((read) => read.data?.rows ?? []),
-          ...pages.flatMap((read) => read.data?.rows ?? []),
-        ],
-    browseMore: (workspaceId: string, group: string) => {
-      const family = FAMILY_BY_GROUP.get(group)
-      const cursor = family && nextCursor(workspaceId, family)
-      if (!family || !cursor) return undefined
-      const key = `${workspaceId}:${family}`
-      return () =>
-        setLaterPages((current) =>
-          current[key]?.includes(cursor)
-            ? current
-            : { ...current, [key]: [...(current[key] ?? []), cursor] }
-        )
-    },
-    onBrowseWorkspace: (workspaceId: string) =>
-      setOpenedWorkspaces((current) =>
-        current.includes(workspaceId) ? current : [...current, workspaceId]
-      ),
+      : (workspaces.data?.rows ?? []),
     onBrowseSearch: setBrowseSearch,
-    workspaceLoaded: (workspaceId: string) =>
-      Boolean(browsed[openedWorkspaces.indexOf(workspaceId)]?.data),
   }
 }
 
@@ -262,7 +193,7 @@ export function useMentionInventory(
     { query: '', family: 'skills', limit: MENTION_BROWSE_LIMIT },
     { enabled: wanted.skills }
   )
-  const { rows, browseMore, onBrowseWorkspace, onBrowseSearch } = useMentionBrowse(
+  const { rows, onBrowseSearch } = useMentionBrowse(
     wanted.resources,
     organizationId
   )
@@ -276,8 +207,6 @@ export function useMentionInventory(
     skillsLoading: wanted.skills && skills.isPending,
     skillList,
     browse: grouped(rows),
-    browseMore,
-    onBrowseWorkspace,
     onBrowseSearch,
   }
 }

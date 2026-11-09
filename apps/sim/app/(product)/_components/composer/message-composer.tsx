@@ -118,9 +118,7 @@ export function MessageComposer({
             onOpenChange={(open) => {
               if (open) composer.onPickerOpen?.()
             }}
-            onWorkspaceOpen={composer.onBrowseWorkspace}
             onSearchChange={composer.onBrowseSearch}
-            moreFor={composer.browseMore}
             onUploadFiles={() => picker.current?.click()}
             onUploadFolder={() => folder.current?.click()}
           />

@@ -273,10 +273,7 @@ function usePanelPicker(panel: ReturnType<typeof useChatResourcePanel>): PanelPi
   return {
     items: grouped(rows),
     onOpen: () => setEnabled(true),
-    onWorkspaceOpen: browse.onBrowseWorkspace,
     onSearchChange: browse.onBrowseSearch,
-    moreFor: browse.browseMore,
-    workspaceLoaded: browse.workspaceLoaded,
     onSelect: (item) => {
       const resource = item.context && pickedResource(item.context, logIds)
       if (resource) panel.addResourceFromUser(resource)

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { keepPreviousData, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type MentionFamily,
@@ -57,16 +57,6 @@ export function useOrganizationMentions(
   return useQuery({
     ...mentionQueryOptions(organizationId, request, options.enabled),
     placeholderData: keepPreviousData,
-  })
-}
-
-/** Several mention reads at once: opened workspaces' first pages, or families' later pages. */
-export function useOrganizationMentionPages(
-  organizationId: string,
-  requests: readonly MentionRequest[]
-) {
-  return useQueries({
-    queries: requests.map((request) => mentionQueryOptions(organizationId, request, true)),
   })
 }
 

@@ -145,14 +145,10 @@ export interface ComposerController extends ComposerInventory {
   onPickerOpen?: () => void
   /** What follows an `@` as it is typed, which the host searches by. */
   onReferenceSearch?: (query: string) => void
-  /** What the resource menu lists: workspaces, each opened workspace's families, or its search's matches. */
+  /** What the resource menu lists: workspaces, or its search's matches. */
   browse: ComposerReferences
-  /** A workspace opened in the resource menu, whose families the host then reads. */
-  onBrowseWorkspace?: (workspaceId: string) => void
   /** The resource menu's search, which the host answers. */
   onBrowseSearch?: (query: string) => void
-  /** Loads the next page of a browsed workspace's group, when the host has one. */
-  browseMore?: (workspaceId: string, group: string) => (() => void) | undefined
   settings?: ComposerSettings
   drop?: ComposerDropHandlers
   voice?: ComposerVoice
