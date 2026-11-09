@@ -14,6 +14,7 @@ import {
   listWorkspaceCredentialMembersContract,
   removeWorkspaceCredentialMemberContract,
   type SecretUsageScope,
+  setWorkspaceCredentialMembersContract,
   updateWorkspaceCredentialContract,
   upsertWorkspaceCredentialMemberContract,
   type WorkspaceCredential,
@@ -298,6 +299,33 @@ export function useRemoveWorkspaceCredentialMember() {
         query: { userId: payload.userId },
       })
     },
+    onSettled: (_data, _error, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: workspaceCredentialKeys.members(variables.credentialId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: workspaceCredentialKeys.detail(variables.credentialId),
+        }),
+        invalidateSelectorQueries(queryClient),
+      ]),
+  })
+}
+
+/** Replaces a credential's explicit grants in one request, which applies all of them or none. */
+export function useSetWorkspaceCredentialMembers() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (
+      payload: {
+        credentialId: string
+      } & ContractBodyInput<typeof setWorkspaceCredentialMembersContract>
+    ) =>
+      requestJson(setWorkspaceCredentialMembersContract, {
+        params: { id: payload.credentialId },
+        body: { members: payload.members },
+      }),
     onSettled: (_data, _error, variables) =>
       Promise.all([
         queryClient.invalidateQueries({

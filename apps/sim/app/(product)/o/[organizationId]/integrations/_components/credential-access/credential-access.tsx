@@ -27,12 +27,18 @@ import type {
 } from '@/platform/lib/integrations/credential-model'
 import { credentialAccessParams } from '@/platform/lib/integrations/credential-navigation'
 
-interface CredentialAccessProps {
-  credential: IntegrationCredential
-  viewer: IntegrationPerson
+/** Who a credential can be shared with and the edits its Access tab proposes. */
+export interface CredentialAccessActions {
   people: readonly IntegrationPerson[]
   onChange: (credential: IntegrationCredential) => void
   onLeave: () => void
+}
+
+interface CredentialAccessProps {
+  credential: IntegrationCredential
+  viewer: IntegrationPerson
+  /** Absent where nothing here can change who uses the credential. */
+  access?: CredentialAccessActions
 }
 
 const ROLES = [
@@ -46,13 +52,10 @@ function roleLabel(member: CredentialMember) {
   return member.role === 'admin' ? 'Admin' : 'Member'
 }
 
-export function CredentialAccess({
-  credential,
-  viewer,
-  people,
-  onChange,
-  onLeave,
-}: CredentialAccessProps) {
+export function CredentialAccess({ credential, viewer, access }: CredentialAccessProps) {
+  const people = access?.people ?? []
+  const onChange = (next: IntegrationCredential) => access?.onChange(next)
+  const onLeave = () => access?.onLeave()
   const [view, setView] = useQueryStates(credentialAccessParams)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [removingIds, setRemovingIds] = useState<readonly string[]>([])
@@ -75,7 +78,7 @@ export function CredentialAccess({
   const existing = new Set(members.map((member) => member.userId))
   const available = people.filter((person) => !existing.has(person.id))
   const shareable = canShareCredential(credential)
-  const editable = shareable && credential.role === 'admin'
+  const editable = Boolean(access) && shareable && credential.role === 'admin'
   const admins = members.filter(
     (member) => member.status === 'active' && member.explicitAdmin
   ).length
@@ -286,7 +289,7 @@ export function CredentialAccess({
                 ),
             },
             action:
-              shareable && (own || editable) ? (
+              access && shareable && (own || editable) ? (
                 <ActionMenu
                   label={`Manage access for ${member.name}`}
                   icon='I108'

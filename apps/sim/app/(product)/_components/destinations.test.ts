@@ -8,7 +8,6 @@
  */
 import { describe, expect, it } from 'vitest'
 import { resolveLiveDestinations } from '@/app/(product)/_components/destinations'
-import { integrationsMode } from '@/platform/lib/data/integrations-mode'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 
 interface Plan {
@@ -99,19 +98,5 @@ describe('Integrations for every organization', () => {
     expect(navigation(personal)).toContain('integrations')
     expect(navigation(personal)).not.toContain('search')
     expect(navigation(enterprise)).toEqual(expect.arrayContaining(['search', 'integrations']))
-  })
-
-  it('serves a personal organization workspace credentials and skills, not the member pages', () => {
-    expect(integrationsMode(organization(personal))).toBe('workspace')
-    expect(integrationsMode(organization(enterprise))).toBe('member')
-  })
-
-  it('serves workspace credentials wherever the member inventory would refuse the viewer', () => {
-    expect(
-      integrationsMode(organization({ ...enterprise, connectedAccountsAvailable: false }))
-    ).toBe('workspace')
-    expect(
-      integrationsMode(organization({ ...enterprise, canConnectSearchIntegrations: false }))
-    ).toBe('workspace')
   })
 })

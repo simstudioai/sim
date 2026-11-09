@@ -3,9 +3,9 @@
  *
  * A workspace credential opens on the example design's credential page, wired to the credential
  * and member operations legacy's credential page used. Failure modes: a rename that never reaches
- * the credential operation, or reaches it outside the workspace the page manages; the Access tab
- * built without the credential's grants; and an owner-only personal token asking for grants it
- * cannot have.
+ * the credential operation, or reaches it outside the workspace the page manages; a rename the
+ * server refuses that clears the draft or reports nothing; the Access tab built without the
+ * credential's grants; and an owner-only personal token asking for grants it cannot have.
  */
 import { act } from 'react'
 import { flushMacrotask } from '@sim/testing/helpers/async'
@@ -20,8 +20,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/auth/client', () => authClientMock)
 
-import { WorkspaceIntegrationDetails } from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-integration-details/workspace-integration-details'
-import type { AppWorkspaceCredential } from '@/platform/lib/data/integration-credentials-model'
+import { IntegrationDetails } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-details/integration-details'
+import type { WorkspaceCredential } from '@/platform/lib/data/credentials'
 import type { WorkspaceAppDetail } from '@/platform/lib/integrations/workspace-catalog'
 
 const WORKSPACE = { id: 'ws-1', name: 'Acme' }
@@ -46,12 +46,13 @@ const GMAIL: WorkspaceAppDetail = {
       setup: 'oauth',
     },
   ],
+  instanceLabels: {},
   example: '',
   skills: [],
   templates: [],
 }
 
-function credential(overrides: Partial<AppWorkspaceCredential> = {}): AppWorkspaceCredential {
+function credential(overrides: Partial<WorkspaceCredential> = {}): WorkspaceCredential {
   return {
     id: 'cred-1',
     workspaceId: WORKSPACE.id,
@@ -94,7 +95,12 @@ function respond(url: URL, method: string, body: unknown) {
   if (url.pathname === `/api/workspaces/${WORKSPACE.id}/permissions`)
     return Response.json({ users: [], total: 0 })
   if (url.pathname === '/api/credentials/cred-1' && method === 'PUT')
-    return Response.json({ credential: { ...credential(), ...(body as object) } })
+    return (body as { displayName?: string }).displayName === 'Taken inbox'
+      ? Response.json(
+          { error: 'A credential with this display name already exists' },
+          { status: 409 }
+        )
+      : Response.json({ credential: { ...credential(), ...(body as object) } })
   return Response.json({ error: 'Not found' }, { status: 404 })
 }
 
@@ -133,22 +139,23 @@ async function settle() {
   for (let round = 0; round < 5; round++) await act(flushMacrotask)
 }
 
-async function open(credentials: AppWorkspaceCredential[]) {
+async function open(credentials: WorkspaceCredential[]) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   act(() =>
     root.render(
       <QueryClientProvider client={queryClient}>
         <NuqsTestingAdapter>
-          <WorkspaceIntegrationDetails
-            app={GMAIL}
-            workspace={WORKSPACE}
-            credentials={credentials}
+          <IntegrationDetails
+            workspaceApp={{ app: GMAIL, workspace: WORKSPACE, credentials }}
             accountId='cred-1'
             integrationHref='/o/org/integrations/gmail'
             accountHref={(account) => `/o/org/integrations/gmail?account=${account}`}
             pending={false}
+            onConnect={() => undefined}
+            onReconnect={() => undefined}
             onDisconnect={async () => undefined}
             onLeave={() => undefined}
+            renderToolPermissions={() => null}
           />
         </NuqsTestingAdapter>
       </QueryClientProvider>
@@ -164,30 +171,46 @@ function field(form: Element, label: string) {
   return control
 }
 
-it('reads a shared credential’s grants and renames it within the page’s workspace', async () => {
-  await open([credential()])
-  expect(requests.some(({ url }) => url.pathname === '/api/credentials/cred-1/members')).toBe(true)
-
+function rename(displayName: string) {
   const form = container.querySelector('form[aria-label="Credential details"]')
   if (!form) throw new Error('The credential page did not open')
   const name = field(form, 'Display name')
   act(() => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
       name,
-      'Escalations inbox'
+      displayName
     )
     name.dispatchEvent(new Event('input', { bubbles: true }))
   })
   const submit = form.querySelector('button[type="submit"]')
   if (!(submit instanceof HTMLButtonElement)) throw new Error('Save is not offered')
   act(() => submit.click())
+  return name
+}
+
+it('reads a shared credential’s grants and renames it within the page’s workspace', async () => {
+  await open([credential()])
+  expect(requests.some(({ url }) => url.pathname === '/api/credentials/cred-1/members')).toBe(true)
+
+  rename('Escalations inbox')
   await settle()
 
-  const rename = requests.find(
+  const request = requests.find(
     ({ method, url }) => method === 'PUT' && url.pathname === '/api/credentials/cred-1'
   )
-  expect(rename?.url.searchParams.get('workspaceId')).toBe(WORKSPACE.id)
-  expect(rename?.body).toEqual({ displayName: 'Escalations inbox', description: null })
+  expect(request?.url.searchParams.get('workspaceId')).toBe(WORKSPACE.id)
+  expect(request?.body).toEqual({ displayName: 'Escalations inbox', description: null })
+})
+
+it('keeps a refused rename’s draft and shows the server’s reason on the form', async () => {
+  await open([credential()])
+  const name = rename('Taken inbox')
+  await settle()
+
+  expect(name.value).toBe('Taken inbox')
+  expect(container.querySelector('form[aria-label="Credential details"]')?.textContent).toContain(
+    'already exists'
+  )
 })
 
 it('reads no grants for a personal token only its owner holds', async () => {

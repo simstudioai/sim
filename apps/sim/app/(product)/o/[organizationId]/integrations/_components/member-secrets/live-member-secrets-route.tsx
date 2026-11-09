@@ -4,7 +4,7 @@ import {
   integrationsListHref,
   readGenericSecretSourceMode,
 } from '@/platform/lib/data/generic-secrets-source'
-import { integrationsMode } from '@/platform/lib/data/integrations-mode'
+import { hasMemberIntegrations } from '@/platform/lib/data/member-integrations'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
@@ -19,7 +19,7 @@ export async function LiveMemberSecretsRoute({ searchParams }: LiveMemberSecrets
   if (surface.status !== 'ok') return null
   const { organization } = surface
   // Member-scoped accounts are Enterprise's; other organizations have no such page.
-  if (integrationsMode(organization) !== 'member') notFound()
+  if (!hasMemberIntegrations(organization)) notFound()
   if ((await readGenericSecretSourceMode(organization.organization.id)) !== 'member')
     redirect(surfaceHref(organization, '/integrations'))
   return (

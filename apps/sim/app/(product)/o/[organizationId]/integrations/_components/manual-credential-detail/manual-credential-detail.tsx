@@ -11,6 +11,7 @@ import type {
 } from '@/platform/lib/integrations/center-model'
 import { validCredentialMembers } from '@/platform/lib/integrations/credential-access'
 import { credentialSharing } from '@/platform/lib/integrations/credential-display'
+import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 import {
   MANUAL_SECRET_TYPES,
   type ManualCredential,
@@ -37,6 +38,18 @@ export function ManualCredentialDetail({
 }: ManualCredentialDetailProps) {
   const [action, setAction] = useState<'replace' | 'delete' | null>(null)
   const credential = manualCredentialAccess(resource, data)
+  function save(next: IntegrationCredential) {
+    if (!resource.canEdit || !validCredentialMembers(credential, next.members)) return
+    onSave({
+      ...resource,
+      name: next.displayName,
+      description: next.description,
+      members: next.members,
+      scope: credentialSharing(next),
+      people: next.members.filter((member) => member.status !== 'revoked'),
+      canEdit: next.role === 'admin',
+    })
+  }
   return (
     <>
       <CredentialDetail
@@ -44,22 +57,10 @@ export function ManualCredentialDetail({
         integrationName={appName ?? 'Credential'}
         providerId={resource.appId}
         viewer={data.viewer}
-        people={data.people}
-        onChange={(next) => {
-          if (!resource.canEdit || !validCredentialMembers(credential, next.members)) return
-          onSave({
-            ...resource,
-            name: next.displayName,
-            description: next.description,
-            members: next.members,
-            scope: credentialSharing(next),
-            people: next.members.filter((member) => member.status !== 'revoked'),
-            canEdit: next.role === 'admin',
-          })
-        }}
+        onSaveDetails={(details) => save({ ...credential, ...details })}
+        access={{ people: data.people, onChange: save, onLeave }}
         onDisconnect={() => setAction('delete')}
         onReplace={() => setAction('replace')}
-        onLeave={onLeave}
         fields={
           <>
             <TextField label='Key' placeholder='Credential key' value={resource.key} viewOnly />

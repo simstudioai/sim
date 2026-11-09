@@ -5,16 +5,16 @@ import { Button } from '@sim/emcn/button'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import type { SkillsTab } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-center/integration-center'
+import type { LiveTab } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-center/integration-center'
 import { QueryFailure } from '@/app/(product)/o/[organizationId]/integrations/_components/query-failure/query-failure'
-import { SkillGroup } from '@/app/(product)/o/[organizationId]/integrations/_components/resource-list/resource-list'
+import { LiveGroup } from '@/app/(product)/o/[organizationId]/integrations/_components/resource-list/resource-list'
 import { SkillDetails } from '@/app/(product)/o/[organizationId]/integrations/_components/skill-details/skill-details'
 import { useOrderedWorkspacesQuery, useSkills } from '@/platform/lib/data/skills'
 import {
   centerParams,
+  integrationsWorkspaceParams,
   resourceDetailParams,
   serializeCenter,
-  skillWorkspaceParams,
 } from '@/platform/lib/integrations/center-navigation'
 
 /**
@@ -22,11 +22,11 @@ import {
  * workspace's skills at a time, starting with the viewer's first workspace. A page that chooses the
  * workspace for every tab passes it as `pageWorkspaceId`, and the tab then offers no choice of its own.
  */
-export function useLiveSkills(pageWorkspaceId?: string): { tab: SkillsTab; detail: ReactNode } {
+export function useLiveSkills(pageWorkspaceId?: string): { tab: LiveTab; detail: ReactNode } {
   const pathname = usePathname()
   const search = useSearchParams()
   const [view, setView] = useQueryStates(
-    { ...centerParams, ...resourceDetailParams, ...skillWorkspaceParams },
+    { ...centerParams, ...resourceDetailParams, ...integrationsWorkspaceParams },
     { history: 'replace', shallow: true }
   )
   const workspaces = useOrderedWorkspacesQuery()
@@ -53,7 +53,7 @@ export function useLiveSkills(pageWorkspaceId?: string): { tab: SkillsTab; detai
   const close = () =>
     void setView({ resource: null, resourceTab: null }, { history: 'push', scroll: false })
 
-  const tab: SkillsTab = {
+  const tab: LiveTab = {
     filter: !pageWorkspaceId && workspace && (
       <ChoiceMenu
         label='Workspace'
@@ -78,20 +78,23 @@ export function useLiveSkills(pageWorkspaceId?: string): { tab: SkillsTab; detai
       <QueryFailure message='Could not load skills' query={skills} />
     ) : (
       <>
-        <SkillGroup
+        <LiveGroup
           title='Workspace skills'
-          skills={rows.filter((row) => !row.builtin)}
-          onOpen={open}
+          glyph='I044'
+          rows={rows.filter((row) => !row.builtin)}
+          onOpen={(row) => open(row.id)}
         />
-        <SkillGroup
+        <LiveGroup
           title='Built-in skills'
-          skills={rows.filter((row) => row.builtin)}
-          onOpen={open}
+          glyph='I044'
+          rows={rows.filter((row) => row.builtin)}
+          onOpen={(row) => open(row.id)}
         />
       </>
     ),
     empty: !rows.length && !skills.error,
     settled: workspaces.isSuccess && (!workspace || Boolean(listed)),
+    emptyDescription: 'Skills in this workspace appear here.',
   }
 
   const detail = onSkills && view.resource && (

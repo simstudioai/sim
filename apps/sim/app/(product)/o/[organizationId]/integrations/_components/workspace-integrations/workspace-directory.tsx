@@ -1,23 +1,22 @@
 'use client'
 
 import { useState } from 'react'
-import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
-import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
 import { useLiveSkills } from '@/app/(product)/o/[organizationId]/integrations/_components/live-skills/live-skills'
-import { QueryFailure } from '@/app/(product)/o/[organizationId]/integrations/_components/query-failure/query-failure'
-import { defaultIntegrationPaths } from '@/platform/lib/data/integrations'
-import {
-  useWorkspaceConnections,
-  useWorkspaceIntegrationsView,
-} from '@/platform/lib/data/workspace-connections'
+import { useIntegrationsView } from '@/platform/lib/data/integrations'
+import { useWorkspaceConnections } from '@/platform/lib/data/workspace-connections'
+import { useWorkspaceMcpServers } from '@/platform/lib/data/workspace-mcps'
 import type { AppSummary } from '@/platform/lib/integrations/center-model'
 import {
   integrationCenterHref,
   withIntegrationsWorkspace,
 } from '@/platform/lib/integrations/center-navigation'
-import { appCredentials, type WorkspaceApp } from '@/platform/lib/integrations/workspace-catalog'
+import {
+  appCredentials,
+  UNCONFIGURED_APP_REASON,
+  type WorkspaceApp,
+} from '@/platform/lib/integrations/workspace-catalog'
 
 /** Credential kinds that hold a pasted secret, which the Credentials tab lists beside the secrets. */
 const SECRET_CREDENTIAL_TYPES: ReadonlySet<string> = new Set(['service_account', 'personal_token'])
@@ -31,22 +30,21 @@ export interface IntegrationsWorkspaceScope {
 
 /**
  * One workspace's part of the Integrations directory: its apps as the access policy judged them,
- * its credentials and skills, the workspace every tab lists within, and the access request a
- * restricted app opens. Both the workspace page and the member page list it.
+ * its credentials, skills and MCP servers, the workspace every tab lists within, and the app whose
+ * access request is open. Data and actions; the route renders them.
  */
 export function useWorkspaceDirectory(
-  organizationId: string,
+  indexPath: string,
   { workspaces, workspaceId, apps }: IntegrationsWorkspaceScope
 ) {
   const params = useSearchParams()
-  const router = useRouter()
-  const view = useWorkspaceIntegrationsView()
+  const view = useIntegrationsView()
   const [requested, setRequested] = useState<WorkspaceApp | null>(null)
   const workspace = workspaces.find((item) => item.id === workspaceId)
   const connections = useWorkspaceConnections(workspace?.id)
   const skills = useLiveSkills(workspace?.id)
+  const mcps = useWorkspaceMcpServers(workspace?.id)
   const credentials = connections.credentials.data
-  const indexPath = defaultIntegrationPaths(organizationId).index
   const keep = (href: string) => withIntegrationsWorkspace(href, workspace?.id ?? null)
   const appHref = (id: string) =>
     keep(integrationCenterHref(`${indexPath}/${encodeURIComponent(id)}`, params))
@@ -69,10 +67,7 @@ export function useWorkspaceDirectory(
       providerId: app.id,
       href: appHref(app.id),
       name: app.name,
-      description:
-        app.access === 'unconfigured'
-          ? 'Unavailable in this deployment. Contact your administrator.'
-          : app.description,
+      description: app.access === 'unconfigured' ? UNCONFIGURED_APP_REASON : app.description,
       category: app.category,
       connected: connected.length > 0,
       credentialCount: connected.length,
@@ -117,39 +112,20 @@ export function useWorkspaceDirectory(
 
   return {
     workspace,
+    workspaces,
     view,
     connections,
     credentials,
     skills,
+    mcps,
     appHref,
     keep,
     summaries,
     credentialLinks: [...workspaceSecrets, ...secretCredentials],
-    failure: connections.credentials.error ? (
-      <QueryFailure message='Could not load your connections' query={connections.credentials} />
-    ) : null,
+    /** Where a new workspace secret is created, which the Credentials tab's Create opens. */
+    createCredentialHref: workspace && workspacePath(workspace.id, 'settings/secrets'),
     settled: !workspace || Boolean(credentials),
-    scopeFilter: workspace && (
-      <ChoiceMenu
-        label='Workspace'
-        value={workspace.id}
-        options={workspaces.map((item) => ({ label: item.name, value: item.id }))}
-        onValueChange={view.chooseWorkspace}
-      />
-    ),
-    requestDialog: requested && workspace && (
-      <RequestAccessModal
-        key={requested.id}
-        scope={{ kind: 'workspace', workspaceId: workspace.id }}
-        target={{ kind: 'integration', id: requested.type }}
-        label={requested.name}
-        onViewRequest={(requestId) =>
-          router.push(
-            workspacePath(workspace.id, `settings/requests?${new URLSearchParams({ requestId })}`)
-          )
-        }
-        onClose={() => setRequested(null)}
-      />
-    ),
+    requested,
+    closeRequest: () => setRequested(null),
   }
 }

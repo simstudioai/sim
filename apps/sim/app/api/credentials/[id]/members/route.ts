@@ -1,6 +1,7 @@
 import {
   listWorkspaceCredentialMembersContract,
   removeWorkspaceCredentialMemberContract,
+  setWorkspaceCredentialMembersContract,
   upsertWorkspaceCredentialMemberContract,
 } from '@/lib/api/contracts/credentials'
 import {
@@ -16,6 +17,7 @@ import {
 import {
   listCredentialMembersUseCase,
   removeCredentialMemberUseCase,
+  setCredentialMembersUseCase,
   upsertCredentialMemberUseCase,
 } from '@/lib/credentials/application/members'
 import { credentialOperations } from '@/lib/credentials/application/operations'
@@ -50,6 +52,18 @@ export const POST = defineInternalJsonRoute({
   useCase: upsertCredentialMemberUseCase,
   present: () => ({ success: true as const }),
   statusForResult: ({ created }) => (created ? 201 : 200),
+})
+
+export const PUT = defineInternalJsonRoute({
+  contract: setWorkspaceCredentialMembersContract,
+  auth: internalSessionAuth,
+  operation: credentialOperations.setMembers,
+  rateLimit,
+  errorPolicy: internalCredentialMemberMutationErrorPolicy,
+  parseOptions: credentialValidationParseOptions,
+  mapInput: ({ params, body }) => ({ credentialId: params.id, members: body.members }),
+  useCase: setCredentialMembersUseCase,
+  present: () => ({ success: true as const }),
 })
 
 export const DELETE = defineInternalJsonRoute({

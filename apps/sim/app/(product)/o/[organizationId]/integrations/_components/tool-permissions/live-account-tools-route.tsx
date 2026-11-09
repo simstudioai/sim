@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { IntegrationsPage } from '@/app/(product)/o/[organizationId]/integrations/_components/integrations-page/integrations-page'
 import { ToolPermissionsPanel } from '@/app/(product)/o/[organizationId]/integrations/_components/tool-permissions/tool-permissions-panel'
-import { integrationsMode } from '@/platform/lib/data/integrations-mode'
+import { hasMemberIntegrations } from '@/platform/lib/data/member-integrations'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
@@ -21,11 +21,11 @@ export async function LiveAccountToolsRoute({
   if (surface.status !== 'ok') return null
   const { organization } = surface
   // Member-scoped accounts are Enterprise's. Elsewhere a legacy connected-credential link lands on
-  // its workspace's credentials, and anything else has no page.
-  if (integrationsMode(organization) !== 'member') {
+  // the credential in its app's page, and anything else has no page.
+  if (!hasMemberIntegrations(organization)) {
     if (!workspace) notFound()
     redirect(
-      `${surfaceHref(organization, '/integrations')}?${new URLSearchParams({ tab: 'credentials', workspace })}`
+      `${surfaceHref(organization, '/integrations')}?${new URLSearchParams({ workspace, account: credentialId })}`
     )
   }
   return (

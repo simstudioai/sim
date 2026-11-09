@@ -109,4 +109,12 @@ export const catalogOperations = {
     ],
     delegatedServices: ['copilot'],
   }),
+  // permission-group-exempt: the integration access policy this read applies already reflects the permission group; each credential operation enforces integrations.manage
+  listWorkspaceApps: defineWorkspaceOperation({
+    id: 'catalog.workspace_apps.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    capability: 'none',
+    principalKinds: ['session'],
+  }),
 } as const

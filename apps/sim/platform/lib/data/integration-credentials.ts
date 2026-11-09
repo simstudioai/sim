@@ -5,16 +5,16 @@ import { useSession } from '@/lib/auth/client'
 import { toast } from '@/lib/toast/sink'
 import {
   useLeaveCredential,
-  useRemoveWorkspaceCredentialMember,
+  useSetWorkspaceCredentialMembers,
   useUpdateWorkspaceCredential,
-  useUpsertWorkspaceCredentialMember,
   useWorkspaceCredentialMembers,
 } from '@/hooks/queries/credentials'
 import { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 import {
-  credentialMemberChanges,
+  credentialGrants,
   toCredentialMembers,
   toIntegrationPeople,
+  toIntegrationPerson,
 } from '@/platform/lib/data/integration-credentials-model'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 import { canShareCredential } from '@/platform/lib/integrations/credential-access'
@@ -23,21 +23,14 @@ import type { IntegrationCredential } from '@/platform/lib/integrations/credenti
 /** The signed-in person, as the credential pages name them; absent until the session loads. */
 export function useIntegrationViewer(): IntegrationPerson | undefined {
   const user = useSession().data?.user
-  return user
-    ? {
-        id: user.id,
-        name: user.name || user.email,
-        email: user.email,
-        src: user.image ?? undefined,
-      }
-    : undefined
+  return user ? toIntegrationPerson(user) : undefined
 }
 
 /**
  * One workspace credential with its grants, the workspace people it can be shared with, and the
- * edits the credential page proposes, sent through the same credential and member operations
- * legacy's credential page used. A credential only its owner holds reads no grants. Each failure
- * is a toast, and the reads settle the page back on the server's state.
+ * edits the credential page proposes. A credential only its owner holds reads no grants. Details
+ * reject with the server's reason for the form to show; an access edit applies as one change, all
+ * of it or none, and a failure is a toast while the grants read settles the table back.
  */
 export function useWorkspaceCredentialAccess(
   workspaceId: string,
@@ -48,8 +41,7 @@ export function useWorkspaceCredentialAccess(
   const members = useWorkspaceCredentialMembers(shareable ? credential?.id : undefined)
   const permissions = useWorkspacePermissionsQuery(shareable ? workspaceId : undefined)
   const update = useUpdateWorkspaceCredential(workspaceId)
-  const upsert = useUpsertWorkspaceCredentialMember()
-  const remove = useRemoveWorkspaceCredentialMember()
+  const setMembers = useSetWorkspaceCredentialMembers()
   const leave = useLeaveCredential()
   const current =
     credential && (!shareable || members.data)
@@ -63,42 +55,28 @@ export function useWorkspaceCredentialAccess(
     viewer,
     credential: current,
     people: toIntegrationPeople(permissions.data?.users ?? []),
-    save(next: IntegrationCredential) {
-      if (!current || !viewer) return
-      if (next.displayName !== current.displayName || next.description !== current.description)
-        update.mutate(
-          {
-            credentialId: current.id,
-            displayName: next.displayName,
-            description: next.description || null,
-          },
-          {
-            onError: (error) =>
-              toast.error("Couldn't save this credential", {
-                description: getErrorMessage(error, 'Please try again in a moment.'),
-              }),
-          }
-        )
-      const { upserts, removals } = credentialMemberChanges(
-        current.members,
-        next.members,
-        viewer.id
-      )
-      if (!upserts.length && !removals.length) return
-      void Promise.allSettled([
-        ...upserts.map(({ userId, role }) =>
-          upsert.mutateAsync({ credentialId: current.id, userId, role })
-        ),
-        ...removals.map((userId) => remove.mutateAsync({ credentialId: current.id, userId })),
-      ]).then((results) => {
-        const rejected = results.find(
-          (result): result is PromiseRejectedResult => result.status === 'rejected'
-        )
-        if (rejected)
-          toast.error("Couldn't change access", {
-            description: getErrorMessage(rejected.reason, 'Please try again in a moment.'),
-          })
+    async saveDetails({ displayName, description }: { displayName: string; description: string }) {
+      if (!current) return
+      await update.mutateAsync({
+        credentialId: current.id,
+        displayName,
+        description: description || null,
       })
+    },
+    saveAccess(next: IntegrationCredential) {
+      if (!current || !viewer) return
+      setMembers.mutate(
+        {
+          credentialId: current.id,
+          members: credentialGrants(current.members, next.members, viewer.id),
+        },
+        {
+          onError: (error) =>
+            toast.error("Couldn't change access", {
+              description: getErrorMessage(error, 'Please try again in a moment.'),
+            }),
+        }
+      )
     },
     /** Gives up the viewer's own access, then `onLeft` takes them off the credential's page. */
     leave(onLeft: () => void) {

@@ -263,6 +263,144 @@ export async function upsertCredentialMember(
   })
 }
 
+export interface CredentialMemberGrant {
+  userId: string
+  role: 'admin' | 'member'
+}
+
+export interface SetCredentialMembersResult {
+  added: CredentialMemberGrant[]
+  roleChanged: { userId: string; fromRole: 'admin' | 'member'; toRole: 'admin' | 'member' }[]
+  removed: string[]
+}
+
+/**
+ * Makes a shared credential's explicit grants exactly `members` in one transaction: grants the
+ * people it names, changes the roles that differ, and revokes everyone else's active or pending
+ * grant. Every target is validated before anything is written, so one invalid person applies
+ * nothing. Workspace admins are credential admins by inheritance: they cannot be demoted, and a
+ * grant of theirs the list leaves out stays as it is. A credential that had an active explicit
+ * admin keeps one.
+ */
+export async function setCredentialMembers(params: {
+  credential: CredentialRow
+  actorUserId: string
+  members: readonly CredentialMemberGrant[]
+}): Promise<SetCredentialMembersResult> {
+  const workspaceId = params.credential.workspaceId
+  if (!workspaceId) throw new OrchestrationError('not_found', 'Credential not found')
+  if (!isSharedCredentialType(params.credential.type))
+    throw new OrchestrationError('validation', 'Personal credentials cannot be shared')
+  const desired = new Map(params.members.map((grant) => [grant.userId, grant.role]))
+  if (desired.size !== params.members.length)
+    throw new OrchestrationError('validation', 'Each person can be listed only once')
+
+  const listed = await db
+    .select({ userId: credentialMember.userId })
+    .from(credentialMember)
+    .where(eq(credentialMember.credentialId, params.credential.id))
+  const workspaceRoles = new Map(
+    await Promise.all(
+      [...new Set([...desired.keys(), ...listed.map((row) => row.userId)])].map(
+        async (userId) =>
+          [userId, await getUserEntityPermissions(userId, 'workspace', workspaceId)] as const
+      )
+    )
+  )
+
+  return db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ id: credential.id })
+      .from(credential)
+      .where(eq(credential.id, params.credential.id))
+      .limit(1)
+      .for('update')
+    if (!locked) throw new OrchestrationError('not_found', 'Credential not found')
+    const existing = await tx
+      .select({
+        id: credentialMember.id,
+        userId: credentialMember.userId,
+        role: credentialMember.role,
+        status: credentialMember.status,
+      })
+      .from(credentialMember)
+      .where(eq(credentialMember.credentialId, locked.id))
+      .for('update')
+    if (existing.some((row) => !workspaceRoles.has(row.userId)))
+      throw new OrchestrationError('conflict', 'Credential access changed. Try again.')
+    const current = new Map(existing.map((row) => [row.userId, row]))
+    const retained = existing.filter((row) => row.status !== 'revoked')
+    const unlisted = retained.filter((row) => !desired.has(row.userId))
+    const inherited = unlisted.filter((row) => workspaceRoles.get(row.userId) === 'admin')
+    const removed = unlisted.filter((row) => workspaceRoles.get(row.userId) !== 'admin')
+    for (const [userId, role] of desired) {
+      const workspaceRole = workspaceRoles.get(userId)
+      if (workspaceRole === null)
+        throw new OrchestrationError(
+          'validation',
+          'Target user must belong to the credential workspace'
+        )
+      if (workspaceRole === 'admin' && role !== 'admin')
+        throw new OrchestrationError(
+          'validation',
+          'Workspace admins are automatically credential admins and cannot be demoted'
+        )
+    }
+    const isActiveAdmin = (row: (typeof existing)[number]) =>
+      row.status === 'active' && row.role === 'admin'
+    const keepsAdmin =
+      inherited.some(isActiveAdmin) ||
+      [...desired].some(([userId, role]) => {
+        const row = current.get(userId)
+        return role === 'admin' && (!row || row.status !== 'pending' || row.role !== 'admin')
+      })
+    const hadAdmin = retained.some(isActiveAdmin)
+    if (hadAdmin && !keepsAdmin)
+      throw new OrchestrationError('validation', 'Cannot remove the last admin')
+
+    const now = new Date()
+    const result: SetCredentialMembersResult = { added: [], roleChanged: [], removed: [] }
+    for (const [userId, role] of desired) {
+      const row = current.get(userId)
+      if (row && row.status !== 'revoked' && row.role === role) continue
+      if (row) {
+        await tx
+          .update(credentialMember)
+          .set({ role, status: 'active', updatedAt: now })
+          .where(eq(credentialMember.id, row.id))
+        if (row.status === 'revoked') result.added.push({ userId, role })
+        else result.roleChanged.push({ userId, fromRole: row.role, toRole: role })
+        continue
+      }
+      await tx.insert(credentialMember).values({
+        id: generateId(),
+        credentialId: locked.id,
+        userId,
+        role,
+        status: 'active',
+        joinedAt: now,
+        invitedBy: params.actorUserId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      result.added.push({ userId, role })
+    }
+    if (removed.length) {
+      await tx
+        .update(credentialMember)
+        .set({ status: 'revoked', updatedAt: now })
+        .where(
+          inArray(
+            credentialMember.id,
+            removed.map((row) => row.id)
+          )
+        )
+      result.removed = removed.map((row) => row.userId)
+    }
+    return result
+  })
+}
+
 export async function removeCredentialMember(params: {
   credential: CredentialRow
   targetUserId: string

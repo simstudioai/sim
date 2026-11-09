@@ -17,12 +17,12 @@ export const centerParams = {
   resource: parseAsString,
 }
 
-/** The workspace whose skills the Skills tab lists; skills belong to a workspace, as in legacy. */
-export const skillWorkspaceParams = {
+/** The workspace every Integrations tab lists within: its apps, credentials, skills and MCPs. */
+export const integrationsWorkspaceParams = {
   workspace: parseAsString,
 }
 
-const serializeWorkspace = createSerializer(skillWorkspaceParams)
+const serializeWorkspace = createSerializer(integrationsWorkspaceParams)
 
 /** Keeps the page's workspace on a link within an organization's Integrations. */
 export function withIntegrationsWorkspace(href: string, workspace: string | null) {

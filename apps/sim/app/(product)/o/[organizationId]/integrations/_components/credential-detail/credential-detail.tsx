@@ -8,9 +8,11 @@ import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
 import { DirectoryHeading } from '@/app/(product)/_components/resource-directory/resource-directory'
-import { CredentialAccess } from '@/app/(product)/o/[organizationId]/integrations/_components/credential-access/credential-access'
+import {
+  CredentialAccess,
+  type CredentialAccessActions,
+} from '@/app/(product)/o/[organizationId]/integrations/_components/credential-access/credential-access'
 import styles from '@/app/(product)/o/[organizationId]/integrations/_components/credential-detail/credential-detail.module.css'
-import { ToolPermissions } from '@/app/(product)/o/[organizationId]/integrations/_components/fixtures/tool-permissions/tool-permissions'
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 import { credentialDetailParams } from '@/platform/lib/integrations/credential-navigation'
@@ -20,17 +22,19 @@ interface CredentialDetailProps {
   integrationName: string
   providerId?: string
   viewer: IntegrationPerson
-  people: readonly IntegrationPerson[]
-  onChange: (credential: IntegrationCredential) => void
+  /**
+   * Saves the edited name and description; a rejection's reason shows on the form, which keeps the
+   * draft. Absent where nothing can rename this credential.
+   */
+  onSaveDetails?: (details: { displayName: string; description: string }) => Promise<void> | void
+  /** Who can be given access and the Access tab's edits; absent where nothing can change them. */
+  access?: CredentialAccessActions
   onReconnect?: () => void
   onDisconnect: () => void
-  onLeave: () => void
   fields?: ReactNode
   onReplace?: () => void
-  /** The Permissions tab's content where the account's tool policies come from live data. */
+  /** The Permissions tab's content, where the account has tool policies. */
   permissions?: ReactNode
-  /** Holds the name and description where nothing can rename this credential. */
-  detailsReadOnly?: boolean
 }
 
 export function CredentialDetail({
@@ -38,33 +42,26 @@ export function CredentialDetail({
   integrationName,
   providerId,
   viewer,
-  people,
-  onChange,
+  onSaveDetails,
+  access,
   onReconnect,
   onDisconnect,
-  onLeave,
   fields,
   onReplace,
   permissions,
-  detailsReadOnly = false,
 }: CredentialDetailProps) {
   const [view, setView] = useQueryStates(credentialDetailParams)
-  const [displayName, setDisplayName] = useState(credential.displayName)
-  const [description, setDescription] = useState(credential.description)
+  const [saved, setSaved] = useState({
+    displayName: credential.displayName,
+    description: credential.description,
+  })
+  const [displayName, setDisplayName] = useState(saved.displayName)
+  const [description, setDescription] = useState(saved.description)
   const [error, setError] = useState<string>()
+  const [saving, setSaving] = useState(false)
   const manageable = credential.role === 'admin' && credential.scope.kind !== 'organization-managed'
-  const editable = manageable && !detailsReadOnly
-  const permissionsContent =
-    permissions ??
-    (credential.permissions && (
-      <ToolPermissions
-        account={credential}
-        permissions={credential.permissions}
-        readOnly={!editable}
-        onChange={(next) => onChange({ ...credential, permissions: next })}
-      />
-    ))
-  const dirty = displayName !== credential.displayName || description !== credential.description
+  const editable = manageable && Boolean(onSaveDetails)
+  const dirty = displayName !== saved.displayName || description !== saved.description
   return (
     <>
       <DirectoryHeading
@@ -94,9 +91,7 @@ export function CredentialDetail({
           ) : undefined
         }
         current={
-          view.credentialTab === 'permissions' && !permissionsContent
-            ? 'details'
-            : view.credentialTab
+          view.credentialTab === 'permissions' && !permissions ? 'details' : view.credentialTab
         }
         onSelect={(credentialTab) => {
           if (
@@ -114,18 +109,21 @@ export function CredentialDetail({
               <form
                 className={styles.form}
                 aria-label='Credential details'
-                onSubmit={(event) => {
+                onSubmit={async (event) => {
                   event.preventDefault()
-                  if (!editable || !displayName.trim()) return
+                  if (!onSaveDetails || !editable || !displayName.trim()) return
+                  const next = { displayName: displayName.trim(), description: description.trim() }
+                  setSaving(true)
                   try {
-                    const name = displayName.trim()
-                    const detail = description.trim()
-                    onChange({ ...credential, displayName: name, description: detail })
-                    setDisplayName(name)
-                    setDescription(detail)
+                    await onSaveDetails(next)
+                    setSaved(next)
+                    setDisplayName(next.displayName)
+                    setDescription(next.description)
                     setError(undefined)
                   } catch (error) {
                     setError(getErrorMessage(error, 'Could not save this credential.'))
+                  } finally {
+                    setSaving(false)
                   }
                 }}
               >
@@ -154,13 +152,9 @@ export function CredentialDetail({
                   viewOnly={!editable}
                   optional
                 />
-                {credential.instanceUrl && (
+                {credential.instanceUrl && credential.instanceLabel && (
                   <TextField
-                    label={
-                      credential.providerId === 'microsoft-dataverse'
-                        ? 'Environment URL'
-                        : 'GitLab instance'
-                    }
+                    label={credential.instanceLabel}
                     placeholder='Connection URL'
                     value={credential.instanceUrl}
                     viewOnly
@@ -177,15 +171,16 @@ export function CredentialDetail({
                     <Button
                       variant='quiet'
                       size='compact'
+                      disabled={saving}
                       onClick={() => {
-                        setDisplayName(credential.displayName)
-                        setDescription(credential.description)
+                        setDisplayName(saved.displayName)
+                        setDescription(saved.description)
                         setError(undefined)
                       }}
                     >
                       Cancel
                     </Button>
-                    <Button size='compact' submit disabled={!displayName.trim()}>
+                    <Button size='compact' submit disabled={saving || !displayName.trim()}>
                       Save changes
                     </Button>
                   </div>
@@ -196,18 +191,10 @@ export function CredentialDetail({
           {
             id: 'access',
             label: 'Access',
-            content: (
-              <CredentialAccess
-                credential={credential}
-                viewer={viewer}
-                people={people}
-                onChange={onChange}
-                onLeave={onLeave}
-              />
-            ),
+            content: <CredentialAccess credential={credential} viewer={viewer} access={access} />,
           },
-          ...(permissionsContent
-            ? [{ id: 'permissions', label: 'Permissions', content: permissionsContent }]
+          ...(permissions
+            ? [{ id: 'permissions', label: 'Permissions', content: permissions }]
             : []),
         ]}
       />

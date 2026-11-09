@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import {
   IntegrationCenter,
-  type SkillsTab,
+  type LiveTab,
 } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-center/integration-center'
 import type { AppSummary } from '@/platform/lib/integrations/center-model'
 import type { GenericSecrets, OrganizationIntegration } from '@/platform/shared/integrations'
@@ -20,8 +20,12 @@ interface IntegrationListProps {
   secretsHref: string
   /** False while a read could still add rows, so an empty list is not claimed too early. */
   settled: boolean
-  /** The workspace skills tab, on live data. */
-  skills?: SkillsTab
+  /** The workspace's skills. */
+  skills?: LiveTab
+  /** The workspace's custom MCP servers. */
+  mcps?: LiveTab
+  /** Where the workspace's Credentials tab creates a credential. */
+  createCredentialHref?: string
   /** The workspace every tab lists within. */
   scopeFilter?: ReactNode
 }
@@ -35,6 +39,8 @@ export function IntegrationList({
   secretsHref,
   settled,
   skills,
+  mcps,
+  createCredentialHref,
   scopeFilter,
 }: IntegrationListProps) {
   const workspaceById = new Map(workspaceApps.map((app) => [app.id, app]))
@@ -81,6 +87,8 @@ export function IntegrationList({
       apps={apps}
       credentials={credentials}
       skills={skills}
+      mcps={mcps}
+      createCredentialHref={createCredentialHref}
       settled={settled}
       scopeFilter={scopeFilter}
     />

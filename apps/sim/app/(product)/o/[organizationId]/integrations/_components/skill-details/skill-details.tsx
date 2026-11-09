@@ -303,7 +303,7 @@ export function SkillDetails({
                     disabled={importing || pending}
                     onClick={() => fileInput.current?.click()}
                   >
-                    {importing ? 'Importing…' : 'Import'}
+                    Import
                   </Button>
                 )}
                 {dirty && (
@@ -317,13 +317,7 @@ export function SkillDetails({
                   submit
                   disabled={!dirty || pending || !workspaceId}
                 >
-                  {skill
-                    ? update.isPending
-                      ? 'Saving…'
-                      : 'Save changes'
-                    : create.isPending
-                      ? 'Creating…'
-                      : 'Create'}
+                  {skill ? 'Save changes' : 'Create'}
                 </Button>
               </>
             ) : undefined

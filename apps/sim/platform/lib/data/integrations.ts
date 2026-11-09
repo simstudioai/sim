@@ -4,8 +4,6 @@ import { useQueryStates } from 'nuqs'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
-  integrationSearchParsers,
-  integrationSearchUrlKeys,
   integrationViewParsers,
   serializeIntegrationView,
 } from '@/lib/organizations/integrations-search-params'
@@ -31,6 +29,7 @@ import {
   toOrganizationIntegrations,
   toToolPermissions,
 } from '@/platform/lib/data/integrations-model'
+import { integrationsWorkspaceParams } from '@/platform/lib/integrations/center-navigation'
 import type { OrganizationIntegration, ToolPermissionChange } from '@/platform/shared/integrations'
 
 const ACTION_NOTICE_ID = 'integrations-action'
@@ -41,11 +40,14 @@ function reportActionFailure(error: unknown) {
   })
 }
 
-/** The member inventory and its reads, each failing and retrying on its own. */
-export function useMemberIntegrations(organizationId: string) {
+/**
+ * The member inventory and its reads, each failing and retrying on its own. An organization without
+ * member-scoped accounts passes no id and reads nothing.
+ */
+export function useMemberIntegrations(organizationId: string | undefined) {
   const inventory = useOrganizationAccounts(organizationId)
-  const policies = useSearchIntegrations(organizationId)
-  const secrets = useOrganizationSecretSource(organizationId)
+  const policies = useSearchIntegrations(organizationId ?? '')
+  const secrets = useOrganizationSecretSource(organizationId ?? '')
   return {
     integrations: inventory.data
       ? toOrganizationIntegrations(inventory.data, policies.isSuccess ? policies.data : undefined)
@@ -129,25 +131,31 @@ export function defaultIntegrationPaths(organizationId: string) {
   return { index: routes.integrations, memberSecrets: routes.memberSecrets }
 }
 
-/** The page's URL state, and where an OAuth round trip returns to it. */
+/**
+ * The page's URL state: the account a detail page opens, and the workspace every tab lists within.
+ * Choosing a workspace reloads the server's verdict on which apps that workspace may use.
+ */
 export function useIntegrationsView() {
-  useOAuthReturnRouter()
-  useDesktopOAuthConnectListener()
-  const [{ q: search }, setSearchParams] = useQueryStates(
-    integrationSearchParsers,
-    integrationSearchUrlKeys
-  )
-  const setSearch = useDebouncedSearchSetter((value, options) =>
-    setSearchParams({ q: value }, options)
-  )
   const [{ account }, setParams] = useQueryStates(integrationViewParsers)
+  const [, setWorkspace] = useQueryStates(integrationsWorkspaceParams, {
+    history: 'push',
+    shallow: false,
+  })
   return {
-    search,
-    setSearch,
     account,
     clearAccount: () => void setParams({ account: null, tools: null }),
     serialize: serializeIntegrationView,
+    chooseWorkspace: (workspace: string) => void setWorkspace({ workspace }),
   }
+}
+
+/**
+ * Reports a provider sign-in that returns to the Integrations page, once for the page: the
+ * organization's own connections and the chosen workspace's.
+ */
+export function useIntegrationsOAuthReturn(workspaceId: string | undefined) {
+  useOAuthReturnRouter({ workspaceId })
+  useDesktopOAuthConnectListener()
 }
 
 /** The tool filter on an account's permissions, kept in the URL. */

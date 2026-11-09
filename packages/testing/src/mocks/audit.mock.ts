@@ -122,6 +122,7 @@ const AuditAction = {
   CREDENTIAL_MEMBER_ADDED: 'credential_member.added',
   CREDENTIAL_MEMBER_REMOVED: 'credential_member.removed',
   CREDENTIAL_MEMBER_ROLE_CHANGED: 'credential_member.role_changed',
+  CREDENTIAL_MEMBERS_UPDATED: 'credential_member.updated',
   CREDENTIAL_GROUP_UPDATED: 'credential_group.updated',
   PASSWORD_RESET_REQUESTED: 'password.reset_requested',
   PASSWORD_RESET: 'password.reset',

@@ -4,7 +4,7 @@ import { type ComponentType, type ReactNode, useState } from 'react'
 import { Button, Chip } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import Link from 'next/link'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import { CredentialList } from '@/app/(product)/o/[organizationId]/integrations/_components/credential-list/credential-list'
@@ -89,20 +89,15 @@ export function LiveIntegrationDetails({
             action={<Chip href={integrationHref}>View integration</Chip>}
           />
         )}
-        {disconnecting && (
-          <Modal
-            open
-            title={`Disconnect ${disconnecting.displayName}?`}
-            description='People and workflows using this credential will lose access.'
-            variant='confirm'
-            destructive
-            confirmLabel='Disconnect'
-            onOpenChange={(open) => {
-              if (!open) setDisconnecting(null)
-            }}
-            onConfirm={() => onDisconnect(disconnecting)}
-          />
-        )}
+        <ConfirmDialog
+          target={disconnecting}
+          onClose={() => setDisconnecting(null)}
+          title={(credential) => `Disconnect ${credential.displayName}?`}
+          description='People and workflows using this credential will lose access.'
+          confirmLabel='Disconnect'
+          pendingLabel='Disconnecting…'
+          onConfirm={onDisconnect}
+        />
       </>
     )
   }
