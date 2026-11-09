@@ -266,7 +266,11 @@ const serverSeamHelpers = new Set([
  * Application modules every Platform file may import, views included, because the Platform and the
  * legacy app share them: the toast sink each root connects its own toaster to.
  */
-const platformHostModules: ReadonlySet<string> = new Set(['lib/toast/sink'])
+/** Host modules the product shares with the rest of the app: one toast sink, one desktop tool lifetime. */
+const platformHostModules: ReadonlySet<string> = new Set([
+  'lib/toast/sink',
+  'hooks/mothership-chat/desktop-tool-lifetimes',
+])
 const isServerOnly = (file: string) => /^import 'server-only'$/m.test(read(file))
 /** A seam module that runs only on the server, or a test, which no bundle includes. */
 const runsOnServer = (file: string) => /\.test\.tsx?$/.test(file) || isServerOnly(file)
