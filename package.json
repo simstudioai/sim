@@ -147,6 +147,7 @@
     "zod": "4.3.6",
     "e2b": "2.50.0",
     "@ai-sdk/provider-utils": "3.0.28",
+    "@azure/identity": "4.14.1",
     "@grpc/grpc-js": "1.14.6",
     "@hono/node-server": "2.1.5",
     "@xmldom/xmldom": "0.8.15",
