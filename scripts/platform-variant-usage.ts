@@ -1,5 +1,6 @@
 import path from 'node:path'
 import ts from '@typescript/typescript6'
+import { PRODUCT_ROUTES } from './platform-product-routes'
 
 type Props = Record<string, string[]>
 type Component = ts.FunctionDeclaration | ts.ArrowFunction | ts.FunctionExpression
@@ -21,6 +22,7 @@ export function productUsage(app: string, program: ts.Program): Usage {
     (name) => path.resolve(app, '../../packages', name, 'src') + path.sep
   )
   const zoneRoutes = path.join(app, 'platform/app')
+  const productRoutes = path.resolve(app, PRODUCT_ROUTES)
   const workbench = path.join(zoneRoutes, 'workbench/')
   /** `platform/embedded` has no pages; these routes mount its views. */
   const organizationRoutes = path.join(app, 'app/o')
@@ -346,7 +348,9 @@ export function productUsage(app: string, program: ts.Program): Usage {
           ts.isVariableDeclaration(decl) &&
           decl.initializer &&
           !component(decl) &&
-          decl.getSourceFile().fileName.startsWith(path.join(app, 'platform/')) &&
+          [path.join(app, 'platform/'), productRoutes + path.sep].some((root) =>
+            decl.getSourceFile().fileName.startsWith(root)
+          ) &&
           !visitedValues.has(decl)
         ) {
           visitedValues.add(decl)
@@ -374,7 +378,9 @@ export function productUsage(app: string, program: ts.Program): Usage {
   }
   const segments = new Set<string>()
   for (const file of program.getRootFileNames()) {
-    const routes = [zoneRoutes, organizationRoutes].find((root) => file.startsWith(root + path.sep))
+    const routes = [zoneRoutes, productRoutes, organizationRoutes].find((root) =>
+      file.startsWith(root + path.sep)
+    )
     if (
       !routes ||
       path.basename(file) !== 'page.tsx' ||

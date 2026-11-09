@@ -18,6 +18,7 @@ import path from 'node:path'
 import ts from '@typescript/typescript6'
 import postcss from 'postcss'
 import { emcnPackages, emcnTypeScriptPaths, resolveEmcnImport } from './emcn-packages'
+import { ORGANIZATION_ROUTES, PRODUCT_ROUTES } from './platform-product-routes'
 import { productUsage } from './platform-variant-usage'
 
 const root = path.resolve(
@@ -28,6 +29,9 @@ const app = path.join(root, 'apps/sim')
 const baselinePath = path.join(root, 'scripts/check-platform-design.baseline.json')
 const packages = emcnPackages(root)
 const platform = 'platform/'
+/** What the Platform's design rules govern: its own project and its product routes. */
+const inPlatformTree = (file: string) =>
+  file.startsWith(platform) || file.startsWith(PRODUCT_ROUTES)
 const shared = '../../packages/emcn/src/'
 const system = '../../packages/emcn-platform/src/'
 const systems = [shared, system]
@@ -74,7 +78,7 @@ const read = (file: string) => readFileSync(path.join(app, file), 'utf8')
  * tokens, declared once in `workflow-canvas/canvas-tokens.module.css`. Chrome around the canvas
  * (menus, panels, dialogs, the toolbar) lives outside this folder and keeps every rule.
  */
-const WORKFLOW_CANVAS = 'platform/app/(shell)/workspace/[workspaceId]/workflows/_components/canvas/'
+const WORKFLOW_CANVAS = `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/canvas/`
 const WORKFLOW_CANVAS_RULES: ReadonlySet<string> = new Set([
   'consumer-style',
   'focus-style',
@@ -217,10 +221,10 @@ const embeddedHost = 'app/o/[organizationId]/'
 /** The organization views, which ship to every organization from `app/o`. */
 const embedded = 'platform/embedded/'
 /** Route trees whose `_components` are private and whose files are product compositions. */
-const routeTrees = /^platform\/(?:embedded\/)?app\//
-const inRouteTree = (file: string) => routeTrees.test(file)
-const legacyTest = (file: string) =>
-  !file.startsWith(platform) && /\.(?:test|spec)\.[jt]sx?$/.test(file)
+const routeTrees = [PRODUCT_ROUTES, 'platform/app/', `${embedded}app/`]
+const routeTree = (file: string) => routeTrees.find((tree) => file.startsWith(tree))
+const inRouteTree = (file: string) => Boolean(routeTree(file))
+const legacyTest = (file: string) => !inPlatformTree(file) && /\.(?:test|spec)\.[jt]sx?$/.test(file)
 /**
  * Custom properties the host's global stylesheet defines, which the embedded rail and chat frame
  * sit against: the desktop title bar, the content pane's inset beside it, the layers stacked
@@ -237,20 +241,25 @@ const HOST_TOKENS: ReadonlySet<string> = new Set([
 const COLUMN_WIDTH_OWNER = `${shared}components/data-display/data-display`
 /** Frames that hold a legacy composer between surfaces, where foundation tokens do not reach. */
 const FRAMES_OUTSIDE_SURFACE: ReadonlySet<string> = new Set([
-  'platform/app/(shell)/home/_components/home-dashboard/home-dashboard.module.css',
+  `${ORGANIZATION_ROUTES}home/_components/home-dashboard/home-dashboard.module.css`,
   `${system}components/page-column/page-column.module.css`,
 ])
 /** Pages that measure their own chrome for a table's scroller, or theme React Flow through its variables. */
 const LOCAL_TOKEN_OWNERS: ReadonlySet<string> = new Set([
-  'platform/app/(shell)/_components/links-page/links-page.module.css',
-  'platform/app/(shell)/people/_components/directory/directory.module.css',
-  'platform/app/(shell)/people/_components/org-chart/org-chart.module.css',
+  `${PRODUCT_ROUTES}_components/links-page/links-page.module.css`,
+  `${ORGANIZATION_ROUTES}people/_components/directory/directory.module.css`,
+  `${ORGANIZATION_ROUTES}people/_components/org-chart/org-chart.module.css`,
   'platform/embedded/app/(shell)/people/_components/directory/directory.module.css',
   'platform/embedded/app/(shell)/people/_components/org-chart/org-chart.module.css',
 ])
+/** The calendar day columns, which place each event by its time through an inline style. */
+const CALENDAR_DAYS: ReadonlySet<string> = new Set([
+  `${ORGANIZATION_ROUTES}home/_components/calendar/calendar-day.tsx`,
+  `${embedded}app/(shell)/home/_components/calendar/calendar-day.tsx`,
+])
 /** The org chart's canvases, whose nodes and edges are styled through React Flow's own props. */
 const FLOW_CANVASES: ReadonlySet<string> = new Set([
-  'platform/app/(shell)/people/_components/org-chart/chart-canvas.tsx',
+  `${ORGANIZATION_ROUTES}people/_components/org-chart/chart-canvas.tsx`,
   'platform/embedded/app/(shell)/people/_components/org-chart/chart-canvas.tsx',
 ])
 const seamRoots = ['hooks/queries', 'lib/api']
@@ -909,13 +918,16 @@ function resolveImport(file: string, specifier: string) {
   return null
 }
 function privateRouteOwner(file: string) {
-  return /^(platform\/(?:embedded\/)?app\/(?:.*\/)?)_components(?:\/|$)/.exec(file)?.[1]
+  const tree = routeTree(file)
+  if (!tree) return
+  const owner = /^((?:.*\/)?)_components(?:\/|$)/.exec(file.slice(tree.length))?.[1]
+  return owner === undefined ? undefined : `${tree}${owner}`
 }
 const privateRoute = (file: string) => Boolean(privateRouteOwner(file))
 
 function checkImport(file: string, specifier: string, dynamic = false, typesOnly = false) {
   const target = resolveImport(file, specifier)
-  const inPlatform = file.startsWith(platform) || isSystem(file)
+  const inPlatform = inPlatformTree(file) || isSystem(file)
   const inEmbedded = file.startsWith(embedded)
   const primitive = isComponent(file)
   const modernPackage =
@@ -1014,8 +1026,8 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
   // host's hooks, stores and packages on purpose, as `check:boundaries` governs.
   if (
     (target &&
-      (((target === 'platform' || target.startsWith(platform)) && !inPlatform) ||
-        (inPlatform && !target.startsWith(platform) && !isSystem(target))) &&
+      (((target === 'platform' || inPlatformTree(target)) && !inPlatform) ||
+        (inPlatform && !inPlatformTree(target) && !isSystem(target))) &&
       !seamTarget &&
       !hostMountsWhatItShips &&
       !inEmbedded &&
@@ -1026,7 +1038,7 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
       !(inSeam && seamPackages.test(specifier)) &&
       !(workflowSeam.test(file) && workflowSeamPackages.test(specifier)) &&
       !(
-        file === 'platform/app/(shell)/_components/desktop/desktop-host.tsx' &&
+        file === `${PRODUCT_ROUTES}_components/desktop/desktop-host.tsx` &&
         specifier === '@sim/desktop-bridge'
       ))
   ) {
@@ -1050,7 +1062,7 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
       'Only the flagged server loader may dynamically import fixture data'
     )
   }
-  if (isSystem(file) && target?.startsWith(platform) && !isSystem(target)) {
+  if (isSystem(file) && target && inPlatformTree(target) && !isSystem(target)) {
     report('design-dependency', file, specifier)
   }
 }
@@ -1282,7 +1294,7 @@ const program = ts.createProgram(
   sourceFiles
     .filter(
       (file) =>
-        (file.startsWith(platform) || file.startsWith(embeddedHost) || isSystem(file)) &&
+        (inPlatformTree(file) || file.startsWith(embeddedHost) || isSystem(file)) &&
         /\.tsx?$/.test(file) &&
         !file.includes('/checks/')
     )
@@ -1293,7 +1305,11 @@ const program = ts.createProgram(
     target: ts.ScriptTarget.ESNext,
     jsx: ts.JsxEmit.Preserve,
     moduleResolution: ts.ModuleResolutionKind.Bundler,
-    paths: { '@/platform/*': [path.join(app, 'platform/*')], ...emcnTypeScriptPaths(packages) },
+    paths: {
+      '@/platform/*': [path.join(app, 'platform/*')],
+      [`@/${PRODUCT_ROUTES}*`]: [path.join(app, `${PRODUCT_ROUTES}*`)],
+      ...emcnTypeScriptPaths(packages),
+    },
   }
 )
 const checker = program.getTypeChecker()
@@ -1589,7 +1605,7 @@ function checkSeamClosure() {
 }
 
 function checkJs(file: string, content: string) {
-  const inPlatform = file.startsWith(platform) || isSystem(file)
+  const inPlatform = inPlatformTree(file) || isSystem(file)
   if (
     !inPlatform &&
     !content.includes('platform') &&
@@ -1787,7 +1803,7 @@ function checkJs(file: string, content: string) {
             }
           }
           const calendarPlacement =
-            file.endsWith('app/(shell)/home/_components/calendar/calendar-day.tsx') &&
+            CALENDAR_DAYS.has(file) &&
             native &&
             attr === 'style' &&
             expr &&
@@ -1860,7 +1876,9 @@ for (const file of sourceFiles) {
         !file.slice(`${owner}components/`.length).includes('/')
     ) &&
       !file.endsWith('/index.ts')) ||
-    (file.startsWith('platform/app/') && /\/_components\/[^/]+\.module\.css$/.test(file))
+    (inRouteTree(file) &&
+      !file.startsWith(embedded) &&
+      /\/_components\/[^/]+\.module\.css$/.test(file))
   )
     report(
       'component-folder',
@@ -1869,7 +1887,7 @@ for (const file of sourceFiles) {
     )
   const source = read(file)
   if (!file.endsWith('.css')) checkJs(file, source)
-  else if (file.startsWith(platform) || isSystem(file)) {
+  else if (inPlatformTree(file) || isSystem(file)) {
     const sheet = postcss.parse(source, { from: file })
     sheets.set(file, sheet)
     if (file.startsWith(WORKFLOW_CANVAS))
