@@ -81,3 +81,6 @@ export function useWorkspaceSecrets(workspaceId: string, isAdmin: boolean) {
     },
   }
 }
+
+/** The workflow editor's focused-block URL parameter, as `focus-block-deep-link` reads it. */
+export const FOCUS_BLOCK_PARAM = 'block'

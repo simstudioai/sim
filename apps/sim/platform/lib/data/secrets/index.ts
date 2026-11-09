@@ -27,7 +27,6 @@ export {
 export { customToolIdParam, mcpServerIdParam } from '@/lib/settings/search-params'
 export { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 export { partitionSettledFailures, resolveAddEmail } from '@/lib/workspaces/sharing'
-export { focusBlockParam } from '@/app/workspace/[workspaceId]/w/[workflowId]/search-params'
 export {
   useLeaveCredential,
   useRemoveWorkspaceCredentialMember,
@@ -41,4 +40,4 @@ export { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 export { useSettingsSearch } from '@/hooks/use-settings-search'
 export { useCredentialDetailForm } from './use-credential-detail-form'
 export { useSecretValue } from './use-secret-value'
-export { type SecretRowAccess, useWorkspaceSecrets } from './workspace-secrets'
+export { FOCUS_BLOCK_PARAM, type SecretRowAccess, useWorkspaceSecrets } from './workspace-secrets'

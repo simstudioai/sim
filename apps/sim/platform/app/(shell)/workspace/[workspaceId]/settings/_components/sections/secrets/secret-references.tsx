@@ -13,7 +13,7 @@ import {
 } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import {
   customToolIdParam,
-  focusBlockParam,
+  FOCUS_BLOCK_PARAM,
   mcpServerIdParam,
   type SecretReferenceResourcePayload,
   useSecretReferences,
@@ -82,7 +82,7 @@ export function SecretReferences({ workspaceId, secretName, shadowed }: SecretRe
     return `${href}${href.includes('?') ? '&' : '?'}${key}=${encodeURIComponent(value)}`
   }
   const blockHref = (workflowId: string, blockId: string) =>
-    linkTo(`workflows/${workflowId}`, focusBlockParam.key, blockId)
+    linkTo(`workflows/${workflowId}`, FOCUS_BLOCK_PARAM, blockId)
   const resourceHref = (resource: SecretReferenceResourcePayload) =>
     resource.kind === 'mcp-server'
       ? linkTo('settings/mcp', mcpServerIdParam.key, resource.id)
