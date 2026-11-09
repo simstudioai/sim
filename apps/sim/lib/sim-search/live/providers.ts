@@ -116,7 +116,7 @@ export const LIVE_SEARCH_PROVIDERS = {
         'from:, to:, cc:, subject:, label:, has:attachment, filename:, in:sent, from:me and is:unread; spam and trash are not searched.',
       example: 'from:jane@example.com subject:(budget OR forecast)',
       avoid:
-        'listing alternatives with spaces, which requires all of them, or lowercase or; join alternatives with uppercase OR. Search matches individual messages. Reading a match includes up to eight independently authorized messages from its conversation, with per-message dates and URLs. Context can fall outside the search dates or keywords; use the message timestamps and incomplete notices, and never claim the entire thread was searched.',
+        'listing alternatives with spaces, which requires all of them, or lowercase or; join alternatives with uppercase OR. Search matches individual messages, and a result shows only the opening of its message, not a passage around the match: read it before concluding what the rest of the message says. Reading a match includes up to eight independently authorized messages from its conversation, with per-message dates and URLs. Context can fall outside the search dates or keywords; use the message timestamps and incomplete notices, and never claim the entire thread was searched.',
     },
     search: searchGmail,
     read: (client, reference, options) => readGmail(client, reference.id, options),
