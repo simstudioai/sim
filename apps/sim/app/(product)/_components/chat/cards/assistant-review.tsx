@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { Disclosure } from '@sim/emcn/disclosure'
 import { Input, TextArea } from '@sim/emcn/field/inputs'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
 import { omit } from '@sim/utils/object'
 import styles from '@/app/(product)/_components/chat/cards/cards.module.css'
@@ -18,17 +19,25 @@ import { useChatInteractions } from '@/app/(product)/_components/session/chat-ru
 type Edits = Record<string, Record<string, string>>
 type Decision = 'allow' | 'skip'
 
-function FieldValues({
-  fields,
-}: {
-  fields: readonly Pick<AssistantReviewField, 'name' | 'label' | 'value' | 'prominent'>[]
-}) {
+type FieldValue = Pick<AssistantReviewField, 'name' | 'label' | 'value' | 'prominent'>
+
+/** A value past its bounded height scrolls in place, faded at the edge that has more. */
+function ReviewValue({ field }: { field: FieldValue }) {
+  const edges = useScrollEdges<HTMLElement>()
   return (
-    <dl className={styles.fields}>
+    <dd ref={edges} data-type={field.prominent ? 'T047' : 'T048'}>
+      {field.value}
+    </dd>
+  )
+}
+
+function FieldValues({ fields }: { fields: readonly FieldValue[] }) {
+  return (
+    <dl className={styles.values}>
       {fields.map((field) => (
         <div key={field.name}>
           <dt data-type='T052'>{field.label}</dt>
-          <dd data-type={field.prominent ? 'T047' : 'T048'}>{field.value}</dd>
+          <ReviewValue field={field} />
         </div>
       ))}
     </dl>

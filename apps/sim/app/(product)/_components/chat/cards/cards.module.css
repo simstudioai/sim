@@ -10,6 +10,7 @@
   gap: var(--ui-section-gap);
 }
 .card {
+  container-type: inline-size;
   padding: var(--spacing-12) var(--spacing-16);
   border-radius: var(--radius-dialog);
   background: var(--control-avatar);
@@ -41,6 +42,39 @@
 .fields dd {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.values {
+  display: grid;
+  grid-template-columns: minmax(0, var(--spacing-96)) minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: var(--ui-list-gap);
+}
+.values div {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: baseline;
+  column-gap: var(--ui-row-gap);
+}
+.values dt {
+  overflow-wrap: anywhere;
+  color: var(--ui-secondary);
+}
+.values dd {
+  min-inline-size: 0;
+  max-block-size: var(--spacing-128);
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@container (width < 22rem) {
+  .values {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--ui-row-gap);
+  }
+  .values div {
+    gap: var(--ui-stack-gap);
+  }
 }
 .summary {
   overflow: hidden;
