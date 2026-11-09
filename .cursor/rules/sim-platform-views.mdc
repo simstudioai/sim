@@ -16,7 +16,7 @@ like that" is not one.
 
 | Job | Use | Never |
 | --- | --- | --- |
-| First read of a view | Render nothing for data-backed content while pending (static chrome renders at once), `FailureNotice` when the read fails, `EmptyState` when it settles empty. Read the query's `status`, not an empty list | A skeleton, shimmer, placeholder rows or loading copy; treating empty as loading |
+| First read of a view | Render nothing for data-backed content while pending (static chrome renders at once), `FailureNotice` when the read fails, `EmptyState` when it settles empty. Read the query's `status`, not an empty list. An action's own pending label (`pendingLabel`, a Load action's `Loading…`) is feedback, not loading copy | A skeleton, shimmer, placeholder rows or loading copy (`check:platform-design` `loading-copy`); a pending hint, placeholder or detail line; treating empty as loading |
 | Failed read | `FailureNotice`, labelled Retry. `intent='warning'` where the read partly answered | A hand-built retry button or `InlineNotice` + `Button` |
 | Failed background refresh | `FailureNotice` above the content it keeps | Replacing content already on screen |
 | Empty | `EmptyState`, with no create button when the page already has one. A picker's no-match line inside a dialog stays `Muted`, since a block would take over the dialog | `Muted` or a raw `<p>` anywhere else |
