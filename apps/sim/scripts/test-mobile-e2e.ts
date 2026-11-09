@@ -17,9 +17,13 @@ import { generateId, generateShortId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
-import { isPathOrDescendant, organizationRoutes } from '@/lib/navigation/paths'
+import {
+  isPathOrDescendant,
+  organizationRoutes,
+  workspaceEntry,
+  workspacePath,
+} from '@/lib/navigation/paths'
 import { workspaceResourcePath } from '@/lib/resources/urls'
-import { workspaceEntry, workspacePath } from '@/platform/lib/workspace-navigation'
 
 /**
  * Real browser coverage of the product shell and its pages against a running local app and

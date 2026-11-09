@@ -10,6 +10,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { workspaceEntry } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import {
   SectionStack,
@@ -40,7 +41,6 @@ import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
-import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 
 /** The sync page carries the mapping editors, which reach the block registry: loaded when opened. */
 const ForkSyncDetail = lazy(() =>

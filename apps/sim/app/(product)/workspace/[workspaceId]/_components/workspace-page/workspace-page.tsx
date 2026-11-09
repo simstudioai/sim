@@ -8,6 +8,7 @@ import { DestinationTabs } from '@sim/emcn-platform/destination-tabs'
 import { PageColumn } from '@sim/emcn-platform/page-column'
 import Link from 'next/link'
 import { notFound, useSearchParams } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { DirectoryHeading } from '@/app/(product)/_components/resource-directory/resource-directory'
 import styles from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page.module.css'
 import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
@@ -20,11 +21,7 @@ import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useLiveWorkspace } from '@/platform/lib/data/workspace-summary'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
-import {
-  type WorkspaceTab,
-  workspacePath,
-  workspaceTabs,
-} from '@/platform/lib/workspace-navigation'
+import { type WorkspaceTab, workspaceTabs } from '@/platform/lib/workspace-navigation'
 import type { TabWorkspace } from '@/platform/shared/workspace-records'
 
 const READY: WorkspaceRead = { status: 'ready' }

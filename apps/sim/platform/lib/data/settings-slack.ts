@@ -10,6 +10,8 @@ export type {
   SlackSearchInstallationView,
   SlackSearchList,
 } from '@/lib/api/contracts/knowledge/slack'
+/** The app's own origin, which a live Slack manifest's URLs point at. */
+export { getBaseUrl as slackManifestOrigin } from '@/lib/core/utils/urls'
 
 export function readSlackManifest(origin: string, name: string = SLACK_SEARCH_DEFAULT_NAME) {
   const manifest = JSON.stringify(

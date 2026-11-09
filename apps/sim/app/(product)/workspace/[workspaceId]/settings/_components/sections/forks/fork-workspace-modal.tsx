@@ -5,6 +5,7 @@ import { FieldFrame, TextField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
 import { InlineNotice } from '@sim/emcn/status'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { workspaceEntry } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { CheckboxTree } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/forks/fork-checkbox-tree'
 import styles from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/forks/forks.module.css'
@@ -15,7 +16,6 @@ import {
   useForkWorkspace,
 } from '@/platform/lib/data/forks'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 
 type ResourceKey = Exclude<keyof GetForkResourcesResponse, 'deployedWorkflowCount'>
 type ResourceSelection = Record<ResourceKey, ReadonlySet<string>>

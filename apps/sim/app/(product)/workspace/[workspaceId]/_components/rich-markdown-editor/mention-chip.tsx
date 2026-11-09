@@ -5,10 +5,10 @@ import { Icon } from '@sim/emcn/icon'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { useParams, useRouter } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import styles from '@/app/(product)/workspace/[workspaceId]/_components/rich-markdown-editor/mention-chip.module.css'
 import { mentionMark } from '@/app/(product)/workspace/[workspaceId]/_components/rich-markdown-editor/mention-items'
 import { MarkdownMention, type MentionAttrs } from '@/platform/lib/data/files/markdown'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 /**
  * Where a mention leads, as legacy's chip routes it. A skill opens in the legacy Skills page, which
