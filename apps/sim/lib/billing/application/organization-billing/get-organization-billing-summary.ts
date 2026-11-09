@@ -3,11 +3,16 @@ import { organization, subscription as subscriptionTable } from '@sim/db/schema'
 import { desc, eq } from 'drizzle-orm'
 import { defineAuthorizedOrganizationBillingUseCase } from '@/lib/billing/application/organization-billing/authorized-organization-billing-use-case'
 import { organizationBillingOperations } from '@/lib/billing/application/organization-billing/operations'
-import { getOrganizationSubscription, getPlanPricing } from '@/lib/billing/core/billing'
+import {
+  getOrganizationSubscription,
+  getPersonalBillingSummary,
+  getPlanPricing,
+} from '@/lib/billing/core/billing'
 import {
   getOrganizationBillingBlockState,
   getUpgradeWorkspaceId,
 } from '@/lib/billing/core/payer-context'
+import { isTeamOrganization } from '@/lib/billing/core/payer-organization'
 import { resolveSubscriptionUsagePeriodOrDefault } from '@/lib/billing/core/reporting-period'
 import { resolveBillingInterval } from '@/lib/billing/core/subscription'
 import { getBillingPeriodUsageCost } from '@/lib/billing/core/usage-log'
@@ -23,6 +28,7 @@ export interface OrganizationBillingSummaryInput {
 
 export interface OrganizationBillingSummaryResult {
   organizationId: string
+  billingScope: 'organization' | 'personal'
   subscriptionState: 'active' | 'free' | 'lapsed'
   subscriptionPlan: string
   subscriptionStatus: string | null
@@ -55,6 +61,9 @@ export const getOrganizationBillingSummary = defineAuthorizedOrganizationBilling
   organizationId: (input: OrganizationBillingSummaryInput) => input.organizationId,
   async execute({ context }): Promise<OrganizationBillingSummaryResult> {
     const { organizationId, actorUserId, userRole } = context
+    if (!(await isTeamOrganization(organizationId, db))) {
+      return getPersonalOrganizationBillingSummary(organizationId, actorUserId, userRole)
+    }
     const [
       organizationRows,
       entitledSubscription,
@@ -149,6 +158,7 @@ export const getOrganizationBillingSummary = defineAuthorizedOrganizationBilling
         : Math.max(configuredLimit, minimumBillingAmount)
     return {
       organizationId,
+      billingScope: 'organization',
       subscriptionState,
       subscriptionPlan: displayedSubscription?.plan ?? 'free',
       subscriptionStatus: displayedSubscription?.status ?? null,
@@ -167,3 +177,41 @@ export const getOrganizationBillingSummary = defineAuthorizedOrganizationBilling
     }
   },
 })
+
+/**
+ * A personal organization's billing is its owner's own, exactly as their personal workspaces have
+ * always been billed: their personal subscription, usage limit, credits and blocked state, read
+ * through the same summary the account billing page uses. Only the owner ever reads it, since a
+ * personal organization has no other member.
+ */
+async function getPersonalOrganizationBillingSummary(
+  organizationId: string,
+  ownerId: string,
+  userRole: 'admin' | 'owner'
+): Promise<OrganizationBillingSummaryResult> {
+  const [personal, upgradeWorkspaceId] = await Promise.all([
+    getPersonalBillingSummary(ownerId, dbReplica),
+    getUpgradeWorkspaceId({ type: 'user', id: ownerId }, db),
+  ])
+  const paid = personal.isPaid
+  return {
+    organizationId,
+    billingScope: 'personal',
+    subscriptionState: paid ? 'active' : 'free',
+    subscriptionPlan: personal.plan,
+    subscriptionStatus: personal.status,
+    creditBalance: personal.creditBalance,
+    billingInterval: personal.billingInterval,
+    cancelAtPeriodEnd: personal.cancelAtPeriodEnd,
+    totalSeats: paid ? 1 : 0,
+    totalCurrentUsage: roundCurrency(personal.currentUsage),
+    totalUsageLimit: roundCurrency(personal.usageLimit),
+    minimumBillingAmount: paid ? roundCurrency(getPlanPricing(personal.plan).basePrice) : 0,
+    billingPeriodEnd: personal.periodEnd?.toISOString() ?? null,
+    billingBlocked: personal.billingBlocked,
+    billingBlockedReason: personal.billingBlockedReason,
+    blockedByOrgOwner: false,
+    upgradeWorkspaceId,
+    userRole,
+  }
+}

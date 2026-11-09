@@ -824,6 +824,11 @@ export const getOrganizationPlanSeatsContract = defineRouteContract({
 
 export const organizationBillingSummarySchema = z.object({
   organizationId: z.string().min(1),
+  /**
+   * `personal`: a personal organization, whose billing is its owner's own subscription, credits
+   * and usage limit, managed through the account billing APIs.
+   */
+  billingScope: z.enum(['organization', 'personal']),
   subscriptionState: z.enum(['active', 'free', 'lapsed']),
   subscriptionPlan: z.string().min(1),
   subscriptionStatus: z.string().nullable(),

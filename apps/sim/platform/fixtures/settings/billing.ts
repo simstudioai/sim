@@ -22,6 +22,7 @@ export async function billingFixture(request: Request, path: string, state: Sett
       success: true,
       data: {
         organizationId: state.organizationId,
+        billingScope: 'organization',
         subscriptionState: paid ? 'active' : 'free',
         subscriptionPlan: plan,
         subscriptionStatus: paid ? 'active' : null,

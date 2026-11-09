@@ -21,7 +21,6 @@ import {
 import { useBillingSection, useUsageLimitField } from '@/platform/lib/data/billing'
 
 const ON_DEMAND_LABEL = 'Allow usage to go past included usage'
-const EXPLORE_PLANS_LABEL = 'Explore organization plans'
 const ON_DEMAND_LOCKED =
   "Your usage is above your plan's included amount, so on-demand can't be turned off yet. It turns off once usage drops below it — at the latest when your billing period resets."
 
@@ -68,13 +67,13 @@ export function BillingView({
             <Button
               render={
                 billing.explorePlansHref ? (
-                  <a href={billing.explorePlansHref}>{EXPLORE_PLANS_LABEL}</a>
+                  <a href={billing.explorePlansHref}>{billing.explorePlansLabel}</a>
                 ) : undefined
               }
               size='compact'
               disabled={!billing.explorePlansHref}
             >
-              {EXPLORE_PLANS_LABEL}
+              {billing.explorePlansLabel}
             </Button>
           )}
         </SettingsRow>
@@ -85,6 +84,7 @@ export function BillingView({
           minimum={billing.usageLimit.minimum}
           canEdit={billing.usageLimit.canEdit}
           organizationId={billing.usageLimit.organizationId}
+          personal={billing.usageLimit.personal}
         />
       )}
       {billing.showOnDemand && (

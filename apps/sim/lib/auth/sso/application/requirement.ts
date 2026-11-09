@@ -5,7 +5,10 @@ import { eq } from 'drizzle-orm'
 import { ssoSettingsOperations } from '@/lib/auth/sso/application/operations'
 import { hasSignInCapableSsoProvider } from '@/lib/auth/sso/verified-provider'
 import { invalidateSsoPolicyCache } from '@/lib/auth/sso-policy'
-import { isOrganizationFeatureEntitled } from '@/lib/billing/core/subscription'
+import {
+  isOrganizationFeatureEntitled,
+  organizationFeatureRefusal,
+} from '@/lib/billing/core/subscription'
 import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/authorized-workspace-use-case'
 import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import type { OperationUseCase } from '@/lib/core/application/operation'
@@ -93,9 +96,12 @@ export const setSsoRequirement: OperationUseCase<
     if (input.requireSso && !(await isOrganizationFeatureEntitled(organizationId, isSsoEnabled))) {
       throw new ForbiddenOperationError(
         isBillingEnabled ? 'ENTERPRISE_PLAN_REQUIRED' : 'SSO_DISABLED',
-        isBillingEnabled
-          ? 'Single Sign-On is available on Enterprise plans only'
-          : 'Single Sign-On is disabled. Set ENTERPRISE_ENABLED or SSO_ENABLED to enable it.'
+        await organizationFeatureRefusal(organizationId, {
+          feature: 'Single Sign-On',
+          enterprise: 'Single Sign-On is available on Enterprise plans only',
+          disabled:
+            'Single Sign-On is disabled. Set ENTERPRISE_ENABLED or SSO_ENABLED to enable it.',
+        })
       )
     }
 

@@ -20,9 +20,11 @@ import {
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
+import { getOrganizationBillingSummary } from '@/lib/billing/application/organization-billing/get-organization-billing-summary'
 import {
   assertBillingAttributionSnapshot,
   resolveOrganizationBillingAttribution,
@@ -729,5 +731,49 @@ describe('forking a workspace in a personal organization', () => {
       organizationId: null,
       workspaceMode: 'personal',
     })
+  })
+})
+
+describe('billing settings of a personal organization', () => {
+  it('reads the owner’s own subscription, usage limit and upgrade workspace', async () => {
+    const ownerId = await createUser()
+    const workspaceId = await createLegacyPersonalWorkspace(ownerId, 'Billed personally')
+    const provisioned = await provisionPersonalOrganization(ownerId)
+    if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
+    await db.insert(subscription).values({
+      id: generateId(),
+      plan: 'pro',
+      referenceId: ownerId,
+      status: 'active',
+    })
+
+    const summary = await getOrganizationBillingSummary.execute({
+      principal: createSessionPrincipal({ userId: ownerId }),
+      input: { organizationId: provisioned.organizationId },
+    })
+
+    expect(summary).toMatchObject({
+      billingScope: 'personal',
+      subscriptionState: 'active',
+      subscriptionPlan: 'pro',
+      totalSeats: 1,
+      upgradeWorkspaceId: workspaceId,
+    })
+  })
+
+  it('reads a team’s billing as the organization’s', async () => {
+    const ownerId = await createUser()
+    const { organizationId } = await createOrganizationWithOwner({
+      ownerUserId: ownerId,
+      name: 'Billed Team',
+      slug: `billed-${generateId()}`.toLowerCase(),
+    })
+
+    const summary = await getOrganizationBillingSummary.execute({
+      principal: createSessionPrincipal({ userId: ownerId }),
+      input: { organizationId },
+    })
+
+    expect(summary).toMatchObject({ billingScope: 'organization', subscriptionState: 'free' })
   })
 })

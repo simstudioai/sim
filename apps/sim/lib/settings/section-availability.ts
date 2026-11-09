@@ -19,12 +19,13 @@ export function organizationMemberSectionAccess(
  * viewer's active organization.
  */
 /**
- * What a personal organization offers: its owner's plan and usage and their own content. No
- * members to invite or govern, and no team or Enterprise configuration.
+ * What a personal organization offers: its owner's own plan, credits, usage limit and invoices
+ * (Billing, which also shows their credit usage) and their own content. No members to invite or
+ * govern, no organization usage monitoring, and no team or Enterprise configuration — the set a
+ * personal account had before personal organizations.
  */
 const PERSONAL_ORGANIZATION_SECTIONS: ReadonlySet<OrganizationSettingsSection> = new Set([
   'billing',
-  'usage',
   'recently-deleted',
   'knowledge-graphs',
   'search-mcp',
@@ -37,7 +38,6 @@ export function organizationPlanAllowsSettingsSection(
   if (features.personal) {
     if (!PERSONAL_ORGANIZATION_SECTIONS.has(section)) return false
     if (section === 'billing') return features.billingEnabled
-    if (section === 'usage') return features.hosted || (features.selfHosted.usage ?? false)
     return true
   }
   if (

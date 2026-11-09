@@ -20,6 +20,7 @@ import { CLEANUP_CONFIG } from '@/lib/billing/cleanup-dispatcher'
 import {
   isOrganizationFeatureEntitled,
   isOrganizationOnEnterprisePlan,
+  organizationFeatureRefusal,
 } from '@/lib/billing/core/subscription'
 import { getForeignWorkspaceTargetsReason } from '@/lib/billing/retention'
 import type { OrganizationWhitelabelSettings } from '@/lib/branding/types'
@@ -127,9 +128,12 @@ export const updateOrganizationWhitelabel = defineOrganizationConfigurationUseCa
     if (!(await isOrganizationFeatureEntitled(input.organizationId, isWhitelabelingEnabled))) {
       throw new OrchestrationError(
         'forbidden',
-        isBillingEnabled
-          ? 'Whitelabeling is available on Enterprise plans only'
-          : 'Whitelabeling is disabled. Set ENTERPRISE_ENABLED or WHITELABELING_ENABLED to enable it.'
+        await organizationFeatureRefusal(input.organizationId, {
+          feature: 'Whitelabeling',
+          enterprise: 'Whitelabeling is available on Enterprise plans only',
+          disabled:
+            'Whitelabeling is disabled. Set ENTERPRISE_ENABLED or WHITELABELING_ENABLED to enable it.',
+        })
       )
     }
     const [row] = await db
@@ -194,9 +198,12 @@ export const updateOrganizationSessionPolicy = defineOrganizationConfigurationUs
     if (!(await isOrganizationFeatureEntitled(input.organizationId, isSessionPoliciesEnabled))) {
       throw new OrchestrationError(
         'forbidden',
-        isBillingEnabled
-          ? 'Session policies are available on Enterprise plans only'
-          : 'Session policies are disabled. Set ENTERPRISE_ENABLED or SESSION_POLICIES_ENABLED to enable them.'
+        await organizationFeatureRefusal(input.organizationId, {
+          feature: 'Session policies',
+          enterprise: 'Session policies are available on Enterprise plans only',
+          disabled:
+            'Session policies are disabled. Set ENTERPRISE_ENABLED or SESSION_POLICIES_ENABLED to enable them.',
+        })
       )
     }
     const [row] = await db

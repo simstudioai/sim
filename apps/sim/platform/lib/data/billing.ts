@@ -5,6 +5,7 @@ import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/predicates'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSubscription } from '@/lib/auth/client'
+import { useBillingScope } from '@/lib/billing/client/billing-scope'
 import { ON_DEMAND_UNLIMITED } from '@/lib/billing/constants'
 import { dollarsToCredits, formatCreditCost } from '@/lib/billing/credits/conversion'
 import { formatInvoiceAmount, getInvoiceStatusBadge } from '@/lib/billing/invoices'
@@ -33,9 +34,8 @@ import { isUsageLimitDraftDirty, resolveUsageLimitDraft } from '@/lib/billing/us
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { toast } from '@/lib/toast/sink'
 import { useAwsMarketplaceBilling } from '@/hooks/queries/aws-marketplace'
-import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
-import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
+import { useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { platformUrl } from '@/platform/lib/data/base-path'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
@@ -66,9 +66,9 @@ const INVOICE_INTENTS = {
  */
 export function useBillingSection(organization: PlatformOrganization) {
   const organizationId = organization.organization.id
+  const personal = organization.settingsFeatures.personal
   const summary = useOrganizationBillingSummary(organizationId)
-  const invoiceList = useInvoices({ context: 'organization', organizationId })
-  const updateLimit = useUpdateOrganizationUsageLimit()
+  const { invoiceList, updateLimit, ...scope } = useBillingScope(organizationId, personal)
   const portal = useOpenBillingPortal()
   const subscriptionClient = useSubscription()
   const fixture = useFixtureSettingsActions()
@@ -87,11 +87,13 @@ export function useBillingSection(organization: PlatformOrganization) {
       isTeam: isTeam(plan),
       isEnterprise: enterprise,
       isPaid: paid,
-      isOrgScoped: true,
+      isOrgScoped: !personal,
       plan,
       status,
     },
-    { isTeamAdmin: isOrgAdminRole(billing?.userRole), userRole: billing?.userRole ?? 'member' }
+    personal
+      ? { isTeamAdmin: false, userRole: 'owner' }
+      : { isTeamAdmin: isOrgAdminRole(billing?.userRole), userRole: billing?.userRole ?? 'member' }
   )
   const canManage = permissions.canEditUsageLimit
 
@@ -122,13 +124,10 @@ export function useBillingSection(organization: PlatformOrganization) {
 
   function openPortal() {
     if (fixture || !canManage) return
-    portal.open(
-      { context: 'organization', organizationId, returnUrl: window.location.href },
-      (error) => {
-        logger.error('Failed to open billing portal', { error })
-        reportFailure("Couldn't open billing portal", error)
-      }
-    )
+    portal.open({ ...scope.portal, returnUrl: window.location.href }, (error) => {
+      logger.error('Failed to open billing portal', { error })
+      reportFailure("Couldn't open billing portal", error)
+    })
   }
 
   return {
@@ -136,25 +135,33 @@ export function useBillingSection(organization: PlatformOrganization) {
     error: summary.error
       ? getErrorMessage(summary.error, 'Failed to load billing information')
       : '',
-    planTitle:
-      state === 'lapsed' ? `Organization ${planName} plan ended` : `Organization ${planName} plan`,
+    planTitle: personal
+      ? `${planName} plan`
+      : state === 'lapsed'
+        ? `Organization ${planName} plan ended`
+        : `Organization ${planName} plan`,
     priceText: marketplace.billedThroughMarketplace
       ? free
         ? 'AWS Marketplace setup in progress'
         : 'Billed through AWS Marketplace'
       : state === 'free'
-        ? 'No active organization subscription'
+        ? personal
+          ? 'Free'
+          : 'No active organization subscription'
         : state === 'lapsed'
           ? 'Choose a new plan for this organization'
           : enterprise
             ? 'Custom pricing'
-            : `$${getPlanTierDollars(plan)} per user/month, ${interval}`,
+            : personal
+              ? `$${getPlanTierDollars(plan)}/month, ${interval}`
+              : `$${getPlanTierDollars(plan)} per user/month, ${interval}`,
     /** An unresolved Marketplace lookup gates plan changes the same as Marketplace billing does. */
     showExplorePlans:
       !enterprise && marketplace.isResolved && !marketplace.billedThroughMarketplace,
     explorePlansHref: permissions.showUpgradePlans ? upgradeHref : null,
+    explorePlansLabel: personal ? 'Explore plans' : 'Explore organization plans',
     showUsageLimit: paid && !enterprise,
-    usageLimit: { current: limit, minimum: included, canEdit: canManage, organizationId },
+    usageLimit: { current: limit, minimum: included, canEdit: canManage, organizationId, personal },
     showOnDemand: usablePaidAccess && !enterprise,
     onDemand: {
       active: onDemandActive,
@@ -163,10 +170,9 @@ export function useBillingSection(organization: PlatformOrganization) {
       toggle: async () => {
         if (!canManage || onDemandLocked || updateLimit.isPending) return
         try {
-          await updateLimit.mutateAsync({
-            organizationId,
-            limit: onDemandActive ? getOnDemandOffLimit(current, covered) : ON_DEMAND_UNLIMITED,
-          })
+          await updateLimit.mutateAsync(
+            onDemandActive ? getOnDemandOffLimit(current, covered) : ON_DEMAND_UNLIMITED
+          )
         } catch (error) {
           logger.error('Failed to toggle on-demand billing', { error })
           reportFailure("Couldn't update on-demand usage", error)
@@ -177,7 +183,7 @@ export function useBillingSection(organization: PlatformOrganization) {
     /** The viewer's own credit usage, which Enterprise manages out of band. */
     showCreditUsage: !enterprise,
     /** Organization limit emails go to admins who have not turned them off. */
-    showUsageNotifications: !free && !enterprise && isOrgAdminRole(billing?.userRole),
+    showUsageNotifications: !personal && !free && !enterprise && isOrgAdminRole(billing?.userRole),
     periodEndLabel: billing?.cancelAtPeriodEnd ? 'Access until' : 'Next billing date',
     periodEnd: billing?.billingPeriodEnd
       ? formatCalendarDate(billing.billingPeriodEnd.slice(0, 10), 'full')
@@ -200,7 +206,7 @@ export function useBillingSection(organization: PlatformOrganization) {
       try {
         await subscriptionClient.cancel({
           returnUrl: getBaseUrl() + window.location.pathname,
-          referenceId: organizationId,
+          ...scope.subscriptionReference,
         })
       } catch (error) {
         logger.error('Failed to cancel subscription', { error })
@@ -216,7 +222,7 @@ export function useBillingSection(organization: PlatformOrganization) {
       }
       if (!subscriptionClient.restore) return
       try {
-        await subscriptionClient.restore({ referenceId: organizationId })
+        await subscriptionClient.restore({ ...scope.subscriptionReference })
         await summary.refetch()
       } catch (error) {
         logger.error('Failed to restore subscription', { error })
@@ -248,6 +254,8 @@ interface UsageLimitOptions {
   minimum: number
   canEdit: boolean
   organizationId: string
+  /** A personal organization's limit is its owner's own. */
+  personal: boolean
 }
 
 /** The usage limit's draft in credits, saved shortly after typing stops. Limits are stored in dollars. */
@@ -256,9 +264,9 @@ export function useUsageLimitField({
   minimum,
   canEdit,
   organizationId,
+  personal,
 }: UsageLimitOptions) {
-  const update = useUpdateOrganizationUsageLimit()
-  const save = update.mutate
+  const { updateLimit: update } = useBillingScope(organizationId, personal)
   const [draft, setDraft] = useState<string | null>(null)
   const latestCurrent = useRef(current)
   useEffect(() => {
@@ -287,13 +295,9 @@ export function useUsageLimitField({
       if (decision.kind === 'settled') settle()
       if (decision.kind === 'invalid') toast.error(decision.message)
       if (decision.kind === 'save') {
-        save(
-          { organizationId, limit: decision.limitDollars },
-          {
-            onSuccess: settle,
-            onError: (error) => reportFailure("Couldn't update usage limit", error),
-          }
-        )
+        update
+          .mutateAsync(decision.limitDollars)
+          .then(settle, (error) => reportFailure("Couldn't update usage limit", error))
       }
     }, AUTOSAVE_DELAY_MS)
   }

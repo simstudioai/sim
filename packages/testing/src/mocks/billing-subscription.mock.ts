@@ -59,6 +59,10 @@ export const billingSubscriptionMockFns = {
   mockIsOrganizationOnEnterprisePlan: vi.fn(),
   mockIsOrganizationGovernanceActive: vi.fn(),
   mockIsOrganizationFeatureEntitled: vi.fn(),
+  /** Answers as for a team on a billing deployment: the plan's refusal. */
+  mockOrganizationFeatureRefusal: vi.fn(
+    async (_organizationId: string, messages: { enterprise: string }) => messages.enterprise
+  ),
   mockHasSSOAccess: vi.fn(),
   mockIsWorkspaceOnEnterprisePlan: vi.fn(),
   mockHasWorkspaceInboxAccess: vi.fn(),
@@ -100,6 +104,7 @@ export const billingSubscriptionMock = {
   isOrganizationOnEnterprisePlan: billingSubscriptionMockFns.mockIsOrganizationOnEnterprisePlan,
   isOrganizationGovernanceActive: billingSubscriptionMockFns.mockIsOrganizationGovernanceActive,
   isOrganizationFeatureEntitled: billingSubscriptionMockFns.mockIsOrganizationFeatureEntitled,
+  organizationFeatureRefusal: billingSubscriptionMockFns.mockOrganizationFeatureRefusal,
   hasSSOAccess: billingSubscriptionMockFns.mockHasSSOAccess,
   isWorkspaceOnEnterprisePlan: billingSubscriptionMockFns.mockIsWorkspaceOnEnterprisePlan,
   hasWorkspaceInboxAccess: billingSubscriptionMockFns.mockHasWorkspaceInboxAccess,

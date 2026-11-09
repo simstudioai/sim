@@ -642,6 +642,23 @@ export async function isOrganizationFeatureEntitled(
 }
 
 /**
+ * Why an organization is not entitled to an org-scoped feature, for the refusal a person reads:
+ * the plan when billing runs, the organization being personal when it is one (no deployment
+ * switch can grant it), otherwise the deployment switch that is off.
+ */
+export async function organizationFeatureRefusal(
+  organizationId: string,
+  messages: { feature: string; enterprise: string; disabled: string },
+  executor: DbOrTx = db
+): Promise<string> {
+  if (isBillingEnabled) return messages.enterprise
+  if (!(await isTeamOrganization(organizationId, executor))) {
+    return `${messages.feature} is available to team organizations only.`
+  }
+  return messages.disabled
+}
+
+/**
  * Check whether a workspace is entitled to workspace-scoped enterprise features
  * — today, copilot BYOK. Entitlement follows the workspace's billing entity:
  * - self-hosted override honored via ACCESS_CONTROL_ENABLED, OR

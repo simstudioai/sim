@@ -1,10 +1,12 @@
 import { db } from '@sim/db'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
 import type { Session } from 'better-auth'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { isBlocked } = vi.hoisted(() => ({ isBlocked: vi.fn() }))
 
+vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
 vi.mock('@/lib/auth/access-control', () => ({
   getAccessControlConfig: async () => ({ blockedEmails: [], blockedSignupDomains: [] }),
   isEmailBlockedByAccessControl: isBlocked,

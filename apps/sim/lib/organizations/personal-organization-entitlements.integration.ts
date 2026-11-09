@@ -88,7 +88,10 @@ describe('team configuration on a personal organization', () => {
         principal: createSessionPrincipal({ userId: personalOwnerId }),
         input: { organizationId: personalId, settings: { brandName: 'Mine' } },
       })
-    ).rejects.toMatchObject({ code: 'forbidden' })
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: 'Whitelabeling is available to team organizations only.',
+    })
     await expect(
       updateOrganizationWhitelabel.execute({
         principal: createSessionPrincipal({ userId: teamOwnerId }),
@@ -152,12 +155,15 @@ describe('team configuration on a personal organization', () => {
 
   it('offers its owner only the personal settings sections', async () => {
     const { personalOwnerId, personalId, teamOwnerId, teamId } = await personalAndTeam()
-    const open = (userId: string, organizationId: string, section: 'members' | 'sso' | 'usage') =>
-      authorizeOrganizationSettingsSection({ organizationId, userId, section })
+    const open = (
+      userId: string,
+      organizationId: string,
+      section: 'members' | 'sso' | 'recently-deleted'
+    ) => authorizeOrganizationSettingsSection({ organizationId, userId, section })
 
     expect(await open(personalOwnerId, personalId, 'members')).toBe(false)
     expect(await open(personalOwnerId, personalId, 'sso')).toBe(false)
-    expect(await open(personalOwnerId, personalId, 'usage')).toBe(true)
+    expect(await open(personalOwnerId, personalId, 'recently-deleted')).toBe(true)
     expect(await open(teamOwnerId, teamId, 'members')).toBe(true)
     expect(await open(teamOwnerId, teamId, 'sso')).toBe(true)
   })

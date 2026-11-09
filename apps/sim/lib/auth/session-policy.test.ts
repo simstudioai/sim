@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { dbChainMockFns, resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 import { getMemberOrganizationId, invalidateMembershipCache } from '@/lib/auth/security-policy'
@@ -10,6 +11,8 @@ import {
   invalidateSessionPolicyCache,
   type ResolvedSessionPolicy,
 } from '@/lib/auth/session-policy'
+
+vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
 
 const HOUR_MS = 60 * 60 * 1000
 
