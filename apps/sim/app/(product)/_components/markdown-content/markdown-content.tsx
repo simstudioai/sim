@@ -4,6 +4,7 @@ import { memo, type ReactNode } from 'react'
 import { CopyButton } from '@sim/emcn/button/copy-button'
 import { Streamdown } from 'streamdown'
 import styles from '@/app/(product)/_components/markdown-content/markdown.module.css'
+import { onExternalLinkClick } from '@/platform/lib/data/external-link'
 import { extractTextContent } from '@/platform/lib/data/node-text'
 
 const COMPONENTS = {
@@ -13,7 +14,13 @@ const COMPONENTS = {
   h3: ({ children }: { children?: ReactNode }) => <h4 data-type='T047'>{children}</h4>,
   li: ({ children }: { children?: ReactNode }) => <li data-type='T048'>{children}</li>,
   a: ({ children, href }: { children?: ReactNode; href?: string }) => (
-    <a className={styles.link} href={href} target='_blank' rel='noopener noreferrer'>
+    <a
+      className={styles.link}
+      href={href}
+      target='_blank'
+      rel='noopener noreferrer'
+      onClick={(event) => onExternalLinkClick(event, href)}
+    >
       {children}
     </a>
   ),

@@ -12,9 +12,14 @@
   min-block-size: 0;
   height: 100%;
 }
+/*
+ * Half the frame until the divider pins a width, which the resize hook writes inline. Expanded and
+ * compact layouts grow from a zero basis instead, so a pinned width never limits them.
+ */
 .panel {
   display: flex;
-  flex: 6;
+  flex: none;
+  inline-size: 50%;
   min-inline-size: 0;
   min-block-size: 0;
   flex-direction: column;
@@ -22,15 +27,28 @@
   background: var(--ui-canvas);
 }
 .frame[data-expanded="true"] > .panel {
+  flex: 1;
   border: 0;
 }
+/* The narrowest the chat beside the panel may be; the resize hook clamps to the same rule. */
 .frame[data-panel-open="true"] > .conversation {
-  flex: 5;
+  min-inline-size: min(var(--container-480), 50%);
+}
+/* The panel's leading edge: an 8px grab area centered on the rule, taking no layout space. */
+.divider {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  inline-size: var(--spacing-8);
+  margin-inline: calc(var(--spacing-8) / -2);
+  cursor: ew-resize;
+  touch-action: none;
 }
 .frame[data-panel-open="true"] .openTrigger {
   visibility: hidden;
 }
 .browserTools[hidden],
+.divider[hidden],
 .panel[hidden],
 .frame[data-expanded="true"] > .conversation {
   display: none;
@@ -143,7 +161,11 @@
 }
 @container panel-frame (max-width: 48rem) {
   .panel {
+    flex: 1;
     border: 0;
+  }
+  .divider {
+    display: none;
   }
   .frame[data-panel-open="true"] > .conversation {
     display: none;

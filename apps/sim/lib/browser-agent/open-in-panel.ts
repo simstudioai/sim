@@ -20,9 +20,17 @@ interface OpenInBrowserPanelDetail {
   url: string
 }
 
+/** Chat surfaces mounted now that host a browser panel; with none, a link opens as a link. */
+let panelHosts = 0
+
 /** True when a click on this href should divert into the embedded panel. */
 export function shouldOpenInBrowserPanel(href: string | undefined): href is string {
-  return Boolean(href) && /^https?:\/\//i.test(href as string) && isBrowserAgentEnabled()
+  return (
+    panelHosts > 0 &&
+    typeof href === 'string' &&
+    /^https?:\/\//i.test(href) &&
+    isBrowserAgentEnabled()
+  )
 }
 
 /** Requests the chat surface to open the panel on this URL (fire-and-forget). */
@@ -30,4 +38,20 @@ export function openInBrowserPanel(url: string): void {
   window.dispatchEvent(
     new CustomEvent<OpenInBrowserPanelDetail>(OPEN_IN_BROWSER_PANEL_EVENT, { detail: { url } })
   )
+}
+
+/** Subscribes the chat surface to panel-open requests; returns an unsubscribe. */
+export function onOpenInBrowserPanel(callback: (url: string) => void): () => void {
+  const listener = (event: Event) => {
+    if (!(event instanceof CustomEvent)) return
+    const detail: unknown = event.detail
+    const url = detail && typeof detail === 'object' && 'url' in detail ? detail.url : undefined
+    if (typeof url === 'string' && /^https?:\/\//i.test(url)) callback(url)
+  }
+  window.addEventListener(OPEN_IN_BROWSER_PANEL_EVENT, listener)
+  panelHosts++
+  return () => {
+    panelHosts--
+    window.removeEventListener(OPEN_IN_BROWSER_PANEL_EVENT, listener)
+  }
 }

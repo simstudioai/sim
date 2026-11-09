@@ -300,6 +300,7 @@ const seamHelpers = new Set([
   'lib/diff/unified',
   'lib/file-parsers/ooxml-preview-guard',
   'lib/mothership/chat/selection-context',
+  'lib/mothership/chat/live-message-id',
   'lib/mothership/chat/selection-clipboard',
   'lib/pptx-renderer/sim-pptx-viewer',
   'lib/slack-search/manifest',
@@ -364,6 +365,7 @@ const seamHelpers = new Set([
   'components/mothership-chat/message-content/resolve-citations',
   'components/mothership-chat/message-content/tool-status',
   'hooks/mothership-chat/use-chat',
+  'hooks/mothership-chat/use-browser-tab-resources',
   'hooks/mothership-chat/use-resource-panel',
   'hooks/mothership-chat/use-restored-chat-entry',
   'components/knowledge/base/components/consts',
@@ -480,6 +482,7 @@ const seamHelpers = new Set([
   'lib/desktop',
   'lib/desktop/appearance',
   'lib/desktop/chat-scope',
+  'lib/desktop/panel-focus',
   'lib/posthog/client',
   'lib/knowledge/constants',
   'lib/knowledge/connectors/access-fields',
@@ -528,6 +531,8 @@ const seamHelpers = new Set([
   'lib/table/types',
   'lib/table/workflow-groups/deployment-mode',
   'lib/terminal/transport',
+  'lib/browser-agent/panel-occlusion',
+  'lib/browser-agent/transport',
   'lib/uploads/client/admission',
   'lib/uploads/client/text-content',
   'lib/uploads/shared/assistant-images',
@@ -549,6 +554,7 @@ const seamHelpers = new Set([
   'stores/panel',
   'stores/table/types',
   'stores/tool-permission/store',
+  'stores/browser-session/store',
   'stores/workflows/registry/types',
   'stores/workflows/subblock/types',
   'stores/workflows/workflow/types',
@@ -891,7 +897,7 @@ const seamClosureViews = new Set([
 /** Each pulls in a whole subsystem, which only the workflow editor's seam may bundle. */
 const seamClosureBanned = /^(?:blocks|tools|triggers)\/registry\.tsx?$/
 const seamPackages =
-  /^@sim\/(?:utils|logger|browser-extension-protocol|platform-authz\/predicates|realtime-protocol|auth\/principal)(?:\/|$)/
+  /^@sim\/(?:utils|logger|browser-extension-protocol|browser-protocol|desktop-bridge|platform-authz\/predicates|realtime-protocol|auth\/principal)(?:\/|$)/
 /**
  * The Workflows tab runs the legacy editor's logic unchanged (the user asked for the canvas exactly
  * as it is), so its seam folders are the one place the blocks and tools registry, the workflow

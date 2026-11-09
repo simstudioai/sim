@@ -4,6 +4,7 @@ import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
 import type { PlatformResource } from '@/app/(product)/_components/chat/model'
 import type { PanelResources } from '@/app/(product)/_components/chat/panel/model'
+import { useBrowserTabResources } from '@/hooks/mothership-chat/use-browser-tab-resources'
 import type { useChat } from '@/hooks/mothership-chat/use-chat'
 import type {
   useChatResourcePanel,
@@ -29,12 +30,17 @@ interface PanelResourcesOptions {
   controller: ReturnType<typeof useResourcePanelController>
 }
 
-/** The hook's tabs as the panel reads them. Selection stays in `?resource=`, owned by the hook. */
+/**
+ * The hook's tabs as the panel reads them. Selection stays in `?resource=`, owned by the hook. In
+ * the desktop app the chat's native browser pages join them, one tab per page, and a source link
+ * clicked in the chat opens in a new one.
+ */
 export function usePanelResources({
   chat,
   panel,
   controller,
 }: PanelResourcesOptions): PanelResources {
+  useBrowserTabResources(panel.desktopTabResourceOptions)
   const resources: PlatformResource[] = chat.resources.map((resource) => ({
     id: resource.id,
     type: resource.type,
@@ -54,5 +60,13 @@ export function usePanelResources({
     },
     onExpand: panel.expandResource,
     onCollapse: panel.collapseResource,
+    resize: {
+      panelRef: panel.mothershipRef,
+      onPointerDown: panel.handleResourceResizePointerDown,
+      onKeyDown: panel.handleResourceResizeKeyDown,
+      onFocus: panel.handleResourceResizeFocus,
+    },
+    onInteraction: panel.handleResourceInteraction,
+    browserScopeId: chat.desktopScopeId,
   }
 }

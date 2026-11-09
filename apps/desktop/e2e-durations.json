@@ -6,6 +6,7 @@
   "browser-page-parity.spec.ts": 3.89,
   "browser-sign-in-prompts.spec.ts": 29.02,
   "browser-tools.spec.ts": 136.49,
+  "chat-panel.spec.ts": 19.81,
   "check-report.spec.ts": 2.48,
   "computer-use.spec.ts": 3.62,
   "continue-sign-in.spec.ts": 10.93,

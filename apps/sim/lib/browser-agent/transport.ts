@@ -13,12 +13,14 @@
  * is no bridge, so the built-in browser is unavailable.
  */
 import type {
+  BrowserFindRequest,
   BrowserFindResult,
   BrowserOmniboxFocusMode,
   BrowserPageState,
   BrowserPanelAction,
   BrowserPanelAnchor,
   BrowserPanelBounds,
+  BrowserPanelSnapshot,
   BrowserTabsState,
   BrowserToolName,
 } from '@sim/browser-protocol'
@@ -433,6 +435,28 @@ export function onBrowserOmniboxFocus(
   )
 }
 
+/**
+ * Runs Chromium's find against the active page. Counts arrive separately via
+ * {@link onBrowserFindResult} — Chromium resolves them asynchronously and
+ * streams several updates per request.
+ */
+export function findInBrowserPage(
+  request: BrowserFindRequest,
+  scopeId = currentBrowserScopeId()
+): void {
+  bridge()?.find(request, scopeId)
+}
+
+/**
+ * Stops the running find and clears its highlights. Pass `focusPage` when the
+ * user dismissed the bar, so focus lands back on the page instead of being
+ * stranded on the removed input; leave it off when the bar is unmounting
+ * because the panel is going away.
+ */
+export function stopBrowserFind(focusPage = false, scopeId = currentBrowserScopeId()): void {
+  bridge()?.stopFind(focusPage, scopeId)
+}
+
 /** Subscribes to Mod+F pressed while the embedded page held focus. */
 export function onBrowserFindOpen(
   callback: () => void,
@@ -473,7 +497,7 @@ export function onBrowserFindResult(
  * Reports the panel's current rect (viewport CSS pixels), or null when the
  * panel is hidden/unmounted. The embedded view tracks this rect.
  */
-function reportBrowserPanelBounds(
+export function reportBrowserPanelBounds(
   bounds: BrowserPanelBounds | null,
   anchor: BrowserPanelAnchor | null = null,
   scopeId = currentBrowserScopeId()
@@ -484,6 +508,27 @@ function reportBrowserPanelBounds(
     latestPanelBoundsByScope.delete(scopeId)
   }
   bridge()?.setPanelBounds(bounds, anchor, scopeId)
+}
+
+/** Captures the live page without hiding or resizing it. */
+export function captureBrowserPanelSnapshot(
+  scopeId = currentBrowserScopeId()
+): Promise<BrowserPanelSnapshot | null> {
+  return bridge()?.capturePanelSnapshot(scopeId) ?? Promise.resolve(null)
+}
+
+/** Whether the installed shell supports the strict pre-paint force-hide fallback. */
+export function supportsAtomicBrowserPanelOcclusion(): boolean {
+  return bridge()?.supportsAtomicPanelOcclusion === true
+}
+
+/** Hides or reveals the native page after the renderer's replacement has painted. */
+export function setBrowserPanelOccluded(
+  occluded: boolean,
+  scopeId = currentBrowserScopeId(),
+  force = false
+): Promise<boolean> {
+  return bridge()?.setPanelOccluded(occluded, scopeId, force) ?? Promise.resolve(false)
 }
 
 /**
@@ -527,4 +572,12 @@ export function beginBrowserPanelDividerDrag(
       reportScopeId
     )
   }
+}
+
+/** Reports whether renderer-owned browser chrome owns the interaction context. */
+export function reportBrowserPanelFocused(
+  focused: boolean,
+  scopeId = currentBrowserScopeId()
+): void {
+  bridge()?.setPanelFocused(focused, scopeId)
 }
