@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
 import { describe, expect, it } from 'vitest'
-import { extractSkillFromZip, parseSkillMarkdown } from './utils'
+import { extractSkillFromZip, parseSkillMarkdown } from '@/lib/skills/authoring'
 
 describe('parseSkillMarkdown', () => {
   it('preserves colons inside description values', () => {

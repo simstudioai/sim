@@ -2,20 +2,20 @@ export { type McpOperationPolicy, normalizeMcpOperationPolicy } from '@/lib/mcp/
 export { createMcpToolId } from '@/lib/mcp/shared'
 export type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 export {
-  SKILL_CONTENT_PLACEHOLDER,
-  SKILL_DESCRIPTION_MAX_LENGTH,
-  SKILL_DESCRIPTION_PLACEHOLDER,
-  SKILL_NAME_HINT,
-  SKILL_NAME_PLACEHOLDER,
-} from '@/app/workspace/[workspaceId]/skills/components/skill-copy'
-export {
   isSkillNameConflictError,
   type ParsedSkill,
   parseSkillMarkdown,
   readSkillFile,
   SKILL_IMPORT_ACCEPT,
   validateSkillName,
-} from '@/app/workspace/[workspaceId]/skills/components/utils'
+} from '@/lib/skills/authoring'
+export {
+  SKILL_CONTENT_PLACEHOLDER,
+  SKILL_DESCRIPTION_MAX_LENGTH,
+  SKILL_DESCRIPTION_PLACEHOLDER,
+  SKILL_NAME_HINT,
+  SKILL_NAME_PLACEHOLDER,
+} from '@/lib/skills/copy'
 export {
   type McpServerTestResult,
   useMcpServerTest,

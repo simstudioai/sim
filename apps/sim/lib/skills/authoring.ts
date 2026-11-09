@@ -1,4 +1,5 @@
 import { slugify } from '@sim/utils/string'
+import type { JSZipObject } from 'jszip'
 import { isApiClientError } from '@/lib/api/client/errors'
 
 export interface ParsedSkill {
@@ -94,25 +95,21 @@ export async function extractSkillFromZip(
   const { default: JSZip } = await import('jszip')
   const zip = await JSZip.loadAsync(data)
 
-  const candidates: string[] = []
+  const candidates: JSZipObject[] = []
   zip.forEach((relativePath, entry) => {
     if (!entry.dir && relativePath.endsWith('SKILL.md')) {
-      candidates.push(relativePath)
+      candidates.push(entry)
     }
   })
 
-  if (candidates.length === 0) {
+  const [shallowest] = candidates.sort(
+    (a, b) => a.name.split('/').length - b.name.split('/').length
+  )
+  if (!shallowest) {
     throw new Error('No SKILL.md file found in the ZIP archive')
   }
 
-  candidates.sort((a, b) => {
-    const depthA = a.split('/').length
-    const depthB = b.split('/').length
-    return depthA - depthB
-  })
-
-  const content = await zip.file(candidates[0])!.async('string')
-  return content
+  return shallowest.async('string')
 }
 const KEBAB_CASE_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
