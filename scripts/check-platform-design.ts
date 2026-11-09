@@ -295,6 +295,7 @@ const seamHelpers = new Set([
   'lib/mothership/chat/selection-clipboard',
   'lib/pptx-renderer/sim-pptx-viewer',
   'lib/slack-search/manifest',
+  'lib/slack-search/onboarding',
   'lib/integrations/slack-manifest',
   'lib/organizations/search-params',
   'lib/organizations/integrations-search-params',
