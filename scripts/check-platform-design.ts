@@ -1012,6 +1012,8 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
       /^@sim\/(?!utils(?:\/|$)|emcn(?:-platform)?(?:\/|$))/.test(specifier) &&
       !(inSeam && seamPackages.test(specifier)) &&
       !(workflowSeam.test(file) && workflowSeamPackages.test(specifier)) &&
+      // Tests take the repo's shared mocks, which never ship.
+      !(/\.test\.tsx?$/.test(file) && /^@sim\/testing(?:\/|$)/.test(specifier)) &&
       !(
         file === `${PRODUCT_ROUTES}_components/desktop/desktop-host.tsx` &&
         specifier === '@sim/desktop-bridge'
