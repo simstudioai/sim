@@ -472,7 +472,6 @@ const seamHelpers = new Set([
   'lib/resources',
   'lib/settings/search-params',
   'lib/settings/section-availability',
-  'lib/settings/search-params',
   'lib/execution/remote-sandbox/cli-tools',
   'lib/sim-search/connectors',
   'lib/sim-search/connection-labels',
