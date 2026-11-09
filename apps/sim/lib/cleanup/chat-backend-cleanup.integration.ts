@@ -1,11 +1,11 @@
 /**
- * Deleting a chat, an account, or a user row directly through `/admin/remove-user` cascades
- * `copilot_chats` rows away, and with them the only rows naming the chats' stored files. The
- * copilot backend keeps its own copy of each chat, so every chat a delete erases must reach
- * `POST /api/tasks/cleanup` and lose its stored files, durably and only once the delete has
- * happened, and no surviving chat may. Runs the production deletion paths and the outbox handler
- * against real PostgreSQL, local file storage, and a local copilot backend stand-in that accepts
- * only the cleanup call the handler is meant to make.
+ * Purging a chat past its Recently Deleted retention, deleting an account, or deleting a user row
+ * directly through `/admin/remove-user` erases `copilot_chats` rows, and with them the only rows
+ * naming the chats' stored files. The copilot backend keeps its own copy of each chat, so every
+ * chat a delete erases must reach `POST /api/tasks/cleanup` and lose its stored files, durably and
+ * only once the delete has happened, and no surviving chat may. Runs the production deletion paths
+ * and the outbox handler against real PostgreSQL, local file storage, and a local copilot backend
+ * stand-in that accepts only the cleanup call the handler is meant to make.
  */
 import { mkdir, rm, stat, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -84,9 +84,10 @@ import { chatBackendCleanupOutboxHandlers } from '@/lib/cleanup/chat-backend-cle
 import { prepareChatCleanup } from '@/lib/cleanup/chat-cleanup'
 import { env } from '@/lib/core/config/env'
 import { processOutboxEventById } from '@/lib/core/outbox/service'
-import { deleteCopilotChat } from '@/lib/mothership/chat/deletion'
+import { softDeleteMothershipChat } from '@/lib/mothership/chat/deletion'
 import { inlineChatImageKey } from '@/lib/mothership/chat/inline-image-key'
 import { deleteUserAccount } from '@/lib/users/account-deletion'
+import { runCleanupSoftDeletes } from '@/background/cleanup-soft-deletes'
 
 setUploadDirServer(storageRoot)
 
@@ -149,10 +150,15 @@ async function seedWorkflow(userId: string, workspaceId: string) {
   return id
 }
 
-async function seedChat(userId: string, workspaceId: string, workflowId?: string) {
+async function seedChat(
+  userId: string,
+  workspaceId: string,
+  workflowId?: string,
+  type: 'copilot' | 'mothership' = 'copilot'
+) {
   const [chat] = await db
     .insert(copilotChats)
-    .values({ userId, workspaceId, workflowId, type: 'copilot' })
+    .values({ userId, workspaceId, workflowId, type })
     .returning({ id: copilotChats.id })
   return chat.id
 }
@@ -261,6 +267,15 @@ async function refuseWith(table: string, when: string, run: () => Promise<unknow
   }
 }
 
+/**
+ * What `/admin/remove-user` runs: the hook Better Auth calls before its user delete, then that bare
+ * delete, which cascades away the chats the user wrote.
+ */
+async function removeUserAsAdmin(userId: string) {
+  await enqueueAdminRemovedChatCleanup({ id: userId })
+  await db.delete(user).where(eq(user.id, userId))
+}
+
 async function existingChats(chatIds: string[]) {
   const rows = await db
     .select({ id: copilotChats.id })
@@ -280,6 +295,7 @@ afterEach(async () => {
   await db.delete(outboxEvent).where(queuedBySuite())
   backend.unavailable = false
   backend.rejected = 0
+  backend.purged.length = 0
   Object.assign(env, { COPILOT_API_KEY: backend.apiKey })
 })
 
@@ -295,25 +311,42 @@ afterAll(async () => {
 })
 
 describe('cleanup of a permanently deleted chat', () => {
-  it('purges the backend data and stored files of the chat it deletes', async () => {
+  /**
+   * The retention purge calls the backend and deletes stored files itself (the latter only on
+   * cloud storage), and queues just the inline image sweep.
+   */
+  it('purges the backend data and inline images of a chat past its Recently Deleted retention', async () => {
     const ownerId = await seedUser()
     const workspaceId = await seedWorkspace(ownerId)
-    const { chatId, keys } = await seedChatWithFiles(ownerId, workspaceId)
-    const bystander = await seedChatWithFiles(ownerId, workspaceId)
+    const expired = await seedChat(ownerId, workspaceId, undefined, 'mothership')
+    const restorable = await seedChat(ownerId, workspaceId, undefined, 'mothership')
+    const expiredImage = inlineChatImageKey(expired, 'req-1', 'files/a.png')
+    const restorableImage = inlineChatImageKey(restorable, 'req-1', 'files/a.png')
+    for (const key of [expiredImage, restorableImage]) await putObject(key)
 
-    expect(await deleteCopilotChat({ chatId, userId: ownerId })).toEqual({
+    expect(await softDeleteMothershipChat({ chatId: expired, userId: ownerId })).toEqual({
       workspaceId,
       organizationId: null,
     })
+    expect(await softDeleteMothershipChat({ chatId: restorable, userId: ownerId })).not.toBeNull()
+    await db
+      .update(copilotChats)
+      .set({ deletedAt: new Date(Date.now() - 48 * 60 * 60_000) })
+      .where(eq(copilotChats.id, expired))
+    await runCleanupSoftDeletes({
+      label: 'chat-backend-cleanup-integration',
+      plan: 'free',
+      retentionHours: 24,
+      workspaceIds: [workspaceId],
+    })
 
-    expect(await existingChats([chatId])).toEqual(new Set())
+    expect(await existingChats([expired, restorable])).toEqual(new Set([restorable]))
+    expect(backend.purged).toEqual([[expired]])
     const delivered = await deliverCleanups()
-    expect(delivered.outcomes).toEqual(['completed', 'completed', 'completed'])
-    expect(delivered.purged).toEqual(new Set([chatId]))
-    expect(await objectExists(keys.upload)).toBe(false)
-    expect(await objectExists(keys.attachment)).toBe(false)
-    expect(await objectExists(bystander.keys.upload)).toBe(true)
-    expect(await objectExists(bystander.keys.attachment)).toBe(true)
+    expect(delivered.outcomes).toEqual(['completed'])
+    expect(delivered.purged).toEqual(new Set())
+    expect(await objectExists(expiredImage)).toBe(false)
+    expect(await objectExists(restorableImage)).toBe(true)
     expect(backend.rejected).toBe(0)
   })
 
@@ -323,13 +356,14 @@ describe('cleanup of a permanently deleted chat', () => {
    */
   it('keeps a deleted chat’s upload that a fork in its workspace still references', async () => {
     const ownerId = await seedUser()
-    const workspaceId = await seedWorkspace(ownerId)
+    const authorId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId, [authorId])
     const uploadIn = async (chatId: string) => {
       const key = `workspace/${workspaceId}/1700000000000-${generateId().slice(0, 8)}-shot.png`
       await db.insert(workspaceFiles).values({
         id: generateId(),
         key,
-        userId: ownerId,
+        userId: authorId,
         workspaceId,
         context: 'mothership',
         chatId,
@@ -340,7 +374,7 @@ describe('cleanup of a permanently deleted chat', () => {
       await putObject(key)
       return key
     }
-    const forkedSource = await seedChat(ownerId, workspaceId)
+    const forkedSource = await seedChat(authorId, workspaceId)
     const sharedKey = await uploadIn(forkedSource)
     const fork = await seedChat(ownerId, workspaceId)
     await db.insert(copilotMessages).values({
@@ -353,11 +387,10 @@ describe('cleanup of a permanently deleted chat', () => {
         fileAttachments: [{ key: sharedKey, filename: 'shot.png' }],
       },
     })
-    const unforkedSource = await seedChat(ownerId, workspaceId)
+    const unforkedSource = await seedChat(authorId, workspaceId)
     const ownKey = await uploadIn(unforkedSource)
 
-    await deleteCopilotChat({ chatId: forkedSource, userId: ownerId })
-    await deleteCopilotChat({ chatId: unforkedSource, userId: ownerId })
+    await removeUserAsAdmin(authorId)
 
     expect(new Set((await deliverCleanups()).outcomes)).toEqual(new Set(['completed']))
     expect(await objectExists(sharedKey)).toBe(true)
@@ -366,13 +399,15 @@ describe('cleanup of a permanently deleted chat', () => {
 
   it('deletes a forked upload once the last chat attaching it is deleted', async () => {
     const ownerId = await seedUser()
-    const workspaceId = await seedWorkspace(ownerId)
-    const source = await seedChat(ownerId, workspaceId)
+    const sourceAuthorId = await seedUser()
+    const forkAuthorId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId, [sourceAuthorId, forkAuthorId])
+    const source = await seedChat(sourceAuthorId, workspaceId)
     const key = `workspace/${workspaceId}/1700000000000-${generateId().slice(0, 8)}-shot.png`
     await db.insert(workspaceFiles).values({
       id: generateId(),
       key,
-      userId: ownerId,
+      userId: sourceAuthorId,
       workspaceId,
       context: 'mothership',
       chatId: source,
@@ -381,7 +416,7 @@ describe('cleanup of a permanently deleted chat', () => {
       sizeBytes: 1,
     })
     await putObject(key)
-    const fork = await seedChat(ownerId, workspaceId)
+    const fork = await seedChat(forkAuthorId, workspaceId)
     await db.insert(copilotMessages).values({
       chatId: fork,
       messageId: generateId(),
@@ -389,19 +424,21 @@ describe('cleanup of a permanently deleted chat', () => {
       content: { role: 'user', content: 'see attached', fileAttachments: [{ key }] },
     })
 
-    await deleteCopilotChat({ chatId: source, userId: ownerId })
+    await removeUserAsAdmin(sourceAuthorId)
     await deliverCleanups()
+    expect(await existingChats([source, fork])).toEqual(new Set([fork]))
     expect(await objectExists(key)).toBe(true)
 
-    await deleteCopilotChat({ chatId: fork, userId: ownerId })
+    await removeUserAsAdmin(forkAuthorId)
     await deliverCleanups()
     expect(await objectExists(key)).toBe(false)
   })
 
   it('never deletes an attached workspace upload whose row is live or only soft-deleted', async () => {
     const ownerId = await seedUser()
-    const workspaceId = await seedWorkspace(ownerId)
-    const chatId = await seedChat(ownerId, workspaceId)
+    const authorId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId, [authorId])
+    const chatId = await seedChat(authorId, workspaceId)
     const upload = (name: string) =>
       `workspace/${workspaceId}/1700000000000-${generateId().slice(0, 8)}-${name}`
     const live = upload('live.png')
@@ -431,9 +468,10 @@ describe('cleanup of a permanently deleted chat', () => {
       },
     })
 
-    await deleteCopilotChat({ chatId, userId: ownerId })
+    await removeUserAsAdmin(authorId)
     await deliverCleanups()
 
+    expect(await existingChats([chatId])).toEqual(new Set())
     expect(await objectExists(live)).toBe(true)
     expect(await objectExists(restorable)).toBe(true)
   })
@@ -548,13 +586,14 @@ describe('cleanup of a permanently deleted chat', () => {
     expect(await objectExists(image)).toBe(false)
   })
 
+  /** Account deletion queues its chats' cleanup inside the transaction that deletes them. */
   it('records no cleanup when the delete rolls back', async () => {
     const ownerId = await seedUser()
     const workspaceId = await seedWorkspace(ownerId)
     const { chatId, keys } = await seedChatWithFiles(ownerId, workspaceId)
 
     await refuseWith('copilot_chats', `OLD.id = '${chatId}'::uuid`, () =>
-      deleteCopilotChat({ chatId, userId: ownerId })
+      deleteUserAccount(ownerId, { recordIdentity: false })
     )
 
     expect(await existingChats([chatId])).toEqual(new Set([chatId]))
@@ -565,9 +604,10 @@ describe('cleanup of a permanently deleted chat', () => {
 
   it('retries a cleanup whose backend call or object delete failed until both succeed', async () => {
     const ownerId = await seedUser()
-    const workspaceId = await seedWorkspace(ownerId)
-    const { chatId, keys } = await seedChatWithFiles(ownerId, workspaceId)
-    await deleteCopilotChat({ chatId, userId: ownerId })
+    const authorId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId, [authorId])
+    const { chatId, keys } = await seedChatWithFiles(authorId, workspaceId)
+    await removeUserAsAdmin(authorId)
     backend.unavailable = true
     /** A directory where the object is: its delete fails with something other than ENOENT. */
     await rm(join(storageRoot, keys.upload))
@@ -587,9 +627,10 @@ describe('cleanup of a permanently deleted chat', () => {
 
   it('holds a queued backend purge while COPILOT_API_KEY is unset, still deleting the files', async () => {
     const ownerId = await seedUser()
-    const workspaceId = await seedWorkspace(ownerId)
-    const { chatId, keys } = await seedChatWithFiles(ownerId, workspaceId)
-    await deleteCopilotChat({ chatId, userId: ownerId })
+    const authorId = await seedUser()
+    const workspaceId = await seedWorkspace(ownerId, [authorId])
+    const { chatId, keys } = await seedChatWithFiles(authorId, workspaceId)
+    await removeUserAsAdmin(authorId)
     Object.assign(env, { COPILOT_API_KEY: undefined })
 
     expect((await deliverCleanups()).outcomes).toEqual(['completed', 'completed', 'pending'])
