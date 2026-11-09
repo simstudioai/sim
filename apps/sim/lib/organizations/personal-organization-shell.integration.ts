@@ -19,13 +19,15 @@ import {
   workspace,
 } from '@sim/db/schema'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
 import { readOrganizationSurface } from '@/lib/organizations/application/surface'
 import { ensureViewerOrganization } from '@/lib/organizations/application/viewer-organization'
+import { createPersonalOrganizationTx } from '@/lib/organizations/personal'
 import {
   ensureUserOrganization,
   provisionPersonalOrganization,
@@ -138,6 +140,19 @@ async function shellOrganization(workspaceId: string, userId: string) {
     if (isWorkspaceShellRefusal(error)) return null
     throw error
   }
+}
+
+/** Resolves once some backend sits waiting on a lock, i.e. the racing statement is parked. */
+async function waitForLockWaiter(): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const [{ waiting }] = await db.execute<{ waiting: number }>(sql`
+      SELECT count(*)::int AS waiting FROM pg_stat_activity
+      WHERE datname = current_database() AND wait_event_type = 'Lock'
+    `)
+    if (waiting > 0) return
+    await sleep(25)
+  }
+  throw new Error('no statement ever waited on a lock')
 }
 
 afterAll(async () => {
@@ -262,11 +277,32 @@ describe('on-demand personal organization provisioning', () => {
   it('creates one organization for concurrent first page loads', async () => {
     const ownerId = await createUser()
 
-    const results = await Promise.all(Array.from({ length: 5 }, () => landingOrganization(ownerId)))
+    // One page load's provisioning has written its organization and holds it uncommitted while a
+    // second load provisions: the second must wait for it and land in the same organization.
+    let commitFirst: () => void = () => undefined
+    const firstHeld = new Promise<void>((resolve) => {
+      commitFirst = resolve
+    })
+    let firstWritten: () => void = () => undefined
+    const written = new Promise<void>((resolve) => {
+      firstWritten = resolve
+    })
+    const first = db.transaction(async (tx) => {
+      const organizationId = await createPersonalOrganizationTx(tx, ownerId)
+      firstWritten()
+      await firstHeld
+      return organizationId
+    })
+    await written
+
+    const second = landingOrganization(ownerId)
+    await waitForLockWaiter()
+    commitFirst()
+    const [firstId, secondId] = await Promise.all([first, second])
 
     const memberships = await membershipsOf(ownerId)
-    expect(memberships).toHaveLength(1)
-    expect(new Set(results)).toEqual(new Set([memberships[0].organizationId]))
+    expect(memberships).toEqual([{ organizationId: firstId, role: 'owner', kind: 'personal' }])
+    expect(secondId).toBe(firstId)
   })
 
   it('leaves a team member in their team', async () => {
