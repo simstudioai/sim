@@ -3,6 +3,7 @@
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Breadcrumbs } from '@sim/emcn/breadcrumbs'
 import { Button } from '@sim/emcn/button'
+import { FindBar } from '@sim/emcn/find-bar'
 import { Icon, type IconName } from '@sim/emcn/icon'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
@@ -15,7 +16,6 @@ import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
-import { FindBar } from '@/app/(product)/_components/find-bar/find-bar'
 import { AccessRequired } from '@/app/(product)/workspace/[workspaceId]/_components/access-required/access-required'
 import {
   descendantIndex,

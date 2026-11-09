@@ -7,12 +7,12 @@ import { DateRangePicker } from '@sim/emcn/picker/date-picker'
 import { InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { useQueryState, useQueryStates } from 'nuqs'
-import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import {
   DashboardPanel,
   DashboardRow,
   DashboardStack,
-} from '@/app/(product)/workspace/[workspaceId]/_components/dashboard-panel/dashboard-panel'
+} from '@/components/dashboard-panel/dashboard-panel'
+import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import {
   LiveWorkspacePage,
   useNewChatHref,

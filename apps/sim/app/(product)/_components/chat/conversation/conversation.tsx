@@ -2,6 +2,7 @@
 
 import { memo, type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
+import { FindBar } from '@sim/emcn/find-bar'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { InlineNotice } from '@sim/emcn/status'
@@ -15,7 +16,6 @@ import type { ChatRuntime, PlatformTurn } from '@/app/(product)/_components/chat
 import { ChatPanelTrigger } from '@/app/(product)/_components/chat/panel/chat-panels'
 import { MessageComposer } from '@/app/(product)/_components/composer/message-composer'
 import type { ComposerController } from '@/app/(product)/_components/composer/model'
-import { FindBar } from '@/app/(product)/_components/find-bar/find-bar'
 import { ChatRuntimeProvider } from '@/app/(product)/_components/session/chat-runtime'
 
 /** A settled turn keeps its identity, so only the streaming one renders per chunk. */

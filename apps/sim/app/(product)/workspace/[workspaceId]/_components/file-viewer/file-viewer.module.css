@@ -1,9 +1,0 @@
-/* The viewer fills the page below the controls and ends one page inset above the window edge. */
-.viewer {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-block-size: 0;
-  min-inline-size: 0;
-  padding-block-end: var(--ui-page-inset-block);
-}

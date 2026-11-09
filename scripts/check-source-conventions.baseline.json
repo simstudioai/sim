@@ -395,11 +395,6 @@
     "apps/sim/app/(landing)/models/components/model-directory.tsx": 7,
     "apps/sim/app/(landing)/models/components/model-primitives/provider-icon.tsx": 1,
     "apps/sim/app/(landing)/models/components/model-timeline-chart.tsx": 4,
-    "apps/sim/components/file-viewer/file-viewer.tsx": 1,
-    "apps/sim/components/file-viewer/mermaid-diagram.tsx": 2,
-    "apps/sim/components/file-viewer/pdf-viewer.tsx": 1,
-    "apps/sim/components/file-viewer/preview-shared.tsx": 2,
-    "apps/sim/components/file-viewer/rich-markdown-editor/raw-markdown-snippet.tsx": 1,
     "apps/sim/components/mothership-chat/message-content/message-content.tsx": 1,
     "apps/sim/components/mothership-chat/mothership-chat/mothership-chat.tsx": 1
   },

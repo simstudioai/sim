@@ -1,38 +1,38 @@
+'use client'
+
 import { lazy, Suspense, useContext, useEffect, useState } from 'react'
-import {
-  chipVariants,
-  cn,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  useCopyToClipboard,
-} from '@sim/emcn-legacy'
-import { Check, ChevronDown, Code, Duplicate, Eye, Wrap } from '@sim/emcn-legacy/icons'
+import { CopyButton } from '@sim/emcn/button/copy-button'
+import { StatusTag } from '@sim/emcn/status'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { looksLikeMermaid, MermaidDiagram } from '@/components/file-viewer/mermaid-diagram'
 import { MarkdownCodeBlock } from '@/components/file-viewer/rich-markdown-editor/code-block-schema'
 import { detectLanguage } from '@/components/file-viewer/rich-markdown-editor/detect-language'
 import { MarkdownStreamingContext } from '@/components/file-viewer/rich-markdown-editor/markdown-streaming-context'
-import { ToolbarButton } from '@/components/file-viewer/rich-markdown-editor/menus/toolbar-button'
+import styles from '@/components/file-viewer/rich-markdown-editor/node-views.module.css'
+import { ToolbarButton, ToolbarMenu } from '@/components/file-viewer/rich-markdown-editor/toolbar'
 import { useEditorEditable } from '@/components/file-viewer/rich-markdown-editor/use-editor-editable'
 import { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/embed-language'
 import { DIFF_EMBED_LANGUAGE } from '@/lib/diff/embed-language'
 
-/** Kept out of every rich-markdown surface's graph until a document actually holds a dashboard. */
+/** Kept out of the editor's bundle until a document holds a dashboard fence. */
 const DashboardEmbed = lazy(() =>
-  import('@/components/dashboards/dashboard-embed').then((m) => ({ default: m.DashboardEmbed }))
+  import('@/components/file-viewer/rich-markdown-editor/dashboard-embed').then((module) => ({
+    default: module.DashboardEmbed,
+  }))
 )
+
+/** Kept out of the editor's bundle until a document holds a diff fence. */
 const DiffEmbed = lazy(() =>
-  import('@/components/diff/diff-embed').then((m) => ({ default: m.DiffEmbed }))
+  import('@/components/file-viewer/rich-markdown-editor/diff-embed').then((module) => ({
+    default: module.DiffEmbed,
+  }))
 )
 
 const PLAIN = 'plain'
 const MERMAID = 'mermaid'
 
-/** Languages the Prism highlighter has registered (see {@link CodeBlockHighlight}). Every non-plain
- * value MUST have a grammar registered in {@link CodeBlockHighlight} — enforced by a unit test. */
+/** Languages the Prism highlighter registers; every non-plain value has a grammar. */
 const LANGUAGE_OPTIONS = [
   { value: PLAIN, label: 'Plain text' },
   { value: 'bash', label: 'Bash' },
@@ -55,20 +55,15 @@ const LANGUAGE_OPTIONS = [
 ] as const
 
 /**
- * Code block view with hover controls (language picker, line-wrap, copy). When the block holds
- * Mermaid — tagged ```mermaid or {@link looksLikeMermaid auto-detected} — it renders as a diagram
- * whenever the cursor is outside it (and always in read-only), and as editable source while the
- * cursor is inside, re-rendering on blur (the Linear/GitHub model). The source `<pre>` stays mounted
- * (hidden behind the diagram) so ProseMirror keeps managing its contentDOM, and the node remains an
- * ordinary code block, so markdown round-trips unchanged. A ```dashboard fence renders live
- * dashboard panels the same way.
+ * A code block with hover controls: language, line wrap and copy. Mermaid renders as its diagram
+ * whenever the caret is outside the block (always when read-only) and as editable source while the
+ * caret is inside; the source stays mounted so the node is still an ordinary code block. A
+ * ```dashboard fence renders live panels and a ```diff fence its changes the same way.
  */
 function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
   const [wrap, setWrap] = useState(() => node.attrs.language === DIFF_EMBED_LANGUAGE)
-  const [menuOpen, setMenuOpen] = useState(false)
   const [editingInline, setEditingInline] = useState(false)
   const [peekSource, setPeekSource] = useState(false)
-  const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
   const editable = useEditorEditable(editor)
   const isStreaming = useContext(MarkdownStreamingContext)
 
@@ -79,9 +74,6 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
   const isDiff = explicitLanguage === DIFF_EMBED_LANGUAGE
   const isRendered = isMermaid || isDashboard || isDiff
 
-  // Editable Mermaid shows source while the caret is focused inside the block and re-renders the
-  // diagram on blur (the Linear/GitHub model). The Show source / Show diagram control drives this by
-  // focusing into / blurring the block; read-only uses {@link peekSource} since there is no caret.
   useEffect(() => {
     if (!isRendered || !editable) {
       setEditingInline(false)
@@ -109,9 +101,9 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
   }, [editor, getPos, isRendered, editable])
 
   const showSource = editable ? editingInline : peekSource
-  const showRendered = isRendered && text.trim().length > 0 && !showSource
-
-  // Skip language detection on rendered blocks — the picker/label never render there.
+  /** A dashboard or diff waits for its whole fence: a partial spec mid-stream would render broken. */
+  const deferEmbed = isStreaming && (isDashboard || isDiff)
+  const showRendered = isRendered && text.trim().length > 0 && !showSource && !deferEmbed
   const language = explicitLanguage ?? (isRendered ? null : detectLanguage(text)) ?? PLAIN
   const label =
     LANGUAGE_OPTIONS.find((option) => option.value === language)?.label ??
@@ -126,8 +118,6 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
     const pos = typeof getPos === 'function' ? getPos() : null
     if (typeof pos !== 'number') return
     if (editingInline) {
-      // Back to the diagram: select the whole node (reliable, and shows the same ring) rather than
-      // relying on a blur event to fire.
       editor.commands.setNodeSelection(pos)
       return
     }
@@ -139,119 +129,85 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
   }
 
   return (
-    <NodeViewWrapper className='group relative'>
-      <div
-        className={cn(
-          'absolute top-1.5 right-2 z-10 flex items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 [@media(any-pointer:coarse)]:opacity-100 [@media(hover:none)]:opacity-100',
-          isDiff && showRendered && 'top-3 right-3 opacity-100',
-          isRendered && showSource && 'static mb-1 justify-end opacity-100',
-          menuOpen && 'opacity-100'
-        )}
-        contentEditable={false}
-      >
-        {isRendered && (
-          <ToolbarButton
-            icon={showSource ? Eye : Code}
-            label={
-              showSource
-                ? isDashboard
-                  ? 'Show dashboard'
-                  : isDiff
-                    ? 'Show diff'
-                    : 'Show diagram'
-                : 'Show source'
-            }
-            onClick={toggleSource}
-          />
-        )}
-        {!isRendered &&
-          (editable ? (
-            // Editable: a language picker. Read-only: a static label — selecting a language calls
-            // updateAttributes, which would mutate a doc that must not change.
-            <DropdownMenu onOpenChange={setMenuOpen}>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type='button'
-                  aria-label='Code language'
-                  className={cn(
-                    chipVariants({ variant: 'default' }),
-                    'h-[24px] gap-1 px-1.5 text-[var(--text-muted)] data-[state=open]:bg-[var(--surface-active)] data-[state=open]:text-[var(--text-body)]'
-                  )}
-                >
-                  {label}
-                  <ChevronDown className='size-[14px] text-[var(--text-icon)]' />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end'>
-                {LANGUAGE_OPTIONS.map((option) => (
-                  <DropdownMenuItem
-                    key={option.value}
-                    onSelect={() =>
-                      updateAttributes({ language: option.value === PLAIN ? null : option.value })
-                    }
-                  >
-                    {option.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <span className='flex h-[24px] items-center px-1.5 text-[var(--text-muted)] text-caption'>
-              {label}
-            </span>
-          ))}
-        {(isDiff || (!isRendered && editable)) && (
-          <ToolbarButton
-            icon={Wrap}
-            label='Toggle line wrap'
-            isActive={wrap}
-            onClick={() => setWrap((value) => !value)}
-          />
-        )}
-        <ToolbarButton
-          icon={copied ? Check : Duplicate}
-          label={copied ? 'Copied' : isDiff ? 'Copy diff' : 'Copy code'}
-          onClick={() => copy(text)}
-        />
-      </div>
-      <pre className={cn('code-editor-theme pr-20', showRendered && 'hidden')} data-wrap={wrap}>
-        <NodeViewContent<'code'> as='code' />
-      </pre>
-      {showRendered && (
-        // Select the whole node instead of placing a caret, which would flip the block to source.
-        <div
-          contentEditable={false}
-          className={cn(isDashboard && 'dashboard-embed', isDiff && 'diff-embed')}
-          onMouseDown={(event) => {
-            const target = event.target
-            if (!(target instanceof Element) || !event.currentTarget.contains(target)) return
-            if (target.closest('button, input')) return
-            event.preventDefault()
-            const pos = typeof getPos === 'function' ? getPos() : null
-            if (typeof pos === 'number') editor.commands.setNodeSelection(pos)
-          }}
-        >
-          {isDashboard ? (
-            <Suspense fallback={null}>
-              <DashboardEmbed source={text} isStreaming={isStreaming} />
-            </Suspense>
-          ) : isDiff ? (
-            <Suspense fallback={null}>
-              <DiffEmbed source={text} isStreaming={isStreaming} wrapLines={wrap} />
-            </Suspense>
-          ) : (
-            <MermaidDiagram definition={text} className='mermaid-diagram-frame' />
+    <NodeViewWrapper>
+      <div className={styles.codeBlock} data-source-open={(isRendered && showSource) || undefined}>
+        <div className={styles.codeControls} contentEditable={false}>
+          {isRendered && (
+            <ToolbarButton
+              label={
+                showSource
+                  ? isDashboard
+                    ? 'Show dashboard'
+                    : isDiff
+                      ? 'Show diff'
+                      : 'Show diagram'
+                  : 'Show source'
+              }
+              onClick={toggleSource}
+            />
           )}
+          {!isRendered &&
+            (editable ? (
+              <ToolbarMenu
+                label='Code language'
+                triggerText={label}
+                actions={LANGUAGE_OPTIONS.map((option) => ({
+                  id: option.value,
+                  label: option.label,
+                  checked: option.value === language,
+                  onSelect: () =>
+                    updateAttributes({ language: option.value === PLAIN ? null : option.value }),
+                }))}
+              />
+            ) : (
+              <StatusTag label={label} />
+            ))}
+          {(isDiff || (!isRendered && editable)) && (
+            <ToolbarButton label='Wrap' pressed={wrap} onClick={() => setWrap((value) => !value)} />
+          )}
+          <CopyButton label={isDiff ? 'Copy diff' : 'Copy code'} text={text} size='compact' />
         </div>
-      )}
+        <pre className={styles.codeSource} data-wrap={wrap} hidden={showRendered}>
+          <NodeViewContent<'code'> as='code' />
+        </pre>
+        {showRendered && (
+          <div
+            className={isDiff || isDashboard ? styles.embed : styles.diagram}
+            contentEditable={false}
+            onMouseDown={(event) => {
+              const target = event.target
+              if (
+                !(target instanceof Element) ||
+                !event.currentTarget.contains(target) ||
+                target.closest('button, input')
+              )
+                return
+              event.preventDefault()
+              const pos = typeof getPos === 'function' ? getPos() : null
+              if (typeof pos === 'number') editor.commands.setNodeSelection(pos)
+            }}
+          >
+            {isDashboard ? (
+              <Suspense fallback={null}>
+                <DashboardEmbed source={text} />
+              </Suspense>
+            ) : isDiff ? (
+              <Suspense fallback={null}>
+                <DiffEmbed source={text} wrapLines={wrap} />
+              </Suspense>
+            ) : (
+              <MermaidDiagram definition={text} />
+            )}
+          </div>
+        )}
+      </div>
     </NodeViewWrapper>
   )
 }
 
 /**
- * Code block with hover-revealed controls (language picker, line-wrap toggle, copy). The
- * `language` attribute drives {@link CodeBlockHighlight}'s Prism highlighting and serializes to
- * the ```lang fence on save; wrap is a view-only preference.
+ * The code block with its hover controls. `language` drives Prism highlighting and the fence's
+ * info string on save; wrap is a view preference only.
  */
 export const CodeBlockWithLanguage = MarkdownCodeBlock.extend({
   addNodeView() {

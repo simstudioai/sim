@@ -3,9 +3,13 @@
 import { useState } from 'react'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import { FileViewer } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/file-viewer'
+import { FileViewer } from '@/components/file-viewer/file-viewer'
 import styles from '@/app/(product)/workspace/[workspaceId]/tests/_components/test-source/test-source.module.css'
-import { useWorkspaceFileRecord, workspaceFileRecordState } from '@/platform/lib/data/files'
+import {
+  useAddToChat,
+  useWorkspaceFileRecord,
+  workspaceFileRecordState,
+} from '@/platform/lib/data/files'
 import { useRefreshWorkflowTest } from '@/platform/lib/data/workflow-tests'
 
 interface TestSourceProps {
@@ -34,6 +38,7 @@ export function TestSource({
   const record = useWorkspaceFileRecord(workspaceId, fileId)
   const refreshTest = useRefreshWorkflowTest(workspaceId, name)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const addToChat = useAddToChat()
   const state = workspaceFileRecordState(record)
 
   if (state === 'failed')
@@ -59,6 +64,7 @@ export function TestSource({
           canEdit={canEdit}
           previewMode='editor'
           enableFind
+          onAddToChat={addToChat}
           onDirtyChange={onDirtyChange}
           onSaveError={(error) =>
             setSaveError(getErrorMessage(error, 'The test file was not saved'))

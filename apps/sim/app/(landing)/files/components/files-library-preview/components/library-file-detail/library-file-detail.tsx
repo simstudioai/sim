@@ -1,3 +1,4 @@
+import '@sim/emcn/styles/global.css'
 import { noop } from '@sim/utils/helpers'
 import { PreviewToolbar } from '@/components/file-viewer/preview-toolbar'
 import type { LibraryFile } from '@/app/(landing)/files/components/files-library-preview/data'
@@ -15,7 +16,8 @@ export function LibraryFileDetail({ file }: LibraryFileDetailProps) {
       className='min-h-0 flex-1 overflow-y-auto'
     >
       {file.type === 'PDF' && (
-        <div aria-hidden='true' inert>
+        // The viewer's toolbar is drawn by the design system, inside its own scoped surface.
+        <div aria-hidden='true' inert data-emcn='' data-theme='light'>
           <PreviewToolbar
             navigation={{ current: 1, total: 1, label: 'page', onPrevious: noop, onNext: noop }}
             zoom={{

@@ -1,159 +1,110 @@
 'use client'
 
-import { Component, type ErrorInfo, memo, type ReactNode } from 'react'
-import { cn } from '@sim/emcn-legacy'
-import { Loader } from '@sim/emcn-legacy/icons'
+import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { createLogger } from '@sim/logger'
-import { getFileExtension } from '@/lib/uploads/utils/file'
+import styles from '@/components/file-viewer/preview-shared.module.css'
 
-const logger = createLogger('FilePreview')
+function fileExtension(name: string): string {
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
+}
 
 interface UnsupportedPreviewProps {
   name: string
   reason?: string
+  /** Offers the file itself when there is nothing to show of it here. */
+  onDownload?: () => void
 }
 
 /**
- * Terminal fallback for a file this app cannot render — either the format has no
- * viewer at all, or a viewer that was expected to work failed (e.g. a HEIC whose
- * server-side derivative could not be produced).
+ * The end of the line for a file this view cannot draw: a format with no viewer, or a viewer that
+ * was expected to work and could not (a HEIC whose server derivative failed, say).
  */
-export const UnsupportedPreview = memo(function UnsupportedPreview({
-  name,
-  reason,
-}: UnsupportedPreviewProps) {
-  const ext = getFileExtension(name)
-
+export function UnsupportedPreview({ name, reason, onDownload }: UnsupportedPreviewProps) {
+  const ext = fileExtension(name)
   return (
-    <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='text-[14px] text-[var(--text-primary)]'>
-        Preview not available{reason ? '' : ext ? ` for .${ext} files` : ' for this file'}
-      </p>
-      <p className='text-[var(--text-muted)] text-small'>
-        {reason ?? 'Use the download button to view this file'}
-      </p>
+    <div className={styles.center}>
+      <EmptyState
+        title={`Preview not available${reason ? '' : ext ? ` for .${ext} files` : ' for this file'}`}
+        description={reason ?? 'Download the file to open it.'}
+        action={
+          onDownload && (
+            <Button variant='secondary' size='compact' icon='I049' onClick={onDownload}>
+              Download
+            </Button>
+          )
+        }
+      />
     </div>
   )
-})
+}
 
+/** A preview that could not be drawn, and why. */
 export function PreviewError({ label, error }: { label: string; error: string }) {
   return (
-    <div className='flex flex-1 flex-col items-center justify-center gap-[8px]'>
-      <p className='text-[14px] text-[var(--text-primary)]'>Failed to preview {label}</p>
-      <p className='text-[var(--text-muted)] text-small'>{error}</p>
+    <div className={styles.center}>
+      <EmptyState title={`Failed to preview ${label}`} description={error} />
     </div>
   )
 }
 
 interface PreviewErrorBoundaryProps {
-  /** Format label shown in the fallback, e.g. "PDF". */
+  /** The format named in the fallback, such as "PDF". */
   label: string
   children: ReactNode
 }
 
 interface PreviewErrorBoundaryState {
-  hasError: boolean
-  error?: Error
+  error: Error | null
 }
 
+const logger = createLogger('FilePreview')
+
 /**
- * Error boundary for preview renderers. Catches render-time crashes (including
- * a preview module whose dynamic import rejected) and degrades to the standard
- * PreviewError fallback instead of unwinding to the route-level error boundary
- * and replacing the whole workspace view.
- *
- * Callers must `key` this boundary by the identity of the rendered content
- * (e.g. file id + data version) — the error state resets only via remount, so
- * keying the child alone would leave a tripped boundary stuck on the fallback.
+ * Keeps a renderer's crash, including a viewer module whose import failed, inside the preview
+ * instead of unwinding to the page. Key it by the content it draws: only a remount clears it.
  */
 export class PreviewErrorBoundary extends Component<
   PreviewErrorBoundaryProps,
   PreviewErrorBoundaryState
 > {
-  public state: PreviewErrorBoundaryState = {
-    hasError: false,
-  }
+  public state: PreviewErrorBoundaryState = { error: null }
 
   public static getDerivedStateFromError(error: Error): PreviewErrorBoundaryState {
-    return { hasError: true, error }
+    return { error }
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  public componentDidCatch(error: Error, info: ErrorInfo) {
     logger.error('Preview crashed', {
       label: this.props.label,
       error: error.message,
-      componentStack: errorInfo.componentStack,
+      componentStack: info.componentStack,
     })
   }
 
   public render() {
-    if (this.state.hasError) {
+    if (this.state.error) {
       return (
         <PreviewError
           label={this.props.label}
-          error={this.state.error?.message ?? 'An unexpected error occurred'}
+          error={this.state.error.message || 'An unexpected error occurred'}
         />
       )
     }
-
     return this.props.children
   }
 }
 
+/** What a failed preview says: a document that never finished generating gets its own advice. */
 export function resolvePreviewError(
   fetchError: Error | null,
   renderError: string | null
 ): string | null {
-  // A doc whose compiled artifact never appeared (the binary query exhausted its
-  // "still generating" polls) — usually a source that failed to compile or a
-  // legacy file with no artifact. Give a clear, actionable message instead of a
-  // generic fetch error.
   if (fetchError?.name === 'DocNotReadyError') {
     return "Couldn't generate this document preview. Re-run the file generation to rebuild it."
   }
   if (fetchError) return fetchError.message
   return renderError
-}
-
-/** Canonical content-area loading spinner, matching the rest of the app. */
-const PREVIEW_LOADING_SPINNER = (
-  <Loader className='size-[20px] text-[var(--text-secondary)]' animate />
-)
-
-/**
- * Canonical loading overlay for previews that render into a `--surface-1`
- * canvas. Absolutely covers the canvas (with `z-10` so it paints above
- * in-flow render targets) with a centered spinner until the preview is ready.
- */
-export const PREVIEW_LOADING_OVERLAY = (
-  <div className='absolute inset-0 z-10 flex items-center justify-center bg-[var(--surface-1)]'>
-    {PREVIEW_LOADING_SPINNER}
-  </div>
-)
-
-interface PreviewLoadingFrameProps {
-  /** Layout/sizing-only classes for the in-flow frame (e.g. `h-full`, `flex-1`). */
-  className?: string
-  /** Background token matching the loaded sibling's canvas. Defaults to `--bg`. */
-  tone?: 'bg' | 'surface'
-}
-
-/**
- * Canonical in-flow loading frame with a centered spinner, shown while a
- * preview is fetching or rendering. The `tone` must match the background of
- * the loaded state it is standing in for, so mount completion does not flash
- * a different token.
- */
-export function PreviewLoadingFrame({ className, tone = 'bg' }: PreviewLoadingFrameProps) {
-  return (
-    <div
-      className={cn(
-        'flex items-center justify-center',
-        tone === 'surface' ? 'bg-[var(--surface-1)]' : 'bg-[var(--bg)]',
-        className
-      )}
-    >
-      {PREVIEW_LOADING_SPINNER}
-    </div>
-  )
 }

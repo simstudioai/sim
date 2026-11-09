@@ -1,21 +1,18 @@
 'use client'
 
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { useRouter } from 'next/navigation'
-import { useTheme } from 'next-themes'
-import '@sim/emcn-legacy/components/code/code.css'
 import { ChartPreview } from '@/components/file-viewer/chart-preview'
-import {
-  type CsvImportFileDescriptor,
-  useCsvTruncationImport,
-} from '@/components/file-viewer/csv-import'
+import { useCsvTruncationImport } from '@/components/file-viewer/csv-import'
 import { DataTable } from '@/components/file-viewer/data-table'
 import { MermaidDiagram } from '@/components/file-viewer/mermaid-diagram'
+import styles from '@/components/file-viewer/preview-panel.module.css'
+import { resolvePreviewType } from '@/components/file-viewer/preview-type'
 import { useHorizontalWheelScroll } from '@/components/file-viewer/use-horizontal-wheel-scroll'
+import { useResolvedTheme } from '@/components/file-viewer/use-resolved-theme'
 import { ZoomablePreview } from '@/components/file-viewer/zoomable-preview'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
-import { getFileExtension } from '@/lib/uploads/utils/file'
-import { normalizeMimeType } from '@/lib/uploads/utils/mime'
 import {
   SIM_ARTIFACT_SHELL,
   SIM_ARTIFACT_STYLESHEET,
@@ -25,38 +22,6 @@ import {
 import { compileSimPage, isSimPageSource } from '@/lib/workspace-files/page-compile'
 import { useWorkspaceFileBinary } from '@/hooks/queries/workspace-files'
 
-type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | 'chart' | null
-
-const PREVIEWABLE_MIME_TYPES: Record<string, PreviewType> = {
-  // Sim pages store an EXTENSIONLESS name — without this mapping the record
-  // type resolves to no preview at all and the viewer renders a blank pane
-  // (including the live compile-as-it-streams view).
-  'text/x-sim-page': 'html',
-  'text/markdown': 'markdown',
-  'text/html': 'html',
-  'text/csv': 'csv',
-  'image/svg+xml': 'svg',
-  'text/x-mermaid': 'mermaid',
-  'text/x-sim-chart': 'chart',
-}
-
-const PREVIEWABLE_EXTENSIONS: Record<string, PreviewType> = {
-  md: 'markdown',
-  html: 'html',
-  htm: 'html',
-  csv: 'csv',
-  svg: 'svg',
-  mmd: 'mermaid',
-  chart: 'chart',
-}
-
-export function resolvePreviewType(mimeType: string | null, filename: string): PreviewType {
-  mimeType = normalizeMimeType(mimeType)
-  if (mimeType && PREVIEWABLE_MIME_TYPES[mimeType]) return PREVIEWABLE_MIME_TYPES[mimeType]
-  const ext = getFileExtension(filename)
-  return PREVIEWABLE_EXTENSIONS[ext] ?? null
-}
-
 interface PreviewPanelProps {
   content: string
   mimeType: string | null
@@ -65,15 +30,12 @@ interface PreviewPanelProps {
   fileId: string
   fileKey: string
   isStreaming?: boolean
-  /**
-   * Read-only surface (e.g. the public share page) — disables interactive
-   * affordances such as the CSV "Import as a table" action, which needs an
-   * authenticated workspace import.
-   */
+  /** A reader without write access: nothing is offered that would change the workspace. */
   readOnly?: boolean
 }
 
-export const PreviewPanel = memo(function PreviewPanel({
+/** The rendered side of a text file: a page, a table, an image, a diagram or a chart. */
+export function PreviewPanel({
   content,
   mimeType,
   filename,
@@ -81,10 +43,9 @@ export const PreviewPanel = memo(function PreviewPanel({
   fileId,
   fileKey,
   isStreaming,
-  readOnly,
+  readOnly = false,
 }: PreviewPanelProps) {
   const previewType = resolvePreviewType(mimeType, filename)
-
   if (previewType === 'html')
     return (
       <HtmlPreview
@@ -106,14 +67,19 @@ export const PreviewPanel = memo(function PreviewPanel({
     )
   if (previewType === 'svg') return <SvgPreview content={content} />
   if (previewType === 'mermaid')
-    return <MermaidFilePreview content={content} isStreaming={isStreaming} />
+    return (
+      <div className={styles.mermaid}>
+        <MermaidDiagram definition={content} isStreaming={isStreaming} zoomable stretch />
+      </div>
+    )
   if (previewType === 'chart')
     return <ChartPreview content={content} workspaceId={workspaceId} isStreaming={isStreaming} />
-
   return null
-})
+}
 
 const HTML_PREVIEW_BASE_URL = 'about:srcdoc'
+/** Stream batches: each srcdoc change reloads the frame, so a growing page refreshes this often. */
+const STREAM_BATCH_MS = 2000
 
 const HTML_PREVIEW_CSP = [
   "default-src 'none'",
@@ -129,120 +95,89 @@ const HTML_PREVIEW_CSP = [
   "object-src 'none'",
 ].join('; ')
 
+/**
+ * Runs inside the sandboxed frame: fragment links scroll the page, and every other link click is
+ * handed to the host, which routes workspace links in the app and opens web links in a new tab.
+ */
 const HTML_PREVIEW_BOOTSTRAP = `<script>
 (() => {
   const allowHref = (href) => /^\\s*javascript:/i.test(href)
-
-  document.addEventListener(
-    'click',
-    (event) => {
-      if (!(event.target instanceof Element)) return
-      const anchor = event.target.closest('a[href]')
-      if (!(anchor instanceof HTMLAnchorElement)) return
-      const href = anchor.getAttribute('href') || ''
-      /** The host's base-uri CSP can reject about:srcdoc; fragments must stay in this document. */
-      if (href.startsWith('#')) {
-        event.preventDefault()
-        location.hash = href
-        let id = href.slice(1)
-        try { id = decodeURIComponent(id) } catch {}
-        const target = document.getElementById(id)
-        if (target) {
-          target.scrollIntoView()
-          target.focus({ preventScroll: true })
-        } else if (!id) {
-          window.scrollTo(0, 0)
-        }
-        return
-      }
-      if (allowHref(href)) return
+  document.addEventListener('click', (event) => {
+    if (!(event.target instanceof Element)) return
+    const anchor = event.target.closest('a[href]')
+    if (!(anchor instanceof HTMLAnchorElement)) return
+    const href = anchor.getAttribute('href') || ''
+    if (href.startsWith('#')) {
       event.preventDefault()
-      // The sandbox can neither navigate nor open windows, so hand the click
-      // to the host: workspace routes go through the app router, external
-      // http(s) links open a new tab.
-      if (href.startsWith('/workspace/') || /^https?:\\/\\//i.test(href)) {
-        parent.postMessage({ __simPageNav: href }, '*')
+      location.hash = href
+      let id = href.slice(1)
+      try { id = decodeURIComponent(id) } catch {}
+      const target = document.getElementById(id)
+      if (target) {
+        target.scrollIntoView()
+        target.focus({ preventScroll: true })
+      } else if (!id) {
+        window.scrollTo(0, 0)
       }
-    },
-    true
-  )
-
-  document.addEventListener(
-    'submit',
-    (event) => {
-      event.preventDefault()
-    },
-    true
-  )
-
+      return
+    }
+    if (allowHref(href)) return
+    event.preventDefault()
+    if (href.startsWith('/workspace/') || /^https?:\\/\\//i.test(href)) {
+      parent.postMessage({ __simPageNav: href }, '*')
+    }
+  }, true)
+  document.addEventListener('submit', (event) => { event.preventDefault() }, true)
 })()
 </script>`
 
 function stampTheme(html: string, theme: 'dark' | 'light'): string {
-  if (/<html[\s>]/i.test(html)) {
-    return html.replace(/<html(\s[^>]*)?>/i, (match, attrs: string | undefined) =>
-      /\sdata-theme=/i.test(attrs ?? '') ? match : `<html data-theme="${theme}"${attrs ?? ''}>`
-    )
-  }
-  return html
+  if (!/<html[\s>]/i.test(html)) return html
+  return html.replace(/<html(\s[^>]*)?>/i, (match, attrs: string | undefined) =>
+    /\sdata-theme=/i.test(attrs ?? '') ? match : `<html data-theme="${theme}"${attrs ?? ''}>`
+  )
 }
 
+/**
+ * A page file stores its source and every surface compiles it on demand, partial source while it
+ * streams included. Source whose header does not compile yet shows an empty themed shell, never raw
+ * source. Raw HTML passes through.
+ */
+/** The sandboxed document an HTML or Sim page preview renders, themed and with in-frame navigation. */
 export function buildHtmlPreviewDocument(
   content: string,
   theme: 'dark' | 'light' = 'light',
   workspaceId?: string
-): string {
-  // The pdf model: a page file STORES its source (frontmatter + markdown +
-  // sim: fences) and every rendering surface compiles on demand. Partial
-  // source mid-stream compiles too, so the page builds up live as the agent
-  // appends. Raw HTML (bespoke and legacy stored-compiled pages) skips this.
-  if (isSimPageSource(content)) {
-    content = compileSimPage(content, { workspaceId })
-  } else if (content.trimStart().startsWith('---')) {
-    // Page source that does not compile yet — frontmatter still streaming in,
-    // or a malformed header. Never show a reader raw source: hold the empty
-    // themed shell (the marker pulls the stylesheet in below) until a
-    // compilable snapshot arrives.
-    content =
+) {
+  let html = content
+  if (isSimPageSource(html)) html = compileSimPage(html, { workspaceId })
+  else if (html.trimStart().startsWith('---'))
+    html =
       '<!DOCTYPE html><html><head><meta name="sim-artifact"><title>Page</title></head><body></body></html>'
-  }
   const headInjection = [
     '<meta charset="utf-8">',
     `<base href="${HTML_PREVIEW_BASE_URL}">`,
     `<meta http-equiv="Content-Security-Policy" content="${HTML_PREVIEW_CSP}">`,
-    // Ahead of the page's own <style>, so anything it declares still wins. The
-    // token overrides follow the sheet so the app's live values beat its
-    // fallbacks, and the shell follows both.
-    usesSimArtifactStyles(content)
+    usesSimArtifactStyles(html)
       ? `<style>${SIM_ARTIFACT_STYLESHEET}</style><style>${simTokenOverrides(theme)}</style>${SIM_ARTIFACT_SHELL}`
       : '',
     HTML_PREVIEW_BOOTSTRAP,
   ].join('')
-
-  if (/<head[\s>]/i.test(content)) {
+  if (/<head[\s>]/i.test(html))
     return stampTheme(
-      content.replace(/<head(\s[^>]*)?>/i, (match) => `${match}${headInjection}`),
+      html.replace(/<head(\s[^>]*)?>/i, (match) => `${match}${headInjection}`),
       theme
     )
-  }
-
-  if (/<html[\s>]/i.test(content)) {
+  if (/<html[\s>]/i.test(html))
     return stampTheme(
-      content.replace(/<html(\s[^>]*)?>/i, (match) => `${match}<head>${headInjection}</head>`),
+      html.replace(/<html(\s[^>]*)?>/i, (match) => `${match}<head>${headInjection}</head>`),
       theme
     )
-  }
-
-  return `<!DOCTYPE html><html data-theme="${theme}"><head>${headInjection}</head><body>${content}</body></html>`
+  return `<!DOCTYPE html><html data-theme="${theme}"><head>${headInjection}</head><body>${html}</body></html>`
 }
 
-/**
- * Batches iframe content updates while an agent streams. Every content change
- * replaces the srcDoc (a full document reload), so applying each chunk as it
- * arrives would reload the page several times a second; ~2s batches keep the
- * growing page readable. Off-stream, the live value passes straight through.
- */
-function useStreamBatchedValue(value: string, streaming: boolean, intervalMs: number): string {
+/** While a page streams in, srcdoc updates are batched so the growing page stays readable. */
+function useStreamBatchedValue(value: string, streaming: boolean): string {
   const [batched, setBatched] = useState(value)
   const lastAppliedAtRef = useRef(0)
   useEffect(() => {
@@ -252,7 +187,7 @@ function useStreamBatchedValue(value: string, streaming: boolean, intervalMs: nu
       return
     }
     const elapsed = Date.now() - lastAppliedAtRef.current
-    if (elapsed >= intervalMs) {
+    if (elapsed >= STREAM_BATCH_MS) {
       lastAppliedAtRef.current = Date.now()
       setBatched(value)
       return
@@ -260,17 +195,18 @@ function useStreamBatchedValue(value: string, streaming: boolean, intervalMs: nu
     const timer = setTimeout(() => {
       lastAppliedAtRef.current = Date.now()
       setBatched(value)
-    }, intervalMs - elapsed)
+    }, STREAM_BATCH_MS - elapsed)
     return () => clearTimeout(timer)
-  }, [value, streaming, intervalMs])
+  }, [value, streaming])
   return streaming ? batched : value
 }
 
+const WORKSPACE_IMAGE_SRC = /src="(\/api\/files\/view\/[^"]+)"/g
+
 /**
- * The sandboxed frame carries no cookies, so a workspace image
- * (`/api/files/view/<id>`, what `![alt](sim:file/<id>)` compiles to) would
- * 401 inside it. The host fetches the bytes with its own session and hands
- * the frame blob: URLs, which the preview CSP already allows.
+ * The sandboxed frame has no cookies, so a workspace image would answer 401 inside it. The host
+ * fetches each with its own session and hands the frame a data URI, which the frame's opaque
+ * origin can still draw.
  */
 function useInlinedWorkspaceImages(content: string): string {
   const [resolved, setResolved] = useState<Record<string, string>>({})
@@ -279,7 +215,7 @@ function useInlinedWorkspaceImages(content: string): string {
   useEffect(() => {
     const cache = cacheRef.current
     if (!cache) return
-    const urls = [...content.matchAll(/src="(\/api\/files\/view\/[^"]+)"/g)].map((m) => m[1])
+    const urls = [...content.matchAll(WORKSPACE_IMAGE_SRC)].map((match) => match[1])
     const missing = [...new Set(urls)].filter((url) => !cache.has(url))
     if (missing.length === 0) return
     let cancelled = false
@@ -291,10 +227,6 @@ function useInlinedWorkspaceImages(content: string): string {
           (blob) =>
             new Promise<string | null>((resolve) => {
               if (!blob) return resolve(null)
-              // data: URIs, NOT blob: URLs — blob URLs are origin-bound and
-              // the sandboxed frame's origin is opaque, so Chromium refuses
-              // to render a parent-origin blob inside it. data: is
-              // origin-independent and already allowed by the preview CSP.
               const reader = new FileReader()
               reader.onload = () =>
                 resolve(typeof reader.result === 'string' ? reader.result : null)
@@ -305,7 +237,7 @@ function useInlinedWorkspaceImages(content: string): string {
         .then((dataUri) => {
           if (!dataUri || cancelled) return
           cache.set(url, dataUri)
-          setResolved((prev) => ({ ...prev, [url]: dataUri }))
+          setResolved((previous) => ({ ...previous, [url]: dataUri }))
         })
         .catch(() => {})
     }
@@ -315,246 +247,167 @@ function useInlinedWorkspaceImages(content: string): string {
   }, [content])
   return useMemo(
     () =>
-      content.replace(/src="(\/api\/files\/view\/[^"]+)"/g, (match, url: string) => {
-        const blobUrl = cacheRef.current?.get(url) ?? resolved[url]
-        return blobUrl ? `src="${blobUrl}"` : match
+      content.replace(WORKSPACE_IMAGE_SRC, (match, url: string) => {
+        const dataUri = cacheRef.current?.get(url) ?? resolved[url]
+        return dataUri ? `src="${dataUri}"` : match
       }),
     [content, resolved]
   )
 }
 
-const HtmlPreview = memo(function HtmlPreview({
-  content,
-  isStreaming,
-  workspaceId,
-  fileId,
-  fileKey,
-}: {
+interface HtmlPreviewProps {
   content: string
   isStreaming?: boolean
-  workspaceId?: string
-  fileId?: string
-  fileKey?: string
-}) {
-  const { resolvedTheme } = useTheme()
+  workspaceId: string
+  fileId: string
+  fileKey: string
+}
+
+function HtmlPreview({ content, isStreaming, workspaceId, fileId, fileKey }: HtmlPreviewProps) {
+  const theme = useResolvedTheme()
   const router = useRouter()
-  const batchedContent = useStreamBatchedValue(content, isStreaming === true, 2000)
-  // A SAVED sim page prefers the server-compiled document — the pptx/docx
-  // model: the serve route resolves chart references (reading a table's
-  // CURRENT rows under the viewer's authorization) and inlines the chart
-  // runtime, and reopening/refocusing refetches, so the page recompiles on
-  // reload. While it loads — and always while streaming/editing — the client
-  // compile below stands in, with chart figures as placeholders.
-  const isSavedPage =
-    Boolean(fileId && fileKey && workspaceId) && isStreaming !== true && isSimPageSource(content)
-  const served = useWorkspaceFileBinary(workspaceId ?? '', fileId ?? '', fileKey ?? '', {
-    enabled: isSavedPage,
-  })
+  const batched = useStreamBatchedValue(content, isStreaming === true)
+  /**
+   * A saved Sim page prefers the server-compiled document, which resolves chart references against
+   * the table's current rows and inlines the chart runtime. The client compile stands in while it
+   * loads, and always while the page is being edited.
+   */
+  const isSavedPage = isStreaming !== true && isSimPageSource(content)
+  const served = useWorkspaceFileBinary(workspaceId, fileId, fileKey, { enabled: isSavedPage })
   const servedHtml = useMemo(
     () => (isSavedPage && served.data ? new TextDecoder().decode(served.data) : null),
     [isSavedPage, served.data]
   )
-  const builtContent = buildHtmlPreviewDocument(
-    servedHtml ?? batchedContent,
-    resolvedTheme === 'dark' ? 'dark' : 'light',
-    workspaceId
-  )
-  // AFTER the build: workspace image srcs (/api/files/view/…) only exist in
-  // the COMPILED document — the raw source says sim:file/… — so substituting
-  // the host-fetched blob: URLs must run on the built output, or the
-  // sandboxed (cookie-less) frame 401s every image.
-  const wrappedContent = useInlinedWorkspaceImages(builtContent)
+  const built = buildHtmlPreviewDocument(servedHtml ?? batched, theme, workspaceId)
+  const srcDoc = useInlinedWorkspaceImages(built)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [renderable, setRenderable] = useState(false)
+  const [resumeNonce, setResumeNonce] = useState(0)
 
-  // Receives sim-resource link clicks bridged out of the sandboxed page and
-  // routes them in the app. Only workspace-internal paths are honored.
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       const href = (event.data as { __simPageNav?: unknown } | null)?.__simPageNav
       if (typeof href !== 'string') return
       if (href.startsWith('/workspace/')) {
         router.push(href)
-      } else if (/^https?:\/\//i.test(href)) {
-        // The server-compiled document absolutizes workspace links (so a
-        // DOWNLOADED copy reaches Sim) — recognize our own origin and route
-        // in-app rather than spawning a new tab of the whole app.
-        try {
-          const url = new URL(href)
-          if (url.origin === window.location.origin && url.pathname.startsWith('/workspace/')) {
-            router.push(`${url.pathname}${url.search}${url.hash}`)
-            return
-          }
-        } catch {}
-        window.open(href, '_blank', 'noopener,noreferrer')
+        return
       }
+      if (!/^https?:\/\//i.test(href)) return
+      try {
+        const url = new URL(href)
+        if (url.origin === window.location.origin && url.pathname.startsWith('/workspace/')) {
+          router.push(`${url.pathname}${url.search}${url.hash}`)
+          return
+        }
+      } catch {}
+      window.open(href, '_blank', 'noopener,noreferrer')
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
   }, [router])
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [isRenderable, setIsRenderable] = useState(false)
-  const [resumeNonce, setResumeNonce] = useState(0)
-  const pageWasHiddenRef = useRef(false)
 
+  /** A frame that mounts at zero size never paints, so it waits for its container to have one. */
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
-
-    const updateRenderability = (width: number, height: number) => {
-      setIsRenderable(width > 0 && height > 0)
-    }
-
-    const initialRect = container.getBoundingClientRect()
-    updateRenderability(initialRect.width, initialRect.height)
-
-    const observer = new ResizeObserver((entries) => {
-      const entry = entries[0]
-      if (!entry) return
-      updateRenderability(entry.contentRect.width, entry.contentRect.height)
+    const rect = container.getBoundingClientRect()
+    setRenderable(rect.width > 0 && rect.height > 0)
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setRenderable(entry.contentRect.width > 0 && entry.contentRect.height > 0)
     })
     observer.observe(container)
-
     return () => observer.disconnect()
   }, [])
 
+  /** A tab restored from the background (or the back-forward cache) gets a fresh frame. */
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        pageWasHiddenRef.current = true
-        return
-      }
-
-      if (document.visibilityState === 'visible' && pageWasHiddenRef.current) {
-        pageWasHiddenRef.current = false
+    let hidden = false
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') hidden = true
+      else if (hidden) {
+        hidden = false
         setResumeNonce((nonce) => nonce + 1)
       }
     }
-
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) {
-        setResumeNonce((nonce) => nonce + 1)
-      }
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setResumeNonce((nonce) => nonce + 1)
     }
-
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('pageshow', handlePageShow)
-
+    document.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('pageshow', onPageShow)
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('pageshow', handlePageShow)
+      document.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('pageshow', onPageShow)
     }
   }, [])
 
   return (
-    <div ref={containerRef} className='flex min-h-0 flex-1 overflow-hidden'>
-      {isRenderable && (
+    <div ref={containerRef} className={styles.html}>
+      {renderable && (
         <iframe
           key={resumeNonce}
-          srcDoc={wrappedContent}
-          /* No clipboard-write delegation: this frame also renders untrusted
-             raw HTML uploads, and a permissions-policy grant would let their
-             inline scripts replace the viewer's clipboard without a gesture.
-             The shell's copy buttons use the selection-command fallback,
-             which works in the sandbox but only on a real user click. */
+          srcDoc={srcDoc}
           sandbox='allow-scripts'
           referrerPolicy='no-referrer'
-          title='HTML Preview'
-          className='size-full border-0 bg-[var(--surface-2)]'
+          title='HTML preview'
+          className={styles.frame}
         />
       )}
     </div>
   )
-})
+}
 
 function SvgPreview({ content }: { content: string }) {
   const [blobUrl, setBlobUrl] = useState('')
-
   useEffect(() => {
     const url = URL.createObjectURL(new Blob([content], { type: 'image/svg+xml' }))
     setBlobUrl(url)
     return () => URL.revokeObjectURL(url)
   }, [content])
-
   return (
-    <ZoomablePreview className='min-h-0 flex-1' contentClassName='size-full'>
-      {blobUrl && (
-        <img
-          src={blobUrl}
-          alt='SVG preview'
-          className='max-h-full max-w-full select-none object-contain'
-          draggable={false}
-        />
-      )}
+    <ZoomablePreview>
+      {blobUrl && <img src={blobUrl} alt='SVG preview' draggable={false} />}
     </ZoomablePreview>
   )
 }
 
-function MermaidFilePreview({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
-  return (
-    <div className='min-h-0 flex-1 overflow-auto p-6'>
-      <MermaidDiagram
-        definition={content}
-        isStreaming={isStreaming}
-        zoomable
-        zoomClassName='h-full rounded-lg'
-      />
-    </div>
-  )
-}
-
-const CsvPreview = memo(function CsvPreview({
-  content,
-  workspaceId,
-  file,
-  readOnly,
-}: {
+interface CsvPreviewProps {
   content: string
   workspaceId: string
-  file: CsvImportFileDescriptor
-  readOnly?: boolean
-}) {
+  file: { id: string; key: string; name: string }
+  readOnly: boolean
+}
+
+function CsvPreview({ content, workspaceId, file, readOnly }: CsvPreviewProps) {
   const scrollRef = useHorizontalWheelScroll()
   const { headers, rows, truncated } = useMemo(() => parseCsv(content), [content])
   useCsvTruncationImport(workspaceId, file, truncated, readOnly)
-
-  if (headers.length === 0) {
-    return (
-      <div className='flex min-h-0 flex-1 items-center justify-center p-6'>
-        <p className='text-[var(--text-muted)] text-small'>No data to display</p>
-      </div>
-    )
-  }
-
+  if (headers.length === 0) return <EmptyState title='No data to display' />
   return (
-    <div ref={scrollRef} className='min-h-0 flex-1 overflow-auto p-6'>
+    <div ref={scrollRef} className={styles.table}>
       <DataTable headers={headers} rows={rows} />
     </div>
   )
-})
+}
 
-/**
- * Parses CSV text for the inline preview, capping at {@link CSV_PREVIEW_MAX_ROWS} rows so a
- * small-but-many-rows file doesn't render thousands of `<tr>`s. Slices before parsing so only
- * the capped rows are processed; `truncated` drives the "Import as a table" footer.
- */
+/** The first {@link CSV_PREVIEW_MAX_ROWS} rows; `truncated` offers the import as a table. */
 function parseCsv(text: string): { headers: string[]; rows: string[][]; truncated: boolean } {
   const lines = text.split('\n').filter((line) => line.trim().length > 0)
   if (lines.length === 0) return { headers: [], rows: [], truncated: false }
-
   const delimiter = detectDelimiter(lines[0])
-  const headers = parseCsvLine(lines[0], delimiter)
   const dataLines = lines.slice(1)
-  const truncated = dataLines.length > CSV_PREVIEW_MAX_ROWS
-  const rows = dataLines.slice(0, CSV_PREVIEW_MAX_ROWS).map((line) => parseCsvLine(line, delimiter))
-
-  return { headers, rows, truncated }
+  return {
+    headers: parseCsvLine(lines[0], delimiter),
+    rows: dataLines.slice(0, CSV_PREVIEW_MAX_ROWS).map((line) => parseCsvLine(line, delimiter)),
+    truncated: dataLines.length > CSV_PREVIEW_MAX_ROWS,
+  }
 }
 
 function detectDelimiter(line: string): string {
-  const commaCount = (line.match(/,/g) || []).length
-  const tabCount = (line.match(/\t/g) || []).length
-  const semiCount = (line.match(/;/g) || []).length
-  if (tabCount > commaCount && tabCount > semiCount) return '\t'
-  if (semiCount > commaCount) return ';'
+  const commas = (line.match(/,/g) || []).length
+  const tabs = (line.match(/\t/g) || []).length
+  const semicolons = (line.match(/;/g) || []).length
+  if (tabs > commas && tabs > semicolons) return '\t'
+  if (semicolons > commas) return ';'
   return ','
 }
 
@@ -562,33 +415,21 @@ function parseCsvLine(line: string, delimiter: string): string[] {
   const fields: string[] = []
   let current = ''
   let inQuotes = false
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i]
-
+  for (let index = 0; index < line.length; index++) {
+    const char = line[index]
     if (inQuotes) {
       if (char === '"') {
-        if (i + 1 < line.length && line[i + 1] === '"') {
+        if (line[index + 1] === '"') {
           current += '"'
-          i++
-        } else {
-          inQuotes = false
-        }
-      } else {
-        current += char
-      }
-    } else {
-      if (char === '"') {
-        inQuotes = true
-      } else if (char === delimiter) {
-        fields.push(current.trim())
-        current = ''
-      } else {
-        current += char
-      }
-    }
+          index++
+        } else inQuotes = false
+      } else current += char
+    } else if (char === '"') inQuotes = true
+    else if (char === delimiter) {
+      fields.push(current.trim())
+      current = ''
+    } else current += char
   }
-
   fields.push(current.trim())
   return fields
 }

@@ -1,55 +1,35 @@
 'use client'
 
-import { memo } from 'react'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { useCsvTruncationImport } from '@/components/file-viewer/csv-import'
 import { DataTable } from '@/components/file-viewer/data-table'
-import {
-  PreviewError,
-  PreviewLoadingFrame,
-  resolvePreviewError,
-} from '@/components/file-viewer/preview-shared'
+import { PreviewError, resolvePreviewError } from '@/components/file-viewer/preview-shared'
+import styles from '@/components/file-viewer/table-frame.module.css'
 import { useHorizontalWheelScroll } from '@/components/file-viewer/use-horizontal-wheel-scroll'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useWorkspaceCsvPreview } from '@/hooks/queries/workspace-file-table'
 
-/**
- * Read-only preview for a CSV that is too large to load fully into the editor. Streams only the
- * first {@link CSV_PREVIEW_MAX_ROWS} rows from storage; when there are more, a warning toast offers
- * "Import as a table", which builds a full Table from the file (memory-safe streaming import).
- */
-export const CsvTablePreview = memo(function CsvTablePreview({
-  file,
-  workspaceId,
-}: {
+interface CsvTablePreviewProps {
   file: WorkspaceFileRecord
   workspaceId: string
-}) {
+}
+
+/**
+ * A CSV too large for the editor: the server streams its first rows, and when there are more a
+ * notice offers to import the whole file as a table.
+ */
+export function CsvTablePreview({ file, workspaceId }: CsvTablePreviewProps) {
   const scrollRef = useHorizontalWheelScroll()
   const version = Number(new Date(file.updatedAt)) || file.size
-  const {
-    data,
-    isLoading,
-    error: fetchError,
-  } = useWorkspaceCsvPreview(workspaceId, file.id, file.key, version)
+  const { data, error } = useWorkspaceCsvPreview(workspaceId, file.id, file.key, version)
   useCsvTruncationImport(workspaceId, file, data?.truncated ?? false)
-
-  const error = resolvePreviewError((fetchError as Error | null) ?? null, null)
-  if (error) return <PreviewError label='CSV' error={error} />
-  if (isLoading || !data) {
-    return <PreviewLoadingFrame className='flex flex-1 flex-col overflow-hidden' />
-  }
-
-  if (data.headers.length === 0) {
-    return (
-      <div className='flex h-full items-center justify-center p-6'>
-        <p className='text-[var(--text-muted)] text-small'>No data to display</p>
-      </div>
-    )
-  }
-
+  const failure = resolvePreviewError((error as Error | null) ?? null, null)
+  if (failure) return <PreviewError label='CSV' error={failure} />
+  if (!data) return null
+  if (data.headers.length === 0) return <EmptyState title='No data to display' />
   return (
-    <div ref={scrollRef} className='flex flex-1 flex-col overflow-auto p-6'>
+    <div ref={scrollRef} className={styles.frame}>
       <DataTable headers={data.headers} rows={data.rows} />
     </div>
   )
-})
+}
