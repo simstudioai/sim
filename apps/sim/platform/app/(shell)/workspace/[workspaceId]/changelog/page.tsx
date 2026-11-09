@@ -8,6 +8,9 @@ import { readScenario } from '@/platform/lib/navigation'
 
 export const metadata: Metadata = { title: 'Changelog' }
 
+/** The mode is per-request; a build with no API origin must not freeze the answer. */
+export const dynamic = 'force-dynamic'
+
 export default async function Page({
   params,
   searchParams,
@@ -15,8 +18,14 @@ export default async function Page({
   const [{ workspaceId }, query] = await Promise.all([params, searchParams])
   const mode = resolvePlatformMode()
   if (mode === 'live') {
-    const { redirectWorkspaceTabToLegacy } = await import('@/platform/lib/data/workspace-directory')
-    redirectWorkspaceTabToLegacy(workspaceId, 'changelog', undefined, query)
+    const [{ readWorkspaceTabFlag }, { LiveChangelog }] = await Promise.all([
+      import('@/platform/lib/data/workspace-tab-flags'),
+      import(
+        '@/platform/app/(shell)/workspace/[workspaceId]/changelog/_components/live-changelog/live-changelog'
+      ),
+    ])
+    if (!(await readWorkspaceTabFlag('changelog'))) notFound()
+    return <LiveChangelog workspaceId={workspaceId} />
   }
   const data = await loadWorkspaceChangelog(readScenario(query.state), workspaceId)
   if (!data) {

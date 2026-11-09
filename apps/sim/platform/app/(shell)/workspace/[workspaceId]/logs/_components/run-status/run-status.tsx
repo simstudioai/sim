@@ -1,10 +1,7 @@
 import { Icon } from '@sim/emcn/icon'
 import { OverflowText } from '@sim/emcn/overflow-text'
-import type {
-  RunStatus,
-  RunTrigger,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/run-status/run-status.module.css'
+import type { RunStatus, RunTrigger } from '@/platform/shared/workspace-records'
 
 export const RUN_STATUS_LABEL: Record<RunStatus, string> = {
   completed: 'Completed',

@@ -75,7 +75,7 @@ Not run: `build:platform` (it would write into the shared preview's `.next`), th
 - Paper's full log-details artboard is not in the repository; its recipes (TraceRow, TracePayload, MetadataField, TicketControlBar, RunRow) and your direction set the layout. The changelog keeps the smaller entry type you asked for over Paper's T093 ChangeEntry title.
 - The shared preview on :3125 restarts its worker whenever it nears Next's memory threshold (`/private/tmp/sim-platform-shared-preview.log` records dozens). Each restart refuses connections briefly and recompiles pages on first visit, which makes frame-level browser checks such as the Back restore intermittently fail. The agent restarted it in place on 2026-11-08 (same checkout, port, Node, heap, fixture flag and log); on the fresh server the workspace checks pass 11 of 11 and the Back restore 5 of 5.
 
-- Live adapters: Dashboard over `hooks/queries/dashboards.ts`, Changelog over `hooks/queries/changelog.ts`, Logs over `hooks/queries/logs.ts`, each mapped onto the existing view props and `WorkspaceRead`. Issues needs a backend first.
+- Live adapters landed on `wip/ws-adapters` (see below). Issues needs a backend first.
 - Per-section dashboard failures with a stale timestamp (Paper's error state) are not modeled; a failed read replaces the whole tab's content.
 - Desktop (Electron) verification and a production build of the new pages have not been run.
 - The brief's reading order puts the comparison with the proposed change and the source excerpt with the evidence; confirm that grouping with product.
@@ -121,3 +121,14 @@ Earlier commits on the branch added the breadcrumbs (`@sim/emcn/breadcrumbs`), t
 - The development zone needs `TRUSTED_ORIGINS` to include its own origin for OAuth links; behind the `/org` base path it shares the main app's origin.
 - Workspace-scoped access requests open the workspace Settings tab's Requests section (`wip/ws-settings`).
 - The local dev servers restart under memory pressure; browser checks against the dev preview time out on navigations that need a fresh compile.
+
+# Live Dashboard, Changelog and Logs — 2026-11-08
+
+On `wip/ws-adapters`, local and unpushed. Dashboard, Changelog and Logs read live data; the legacy redirect (`lib/data/workspace-directory.ts`) is gone. See [workspace UI](workspace-ui.md#workspace-pages) and the [parity ledger](org-parity.md#workspace-pages).
+
+- The Changelog and Logs records moved from `workspace-session/model.ts` to `shared/workspace-records.ts`, so the `lib/data` adapters map onto them without taking a view's type (`check:boundaries` holds `platform/lib` to that).
+- Dashboard renders legacy's spec on live; the fixture snapshots stay for the fixture view. The markdown embed's panel moved to `_components/dashboard-panel/` for its second consumer.
+- `RunList` is prop-driven over a page of runs; the fixture route filters and reveals in the browser, the live route pages through the server. `useLogByExecutionId` gained an additive `refetchInterval`.
+- Verified: Biome, `check-platform-design`, `check-monorepo-boundaries`, `check-platform-convergence`. Not run: type-check (CI), the browser suite, a live stack, Electron.
+- Open: the live pages have not been exercised against a real app and database; the gaps are rows marked Open in the ledger.
+

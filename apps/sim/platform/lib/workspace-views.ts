@@ -1,4 +1,10 @@
-import { createLoader, createSerializer, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import {
+  createLoader,
+  createSerializer,
+  parseAsArrayOf,
+  parseAsString,
+  parseAsStringLiteral,
+} from 'nuqs/server'
 
 /**
  * The view state of each workspace list, shared by the list, which reads and writes it, and its
@@ -30,11 +36,34 @@ export const RUN_STATUSES = [
   'cancelled',
 ] as const
 export const RUN_SORTS = ['newest', 'oldest', 'duration', 'cu'] as const
+/** Legacy's time ranges; `custom` reads its bounds from `start` and `end`. */
+export const RUN_PERIODS = [
+  'all',
+  '30m',
+  '1h',
+  '6h',
+  '12h',
+  '24h',
+  '3d',
+  '7d',
+  '14d',
+  '30d',
+  'custom',
+] as const
+const RUN_VIEWS = ['runs', 'dashboard'] as const
+
+const parseAsIds = parseAsArrayOf(parseAsString).withDefault([])
 
 export const runListParams = {
+  view: parseAsStringLiteral(RUN_VIEWS).withDefault('runs'),
+  period: parseAsStringLiteral(RUN_PERIODS).withDefault('all'),
+  /** A custom period's local bounds, `YYYY-MM-DDTHH:mm`, as legacy's calendar writes them. */
+  start: parseAsString,
+  end: parseAsString,
   status: parseAsStringLiteral(RUN_STATUSES).withDefault('all'),
-  trigger: parseAsString.withDefault('all'),
-  workflow: parseAsString.withDefault('all'),
+  trigger: parseAsIds,
+  workflow: parseAsIds,
+  folder: parseAsIds,
   sort: parseAsStringLiteral(RUN_SORTS).withDefault('newest'),
 }
 

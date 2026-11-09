@@ -1,0 +1,5 @@
+.notes {
+  max-inline-size: var(--container-760);
+  min-inline-size: 0;
+  color: var(--ui-ink);
+}

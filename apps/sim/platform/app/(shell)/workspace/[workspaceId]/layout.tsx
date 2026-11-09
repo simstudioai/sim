@@ -10,7 +10,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     return <WorkspaceSession mode='fixture'>{children}</WorkspaceSession>
   const [{ WorkspaceRealtime }, { readWorkspaceTabFlags }] = await Promise.all([
     import('@/platform/lib/data/realtime'),
-    import('@/platform/lib/data/workflow-tests/flag'),
+    import('@/platform/lib/data/workspace-tab-flags'),
   ])
   return (
     <WorkspaceSession mode='live' tabFlags={await readWorkspaceTabFlags()}>
