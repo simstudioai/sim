@@ -8,10 +8,7 @@ import {
   knowledgeAvailabilityMockFns,
 } from '@sim/testing/mocks/knowledge-availability.mock'
 import { knowledgeBaseUseCasesMock } from '@sim/testing/mocks/knowledge-base-use-cases.mock'
-import {
-  knowledgeContextsMock,
-  knowledgeContextsMockFns,
-} from '@sim/testing/mocks/knowledge-contexts.mock'
+import { knowledgeContextsMock } from '@sim/testing/mocks/knowledge-contexts.mock'
 import { knowledgeEmbeddingsMock } from '@sim/testing/mocks/knowledge-embeddings.mock'
 import { knowledgeServiceMock } from '@sim/testing/mocks/knowledge-service.mock'
 import {
@@ -57,12 +54,6 @@ vi.mock('@/lib/sim-search/live/application', async (importOriginal) => ({
 import { createKnowledgeMcpHandlers } from '@/lib/knowledge/mcp/route-handler'
 
 urlsMockFns.mockGetBaseUrl.mockReturnValue('http://localhost')
-knowledgeContextsMockFns.mockResolveKnowledgeOwnerContext.mockImplementation(
-  (owner: { organizationId: string }) => ({
-    organizationId: owner.organizationId,
-    workspaceId: undefined,
-  })
-)
 
 const handlers = createKnowledgeMcpHandlers()
 const principal = createPersonalApiKeyPrincipal({ userId: 'person-1' })
@@ -98,7 +89,6 @@ function searchedInput() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   resetDbChainMock()
   v2RouteMocks.authenticate.mockResolvedValue({
     principal,
