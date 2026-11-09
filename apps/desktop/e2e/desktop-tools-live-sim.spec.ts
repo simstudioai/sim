@@ -786,11 +786,9 @@ test.describe('desktop tools against a live Sim', () => {
       expect.soft(call?.persistSeq, 'persist order').not.toBeNull()
 
       // Only registration and the foreground claim: no inbox, doorbell stream, executor claim,
-      // lease or completion. The workspace's activity poll is Sim's page, not the app: this Sim
-      // has Redis, so its page asks.
+      // lease or completion.
       const desktopRoutes = new Set(proxy.seen(since, '/api/desktop/').map((entry) => entry.path))
       desktopRoutes.delete(REGISTRATION_PATH)
-      desktopRoutes.delete('/api/desktop/activity')
       expect
         .soft(desktopRoutes, 'desktop routes the app called')
         .toEqual(new Set(['/api/desktop/tool/authorize']))
