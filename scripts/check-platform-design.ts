@@ -254,6 +254,7 @@ const serverSeamHelpers = new Set([
   'lib/organization-secrets/application/use-cases',
   'lib/organizations/application/member-roster',
   'lib/organizations/application/surface',
+  'lib/organizations/provision-personal',
   'lib/settings/prefetch-current-user-settings',
   'lib/sim-links/application/use-cases',
   'lib/users/application/read-current-user',
@@ -539,6 +540,7 @@ const seamHelpers = new Set([
   'stores/workflows/registry/types',
   'stores/workflows/subblock/types',
   'stores/workflows/workflow/types',
+  'tools/assistant-effects',
   'tools/metadata',
   'tools/normalize',
   // The chat hook and the pure modules around it: Platform drives it rather than forking it.
@@ -596,6 +598,7 @@ const seamHelpers = new Set([
   'lib/core/utils/validation',
   'lib/credential-groups/managed-mcp-connectors',
   'lib/credential-groups/member-integrations',
+  'lib/credential-groups/member-integrations-access',
   'lib/favicon/url',
   'lib/help-links',
   'lib/help/request',

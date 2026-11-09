@@ -102,7 +102,14 @@ export function RunSnapshot({ workspaceId, executionId, back }: RunSnapshotProps
             workspaceId={workspaceId}
             workflowState={level.workflowState}
             blockId={blockId}
-            run={{ step: selected?.step, outputs: level.blocks }}
+            run={{
+              step: selected?.step,
+              outputs: level.blocks,
+              child:
+                selected?.child && childHref
+                  ? { workflowState: selected.child.workflowState, href: childHref }
+                  : undefined,
+            }}
           />
         )
       }

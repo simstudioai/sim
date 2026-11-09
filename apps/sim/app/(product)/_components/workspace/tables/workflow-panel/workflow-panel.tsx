@@ -44,7 +44,7 @@ import {
   type WorkflowGroupOutput,
   type WorkflowMetadata,
 } from '@/platform/lib/data/tables'
-import { useDeployedWorkflowState } from '@/platform/lib/data/workflows'
+import { useDeployedWorkflowState } from '@/platform/lib/data/workflows/records'
 
 /**
  * A workflow group the user built (`manual`) or one spawned from a shared enrichment template

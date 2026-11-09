@@ -4,9 +4,9 @@ import {
   createGoogleManagedOAuthConnector,
   getManagedOAuthConnectorPolicy,
 } from '@/lib/auth/connectors/managed-oauth'
+import { CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS } from '@/lib/credential-groups/provider-ids'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import {
-  CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS,
   getCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderService,
   getCredentialGroupStandardOAuthProviderFromProviderId,

@@ -15,7 +15,7 @@ export async function LiveSearchRoute({ chatId }: { chatId?: string }) {
   if (!organization.searchAccess.memberScoped) redirect(surfaceHref(organization, '/settings'))
   if (chatId) {
     if (!organization.mothershipAvailable) redirect(surfaceHref(organization, '/search'))
-    const mode = await readChatMode(chatId)
+    const mode = await readChatMode(chatId, organization.organization.id)
     if (!mode) notFound()
     if (mode !== 'assistant') redirect(surfaceHref(organization, `/chat/${chatId}`))
     return <SearchSurface chatId={chatId} />

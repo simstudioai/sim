@@ -120,6 +120,18 @@ export function browserPageIssueCopy(issue: BrowserPageIssue): BrowserPageIssueC
 const HOST_LIKE_INPUT =
   /^([a-z0-9-]+(\.[a-z0-9-]+)+|localhost|\d{1,3}(\.\d{1,3}){3}|\[[0-9a-f:]+\])(:\d+)?([/?#].*)?$/i
 
+/** Whether an omnibox value should search rather than navigate directly. */
+export function isSearchQueryInput(raw: string): boolean {
+  const input = raw.trim()
+  if (!input || /^https?:\/\//i.test(input)) return false
+  return input.includes(' ') || !HOST_LIKE_INPUT.test(input)
+}
+
+/** The canonical Google results URL used by search rows and bare submission. */
+export function googleSearchUrl(query: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(query.trim())}`
+}
+
 /**
  * Omnibox-style resolution for the URL bar: explicit schemes pass through,
  * host-looking input becomes a URL (http:// for localhost/IPs since local dev
@@ -129,8 +141,7 @@ const HOST_LIKE_INPUT =
 export function resolveUrlBarInput(raw: string): string {
   const input = raw.trim()
   if (/^https?:\/\//i.test(input)) return input
-  if (input.includes(' ') || !HOST_LIKE_INPUT.test(input))
-    return `https://www.google.com/search?q=${encodeURIComponent(input)}`
+  if (isSearchQueryInput(input)) return googleSearchUrl(input)
   const isLocal =
     /^(localhost|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|0\.0\.0\.0|\[::1?\])(:\d+)?([/?#]|$)/i.test(input)
   return `${isLocal ? 'http' : 'https'}://${input}`

@@ -26,19 +26,6 @@ const SEARCH_ACCOUNT_PROVIDERS = new Set([
   }),
 ])
 
-/** Who has a member integrations inventory at all: the rule behind the member Integrations page. */
-export function canReadMemberIntegrations(surface: {
-  searchAccess: { memberScoped: boolean }
-  viewer: { canConnectSearchIntegrations: boolean }
-  connectedAccountsAvailable: boolean
-}): boolean {
-  return (
-    surface.searchAccess.memberScoped &&
-    surface.viewer.canConnectSearchIntegrations &&
-    surface.connectedAccountsAvailable
-  )
-}
-
 export function assistantAccountOptions(data: OrganizationAccountsSettings, search: string) {
   const providers = data.assistantProviders.filter(
     (provider) => !SEARCH_ACCOUNT_PROVIDERS.has(provider)

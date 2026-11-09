@@ -46,16 +46,15 @@ interface AdmitTurnInput {
 }
 
 /**
- * The desktop a turn runs on, if any. Only a workspace chat runs on a desktop in the background:
- * its sidebar shows the status and an approval notification links back to it. An organization
- * chat stays with its chat view.
+ * The desktop a turn runs on, if any. Workspace and organization chats alike run their desktop
+ * tools on the offered desktop in the background, so a call issued after the viewer left the chat
+ * still runs; an approval notification links back to the chat in its own scope.
  */
 export async function turnDesktopDevice(
   principal: SessionPrincipal,
-  workspaceId: string | null | undefined,
   offeredDeviceId: string | undefined
 ): Promise<string | null> {
-  if (!offeredDeviceId || !workspaceId) return null
+  if (!offeredDeviceId) return null
   return resolveTurnDesktopDevice(principal, offeredDeviceId)
 }
 
@@ -146,7 +145,7 @@ export const admitChatTurn = defineAuthorizedChatUseCase({
       else await requireOrganizationSearchAvailable(organizationId)
     }
     await assertChatStreamLease(input.lease)
-    const desktopDeviceId = await turnDesktopDevice(principal, workspaceId, input.desktopDeviceId)
+    const desktopDeviceId = await turnDesktopDevice(principal, input.desktopDeviceId)
     return withRunAdmissionLock(userId, request.messageId, async (tx) => {
       const chat = await moveChatToTurn(tx, context, request, input.effortChoice)
       await appendCopilotChatMessages(

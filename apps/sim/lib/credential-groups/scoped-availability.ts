@@ -1,4 +1,5 @@
 import { isOrganizationBillingBlocked } from '@/lib/billing/core/access'
+import { isTeamOrganization } from '@/lib/billing/core/payer-organization'
 import { getOrganizationSubscriptionUsable } from '@/lib/billing/core/subscription'
 import { getWorkspaceOwnerSubscriptionAccess } from '@/lib/billing/core/workspace-access'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
@@ -7,7 +8,11 @@ import { isCredentialGroupsEnabled, isHosted } from '@/lib/core/config/env-flags
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { isCredentialGroupsAvailable } from '@/lib/credential-groups/availability'
 
-/** Workspace callers inherit their canonical organization's entitlement; authorization remains separate. */
+/**
+ * Workspace callers inherit their canonical organization's entitlement; authorization remains
+ * separate. A personal organization never collects connected accounts: its credential group could
+ * not follow its owner into a team (migration 0457 refuses the row).
+ */
 export async function isScopedCredentialGroupsAvailable(scope: ResourceScope): Promise<boolean> {
   if (scope.kind === 'workspace') {
     const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(scope.workspaceId)
@@ -16,6 +21,7 @@ export async function isScopedCredentialGroupsAvailable(scope: ResourceScope): P
       ownerBilling,
     })
   }
+  if (!(await isTeamOrganization(scope.organizationId))) return false
   if (!isHosted) return isCredentialGroupsEnabled
   const [subscription, blocked] = await Promise.all([
     getOrganizationSubscriptionUsable(scope.organizationId, { onError: 'throw' }),

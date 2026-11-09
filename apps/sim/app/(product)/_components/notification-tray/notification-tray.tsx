@@ -12,7 +12,14 @@ import type { ShellNotice } from '@/app/(product)/_components/model'
 import styles from '@/app/(product)/_components/notification-tray/notification-tray.module.css'
 import { useTrayLift } from '@/app/(product)/_components/notification-tray/tray-clearance'
 
-type Notice = Omit<ShellNotice, 'href'> & { onAction?: () => void }
+type Notice = Omit<ShellNotice, 'href'> & {
+  onAction?: () => void
+  /**
+   * Runs when the reader closes the notice or takes its action, as the legacy toaster does, so a
+   * notice that stands for a pending request cancels it rather than leaving it waiting unseen.
+   */
+  onUserDismiss?: () => void
+}
 
 /** What a view raises. The icon follows from the variant unless the notice names its own. */
 type NoticeInput = Omit<Notice, 'icon'> & {
@@ -69,7 +76,7 @@ function useToastNotices() {
   useEffect(
     () =>
       connectToastSink({
-        show({ message, description, variant, action, noticeId }) {
+        show({ message, description, variant, action, noticeId, onUserDismiss }) {
           const id = noticeId ?? generateId()
           notify({
             id,
@@ -78,6 +85,7 @@ function useToastNotices() {
             icon: variant === 'error' || variant === 'warning' ? 'I047' : 'I106',
             action: action?.label,
             onAction: action?.onClick,
+            onUserDismiss,
           })
           return id
         },
@@ -176,6 +184,7 @@ export function NotificationTray({ history, navigate }: NotificationTrayProps) {
                         dismiss(item.id)
                         if ('onAction' in item) item.onAction?.()
                         else if ('href' in item && item.href) navigate(item.href)
+                        if ('onUserDismiss' in item) item.onUserDismiss?.()
                       }}
                     >
                       {item.action}
@@ -185,7 +194,10 @@ export function NotificationTray({ history, navigate }: NotificationTrayProps) {
                     size='compact'
                     label={`Dismiss ${item.title}`}
                     icon='I105'
-                    onClick={() => dismiss(item.id)}
+                    onClick={() => {
+                      dismiss(item.id)
+                      if ('onUserDismiss' in item) item.onUserDismiss?.()
+                    }}
                   />
                 </div>
               </article>

@@ -14,6 +14,7 @@ import {
   joinInstanceOrganization,
 } from '@/lib/organizations/instance-org'
 import { createPersonalOrganizationTx } from '@/lib/organizations/personal'
+import { resolveOrganizationLanding } from '@/lib/organizations/surface'
 import { transferWorkspaceProjects } from '@/lib/projects/membership'
 
 const logger = createLogger('PersonalOrganizationProvision')
@@ -32,12 +33,15 @@ export type ProvisionPersonalOrganizationResult =
   | { status: 'user-missing' }
 
 /**
- * Gives a user outside every team their personal organization and attaches the workspaces they
- * own without one. Idempotent and resumable: a user who already has their personal organization
- * only gets any newly found organization-less workspaces attached, and a user in a team is left
- * alone. Safe beside concurrent signups, joins and workspace creation: it takes the workspace
- * invitation locks, the organization lock and the user's billing-identity lock in the order every
- * attach path uses, re-reads membership under them, and only ever attaches rows still without an
+ * The backfill's write: gives a user outside every team their personal organization and attaches
+ * the workspaces they own without one. Only `scripts/backfill-personal-organizations.ts` calls it,
+ * after every process runs the release that bills a personal organization's workspaces to their
+ * owner; on-demand provisioning ({@link createPersonalOrganization}) never attaches anything.
+ * Idempotent and resumable: a user who already has their personal organization only gets any
+ * newly found organization-less workspaces attached, and a user in a team is left alone. Safe
+ * beside concurrent signups, joins and workspace creation: it takes the workspace invitation
+ * locks, the organization lock and the user's billing-identity lock in the order every attach
+ * path uses, re-reads membership under them, and only ever attaches rows still without an
  * organization. A workspace whose Project also holds another owner's environment cannot move
  * without that environment and is reported in `skippedWorkspaceIds` instead.
  *
@@ -183,14 +187,36 @@ async function attachUnassignedWorkspacesTx(
 }
 
 /**
- * Puts a user who belongs to no organization into one: the instance organization on an
- * instance-organization deployment, otherwise their personal organization. Covers a signup whose
+ * Creates the personal organization of a user who belongs to no organization, with them as its
+ * owner, and nothing else: workspaces they already own stay organization-less (they open in this
+ * organization's shell, billed as before) until the backfill or an explicit flow attaches them.
+ * One short transaction under the user's billing-identity lock, re-checking membership there, so
+ * concurrent calls create one organization (`member_user_id_unique` backs it). Returns the
+ * organization they belong to afterwards, or null when the user no longer exists.
+ */
+export async function createPersonalOrganization(userId: string): Promise<string | null> {
+  await db.transaction((tx) => createPersonalOrganizationTx(tx, userId))
+  return resolveOrganizationLanding(userId, null)
+}
+
+/**
+ * Puts a user who belongs to no organization into one and returns it: the instance organization on
+ * an instance-organization deployment, otherwise their personal organization
+ * ({@link createPersonalOrganization}, which attaches no workspace). Covers a signup whose
  * provisioning failed, an account the backfill has not reached yet, and someone who left a team.
  */
-export async function ensureUserOrganization(userId: string): Promise<void> {
-  if (isInstanceOrganizationMode()) {
-    await joinInstanceOrganization(userId)
-    return
-  }
-  await provisionPersonalOrganization(userId)
+export async function ensureUserOrganization(userId: string): Promise<string | null> {
+  if (!isInstanceOrganizationMode()) return createPersonalOrganization(userId)
+  await joinInstanceOrganization(userId)
+  return resolveOrganizationLanding(userId, null)
+}
+
+/**
+ * The organization the product shell opens in for a viewer: the one they land in, or, when they
+ * belong to none yet, the one {@link ensureUserOrganization} puts them in.
+ */
+export async function resolveOrProvisionLandingOrganization(
+  userId: string
+): Promise<string | null> {
+  return (await resolveOrganizationLanding(userId, null)) ?? ensureUserOrganization(userId)
 }

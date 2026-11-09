@@ -436,6 +436,8 @@ JS
     app_server=start
     export NEXT_PUBLIC_FORCE_HOSTED=false
     export INTERNAL_API_SECRET=mobile-http-ci-local-secret-at-least-32-characters
+    # The organization Integrations page exists only where member search and its managed accounts do.
+    export KNOWLEDGE_MEMBER_ACCESS=true CREDENTIAL_GROUPS=true
     export NEXT_PUBLIC_SOCKET_URL=http://127.0.0.1:3025 SOCKET_SERVER_URL=http://127.0.0.1:3025
     read -ra browsers <<< "${MOBILE_E2E_BROWSER:-chromium webkit}"
     if [ "${PLAYWRIGHT_WEBKIT_WS_ENDPOINT+x}" = x ]; then

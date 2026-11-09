@@ -437,8 +437,8 @@ export const auth = betterAuth({
            * `INSTANCE_ORG_NAME` set that is the instance organization, so
            * org-scoped enterprise settings apply from the start; otherwise it is
            * their own personal organization. Neither may block a signup: a
-           * failure is logged, and opening the workspace list provisions the
-           * personal organization a user is still missing. The provisioning
+           * failure is logged, and the next product page they open provisions
+           * the personal organization they are still missing. The provisioning
            * module is imported lazily to keep the billing graph out of the auth
            * module's load path.
            */
@@ -446,10 +446,10 @@ export const auth = betterAuth({
             await joinInstanceOrganization(user.id)
           } else {
             try {
-              const { provisionPersonalOrganization } = await import(
+              const { createPersonalOrganization } = await import(
                 '@/lib/organizations/provision-personal'
               )
-              await provisionPersonalOrganization(user.id)
+              await createPersonalOrganization(user.id)
             } catch (error) {
               logger.error(
                 '[databaseHooks.user.create.after] Failed to provision personal organization',

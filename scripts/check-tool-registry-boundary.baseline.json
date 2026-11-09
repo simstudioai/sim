@@ -10,7 +10,7 @@
       "gateways": {}
     },
     "app/(product)/layout.tsx": {
-      "modules": 2556,
+      "modules": 2503,
       "gateways": {
         "apps/sim/app/(product)/_components/product-shell.tsx": 2458,
         "apps/sim/app/(product)/_components/live-shell/live-shell.tsx": 2169,
@@ -70,7 +70,7 @@
       }
     },
     "app/(product)/o/[organizationId]/integrations/accounts/[credentialId]/page.tsx": {
-      "modules": 2137,
+      "modules": 2136,
       "gateways": {
         "apps/sim/app/(product)/o/[organizationId]/integrations/_components/tool-permissions/live-account-tools-route.tsx": 2135,
         "apps/sim/platform/lib/data/surface.ts": 1819,
@@ -282,7 +282,7 @@
       "gateways": {}
     },
     "app/(product)/workspace/[workspaceId]/files/[fileId]/page.tsx": {
-      "modules": 567,
+      "modules": 548,
       "gateways": {
         "apps/sim/app/(product)/_components/workspace/files/file-view/file-view.tsx": 565,
         "apps/sim/app/(product)/workspace/[workspaceId]/_components/file-viewer/file-viewer.tsx": 284,
@@ -431,7 +431,7 @@
       "gateways": {}
     },
     "app/(product)/workspace/[workspaceId]/settings/[[...section]]/page.tsx": {
-      "modules": 2697,
+      "modules": 2552,
       "gateways": {
         "apps/sim/platform/lib/data/legacy-redirects.ts": 725,
         "apps/sim/lib/auth/index.ts": 721,
@@ -457,7 +457,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/tables/[tableId]/page.tsx": {
-      "modules": 1854,
+      "modules": 1620,
       "gateways": {
         "apps/sim/app/(product)/_components/workspace/tables/table-route/table-route.tsx": 1852,
         "apps/sim/platform/lib/data/workflows/index.ts": 1323,
@@ -543,7 +543,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/workflows/layout.tsx": {
-      "modules": 1642,
+      "modules": 1641,
       "gateways": {
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/workflows-layout/workflows-layout.tsx": 1640,
         "apps/sim/triggers/registry.ts": 597,
@@ -556,7 +556,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/workflows/page.tsx": {
-      "modules": 1668,
+      "modules": 1667,
       "gateways": {
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/workflows-route/workflows-route.tsx": 1666,
         "apps/sim/platform/lib/data/workflows/index.ts": 1465,

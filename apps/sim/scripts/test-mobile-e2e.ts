@@ -29,7 +29,9 @@ import { workspaceResourcePath } from '@/lib/resources/urls'
  * Real browser coverage of the product shell and its pages against a running local app and
  * disposable PostgreSQL.
  * Requires MOBILE_E2E_BASE_URL, MOBILE_E2E_DATABASE_URL, MOBILE_E2E_AUTH_SECRET,
- * and MOBILE_E2E_REPORT_PATH. Native launches require installed Playwright browsers.
+ * and MOBILE_E2E_REPORT_PATH. The app must run with KNOWLEDGE_MEMBER_ACCESS and CREDENTIAL_GROUPS,
+ * which the organization Integrations page requires. Native launches require installed Playwright
+ * browsers.
  * PLAYWRIGHT_WEBKIT_WS_ENDPOINT uses the pinned loopback WebKit server instead.
  * MOBILE_E2E_BROWSER and MOBILE_E2E_VIEWPORT narrow a diagnostic rerun.
  * MOBILE_E2E_SHARD (index/count, one-based) partitions all viewports across CI jobs.
@@ -847,6 +849,8 @@ async function exerciseViewport(
         async () => {
           const actions = folderActions(page)
           await visit(page, filesPath, actions)
+          // A short landscape viewport puts the first row below the fold of the scrolling page.
+          await actions.scrollIntoViewIfNeeded()
           await expectContained(page, actions)
           await actions.tap()
           await expect(page.getByRole('menuitem', { name: 'Rename', exact: true })).toBeVisible()

@@ -8,6 +8,7 @@ import { and, eq } from 'drizzle-orm'
 import type { PeopleSyncConfig, PeopleSyncStatus } from '@/lib/api/contracts/people-sync'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { requireTeamOrganization } from '@/lib/organizations/team-only'
 import { oktaDirectoryHost } from '@/lib/people/provider-import'
 import { lockProfiles } from '@/lib/people/repository'
 import { CLEARED_RUN, RELEASED, runDirectorySync } from '@/lib/people/sync/runner'
@@ -107,6 +108,7 @@ export async function configureDirectorySync(
   config: PeopleSyncConfig,
   actorUserId: string
 ) {
+  await requireTeamOrganization(organizationId, 'directory sync')
   const stored = await storedConfig(organizationId, config)
   await db.transaction(async (tx) => {
     await lockProfiles(tx, organizationId)

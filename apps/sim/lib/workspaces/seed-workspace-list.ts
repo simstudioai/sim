@@ -10,19 +10,24 @@ const logger = createLogger('WorkspaceListPrefetch')
 
 /**
  * Leaves empty workspace lists uncached so the client reaches the route's
- * default-workspace creation path.
+ * default-workspace creation path. `withinBudget` bounds the read the way the
+ * caller bounds its other first-paint reads; a read that runs out gives up its
+ * seat and the client fetches the list.
  */
 export async function seedWorkspaceList(
   queryClient: QueryClient,
   userId: string,
-  activeOrganizationId: string | null
+  activeOrganizationId: string | null,
+  withinBudget: <T>(read: () => Promise<T>) => Promise<T>
 ): Promise<void> {
   try {
-    const payload = await listWorkspacesForViewer({
-      userId,
-      activeOrganizationId,
-      scope: 'active',
-    })
+    const payload = await withinBudget(() =>
+      listWorkspacesForViewer({
+        userId,
+        activeOrganizationId,
+        scope: 'active',
+      })
+    )
     if (payload.workspaces.length === 0) return
     /** Strip server-only fields to match the client response. */
     queryClient.setQueryData(

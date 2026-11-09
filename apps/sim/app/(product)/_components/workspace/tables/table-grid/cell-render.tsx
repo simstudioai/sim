@@ -26,7 +26,7 @@ import {
   useTablesList,
   useWorkspaceFileLookup,
 } from '@/platform/lib/data/tables'
-import { useWorkflows } from '@/platform/lib/data/workflows'
+import { useWorkflows } from '@/platform/lib/data/workflows/records'
 import { platformHref } from '@/platform/lib/navigation'
 
 /** Workspace resources a cell URL can point to. */

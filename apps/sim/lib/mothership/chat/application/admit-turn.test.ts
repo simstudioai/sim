@@ -140,13 +140,12 @@ describe('organization turn admission through current private-chat authorization
       ChatSendSupersededError
     )
   })
-  it("keeps an organization chat's turn with its chat view, never on a desktop", async () => {
+  it('binds a turn to the desktop it offers, and leaves a turn that offers none unbound', async () => {
     hoisted.resolveDesktop.mockResolvedValue('device-1')
     const offered = '33333333-3333-4333-8333-333333333333'
 
-    await expect(turnDesktopDevice(principal, null, offered)).resolves.toBeNull()
-    await expect(turnDesktopDevice(principal, 'ws-1', offered)).resolves.toBe('device-1')
-    await expect(turnDesktopDevice(principal, 'ws-1', undefined)).resolves.toBeNull()
+    await expect(turnDesktopDevice(principal, offered)).resolves.toBe('device-1')
+    await expect(turnDesktopDevice(principal, undefined)).resolves.toBeNull()
   })
   it.each(['agent', 'assistant', 'plan'] as const)(
     'switches the same chat to %s atomically with turn admission',

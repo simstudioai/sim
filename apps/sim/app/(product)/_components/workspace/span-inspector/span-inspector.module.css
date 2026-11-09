@@ -55,3 +55,12 @@
 .more {
   justify-self: start;
 }
+.code mark[data-search-match] {
+  border-radius: var(--radius-2);
+  background: var(--status-warning-soft);
+  color: inherit;
+}
+.code mark[data-current] {
+  background: var(--status-warning);
+  color: var(--control-on-solid);
+}

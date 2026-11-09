@@ -62,9 +62,10 @@ export function useMemberIntegrations(organizationId: string) {
  * hand opens `savedConnection` in place instead, as the legacy saved-credential dialog did, for the
  * surface to render with `SavedAccountModal`.
  */
-export function useIntegrationActions(organizationId: string) {
+export function useIntegrationActions(organizationId: string, options?: { enabled?: boolean }) {
   const [savedConnection, setSavedConnection] = useState<SavedSearchConnection | null>(null)
-  const savedAccounts = useOrganizationAccounts(organizationId).data?.viewerSavedAccounts ?? []
+  const inventoryId = (options?.enabled ?? true) ? organizationId : undefined
+  const savedAccounts = useOrganizationAccounts(inventoryId).data?.viewerSavedAccounts ?? []
   const removeSaved = useRemovePersonalSearchCredential()
   const connect = useConnectOrganizationAccount()
   const reconnect = useReconnectPersonalOrganizationAccount()

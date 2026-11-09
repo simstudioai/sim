@@ -134,6 +134,21 @@ textarea.input {
 .textareaFrame[data-default-size="large"] {
   block-size: calc(3 * var(--spacing-80));
 }
+
+.textareaFrame[data-default-size="line"] {
+  block-size: auto;
+}
+
+.textareaFrame[data-default-size="line"] > textarea.input {
+  field-sizing: content;
+  height: auto;
+  min-block-size: calc(var(--spacing-app-chip) - 2 * var(--spacing-stroke-default));
+  max-block-size: calc(3 * var(--spacing-80));
+  padding-block: calc(
+    (var(--spacing-app-chip) - 2 * var(--spacing-stroke-default) - var(--leading-20)) /
+    2
+  );
+}
 .switchField {
   display: flex;
   align-items: center;
@@ -144,4 +159,14 @@ textarea.input {
 }
 .switchField > label {
   min-inline-size: 0;
+}
+
+/*
+ * A phone browser zooms the page into any field set below 16px as it takes focus, and leaves it
+ * zoomed. Touch layouts narrower than 48rem set field text at the reading size, as legacy fields did.
+ */
+@media (pointer: coarse) and (max-width: 48rem) {
+  .inputFrame > .input[data-type] {
+    font-size: var(--text-reading);
+  }
 }

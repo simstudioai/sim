@@ -41,7 +41,7 @@ import {
   flattenWorkflowOutputs,
   useDeployedWorkflowState,
   useWorkflows,
-} from '@/platform/lib/data/workflows'
+} from '@/platform/lib/data/workflows/records'
 
 const OUTPUT_SEP = '::'
 const ICON_ACCEPT = 'image/png,image/jpeg,image/jpg,image/svg+xml,image/webp'

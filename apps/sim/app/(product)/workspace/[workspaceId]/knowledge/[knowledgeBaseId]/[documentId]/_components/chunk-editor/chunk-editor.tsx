@@ -14,7 +14,7 @@ import {
   useCreateChunk,
   useUpdateChunk,
 } from '@/platform/lib/data/knowledge'
-import { getAccurateTokenCount, getTokenStrings } from '@/platform/lib/data/knowledge/tokens'
+import type * as Tokens from '@/platform/lib/data/knowledge/tokens'
 
 /** The longest chunk the API accepts. */
 const MAX_CHUNK_LENGTH = 10_000
@@ -81,6 +81,9 @@ export function ChunkEditor({
   const [savedContent, setSavedContent] = useState(initial)
   const [tokenizer, setTokenizer] = useState(false)
   const [hoveredToken, setHoveredToken] = useState<number | null>(null)
+  /** The tokenizer's encoding tables are megabytes, so they load once there is text to count. */
+  const [tokenLib, setTokenLib] = useState<typeof Tokens | null>(null)
+  const countable = content.length > 0
   const saved = useRef(initial)
   const latest = useRef(content)
   latest.current = content
@@ -113,6 +116,17 @@ export function ChunkEditor({
   useEffect(() => {
     if (creating) textarea.current?.focus()
   }, [creating])
+
+  useEffect(() => {
+    if (!countable || tokenLib) return
+    let current = true
+    void import('@/platform/lib/data/knowledge/tokens').then((lib) => {
+      if (current) setTokenLib(lib)
+    })
+    return () => {
+      current = false
+    }
+  }, [countable, tokenLib])
 
   async function save() {
     const trimmed = latest.current.trim()
@@ -187,8 +201,10 @@ export function ChunkEditor({
     if (scroller.current) scroller.current.scrollTop = preservedScroll.current
   }, [tokenizer])
 
-  const tokens = tokenizer && content ? getTokenStrings(content) : []
-  const tokenCount = !content ? 0 : tokenizer ? tokens.length : getAccurateTokenCount(content)
+  const tokens = tokenizer && content && tokenLib ? tokenLib.getTokenStrings(content) : []
+  const tokenCount = content
+    ? tokenLib && (tokenizer ? tokens.length : tokenLib.getAccurateTokenCount(content))
+    : 0
 
   return (
     <div className={styles.editor}>
@@ -249,8 +265,12 @@ export function ChunkEditor({
           )}
         </span>
         <span className={styles.secondary} data-type='T052'>
-          {tokenCount.toLocaleString()}
-          {maxChunkSize !== undefined && `/${maxChunkSize.toLocaleString()}`} tokens
+          {tokenCount !== null && (
+            <>
+              {tokenCount.toLocaleString()}
+              {maxChunkSize !== undefined && `/${maxChunkSize.toLocaleString()}`} tokens
+            </>
+          )}
         </span>
       </div>
     </div>

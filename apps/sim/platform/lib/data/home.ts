@@ -5,10 +5,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import { useSession } from '@/lib/auth/client'
 import { addCalendarDays, getBrowserTimezone } from '@/lib/core/utils/timezone'
-import {
-  canReadMemberIntegrations,
-  memberIntegrationEntries,
-} from '@/lib/credential-groups/member-integrations'
+import { memberIntegrationEntries } from '@/lib/credential-groups/member-integrations'
+import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations-access'
 import { hasSearchIntegrationReady } from '@/lib/credential-groups/search-readiness'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
@@ -27,9 +25,11 @@ import { useOrganizationActivitySummary } from '@/hooks/queries/organization-act
 import {
   useOrganizationHomeCalendar,
   useOrganizationHomeEmail,
+  useOrganizationHomeWorkspaceActivity,
 } from '@/hooks/queries/organization-home'
 import { useRemoveSearchHistorySource, useSearchHistory } from '@/hooks/queries/search-history'
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
+import { useOrderedWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useCanOpenOrganizationChat } from '@/platform/lib/data/chat-list'
@@ -45,6 +45,7 @@ import {
   toCalendarDay,
   toEmailItems,
   toHomeConnection,
+  toHomeWorkspaceItems,
   toReadAccounts,
   toReadableProviders,
   toRecentItems,
@@ -55,6 +56,7 @@ import { useIntegrationActions } from '@/platform/lib/data/integrations'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { useHomeSuggestions } from '@/platform/lib/data/suggested-actions'
+import { workspaceHomePath } from '@/platform/lib/workspace-navigation'
 import { wallClockMinute } from '@/platform/shared/calendar-meeting'
 import type {
   HomeAccountView,
@@ -64,6 +66,7 @@ import type {
   HomeListState,
   HomeWidgetActions,
   HomeWidgetState,
+  HomeWorkspaceItem,
 } from '@/platform/shared/home'
 import { homeDayParam } from '@/platform/shared/home-params'
 import { isRefusal } from '@/platform/shared/query-view'
@@ -133,12 +136,16 @@ interface HomeSavedConnection {
   close: () => void
 }
 
-function useConnectionActions(organizationId: string): {
+/** `allowed` is the member-integrations gate; without it the viewer has no inventory to read. */
+function useConnectionActions(
+  organizationId: string,
+  allowed: boolean
+): {
   actions: Omit<HomeWidgetActions, 'retry'>
   savedConnection: HomeSavedConnection | null
 } {
   const { connecting, connect, reconnect, disconnect, savedConnection, closeSavedConnection } =
-    useIntegrationActions(organizationId)
+    useIntegrationActions(organizationId, { enabled: allowed })
   return {
     actions: {
       connect: connecting ? undefined : (optionId) => connect({ optionId }),
@@ -254,6 +261,43 @@ function useHomeActivity(
     return { state: { status: 'hidden' }, retry }
   if (summary.data) return { state: { status: 'ready', points: toTaskPoints(summary.data) }, retry }
   return { state: withoutResult(summary), retry }
+}
+
+/**
+ * The sidebar's list, from the same cache entry, so the rows cost no request and the two cannot
+ * disagree. A viewer with no workspaces, or who hid the widget, never asks for activity. A failed
+ * activity read keeps the rows and says so, because a row with no status must not pass for an idle
+ * one.
+ */
+function useHomeWorkspaces(organizationId: string, hidden: boolean) {
+  const list = useOrderedWorkspacesQuery()
+  const workspaces = (list.data ?? [])
+    .filter(
+      (workspace) =>
+        workspace.organizationId === organizationId || workspace.organizationId === null
+    )
+    .map(({ id, name }) => ({ id, name, href: workspaceHomePath(id, 'live') }))
+  const activity = useOrganizationHomeWorkspaceActivity(organizationId, {
+    enabled: workspaces.length > 0 && !hidden,
+  })
+  const state = ((): HomeListState<HomeWorkspaceItem> => {
+    if (!list.data) return withoutResult(list)
+    if (workspaces.length === 0) return { status: 'ready', items: [] }
+    const settling = !activity.data && !activity.isError
+    return {
+      status: 'ready',
+      items: toHomeWorkspaceItems(workspaces, activity.data),
+      settling,
+      partial: !settling && (!activity.data || activity.isRefetchError),
+    }
+  })()
+  return {
+    state,
+    retry: () => {
+      if (!list.data) void list.refetch()
+      else void activity.refetch()
+    },
+  }
 }
 
 function useHomeRecents(organization: PlatformOrganization, userId: string | undefined) {
@@ -378,7 +422,9 @@ export function useHomeHydrated(): boolean {
 const NO_WIDGETS: readonly HomeWidget[] = []
 
 function isHomeWidget(widget: string): widget is HomeWidget {
-  return widget === 'Activity' || widget === 'Email' || widget === 'Calendar'
+  return (
+    widget === 'Activity' || widget === 'Workspaces' || widget === 'Email' || widget === 'Calendar'
+  )
 }
 
 export interface HiddenHomeWidgets {
@@ -431,7 +477,10 @@ export function useLiveHome(
   const integrations = useHomeIntegrations(organization)
   const connectionFor = (sources: typeof HOME_EMAIL_SOURCES) =>
     toHomeConnection({ ...integrations, sources })
-  const { actions: connectionActions, savedConnection } = useConnectionActions(organizationId)
+  const { actions: connectionActions, savedConnection } = useConnectionActions(
+    organizationId,
+    integrations.allowed
+  )
   const email = useHomeEmail(
     organizationId,
     connectionFor(HOME_EMAIL_SOURCES),
@@ -453,6 +502,7 @@ export function useLiveHome(
     timeZone,
     hiddenWidgets.includes('Activity')
   )
+  const workspaces = useHomeWorkspaces(organizationId, hiddenWidgets.includes('Workspaces'))
   const recents = useHomeRecents(organization, session?.user?.id)
   const attention = useHomeAttention(
     organization,
@@ -481,6 +531,7 @@ export function useLiveHome(
       activity: { Build: activity.state, Search: { status: 'hidden' } },
       email: email.state,
       calendar: calendar.state,
+      workspaces: workspaces.state,
       recents: recents.state,
       getStarted,
       suggestions,
@@ -497,6 +548,7 @@ export function useLiveHome(
       returnToToday: () => showDay(null),
       retryAttention: attention.retry,
       retryActivity: activity.retry,
+      retryWorkspaces: workspaces.retry,
       retryRecents: recents.retry,
       removeRecent: recents.remove,
     },

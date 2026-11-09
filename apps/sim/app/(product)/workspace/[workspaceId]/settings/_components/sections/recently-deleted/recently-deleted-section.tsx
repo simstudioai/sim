@@ -40,7 +40,7 @@ import {
   useUrlSort,
   type WORKSPACE_RECENTLY_DELETED_FILTERS,
 } from '@/platform/lib/data/recently-deleted'
-import { useRestoreWorkflow } from '@/platform/lib/data/workflows'
+import { useRestoreWorkflow } from '@/platform/lib/data/workflows/records'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 import { platformHref } from '@/platform/lib/navigation'
 import { formatInstantDate } from '@/platform/shared/time'

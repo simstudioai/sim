@@ -2,12 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createSerializer, useQueryStates } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
+import { resourceParam, searchFilterParsers } from '@/lib/mothership/chat/search-params'
 import type { ChatMessage, ChatRequestMode } from '@/lib/mothership/chat/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
+import {
+  organizationSearchParsers,
+  organizationSearchUrlKeys,
+} from '@/lib/organizations/search-params'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
 import { toast } from '@/lib/toast/sink'
 import type { ChatRuntime, ToolDecision } from '@/app/(product)/_components/chat/model'
@@ -78,11 +84,23 @@ function useMessageClock(chatId: string | undefined) {
   }
 }
 
+/** An Assistant chat's address: Search's query, filters and mode, and the open resource. */
+const serializeSearchChat = createSerializer({
+  ...organizationSearchParsers,
+  ...searchFilterParsers,
+  [resourceParam.key]: resourceParam.parser,
+})
+
 interface LiveChatOptions {
   chatId?: string
   requestMode: ChatRequestMode
   /** A chat's URL, for a surface other than Chat. */
   chatPath?: (chatId: string) => string
+  /**
+   * Which Search view an Assistant chat is under as it gets its address: the conversation's own, or
+   * Search's, when the reader switched away while the first turn was admitted.
+   */
+  searchView?: 'search' | 'assistant'
   /** A summary to send under its own search scope; `onSummaryConsumed` fires as it goes out. */
   summaryRequest?: SummaryRequest
   onSummaryConsumed?: (id: string) => void
@@ -96,6 +114,7 @@ export function useLiveChatRuntime({
   chatId,
   requestMode,
   chatPath,
+  searchView = 'assistant',
   summaryRequest,
   onSummaryConsumed,
 }: LiveChatOptions) {
@@ -106,21 +125,26 @@ export function useLiveChatRuntime({
   const router = useRouter()
   const controller = useResourcePanelController()
   const { data: session } = useSession()
+  const [searchState] = useQueryStates(
+    { ...organizationSearchParsers, ...searchFilterParsers },
+    organizationSearchUrlKeys
+  )
   const chat = useChat({ organizationId }, chatId, {
     ...getMothershipUseChatOptions({
       requestMode,
       isNewChatRoute: (pathname) =>
         pathname === surfaceHref(surface, '/chat') || pathname === surfaceHref(surface, '/search'),
       getChatUrl: (id) => {
-        // An Assistant chat keeps its Search view state; a Build chat keeps only its open resource.
+        // An Assistant chat keeps Search's view state as the reader has it now, including a choice
+        // the URL has not caught up with; a Build chat keeps only its open resource.
         const resource = controller.activeResourceState[0]
-        const query =
-          requestMode === 'assistant'
-            ? window.location.search
-            : resource
-              ? `?resource=${encodeURIComponent(resource)}`
-              : ''
-        return `${pathFor(id)}${query}`
+        if (requestMode === 'assistant')
+          return serializeSearchChat(pathFor(id), {
+            ...searchState,
+            mode: searchView,
+            [resourceParam.key]: resource ?? null,
+          })
+        return `${pathFor(id)}${resource ? `?resource=${encodeURIComponent(resource)}` : ''}`
       },
       onResourceEvent: controller.onResourceEvent,
       activeResourceState: controller.activeResourceState,

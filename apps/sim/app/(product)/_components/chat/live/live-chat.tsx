@@ -40,6 +40,8 @@ interface LiveChatProps {
   /** A surface's own controls in place of the chat title. */
   header?: ReactNode
   chatPath?: (chatId: string) => string
+  /** For an Assistant chat under Search: which view the reader has chosen. */
+  searchView?: 'search' | 'assistant'
   summaryRequest?: SummaryRequest
   onSummaryConsumed?: (id: string) => void
 }
@@ -49,6 +51,7 @@ function LiveConversation({
   destination,
   header,
   chatPath,
+  searchView,
   summaryRequest,
   onSummaryConsumed,
 }: LiveChatProps) {
@@ -58,6 +61,7 @@ function LiveConversation({
     chatId,
     requestMode,
     chatPath,
+    searchView,
     summaryRequest,
     onSummaryConsumed,
   })
@@ -94,6 +98,7 @@ export function LiveChat({
   destination,
   header,
   chatPath,
+  searchView,
   summaryRequest,
   onSummaryConsumed,
 }: LiveChatProps) {
@@ -108,6 +113,7 @@ export function LiveChat({
       destination={destination}
       header={header}
       chatPath={chatPath}
+      searchView={searchView}
       summaryRequest={summaryRequest}
       onSummaryConsumed={onSummaryConsumed}
     />

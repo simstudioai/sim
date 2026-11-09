@@ -1,19 +1,40 @@
 'use client'
 
-import { useMemo } from 'react'
+import {
+  type MouseEvent,
+  type PointerEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { IconButton } from '@sim/emcn/button'
 import { Disclosure } from '@sim/emcn/disclosure'
 import { EmptyState } from '@sim/emcn/empty-state'
+import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
 import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
+import { FindBar } from '@sim/emcn/find-bar'
+import { type MenuAction, PointActionMenu } from '@sim/emcn/menu/action-menu'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { ReactFlowProvider } from '@xyflow/react'
-import { MetadataFields } from '@/app/(product)/_components/workspace/metadata-fields/metadata-fields'
+import {
+  type MetadataField,
+  MetadataFields,
+} from '@/app/(product)/_components/workspace/metadata-fields/metadata-fields'
 import { SpanInspector } from '@/app/(product)/_components/workspace/span-inspector/span-inspector'
 import { PreviewScope } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-preview/preview-scope'
 import {
   SubBlock,
   type SubBlockValues,
 } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/sub-block/sub-block'
-import { WorkflowBlockPreview } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/workflow-block-preview/workflow-block-preview'
+import {
+  FrozenWorkflowBlockPreview,
+  WorkflowBlockPreview,
+} from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/workflow-block-preview/workflow-block-preview'
+import { ResizeHandle } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/resize-handle/resize-handle'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/snapshot-block/snapshot-block.module.css'
+import { useCodeViewerFeatures } from '@/platform/lib/data/workflow-deploy/terminal'
 import {
   type BlockConfig,
   type BlockState,
@@ -29,7 +50,7 @@ import {
   type SnapshotReference,
 } from '@/platform/lib/data/workflow-editor'
 import type { WorkflowState } from '@/platform/lib/data/workflows'
-import type { TraceSpan } from '@/platform/shared/workspace-records'
+import type { TracePayload, TraceSpan } from '@/platform/shared/workspace-records'
 
 const LOOP_TYPES = [
   { value: 'for', label: 'For Loop' },
@@ -46,6 +67,18 @@ const DEFAULT_ITERATIONS = 5
 const DEFAULT_PARALLEL_COUNT = 1
 const DEFAULT_BATCH_SIZE = 20
 const NO_OUTPUTS: ReadonlyMap<string, { output?: unknown }> = new Map()
+/** The block types that run another workflow, whose child workflow the panel previews. */
+const WORKFLOW_BLOCK_TYPES = new Set(['workflow', 'workflow_input'])
+/** Legacy's Connections pane: collapsed to its header, its opening height and its tallest drag. */
+const CONNECTIONS_MIN_HEIGHT = 30
+const CONNECTIONS_DEFAULT_HEIGHT = 150
+const CONNECTIONS_MAX_HEIGHT = 300
+
+interface PanelMenu {
+  x: number
+  y: number
+  actions: readonly MenuAction[]
+}
 
 interface SnapshotBlockProps {
   workspaceId: string
@@ -55,7 +88,12 @@ interface SnapshotBlockProps {
    * A run's snapshot: the block's recorded step, absent when the run never reached it, and every
    * block's recorded output, which the block's references read. A deployed version has no run.
    */
-  run?: { step?: TraceSpan; outputs: ReadonlyMap<string, { output?: unknown }> }
+  run?: {
+    step?: TraceSpan
+    outputs: ReadonlyMap<string, { output?: unknown }>
+    /** A Workflow block's child workflow as the run ran it, and where its own snapshot opens. */
+    child?: { workflowState: WorkflowState; href: string }
+  }
 }
 
 /** A stored value as it was saved, unwrapped from the `{ value }` entry the stores keep. */
@@ -166,13 +204,37 @@ function SubflowFields({ block, workflowState }: SubflowFieldsProps) {
   )
 }
 
+/** A field's frozen value as the text its Copy puts on the clipboard; secrets and accounts copy nothing. */
+function copyableValue(config: BlockConfig['subBlocks'][number], subBlocks: SubBlockValues) {
+  if (config.password || config.type === 'oauth-input') return ''
+  const value: unknown = subBlocks[config.id]?.value
+  if (value === undefined || value === null || value === '') return ''
+  return typeof value === 'string' ? value : (JSON.stringify(value, null, 2) ?? '')
+}
+
+function payloadText(payload: TracePayload | undefined) {
+  return payload && payload.format !== 'withheld' ? payload.content : ''
+}
+
+/** The step's input and output in one text, as legacy's Copy on the execution data put them. */
+function stepText(step: TraceSpan) {
+  return [
+    ['Input', payloadText(step.input)],
+    ['Output', payloadText(step.output)],
+  ]
+    .filter(([, content]) => content)
+    .map(([label, content]) => `// ${label}\n${content}`)
+    .join('\n\n')
+}
+
 interface ReferenceGroupProps {
   label: string
   references: readonly SnapshotReference[]
   copyable: boolean
+  onFieldContextMenu: (event: MouseEvent, field: MetadataField) => void
 }
 
-function ReferenceGroup({ label, references, copyable }: ReferenceGroupProps) {
+function ReferenceGroup({ label, references, copyable, onFieldContextMenu }: ReferenceGroupProps) {
   return (
     <Disclosure label={label} initiallyOpen chevron>
       <MetadataFields
@@ -183,8 +245,90 @@ function ReferenceGroup({ label, references, copyable }: ReferenceGroupProps) {
           value: reference.value,
           copyable,
         }))}
+        onFieldContextMenu={onFieldContextMenu}
       />
     </Disclosure>
+  )
+}
+
+/**
+ * Follows a drag on the pane's top edge, writing the height straight to the pane each frame and
+ * committing it on release. Dragging up opens the pane, as legacy's docked Connections did.
+ */
+function trackPaneDrag(
+  event: PointerEvent<HTMLDivElement>,
+  pane: HTMLElement,
+  startHeight: number,
+  commit: (height: number) => void
+) {
+  event.preventDefault()
+  const handle = event.currentTarget
+  const { pointerId, clientY: startY } = event
+  handle.setPointerCapture(pointerId)
+  let height = startHeight
+  const move = (moveEvent: globalThis.PointerEvent) => {
+    if (moveEvent.pointerId !== pointerId) return
+    height = Math.min(
+      CONNECTIONS_MAX_HEIGHT,
+      Math.max(CONNECTIONS_MIN_HEIGHT, startHeight + startY - moveEvent.clientY)
+    )
+    pane.style.setProperty('block-size', `${height}px`)
+  }
+  const end = (endEvent: globalThis.PointerEvent) => {
+    if (endEvent.pointerId !== pointerId) return
+    handle.removeEventListener('pointermove', move)
+    handle.removeEventListener('pointerup', end)
+    handle.removeEventListener('pointercancel', end)
+    commit(height)
+  }
+  handle.addEventListener('pointermove', move)
+  handle.addEventListener('pointerup', end)
+  handle.addEventListener('pointercancel', end)
+}
+
+interface ConnectionsPaneProps {
+  children: ReactNode
+}
+
+/**
+ * Connections docked at the foot of the panel, as legacy's preview editor kept them: their own
+ * scroll, a height the reader drags from the top edge, and a toggle that folds them to the header.
+ * The height lasts while the block stays open.
+ */
+function ConnectionsPane({ children }: ConnectionsPaneProps) {
+  const paneRef = useRef<HTMLElement>(null)
+  const scrollEdges = useScrollEdges<HTMLDivElement>()
+  const [height, setHeight] = useState(CONNECTIONS_DEFAULT_HEIGHT)
+  useEffect(() => {
+    paneRef.current?.style.setProperty('block-size', `${height}px`)
+  }, [height])
+  const collapsed = height <= CONNECTIONS_MIN_HEIGHT + 5
+  return (
+    <section ref={paneRef} className={styles.connections} aria-label='Connections'>
+      <ResizeHandle
+        edge='block-start'
+        label='Resize connections'
+        onPointerDown={(event) => {
+          if (paneRef.current) trackPaneDrag(event, paneRef.current, height, setHeight)
+        }}
+      />
+      <header className={styles.connectionsHeader}>
+        <IconButton
+          label={collapsed ? 'Expand connections' : 'Collapse connections'}
+          icon={collapsed ? 'I032' : 'I051'}
+          size='compact'
+          onClick={() => setHeight(collapsed ? CONNECTIONS_DEFAULT_HEIGHT : CONNECTIONS_MIN_HEIGHT)}
+        />
+        <h3 className={styles.sectionHeading} data-type='T051'>
+          Connections
+        </h3>
+      </header>
+      {!collapsed && (
+        <div ref={scrollEdges} className={styles.connectionsBody}>
+          {children}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -208,17 +352,34 @@ export function SnapshotBlock({ workspaceId, workflowState, blockId, run }: Snap
     () => resolveSnapshotConnections(subBlocks, workflowState, run?.outputs ?? NO_OUTPUTS),
     [subBlocks, workflowState, run?.outputs]
   )
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const find = useCodeViewerFeatures({ contentRef: bodyRef })
+  const { copy } = useClipboard()
+  const [menu, setMenu] = useState<PanelMenu | null>(null)
+  const openMenu = (event: MouseEvent, actions: readonly MenuAction[]) => {
+    event.preventDefault()
+    setMenu({ x: event.clientX, y: event.clientY, actions })
+  }
+  const copyAction = (text: string): MenuAction => ({
+    id: 'copy',
+    label: 'Copy',
+    onSelect: () => void copy(text),
+  })
+  const onReferenceContextMenu = (event: MouseEvent, field: MetadataField) => {
+    if (field.copyable && field.value) openMenu(event, [copyAction(field.value)])
+  }
   if (!block) return null
   const name = block.name || config?.name || block.type
   const isSubflow = block.type === 'loop' || block.type === 'parallel'
   const fields = config && !isSubflow ? visibleSubBlocks(config, block, values) : []
   const childWorkflowId =
-    !run &&
-    (block.type === 'workflow' || block.type === 'workflow_input') &&
+    WORKFLOW_BLOCK_TYPES.has(block.type) &&
     typeof values.workflowId === 'string' &&
     values.workflowId
       ? values.workflowId
       : undefined
+  const step = run?.step
+  const stepCopy = step ? stepText(step) : ''
   const hasConnections =
     connections.blocks.length > 0 ||
     connections.variables.length > 0 ||
@@ -228,76 +389,138 @@ export function SnapshotBlock({ workspaceId, workflowState, blockId, run }: Snap
     <ReactFlowProvider>
       <PreviewScope workspaceId={workspaceId}>
         <div className={styles.panel}>
-          {run?.step ? (
-            <SpanInspector span={run.step} />
-          ) : (
-            <>
-              <h2 className={styles.heading} data-type='T093'>
-                {name}
-              </h2>
-              {run && (
-                <MetadataFields
-                  label={`${name} facts`}
-                  fields={[{ id: 'status', label: 'Status', value: 'Not run' }]}
-                />
-              )}
-            </>
-          )}
-          {childWorkflowId && (
-            <WorkflowBlockPreview workspaceId={workspaceId} workflowId={childWorkflowId} />
-          )}
-          <section className={styles.section} aria-label='Configuration'>
-            <h3 className={styles.sectionHeading} data-type='T051'>
-              Configuration
-            </h3>
-            {isSubflow ? (
-              <SubflowFields block={block} workflowState={workflowState} />
-            ) : !config ? (
-              <EmptyState title='Block configuration not found' />
-            ) : fields.length === 0 ? (
-              <EmptyState title='This block has no configurable fields' />
-            ) : (
-              <div className={styles.fields}>
-                {fields.map((subBlock) => (
-                  <div
-                    key={subBlock.id}
-                    className={styles.field}
-                    data-tight={subBlock.hideDividerBefore || undefined}
-                  >
-                    <SubBlock
-                      blockId={blockId}
-                      config={subBlock}
-                      isPreview
-                      subBlockValues={subBlocks}
-                      dependencyContext={dependencyContext}
-                      disabled
-                    />
-                  </div>
-                ))}
-              </div>
+          <div ref={bodyRef} className={styles.body}>
+            {find.isSearchActive && (
+              <FindBar
+                label='Search step'
+                query={find.searchQuery}
+                onQueryChange={find.setSearchQuery}
+                inputRef={find.searchInputRef}
+                results={{ index: find.currentMatchIndex, count: find.matchCount }}
+                onStep={(direction) =>
+                  direction === 1 ? find.goToNextMatch() : find.goToPreviousMatch()
+                }
+                onClose={find.closeSearch}
+              />
             )}
-          </section>
-          {hasConnections && (
-            <section className={styles.section} aria-label='Connections'>
+            {step ? (
+              <div
+                onContextMenu={(event) => {
+                  if (stepCopy)
+                    openMenu(event, [
+                      copyAction(stepCopy),
+                      { id: 'search', label: 'Search', onSelect: find.activateSearch },
+                    ])
+                }}
+              >
+                <SpanInspector
+                  span={step}
+                  search={
+                    find.isSearchActive
+                      ? {
+                          query: find.searchQuery,
+                          currentMatchIndex: find.currentMatchIndex,
+                          onMatchCountChange: find.handleMatchCountChange,
+                        }
+                      : undefined
+                  }
+                />
+              </div>
+            ) : (
+              <>
+                <h2 className={styles.heading} data-type='T093'>
+                  {name}
+                </h2>
+                {run && (
+                  <MetadataFields
+                    label={`${name} facts`}
+                    fields={[{ id: 'status', label: 'Status', value: 'Not run' }]}
+                  />
+                )}
+              </>
+            )}
+            {childWorkflowId &&
+              (run ? (
+                <FrozenWorkflowBlockPreview
+                  workspaceId={workspaceId}
+                  workflowState={run.child?.workflowState}
+                  expandHref={run.child?.href}
+                  unavailable={step ? 'Unable to load preview' : 'Not run'}
+                />
+              ) : (
+                <WorkflowBlockPreview workspaceId={workspaceId} workflowId={childWorkflowId} />
+              ))}
+            <section className={styles.section} aria-label='Configuration'>
               <h3 className={styles.sectionHeading} data-type='T051'>
-                Connections
+                Configuration
               </h3>
+              {isSubflow ? (
+                <SubflowFields block={block} workflowState={workflowState} />
+              ) : !config ? (
+                <EmptyState title='Block configuration not found' />
+              ) : fields.length === 0 ? (
+                <EmptyState title='This block has no configurable fields' />
+              ) : (
+                <div className={styles.fields}>
+                  {fields.map((subBlock) => (
+                    <div
+                      key={subBlock.id}
+                      className={styles.field}
+                      data-tight={subBlock.hideDividerBefore || undefined}
+                      onContextMenu={(event) => {
+                        const text = copyableValue(subBlock, subBlocks)
+                        if (text) openMenu(event, [copyAction(text)])
+                      }}
+                    >
+                      <SubBlock
+                        blockId={blockId}
+                        config={subBlock}
+                        isPreview
+                        subBlockValues={subBlocks}
+                        dependencyContext={dependencyContext}
+                        disabled
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+          {hasConnections && (
+            <ConnectionsPane>
               {connections.blocks.map((connection) => (
                 <ReferenceGroup
                   key={connection.blockId}
                   label={connection.blockName}
                   references={connection.fields}
                   copyable
+                  onFieldContextMenu={onReferenceContextMenu}
                 />
               ))}
               {connections.variables.length > 0 && (
-                <ReferenceGroup label='Variables' references={connections.variables} copyable />
+                <ReferenceGroup
+                  label='Variables'
+                  references={connections.variables}
+                  copyable
+                  onFieldContextMenu={onReferenceContextMenu}
+                />
               )}
               {connections.secrets.length > 0 && (
-                <ReferenceGroup label='Secrets' references={connections.secrets} copyable={false} />
+                <ReferenceGroup
+                  label='Secrets'
+                  references={connections.secrets}
+                  copyable={false}
+                  onFieldContextMenu={onReferenceContextMenu}
+                />
               )}
-            </section>
+            </ConnectionsPane>
           )}
+          <PointActionMenu
+            label='Value actions'
+            point={menu}
+            onClose={() => setMenu(null)}
+            actions={menu?.actions ?? []}
+          />
         </div>
       </PreviewScope>
     </ReactFlowProvider>

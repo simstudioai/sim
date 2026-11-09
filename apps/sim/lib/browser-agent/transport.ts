@@ -15,6 +15,7 @@
 import type {
   BrowserFindRequest,
   BrowserFindResult,
+  BrowserKnownSession,
   BrowserOmniboxFocusMode,
   BrowserPageState,
   BrowserPanelAction,
@@ -27,7 +28,9 @@ import type {
 } from '@sim/browser-protocol'
 import type {
   BrowserAddToChatPayload,
+  BrowserCredentialMetadata,
   BrowserDownloadsState,
+  BrowserSiteInfo,
   BrowserToolbarCommand,
   DesktopAppearanceTheme,
   SimDesktopBrowserAgentApi,
@@ -455,6 +458,14 @@ export function onBrowserAddToChat(
   )
 }
 
+/** Reveals a completed download without opening the downloaded file. */
+export function showBrowserDownloadInFolder(
+  downloadId: string,
+  scopeId = currentBrowserScopeId()
+): Promise<boolean> {
+  return bridge()?.showDownloadInFolder(downloadId, scopeId) ?? Promise.resolve(false)
+}
+
 /**
  * Subscribes to whether the active page can be filled with a saved password.
  * A bare boolean by design — the page learns nothing about which accounts
@@ -471,6 +482,54 @@ export function onBrowserFillAvailability(
       },
       scopeId
     ) ?? (() => {})
+  )
+}
+
+/**
+ * Asks the shell to open its native account chooser at a point in the window.
+ * Must be called straight from a click: the shell requires a live user gesture,
+ * and it performs the fill itself rather than handing anything back here.
+ */
+export function showBrowserCredentialChooser(
+  anchor: { x: number; y: number },
+  scopeId = currentBrowserScopeId()
+): void {
+  void getDesktopBridge()?.browserCredentials.showChooser(anchor, scopeId)
+}
+
+/**
+ * Reads what the omnibox suggests from: hosts the browser holds cookies for,
+ * and hosts with a saved password.
+ *
+ * Both already exist for other reasons, and neither is a record of where the
+ * user has been — this browser keeps no history. Password metadata never
+ * includes the password itself. Either source failing yields an empty list, so
+ * a broken lookup costs suggestions rather than the omnibox.
+ */
+export async function loadBrowserSuggestionSources(): Promise<{
+  sessions: BrowserKnownSession[]
+  credentials: BrowserCredentialMetadata[]
+  sites: BrowserSiteInfo[]
+}> {
+  const desktop = getDesktopBridge()
+  const [known, credentials, sites] = await Promise.all([
+    desktop?.browserAgent.getKnownSessions().catch(() => null) ?? null,
+    desktop?.browserCredentials.list().catch(() => []) ?? [],
+    desktop?.browserImport?.listSites().catch(() => []) ?? [],
+  ])
+  return { sessions: known?.sessions ?? [], credentials, sites }
+}
+
+/**
+ * Requests live Google completions through the desktop shell. Older shells and
+ * disabled/offline providers resolve to an empty list, leaving local sites and
+ * ordinary Enter-to-search behavior intact.
+ */
+export function loadBrowserSearchSuggestions(query: string): Promise<string[]> {
+  return (
+    bridge()
+      ?.getSearchSuggestions?.(query)
+      .catch(() => []) ?? Promise.resolve([])
   )
 }
 

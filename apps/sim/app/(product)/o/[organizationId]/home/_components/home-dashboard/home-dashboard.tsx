@@ -18,6 +18,7 @@ import { CalendarDay } from '@/app/(product)/o/[organizationId]/home/_components
 import { ConnectedWidget } from '@/app/(product)/o/[organizationId]/home/_components/connected-widget/connected-widget'
 import { GetStarted } from '@/app/(product)/o/[organizationId]/home/_components/get-started/get-started'
 import styles from '@/app/(product)/o/[organizationId]/home/_components/home-dashboard/home-dashboard.module.css'
+import { HomeWorkspaces } from '@/app/(product)/o/[organizationId]/home/_components/home-workspaces/home-workspaces'
 import type {
   HomeActions,
   HomeView,
@@ -25,7 +26,7 @@ import type {
 import { RetryButton } from '@/app/(product)/o/[organizationId]/home/_components/retry-button/retry-button'
 import { SuggestedActions } from '@/app/(product)/o/[organizationId]/home/_components/suggested-actions/suggested-actions'
 
-const WIDGETS: readonly HomeWidget[] = ['Activity', 'Email', 'Calendar']
+const WIDGETS: readonly HomeWidget[] = ['Activity', 'Workspaces', 'Email', 'Calendar']
 const ACTIVITY_METRIC_TITLES: Record<HomeMode, string> = { Build: 'Tasks run', Search: 'Searches' }
 
 interface HomeDashboardProps {
@@ -59,8 +60,9 @@ export function HomeDashboard({
   const metricTitle = ACTIVITY_METRIC_TITLES[mode]
   const activity = view.activity[mode]
   const widgetLabel = (widget: HomeWidget) => (widget === 'Activity' ? metricTitle : widget)
-  const customizable = WIDGETS.filter(
-    (widget) => widget !== 'Activity' || activity.status !== 'hidden'
+  const noWorkspaces = view.workspaces.status === 'ready' && view.workspaces.items.length === 0
+  const customizable = WIDGETS.filter((widget) =>
+    widget === 'Activity' ? activity.status !== 'hidden' : widget !== 'Workspaces' || !noWorkspaces
   )
   function setVisible(widget: HomeWidget, visible: boolean) {
     const id = `hide-${widget}`
@@ -145,6 +147,13 @@ export function HomeDashboard({
                     onRetry={actions.retryActivity}
                     hidden={hiddenWidgets.includes('Activity')}
                   />
+                  {!hiddenWidgets.includes('Workspaces') && (
+                    <HomeWorkspaces
+                      state={view.workspaces}
+                      asOf={view.asOf}
+                      onRetry={actions.retryWorkspaces}
+                    />
+                  )}
                   {!hiddenWidgets.includes('Email') && (
                     <ConnectedWidget
                       title='Email'

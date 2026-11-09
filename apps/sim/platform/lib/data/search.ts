@@ -32,7 +32,6 @@ import {
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useOrganization } from '@/platform/lib/data/organization'
-import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSummaryQueue } from '@/platform/lib/data/search-summary'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
@@ -338,7 +337,7 @@ export function useSearchField({ query, searching, onSubmit, onStop }: SearchFie
   const { data: session } = useSession()
   const userId = session?.user?.id ?? ''
   const hydrated = useHydrated()
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const drafts = searchDraftKeys(userId, organization.organization.id)
   const latest = useMothershipDraftsStore((state) => state.drafts[drafts.latest])
   const owner = query || latest?.searchQuery || ''
@@ -391,18 +390,4 @@ export function useSearchTabResults(resource: PlatformResource): SearchResultsDa
     nativeQueries: search?.nativeQueries,
     reuseFreshResult: true,
   })
-}
-
-/** Home's Search entry: a submitted query, recorded as Search's own field records one. */
-export function useStartSearch(): ((query: string) => void) | null {
-  const organization = useOrganization()
-  const organizationId = organization.organization.id
-  const { data: session } = useSession()
-  const record = useRecordSearchHistory(organizationId, session?.user?.id)
-  const router = useRouter()
-  if (!organization.searchAccess.memberScoped) return null
-  return (query) => {
-    record.mutate({ kind: 'query', query })
-    router.push(`${surfaceHref(organization, '/search')}?${new URLSearchParams({ q: query })}`)
-  }
 }

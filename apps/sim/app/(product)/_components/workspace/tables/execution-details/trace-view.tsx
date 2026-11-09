@@ -41,7 +41,7 @@ import {
 } from '@/app/(product)/_components/workspace/trace-tree/trace-tree'
 import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import { formatCreditCost, normalizeToolId, type TraceSpan } from '@/platform/lib/data/tables'
-import { isCustomBlockType } from '@/platform/lib/data/workflows'
+import { isCustomBlockType } from '@/platform/lib/data/workflows/records'
 import { formatClockTime } from '@/platform/shared/time'
 
 /** Why a custom block's steps are absent; a joined child run is its own evidence. */
