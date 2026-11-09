@@ -6,7 +6,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
-import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { FailureNotice, StatusText } from '@sim/emcn/status'
 import { usePersonalAccountsList } from '@/platform/shared/account'
 
 const COLUMNS = [
@@ -54,7 +54,9 @@ export function OrganizationAccounts() {
                   {account.service}
                 </TableLabel>
               ),
-              status: account.status ? <StatusTag label={account.status} intent='warning' /> : null,
+              status: account.status ? (
+                <StatusText label={account.status} intent='warning' />
+              ) : null,
             },
             action: account.canDisconnect ? (
               <ActionMenu

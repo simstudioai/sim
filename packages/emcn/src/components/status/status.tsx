@@ -30,17 +30,16 @@ export function StatusTag({ label, intent = 'neutral', live, leading }: StatusTa
 interface StatusTextProps {
   label: string
   intent?: StatusIntent
-  /** Announce changes to this state, for a status that updates while it is on screen. */
-  live?: boolean
 }
 
 /**
  * A state inside a table cell, list row or grid, as text in its semantic ink with no badge or glyph,
- * as Paper's run rows show a run's status. A settled state reads in secondary ink.
+ * as Paper's run rows show a run's status. A settled state reads in secondary ink, and the text takes
+ * its surrounding type role.
  */
-export function StatusText({ label, intent = 'neutral', live }: StatusTextProps) {
+export function StatusText({ label, intent = 'neutral' }: StatusTextProps) {
   return (
-    <span className={styles.text} data-intent={intent} role={live ? 'status' : undefined}>
+    <span className={styles.text} data-intent={intent}>
       {label}
     </span>
   )

@@ -42,6 +42,13 @@
   min-inline-size: 0;
   overflow-wrap: anywhere;
 }
+/* A running sync keeps its spinner beside the state, whatever the state says. */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-stack-gap);
+  vertical-align: bottom;
+}
 /* Whatever a connector needs before it can sync again, on the text edge under its row. */
 .attention {
   display: grid;

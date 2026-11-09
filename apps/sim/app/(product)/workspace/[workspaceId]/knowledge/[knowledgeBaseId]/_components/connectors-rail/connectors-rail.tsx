@@ -87,11 +87,10 @@ export function ConnectorsRail({
                     <span className={styles.detail}>
                       {source && <OverflowText text={source}>{source}</OverflowText>}
                       <span className={styles.state}>
-                        <StatusText
-                          label={status.label}
-                          intent={status.intent}
-                          live={state.syncInFlight}
-                        />
+                        <span className={styles.status}>
+                          {state.syncInFlight && <Spinner />}
+                          <StatusText label={status.label} intent={status.intent} />
+                        </span>
                         {[state.syncsPerMember && 'Per member', lastSync]
                           .filter(Boolean)
                           .map((part) => ` · ${part}`)

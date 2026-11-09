@@ -450,6 +450,11 @@ function DeployDialog({
         onConfirm={footer.onConfirm}
         submitOnEnter={current === 'chat' || current === 'mcp'}
       >
+        <DeployStatus
+          isDeployed={isDeployed}
+          attemptStatus={attemptStatus}
+          attemptError={attemptError}
+        />
         <ContentTabs
           label='Deployment settings'
           current={current}
@@ -463,11 +468,6 @@ function DeployDialog({
               <div className={styles.pane}>
                 {entry.id === 'general' && (
                   <>
-                    <DeployStatus
-                      isDeployed={isDeployed}
-                      attemptStatus={attemptStatus}
-                      attemptError={attemptError}
-                    />
                     {deployError && <InlineNotice intent='danger' message={deployError} />}
                     {blockedMessage && <InlineNotice intent='warning' message={blockedMessage} />}
                     {versions.length > 0 ? (
