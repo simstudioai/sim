@@ -41,7 +41,7 @@ export interface TurnReceiptsProps {
 }
 
 /** An action still waiting for review, shown as its review card where its receipt would be. */
-export interface PendingReviewCard {
+interface PendingReviewCard {
   id: string
   sequence?: number
   card: ReactNode
