@@ -55,3 +55,5 @@ export const FIXTURE_SERVER_ENV = {
   NEXT_TELEMETRY_DISABLED: '1',
 }
 export const FIXTURE_READY_TIMEOUT_MS = 600_000
+/** The 3-core macOS runner the Electron checks need compiles the same app well past that. */
+export const DESKTOP_FIXTURE_READY_TIMEOUT_MS = 1_200_000

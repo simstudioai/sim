@@ -1,8 +1,8 @@
 import path from 'node:path'
 import { defineConfig } from '@playwright/test'
 import {
+  DESKTOP_FIXTURE_READY_TIMEOUT_MS,
   DESKTOP_PORT,
-  FIXTURE_READY_TIMEOUT_MS,
   FIXTURE_SERVER_ENV,
   fixtureServer,
 } from '@/platform/checks/routes'
@@ -23,7 +23,7 @@ export default defineConfig({
         command: fixtureServer(DESKTOP_PORT),
         cwd: appRoot,
         env: FIXTURE_SERVER_ENV,
-        timeout: FIXTURE_READY_TIMEOUT_MS,
+        timeout: DESKTOP_FIXTURE_READY_TIMEOUT_MS,
         url: `http://127.0.0.1:${DESKTOP_PORT}/api/health`,
       },
 })
