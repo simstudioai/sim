@@ -175,13 +175,30 @@ export function useActivitySummary(
     unavailable: isApiClientError(query.error) && query.error.status === 404,
     workspaceName: query.data?.workspace?.name,
     metrics: [
-      { label: 'Workflow runs', value: totals?.workflowRuns.toLocaleString() ?? '—' },
-      { label: 'Chat runs', value: totals?.chatRuns.toLocaleString() ?? '—' },
-      { label: 'Chat members', value: totals?.chatMembers.toLocaleString() ?? '—' },
-      { label: 'Failure rate', value: formatFailureRate(totals?.failureRate ?? null) },
+      {
+        label: 'Workflow runs',
+        value: totals?.workflowRuns.toLocaleString() ?? '—',
+        description: 'Retained executions, grouped by start date.',
+      },
+      {
+        label: 'Chat runs',
+        value: totals?.chatRuns.toLocaleString() ?? '—',
+        description: 'Recorded executions in organization chats. Continuations count once.',
+      },
+      {
+        label: 'Chat members',
+        value: totals?.chatMembers.toLocaleString() ?? '—',
+        description: 'Members with recorded chat runs in this period.',
+      },
+      {
+        label: 'Failure rate',
+        value: formatFailureRate(totals?.failureRate ?? null),
+        description: 'Failed workflows as a share of completed and failed workflows.',
+      },
       {
         label: 'Avg. duration',
         value: formatDurationMs(totals?.averageDurationMs ?? null),
+        description: 'Completed and failed workflows with a recorded duration.',
       },
     ],
     outcomeSeries: ['Completed', 'Failed', 'Other'],

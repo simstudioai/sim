@@ -1,6 +1,7 @@
 import { organizationSupportsSettingsSection } from '@/lib/settings/section-availability'
 import type { SettingsNavGroup, SettingsNavItem } from '@/app/(product)/_components/model'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import { settingsSearchEntries } from '@/platform/shared/settings-search'
 
 /** The order and labels of the organization Settings sidebar; the surface owns visibility. */
 const LIVE_SETTINGS = [
@@ -101,6 +102,10 @@ function isVisible(entry: LiveSetting, organization: PlatformOrganization): bool
 }
 
 export function resolveSettingsNavigation(organization: PlatformOrganization): SettingsNavGroup[] {
+  const viewer = {
+    isAdmin: organization.viewer.isAdmin,
+    hosted: organization.deployment.hosted,
+  }
   return LIVE_SETTINGS.map((group) => ({
     label: group.label,
     items: (group.items as readonly LiveSetting[])
@@ -109,6 +114,7 @@ export function resolveSettingsNavigation(organization: PlatformOrganization): S
         key: entry.key,
         title: entry.title,
         icon: entry.icon,
+        search: settingsSearchEntries(entry.key, viewer),
         ...('desktop' in entry ? { desktop: entry.desktop } : {}),
       })),
   })).filter((group) => group.items.length > 0)

@@ -1,6 +1,7 @@
 import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import type { Appearance } from '@/platform/lib/navigation'
+import type { SettingsSearchEntry } from '@/platform/shared/settings-search'
 import type { ShellDestination, ShellItem, ShellQueryStatus } from '@/platform/shared/shell'
 
 export type HomeMode = 'Build' | 'Search'
@@ -50,6 +51,8 @@ export interface SettingsNavItem {
   href?: string
   /** Listed only in the desktop app, when its bridge offers this surface. */
   desktop?: 'settings' | 'browser' | 'terminal'
+  /** The settings inside the section that Settings search finds, as this viewer is shown them. */
+  search?: readonly SettingsSearchEntry[]
 }
 
 export interface SettingsNavGroup {
@@ -166,4 +169,8 @@ export interface ShellActions {
   requestLeave: (leave: () => void) => void
   /** The accessible destination for a viewer who opened Settings directly. */
   settingsLanding: string
+  /** Reads a navigation destination's page ahead of an intended open. Returns how to call it off. */
+  warmDestination?: (destinationId: string) => () => void
+  /** Reads a Settings section's route and data as a menu holding its entry opens. */
+  warmSettings?: (section: 'general' | 'members') => void
 }

@@ -2,7 +2,11 @@
 
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
-import type { PlatformResource } from '@/app/(product)/_components/chat/model'
+import type {
+  ChatSource,
+  PlatformResource,
+  PlatformTurn,
+} from '@/app/(product)/_components/chat/model'
 import type { PanelResources } from '@/app/(product)/_components/chat/panel/model'
 import type { useChat } from '@/hooks/mothership-chat/use-chat'
 import type {
@@ -23,8 +27,25 @@ function resourceHref(resource: MothershipResource): string | undefined {
     : `/workspace/${encodeURIComponent(resource.workspaceId)}/home?resource=${encodeURIComponent(resource.id)}`
 }
 
+/** A Sources tab lists what its answer cited; the transcript already holds that evidence. */
+function citedBy(
+  resource: MothershipResource,
+  turns: readonly PlatformTurn[]
+): readonly ChatSource[] | undefined {
+  const address = resource.sources
+  if (resource.type !== 'sources' || !address) return undefined
+  const answer = turns.find(
+    (turn) =>
+      turn.role === 'assistant' &&
+      (turn.id === address.messageId ||
+        (address.requestId !== undefined && turn.requestId === address.requestId))
+  )
+  return answer?.role === 'assistant' ? (answer.sources ?? []) : []
+}
+
 interface PanelResourcesOptions {
   chat: ReturnType<typeof useChat>
+  turns: readonly PlatformTurn[]
   panel: ReturnType<typeof useChatResourcePanel>
   controller: ReturnType<typeof useResourcePanelController>
 }
@@ -32,6 +53,7 @@ interface PanelResourcesOptions {
 /** The hook's tabs as the panel reads them. Selection stays in `?resource=`, owned by the hook. */
 export function usePanelResources({
   chat,
+  turns,
   panel,
   controller,
 }: PanelResourcesOptions): PanelResources {
@@ -43,6 +65,7 @@ export function usePanelResources({
     href: resourceHref(resource),
     active: resource.id === chat.activeResourceId,
     search: resource.search,
+    sources: citedBy(resource, turns),
   }))
   return {
     resources,
