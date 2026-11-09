@@ -6,7 +6,7 @@ import { PERSONAL_ORGANIZATION_AUDIT_EVENT } from '@/lib/organizations/lifecycle
 
 const personalOrganizationAuditSchema = z
   .object({
-    change: z.enum(['created', 'converted', 'retired']),
+    change: z.enum(['created', 'converted', 'retired', 'reverted']),
     organizationId: z.string().min(1),
     userId: z.string().min(1),
     metadata: z.record(z.string(), z.unknown()),
@@ -28,10 +28,14 @@ const AUDIT_ENTRY = {
     action: AuditAction.ORGANIZATION_DELETED,
     description: 'Personal organization retired on joining another organization',
   },
+  reverted: {
+    action: AuditAction.ORGANIZATION_DELETED,
+    description: 'Personal organization removed by the personal organization rollback',
+  },
 } as const
 
 /**
- * Records a personal organization's creation, conversion into a team, or retirement once the
+ * Records a personal organization's creation, conversion into a team, retirement or rollback once the
  * caller's transaction commits: the entry is queued in that transaction, so a rollback records
  * nothing, and written by the outbox worker after commit, keyed by the event so a retry writes it
  * once. Every lifecycle change happens inside a membership transaction its many callers own, which

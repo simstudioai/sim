@@ -356,17 +356,24 @@ async function moveOrganizationContentTx(
       sql`DELETE FROM ${table} WHERE ${organizationId} = ${from}`
     )
   }
-  /**
-   * A pending invitation to a personal workspace keeps inviting to it, recorded without an
-   * organization as an organization-less workspace's invitation is; one to the personal
-   * organization itself has nothing left to admit anyone to.
-   */
+  await releasePersonalOrganizationInvitationsTx(tx, from)
+  return { moved, deleted }
+}
+
+/**
+ * A pending invitation to a personal workspace keeps inviting to it, recorded without an
+ * organization as an organization-less workspace's invitation is; one to the personal organization
+ * itself has nothing left to admit anyone to.
+ */
+export async function releasePersonalOrganizationInvitationsTx(
+  tx: DbTransaction,
+  organizationId: string
+) {
   await tx
     .update(invitation)
     .set({ organizationId: null, updatedAt: new Date() })
-    .where(and(eq(invitation.organizationId, from), eq(invitation.kind, 'workspace')))
-  await tx.delete(invitation).where(eq(invitation.organizationId, from))
-  return { moved, deleted }
+    .where(and(eq(invitation.organizationId, organizationId), eq(invitation.kind, 'workspace')))
+  await tx.delete(invitation).where(eq(invitation.organizationId, organizationId))
 }
 
 interface CascadingReference {
@@ -417,6 +424,31 @@ function loadCascadingReferences(tx: DbTransaction): Promise<CascadingReference[
 }
 
 /**
+ * The first table, by name, still holding rows that deleting the organization would delete with it
+ * (its membership aside), or null when there are none: one statement over every cascading
+ * reference.
+ */
+export async function findCascadingOrganizationContentTx(
+  tx: DbTransaction,
+  organizationId: string
+): Promise<string | null> {
+  const references = await loadCascadingReferences(tx)
+  if (references.length === 0) return null
+  const probes = sql.join(
+    references.map(
+      ({ schema, table, column }) => sql`
+        SELECT ${table}::text AS table_name WHERE EXISTS (
+          SELECT 1 FROM ${sql.identifier(schema)}.${sql.identifier(table)}
+          WHERE ${sql.identifier(column)} = ${organizationId}
+        )`
+    ),
+    sql` UNION ALL `
+  )
+  const [remaining] = await tx.execute<{ table_name: string }>(sql`${probes} LIMIT 1`)
+  return remaining?.table_name ?? null
+}
+
+/**
  * Proves nothing would cascade away with the personal organization: every table whose rows its
  * deletion would delete must hold none of them by now (its membership aside), checked in one
  * statement. Every such table is moved, keyed, deleted as organization-bound (above), or refused on
@@ -433,23 +465,11 @@ async function assertNothingCascadesTx(tx: DbTransaction, organizationId: string
   if (members.length > 1) {
     throw new OrchestrationError('conflict', 'A personal organization has more than one member.')
   }
-  const references = await loadCascadingReferences(tx)
-  if (references.length === 0) return
-  const probes = sql.join(
-    references.map(
-      ({ schema, table, column }) => sql`
-        SELECT ${table}::text AS table_name WHERE EXISTS (
-          SELECT 1 FROM ${sql.identifier(schema)}.${sql.identifier(table)}
-          WHERE ${sql.identifier(column)} = ${organizationId}
-        )`
-    ),
-    sql` UNION ALL `
-  )
-  const [remaining] = await tx.execute<{ table_name: string }>(sql`${probes} LIMIT 1`)
-  if (remaining) {
+  const table = await findCascadingOrganizationContentTx(tx, organizationId)
+  if (table) {
     logger.error('Personal organization holds rows that would cascade away on retirement', {
       organizationId,
-      table: remaining.table_name,
+      table,
     })
     throw new OrchestrationError(
       'conflict',
