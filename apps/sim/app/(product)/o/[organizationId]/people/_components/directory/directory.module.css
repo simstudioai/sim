@@ -63,8 +63,8 @@
 }
 
 .summary {
-  gap: var(--spacing-2);
-  margin-block-start: var(--spacing-4);
+  gap: var(--ui-stack-gap);
+  margin-block-start: var(--ui-stack-gap);
   color: var(--ui-secondary);
   overflow-wrap: anywhere;
 }
