@@ -496,8 +496,9 @@ export async function getWorkspaceCreationPolicy({
    * capped and billed to their creator exactly as personal workspaces, and land in it. A pinned
    * request keeps the exact organization it names — a fork stays in its source's Project, so a
    * collaborator's fork of someone's personal workspace lands beside it, billed to the
-   * collaborator, as it did when both were organization-less. With the `personal-organizations`
-   * flag off, a new workspace stays organization-less even for someone who holds one.
+   * collaborator, as it did when both were organization-less. While the
+   * `pause-personal-organizations` flag is on, a new workspace stays organization-less even for
+   * someone who holds one.
    */
   const requestedIsPersonal =
     requestedOrganizationId !== null &&
@@ -506,7 +507,7 @@ export async function getWorkspaceCreationPolicy({
     ? requestedIsPersonal
       ? requestedOrganizationId
       : null
-    : membership?.kind === 'personal' && (await isFeatureEnabled('personal-organizations'))
+    : membership?.kind === 'personal' && !(await isFeatureEnabled('pause-personal-organizations'))
       ? membership.organizationId
       : null
   const organizationId = requestedIsPersonal ? null : requestedOrganizationId

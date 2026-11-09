@@ -72,10 +72,10 @@ const FEATURE_FLAGS = {
       'Enable organization links: the Links page and sim/<name> and go/<name> redirects. Supports organization rollout; disabled by default.',
     fallback: 'SIM_LINKS',
   },
-  'personal-organizations': {
+  'pause-personal-organizations': {
     description:
-      'Give accounts outside a team their personal organization (at signup, in the product shell, on leaving a team, and through the backfill) and create their new personal workspaces in it. Turned on globally once every process runs the release that bills personal organizations to their owner; disabled by default.',
-    fallback: 'PERSONAL_ORGANIZATIONS',
+      'Stop creating personal organizations (at signup, in the product shell, on leaving a team, and through the backfill) and placing new personal workspaces in them. Turned on only to roll the release back, before running scripts/revert-personal-organizations.ts; off by default.',
+    fallback: 'PAUSE_PERSONAL_ORGANIZATIONS',
   },
   people: {
     description:

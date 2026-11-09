@@ -106,8 +106,6 @@ start_app() {
   export NEXT_PUBLIC_APP_URL="${E2E_APP_PUBLIC_URL:-$local_app_url}"
   export BETTER_AUTH_URL="$NEXT_PUBLIC_APP_URL"
   export DISABLE_TELEMETRY=true NEXT_TELEMETRY_DISABLED=1
-  # Every suite runs the release with personal organizations on, as production will after cutover.
-  export PERSONAL_ORGANIZATIONS=true
   if [ "$app_server" = start ]; then
     if [ ! -f .next/BUILD_ID ]; then
       echo "::error::No production build in apps/sim/.next for next start."

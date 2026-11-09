@@ -1,6 +1,5 @@
 /**
- * With the `personal-organizations` flag off, as during the rolling deploy before every process
- * bills a personal organization to its owner (and after turning it back off to roll back), nothing
+ * With the `pause-personal-organizations` flag on, as before rolling the release back, nothing
  * creates a personal organization and nobody's new workspace lands in one.
  */
 import { db } from '@sim/db'
@@ -10,7 +9,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
 vi.hoisted(() => {
-  process.env.PERSONAL_ORGANIZATIONS = 'false'
+  process.env.PAUSE_PERSONAL_ORGANIZATIONS = 'true'
 })
 
 import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
@@ -41,7 +40,7 @@ afterAll(async () => {
   if (userIds.length > 0) await db.delete(user).where(inArray(user.id, userIds))
 })
 
-describe('personal organizations switched off', () => {
+describe('personal organizations paused', () => {
   it('provisions none at signup or in the product shell', async () => {
     const userId = await createUser()
 

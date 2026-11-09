@@ -82,17 +82,16 @@ function personalOrganizationName(row: { name: string | null; email: string }): 
 /**
  * Creates the personal organization of a user who belongs to no organization, with them as owner.
  * Returns null, writing nothing, when they already belong to one, no longer exist, or the
- * `personal-organizations` flag is off: until every process runs the release that bills a personal
- * organization to its owner, nothing creates one (signup, the product shell, leaving a team, the
- * backfill), and those accounts stay organization-less as before. Takes the user's
- * billing-identity lock, the fence every membership change holds.
+ * `pause-personal-organizations` flag is on to roll the release back: then nothing creates one
+ * (signup, the product shell, leaving a team, the backfill). Takes the user's billing-identity
+ * lock, the fence every membership change holds.
  */
 export async function createPersonalOrganizationTx(
   tx: DbTransaction,
   userId: string,
   organizationId = `org_${generateId()}`
 ): Promise<string | null> {
-  if (!(await isFeatureEnabled('personal-organizations'))) return null
+  if (await isFeatureEnabled('pause-personal-organizations')) return null
   await acquireUserBillingIdentityLock(tx, userId)
   const [existing] = await tx
     .select({ id: member.id })

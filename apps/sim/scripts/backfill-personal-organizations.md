@@ -14,18 +14,19 @@ that holds its personal workspaces. The release that introduces it must roll out
    `lock_timeout`, so installing a trigger fails fast instead of queueing traffic behind its lock;
    rerun on a timeout.
 2. **Every process on the new release, fully rolled out**: the app, background workers and
-   Trigger.dev tasks. Deploy workers and tasks with or before the app, never after it. The
-   `personal-organizations` flag is still off, so nothing creates a personal organization yet.
-3. **Turn the `personal-organizations` flag on** (AppConfig `enabled: true`; self-hosted
-   deployments set `PERSONAL_ORGANIZATIONS=true`). From here signup, the product shell, leaving a
-   team and the backfill create personal organizations, and new personal workspaces land in them.
-4. **Dry run** `scripts/backfill-personal-organizations.ts` (no `--apply`): prints the number of
+   Trigger.dev tasks. Deploy workers and tasks with or before the app, never after it, and keep the
+   rollout short: until it finishes, a process on the previous release reads a personal
+   organization the new release created as a team without a plan, and refuses that person's
+   invitation or SSO join. From here signup, the product shell, leaving a team and the backfill
+   create personal organizations, and new personal workspaces land in them. The release serves the
+   Platform UI; anyone the backfill has not reached yet is provisioned on their first visit.
+3. **Dry run** `scripts/backfill-personal-organizations.ts` (no `--apply`): prints the number of
    accounts still to provision.
-5. **Backfill** with `--apply --report <path>`, in batches (`--batch-size`, default 200). It is
+4. **Backfill** with `--apply --report <path>`, in batches (`--batch-size`, default 200). It is
    idempotent and resumable (`--after <cursor>` from the last printed cursor); rerun until the dry
    run reports zero, and review `skippedWorkspaceIds` (Projects shared across owners) and
    `failures` in the report.
-6. **Verify** (read-only):
+5. **Verify** (read-only):
 
    ```sql
    -- Accounts in no organization (expect only accounts created since, which the shell
@@ -43,8 +44,6 @@ that holds its personal workspaces. The release that introduces it must roll out
    SELECT count(*) FROM workspace w JOIN organization o ON o.id = w.organization_id
    WHERE o.kind = 'personal' AND w.workspace_mode <> 'personal';
    ```
-
-7. **Open the Platform UI** to everyone.
 
 ## Why the order matters
 
@@ -71,10 +70,11 @@ backfill nor a rollback touches chats.
 
 Revert in the reverse order, before rolling the release back:
 
-1. **Turn the `personal-organizations` flag off**, so nothing creates a personal organization again
-   and new personal workspaces are created organization-less.
+1. **Turn the `pause-personal-organizations` flag on** (AppConfig `enabled: true`; self-hosted
+   deployments set `PAUSE_PERSONAL_ORGANIZATIONS=true`), so nothing creates a personal organization
+   again and new personal workspaces are created organization-less.
 2. **Dry run** `scripts/revert-personal-organizations.ts` (no `--apply`): prints the number of
-   personal organizations still to revert. `--apply` refuses while the flag is on.
+   personal organizations still to revert. `--apply` refuses while the flag is off.
 3. **Revert** with `--apply --report <path>` (batched, idempotent, resumable with `--after`). Each
    personal organization's workspaces (and Projects) return to organization-less personal, its
    invitations are released, and the organization and its owner membership are deleted, under the

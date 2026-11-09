@@ -7,8 +7,8 @@
  * every account again. The inverse of `scripts/backfill-personal-organizations.ts`; the runbook is
  * `scripts/backfill-personal-organizations.md`.
  *
- * Turn the `personal-organizations` flag off first, or the product shell provisions a new personal
- * organization for anyone this script leaves in none; `--apply` refuses while it is on.
+ * Turn the `pause-personal-organizations` flag on first, or the product shell provisions a new
+ * personal organization for anyone this script leaves in none; `--apply` refuses while it is off.
  *
  * A personal organization holding content of its own (organization chats, memory spaces, Search,
  * go links, ...) is skipped and reported with the first table found, because deleting it would
@@ -183,8 +183,8 @@ async function main(): Promise<void> {
     logger.info('See the header of scripts/revert-personal-organizations.ts for usage')
     return
   }
-  if (options.apply && (await isFeatureEnabled('personal-organizations'))) {
-    throw new Error('Turn the personal-organizations flag off before applying the rollback')
+  if (options.apply && !(await isFeatureEnabled('pause-personal-organizations'))) {
+    throw new Error('Turn the pause-personal-organizations flag on before applying the rollback')
   }
 
   const report: RevertReport = {
