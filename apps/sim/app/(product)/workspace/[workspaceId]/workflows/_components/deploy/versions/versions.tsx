@@ -1,13 +1,11 @@
 'use client'
 
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
-import { IconButton } from '@sim/emcn/button'
 import { DataTable } from '@sim/emcn/data-display'
 import { Input } from '@sim/emcn/field/inputs'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { StatusTag } from '@sim/emcn/status'
-import { Tooltip } from '@sim/emcn/tooltip'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/versions/versions.module.css'
 import {
   type DeploymentVersion,
@@ -48,8 +46,7 @@ interface RenameState {
 
 /**
  * Every deployment of the workflow, newest first: its number, name and state, who deployed it and
- * when, with a description action and a menu to rename, describe, compare, promote it to live or load
- * it into the editor.
+ * when, with a menu to rename, describe, compare, promote it to live or load it into the editor.
  */
 export function Versions({
   workflowId,
@@ -155,24 +152,14 @@ export function Versions({
         ),
       },
       action: (
-        <>
-          <Tooltip label={version.description || 'Add description'}>
-            <IconButton
-              label={version.description ? 'Edit description' : 'Add description'}
-              icon='I075'
-              size='compact'
-              onClick={() => onDescribe(version.version)}
-            />
-          </Tooltip>
-          <ActionMenu
-            label={`Actions for v${version.version}`}
-            icon='I108'
-            align='end'
-            triggerSize='compact'
-            disabled={isPromotingVersion}
-            actions={actions}
-          />
-        </>
+        <ActionMenu
+          label={`Actions for v${version.version}`}
+          icon='I108'
+          align='end'
+          triggerSize='compact'
+          disabled={isPromotingVersion}
+          actions={actions}
+        />
       ),
     }
   })
