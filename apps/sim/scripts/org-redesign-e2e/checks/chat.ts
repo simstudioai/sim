@@ -95,11 +95,10 @@ export async function chatChecks() {
         await page.goto(url(org.searchChat(MEMBER_CHATS.assistant.id)))
         await expect(modeRadio(page, 'Assistant')).toBeChecked()
         await expect(composer(page)).toHaveAttribute('placeholder', 'Ask a follow-up…')
-        await expect(
-          page
-            .getByRole('button', { name: 'Attach image' })
-            .or(page.getByRole('button', { name: 'Add attachment' }))
-        ).toBeHidden()
+        // The Assistant takes images only: its attach button says so, and it offers no skills.
+        await expect(page.getByRole('button', { name: 'Attach image', exact: true })).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Attach file', exact: true })).toHaveCount(0)
+        await expect(page.getByRole('button', { name: 'Skills', exact: true })).toHaveCount(0)
         const newChat = page.getByRole('button', { name: 'New chat', exact: true })
         await expect(newChat).toBeVisible()
         await newChat.click()

@@ -712,12 +712,25 @@ export async function homeChecks() {
       await expect(field).toHaveValue(/Operations/)
     })
   })
-  await check('the handoff search params restore a results tab on Home', async () => {
+  // Legacy Home was a new chat with a resource panel; that panel lives on the new chat now.
+  await check('the handoff search params restore a results tab in a new chat', async () => {
     await withSession(ADMIN, async ({ page }) => {
       await stubSearch(page)
-      await page.goto(url(`${org.home}?q=parts`))
+      const resource = `search:organization:${ORGANIZATION_ID}`
+      await page.goto(url(`${org.home}?${new URLSearchParams({ q: 'parts', resource })}`))
+      await expect(page).toHaveURL(
+        (address) =>
+          address.pathname === org.newChat &&
+          address.searchParams.get('q') === 'parts' &&
+          address.searchParams.get('resource') === resource
+      )
       await expect(composer(page)).toBeVisible()
-      await expect(page.getByText('Service bulletin', { exact: true }).first()).toBeVisible()
+      await expect(
+        page
+          .getByRole('complementary', { name: 'Chat panel' })
+          .getByText('Service bulletin', { exact: true })
+          .first()
+      ).toBeVisible()
     })
   })
   notProvable('Plan chip', 'Only for platform superusers, which needs a platform admin fixture')

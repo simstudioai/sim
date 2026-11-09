@@ -36,6 +36,9 @@
   gap: var(--ui-product-section-gap);
   overflow-wrap: anywhere;
 }
+.landing {
+  padding-block-start: var(--ui-page-inset-block);
+}
 .turn:last-child {
   margin-block-end: var(--ui-product-section-gap);
 }

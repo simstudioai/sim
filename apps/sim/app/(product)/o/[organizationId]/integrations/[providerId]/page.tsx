@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import type { ProductPageProps } from '@/platform/lib/route-props'
 
-export const metadata: Metadata = { title: 'Integrations' }
+/** A Slack onboarding token rides in the query, so it never leaves in a Referer. */
+export const metadata: Metadata = { title: 'Integrations', referrer: 'no-referrer' }
 
 export default async function Page({
   params,

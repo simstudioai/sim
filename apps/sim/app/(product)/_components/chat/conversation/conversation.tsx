@@ -50,9 +50,17 @@ interface ConversationProps {
   placeholders: { first: string; followUp: string; running: string }
   /** Replaces the title, for a surface with its own header controls. */
   header?: ReactNode
+  /** What a conversation with no turns yet shows above its composer. */
+  landing?: ReactNode
 }
 
-export function Conversation({ runtime, composer, placeholders, header }: ConversationProps) {
+export function Conversation({
+  runtime,
+  composer,
+  placeholders,
+  header,
+  landing,
+}: ConversationProps) {
   const viewport = useRef<HTMLDivElement>(null)
   const reading = useScrollEdges('vertical', { viewport, tabStop: true })
   const [earlier, setEarlier] = useState(false)
@@ -124,6 +132,9 @@ export function Conversation({ runtime, composer, placeholders, header }: Conver
                     </Button>
                   }
                 />
+              )}
+              {!turns.length && !runtime.loadFailed && landing && (
+                <div className={styles.landing}>{landing}</div>
               )}
               {groupExchanges(turns).map((exchange) => (
                 <article key={exchange[0].id} className={styles.turn}>

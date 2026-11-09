@@ -73,7 +73,7 @@ export async function searchChecks() {
       await modeRadio(page, 'Search').click()
     })
   })
-  await check('field grows on Shift+Enter, Enter submits, a query docks the field', async () => {
+  await check('field grows on Shift+Enter, Enter submits, results follow the field', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await stubSearch(page)
       await page.goto(searchUrl({ mode: 'search' }))
@@ -89,9 +89,9 @@ export async function searchChecks() {
       await expect(page).toHaveURL(
         (address) => address.searchParams.get('q')?.includes('Parts') ?? false
       )
-      await expect(page.getByRole('heading', { name: `Search ${ORGANIZATION_NAME}` })).toHaveCount(
-        0
-      )
+      // The page header keeps its heading; the results take the column under the field.
+      await expect(page.getByRole('heading', { name: `Search ${ORGANIZATION_NAME}` })).toBeVisible()
+      await expect(page.getByRole('region', { name: 'Search results' })).toBeVisible()
       const newSearch = page.getByRole('search').getByRole('button', { name: 'New search' })
       await expect(newSearch).toBeVisible()
       await newSearch.click()

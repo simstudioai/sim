@@ -14,6 +14,8 @@ import { ResourceMenu } from '@/app/(product)/_components/composer/resource-menu
 
 interface ResourcePanelsProps {
   panel: PanelResources
+  /** Whether the conversation offers its open control before any resource has arrived. */
+  alwaysOpenable: boolean
   children: ReactNode
 }
 
@@ -21,7 +23,7 @@ interface ResourcePanelsProps {
  * The panel over a chat's real resources. Its tabs and selection belong to the chat hook; its
  * width belongs to the divider, which keeps a width per viewer and chat.
  */
-export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
+export function ResourcePanels({ panel, alwaysOpenable, children }: ResourcePanelsProps) {
   const { resources, collapsed, onSelect, onRemove, onReorder, onExpand, onCollapse, resize } =
     panel
   const [expanded, setExpanded] = useState(false)
@@ -60,10 +62,14 @@ export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
   }))
   return (
     <OpenPanel.Provider
-      value={(element) => {
-        trigger.current = element
-        onExpand()
-      }}
+      value={
+        alwaysOpenable || resources.length
+          ? (element) => {
+              trigger.current = element
+              onExpand()
+            }
+          : null
+      }
     >
       <div
         className={styles.frame}

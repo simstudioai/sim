@@ -8,14 +8,14 @@ import type { ProductPageProps } from '@/platform/lib/route-props'
 export const metadata: Metadata = { title: 'Home' }
 
 export default async function Page({ searchParams }: ProductPageProps<{ organizationId: string }>) {
+  const query = await searchParams
   if (resolvePlatformMode() === 'live') {
     // Loaded only here, so a fixture server never evaluates the data seam.
     const { LiveHomeRoute } = await import(
       '@/app/(product)/o/[organizationId]/home/_components/live-home/live-home-route'
     )
-    return <LiveHomeRoute />
+    return <LiveHomeRoute searchParams={query} />
   }
-  const query = await searchParams
   const scenario = readScenario(query.state)
   const [data, recentLinks] = await Promise.all([
     loadConversationData(scenario),
