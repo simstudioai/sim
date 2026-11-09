@@ -943,3 +943,23 @@ it('names the allowlist entries no check consulted', () => {
     'LOCAL_TOKEN_OWNERS names x.css, which no check needed; delete the entry',
   ])
 })
+
+it('fails [prop-spread] for props passed through cloneElement or createElement', () => {
+  const { root, put, run } = productFixture()
+  const file = 'app/(product)/o/[organizationId]/home/_components/panel/clone.tsx'
+  try {
+    put(
+      file,
+      `import { cloneElement, createElement, type ReactElement } from 'react'
+      export const Clone = (child: ReactElement) => cloneElement(child, { variant: 'loud' })
+      export const Create = (props: object) => createElement('button', props)
+`
+    )
+    const result = run()
+    expect(result.status).toBe(1)
+    expect(result.output).toContain(`${file}:2 [prop-spread]`)
+    expect(result.output).toContain(`${file}:3 [prop-spread]`)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)

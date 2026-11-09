@@ -1115,6 +1115,14 @@ function checkJs(file: string, content: string) {
       report('product-copy', location(node), 'Keep development-mode messaging out of the product')
     if (inPlatform && ts.isJsxSpreadAttribute(node) && !ownsSvg(node.parent.parent))
       report('prop-spread', location(node), 'Pass named props explicitly')
+    if (
+      inPlatform &&
+      !isSystem(file) &&
+      ts.isCallExpression(node) &&
+      node.arguments.length > 1 &&
+      /^(?:React\.)?(?:cloneElement|createElement)$/.test(node.expression.getText(sf))
+    )
+      report('prop-spread', location(node), 'Render the component with its named props')
     if (inPlatform && (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))) {
       const tag = node.tagName.getText(sf)
       if (programSource && inRouteTree(file)) checkDialog(node, location)
