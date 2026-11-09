@@ -1,7 +1,7 @@
 'use client'
 
 import type { QueryClient } from '@tanstack/react-query'
-import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations'
+import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations-access'
 import {
   organizationDetailQueryOptions,
   organizationRosterQueryOptions,

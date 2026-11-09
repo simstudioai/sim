@@ -633,6 +633,7 @@ const seamHelpers = new Set([
   'lib/core/utils/validation',
   'lib/credential-groups/managed-mcp-connectors',
   'lib/credential-groups/member-integrations',
+  'lib/credential-groups/member-integrations-access',
   'lib/favicon/url',
   'lib/help-links',
   'lib/help/request',

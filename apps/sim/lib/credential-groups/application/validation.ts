@@ -1,9 +1,7 @@
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import {
-  CREDENTIAL_GROUP_PROVIDER_IDS,
-  isCredentialGroupProvider,
-} from '@/lib/credential-groups/providers'
+import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/provider-ids'
+import { isCredentialGroupProvider } from '@/lib/credential-groups/providers'
 import type {
   CredentialGroupOptionInput,
   CredentialGroupOptionUpdateInput,

@@ -13,10 +13,8 @@ import {
 } from '@/lib/core/resource-scope'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
-import {
-  type OrganizationCredentialType,
-  organizationOAuthCredentialType,
-} from '@/lib/credential-groups/credential-types'
+import { organizationOAuthCredentialType } from '@/lib/credential-groups/credential-type-catalog'
+import type { OrganizationCredentialType } from '@/lib/credential-groups/credential-types'
 import {
   type CredentialGroupProviderAdapter,
   CredentialGroupProviderConfigurationError,

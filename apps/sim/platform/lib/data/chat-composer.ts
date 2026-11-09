@@ -55,7 +55,7 @@ import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { useWorkspaceReferences } from '@/platform/lib/data/chat-references'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { useStartSearch } from '@/platform/lib/data/search'
+import { useStartSearch } from '@/platform/lib/data/search-start'
 import { attachmentKind } from '@/platform/shared/attachment-kind'
 import { readDraft, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import {
