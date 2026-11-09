@@ -11,6 +11,7 @@ const enterprise: OrganizationSettingsFeatures = {
   governanceActive: true,
   hosted: true,
   selfHosted: {},
+  personal: false,
 }
 
 describe('organization settings navigation', () => {
