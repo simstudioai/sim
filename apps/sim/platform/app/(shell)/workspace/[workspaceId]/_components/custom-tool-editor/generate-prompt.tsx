@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/custom-tool-modal.module.css'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-editor.module.css'
 
 interface GeneratePromptProps {
   isLoading: boolean

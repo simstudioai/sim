@@ -7,10 +7,10 @@ import { FieldFrame, TextAreaField } from '@sim/emcn/field'
 import { CopyField } from '@sim/emcn/field/value-fields'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { omit } from '@sim/utils/object'
+import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/code-field/code-field'
+import { highlightSyntax } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/code-field/highlight'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/api-tab/api-tab.module.css'
 import { OutputPicker } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/output-picker/output-picker'
-import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/code-field'
-import { highlightSyntax } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/highlight'
 import {
   AGENT_STREAM_PROTOCOL_HEADER_LABEL,
   AGENT_STREAM_PROTOCOL_V1,

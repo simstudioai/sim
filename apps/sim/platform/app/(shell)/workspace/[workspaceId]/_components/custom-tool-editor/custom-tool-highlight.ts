@@ -2,7 +2,7 @@ import { escapeRegExp } from '@sim/utils/string'
 import {
   escapeHtml,
   highlightSyntax,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/highlight'
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/code-field/highlight'
 import { createEnvVarPattern } from '@/platform/lib/data/workflow-editor'
 import {
   createWorkflowVariablePattern,

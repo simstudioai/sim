@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react'
 import Editor from 'react-simple-code-editor'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/code-field.module.css'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/code-field/code-field.module.css'
 
 /** Line-number digits the gutter has room for, beyond which it stops widening. */
 const MAX_GUTTER_DIGITS = 6

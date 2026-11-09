@@ -1,7 +1,17 @@
 'use client'
 
-import { type KeyboardEvent, type MouseEvent, useRef, useState } from 'react'
+import {
+  type KeyboardEvent,
+  type MouseEvent,
+  type ReactNode,
+  type RefObject,
+  useRef,
+  useState,
+} from 'react'
 import { StatusTag } from '@sim/emcn/status'
+import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/code-field/code-field'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-editor.module.css'
+import { highlightCustomToolCode } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-highlight'
 import { EnvVarDropdown } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/env-var-dropdown/env-var-dropdown'
 import {
   FieldPopover,
@@ -9,10 +19,6 @@ import {
   FieldPopoverRow,
   useActiveRowIntoView,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/field-popover/field-popover'
-import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/code-field'
-import { TagDropdown } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tag-dropdown/tag-dropdown'
-import { highlightCustomToolCode } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/custom-tool-highlight'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/custom-tool-modal.module.css'
 import { checkTagTrigger } from '@/platform/lib/data/workflow-editor'
 import {
   CODE_PLACEHOLDER,
@@ -35,6 +41,16 @@ function schemaParamTriggered(
   return parameters.some((param) => param.name.toLowerCase().startsWith(lower))
 }
 
+/** What the `<` reference picker hangs from the code field's caret. */
+export interface ReferencePickerProps {
+  visible: boolean
+  inputValue: string
+  cursorPosition: number
+  onSelect: (newValue: string, newCursorPosition: number) => void
+  onClose: () => void
+  inputRef: RefObject<HTMLTextAreaElement | null>
+}
+
 interface CustomToolCodeFieldProps {
   value: string
   onChange: (value: string) => void
@@ -42,13 +58,15 @@ interface CustomToolCodeFieldProps {
   isStreaming: boolean
   schemaParameters: readonly SchemaParameter[]
   workspaceId: string
-  /** The block the tool belongs to: its upstream outputs feed the `<` reference picker. */
-  blockId?: string
+  /** Shows the code without accepting edits, for a viewer who may not change the tool. */
+  disabled?: boolean
+  /** A tool inside a block: the picker for its upstream outputs, opened by typing `<`. */
+  renderReferencePicker?: (picker: ReferencePickerProps) => ReactNode
 }
 
 /**
  * The code half of the custom tool editor: the schema's parameters, the JavaScript body, and its
- * three caret pickers for secrets, upstream block outputs and schema parameters.
+ * caret pickers for secrets, schema parameters and, inside a block, upstream block outputs.
  */
 export function CustomToolCodeField({
   value,
@@ -57,7 +75,8 @@ export function CustomToolCodeField({
   isStreaming,
   schemaParameters,
   workspaceId,
-  blockId,
+  disabled = false,
+  renderReferencePicker,
 }: CustomToolCodeFieldProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const [showEnvVars, setShowEnvVars] = useState(false)
@@ -66,7 +85,7 @@ export function CustomToolCodeField({
   const [searchTerm, setSearchTerm] = useState('')
   const [cursorPosition, setCursorPosition] = useState(0)
   const [schemaParamIndex, setSchemaParamIndex] = useState(0)
-  const busy = isLoading || isStreaming
+  const busy = disabled || isLoading || isStreaming
 
   const [wasBusy, setWasBusy] = useState(busy)
   if (wasBusy !== busy) {
@@ -102,7 +121,7 @@ export function CustomToolCodeField({
     setShowEnvVars(envVarTrigger.show)
     setSearchTerm(envVarTrigger.show ? envVarTrigger.searchTerm : '')
 
-    if (blockId) setShowTags(checkTagTrigger(next, position).show)
+    if (renderReferencePicker) setShowTags(checkTagTrigger(next, position).show)
 
     if (schemaParameters.length > 0) {
       const triggered = schemaParamTriggered(next, position, schemaParameters)
@@ -227,22 +246,18 @@ export function CustomToolCodeField({
             }}
             inputRef={textareaRef}
           />
-          {blockId && (
-            <TagDropdown
-              visible={showTags}
-              onSelect={(next, caret) => {
-                onChange(next)
-                setShowTags(false)
-                placeCaret(caret)
-              }}
-              blockId={blockId}
-              activeSourceBlockId={null}
-              inputValue={value}
-              cursorPosition={cursorPosition}
-              onClose={() => setShowTags(false)}
-              inputRef={textareaRef}
-            />
-          )}
+          {renderReferencePicker?.({
+            visible: showTags,
+            inputValue: value,
+            cursorPosition,
+            onSelect: (next, caret) => {
+              onChange(next)
+              setShowTags(false)
+              placeCaret(caret)
+            },
+            onClose: () => setShowTags(false),
+            inputRef: textareaRef,
+          })}
           <FieldPopover
             label='Available parameters'
             open={showSchemaParams && schemaParameters.length > 0}

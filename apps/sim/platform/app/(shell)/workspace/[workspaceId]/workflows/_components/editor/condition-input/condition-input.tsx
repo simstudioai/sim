@@ -10,12 +10,12 @@ import {
   useState,
 } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/code-field/code-field'
 import { EnvVarDropdown } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/env-var-dropdown/env-var-dropdown'
 import { useActiveSearchTarget } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
-import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/code-field'
-import { highlightCode } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/highlight'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/condition-input/condition-input.module.css'
 import { RouteDescription } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/condition-input/route-description'
+import { highlightCode } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/code-highlight'
 import { getActiveWorkflowSearchHighlight } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
 import { TagDropdown } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tag-dropdown/tag-dropdown'
 import {

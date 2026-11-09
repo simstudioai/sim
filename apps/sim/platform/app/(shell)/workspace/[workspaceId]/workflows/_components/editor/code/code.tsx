@@ -14,6 +14,8 @@ import {
   useState,
 } from 'react'
 import { CopyButton } from '@sim/emcn/button/copy-button'
+import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/code-field/code-field'
+import type { CodeFieldLanguage } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/code-field/highlight'
 import { EnvVarDropdown } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/env-var-dropdown/env-var-dropdown'
 import { useActiveSearchTarget } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code/code.module.css'
@@ -21,12 +23,10 @@ import {
   PYTHON_AI_PROMPT,
   SHELL_AI_PROMPT,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code/wand-prompts'
-import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/code-field'
 import {
-  type CodeFieldLanguage,
   highlightCode,
   highlightMaskedCode,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/highlight'
+} from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/code-highlight'
 import { shouldMaskSecretValue } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/password-mask'
 import { getActiveWorkflowSearchHighlight } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
 import type { WandControlHandlers } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/sub-block/wand-control'

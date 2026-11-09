@@ -6,17 +6,19 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
-import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/code-field'
-import { highlightSyntax } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/highlight'
-import { CustomToolCodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/custom-tool-code-field'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/custom-tool-modal.module.css'
-import { GeneratePrompt } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/generate-prompt'
+import { CustomToolCodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-code-field'
+import {
+  CUSTOM_TOOL_DELETE_DESCRIPTION,
+  CustomToolError,
+  CustomToolSchemaField,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-editor'
+import { GeneratePrompt } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/custom-tool-editor/generate-prompt'
+import { TagDropdown } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tag-dropdown/tag-dropdown'
 import { useWorkflowScope } from '@/platform/lib/data/workflow-editor'
 import {
   type CustomToolDefinition,
   extractSchemaParameters,
   FUNCTION_NAME_LOCKED,
-  SCHEMA_PLACEHOLDER,
   toolInputLogger,
   useCodeGeneration,
   useCreateCustomTool,
@@ -27,9 +29,6 @@ import {
   validateCustomToolSchema,
 } from '@/platform/lib/data/workflow-editor/tool-input'
 import { toast } from '@/platform/shared/toast'
-
-const DELETE_DESCRIPTION =
-  'This will permanently delete the tool and remove it from any workflows that are using it. This action cannot be undone.'
 
 type ToolSection = 'schema' | 'code'
 
@@ -254,7 +253,6 @@ export function CustomToolModal({
     }
   }
 
-  const schemaBusy = schemaGeneration.isLoading || schemaGeneration.isStreaming
   const title = isEditing ? 'Edit Agent Tool' : 'Create Agent Tool'
 
   return (
@@ -294,11 +292,7 @@ export function CustomToolModal({
           onSelect={(next) => setSection(next === 'code' ? 'code' : 'schema')}
           actions={
             <>
-              {activeError && (
-                <span className={styles.error} data-type='T052' role='alert'>
-                  {activeError}
-                </span>
-              )}
+              {activeError && <CustomToolError message={activeError} />}
               <GeneratePrompt
                 key={section}
                 isLoading={activeGeneration.isLoading}
@@ -312,20 +306,13 @@ export function CustomToolModal({
               id: 'schema',
               label: 'Schema',
               content: (
-                <div className={styles.panel}>
-                  <div className={styles.editor}>
-                    <CodeField
-                      value={jsonSchema}
-                      onValueChange={handleJsonSchemaChange}
-                      highlight={(code) => highlightSyntax(code, 'json')}
-                      label='Tool schema'
-                      placeholder={SCHEMA_PLACEHOLDER}
-                      disabled={schemaBusy}
-                      streaming={schemaGeneration.isStreaming}
-                      invalid={Boolean(schemaError)}
-                    />
-                  </div>
-                </div>
+                <CustomToolSchemaField
+                  value={jsonSchema}
+                  onChange={handleJsonSchemaChange}
+                  isLoading={schemaGeneration.isLoading}
+                  isStreaming={schemaGeneration.isStreaming}
+                  invalid={Boolean(schemaError)}
+                />
               ),
             },
             {
@@ -339,7 +326,18 @@ export function CustomToolModal({
                   isStreaming={codeGeneration.isStreaming}
                   schemaParameters={schemaParameters}
                   workspaceId={workspaceId}
-                  blockId={blockId}
+                  renderReferencePicker={(picker) => (
+                    <TagDropdown
+                      visible={picker.visible}
+                      onSelect={picker.onSelect}
+                      blockId={blockId}
+                      activeSourceBlockId={null}
+                      inputValue={picker.inputValue}
+                      cursorPosition={picker.cursorPosition}
+                      onClose={picker.onClose}
+                      inputRef={picker.inputRef}
+                    />
+                  )}
                 />
               ),
             },
@@ -351,7 +349,7 @@ export function CustomToolModal({
         target={confirmingDelete}
         onClose={() => setConfirmingDelete(false)}
         title='Delete Custom Tool'
-        description={DELETE_DESCRIPTION}
+        description={CUSTOM_TOOL_DELETE_DESCRIPTION}
         confirmLabel='Delete'
         pendingLabel='Deleting…'
         pending={deleteToolMutation.isPending}
