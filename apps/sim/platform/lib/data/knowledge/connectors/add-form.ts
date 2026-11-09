@@ -3,21 +3,21 @@
 import { useState } from 'react'
 import type { ConnectorAccessMode, ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 import { resourceScopeFields } from '@/lib/core/resource-scope'
+import {
+  derivedAclCapFieldIds,
+  isConnectorFieldRequired,
+} from '@/lib/knowledge/connectors/access-fields'
 import { initialConnectorAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
 import { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { SIM_SEARCH_SYNC_INTERVAL_MINUTES } from '@/lib/sim-search/constants'
 import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
-import {
-  derivedAclCapFieldIds,
-  isConnectorFieldRequired,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
-import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { getConnectorApiKeyConfig, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { useGitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
+import { useConnectorConfigFields } from '@/hooks/kb/connectors/use-connector-config-fields'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
 import { useSourceAccounts } from '@/hooks/queries/source-accounts'

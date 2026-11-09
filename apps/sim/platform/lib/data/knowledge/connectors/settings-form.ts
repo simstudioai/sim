@@ -8,23 +8,23 @@ import type {
   UpdateConnectorBody,
 } from '@/lib/api/contracts/knowledge/connectors'
 import { resourceScopeFields } from '@/lib/core/resource-scope'
+import {
+  derivedAclCapFieldIds,
+  isConnectorFieldRequired,
+} from '@/lib/knowledge/connectors/access-fields'
 import { isContentEngineAccessMode } from '@/lib/knowledge/connectors/access-modes'
 import { getProviderIdFromServiceId, type OAuthProvider } from '@/lib/oauth'
 import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
 import { readSourceSelectionLabels, SOURCE_LABELS_KEY } from '@/lib/sim-search/source-identity'
-import {
-  derivedAclCapFieldIds,
-  isConnectorFieldRequired,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
-import {
-  type ConfigFieldMap,
-  useConnectorConfigFields,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import { useGitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField } from '@/connectors/types'
+import {
+  type ConfigFieldMap,
+  useConnectorConfigFields,
+} from '@/hooks/kb/connectors/use-connector-config-fields'
 import {
   type ConnectorData,
   isConnectorSyncingOrPending,

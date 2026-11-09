@@ -6,6 +6,7 @@ export type {
   SyncLogData,
   ViewerConnectorMembership,
 } from '@/lib/api/contracts/knowledge/connectors'
+export { isConnectorFieldRequired } from '@/lib/knowledge/connectors/access-fields'
 export {
   CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
   CREDENTIAL_REMOVED_SYNC_ERROR,
@@ -16,18 +17,10 @@ export { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib
 export { getMissingRequiredScopes } from '@/lib/oauth/utils'
 export type { SourceSelectionLabel } from '@/lib/sim-search/source-identity'
 export { describeSearchSource } from '@/lib/sim-search/source-identity'
-export { isConnectorFieldRequired } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/connector-access'
-export { useConnectorAccessField } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-access-field/use-connector-access-field'
-export { getConnectorSyncState } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/connector-sync-state'
-export { useConnectorActions } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connectors-section/use-connector-actions'
 export {
   connectorSyncFrequencyHint,
   SYNC_INTERVALS,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
-export type {
-  ConfigFieldMap,
-  ConfigFieldValue,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 export { getConnectorRequiredScopes, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 export {
   GITLAB_CSV_FILES,
@@ -36,6 +29,13 @@ export {
 export type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 export { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 export type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
+export { getConnectorSyncState } from '@/hooks/kb/connectors/sync-state'
+export { useConnectorAccessField } from '@/hooks/kb/connectors/use-connector-access-field'
+export { useConnectorActions } from '@/hooks/kb/connectors/use-connector-actions'
+export type {
+  ConfigFieldMap,
+  ConfigFieldValue,
+} from '@/hooks/kb/connectors/use-connector-config-fields'
 export {
   isConnectorSyncingOrPending,
   useConnectorDetail,

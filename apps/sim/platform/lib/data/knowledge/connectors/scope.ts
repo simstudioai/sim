@@ -3,7 +3,7 @@
 import { useMemo } from 'react'
 import type { IntegrationAvailabilityResponse } from '@/lib/api/contracts/common'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
-import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
+import { hasWorkspaceMaxConnectorAccess } from '@/lib/knowledge/connectors/entitlements'
 import { useIntegrationAvailability } from '@/hooks/queries/integration-availability'
 import { useWorkspaceHostContextQuery } from '@/hooks/queries/workspace-host'
 import { useKnowledgeAccess } from '@/platform/lib/data/knowledge/access'

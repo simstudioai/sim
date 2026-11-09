@@ -76,6 +76,8 @@ export { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 export { isMacPlatform } from '@/lib/core/utils/platform'
 export { getBaseUrl } from '@/lib/core/utils/urls'
 export { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
+/** The canvas chrome's shortcut definitions and the search panel's resource hooks. */
+export { createCommand } from '@/lib/global-commands/commands'
 export { createMcpToolId } from '@/lib/mcp/shared'
 export { sendMothershipMessage } from '@/lib/mothership/events'
 export type { OAuthConnectEventDetail } from '@/lib/mothership/tools/client/base-tool'
@@ -214,8 +216,6 @@ export {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,
 } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-/** The canvas chrome's shortcut definitions and the search panel's resource hooks. */
-export { createCommand } from '@/app/workspace/[workspaceId]/utils/commands'
 export { useWorkflowResourceReplacementOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/hooks/use-workflow-resource-replacement-options'
 export {
   type HydratedWorkflowSearchMatch,
