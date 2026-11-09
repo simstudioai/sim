@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { type WorkspaceMode, workflow } from '@sim/db/schema'
+import { workflow } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
@@ -15,8 +15,8 @@ import { resolveRolledOutOrganizationId } from '@/lib/navigation/resolve-app-ent
 import { ensureViewerOrganization } from '@/lib/organizations/application/viewer-organization'
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { createWorkspace } from '@/lib/workspaces/create'
-import { listWorkspacesForViewer } from '@/lib/workspaces/list'
+import { createWorkspace, listWorkspacesEnsuringDefault } from '@/lib/workspaces/create'
+import { listWorkspacesForViewer, type WorkspaceListPayload } from '@/lib/workspaces/list'
 import {
   getWorkspaceCreationPolicy,
   WorkspaceCreationCapabilityWithheldError,
@@ -60,77 +60,38 @@ export const GET = withRouteHandler(async (request: Request) => {
   const { scope } = scopeResult.data
 
   const activeOrganizationId = getActiveOrganizationId(session)
-  const payload = await listWorkspacesForViewer({
-    userId: session.user.id,
-    activeOrganizationId,
-    scope,
-  })
-  const { lastActiveWorkspaceId, pinnedWorkspaceIds, creationPolicy } = payload
+  if (scope !== 'active') {
+    return NextResponse.json(
+      await listWorkspacesForViewer({ userId: session.user.id, activeOrganizationId, scope })
+    )
+  }
 
-  if (scope === 'active' && payload.workspaces.length === 0) {
-    if (!creationPolicy.canCreate) {
-      return NextResponse.json({
-        workspaces: [],
-        lastActiveWorkspaceId,
-        pinnedWorkspaceIds,
-        creationPolicy,
-        forwardOrganizationId: await resolveForwardOrganizationId(session),
-      })
-    }
-
-    let defaultWorkspace: Awaited<ReturnType<typeof createDefaultWorkspace>>
-    try {
-      defaultWorkspace = await createDefaultWorkspace(
-        session.user.id,
-        session.user.name,
-        creationPolicy
-      )
-    } catch (error) {
-      /**
-       * The user joined an organization between the empty list read and the
-       * default-workspace insert. Their workspaces (the join sweep's output)
-       * exist now — re-list and return that instead of failing the load.
-       */
-      if (error instanceof WorkspaceCreationContextChangedError) {
-        logger.info(
-          'Default workspace creation raced an organization membership change; re-listing',
-          {
-            userId: session.user.id,
-          }
-        )
-        const refreshedPayload = await listWorkspacesForViewer({
-          userId: session.user.id,
-          activeOrganizationId,
-          scope,
-        })
-        return NextResponse.json(refreshedPayload)
-      }
-      /** A cached session cookie outlived the account it belongs to. */
-      if (error instanceof WorkspaceOwnerMissingError) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-      throw error
-    }
-
-    await migrateExistingWorkflows(session.user.id, defaultWorkspace.id)
-
-    const refreshedCreationPolicy = await getWorkspaceCreationPolicy({
+  let payload: WorkspaceListPayload
+  try {
+    payload = await listWorkspacesEnsuringDefault({
       userId: session.user.id,
+      userName: session.user.name,
       activeOrganizationId,
     })
+  } catch (error) {
+    /** A cached session cookie outlived the account it belongs to. */
+    if (error instanceof WorkspaceOwnerMissingError) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    throw error
+  }
 
+  const [firstWorkspace] = payload.workspaces
+  if (!firstWorkspace) {
     return NextResponse.json({
-      workspaces: [defaultWorkspace],
-      lastActiveWorkspaceId,
-      pinnedWorkspaceIds,
-      creationPolicy: refreshedCreationPolicy,
+      ...payload,
+      forwardOrganizationId: payload.creationPolicy.canCreate
+        ? undefined
+        : await resolveForwardOrganizationId(session),
     })
   }
 
-  if (scope === 'active') {
-    await ensureWorkflowsHaveWorkspace(session.user.id, payload.workspaces[0].id)
-  }
-
+  await ensureWorkflowsHaveWorkspace(session.user.id, firstWorkspace.id)
   return NextResponse.json(payload)
 })
 
@@ -262,53 +223,6 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Failed to create workspace' }, { status: 500 })
   }
 })
-
-async function createDefaultWorkspace(
-  userId: string,
-  userName: string | null | undefined,
-  creationPolicy: {
-    organizationId: string | null
-    workspaceMode: WorkspaceMode
-    billedAccountUserId: string
-    observedOrganizationId: string | null
-    governingPermissionGroupOrganizationId: string | null
-  }
-) {
-  const firstName = userName?.split(' ')[0] || null
-  const workspaceName = firstName ? `${firstName}'s Workspace` : 'My Workspace'
-  return createWorkspace({
-    userId,
-    name: workspaceName,
-    organizationId: creationPolicy.organizationId,
-    workspaceMode: creationPolicy.workspaceMode,
-    billedAccountUserId: creationPolicy.billedAccountUserId,
-    observedOrganizationId: creationPolicy.observedOrganizationId,
-    governingPermissionGroupOrganizationId: creationPolicy.governingPermissionGroupOrganizationId,
-  })
-}
-
-async function migrateExistingWorkflows(userId: string, workspaceId: string) {
-  const orphanedWorkflows = await db
-    .select({ id: workflow.id })
-    .from(workflow)
-    .where(and(eq(workflow.userId, userId), isNull(workflow.workspaceId)))
-
-  if (orphanedWorkflows.length === 0) {
-    return // No orphaned workflows to migrate
-  }
-
-  logger.info(
-    `Migrating ${orphanedWorkflows.length} workflows to workspace ${workspaceId} for user ${userId}`
-  )
-
-  await db
-    .update(workflow)
-    .set({
-      workspaceId: workspaceId,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(workflow.userId, userId), isNull(workflow.workspaceId)))
-}
 
 async function ensureWorkflowsHaveWorkspace(userId: string, defaultWorkspaceId: string) {
   const orphanedWorkflows = await db

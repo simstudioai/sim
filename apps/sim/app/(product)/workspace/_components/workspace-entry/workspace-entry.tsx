@@ -4,7 +4,6 @@ import { Button } from '@sim/emcn/button'
 import { useRouter } from 'next/navigation'
 import { ShellGate } from '@/app/(product)/_components/shell-gate/shell-gate'
 import type { WorkspaceEntryDecision } from '@/platform/lib/data/workspace-entry'
-import { useFirstWorkspace } from '@/platform/lib/data/workspaces'
 
 type CreationPolicy = Extract<WorkspaceEntryDecision, { kind: 'blocked' }>['policy']
 
@@ -19,21 +18,6 @@ function blockedDescription(policy: CreationPolicy) {
   return 'Your plan has reached its workspace limit and none of your workspaces are active. Upgrade your plan to create another workspace, or contact support to restore an archived one.'
 }
 
-function FirstWorkspace() {
-  const { failed, retry } = useFirstWorkspace()
-  if (!failed) return null
-  return (
-    <ShellGate
-      title='Could not create your workspace'
-      description='Something went wrong while setting up your first workspace. Please try again.'
-    >
-      <Button variant='primary' onClick={retry}>
-        Try again
-      </Button>
-    </ShellGate>
-  )
-}
-
 /** The workspace entry for a viewer it could not send straight to a workspace. */
 export function WorkspaceEntry({
   decision,
@@ -41,7 +25,6 @@ export function WorkspaceEntry({
   decision: Exclude<WorkspaceEntryDecision, { kind: 'redirect' }>
 }) {
   const router = useRouter()
-  if (decision.kind === 'create') return <FirstWorkspace />
   if (decision.kind === 'blocked')
     return (
       <ShellGate title='No workspace access yet' description={blockedDescription(decision.policy)}>
