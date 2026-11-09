@@ -11,6 +11,7 @@ import {
 } from '@playwright/test'
 import { checkCredentialFields } from '@/platform/checks/field-checks'
 import { desktopOrigin, fixtureUrl } from '@/platform/checks/routes'
+import { waitUntilHydrated } from '@/platform/checks/test'
 
 /**
  * Attaches what the window showed when a step failed. Playwright's automatic failure screenshot
@@ -118,12 +119,15 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
     const window = await app.browserWindow(page)
     await window.evaluate((native) => native.setContentSize(960, 720))
     await page.waitForURL((url) => url.origin === desktopOrigin)
+    // The window's own entry load must settle before the spec navigates it elsewhere.
+    await waitUntilHydrated(page)
     for (const theme of ['light', 'dark']) {
       await checkCredentialFields(page, desktopOrigin, theme, testInfo, () =>
         app.evaluate(({ clipboard }) => clipboard.readText())
       )
     }
     await page.goto(fixtureUrl('/home?theme=dark&state=full', desktopOrigin))
+    await waitUntilHydrated(page)
     await expect(page.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'inset')
     await expect(
       page.getByRole('list', { name: 'Recents' }).getByRole('link', { name: 'GitHub' })

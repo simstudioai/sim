@@ -41,12 +41,20 @@ function isHydrated() {
   return true
 }
 
-async function waitForHydration(page: Page, appOrigin: string) {
-  if (new URL(page.url()).origin !== appOrigin) return
+/**
+ * Waits until the loaded document has hydrated, for a page this suite's `test` does not wrap,
+ * such as an Electron window's.
+ */
+export async function waitUntilHydrated(page: Page) {
   await page.waitForFunction(isHydrated, undefined, {
     polling: 100,
     timeout: HYDRATION_TIMEOUT_MS,
   })
+}
+
+async function waitForHydration(page: Page, appOrigin: string) {
+  if (new URL(page.url()).origin !== appOrigin) return
+  await waitUntilHydrated(page)
 }
 
 /**
