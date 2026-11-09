@@ -331,6 +331,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Invite entry | `organization-header.tsx` | Done | "a member sees no identity controls" |
 | Invite form | `invite-modal.tsx` | Unverified | No live check yet. `_components/invite-modal/invite-modal.tsx` |
 | Workspace list, pinned then by visits | `use-organization-workspaces.ts` | Done | "a workspace pins and renames" |
+| Record a visit when a workspace opens, so the list orders by it | `use-workspace-management.ts` | Unverified | No live check yet. `lib/data/workspace-visit.tsx`, mounted by the live `workspace/[workspaceId]/layout.tsx`, records through `useRecordWorkspaceVisit` once the session is known and on every workspace switch, moving the workspace to the front of the cached list. `workspace-visit.test.tsx` renders it |
 | Workspace logo tile | `workspace-list.tsx` | Hidden | Design contract: workspace names are text-only |
 | No workspaces yet, silent while loading, retry on failure | `workspace-list.tsx` | Unverified | No live check yet. `section-status.tsx` |
 | See more and See less | `workspace-list.tsx` | Unverified | No live check yet. `workspaces-section.tsx` |

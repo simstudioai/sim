@@ -25,17 +25,20 @@ export default async function WorkspaceLayout({ children, params }: WorkspaceLay
     { readWorkspaceShellOrganizationId },
     { WorkspaceRealtime },
     { readWorkspaceTabFlags },
+    { WorkspaceVisit },
   ] = await Promise.all([
     params,
     import('@/platform/lib/data/shell-scope'),
     import('@/platform/lib/data/realtime'),
     import('@/platform/lib/data/workspace-tab-flags'),
+    import('@/platform/lib/data/workspace-visit'),
   ])
   const organizationId = await readWorkspaceShellOrganizationId(workspaceId)
   if (!organizationId) notFound()
   return (
     <ShellOrganizationGuard organizationId={organizationId}>
       <WorkspaceSession mode='live' tabFlags={await readWorkspaceTabFlags()}>
+        <WorkspaceVisit workspaceId={workspaceId} />
         <WorkspaceRealtime>{children}</WorkspaceRealtime>
       </WorkspaceSession>
     </ShellOrganizationGuard>
