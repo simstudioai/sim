@@ -12,6 +12,7 @@ import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveRolledOutOrganizationId } from '@/lib/navigation/resolve-app-entry'
+import { ensureUserOrganization } from '@/lib/organizations/provision-personal'
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { createWorkspace } from '@/lib/workspaces/create'
@@ -64,9 +65,18 @@ export const GET = withRouteHandler(async (request: Request) => {
     activeOrganizationId,
     scope,
   })
-  const { lastActiveWorkspaceId, pinnedWorkspaceIds, creationPolicy } = payload
+  const { lastActiveWorkspaceId, pinnedWorkspaceIds } = payload
+  let { creationPolicy } = payload
 
   if (scope === 'active' && payload.workspaces.length === 0) {
+    /** The default workspace is created inside the viewer's organization, so they need one first. */
+    if (creationPolicy.observedOrganizationId === null) {
+      await ensureUserOrganization(session.user.id)
+      creationPolicy = await getWorkspaceCreationPolicy({
+        userId: session.user.id,
+        activeOrganizationId,
+      })
+    }
     if (!creationPolicy.canCreate) {
       return NextResponse.json({
         workspaces: [],
@@ -146,10 +156,18 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     if (!parsed.success) return parsed.response
     const { name, skipDefaultWorkflow } = parsed.data.body
     const activeOrganizationId = getActiveOrganizationId(session)
-    const creationPolicy = await getWorkspaceCreationPolicy({
+    let creationPolicy = await getWorkspaceCreationPolicy({
       userId: session.user.id,
       activeOrganizationId,
     })
+    /** A new workspace lands in the creator's organization, so they need one first. */
+    if (creationPolicy.observedOrganizationId === null) {
+      await ensureUserOrganization(session.user.id)
+      creationPolicy = await getWorkspaceCreationPolicy({
+        userId: session.user.id,
+        activeOrganizationId,
+      })
+    }
 
     if (!creationPolicy.canCreate) {
       /**

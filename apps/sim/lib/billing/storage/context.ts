@@ -4,6 +4,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { and, eq } from 'drizzle-orm'
 import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/attribution'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { resolvePayerOrganizationId } from '@/lib/billing/core/payer-organization'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/subscription'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import type { DbOrTx } from '@/lib/db/types'
@@ -71,41 +72,45 @@ export async function resolveStorageBillingContext(
   })
 }
 
-/** Resolves a Project's exact organization or personal payer independently of its creator and caller. */
+/**
+ * Resolves a Project's exact organization or personal payer independently of its creator and
+ * caller. A Project in a personal organization bills its owner personally.
+ */
 export async function resolveProjectStorageBillingContext(
   owner: ProjectStorageOwnerSnapshot,
   executor: DbOrTx = db
 ): Promise<ProjectStorageBillingContext> {
+  const payerOrganizationId = await resolvePayerOrganizationId(executor, owner.organizationId)
   const [organizationOwners, payerSubscription] = await Promise.all([
-    owner.organizationId
+    payerOrganizationId
       ? executor
           .select({ userId: member.userId })
           .from(member)
-          .where(and(eq(member.organizationId, owner.organizationId), eq(member.role, 'owner')))
+          .where(and(eq(member.organizationId, payerOrganizationId), eq(member.role, 'owner')))
           .limit(1)
       : Promise.resolve([]),
-    owner.organizationId
-      ? getOrganizationSubscription(owner.organizationId, { onError: 'throw', executor })
+    payerOrganizationId
+      ? getOrganizationSubscription(payerOrganizationId, { onError: 'throw', executor })
       : getHighestPriorityPersonalSubscription(owner.ownerId, {
           onError: 'throw',
           executor,
         }),
   ])
-  const billedAccountUserId = owner.organizationId ? organizationOwners[0]?.userId : owner.ownerId
+  const billedAccountUserId = payerOrganizationId ? organizationOwners[0]?.userId : owner.ownerId
   if (!billedAccountUserId) throw new Error('Organization billing owner is unavailable')
-  const payerId = owner.organizationId ?? owner.ownerId
+  const payerId = payerOrganizationId ?? owner.ownerId
   if (payerSubscription && payerSubscription.referenceId !== payerId) {
     throw new Error(`Resolved subscription does not belong to Project payer ${payerId}`)
   }
-  const billingEntity: BillingEntity = owner.organizationId
-    ? { type: 'organization', id: owner.organizationId }
+  const billingEntity: BillingEntity = payerOrganizationId
+    ? { type: 'organization', id: payerOrganizationId }
     : { type: 'user', id: owner.ownerId }
   return Object.freeze({
     ...owner,
     billedAccountUserId,
     billingEntity: Object.freeze(billingEntity),
     plan: payerSubscription?.plan ?? null,
-    customStorageLimitGB: owner.organizationId
+    customStorageLimitGB: payerOrganizationId
       ? readCustomStorageLimitGB(payerSubscription?.metadata)
       : null,
   })

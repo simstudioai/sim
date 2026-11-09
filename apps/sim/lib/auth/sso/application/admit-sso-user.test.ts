@@ -158,7 +158,9 @@ describe('SSO JIT admission', () => {
 
   it('is idempotent for an existing member', async () => {
     queueIdentity()
-    queueTableRows(schemaMock.member, [{ id: 'member-existing', organizationId: 'org-1' }])
+    queueTableRows(schemaMock.member, [
+      { id: 'member-existing', organizationId: 'org-1', kind: 'team' },
+    ])
 
     await expect(execute()).resolves.toEqual({
       kind: 'already-member',
@@ -286,7 +288,9 @@ describe('SSO JIT admission', () => {
 
   it('rejects a user who belongs to another organization', async () => {
     queueIdentity()
-    queueTableRows(schemaMock.member, [{ id: 'member-other', organizationId: 'org-other' }])
+    queueTableRows(schemaMock.member, [
+      { id: 'member-other', organizationId: 'org-other', kind: 'team' },
+    ])
 
     await expect(execute()).resolves.toEqual({
       kind: 'denied',

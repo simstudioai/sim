@@ -10,6 +10,7 @@ import { billingSubscriptionUtilsMock } from '@sim/testing/mocks/billing-subscri
 import {
   dbChainMockFns,
   hasMockCondition,
+  queueTableRows,
   resetDbChainMock,
 } from '@sim/testing/mocks/database.mock'
 import { schemaMock } from '@sim/testing/mocks/schema.mock'
@@ -64,6 +65,7 @@ describe('authorizeSubscriptionReference', () => {
     mockAssertNoUnresolved.mockResolvedValue(undefined)
     mockIsOwnerOrAdmin.mockResolvedValue(true)
     mockGetOrganizationCoverageForMember.mockResolvedValue({ status: 'not-covered' })
+    queueTableRows(schemaMock.organization, [{ id: 'org-1' }])
   })
 
   it('blocks an organization checkout while Enterprise issuance is unresolved', async () => {

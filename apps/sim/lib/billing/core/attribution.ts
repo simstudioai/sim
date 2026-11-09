@@ -13,6 +13,7 @@ import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults
 import { USAGE_UNAVAILABLE_MESSAGE } from '@/lib/billing/constants'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
 import { defaultBillingPeriod } from '@/lib/billing/core/billing-period'
+import { payerOrganizationIdSql } from '@/lib/billing/core/payer-organization'
 import { getHighestPriorityPersonalSubscription } from '@/lib/billing/core/plan'
 import {
   ENTERPRISE_REPORTING_PERIOD_ANCHOR_METADATA_KEY,
@@ -670,7 +671,9 @@ export async function getWorkspaceBilledAccountUserId(workspaceId: string): Prom
 
 /**
  * Resolves the workspace-selected payer and its exact subscription without
- * consulting an actor's organization memberships.
+ * consulting an actor's organization memberships. `organizationId` is the
+ * paying organization: null for a workspace in a personal organization, which
+ * bills its billed account personally.
  */
 export async function resolveWorkspaceBillingPayer(
   workspaceId: string,
@@ -680,7 +683,7 @@ export async function resolveWorkspaceBillingPayer(
   const [workspacePayer] = await executor
     .select({
       billedAccountUserId: workspace.billedAccountUserId,
-      organizationId: workspace.organizationId,
+      organizationId: payerOrganizationIdSql(workspace.organizationId),
     })
     .from(workspace)
     .where(eq(workspace.id, workspaceId))

@@ -232,7 +232,7 @@ async function executeInvitationBatch(
               request,
               validateLockedWorkspace: isUserCredentialPrincipal(principal)
                 ? async (tx, workspace) => {
-                    if (workspace.organizationId !== workspaceContext.organizationId) {
+                    if (workspace.teamOrganizationId !== workspaceContext.organizationId) {
                       throw new WorkspaceInvitationError({
                         message:
                           'A selected workspace changed organizations. Review the selection and try again.',

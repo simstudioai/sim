@@ -125,6 +125,7 @@ function makeTarget(workspaceId: string, organizationId: string | null = 'org-1'
       name: `Workspace ${workspaceId}`,
       ownerId: 'user-1',
       organizationId,
+      teamOrganizationId: organizationId,
       billedAccountUserId: 'user-1',
     },
     invitePolicy: {
@@ -171,6 +172,7 @@ describe('createWorkspaceInvitation', () => {
       name: 'Workspace ws-1',
       ownerId: 'user-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       billedAccountUserId: 'user-1',
     })
     mockGetEffectiveWorkspacePermission.mockResolvedValue('admin')
@@ -198,7 +200,11 @@ describe('createWorkspaceInvitation', () => {
       [{ id: 'user-2', email: 'member@example.com' }],
       [{ workspaceId: 'ws-1' }],
     ])
-    mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role: 'member' })
+    mockGetUserOrganization.mockResolvedValueOnce({
+      organizationId: 'org-1',
+      role: 'member',
+      kind: 'team',
+    })
 
     await expect(
       createWorkspaceInvitation({
@@ -223,6 +229,7 @@ describe('createWorkspaceInvitation', () => {
         organizationId: 'org-1',
         memberId: 'member-2',
         role,
+        kind: 'team',
       })
 
       await expect(
@@ -253,6 +260,7 @@ describe('createWorkspaceInvitation', () => {
         organizationId: 'org-1',
         memberId: 'member-2',
         role: 'admin',
+        kind: 'team',
       })
 
       const result = await createWorkspaceInvitation({
@@ -284,6 +292,7 @@ describe('createWorkspaceInvitation', () => {
       organizationId: 'org-1',
       memberId: 'member-2',
       role: 'admin',
+      kind: 'team',
     })
 
     const result = await createWorkspaceInvitation({
@@ -325,7 +334,7 @@ describe('createWorkspaceInvitation', () => {
     'does not inherit workspace access from a different organization %s role',
     async (role) => {
       queueWhereResponses([[{ id: 'user-3', email: 'ext@example.com' }], []])
-      mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-2', role })
+      mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-2', role, kind: 'team' })
 
       const result = await createWorkspaceInvitation({
         context: makeContext(),
@@ -348,7 +357,11 @@ describe('createWorkspaceInvitation', () => {
 
   it('creates an external pending invitation when the user belongs to a different org', async () => {
     queueWhereResponses([[{ id: 'user-3', email: 'ext@example.com' }], []])
-    mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-2', role: 'member' })
+    mockGetUserOrganization.mockResolvedValueOnce({
+      organizationId: 'org-2',
+      role: 'member',
+      kind: 'team',
+    })
 
     const result = await createWorkspaceInvitation({
       context: makeContext(),
@@ -369,7 +382,7 @@ describe('createWorkspaceInvitation', () => {
     queueTableRows(userTable, [{ id: 'user-4', email: 'noorg@example.com' }])
     mockGetUserOrganization
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ organizationId: 'org-2', role: 'member' })
+      .mockResolvedValueOnce({ organizationId: 'org-2', role: 'member', kind: 'team' })
     mockCreatePendingInvitation.mockImplementationOnce(
       async (input: CreatePendingInvitationInput) => {
         await input.validateLockedContext?.({

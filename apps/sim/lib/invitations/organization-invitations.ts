@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { foldedEmail, member, user } from '@sim/db/schema'
+import { foldedEmail, member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { normalizeEmail } from '@sim/utils/string'
@@ -88,13 +88,25 @@ export async function createOrganizationInvitation({
     })
   }
   const { organizationId } = context
+  const [target] = await db
+    .select({ kind: organization.kind })
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+    .limit(1)
+  if (target?.kind === 'personal') {
+    throw new WorkspaceInvitationError({
+      message: 'A personal organization has no members to invite. Start a team to invite people.',
+      status: 403,
+      email: normalizedEmail,
+    })
+  }
   const [invitee] = await db
     .select({ id: user.id })
     .from(user)
     .where(eq(foldedEmail(user.email), normalizedEmail))
     .limit(1)
   const observedMembership = invitee ? await getUserOrganization(invitee.id) : null
-  if (observedMembership) {
+  if (observedMembership?.kind === 'team') {
     throw new WorkspaceInvitationError({
       message:
         observedMembership.organizationId === organizationId
@@ -139,7 +151,7 @@ export async function createOrganizationInvitation({
           status: 409,
         })
       }
-      if (invitee && (await getUserOrganization(invitee.id, tx))) {
+      if (invitee && (await getUserOrganization(invitee.id, tx))?.kind === 'team') {
         throw new WorkspaceInvitationError({
           message: 'The invitee joined an organization. Refresh and try again.',
           status: 409,

@@ -12,7 +12,7 @@ import { vi } from 'vitest'
  * import { organizationMembershipMockFns } from '@sim/testing/mocks/organization-membership.mock'
  *
  * organizationMembershipMockFns.mockGetUserOrganization.mockResolvedValue({
- *   organizationId: 'org-1', role: 'owner', memberId: 'member-1',
+ *   organizationId: 'org-1', role: 'owner', memberId: 'member-1', kind: 'team',
  * })
  * ```
  */

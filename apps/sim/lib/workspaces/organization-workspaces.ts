@@ -1,9 +1,9 @@
 import { AuditAction, AuditResourceType, recordAuditBatch } from '@sim/audit'
 import { db } from '@sim/db'
-import { invitation, member, permissions, workspace } from '@sim/db/schema'
+import { invitation, member, organization, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
   acquireOrganizationMutationLock,
@@ -70,7 +70,8 @@ type ExternalMemberPolicy = 'reject' | 'keep-external' | 'external-all'
 
 /**
  * The single definition of "a workspace that follows this user into an
- * organization": owned (or billed) by them, not yet organization-owned, and —
+ * organization": owned (or billed) by them, in no organization or in their
+ * personal organization (which dissolves into the team), and —
  * unless `includeArchived` — not archived. Every site that selects, locks, or
  * previews attachable workspaces must build its WHERE from this so the
  * acceptance lock plan, the attach queries, and the accept-screen preview can
@@ -89,7 +90,17 @@ export function ownedAttachableWorkspacesWhere({
     ownerMatch === 'owner'
       ? eq(workspace.ownerId, userId)
       : eq(workspace.billedAccountUserId, userId),
-    isNull(workspace.organizationId),
+    or(
+      isNull(workspace.organizationId),
+      inArray(
+        workspace.organizationId,
+        db
+          .select({ id: member.organizationId })
+          .from(member)
+          .innerJoin(organization, eq(organization.id, member.organizationId))
+          .where(and(eq(member.userId, userId), eq(organization.kind, 'personal')))
+      )
+    ),
     ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION),
     ...(includeArchived ? [] : [isNull(workspace.archivedAt)])
   )
@@ -295,14 +306,32 @@ export async function attachOwnedWorkspacesToOrganizationTx(
   const memberships =
     workspaceMemberIds.length > 0
       ? await tx
-          .select({ userId: member.userId, organizationId: member.organizationId })
+          .select({
+            userId: member.userId,
+            organizationId: member.organizationId,
+            kind: organization.kind,
+          })
           .from(member)
+          .innerJoin(organization, eq(organization.id, member.organizationId))
           .where(inArray(member.userId, workspaceMemberIds))
       : []
   const membershipByUser = new Map(memberships.map((row) => [row.userId, row.organizationId]))
+  /**
+   * A collaborator in their own personal organization is a guest, never a conflict and never a
+   * seat: joining would dissolve their personal organization and pull their own workspaces into a
+   * team they were not invited to.
+   */
+  const personalOrgMembers = memberships
+    .filter((row) => row.kind === 'personal' && row.organizationId !== organizationId)
+    .map((row) => row.userId)
+  const personalOrgMemberIds = new Set(personalOrgMembers)
   const differentOrgMembers = workspaceMemberIds.filter((userId) => {
     const currentOrganizationId = membershipByUser.get(userId)
-    return currentOrganizationId !== undefined && currentOrganizationId !== organizationId
+    return (
+      currentOrganizationId !== undefined &&
+      currentOrganizationId !== organizationId &&
+      !personalOrgMemberIds.has(userId)
+    )
   })
   if (externalMemberPolicy === 'reject' && differentOrgMembers.length > 0) {
     throw new WorkspaceOrganizationMembershipConflictError(
@@ -312,12 +341,16 @@ export async function attachOwnedWorkspacesToOrganizationTx(
       }))
     )
   }
-  const skippedMembers: Array<{ userId: string; reason: string }> = differentOrgMembers.map(
-    (userId) => ({
+  const skippedMembers: Array<{ userId: string; reason: string }> = [
+    ...differentOrgMembers.map((userId) => ({
       userId,
       reason: 'Already a member of another organization; kept as external workspace member',
-    })
-  )
+    })),
+    ...personalOrgMembers.map((userId) => ({
+      userId,
+      reason: 'Works in a personal organization; kept as external workspace member',
+    })),
+  ]
   if (externalMemberPolicy === 'external-all') {
     for (const userId of workspaceMemberIds) {
       if (membershipByUser.get(userId) === undefined) {

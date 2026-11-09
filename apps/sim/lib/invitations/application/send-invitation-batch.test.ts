@@ -102,6 +102,7 @@ const lockedWorkspace = {
   name: 'Workspace',
   ownerId: 'other-user',
   organizationId: 'org-target',
+  teamOrganizationId: 'org-target',
   workspaceMode: 'organization' as const,
   allowPersonalApiKeys: true,
   billedAccountUserId: 'other-user',

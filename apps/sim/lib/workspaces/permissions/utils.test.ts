@@ -62,7 +62,7 @@ describe('Permission Utils', () => {
 
     it('merges organization admins as derived workspace admins', async () => {
       mockSelectSequence([
-        [{ id: 'ws', ownerId: 'owner-user', organizationId: 'org-1' }],
+        [{ id: 'ws', ownerId: 'owner-user', organizationId: 'org-1', teamOrganizationId: 'org-1' }],
         [
           {
             userId: 'member-user',
@@ -71,7 +71,7 @@ describe('Permission Utils', () => {
             image: null,
             permissionType: 'read' as PermissionType,
             joinedAt,
-            userOrganizationId: 'org-1',
+            userTeamOrganizationId: 'org-1',
           },
         ],
         [
@@ -98,7 +98,14 @@ describe('Permission Utils', () => {
 
     it('marks users as external when they are not members of the workspace organization', async () => {
       mockSelectSequence([
-        [{ id: 'ws', ownerId: 'internal-user', organizationId: 'org-1' }],
+        [
+          {
+            id: 'ws',
+            ownerId: 'internal-user',
+            organizationId: 'org-1',
+            teamOrganizationId: 'org-1',
+          },
+        ],
         [
           {
             userId: 'internal-user',
@@ -107,7 +114,7 @@ describe('Permission Utils', () => {
             image: null,
             permissionType: 'admin' as PermissionType,
             joinedAt,
-            userOrganizationId: 'org-1',
+            userTeamOrganizationId: 'org-1',
           },
           {
             userId: 'external-user',
@@ -116,7 +123,7 @@ describe('Permission Utils', () => {
             image: null,
             permissionType: 'write' as PermissionType,
             joinedAt,
-            userOrganizationId: 'org-2',
+            userTeamOrganizationId: 'org-2',
           },
         ],
         [],
@@ -131,7 +138,7 @@ describe('Permission Utils', () => {
 
     it('marks a non-owner member of another org as external on a personal workspace', async () => {
       mockSelectSequence([
-        [{ id: 'ws', ownerId: 'owner-user', organizationId: null }],
+        [{ id: 'ws', ownerId: 'owner-user', organizationId: null, teamOrganizationId: null }],
         [
           {
             userId: 'owner-user',
@@ -140,7 +147,7 @@ describe('Permission Utils', () => {
             image: null,
             permissionType: 'admin' as PermissionType,
             joinedAt,
-            userOrganizationId: null,
+            userTeamOrganizationId: null,
           },
           {
             userId: 'guest-user',
@@ -149,7 +156,7 @@ describe('Permission Utils', () => {
             image: null,
             permissionType: 'write' as PermissionType,
             joinedAt,
-            userOrganizationId: 'org-guest',
+            userTeamOrganizationId: 'org-guest',
           },
         ],
       ])

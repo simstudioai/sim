@@ -10,6 +10,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { selectPayerOrganizationIds } from '@/lib/billing/core/payer-organization'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import type { ProjectStorageOwnerSnapshot } from '@/lib/billing/storage/context'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
@@ -68,10 +69,27 @@ interface PayerStorageDelta {
   outgoingBytes: number
 }
 
-function getWorkspacePayer(row: WorkspaceStoragePayer): BillingEntity {
-  return row.organizationId
+/**
+ * `payerOrganizationIds` holds the organizations among the rows that pay for their own resources
+ * ({@link selectPayerOrganizationIds}); a personal organization's workspaces and Projects bill
+ * their billed account and owner personally.
+ */
+function getWorkspacePayer(
+  row: WorkspaceStoragePayer,
+  payerOrganizationIds: ReadonlySet<string>
+): BillingEntity {
+  return row.organizationId && payerOrganizationIds.has(row.organizationId)
     ? { type: 'organization', id: row.organizationId }
     : { type: 'user', id: row.billedAccountUserId }
+}
+
+function getProjectPayer(
+  row: { ownerId: string; organizationId: string | null },
+  payerOrganizationIds: ReadonlySet<string>
+): BillingEntity {
+  return row.organizationId && payerOrganizationIds.has(row.organizationId)
+    ? { type: 'organization', id: row.organizationId }
+    : { type: 'user', id: row.ownerId }
 }
 
 function getPayerKey(payer: BillingEntity): string {
@@ -416,6 +434,10 @@ async function changeWorkspaceStoragePayers(
     .for('no key update')
 
   const workspaceById = new Map(lockedWorkspaces.map((row) => [row.id, row]))
+  const payerOrganizationIds = await selectPayerOrganizationIds(tx, [
+    ...lockedWorkspaces.map((row) => row.organizationId),
+    ...changes.map((change) => change.organizationId),
+  ])
   for (const workspaceId of workspaceIds) {
     const lockedWorkspace = workspaceById.get(workspaceId)
     const change = changesByWorkspaceId.get(workspaceId)
@@ -436,7 +458,8 @@ async function changeWorkspaceStoragePayers(
     const change = changesByWorkspaceId.get(workspaceId)
     if (!lockedWorkspace || !change) return false
     return (
-      getPayerKey(getWorkspacePayer(lockedWorkspace)) !== getPayerKey(getWorkspacePayer(change))
+      getPayerKey(getWorkspacePayer(lockedWorkspace, payerOrganizationIds)) !==
+      getPayerKey(getWorkspacePayer(change, payerOrganizationIds))
     )
   })
 
@@ -452,8 +475,8 @@ async function changeWorkspaceStoragePayers(
     if (!lockedWorkspace || !change) {
       throw new Error(`Workspace ${workspaceId} disappeared during storage payer change`)
     }
-    const oldPayer = getWorkspacePayer(lockedWorkspace)
-    const newPayer = getWorkspacePayer(change)
+    const oldPayer = getWorkspacePayer(lockedWorkspace, payerOrganizationIds)
+    const newPayer = getWorkspacePayer(change, payerOrganizationIds)
     const payerChanged = getPayerKey(oldPayer) !== getPayerKey(newPayer)
     const billableBytes = payerChanged
       ? (exactBytesByWorkspaceId.get(workspaceId) ?? 0)
@@ -587,8 +610,12 @@ export async function changeWorkspaceStoragePayerInTx(
     throw new Error(`Workspace ${params.workspaceId} payer changed before the transaction lock`)
   }
 
-  const oldPayer = getWorkspacePayer(lockedWorkspace)
-  const newPayer = getWorkspacePayer(params)
+  const payerOrganizationIds = await selectPayerOrganizationIds(tx, [
+    lockedWorkspace.organizationId,
+    params.organizationId,
+  ])
+  const oldPayer = getWorkspacePayer(lockedWorkspace, payerOrganizationIds)
+  const newPayer = getWorkspacePayer(params, payerOrganizationIds)
   const oldPayerKey = getPayerKey(oldPayer)
   const newPayerKey = getPayerKey(newPayer)
 
@@ -731,6 +758,10 @@ async function changeProjectStoragePayers(
     .orderBy(asc(project.id))
     .for('update')
   const ownersById = new Map(owners.map((owner) => [owner.id, owner]))
+  const payerOrganizationIds = await selectPayerOrganizationIds(tx, [
+    ...owners.map((owner) => owner.organizationId),
+    ...changes.map((change) => change.organizationId),
+  ])
   const resultById = new Map<string, ChangeProjectStoragePayerResult>()
   for (const id of projectIds) {
     const owner = ownersById.get(id)
@@ -741,12 +772,8 @@ async function changeProjectStoragePayers(
       owner.organizationId !== change.expectedCurrentOwner.organizationId
     )
       throw new Error(`Project ${id} owner changed before the transaction lock`)
-    const oldPayer: BillingEntity = owner.organizationId
-      ? { type: 'organization', id: owner.organizationId }
-      : { type: 'user', id: owner.ownerId }
-    const newPayer: BillingEntity = change.organizationId
-      ? { type: 'organization', id: change.organizationId }
-      : { type: 'user', id: change.ownerId }
+    const oldPayer = getProjectPayer(owner, payerOrganizationIds)
+    const newPayer = getProjectPayer(change, payerOrganizationIds)
     resultById.set(id, { projectId: id, billableBytes: 0, oldPayer, newPayer })
   }
   const totals = await getExactProjectStorageBytes(tx, projectIds)
@@ -912,6 +939,12 @@ export async function changeProjectAndWorkspaceStoragePayersInTx(
         .for('no key update')
     : []
   const workspaceById = new Map(workspaces.map((owner) => [owner.id, owner]))
+  const payerOrganizationIds = await selectPayerOrganizationIds(tx, [
+    ...projects.map((owner) => owner.organizationId),
+    ...changes.projectChanges.map((change) => change.organizationId),
+    ...workspaces.map((owner) => owner.organizationId),
+    ...changes.workspaceChanges.map((change) => change.organizationId),
+  ])
   const payerByKey = new Map<string, BillingEntity>()
   const removedProjects: RemovedProjectStorageContribution[] = []
   for (const removal of removals) {
@@ -922,9 +955,7 @@ export async function changeProjectAndWorkspaceStoragePayersInTx(
       owner.organizationId !== removal.organizationId
     )
       throw new Error(`Project ${removal.projectId} owner changed before retirement`)
-    const payer: BillingEntity = owner.organizationId
-      ? { type: 'organization', id: owner.organizationId }
-      : { type: 'user', id: owner.ownerId }
+    const payer = getProjectPayer(owner, payerOrganizationIds)
     payerByKey.set(getPayerKey(payer), payer)
     removedProjects.push({ projectId: removal.projectId, billableBytes: 0, payer })
   }
@@ -932,9 +963,7 @@ export async function changeProjectAndWorkspaceStoragePayersInTx(
     const owner = projectById.get(change.projectId)
     if (!owner) throw new Error(`Project ${change.projectId} not found during storage payer change`)
     for (const value of [owner, change]) {
-      const payer: BillingEntity = value.organizationId
-        ? { type: 'organization', id: value.organizationId }
-        : { type: 'user', id: value.ownerId }
+      const payer = getProjectPayer(value, payerOrganizationIds)
       payerByKey.set(getPayerKey(payer), payer)
     }
   }
@@ -943,7 +972,7 @@ export async function changeProjectAndWorkspaceStoragePayersInTx(
     if (!owner)
       throw new Error(`Workspace ${change.workspaceId} not found during storage payer change`)
     for (const value of [owner, change]) {
-      const payer = getWorkspacePayer(value)
+      const payer = getWorkspacePayer(value, payerOrganizationIds)
       payerByKey.set(getPayerKey(payer), payer)
     }
   }

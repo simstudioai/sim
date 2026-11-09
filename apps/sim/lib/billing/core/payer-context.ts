@@ -1,6 +1,7 @@
 import { db, dbReplica } from '@sim/db'
 import { member, userStats, workspace } from '@sim/db/schema'
 import { and, asc, eq, isNull } from 'drizzle-orm'
+import { payerOrganizationIdSql } from '@/lib/billing/core/payer-organization'
 import type { DbClient } from '@/lib/db/types'
 
 export interface BillingBlockState {
@@ -17,7 +18,10 @@ export async function getUpgradeWorkspaceId(
   const targetPredicate =
     target.type === 'organization'
       ? eq(workspace.organizationId, target.id)
-      : and(eq(workspace.billedAccountUserId, target.id), isNull(workspace.organizationId))
+      : and(
+          eq(workspace.billedAccountUserId, target.id),
+          isNull(payerOrganizationIdSql(workspace.organizationId))
+        )
 
   const [record] = await executor
     .select({ id: workspace.id })
