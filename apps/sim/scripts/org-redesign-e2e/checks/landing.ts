@@ -189,7 +189,7 @@ export async function landingChecks() {
         await expect(page).toHaveURL(
           (address) => address.pathname === org.settingsSection('members')
         )
-        await expect(page.getByRole('textbox', { name: 'Search members' })).toBeVisible()
+        await expect(page.getByRole('searchbox', { name: 'Search members' })).toBeVisible()
         await page.goto(url(org.accessRequests))
         await expect(page).toHaveURL(
           (address) => address.pathname === org.settingsSection('requests')

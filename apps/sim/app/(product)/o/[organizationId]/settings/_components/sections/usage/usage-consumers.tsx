@@ -84,7 +84,7 @@ export function UsageConsumers({
   if (failed) return <FailureNotice message={`Couldn’t load ${title}.`} onRetry={onRetry} />
   if (loading || !breakdown) return null
   if (breakdown.rows.length === 0)
-    return <EmptyState title={title} description={EMPTY_COPY[dimension]} />
+    return <EmptyState title={title} description={EMPTY_COPY[dimension]} action={control} />
   return (
     <div className={styles.dimmable} data-dimmed={dimmed || undefined}>
       <DataTable

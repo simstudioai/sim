@@ -220,6 +220,7 @@ export function ProviderForm({
       ) : null}
       <form
         autoComplete='off'
+        noValidate
         onSubmit={(event) => {
           event.preventDefault()
           void submit()

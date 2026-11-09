@@ -325,6 +325,18 @@ export function GroupDetail({
       )
     }
     if (params.tab === 'providers') {
+      if (editor.providers.isLoading) return null
+      if (editor.providers.error)
+        return (
+          <FailureNotice
+            message={getErrorMessage(
+              editor.providers.error,
+              'Could not load provider availability'
+            )}
+            retrying={editor.providers.retrying}
+            onRetry={editor.providers.retry}
+          />
+        )
       const filtered = model.providerIds
         .filter((id) => !query || id.toLowerCase().includes(query))
         .filter((id) => matchesStatusFilter(status, controls.getState({ kind: 'provider', id })))

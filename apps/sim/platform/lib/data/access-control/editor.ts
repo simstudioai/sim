@@ -73,9 +73,15 @@ function catalogModelFacts(catalog: PermissionGroupEditorCatalog): ModelFacts {
   }
 }
 
-function toEditorModel(catalog: PermissionGroupEditorCatalog, blacklist: readonly string[]) {
+/**
+ * `blacklist` is null while the deployment's provider blacklist is unread or failed: no provider is
+ * offered then, as legacy did, while blocks and the rest of the catalog stay editable.
+ */
+function toEditorModel(catalog: PermissionGroupEditorCatalog, blacklist: readonly string[] | null) {
   const definitions = new Map(catalog.providers.map((provider) => [provider.id, provider]))
-  const providerIds = catalog.providerIds.filter((id) => !blacklist.includes(id.toLowerCase()))
+  const providerIds = blacklist
+    ? catalog.providerIds.filter((id) => !blacklist.includes(id.toLowerCase()))
+    : []
   return {
     /** The whole allowlist universe. Only `visibleBlocks` is drawn. */
     blocks: catalog.blocks,
@@ -114,19 +120,23 @@ export function usePermissionEditorModel(organizationId: string) {
   const blacklist = useBlacklistedProviders()
   const model = useMemo(
     () =>
-      catalog.data && blacklist.data
-        ? toEditorModel(catalog.data, blacklist.data.blacklistedProviders)
+      catalog.data
+        ? toEditorModel(catalog.data, blacklist.data?.blacklistedProviders ?? null)
         : null,
     [catalog.data, blacklist.data]
   )
   return {
     model,
-    isLoading: catalog.isPending || blacklist.isPending,
-    error: catalog.error ?? blacklist.error,
-    retrying: catalog.isFetching || blacklist.isFetching,
-    retry: () => {
-      void catalog.refetch()
-      void blacklist.refetch()
+    isLoading: catalog.isPending,
+    error: catalog.error,
+    retrying: catalog.isFetching,
+    retry: () => void catalog.refetch(),
+    /** The provider blacklist's own read, which gates only the Model Providers tab. */
+    providers: {
+      isLoading: blacklist.isPending,
+      error: blacklist.error,
+      retrying: blacklist.isFetching,
+      retry: () => void blacklist.refetch(),
     },
   }
 }

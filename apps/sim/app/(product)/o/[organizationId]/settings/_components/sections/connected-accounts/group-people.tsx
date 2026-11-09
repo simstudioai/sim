@@ -107,14 +107,22 @@ export function GroupPeople({ people, nextCursor, shallow, actions }: GroupPeopl
         onOpenChange={setInvite}
         title='Request account connections'
         confirmLabel='Send requests'
-        confirmDisabled={!recipients.length || recipients.some((item) => item.invalid)}
+        confirmDisabled={!recipients.some((item) => !item.invalid)}
         onConfirm={async () => {
+          // As legacy did, the valid addresses go out and an invalid one stays to be corrected.
+          const invalid = recipients.filter((item) => item.invalid)
           const failure = await actions.invite([
-            ...new Set(recipients.map((item) => item.address.toLowerCase())),
+            ...new Set(
+              recipients.filter((item) => !item.invalid).map((item) => item.address.toLowerCase())
+            ),
           ])
-          if (!failure) return
-          setRecipients(failure.failed.map((address) => ({ address })))
-          throw new Error(failure.notice)
+          if (failure) {
+            setRecipients([...failure.failed.map((address) => ({ address })), ...invalid])
+            throw new Error(failure.notice)
+          }
+          if (!invalid.length) return
+          setRecipients(invalid)
+          return false
         }}
       >
         <FieldStack>
