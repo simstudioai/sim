@@ -338,7 +338,7 @@ export function useSearchField({ query, searching, onSubmit, onStop }: SearchFie
   const { data: session } = useSession()
   const userId = session?.user?.id ?? ''
   const hydrated = useHydrated()
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const drafts = searchDraftKeys(userId, organization.organization.id)
   const latest = useMothershipDraftsStore((state) => state.drafts[drafts.latest])
   const owner = query || latest?.searchQuery || ''
