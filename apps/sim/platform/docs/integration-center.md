@@ -53,7 +53,7 @@ Check destination navigation and browser history, search and empty results, sort
 
 For custom Slack bots, check required name fields, all generated capability choices, slash-command uniqueness and limits, back navigation, masked token entry, reconnect ownership, and clean secret fields after cancellation or submission. The fixture callback may receive only display metadata; no token or signing secret may enter session state, storage, a request, or a success notice.
 
-Run the Platform design audit, type check, build and browser checks from the [README](../README.md). The static audit enforces styling and ownership boundaries and unused variants. Review independently that every new shared visual variant has two real consumers and that custom feature anatomy uses an established layout rhythm; a numeric JSX count cannot establish those design decisions.
+Run the Platform design audit, type check, build and browser checks from the [README](../README.md). The static audit enforces styling and ownership boundaries and unused variants. EMCN is frozen, so the center composes existing components and adds no variant. Review independently that custom feature anatomy uses an established layout rhythm; a numeric JSX count cannot establish that.
 
 ## Manual secrets and modal composition
 

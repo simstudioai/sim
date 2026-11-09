@@ -88,6 +88,7 @@ The [Platform design contract](AGENTS.md) is authoritative. Use the repository's
 ```sh
 bun run check:platform-design
 bun run check:platform-css
+bun run check:emcn-surface
 bun run check:boundaries
 bun run check:platform-parity
 bun run --cwd apps/sim type-check
@@ -102,6 +103,6 @@ The fixture suites (`checks/playwright.config.ts`, `checks/desktop/playwright.co
 
 `bun run --cwd apps/sim test:platform:live` runs `checks/live/` against a production build and database you have started (`PLATFORM_LIVE_ORIGIN`, and the accounts `checks/live/session.ts` reads). `.github/scripts/http-e2e.sh platform-live` boots that stack the way CI does. Supply `PLATFORM_LIVE_REPORT_PATH` to save its JSON report.
 
-The static check covers ownership, styling props, component folders, evidence, tokens, unused variants and dependency direction. It rejects a route CSS Module directly under `_components/`; put it with its component. If it flags a variant used on a real route, verify the call path and add that case to the checker. Review new shared visual variants against at least two independent consumers; semantic independence is a design review, not a count of repeated JSX rows. Use the rendered route to verify visual alignment. Compare both themes, keyboard and pointer states, actual overflow, text scaling and widths between approved artboards.
+The static check covers ownership, styling props, component folders, evidence, tokens, unused variants and dependency direction. It rejects a route CSS Module directly under `_components/`; put it with its component. If it flags a variant used on a real route, verify the call path and add that case to the checker. EMCN is frozen: compose existing components, move a part a second feature needs to the nearest shared product owner (`app/(product)/_components/`), and leave EMCN changes to the design owner. Use the rendered route to verify visual alignment. Compare both themes, keyboard and pointer states, actual overflow, text scaling and widths between approved artboards.
 
 References: [Next project structure](https://nextjs.org/docs/app/getting-started/project-structure), [Next styling](https://nextjs.org/docs/app/getting-started/css), [Tailwind theme variables](https://tailwindcss.com/docs/theme), [shadcn/ui composition](https://ui.shadcn.com/docs), [Playwright assertions](https://playwright.dev/docs/test-assertions).
