@@ -1,6 +1,6 @@
 /**
- * Generate the public provider metadata used by the isolated Platform from the workspace catalog
- * and credential enrollment definitions. Pass --check to detect upstream changes without writing.
+ * Generate the public provider metadata the product routes (`app/(product)`) read through
+ * `platform/lib/integrations`, from the workspace catalog and credential enrollment definitions. Pass --check to detect upstream changes without writing.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
