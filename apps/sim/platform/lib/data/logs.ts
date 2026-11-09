@@ -684,7 +684,7 @@ export function useRunSnapshot(workspaceId: string, executionId: string) {
       (read.status === 'ready' && log !== undefined && !hasSnapshot) ||
       (snapshot.isSuccess && !state),
     run: log && toRunSummary(log),
-    workflowState: state && !migrated ? (state as WorkflowState) : undefined,
+    workflowState: migrated ? undefined : ((state ?? undefined) as WorkflowState | undefined),
     migrated,
     blocks: snapshotBlocks(log?.executionData.traceSpans ?? [], startedAt),
   }

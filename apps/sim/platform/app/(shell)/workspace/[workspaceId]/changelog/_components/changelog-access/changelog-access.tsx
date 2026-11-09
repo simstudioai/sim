@@ -1,15 +1,15 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { RequestAccessModal } from '@/platform/app/(shell)/_components/request-access-modal/request-access-modal'
 import {
   LiveWorkspacePage,
   WorkspaceEmpty,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
 import { useResourceListAccess } from '@/platform/lib/data/folders'
-import { useOrganization } from '@/platform/lib/data/organization'
-import { legacyRoutes } from '@/platform/lib/data/organization-model'
 import { useFeatureAccessPrompt } from '@/platform/lib/data/requests'
+import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 interface AccessRequiredProps {
   workspaceId: string
@@ -19,11 +19,13 @@ interface AccessRequiredProps {
 
 /** Why the changelog is closed to the viewer, with the request legacy's access boundary offers. */
 function AccessRequired({ workspaceId, refreshing, onRefresh }: AccessRequiredProps) {
-  const organization = useOrganization()
+  const router = useRouter()
   const prompt = useFeatureAccessPrompt(workspaceId, 'hideFilesTab')
   const [requesting, setRequesting] = useState(false)
   const viewRequest = (requestId: string) =>
-    window.location.assign(legacyRoutes(organization).workspaceRequest(workspaceId, requestId))
+    router.push(
+      workspacePath(workspaceId, `settings/requests?${new URLSearchParams({ requestId })}`)
+    )
   const { pendingRequestId } = prompt
   const read = prompt.error
     ? {
