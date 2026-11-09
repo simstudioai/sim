@@ -78,6 +78,12 @@ function baseUtility(className) {
   return base.endsWith('!') ? base.slice(0, -1) : base
 }
 
+/**
+ * The product's stylesheets: its bootstrap, its route modules and the Platform package. The
+ * design system there owns its own stroke widths, so Tailwind's 1px stays as written.
+ */
+const PRODUCT_STYLESHEETS = ['/apps/sim/app/(product)/', '/apps/sim/platform/', '/packages/emcn-platform/']
+
 function isHairlineRule(rule) {
   return rule.selectors.some((selector) =>
     classNames(selector).some((name) => HAIRLINE_UTILITIES.has(baseUtility(name)))
@@ -90,7 +96,9 @@ const plugin = () => ({
     // Third-party stylesheets travel through the same pipeline. Several are
     // themselves Tailwind output, so a dependency bump could ship a `.border`
     // rule that has no idea what `--border-width` is.
-    if (result.opts.from?.includes('node_modules')) return
+    const from = result.opts.from
+    if (from?.includes('node_modules')) return
+    if (PRODUCT_STYLESHEETS.some((root) => from?.includes(root))) return
 
     root.walkRules((rule) => {
       if (!isHairlineRule(rule)) return

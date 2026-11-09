@@ -3,27 +3,19 @@
   "tasks": {
     "ci:shared": {
       "dependsOn": ["^ci:runtime"],
-      // The Platform zone is a separate Next app with its own workflow (platform-design.yml), so an
-      // edit that touches only the zone selects no main-app job. `platform/embedded` ships inside
-      // `app/o`, so it stays an input; the EMCN packages reach the hash as workspace dependencies. Each zone path is named so
-      // that a new `platform/` folder is an input until someone decides otherwise.
+      // The product routes and their data seam are UI (ci:ui). The Platform's browser checks, docs
+      // and live seed belong to platform-design.yml, so an edit to them selects no main-app job.
       "inputs": [
         "$TURBO_DEFAULT$",
-        "!platform/app/**",
+        "!app/[(]product[)]/**",
         "!platform/lib/**",
         "!platform/fixtures/**",
+        "!platform/shared/**",
+        "!platform/styles/**",
         "!platform/checks/**",
         "!platform/docs/**",
-        "!platform/preview/**",
-        "!platform/public/**",
-        "!platform/next.config.ts",
-        "!platform/proxy.ts",
-        "!platform/postcss.config.mjs",
-        "!platform/package.json",
-        "!platform/tsconfig.json",
         "!platform/README.md",
         "!scripts/platform-live-*",
-        "!app/workspace/**",
         "!app/(landing)/**",
         "!app/api/**",
         "!content/**",
@@ -94,7 +86,11 @@
     "ci:ui": {
       "dependsOn": ["ci:shared"],
       "inputs": [
-        "app/workspace/**",
+        "app/[(]product[)]/**",
+        "platform/lib/**",
+        "platform/fixtures/**",
+        "platform/shared/**",
+        "platform/styles/**",
         "!**/*.test.*",
         "!**/*.spec.*",
         "!**/*.integration.ts",
@@ -232,26 +228,14 @@
       ]
     },
     "build": {
-      // `app/o` bundles `platform/embedded` and the EMCN packages, so those are inputs: leaving them
-      // out would restore a stale `.next` and ship an old UI. The zone paths below are its own Next
-      // app, and the embedded tree imports none of them (check:platform-design rule `zone-embedded`,
-      // check:boundaries).
+      // The product routes and their data seam ship in this build; the Platform's browser checks,
+      // docs and live seed do not.
       "env": ["NEXT_BUILD_SKIP_TYPE_CHECK"],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",
-        "!platform/app/**",
-        "!platform/lib/**",
-        "!platform/fixtures/**",
         "!platform/checks/**",
         "!platform/docs/**",
-        "!platform/preview/**",
-        "!platform/public/**",
-        "!platform/next.config.ts",
-        "!platform/proxy.ts",
-        "!platform/postcss.config.mjs",
-        "!platform/package.json",
-        "!platform/tsconfig.json",
         "!platform/README.md",
         "!scripts/platform-live-*",
         "!**/*.test.*",

@@ -4,7 +4,7 @@ import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
 export const metadata: Metadata = { title: 'Tables' }
 
-/** The mode is per-request; a build with no API origin must not freeze the answer. */
+/** The mode is per-request; a build must not freeze the answer. */
 export const dynamic = 'force-dynamic'
 
 export default async function Page({ params }: { params: Promise<{ workspaceId: string }> }) {

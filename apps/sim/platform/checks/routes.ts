@@ -7,7 +7,7 @@ import { organizationId } from './live/session'
  * it and at what URL, so moving the routes is an edit here and nowhere else.
  */
 
-/** The fixture server the design checks start, unless one already runs at `PLATFORM_E2E_ORIGIN`. */
+/** The fixture development server the design checks start, unless one already runs at `PLATFORM_E2E_ORIGIN`. */
 export const FIXTURE_PORT = 3181
 /** The fixture server the desktop shell opens. */
 export const DESKTOP_PORT = 3182
@@ -38,6 +38,8 @@ export const liveRoutePattern = (route: string, rest = '') =>
 export const liveLoginPattern = (route: string) =>
   new RegExp(`/login\\?.*callbackUrl=${escapeRegExp(encodeURIComponent(liveRoute(route)))}`)
 
-/** Serves the main app's production build on `port`, run from `apps/sim`. */
-export const productionServer = (port: number) =>
-  `bunx --no-install next start -H 127.0.0.1 -p ${port}`
+/**
+ * Serves the main app's development server on `port`, run from `apps/sim`. Example data is a
+ * development-only mode: a production build never serves it.
+ */
+export const fixtureServer = (port: number) => `bunx --no-install next dev -H 127.0.0.1 -p ${port}`

@@ -1,9 +1,13 @@
 import { type ReactNode, Suspense } from 'react'
 import { ProductSession } from '@/app/(product)/_components/product-session'
-import { loadShellScenarios } from '@/platform/fixtures'
+import { FIXTURE_ORGANIZATION_ID, loadShellScenarios } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
-export default async function Layout({ children }: { children: ReactNode }) {
+/**
+ * The one product shell, around every organization and workspace page, so the sidebar never
+ * remounts between them. A live session resolves its organization from the request's shell scope.
+ */
+export async function ProductShell({ children }: { children: ReactNode }) {
   if (resolvePlatformMode() === 'live') {
     // Loaded only here, so a fixture server never evaluates the data seam.
     const { LiveShell } = await import('@/app/(product)/_components/live-shell/live-shell')
@@ -12,7 +16,9 @@ export default async function Layout({ children }: { children: ReactNode }) {
   const fixtures = await loadShellScenarios()
   return (
     <Suspense fallback={null}>
-      <ProductSession fixtures={fixtures}>{children}</ProductSession>
+      <ProductSession fixtures={fixtures} routePrefix={`/o/${FIXTURE_ORGANIZATION_ID}`}>
+        {children}
+      </ProductSession>
     </Suspense>
   )
 }

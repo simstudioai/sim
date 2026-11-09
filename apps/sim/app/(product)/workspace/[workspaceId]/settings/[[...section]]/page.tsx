@@ -1,4 +1,3 @@
-import { EmptyState } from '@sim/emcn/empty-state'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { WORKSPACE_SETTINGS_SECTIONS } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
@@ -40,13 +39,9 @@ export default async function Page({
   searchParams,
 }: PageProps<'/workspace/[workspaceId]/settings/[[...section]]'>) {
   const [{ workspaceId, section: path = [] }, query] = await Promise.all([params, searchParams])
-  const mode = resolvePlatformMode()
-  if (mode !== 'live') {
+  if (resolvePlatformMode() !== 'live') {
     const workspace = await loadWorkspaceSummary(readScenario(query.state), workspaceId)
-    if (!workspace) {
-      if (mode === 'fixture') notFound()
-      return <EmptyState title='Settings' description='No workspace data available.' />
-    }
+    if (!workspace) notFound()
     return <WorkspaceSettings workspace={workspace} />
   }
   const [key, ...subpath] = path
@@ -59,7 +54,11 @@ export default async function Page({
     const destination = workspacePath(workspaceId, `settings/${DEFAULT_WORKSPACE_SETTING}`)
     redirect(params.size ? `${destination}?${params}` : destination)
   }
-  if (!isWorkspaceSettingsKey(key)) notFound()
+  if (!isWorkspaceSettingsKey(key)) {
+    // A section that moved, such as one now in organization Settings, redirects; others 404.
+    const { redirectLegacyWorkspaceUrl } = await import('@/platform/lib/data/legacy-redirects')
+    return redirectLegacyWorkspaceUrl(workspaceId, ['settings', ...path], query)
+  }
   const entry = WORKSPACE_SETTINGS_SECTIONS[key]
   if (subpath.length && !matchesSubpath(entry.subpaths, subpath)) notFound()
   const { default: Section } = await entry.load()

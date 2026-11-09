@@ -621,8 +621,16 @@ const nextConfig: NextConfig = {
         destination: '/o/:organizationId/settings/general?view=authorized-apps',
         permanent: true,
       },
+      {
+        source: '/o/:organizationId/benchmark',
+        destination: '/benchmark?organization=:organizationId',
+        permanent: true,
+      },
       { source: '/org/:path*', destination: '/home', permanent: true }
     )
+
+    /** Bare `/o` names no organization, so it resolves like the app entry. */
+    redirects.push({ source: '/o', destination: '/home', permanent: false })
 
     // Legacy integration slug: the incident.io block's display name was fixed
     // from `incidentio` to `incident.io`, which moved its catalog slug.

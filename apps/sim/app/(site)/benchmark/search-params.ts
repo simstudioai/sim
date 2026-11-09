@@ -1,8 +1,26 @@
-import { parseAsString } from 'nuqs/server'
-import {
-  benchmarkParams,
-  benchmarkUrlOptions,
-} from '@/app/o/[organizationId]/benchmark/search-params'
+import { parseAsBoolean, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+
+export const benchmarkParams = {
+  creating: parseAsBoolean.withDefault(false),
+  benchmarkId: parseAsString.withDefault(''),
+  benchmarkView: parseAsStringLiteral(['current', 'history'] as const).withDefault('current'),
+  runId: parseAsString.withDefault(''),
+  compareRunId: parseAsString.withDefault(''),
+  runsCursor: parseAsString.withDefault(''),
+}
+
+export const benchmarkUrlOptions = {
+  history: 'push',
+  clearOnDefault: true,
+  urlKeys: {
+    benchmarkId: 'benchmark',
+    creating: 'new',
+    benchmarkView: 'view',
+    runId: 'run',
+    compareRunId: 'compare',
+    runsCursor: 'cursor',
+  },
+} as const
 
 export const benchmarkConsoleParams = {
   ...benchmarkParams,

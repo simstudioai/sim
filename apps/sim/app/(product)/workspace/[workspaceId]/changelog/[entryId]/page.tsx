@@ -9,7 +9,7 @@ import { withChangelogView } from '@/platform/lib/workspace-views'
 
 export const metadata: Metadata = { title: 'Changelog' }
 
-/** The mode is per-request; a build with no API origin must not freeze the answer. */
+/** The mode is per-request; a build must not freeze the answer. */
 export const dynamic = 'force-dynamic'
 
 export default async function Page({

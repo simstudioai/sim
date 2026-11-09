@@ -3,12 +3,12 @@
 import { useState } from 'react'
 import { Chip, ChipCombobox, ChipLink } from '@sim/emcn-legacy'
 import { useQueryStates } from 'nuqs'
+import { Benchmark } from '@/app/(site)/benchmark/benchmark'
 import {
   benchmarkConsoleParams,
   benchmarkConsoleUrlOptions,
   emptyBenchmarkSelection,
 } from '@/app/(site)/benchmark/search-params'
-import { Benchmark } from '@/app/o/[organizationId]/benchmark/benchmark'
 import {
   useBenchmarkOrganizations,
   useBenchmarkUsers,

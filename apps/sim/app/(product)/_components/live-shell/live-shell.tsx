@@ -2,37 +2,43 @@ import { type ReactNode, Suspense } from 'react'
 import { getSessionCookie } from 'better-auth/cookies'
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { env } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/env-flags'
+import { WORKSPACE_SETTINGS_PATH, WORKSPACES_PATH } from '@/lib/navigation/paths'
+import { BrowserTelemetry } from '@/app/_shell/providers/browser-telemetry'
 import { resolveLiveDestinations } from '@/app/(product)/_components/destinations'
 import { LiveComposerHost } from '@/app/(product)/_components/live-shell/live-composer-host'
 import { StaleSession } from '@/app/(product)/_components/live-shell/stale-session'
 import { ProductSession } from '@/app/(product)/_components/product-session'
 import { SessionState } from '@/app/(product)/_components/session-state/session-state'
 import { AccessDenied, SurfaceUnavailable } from '@/app/(product)/_components/shell-gate/shell-gate'
-import { hasOrganizationSurface, legacyRoutes } from '@/platform/lib/data/organization-model'
+import { hasOrganizationSurface } from '@/platform/lib/data/organization-model'
 import { prefetchShell } from '@/platform/lib/data/prefetch-shell'
 import { LiveProviders } from '@/platform/lib/data/providers'
 import { resolveSettingsNavigation } from '@/platform/lib/data/settings-navigation'
-import { legacyUrl, loginUrl, readOrganizationSurface } from '@/platform/lib/data/surface'
+import { readOrganizationSurface } from '@/platform/lib/data/surface'
+
+const LOGIN_PATH = '/login'
 
 /**
- * The shell for a live session: the legacy organization layout's gates, in its order, against data
- * read over the API. Each gate decides before anything product-shaped renders.
+ * The shell for a live session, in the organization this request's shell belongs to: the legacy
+ * organization layout's gates, in its order, against data read in process. Each gate decides
+ * before anything product-shaped renders.
  */
 export async function LiveShell({ children }: { children: ReactNode }) {
   const surface = await readOrganizationSurface()
   if (surface.status !== 'ok') {
     if (surface.status === 'unauthenticated') {
-      if (getSessionCookie(await headers())) return <StaleSession loginHref={loginUrl()} />
-      redirect(loginUrl())
+      if (getSessionCookie(await headers())) return <StaleSession loginHref={LOGIN_PATH} />
+      redirect(LOGIN_PATH)
     }
-    if (surface.status === 'denied')
-      return <AccessDenied workspacesHref={legacyUrl('/workspace')} />
+    if (surface.status === 'denied') return <AccessDenied workspacesHref={WORKSPACES_PATH} />
     return <SurfaceUnavailable />
   }
 
   const { organization } = surface
   const cookieStore = await cookies()
-  if (!hasOrganizationSurface(organization)) redirect(legacyRoutes(organization).workspaceSettings)
+  if (!hasOrganizationSurface(organization)) redirect(WORKSPACE_SETTINGS_PATH)
 
   return (
     <LiveProviders
@@ -43,10 +49,12 @@ export async function LiveShell({ children }: { children: ReactNode }) {
       }}
       dehydratedState={await prefetchShell(organization)}
     >
+      <BrowserTelemetry disabled={env.NEXT_TELEMETRY_DISABLED === '1'} consentRequired={isHosted} />
       <Suspense fallback={null}>
         <LiveComposerHost>
           <ProductSession
             fixtures={null}
+            routePrefix={organization.routePrefix}
             banner={<SessionState />}
             sidebarCollapsed={cookieStore.get('sidebar_collapsed')?.value === '1'}
           >

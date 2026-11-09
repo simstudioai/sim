@@ -1,33 +1,33 @@
 import type { ReactNode } from 'react'
-import { AssetsProvider } from '@sim/emcn/icon/assets'
 import type { Metadata } from 'next'
 import '@/platform/styles/bootstrap.css'
 import '@sim/emcn-platform/styles/platform.css'
-import { resolvePlatformMode } from '@/platform/lib/data/mode'
+import { publicEnvHtmlAttributes } from '@/lib/core/config/public-env'
+import { AppAnalytics, AppHead } from '@/app/_shell/app-document'
+import { DesktopUpdateGate } from '@/app/_shell/desktop-update-gate'
+import { ProductShell } from '@/app/(product)/_components/product-shell'
+import { generateBrandedMetadata } from '@/ee/whitelabeling'
 
-export const metadata: Metadata = {
-  title: 'Sim Platform',
-  description: 'Home, conversations, and account preferences in Sim.',
-  robots: { index: false, follow: false },
-}
+export const metadata: Metadata = generateBrandedMetadata()
 
-interface RootLayoutProps {
-  children: ReactNode
-}
-
-export default async function RootLayout({ children }: RootLayoutProps) {
-  const publicEnv =
-    resolvePlatformMode() === 'live'
-      ? (await import('@/platform/lib/data/public-env')).readPublicEnvAttribute()
-      : undefined
+/**
+ * The product's own root: the design system's bootstrap and stylesheet, never the site's legacy
+ * globals, around the one shell every organization and workspace page shares. Next reloads the
+ * document when a navigation crosses into another root.
+ */
+export default function ProductRootLayout({ children }: { children: ReactNode }) {
   return (
-    // The Workflows tab's persisted editor stores write their sizes onto this element as they rehydrate,
-    // before React does, as the legacy root allows.
-    <html lang='en' data-public-env={publicEnv} suppressHydrationWarning>
+    // The Workflows tab's persisted editor stores write their sizes onto this element as they
+    // rehydrate, before React does.
+    <html lang='en' suppressHydrationWarning {...publicEnvHtmlAttributes()}>
+      <head>
+        <AppHead />
+      </head>
       <body>
-        <AssetsProvider basePath={process.env.NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH ?? ''}>
-          {children}
-        </AssetsProvider>
+        <DesktopUpdateGate />
+        <AppAnalytics>
+          <ProductShell>{children}</ProductShell>
+        </AppAnalytics>
       </body>
     </html>
   )

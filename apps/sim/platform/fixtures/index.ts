@@ -2,6 +2,7 @@ import 'server-only'
 import type { AttachmentItem } from '@sim/emcn/attachments/tile'
 import type { PropertyItem } from '@sim/emcn/property-list'
 import type { RecentItem } from '@sim/emcn-platform/recent-items'
+import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import type { IntegrationsData } from '@/platform/lib/integrations/fixture-model'
 import type { PreviewPlan } from '@/platform/lib/navigation'
 
@@ -44,12 +45,12 @@ export interface PreviewData {
   }
 }
 
-/** Only invoke the scenario's import on a server that opted into preview data. */
+/** Only invoke the scenario's import on a development server that opted into preview data. */
 function fixture<T, Args extends unknown[]>(
   read: (scenario: Scenario, ...args: Args) => Promise<T>
 ) {
   return (scenario: Scenario, ...args: Args): Promise<T | null> =>
-    process.env.SIM_PLATFORM_FIXTURES === '1' ? read(scenario, ...args) : Promise.resolve(null)
+    resolvePlatformMode() === 'fixture' ? read(scenario, ...args) : Promise.resolve(null)
 }
 
 export const loadPreviewData = fixture(
