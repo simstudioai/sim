@@ -160,3 +160,13 @@ textarea.input {
 .switchField > label {
   min-inline-size: 0;
 }
+
+/*
+ * A phone browser zooms the page into any field set below 16px as it takes focus, and leaves it
+ * zoomed. Touch layouts narrower than 48rem set field text at the reading size, as legacy fields did.
+ */
+@media (pointer: coarse) and (max-width: 48rem) {
+  .inputFrame > .input[data-type] {
+    font-size: var(--text-reading);
+  }
+}
