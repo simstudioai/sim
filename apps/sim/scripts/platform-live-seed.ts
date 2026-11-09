@@ -72,12 +72,6 @@ const PEOPLE = [
     name: 'Rae Role',
     role: 'member',
   },
-  {
-    key: 'removable',
-    email: required('PLATFORM_LIVE_REMOVABLE_EMAIL'),
-    name: 'Remy Removable',
-    role: 'member',
-  },
 ] as const
 
 const userId = (key: string) => `platform-live-user-${key}`
@@ -94,6 +88,8 @@ const WORKSPACES = [
   { id: 'platform-live-workspace-main', name: 'Operations' },
   { id: 'platform-live-workspace-second', name: 'Marketing' },
 ] as const
+/** A workspace of the outside organization that no member of the seeded one can open. */
+const OUTSIDE_WORKSPACE_ID = 'platform-live-workspace-outside'
 const CHATS = [
   {
     id: '11111111-1111-4111-8111-111111111111',
@@ -229,6 +225,28 @@ await db.transaction(async (tx) => {
       }))
     )
   }
+
+  await tx.insert(project).values({
+    id: OUTSIDE_WORKSPACE_ID,
+    name: 'Outside',
+    ownerId: OUTSIDER_ID,
+    organizationId: OUTSIDE_ORGANIZATION_ID,
+  })
+  await tx.insert(workspace).values({
+    id: OUTSIDE_WORKSPACE_ID,
+    projectId: OUTSIDE_WORKSPACE_ID,
+    name: 'Outside',
+    ownerId: OUTSIDER_ID,
+    billedAccountUserId: OUTSIDER_ID,
+    organizationId: OUTSIDE_ORGANIZATION_ID,
+  })
+  await tx.insert(permissions).values({
+    id: `${OUTSIDE_WORKSPACE_ID}-outsider`,
+    userId: OUTSIDER_ID,
+    entityType: 'workspace',
+    entityId: OUTSIDE_WORKSPACE_ID,
+    permissionType: 'admin',
+  })
 
   await tx.insert(copilotChats).values(
     CHATS.map(({ id, title, deleted, mode, seen }) => ({

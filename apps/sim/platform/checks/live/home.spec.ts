@@ -106,15 +106,24 @@ test.describe('Home for the seeded administrator', () => {
 
   test('Recents list the viewer’s real history and × removes it for good', async ({ page }) => {
     await signInAsAdmin(page, liveRoute('/home'))
+    // A source of this run's own: removing it for good leaves the seeded history as it was.
+    const run = Date.now()
+    const title = `Live recent ${run}`
+    const recorded = await page.request.post(
+      `/api/organizations/${organizationId()}/search/history`,
+      { data: { kind: 'source', source: { url: `https://example.com/live-recent-${run}`, title } } }
+    )
+    expect(recorded.status()).toBe(200)
+    await page.reload()
     const recents = page.getByRole('region', { name: 'Recents', exact: true })
     await expect(recents.getByRole('link', { name: 'Onboarding guide' })).toBeVisible()
-    const renewal = recents.getByRole('link', { name: 'Renewal terms' })
-    await renewal.hover()
-    await recents.getByRole('button', { name: 'Remove Renewal terms from recents' }).click()
-    await expect(renewal).toHaveCount(0)
+    const recent = recents.getByRole('link', { name: title })
+    await recent.hover()
+    await recents.getByRole('button', { name: `Remove ${title} from recents` }).click()
+    await expect(recent).toHaveCount(0)
     await page.reload()
     await expect(recents.getByRole('link', { name: 'Onboarding guide' })).toBeVisible()
-    await expect(renewal).toHaveCount(0)
+    await expect(recent).toHaveCount(0)
   })
 
   test('an unread chat needs attention and opens from there', async ({ page }) => {
