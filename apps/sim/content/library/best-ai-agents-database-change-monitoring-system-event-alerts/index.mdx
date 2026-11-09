@@ -17,7 +17,7 @@ faq:
   - q: "What is the best AI agent builder for setting up alerting on system events?"
     a: "Sim fits system event alerting that combines triggers, Agent blocks, Conditions, Slack or email delivery, Human in the Loop, and block-level execution data in one workflow."
   - q: "Can an AI agent monitor PostgreSQL for changes?"
-    a: "Sim can monitor PostgreSQL through scheduled queries, secured APIs, MCP-based access, or events forwarded into a workflow. n8n also provides a native PostgreSQL Trigger for insert, update, and delete events."
+    a: "Sim can monitor PostgreSQL through scheduled queries, secured APIs, events forwarded into a workflow, or MCP-based access, which lets agents connect to external tools and data. n8n also provides a native PostgreSQL Trigger for insert, update, and delete events."
   - q: "Can an AI agent monitor MySQL for changes?"
     a: "Sim can monitor MySQL by running an incremental query on a schedule or receiving an event produced by another system. The workflow should persist a timestamp, increasing identifier, row version, or event identifier to prevent duplicate alerts."
   - q: "Can an AI agent monitor Snowflake or BigQuery for changes?"
@@ -64,7 +64,7 @@ The useful comparison is not a universal ranking. It is whether each platform's 
 
 | Platform | Monitoring approach | Database path | Alerting and review | Operational visibility | Fits |
 |---|---|---|---|---|---|
-| Sim | Scheduled queries or incoming webhooks and events | PostgreSQL, MySQL, Snowflake, BigQuery, APIs, and MCP-based access | Conditions route Slack or email alerts; Human in the Loop pauses a run for submitted input | Run logs include workflow graph, trace spans, output, and cost | Teams that need model-based classification, approval, and inspection in one workflow |
+| Sim | Scheduled queries or incoming webhooks and events | PostgreSQL, MySQL, Snowflake, BigQuery, APIs, and MCP-based access that lets agents connect to external tools and data | Conditions route Slack or email alerts; Human in the Loop pauses a run for submitted input | Run logs include workflow graph, trace spans, output, and cost | Teams that need model-based classification, approval, and inspection in one workflow |
 | n8n | [Schedule Trigger](https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.scheduletrigger/) and a native [PostgreSQL Trigger](https://docs.n8n.io/integrations/builtin/trigger-nodes/n8n-nodes-base.postgrestrigger/) | PostgreSQL events or scheduled queries | Workflow steps configured after the trigger | Execution details for the configured workflow | Technical teams prioritizing native PostgreSQL insert, update, and delete events |
 | Make | [Scheduled scenarios](https://help.make.com/schedule-a-scenario) and [webhooks](https://help.make.com/webhooks) | The [PostgreSQL integration](https://www.make.com/integrations/postgres) and APIs | Conditional branching with a [Router](https://help.make.com/router) | [Scenario history](https://help.make.com/scenario-history) includes run status and processed bundles | Business processes where a database event is one part of a wider scenario |
 | Zapier | [Schedule](https://help.zapier.com/hc/en-us/articles/8496288648461-Schedule-Zap-workflows-to-run-at-specific-intervals) and polling database triggers | [PostgreSQL](https://zapier.com/apps/postgresql/integrations) and [MySQL](https://zapier.com/apps/mysql/integrations) integrations | [Filters and Paths](https://help.zapier.com/hc/en-us/articles/8496180919949-Filter-and-path-rules-in-Zap-workflows) | [Zap history](https://help.zapier.com/hc/en-us/articles/8496291148685-View-and-manage-your-Zap-history) records workflow runs | Familiar SaaS events that need a direct notification or business action |
@@ -89,7 +89,7 @@ Sim fits monitoring workflows that combine schedules, database tools, an Agent b
 
 A monitoring workflow can query for new or changed rows, ask an Agent block to return a structured severity and destination, and use Conditions to route the result. If the workflow may change customer data, disable an account, or start remediation, [Human in the Loop](https://docs.sim.ai/workflows/blocks/human-in-the-loop) can pause the run and collect an approval decision. A downstream Condition must inspect that decision before the workflow continues.
 
-Sim's database access can be direct or mediated through an API or MCP server. Teams evaluating natural-language analysis instead of continuous monitoring can read [Best AI Agents for Querying SQL Databases in Plain English](https://www.sim.ai/library/best-ai-agents-for-querying-sql-databases).
+Sim's database access can be direct or mediated through an API or an MCP server, which uses Model Context Protocol to connect agents to external tools and data. Teams evaluating natural-language analysis instead of continuous monitoring can read [Best AI Agents for Querying SQL Databases in Plain English](https://www.sim.ai/library/best-ai-agents-for-querying-sql-databases).
 
 ### 2. n8n
 
