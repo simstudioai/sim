@@ -589,24 +589,18 @@ export async function homeChecks() {
       assert.equal(response.status(), 404)
     })
   })
-  await check(
-    'the agent composer with its tools, Suggested actions and the Tasks run chart',
-    async () => {
-      await onHome(ADMIN, async ({ page }) => {
-        await expect(page).toHaveURL(homeUrl)
-        await expect(page.getByRole('heading', { level: 1 })).toContainText(', Ada')
-        await expect(composer(page)).toBeVisible()
-        await expect(page.getByRole('button', { name: 'Add attachment' })).toBeVisible()
-        await expect(page.getByRole('button', { name: 'Attach file' })).toBeVisible()
-        await expect(page.getByRole('button', { name: /Skills/ }).first()).toBeVisible()
-        await expect(
-          homeRegion(page, 'Suggested actions').getByRole('listitem').first()
-        ).toBeVisible()
-        await expect(homeRegion(page, 'Tasks run')).toBeVisible()
-        await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeDisabled()
-      })
-    }
-  )
+  await check('the agent composer with its tools and the Tasks run chart', async () => {
+    await onHome(ADMIN, async ({ page }) => {
+      await expect(page).toHaveURL(homeUrl)
+      await expect(page.getByRole('heading', { level: 1 })).toContainText(', Ada')
+      await expect(composer(page)).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Add attachment' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Attach file' })).toBeVisible()
+      await expect(page.getByRole('button', { name: /Skills/ }).first()).toBeVisible()
+      await expect(homeRegion(page, 'Tasks run')).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeDisabled()
+    })
+  })
   await check('an agent turn streams, keeps its route, and Stop ends it', async () => {
     await onHome(ADMIN, async ({ page }) => {
       await composer(page).fill('Count slowly from 1 to 50, one number per line.')

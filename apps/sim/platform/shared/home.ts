@@ -80,11 +80,6 @@ export type HomeActivityState =
   | { status: 'error'; retrying: boolean }
   | { status: 'ready'; points: readonly ActivityPoint[] }
 
-/** A suggested action under Home's composer: a prompt to start from, or a service to connect. */
-export type HomeSuggestion =
-  | { kind: 'prompt'; id: string; label: string; prompt: string; providerId?: string }
-  | { kind: 'integration'; id: string; label: string; providerId: string; href: string }
-
 export interface HomeGetStartedStep {
   id: string
   title: string

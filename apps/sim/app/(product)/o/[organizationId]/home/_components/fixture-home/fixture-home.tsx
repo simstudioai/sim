@@ -129,7 +129,6 @@ export function FixtureHome({ data, recentLinks, workspaces }: FixtureHomeProps)
     },
     recents: { status: 'ready', items: recents },
     getStarted: [],
-    suggestions: [],
     composerInventory: data?.composerInventory,
   }
   const actions: HomeActions = {

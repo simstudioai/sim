@@ -8,7 +8,6 @@ import type {
   HomeCalendarDay,
   HomeGetStartedStep,
   HomeListState,
-  HomeSuggestion,
   HomeWidgetActions,
   HomeWidgetState,
   HomeWorkspaceItem,
@@ -69,7 +68,6 @@ export interface HomeView {
   workspaces: HomeListState<HomeWorkspaceItem>
   recents: HomeListState<HomeRecentItem>
   getStarted: readonly HomeGetStartedStep[]
-  suggestions: readonly HomeSuggestion[]
   composerInventory?: ComposerInventory
 }
 
