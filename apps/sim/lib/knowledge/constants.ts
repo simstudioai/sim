@@ -81,8 +81,6 @@ export const ALL_TAG_SLOTS = [
   ...TAG_SLOT_CONFIG.boolean.slots,
 ] as const
 
-export const MAX_TAG_SLOTS = TAG_SLOT_CONFIG.text.maxSlots
-
 /** Type for text tag slots (for backwards compatibility) */
 export type TagSlot = (typeof TAG_SLOTS)[number]
 

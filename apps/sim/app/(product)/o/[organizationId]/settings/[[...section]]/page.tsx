@@ -1,0 +1,49 @@
+import { EmptyState } from '@sim/emcn/empty-state'
+import type { Metadata } from 'next'
+import { LiveSettingsRoute } from '@/app/(product)/o/[organizationId]/settings/_components/live-settings/live-settings-route'
+import { SettingsScreen } from '@/app/(product)/o/[organizationId]/settings/_components/settings-screen/settings-screen'
+import { loadSettingsFixture } from '@/platform/fixtures'
+import { resolvePlatformMode } from '@/platform/lib/data/mode'
+import { settingsPageTitle } from '@/platform/lib/data/settings-navigation'
+import { readPreviewPlan, readScenario } from '@/platform/lib/navigation'
+import type { ProductPageProps } from '@/platform/lib/route-props'
+
+export async function generateMetadata({
+  params,
+}: ProductPageProps<{ organizationId: string; section?: string[] }>): Promise<Metadata> {
+  const { section = [] } = await params
+  return { title: settingsPageTitle(section) }
+}
+
+export default async function Page({
+  searchParams,
+  params,
+}: ProductPageProps<{ organizationId: string; section?: string[] }>) {
+  const [query, { section: path = [] }] = await Promise.all([searchParams, params])
+  if (resolvePlatformMode() === 'live') {
+    const { readOrganizationSurface } = await import('@/platform/lib/data/surface')
+    const surface = await readOrganizationSurface()
+    return surface.status === 'ok' ? (
+      <LiveSettingsRoute organization={surface.organization} path={path} query={query} />
+    ) : null
+  }
+  const fixture = await loadSettingsFixture(readScenario(query.state), readPreviewPlan(query.plan))
+  if (!fixture)
+    return (
+      <SettingsScreen title='Settings'>
+        <EmptyState title='No organization selected' />
+      </SettingsScreen>
+    )
+  const { Provider, organization, scenario, profile, referenceTime, plan } = fixture
+  return (
+    <Provider
+      organization={organization}
+      scenario={scenario}
+      plan={plan}
+      profile={profile}
+      referenceTime={referenceTime}
+    >
+      <LiveSettingsRoute fixture organization={organization} path={path} query={query} />
+    </Provider>
+  )
+}

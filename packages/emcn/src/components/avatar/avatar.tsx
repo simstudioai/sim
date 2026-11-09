@@ -54,6 +54,7 @@ interface PersonRowProps {
   src?: string
 }
 
+/** @public check-platform-design requires every catalog evidence owner to be an exported component. */
 export function PersonRow({ name, src }: PersonRowProps) {
   return (
     <span className={styles.personRow}>
@@ -68,6 +69,7 @@ interface PeoplePopoverProps {
   people: readonly Person[]
 }
 
+/** @public check-platform-design requires every catalog evidence owner to be an exported component. */
 export function PeoplePopover({ title, people }: PeoplePopoverProps) {
   const scrollRef = useScrollEdges<HTMLSpanElement>()
   return (

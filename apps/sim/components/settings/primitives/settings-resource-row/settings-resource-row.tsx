@@ -105,19 +105,6 @@ export const RESOURCE_ROW_ARROW_CLASSES = 'size-4 shrink-0 text-[var(--text-icon
  */
 export const RESOURCE_LIST_STACK = 'flex flex-col gap-y-0.5'
 
-/**
- * Responsive two-up card grid worn by the skills, integrations, and passwords
- * lists. The column gap budgets for the rows' own `-mx-2`: 24px of track gap
- * minus 16px of combined bleed leaves the same 8px gutter a stack row gets.
- * Narrowing it makes neighbouring rows — and their hit areas — overlap.
- *
- * The track minimum is 264px, not 280px, for the same reason: `auto-fit` measures
- * tracks rather than margin boxes, so the wider gap would otherwise drop to one
- * column 32px earlier than this grid did when the container owned the bleed.
- */
-export const RESOURCE_LIST_GRID =
-  'grid grid-cols-[repeat(auto-fit,minmax(264px,1fr))] gap-x-6 gap-y-0.5'
-
 const PLAIN_BASE =
   'flex size-[14px] shrink-0 items-center justify-center text-[var(--text-icon)] [&_svg]:size-[14px] [&_img]:size-[14px]'
 

@@ -1,5 +1,5 @@
 import { organizationSupportsSettingsSection } from '@/lib/settings/section-availability'
-import type { SettingsNavGroup, SettingsNavItem } from '@/platform/app/(shell)/_components/model'
+import type { SettingsNavGroup, SettingsNavItem } from '@/app/(product)/_components/model'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 
 /** The order and labels of the organization Settings sidebar; the surface owns visibility. */

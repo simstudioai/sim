@@ -1,6 +1,0 @@
-.handoff {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ui-action-gap);
-}

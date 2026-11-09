@@ -5,12 +5,12 @@ import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { toast } from '@/lib/toast/sink'
+import type { ShellWorkspaceActions } from '@/app/(product)/_components/model'
 import {
   useCreateWorkspace,
   useToggleWorkspacePin,
   useUpdateWorkspace,
 } from '@/hooks/queries/workspace'
-import type { ShellWorkspaceActions } from '@/platform/app/(shell)/_components/model'
 
 const logger = createLogger('PlatformWorkspaces')
 

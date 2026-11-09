@@ -13,7 +13,6 @@ export const oauthAccountSummarySchema = z.object({
   id: z.string(),
   name: z.string(),
 })
-export type OAuthAccountSummary = z.output<typeof oauthAccountSummarySchema>
 
 export const oauthConnectionSchema = z.object({
   provider: z.string(),

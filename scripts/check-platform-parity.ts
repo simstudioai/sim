@@ -8,8 +8,8 @@
  * With `--report <playwright.json>` (repeatable) it also reads what that run did: a row whose
  * proving test failed or was skipped is not Done, whatever the ledger says. The two live jobs build
  * different apps and cannot read each other's reports, so `--job` holds each to its own rows: a row
- * saying it is proved in the `live (flag-off)` job answers to that job's run, and every other row
- * answers to `zone`'s.
+ * saying it is proved in the `live (self-hosted)` job answers to that job's run, and every other row
+ * answers to `product`'s.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -22,8 +22,8 @@ const HEADERS = new Set([
 ])
 const FILE_PROOF = /[\w./-]+\.(?:integration\.ts|test\.tsx?|spec\.ts)/g
 const TITLE_PROOF = /"([^"]+)"/g
-const FLAG_OFF_JOB_PROOF = 'in the `live (flag-off)` job'
-const LIVE_JOBS = ['zone', 'flag-off'] as const
+const SELF_HOSTED_JOB_PROOF = 'in the `live (self-hosted)` job'
+const LIVE_JOBS = ['product', 'self-hosted'] as const
 type LiveJob = (typeof LIVE_JOBS)[number]
 
 /** Test title to its worst status in a run. */
@@ -89,7 +89,8 @@ export function auditLedger({ ledger, testFiles, liveTitles, run, job }: LedgerI
     }
     if (!status.startsWith('Done')) return
 
-    const answersToThisRun = !job || proof.includes(FLAG_OFF_JOB_PROOF) === (job === 'flag-off')
+    const answersToThisRun =
+      !job || proof.includes(SELF_HOSTED_JOB_PROOF) === (job === 'self-hosted')
     const quoted = [...proof.matchAll(TITLE_PROOF)].map((match) => match[1] as string)
     if (quoted.length === 0 && files.every(isLiveSpec)) {
       findings.push(

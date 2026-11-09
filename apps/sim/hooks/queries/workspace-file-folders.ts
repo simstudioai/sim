@@ -23,7 +23,7 @@ import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-keys'
 type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
 export type { WorkspaceFileFolderApi }
 
-export const WORKSPACE_FILE_FOLDERS_STALE_TIME = 30 * 1000
+const WORKSPACE_FILE_FOLDERS_STALE_TIME = 30 * 1000
 export const WORKSPACE_FILE_BROWSER_INVALIDATION_KEY = 'workspace-file-browsers'
 
 export const workspaceFileFolderKeys = {

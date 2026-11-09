@@ -290,7 +290,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-08',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/%5BworkspaceId%5D/settings/components/recently-deleted/recently-deleted.tsx',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/(product)/workspace/%5BworkspaceId%5D/settings/_components/sections/recently-deleted/recently-deleted-section.tsx',
             label: 'Sim codebase: Recently Deleted (files, folders, and other resources)',
             asOf: '2026-07-08',
           },
@@ -581,7 +581,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-02',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components/chunk-editor/chunk-editor.tsx',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/(product)/workspace/%5BworkspaceId%5D/knowledge/%5BknowledgeBaseId%5D/%5BdocumentId%5D/_components/chunk-editor/chunk-editor.tsx',
             label: 'Sim codebase: chunk editor',
             asOf: '2026-07-02',
           },

@@ -13,26 +13,18 @@
  * is no bridge, so the built-in browser is unavailable.
  */
 import type {
-  BrowserFindRequest,
   BrowserFindResult,
-  BrowserKnownSession,
   BrowserOmniboxFocusMode,
   BrowserPageState,
   BrowserPanelAction,
   BrowserPanelAnchor,
   BrowserPanelBounds,
-  BrowserPanelSnapshot,
   BrowserTabsState,
-  BrowserTheme,
   BrowserToolName,
 } from '@sim/browser-protocol'
 import type {
   BrowserAddToChatPayload,
-  BrowserCredentialMetadata,
-  BrowserDownloadsState,
-  BrowserSiteInfo,
   BrowserToolbarCommand,
-  DesktopAppearanceTheme,
   SimDesktopBrowserAgentApi,
 } from '@sim/desktop-bridge'
 import { isPendingDesktopScopeId } from '@sim/desktop-bridge'
@@ -339,9 +331,7 @@ export function sendBrowserPanelAction(
  * retain the fire-and-forget fallback, but callers must not assume completion
  * until a tab-state push arrives in that case.
  */
-export async function openBrowserTab(
-  scopeId = currentBrowserScopeId()
-): Promise<BrowserTabsState | null> {
+async function openBrowserTab(scopeId = currentBrowserScopeId()): Promise<BrowserTabsState | null> {
   const agent = bridge()
   if (!agent) throw new Error('The Sim desktop browser agent is unavailable.')
   if (!agent.openTab) {
@@ -380,57 +370,6 @@ export async function openUrlInNewBrowserTab(
   return state?.activeTabId ?? null
 }
 
-/**
- * Mirrors a resource-strip reorder into the native tab list, so restore and
- * the agent's tab list keep the strip's order. Older shells keep native order.
- */
-export function reorderBrowserTab(
-  tabId: string,
-  targetIndex: number,
-  scopeId = currentBrowserScopeId()
-): void {
-  bridge()?.reorderTab?.(tabId, targetIndex, scopeId)
-}
-
-/** Mirrors Sim's raw light/dark/system preference into embedded pages. */
-export function reportBrowserTheme(theme: BrowserTheme): void {
-  bridge()?.setTheme(theme)
-}
-
-/** Subscribes to browser appearance changes initiated by native desktop UI. */
-export function onBrowserAppearanceThemeChanged(
-  callback: (theme: DesktopAppearanceTheme) => void
-): () => void {
-  return bridge()?.onAppearanceThemeChanged(callback) ?? (() => {})
-}
-
-/** Reads one chat's recent browser downloads. */
-export async function loadBrowserDownloads(
-  scopeId = currentBrowserScopeId()
-): Promise<BrowserDownloadsState> {
-  return (await bridge()?.getDownloadsState(scopeId)) ?? { downloads: [], scopeId }
-}
-
-/** Subscribes to download starts, progress, and completion for one chat. */
-export function onBrowserDownloadsState(
-  callback: (state: BrowserDownloadsState) => void,
-  scopeId = currentBrowserScopeId()
-): () => void {
-  return (
-    bridge()?.onDownloadsState((state) => {
-      if (state.scopeId === scopeId) callback(state)
-    }) ?? (() => {})
-  )
-}
-
-/** Opens the native downloads list above the embedded browser surface. */
-export function showBrowserDownloadsMenu(
-  anchor: { x: number; y: number },
-  scopeId = currentBrowserScopeId()
-): void {
-  void bridge()?.showDownloadsMenu(anchor, scopeId)
-}
-
 /** Opens the native browser overflow menu above the embedded page. */
 export function showBrowserToolbarMenu(
   anchor: { x: number; y: number },
@@ -463,14 +402,6 @@ export function onBrowserAddToChat(
   )
 }
 
-/** Reveals a completed download without opening the downloaded file. */
-export function showBrowserDownloadInFolder(
-  downloadId: string,
-  scopeId = currentBrowserScopeId()
-): Promise<boolean> {
-  return bridge()?.showDownloadInFolder(downloadId, scopeId) ?? Promise.resolve(false)
-}
-
 /**
  * Subscribes to whether the active page can be filled with a saved password.
  * A bare boolean by design — the page learns nothing about which accounts
@@ -490,54 +421,6 @@ export function onBrowserFillAvailability(
   )
 }
 
-/**
- * Asks the shell to open its native account chooser at a point in the window.
- * Must be called straight from a click: the shell requires a live user gesture,
- * and it performs the fill itself rather than handing anything back here.
- */
-export function showBrowserCredentialChooser(
-  anchor: { x: number; y: number },
-  scopeId = currentBrowserScopeId()
-): void {
-  void getDesktopBridge()?.browserCredentials.showChooser(anchor, scopeId)
-}
-
-/**
- * Reads what the omnibox suggests from: hosts the browser holds cookies for,
- * and hosts with a saved password.
- *
- * Both already exist for other reasons, and neither is a record of where the
- * user has been — this browser keeps no history. Password metadata never
- * includes the password itself. Either source failing yields an empty list, so
- * a broken lookup costs suggestions rather than the omnibox.
- */
-export async function loadBrowserSuggestionSources(): Promise<{
-  sessions: BrowserKnownSession[]
-  credentials: BrowserCredentialMetadata[]
-  sites: BrowserSiteInfo[]
-}> {
-  const desktop = getDesktopBridge()
-  const [known, credentials, sites] = await Promise.all([
-    desktop?.browserAgent.getKnownSessions().catch(() => null) ?? null,
-    desktop?.browserCredentials.list().catch(() => []) ?? [],
-    desktop?.browserImport?.listSites().catch(() => []) ?? [],
-  ])
-  return { sessions: known?.sessions ?? [], credentials, sites }
-}
-
-/**
- * Requests live Google completions through the desktop shell. Older shells and
- * disabled/offline providers resolve to an empty list, leaving local sites and
- * ordinary Enter-to-search behavior intact.
- */
-export function loadBrowserSearchSuggestions(query: string): Promise<string[]> {
-  return (
-    bridge()
-      ?.getSearchSuggestions?.(query)
-      .catch(() => []) ?? Promise.resolve([])
-  )
-}
-
 /** Subscribes to native browser shortcuts that target the renderer omnibox. */
 export function onBrowserOmniboxFocus(
   callback: (mode: BrowserOmniboxFocusMode) => void,
@@ -548,28 +431,6 @@ export function onBrowserOmniboxFocus(
       if (eventScopeId === scopeId) callback(mode)
     }) ?? (() => {})
   )
-}
-
-/**
- * Runs Chromium's find against the active page. Counts arrive separately via
- * {@link onBrowserFindResult} — Chromium resolves them asynchronously and
- * streams several updates per request.
- */
-export function findInBrowserPage(
-  request: BrowserFindRequest,
-  scopeId = currentBrowserScopeId()
-): void {
-  bridge()?.find(request, scopeId)
-}
-
-/**
- * Stops the running find and clears its highlights. Pass `focusPage` when the
- * user dismissed the bar, so focus lands back on the page instead of being
- * stranded on the removed input; leave it off when the bar is unmounting
- * because the panel is going away.
- */
-export function stopBrowserFind(focusPage = false, scopeId = currentBrowserScopeId()): void {
-  bridge()?.stopFind(focusPage, scopeId)
 }
 
 /** Subscribes to Mod+F pressed while the embedded page held focus. */
@@ -625,27 +486,6 @@ export function reportBrowserPanelBounds(
   bridge()?.setPanelBounds(bounds, anchor, scopeId)
 }
 
-/** Captures the live page without hiding or resizing it. */
-export function captureBrowserPanelSnapshot(
-  scopeId = currentBrowserScopeId()
-): Promise<BrowserPanelSnapshot | null> {
-  return bridge()?.capturePanelSnapshot(scopeId) ?? Promise.resolve(null)
-}
-
-/** Whether the installed shell supports the strict pre-paint force-hide fallback. */
-export function supportsAtomicBrowserPanelOcclusion(): boolean {
-  return bridge()?.supportsAtomicPanelOcclusion === true
-}
-
-/** Hides or reveals the native page after the renderer's replacement has painted. */
-export function setBrowserPanelOccluded(
-  occluded: boolean,
-  scopeId = currentBrowserScopeId(),
-  force = false
-): Promise<boolean> {
-  return bridge()?.setPanelOccluded(occluded, scopeId, force) ?? Promise.resolve(false)
-}
-
 /**
  * Fast path for live divider drags. The measured pipeline (renderer layout →
  * ResizeObserver → report) can only start after the new panel width has laid
@@ -687,12 +527,4 @@ export function beginBrowserPanelDividerDrag(
       reportScopeId
     )
   }
-}
-
-/** Reports whether renderer-owned browser chrome owns the interaction context. */
-export function reportBrowserPanelFocused(
-  focused: boolean,
-  scopeId = currentBrowserScopeId()
-): void {
-  bridge()?.setPanelFocused(focused, scopeId)
 }

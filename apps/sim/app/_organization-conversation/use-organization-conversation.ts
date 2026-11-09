@@ -56,10 +56,7 @@ import type { ChatContext } from '@/stores/panel'
 const ASSISTANT_SEARCH_LEVEL = 'fast' as const
 
 /** A turn's mode, with Assistant's fixed retrieval level and any search scope it carries. */
-export function chatSendOptions(
-  requestMode: ChatRequestMode,
-  assistantSearch?: WorkspaceSearchFilters
-) {
+function chatSendOptions(requestMode: ChatRequestMode, assistantSearch?: WorkspaceSearchFilters) {
   return {
     requestMode,
     ...(requestMode === 'assistant' ? { assistantSearchLevel: ASSISTANT_SEARCH_LEVEL } : {}),

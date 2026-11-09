@@ -781,20 +781,6 @@ export const updateOrganizationWhitelabelContract = defineRouteContract({
   },
 })
 
-export const createOrganizationContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/organizations',
-  body: createOrganizationBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.boolean(),
-      organizationId: z.string(),
-      created: z.boolean(),
-    }),
-  },
-})
-
 const organizationPlanSeatsResponseSchema = z.object({
   success: z.literal(true),
   data: z.object({

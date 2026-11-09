@@ -3,6 +3,7 @@ import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server'
 import { NextRequest } from 'next/server'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
+import { SHELL_SCOPE_HEADER } from '@/lib/navigation/shell-scope'
 import { config, proxy, resolveApiCorsPolicy } from '@/proxy'
 
 setEnv({
@@ -306,5 +307,24 @@ describe('signed-in login with an OAuth authorize callback', () => {
       signedInLogin('/api/auth/oauth2/authorize?providerId=google-email&workspaceId=workspace-1')
     )
     expect(response.headers.get('location')).toBe('https://app.sim.test/home')
+  })
+})
+
+describe('proxy shell scope', () => {
+  const forwardedScope = async (pathname: string, sentScope?: string) => {
+    const headers = new Headers({ cookie: 'better-auth.session_token=session' })
+    if (sentScope) headers.set(SHELL_SCOPE_HEADER, sentScope)
+    const response = await proxy(new NextRequest(`https://app.sim.test${pathname}`, { headers }))
+    return response.headers.get(`x-middleware-request-${SHELL_SCOPE_HEADER}`)
+  }
+
+  it('names the organization or workspace a product page opens', async () => {
+    expect(await forwardedScope('/o/org-1/settings/members')).toBe('org:org-1')
+    expect(await forwardedScope('/workspace/ws-1/workflows')).toBe('workspace:ws-1')
+  })
+
+  it('never forwards a scope the client sent', async () => {
+    expect(await forwardedScope('/home', 'org:org-2')).toBeNull()
+    expect(await forwardedScope('/o/org-1/home', 'org:org-2')).toBe('org:org-1')
   })
 })

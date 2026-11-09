@@ -198,7 +198,6 @@ export const reconcileScimConnectionContract = defineRouteContract({
 })
 
 export type ScimGroupMappingBody = z.input<typeof scimGroupMappingBodySchema>
-export type ScimActivityEntry = z.output<typeof scimActivityEntrySchema>
 export type ScimConnectionView = z.output<typeof scimConnectionSchema>
 export type ScimCredentialView = z.output<typeof scimCredentialSchema>
 export type ScimGroupMappingView = z.output<typeof groupMappingSchema>

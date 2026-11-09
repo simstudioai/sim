@@ -6,10 +6,10 @@ import {
   useAccountDeletion as useSharedAccountDeletion,
 } from '@/platform/shared/account'
 
-/** The zone has no in-memory stores to reset, and the logout route is on the legacy origin. */
-export function useAccountDeletion(email: string, legacyOrigin: string) {
+/** The product has no in-memory stores to reset. */
+export function useAccountDeletion(email: string) {
   return useSharedAccountDeletion(email, {
-    logoutHref: `${legacyOrigin}${LOGOUT_PATH}`,
+    logoutHref: LOGOUT_PATH,
     clearUserData: clearBrowserUserData,
   })
 }

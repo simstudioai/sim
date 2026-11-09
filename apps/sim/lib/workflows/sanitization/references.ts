@@ -3,7 +3,6 @@ import {
   isLikelyWorkflowReferenceSegment,
   splitWorkflowReferenceSegment,
 } from '@sim/utils/workflow-references'
-import { normalizeName, REFERENCE } from '@/executor/constants'
 
 export const SYSTEM_REFERENCE_PREFIXES = new Set(['loop', 'parallel', 'variable'])
 
@@ -21,24 +20,4 @@ export function containsReference(value: unknown): boolean {
     return false
   }
   return findWorkflowReferenceTokens(value).length > 0
-}
-
-export function extractReferencePrefixes(value: string): Array<{ raw: string; prefix: string }> {
-  if (!value || typeof value !== 'string') {
-    return []
-  }
-
-  const references: Array<{ raw: string; prefix: string }> = []
-
-  for (const token of findWorkflowReferenceTokens(value)) {
-    if (token.kind !== 'workflow') continue
-    const inner = token.value.slice(REFERENCE.START.length, -REFERENCE.END.length)
-    const [rawPrefix] = inner.split(REFERENCE.PATH_DELIMITER)
-    if (!rawPrefix) continue
-
-    const normalized = normalizeName(rawPrefix)
-    references.push({ raw: token.value, prefix: normalized })
-  }
-
-  return references
 }

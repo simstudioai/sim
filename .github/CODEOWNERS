@@ -22,10 +22,9 @@
 /apps/sim/lib/copilot/resources/ @simstudioai/mothership
 
 # Client-side stream consumption, hydration, and reconnect.
-/apps/sim/app/workspace/*/home/hooks/index.ts @simstudioai/mothership
-/apps/sim/app/workspace/*/home/hooks/use-chat.ts @simstudioai/mothership
-/apps/sim/app/workspace/*/home/hooks/preview/ @simstudioai/mothership
-/apps/sim/app/workspace/*/home/hooks/stream/ @simstudioai/mothership
+/apps/sim/hooks/mothership-chat/use-chat.ts @simstudioai/mothership
+/apps/sim/hooks/mothership-chat/preview/ @simstudioai/mothership
+/apps/sim/hooks/mothership-chat/stream/ @simstudioai/mothership
 /apps/sim/hooks/queries/tasks.ts @simstudioai/mothership
 
 # Dependency manifests and package-manager config. Any change here — adding,

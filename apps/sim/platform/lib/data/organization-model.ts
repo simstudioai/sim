@@ -1,48 +1,31 @@
 import type { OrganizationSurfaceResponse } from '@/lib/api/contracts/organization'
-import {
-  organizationRoutes,
-  WORKSPACE_SETTINGS_PATH,
-  WORKSPACES_PATH,
-} from '@/lib/navigation/paths'
+import { WORKSPACE_SETTINGS_PATH, WORKSPACES_PATH } from '@/lib/navigation/paths'
 
-/**
- * The organization surface as Platform views read it. Plain data: it crosses from the server.
- * `legacyOrigin` is the main app's absolute origin, for the routes the Platform links out to.
- */
-export type PlatformOrganization = OrganizationSurfaceResponse & {
-  legacyOrigin: string
-  /** What a Platform route's path needs in front of it: nothing in the zone, `/o/<id>` embedded. */
+/** What every organization route's path needs in front of it: `/o/<organizationId>`. */
+export interface SurfaceScope {
   routePrefix: string
 }
 
-/** A Platform route as this host serves it. */
-export function surfaceHref({ routePrefix }: PlatformOrganization, path: string): string {
+/** The organization surface as Platform views read it. Plain data: it crosses from the server. */
+export type PlatformOrganization = OrganizationSurfaceResponse & SurfaceScope
+
+/** An organization route: `path` (`/home`, `/settings/members`, ...) under the scope's prefix. */
+export function surfaceHref({ routePrefix }: SurfaceScope, path: string): string {
   return `${routePrefix}${path}`
 }
 
-/**
- * Absolute URLs of the legacy routes the Platform links out to. A full navigation, since `next/link`
- * would add this app's base path. Each is a route the legacy layout does not map back here.
- */
-export function legacyRoutes({ legacyOrigin, organization }: PlatformOrganization) {
-  const routes = organizationRoutes(organization.id)
-  return {
-    mothershipLicenses: (env: string) =>
-      `${legacyOrigin}/account/settings/mothership?tab=licenses&env=${encodeURIComponent(env)}`,
-    benchmark: `${legacyOrigin}${routes.benchmark}`,
-    memberSecrets: `${legacyOrigin}${routes.memberSecrets}`,
-    integration: (segment: string) =>
-      `${legacyOrigin}${routes.integrations}/${encodeURIComponent(segment)}`,
-    settingsSection: (section: string) => `${legacyOrigin}${routes.settingsSection(section)}`,
-    workspace: (workspaceId: string) => `${legacyOrigin}${WORKSPACES_PATH}/${workspaceId}`,
-    workspaceSettings: `${legacyOrigin}${WORKSPACE_SETTINGS_PATH}`,
-  }
-}
+/** Where a viewer outside the organization goes instead: their workspaces. */
+export const OUTSIDE_ORGANIZATION_HREF = WORKSPACES_PATH
 
 /** The legacy surface's rule for when a member has nothing of theirs on the organization surface. */
-export function hasOrganizationSurface(organization: PlatformOrganization): boolean {
+function hasOrganizationSurface(organization: PlatformOrganization): boolean {
   const { mothershipAvailable, searchAccess, navFlags } = organization
   return mothershipAvailable || searchAccess.memberScoped || navFlags.people || navFlags.simLinks
+}
+
+/** Where a member with nothing of theirs on the organization surface goes: workspace Settings. */
+export function resolveSurfaceRedirect(organization: PlatformOrganization): string | null {
+  return hasOrganizationSurface(organization) ? null : WORKSPACE_SETTINGS_PATH
 }
 
 /** The legacy sidebar's rule for its Chats section; the list read answers 403 outside it. */
@@ -55,5 +38,5 @@ export function canListOrganizationChats(organization: PlatformOrganization): bo
 export function resolveHomeRedirect(organization: PlatformOrganization): string | null {
   const { mothershipAvailable, canBuild, searchAccess } = organization
   if (mothershipAvailable && canBuild) return null
-  return searchAccess.memberScoped ? '/search' : legacyRoutes(organization).workspaceSettings
+  return searchAccess.memberScoped ? surfaceHref(organization, '/search') : WORKSPACE_SETTINGS_PATH
 }

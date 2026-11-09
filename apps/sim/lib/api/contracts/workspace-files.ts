@@ -79,7 +79,7 @@ export const WORKSPACE_FILE_PAGE_PARAMS = [
   'cursor',
 ] as const
 
-export const listWorkspaceFilesQuerySchema = z.object({
+const listWorkspaceFilesQuerySchema = z.object({
   scope: workspaceFileScopeSchema.default('active'),
   /** The folder to list; `root` for root files. Omit for every folder. */
   folderId: workspaceFileFolderFilterSchema.optional(),

@@ -54,7 +54,7 @@ export interface ResourceCellEditing {
   disabled?: boolean
 }
 
-export interface ResourceCell {
+interface ResourceCell {
   icon?: ReactNode
   label?: string | null
   content?: ReactNode
@@ -83,12 +83,12 @@ export interface ResourceCell {
   highlight?: string
 }
 
-export interface ResourceRow {
+interface ResourceRow {
   id: string
   cells: Record<string, ResourceCell>
 }
 
-export interface SelectableConfig {
+interface SelectableConfig {
   selectedIds: Set<string>
   onSelectRow: (id: string, checked: boolean, shiftKey?: boolean) => void
   onSelectAll: (checked: boolean) => void
@@ -110,7 +110,7 @@ export interface BodyDropConfig {
   onDrop: (e: DragEvent<HTMLDivElement>) => void
 }
 
-export interface RowDragDropConfig {
+interface RowDragDropConfig {
   activeDropTargetId?: string | null
   draggedRowIds?: Set<string>
   isAnyDragActive?: boolean
@@ -126,13 +126,13 @@ export interface RowDragDropConfig {
   breadcrumb?: BreadcrumbDropConfig
 }
 
-export interface PaginationConfig {
+interface PaginationConfig {
   currentPage: number
   totalPages: number
   onPageChange: (page: number) => void
 }
 
-export const EMPTY_CELL_PLACEHOLDER = '—'
+const EMPTY_CELL_PLACEHOLDER = '—'
 
 /**
  * Seed height (px) for each virtualized row before it is measured. Every
@@ -206,7 +206,7 @@ function ResourceRoot({ children, onContextMenu }: ResourceProps) {
  * scrolling — required for keyboard navigation, since a `querySelector` on the
  * selected row's DOM node silently no-ops once that row is windowed out.
  */
-export interface ResourceTableHandle {
+interface ResourceTableHandle {
   /** Scroll the row with the given id into view via the virtualizer (works even when the row is not in the DOM). */
   scrollToRow: (rowId: string) => void
 }

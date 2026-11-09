@@ -39,6 +39,7 @@ import {
 import { searchUsersV2Tool } from '@/tools/github/search_users'
 import { gmailListLabelsV2Tool } from '@/tools/gmail/list_labels'
 import { getToolMetadata } from '@/tools/metadata'
+import { tools } from '@/tools/registry'
 
 const {
   mockCreateUserToolSchema,
@@ -199,6 +200,13 @@ import {
   buildIntegrationToolSchemas,
   clearIntegrationToolSchemaCacheForTests,
 } from '@/lib/mothership/chat/payload'
+
+/** Schemas are built from each exposed tool's executable config, read from the registry by id. */
+Object.assign(tools, {
+  ...Object.fromEntries(getExposedIntegrationTools().map((tool) => [tool.toolId, tool.config])),
+  [searchUsersV2Tool.id]: searchUsersV2Tool,
+  [gmailListLabelsV2Tool.id]: gmailListLabelsV2Tool,
+})
 
 describe('buildIntegrationToolSchemas', () => {
   beforeEach(() => {

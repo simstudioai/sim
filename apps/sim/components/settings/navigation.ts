@@ -127,14 +127,14 @@ export type UnifiedSettingsSection =
   | 'recently-deleted'
   | 'self-host'
 
-export type UnifiedNavigationSection = 'account' | 'workspace' | 'organization' | 'platform'
+type UnifiedNavigationSection = 'account' | 'workspace' | 'organization' | 'platform'
 
 /**
  * A bridge surface the desktop shell must expose for a section to be worth
  * showing. Gated on the surface, never on the user's device toggle — the
  * Browser and Terminal pages are where that toggle is flipped back on.
  */
-export type DesktopSettingsSurface = 'settings' | 'browser' | 'terminal'
+type DesktopSettingsSurface = 'settings' | 'browser' | 'terminal'
 
 export interface UnifiedSettingsNavigationItem {
   id: UnifiedSettingsSection
@@ -168,9 +168,6 @@ export interface UnifiedSettingsNavigationItem {
    * section without a workspace projection as acting on the host organization, which
    * routes it through the organization gate (host organization present, org-admin
    * viewer, plan entitlement) in both the sidebar and the section page.
-   *
-   * This is the single source for {@link ORGANIZATION_PLANE_UNIFIED_SECTIONS} and
-   * {@link UNIFIED_TO_ORGANIZATION_SECTION}, so the two cannot drift apart.
    */
   organizationSection?: OrganizationSettingsSection
 }
@@ -872,18 +869,6 @@ export const SELFHOST_SETTINGS_ITEMS: SettingsNavigationItem<SelfHostSettingsSec
 export const WORKSPACE_SETTINGS_ITEMS: SettingsNavigationItem<WorkspaceSettingsSection>[] =
   buildPlaneSettingsItems('workspace')
 
-/**
- * Unified sections that resolve to organization-plane settings. The workspace
- * settings section page routes these through the organization gate (host
- * organization present + org-admin viewer), so workspace-plane navigation must
- * apply the same requirement before surfacing them.
- */
-export const ORGANIZATION_PLANE_UNIFIED_SECTIONS: ReadonlySet<UnifiedSettingsSection> = new Set(
-  SETTINGS_SECTION_REGISTRY.flatMap((entry) =>
-    entry.unified?.organizationSection && !entry.planes?.workspace ? [entry.unified.id] : []
-  )
-)
-
 export const ORGANIZATION_SETTINGS_GROUPS = [
   { key: 'account', title: 'Account' },
   { key: 'organization', title: 'Organization' },
@@ -997,35 +982,6 @@ export function getOrganizationSettingsHref(
   )
 }
 
-/**
- * Unified section id to the organization-scoped section it acts on, for the gates
- * that take an {@link OrganizationSettingsSection} (`canOpenOrganizationSettingsSection`,
- * `organizationPlanAllowsSettingsSection`).
- *
- * Derived from the registry rather than hand-listed: a section added to one and
- * forgotten in the other used to mean the page applied *no* organization gate at
- * all, since an unmapped section reads as "not organization-scoped".
- */
-export const UNIFIED_TO_ORGANIZATION_SECTION: Readonly<
-  Partial<Record<UnifiedSettingsSection, OrganizationSettingsSection>>
-> = Object.fromEntries(
-  SETTINGS_SECTION_REGISTRY.flatMap((entry) =>
-    entry.unified?.organizationSection && !entry.planes?.workspace
-      ? [[entry.unified.id, entry.unified.organizationSection] as const]
-      : []
-  )
-)
-
-export const UNIFIED_TO_WORKSPACE_SECTION: Readonly<
-  Partial<Record<UnifiedSettingsSection, WorkspaceSettingsSection>>
-> = Object.fromEntries(
-  SETTINGS_SECTION_REGISTRY.flatMap((entry) => {
-    const unifiedSection = entry.unified?.id
-    const workspaceSection = entry.planes?.workspace?.id
-    return unifiedSection && workspaceSection ? [[unifiedSection, workspaceSection] as const] : []
-  })
-)
-
 export type OrganizationSectionAccess = 'unavailable' | 'view' | 'manage'
 
 interface ResolveOrganizationSectionAccessOptions {
@@ -1089,7 +1045,7 @@ export function getOrganizationSettingsFeatures(
   }
 }
 
-export interface WorkspacePermissionConfig {
+interface WorkspacePermissionConfig {
   hideSecretsTab?: boolean
   hideApiKeysTab?: boolean
   hideInboxTab?: boolean
@@ -1098,7 +1054,7 @@ export interface WorkspacePermissionConfig {
   hideSandboxesTab?: boolean
 }
 
-export const WORKSPACE_PERMISSION_CONFIG_KEYS: Partial<
+const WORKSPACE_PERMISSION_CONFIG_KEYS: Partial<
   Record<WorkspaceSettingsSection, keyof WorkspacePermissionConfig>
 > = {
   secrets: 'hideSecretsTab',
@@ -1107,15 +1063,6 @@ export const WORKSPACE_PERMISSION_CONFIG_KEYS: Partial<
   mcp: 'disableMcpTools',
   'custom-tools': 'disableCustomTools',
   sandboxes: 'hideSandboxesTab',
-}
-
-export function workspaceSectionUsesPermissionConfig(section: WorkspaceSettingsSection): boolean {
-  return WORKSPACE_PERMISSION_CONFIG_KEYS[section] !== undefined
-}
-
-export function getSettingsPermissionConfigKey(section: UnifiedSettingsSection) {
-  const workspaceSection = UNIFIED_TO_WORKSPACE_SECTION[section]
-  return workspaceSection ? WORKSPACE_PERMISSION_CONFIG_KEYS[workspaceSection] : undefined
 }
 
 export interface WorkspaceSettingsEntitlements {

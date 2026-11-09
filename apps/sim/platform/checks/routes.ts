@@ -1,4 +1,5 @@
 import { escapeRegExp } from '@sim/utils/string'
+import { organizationId } from '@/platform/checks/live/session'
 
 /**
  * Where the browser checks reach the Platform. A spec names a route by its path in the product
@@ -6,22 +7,28 @@ import { escapeRegExp } from '@sim/utils/string'
  * it and at what URL, so moving the routes is an edit here and nowhere else.
  */
 
-/** The fixture server the design checks start, unless one already runs at `PLATFORM_E2E_ORIGIN`. */
+/** The fixture development server the design checks start, unless one already runs at `PLATFORM_E2E_ORIGIN`. */
 export const FIXTURE_PORT = 3181
-/** The server with fixtures off, which renders each route's empty state. */
-export const FIXTURES_OFF_PORT = 3180
 /** The fixture server the desktop shell opens. */
 export const DESKTOP_PORT = 3182
 
 export const fixtureOrigin = process.env.PLATFORM_E2E_ORIGIN ?? `http://127.0.0.1:${FIXTURE_PORT}`
-export const fixturesOffOrigin = `http://127.0.0.1:${FIXTURES_OFF_PORT}`
 export const desktopOrigin = process.env.PLATFORM_E2E_ORIGIN ?? `http://127.0.0.1:${DESKTOP_PORT}`
 
-/** `route` on the fixture server, or on another server of the same build at `origin`. */
-export const fixtureUrl = (route: string, origin = fixtureOrigin) => `${origin}${route}`
+/** The organization every fixture scenario renders (`fixtures/settings/surface.ts`). */
+const FIXTURE_ORGANIZATION_ID = 'sim'
 
-/** `route` on the live app, relative to its `baseURL`. */
-export const liveRoute = (route: string) => `/org${route}`
+/** Organization pages sit under `/o/<id>`; workspace pages keep their own `/workspace/<id>`. */
+function productPath(organization: string, route: string) {
+  return route.startsWith('/workspace/') ? route : `/o/${organization}${route}`
+}
+
+/** `route` on the fixture server, or on another fixture server at `origin`. */
+export const fixtureUrl = (route: string, origin = fixtureOrigin) =>
+  `${origin}${productPath(FIXTURE_ORGANIZATION_ID, route)}`
+
+/** `route` on the live app, relative to its `baseURL`, in the seeded organization. */
+export const liveRoute = (route: string) => productPath(organizationId(), route)
 
 /** Matches a URL on the live `route` followed by `rest`, a regular expression source. */
 export const liveRoutePattern = (route: string, rest = '') =>
@@ -31,6 +38,8 @@ export const liveRoutePattern = (route: string, rest = '') =>
 export const liveLoginPattern = (route: string) =>
   new RegExp(`/login\\?.*callbackUrl=${escapeRegExp(encodeURIComponent(liveRoute(route)))}`)
 
-/** Serves the production build on `port`, run from `apps/sim`. */
-export const productionServer = (port: number) =>
-  `bunx --no-install next start platform -H 127.0.0.1 -p ${port}`
+/**
+ * Serves the main app's development server on `port`, run from `apps/sim`. Example data is a
+ * development-only mode: a production build never serves it.
+ */
+export const fixtureServer = (port: number) => `bunx --no-install next dev -H 127.0.0.1 -p ${port}`

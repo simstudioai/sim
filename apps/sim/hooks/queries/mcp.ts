@@ -64,7 +64,7 @@ async function fetchMcpServers(workspaceId: string, signal?: AbortSignal): Promi
   }
 }
 
-export function mcpServersQueryOptions(workspaceId: string) {
+function mcpServersQueryOptions(workspaceId: string) {
   return queryOptions({
     queryKey: mcpKeys.serversList(workspaceId),
     queryFn: ({ signal }) => fetchMcpServers(workspaceId, signal),

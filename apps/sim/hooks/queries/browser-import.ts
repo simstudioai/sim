@@ -21,14 +21,6 @@ function browserImport() {
   return getDesktopBridge()?.browserImport
 }
 
-/** Whether this shell can continue a sign-in in another browser and bring it back. */
-export function supportsContinueSignIn(): boolean {
-  const api = browserImport()
-  return Boolean(
-    api?.continueSignIn && api.bringSignInBack && api.cancelSignIn && api.getPendingSignIn
-  )
-}
-
 /** Browser profiles the shell can import from; empty when there are none. */
 export function useBrowserImportProfiles(enabled: boolean) {
   return useQuery({
@@ -77,27 +69,6 @@ export function useStartSignInHandoff(scopeId: string) {
     },
     // A failed or superseded launch can still retire the chat's previous
     // handoff, so the shell's answer replaces whatever the cache last held.
-    onSettled: () => invalidatePendingSignIns(queryClient),
-  })
-}
-
-export function useBringSignInBack(scopeId: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async () => {
-      const bringSignInBack = browserImport()?.bringSignInBack
-      if (!bringSignInBack) throw new Error('Browser import is not available on this device.')
-      return bringSignInBack(scopeId)
-    },
-    onSuccess: () => invalidatePendingSignIns(queryClient),
-  })
-}
-
-export function useCancelSignInHandoff(scopeId: string) {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: async () => browserImport()?.cancelSignIn?.(scopeId),
-    onSuccess: () => queryClient.setQueryData(browserImportKeys.pendingSignIn(scopeId), null),
     onSettled: () => invalidatePendingSignIns(queryClient),
   })
 }

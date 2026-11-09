@@ -1,35 +1,26 @@
 #!/usr/bin/env bun
 /**
- * Proves the design system, which `app/o` loads for every organization, stays inside what it styles.
- * It restyles `/o` itself, which is the point; nothing here protects that page's legacy chrome except
- * the `[data-platform-ui]` scope. It cannot reach a page outside `/o`, or that scope's outside on one.
+ * Keeps the design system's CSS on the pages built for it. The Platform's product routes
+ * (`PRODUCT_ROUTES`) have their own root layout, so their stylesheets never share a document with
+ * the site's; within each root, Next keeps route CSS loaded after client navigation, so one global
+ * rule from a page keeps applying on every page the viewer opens afterwards. Two rules hold that line:
  *
- * Next keeps route CSS loaded after client navigation, so one global rule from an organization page
- * keeps applying on every other page the viewer opens afterwards. Three rules hold that line:
- *
- * - `entry-escape`: `packages/emcn-platform/src/styles/platform.css`, compiled through the app's real
- *   PostCSS config, may only contain selectors under `[data-platform-ui]` or shared `[data-emcn]` and `@font-face` faces
- *   the host's global stylesheet never names. Any other at-rule fails: `@layer`, `@property`, and
- *   `@keyframes` are all global, and `@theme` or `@import` left over means the pipeline changed.
- * - `module-escape`: every rule in a Platform or shared EMCN CSS Module needs a local (hashed) class, and
- *   nothing may opt out through `:global`. A top-level `@layer components` block may join the host's
- *   existing layer; layer-order statements and new layers remain forbidden.
- * - `route-reach`: only routes under `app/o/[organizationId]/` may load the design system. No other
- *   Next entry (`/workspace`, the extension's embedded panel, landing, auth) may reach `platform/`
+ * - `module-escape`: every rule in a product, Platform or shared EMCN CSS Module needs a local
+ *   (hashed) class, and nothing may opt out through `:global`. A top-level `@layer components` block
+ *   may join the existing layer; layer-order statements and new layers remain forbidden.
+ * - `route-reach`: only the product routes may load the design system. No other Next entry (the
+ *   site's pages, auth, the extension's panel) may reach `platform/` or `packages/emcn-platform`
  *   through any import, static or dynamic. Dynamic counts because Next attaches a dynamically
  *   imported module's CSS to a Server Component's route whether or not it renders.
- *
- * - `bridge-drift`: `host-bridge.module.css` carries tokens to the components between surfaces, under
- *   `--design-<token>` names. Each must equal its token's value in that theme, so a token change
- *   fails here rather than leaving the legacy components beside it a shade off.
  *
  * Run: `bun run check:platform-css`
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
-import postcss, { type AcceptedPlugin, type AtRule, type Root } from 'postcss'
+import postcss, { type AcceptedPlugin, type AtRule } from 'postcss'
 import { emcnPackages, resolveEmcnImport } from './emcn-packages'
+import { PRODUCT_ROUTES } from './platform-product-routes'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const APP = path.join(ROOT, 'apps/sim')
@@ -37,16 +28,9 @@ const PLATFORM = path.join(APP, 'platform')
 const PACKAGES = emcnPackages(ROOT)
 const SHARED = path.join(ROOT, 'packages/emcn/src')
 const PLATFORM_COMPONENTS = path.join(ROOT, 'packages/emcn-platform/src')
-const ENTRY = path.join(PLATFORM_COMPONENTS, 'styles/platform.css')
-const HOST_GLOBALS = path.join(APP, 'app/_styles/globals.css')
-const HOST_BRIDGE = path.join(PLATFORM_COMPONENTS, 'styles/host-bridge.module.css')
+const PRODUCT = path.join(APP, PRODUCT_ROUTES)
 
-const SCOPED =
-  /^(?::where\(html\.dark\) )?(?:\[data-sim-desktop-title-bar\] )?(?:\[data-(?:platform-ui|emcn)\]|:where\(\[data-(?:platform-ui|emcn)\]\))/
-const GLOBAL_TARGET = /(?:^|[\s>+~(,])(?::root|:host|html|body)(?![\w-])/
-const ENTRY_AT_RULES = new Set(['media', 'container', 'supports', 'font-face'])
 const MODULE_AT_RULES = new Set(['media', 'container', 'supports', 'keyframes'])
-const ORGANIZATION_ROUTES = path.join('app', 'o', '[organizationId]') + path.sep
 const NEXT_ENTRY =
   /^(?:page|layout|template|loading|error|global-error|not-found|default|route)\.[jt]sx?$/
 const ROOT_ENTRIES = ['proxy.ts', 'instrumentation.ts', 'instrumentation-node.ts', 'bootstrap.ts']
@@ -57,38 +41,8 @@ const SKIPPED_FOLDERS = new Set(['node_modules', '.next', 'dist', 'public'])
 const RESOLVE_SUFFIXES = ['', '.ts', '.tsx', '.js', '.jsx', '.cjs', '/index.ts', '/index.tsx']
 
 export interface Finding {
-  rule: 'entry-escape' | 'module-escape' | 'route-reach' | 'bridge-drift'
+  rule: 'module-escape' | 'route-reach'
   detail: string
-}
-
-/** Checks compiled entry CSS. `hostGlobals` is the host stylesheet a new font face must not alter. */
-export function findEntryEscapes(css: string, hostGlobals: string): Finding[] {
-  const findings: Finding[] = []
-  const root = postcss.parse(css)
-  root.walkAtRules((atRule) => {
-    if (!ENTRY_AT_RULES.has(atRule.name)) {
-      findings.push({ rule: 'entry-escape', detail: `@${atRule.name} ${atRule.params}`.trim() })
-      return
-    }
-    if (atRule.name !== 'font-face') return
-    atRule.walkDecls('font-family', (declaration) => {
-      const family = declaration.value.replace(/["']/g, '')
-      if (hostGlobals.includes(family)) {
-        findings.push({
-          rule: 'entry-escape',
-          detail: `@font-face "${family}" is named by the host's global stylesheet`,
-        })
-      }
-    })
-  })
-  root.walkRules((rule) => {
-    for (const selector of rule.selectors) {
-      const unscoped = !SCOPED.test(selector)
-      const targetsDocument = GLOBAL_TARGET.test(selector.replace(/^:where\(html\.dark\) /, ''))
-      if (unscoped || targetsDocument) findings.push({ rule: 'entry-escape', detail: selector })
-    }
-  })
-  return findings
 }
 
 export function findModuleEscapes(css: string, file: string): Finding[] {
@@ -117,66 +71,6 @@ export function findModuleEscapes(css: string, file: string): Finding[] {
       }
     }
   })
-  return findings
-}
-
-const BRIDGE_PREFIX = '--design-'
-const LIGHT_SCOPE = '[data-platform-ui]'
-const DARK_SCOPE = '[data-platform-ui][data-theme="dark"]'
-
-/** Reads a stylesheet's top-level custom properties for one selector, later declarations winning. */
-function customProperties(root: Root, matches: (selector: string) => boolean) {
-  const values = new Map<string, string>()
-  for (const node of root.nodes) {
-    if (node.type !== 'rule' || !node.selectors.some(matches)) continue
-    node.walkDecls(/^--/, (declaration) => values.set(declaration.prop, declaration.value))
-  }
-  return values
-}
-
-function resolveVars(value: string, values: Map<string, string>, depth = 0): string {
-  if (depth > 32) return value
-  const resolved = value.replace(/var\((--[\w-]+)\)/g, (reference, name: string) => {
-    const next = values.get(name)
-    return next === undefined ? reference : resolveVars(next, values, depth + 1)
-  })
-  return resolved.replace(/\s+/g, ' ').trim()
-}
-
-/** Compares each `--design-<token>` with `--<token>`, in light and in dark. */
-export function findBridgeDrift(entryCss: string, bridgeCss: string): Finding[] {
-  const entry = postcss.parse(entryCss)
-  const bridge = postcss.parse(bridgeCss)
-  const tokensLight = customProperties(entry, (selector) => selector === LIGHT_SCOPE)
-  const tokensDark = new Map([
-    ...tokensLight,
-    ...customProperties(entry, (selector) => selector === DARK_SCOPE),
-  ])
-  const bridgeLight = customProperties(bridge, (selector) => selector === '.tokens')
-  const bridgeDark = new Map([
-    ...bridgeLight,
-    ...customProperties(bridge, (selector) => selector.endsWith(' .tokens')),
-  ])
-  const findings: Finding[] = []
-  for (const [theme, tokens, carried] of [
-    ['light', tokensLight, bridgeLight],
-    ['dark', tokensDark, bridgeDark],
-  ] as const) {
-    for (const [name, value] of carried) {
-      if (!name.startsWith(BRIDGE_PREFIX)) continue
-      const token = `--${name.slice(BRIDGE_PREFIX.length)}`
-      const expected = tokens.get(token)
-      const actual = resolveVars(value, carried)
-      if (expected === undefined) {
-        findings.push({ rule: 'bridge-drift', detail: `${name}: no token ${token}` })
-      } else if (resolveVars(expected, tokens) !== actual) {
-        findings.push({
-          rule: 'bridge-drift',
-          detail: `${name} (${theme}) is ${actual}, ${token} is ${resolveVars(expected, tokens)}`,
-        })
-      }
-    }
-  }
   return findings
 }
 
@@ -250,7 +144,7 @@ function findRouteReach(): Finding[] {
     const isNextEntry =
       relative.startsWith(`app${path.sep}`) && NEXT_ENTRY.test(path.basename(file))
     if (!isNextEntry && !ROOT_ENTRIES.includes(relative)) continue
-    if (relative.startsWith(ORGANIZATION_ROUTES) || !nextStep.has(file)) continue
+    if (file.startsWith(PRODUCT) || !nextStep.has(file)) continue
     const chain = [relative]
     for (let step = nextStep.get(file); step; step = nextStep.get(step)) {
       chain.push(path.relative(APP, step))
@@ -263,9 +157,11 @@ function findRouteReach(): Finding[] {
 async function loadAppPostcssPlugins(): Promise<AcceptedPlugin[]> {
   const require = createRequire(path.join(APP, 'package.json'))
   const { default: config } = await import(path.join(APP, 'postcss.config.mjs'))
-  return Object.entries(config.plugins as Record<string, object>).map(([name, options]) =>
-    require(name)(options)
-  )
+  // As Next loads them: a plugin with no options is used as exported, an object or a creator.
+  return Object.entries(config.plugins as Record<string, object>).map(([name, options]) => {
+    const plugin = require(name)
+    return Object.keys(options).length === 0 ? plugin : plugin(options)
+  })
 }
 
 if (import.meta.main) {
@@ -273,22 +169,14 @@ if (import.meta.main) {
   const compile = async (file: string) =>
     (await postcss(plugins).process(readFileSync(file, 'utf8'), { from: file })).css
 
-  const entryCss = await compile(ENTRY)
-  const entryRoot = postcss.parse(entryCss)
-  let selectorCount = 0
-  entryRoot.walkRules((rule) => {
-    selectorCount += rule.selectors.length
-  })
-  const findings = findEntryEscapes(entryCss, readFileSync(HOST_GLOBALS, 'utf8'))
-
-  const modules = [PLATFORM, SHARED, PLATFORM_COMPONENTS].flatMap((directory) =>
+  const modules = [PRODUCT, PLATFORM, SHARED, PLATFORM_COMPONENTS].flatMap((directory) =>
     walk(directory, CSS_MODULE)
   )
+  const findings: Finding[] = []
   for (const file of modules) {
     findings.push(...findModuleEscapes(await compile(file), path.relative(APP, file)))
   }
   findings.push(...findRouteReach())
-  findings.push(...findBridgeDrift(entryCss, await compile(HOST_BRIDGE)))
 
   if (findings.length > 0) {
     process.stderr.write(`check:platform-css found ${findings.length} escape(s):\n`)
@@ -296,7 +184,6 @@ if (import.meta.main) {
     process.exit(1)
   }
   process.stdout.write(
-    `check:platform-css ok: ${selectorCount} entry selectors scoped, ${modules.length} CSS Modules ` +
-      'hashed, only organization routes reach platform/, host bridge matches its tokens\n'
+    `check:platform-css ok: ${modules.length} CSS Modules hashed, only product routes reach the design system\n`
   )
 }

@@ -61,11 +61,3 @@ export function getCustomBlockTile(
     ? { icon: makeImageIcon(url), bgColor: CUSTOM_BLOCK_IMAGE_TILE_COLOR }
     : { icon: DefaultCustomBlockIcon, bgColor: CUSTOM_BLOCK_TILE_COLOR }
 }
-
-/** The icon half of {@link getCustomBlockTile}, for surfaces that paint no tile. */
-export function getCustomBlockIcon(
-  iconUrl: string | null | undefined,
-  fallbackUrl?: string | null
-): BlockIcon {
-  return getCustomBlockTile(iconUrl, fallbackUrl).icon
-}

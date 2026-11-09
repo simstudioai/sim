@@ -51,7 +51,7 @@ const logger = createLogger('WorkflowQueries')
 
 export type { WorkflowQueryScope } from '@/hooks/queries/utils/workflow-keys'
 
-export const WORKFLOW_STATE_STALE_TIME = 30 * 1000
+const WORKFLOW_STATE_STALE_TIME = 30 * 1000
 export const WORKFLOW_DEPLOYMENT_VERSION_STATE_STALE_TIME = 5 * 60 * 1000
 
 /**

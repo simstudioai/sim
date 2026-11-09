@@ -17,7 +17,7 @@ import { organizationKeys } from '@/hooks/queries/utils/organization-keys'
 const { surface } = vi.hoisted(() => ({
   surface: {
     organization: { id: 'org-1' },
-    routePrefix: '',
+    routePrefix: '/o/org-1',
     searchAccess: { memberScoped: true },
     viewer: { isAdmin: false, canConnectSearchIntegrations: true },
     connectedAccountsAvailable: true,
@@ -124,7 +124,7 @@ describe('warming a nav row', () => {
     const warmers = renderWarmers()
     warmers.warmSettings('members')
     await settleDwell()
-    expect(router.prefetch).toHaveBeenCalledWith('/settings/members')
+    expect(router.prefetch).toHaveBeenCalledWith('/o/org-1/settings/members')
     expect(readKeys()).toContain(JSON.stringify(organizationKeys.roster('org-1')))
     expect(readKeys()).not.toContain(JSON.stringify(organizationKeys.planSeats('org-1')))
     surface.viewer.isAdmin = true

@@ -1,13 +1,14 @@
 import 'server-only'
-import type { ConversationData } from '@/platform/app/(shell)/_components/chat/conversation/model'
-import type { ChatAttachment, ChatTurn } from '@/platform/app/(shell)/_components/composer/model'
-import type { HomeData } from '@/platform/app/(shell)/home/_components/model'
-import type { Scenario } from '@/platform/fixtures'
+import type { ConversationData } from '@/app/(product)/_components/chat/conversation/model'
+import type { ChatAttachment, ChatTurn } from '@/app/(product)/_components/composer/model'
+import type { HomeData } from '@/app/(product)/o/[organizationId]/home/_components/model'
+import { FIXTURE_ROUTE_PREFIX, type Scenario } from '@/platform/fixtures'
 import { FIXTURE_NOW } from '@/platform/fixtures/clock'
 import nina from '@/platform/fixtures/media/attendee-1.jpg'
 import alex from '@/platform/fixtures/media/attendee-2.jpg'
 import maya from '@/platform/fixtures/media/attendee-3.jpg'
 import dashboard from '@/platform/fixtures/media/dashboard-preview.jpg'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 
 const people = ['Nina Patel', 'Alex Chen', 'Maya Ross', 'Daniel Kim'].map((name, index) => ({
   name,
@@ -44,7 +45,7 @@ const fullHome: HomeData = {
     {
       id: 'salesforce',
       title: 'Reconnect Salesforce',
-      href: '/integrations/salesforce',
+      href: surfaceHref({ routePrefix: FIXTURE_ROUTE_PREFIX }, '/integrations/salesforce'),
       detail: 'Connection expired',
       occurredAt: FIXTURE_NOW - 12 * 60_000,
       icon: 'I084',

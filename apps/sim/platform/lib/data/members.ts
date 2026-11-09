@@ -8,6 +8,7 @@ import { useQueryState } from 'nuqs'
 import type { OrganizationRoster } from '@/lib/api/contracts/organization'
 import { useSession } from '@/lib/auth/client'
 import { isEnterprise } from '@/lib/billing/plan-helpers'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 import { buildInviteFailureMessage } from '@/lib/invitations/error-messages'
 import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
@@ -33,7 +34,7 @@ import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seat
 import { useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useOrganization } from '@/platform/lib/data/organization'
-import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { useFixtureSettings } from '@/platform/lib/data/settings-providers'
 import { platformHref } from '@/platform/lib/navigation'
 import { toRosterModel, toSeatsModel, type WorkspacePermission } from '@/platform/shared/members'
@@ -175,8 +176,8 @@ function useLeaveOrganization(organization: PlatformOrganization) {
   const router = useRouter()
   const search = useSearchParams()
   return () => {
-    if (fixture) router.replace(platformHref('/home', search))
-    else window.location.assign(`${organization.legacyOrigin}${APP_ENTRY_PATH}`)
+    if (fixture) router.replace(platformHref(surfaceHref(organization, '/home'), search))
+    else window.location.assign(APP_ENTRY_PATH)
   }
 }
 
@@ -233,7 +234,7 @@ export function useOwnershipTransfer() {
         {
           context: 'organization',
           organizationId,
-          returnUrl: `${organization.legacyOrigin}${APP_ENTRY_PATH}`,
+          returnUrl: `${getBaseUrl()}${APP_ENTRY_PATH}`,
         },
         (error) =>
           setPortalError(

@@ -39,6 +39,7 @@ export function WorkspaceList({ label, items, onSelect, target = 'standard' }: W
   )
 }
 
+/** @public check-platform-design requires every catalog evidence owner to be an exported component. */
 export function SidebarWorkspaceItems({ label, items }: WorkspaceItemsProps) {
   return (
     <ul className={styles.rows} aria-label={label}>

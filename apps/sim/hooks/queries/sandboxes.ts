@@ -15,7 +15,7 @@ const logger = createLogger('SandboxQueries')
 
 export type { Sandbox, SandboxListResponse }
 
-export const sandboxKeys = {
+const sandboxKeys = {
   all: ['sandboxes'] as const,
   lists: () => [...sandboxKeys.all, 'list'] as const,
   list: (workspaceId?: string) => [...sandboxKeys.lists(), workspaceId ?? ''] as const,

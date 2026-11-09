@@ -1,1 +1,0 @@
-export { McpDeploy } from './mcp'

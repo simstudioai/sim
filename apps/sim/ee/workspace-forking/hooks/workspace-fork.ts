@@ -37,7 +37,7 @@ import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 export type ForkDirection = 'push' | 'pull'
 
-export const forkKeys = {
+const forkKeys = {
   all: ['workspace-fork'] as const,
   lineages: () => [...forkKeys.all, 'lineage'] as const,
   lineage: (workspaceId?: string) => [...forkKeys.lineages(), workspaceId ?? ''] as const,
@@ -66,7 +66,7 @@ export function useForkResources(workspaceId?: string, enabled = true) {
   })
 }
 
-export function forkLineageQueryOptions(workspaceId: string) {
+function forkLineageQueryOptions(workspaceId: string) {
   return queryOptions({
     queryKey: forkKeys.lineage(workspaceId),
     queryFn: ({ signal }) =>

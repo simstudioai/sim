@@ -25,6 +25,17 @@ import {
   ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
+import type {
+  ChatAttachment,
+  ComposerController,
+  ComposerDraft,
+  ComposerReferences,
+  ComposerSettings,
+} from '@/app/(product)/_components/composer/model'
+import type {
+  ComposerHost,
+  ComposerOptions,
+} from '@/app/(product)/_components/session/composer-host'
 import {
   useMothershipChatHistory,
   useSetMothershipChatEffort,
@@ -33,20 +44,10 @@ import { getSkillsQueryOptions } from '@/hooks/queries/skills'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useVoiceInput } from '@/hooks/use-voice-input'
-import type {
-  ChatAttachment,
-  ComposerController,
-  ComposerDraft,
-  ComposerReferences,
-  ComposerSettings,
-} from '@/platform/app/(shell)/_components/composer/model'
-import type {
-  ComposerHost,
-  ComposerOptions,
-} from '@/platform/app/(shell)/_components/session/composer-host'
 import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { attachmentKind } from '@/platform/lib/data/chat-model'
 import { useOrganization } from '@/platform/lib/data/organization'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useStartSearch } from '@/platform/lib/data/search'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import {
@@ -397,7 +398,8 @@ function useOrganizationInventory(enabled: boolean, organizationId: string) {
 
 /** Home's Build entry: hand the draft to a new chat surface, which sends it on mount. */
 function useLiveStartChat() {
-  const { organization } = useOrganization()
+  const surface = useOrganization()
+  const { organization } = surface
   const router = useRouter()
   return (draft: ComposerDraft): false | undefined => {
     if (draft.attachments.some((attachment) => attachment.uploading)) return false
@@ -413,7 +415,7 @@ function useLiveStartChat() {
       { organizationId: organization.id }
     )
     if (!stored) return false
-    router.push('/chat')
+    router.push(surfaceHref(surface, '/chat'))
     return undefined
   }
 }

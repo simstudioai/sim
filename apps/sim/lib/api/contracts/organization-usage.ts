@@ -250,7 +250,6 @@ export const organizationUsageBreakdownResponseSchema = z.object({
 const organizationUsageBreakdownViewRowSchema = organizationUsageBreakdownRowSchema.extend({
   image: z.string().optional(),
 })
-export type OrganizationUsageBreakdownRow = z.output<typeof organizationUsageBreakdownViewRowSchema>
 
 const organizationUsageBreakdownViewSchema = organizationUsageBreakdownResponseSchema.extend({
   rows: z.array(organizationUsageBreakdownViewRowSchema),

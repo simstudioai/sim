@@ -136,7 +136,7 @@ function LogDropdownItem({ item }: DropdownItemRenderProps) {
   )
 }
 
-export const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfig> = {
+const RESOURCE_REGISTRY: Record<MothershipResourceType, ResourceTypeConfig> = {
   sources: {
     type: 'sources',
     label: 'Sources',

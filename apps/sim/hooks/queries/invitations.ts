@@ -10,30 +10,23 @@ import { extractValidationIssues } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
-  acceptInvitationContract,
   type BatchInvitationResult as BatchInvitationResultContract,
   type BatchWorkspaceInvitationBody,
   batchWorkspaceInvitationsContract,
   cancelInvitationContract,
   getInvitationContract,
-  type InvitationJoinOutcome,
-  listMyInvitationsContract,
   listWorkspaceInvitationsContract,
-  type MyInvitation,
   type PendingInvitationRow,
-  rejectInvitationContract,
   removeWorkspaceMemberContract,
   resendInvitationContract,
 } from '@/lib/api/contracts/invitations'
 import { updateWorkspacePermissionsContract } from '@/lib/api/contracts/workspaces'
 import { toast } from '@/lib/toast/sink'
 import { organizationKeys } from '@/hooks/queries/organization'
-import { refreshSessionQuery } from '@/hooks/queries/session'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
-import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
 import { workspaceKeys } from '@/hooks/queries/workspace'
 
-export const invitationKeys = {
+const invitationKeys = {
   all: ['invitations'] as const,
   lists: () => [...invitationKeys.all, 'list'] as const,
   list: (workspaceId: string) => [...invitationKeys.lists(), workspaceId] as const,
@@ -85,7 +78,7 @@ export function useInvitationDetails(
   })
 }
 
-export interface WorkspaceInvitation {
+interface WorkspaceInvitation {
   email: string
   permissionType: 'admin' | 'write' | 'read'
   isPendingInvitation: boolean
@@ -118,7 +111,7 @@ async function fetchPendingInvitations(
   )
 }
 
-export function pendingInvitationsQueryOptions(workspaceId: string) {
+function pendingInvitationsQueryOptions(workspaceId: string) {
   return queryOptions({
     queryKey: invitationKeys.list(workspaceId),
     queryFn: ({ signal }) => fetchPendingInvitations(workspaceId, signal),
@@ -140,90 +133,6 @@ export function usePendingInvitations(workspaceId: string | undefined) {
 }
 
 export const MY_INVITATIONS_STALE_TIME = 30 * 1000
-
-async function fetchMyPendingInvitations(signal?: AbortSignal): Promise<MyInvitation[]> {
-  const data = await requestJson(listMyInvitationsContract, { signal })
-  return data.invitations
-}
-
-/**
- * Pending invitations addressed to the signed-in account, for the workspace
- * switcher's Invitations section. The switcher menu-item mounts this on
- * dropdown open (so it fetches then); the modal passes `enabled: open` so it
- * does not fetch on every app load for the majority of users who have none.
- */
-export function useMyPendingInvitations(enabled = true) {
-  return useQuery({
-    queryKey: invitationKeys.mine(),
-    queryFn: ({ signal }) => fetchMyPendingInvitations(signal),
-    enabled,
-    staleTime: MY_INVITATIONS_STALE_TIME,
-  })
-}
-
-/**
- * Accepts one of the session user's pending invitations in-app. No token —
- * acceptance is bound to the session email, which is exactly what makes this
- * path immune to the wrong-browser-account problem of the email link.
- *
- * Invalidations mirror the email-link accept path (`use-oauth-return` /
- * `invite.tsx`): accepting an org invite can convert the plan, reconcile
- * seats, sync usage, and set the active organization server-side, so the
- * workspace list, org, credentials, subscription/usage, AND the session must
- * all refresh — otherwise billing widgets and the create-workspace target
- * (which reads the active org) stay stale until a reload.
- */
-export function useAcceptMyInvitation() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    /**
-     * `disclosedWorkspaceIds` echoes the migration the caller actually showed the
-     * invitee, so acceptance rejects if the sweep set changed since. Omitting it
-     * would silently skip that guard — the in-app path must supply it for the
-     * same reason the emailed `/invite` page does.
-     */
-    mutationFn: async ({
-      invitationId,
-      disclosedWorkspaceIds,
-      disclosedOutcome,
-    }: {
-      invitationId: string
-      disclosedWorkspaceIds?: string[]
-      disclosedOutcome?: InvitationJoinOutcome
-    }) =>
-      requestJson(acceptInvitationContract, {
-        params: { id: invitationId },
-        body: { disclosedWorkspaceIds, disclosedOutcome },
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: organizationKeys.all })
-      queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.all })
-      queryClient.invalidateQueries({ queryKey: subscriptionKeys.all })
-      void refreshSessionQuery(queryClient)
-    },
-    // Refresh the list on failure too, so a row that failed terminally
-    // (expired / already-processed since the list loaded) drops instead of
-    // lingering as a re-clickable dead row.
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: invitationKeys.mine() })
-    },
-  })
-}
-
-/** Declines one of the session user's pending invitations in-app. */
-export function useDeclineMyInvitation() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ invitationId }: { invitationId: string }) =>
-      requestJson(rejectInvitationContract, { params: { id: invitationId }, body: {} }),
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: invitationKeys.mine() })
-    },
-  })
-}
 
 type SendInvitationsParams = Omit<BatchWorkspaceInvitationBody, 'organizationId'> & {
   organizationId?: string | null
@@ -385,38 +294,6 @@ export function useRemoveWorkspaceMember() {
           queryKey: organizationKeys.roster(variables.organizationId),
         })
       }
-    },
-  })
-}
-
-type LeaveWorkspaceParams = ContractBodyInput<typeof removeWorkspaceMemberContract> & {
-  userId: string
-}
-
-/**
- * Allows the current user to leave a workspace.
- * Invalidates both permissions and workspace list caches on success.
- */
-export function useLeaveWorkspace() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ userId, workspaceId }: LeaveWorkspaceParams) => {
-      return requestJson(removeWorkspaceMemberContract, {
-        params: { id: userId },
-        body: { workspaceId },
-      })
-    },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: workspaceKeys.permissions(variables.workspaceId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workspaceKeys.lists(),
-      })
-      queryClient.invalidateQueries({
-        queryKey: workspaceKeys.detail(variables.workspaceId),
-      })
     },
   })
 }

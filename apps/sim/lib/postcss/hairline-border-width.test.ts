@@ -71,6 +71,16 @@ describe('hairline border width', () => {
       expect(out).not.toContain('var(--border-width)')
     })
 
+    it.each([
+      '/repo/apps/sim/platform/styles/bootstrap.css',
+      '/repo/apps/sim/app/(product)/_components/sidebar/sidebar.module.css',
+      '/repo/packages/emcn-platform/src/styles/platform.css',
+    ])('leaves the product stylesheet %s as Tailwind emits it', async (from) => {
+      const out = await run('.border { border-width: 1px }', from)
+      expect(out).toContain('1px')
+      expect(out).not.toContain('var(--border-width)')
+    })
+
     it('skips third-party stylesheets', async () => {
       const out = await run('.border { border-width: 1px }', '/repo/node_modules/pkg/styles.css')
       expect(out).toContain('1px')

@@ -35,7 +35,10 @@ const ROOT = resolve(SCRIPT_DIR, '..')
 const APP = resolve(ROOT, 'apps/sim')
 const TOOL_TYPES = resolve(APP, 'tools/types.ts')
 const CONTRACT = resolve(APP, 'lib/api/contracts/byok-keys.ts')
-const SETTINGS = resolve(APP, 'app/workspace/[workspaceId]/settings/components/byok/byok.tsx')
+const SETTINGS = resolve(
+  APP,
+  'app/(product)/workspace/[workspaceId]/settings/_components/sections/byok/providers.ts'
+)
 
 /** Path as written in an error message, relative to the repo root. */
 function rel(absolute: string): string {

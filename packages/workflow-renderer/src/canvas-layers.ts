@@ -7,7 +7,6 @@
  * - {@link EDGE_Z_BASE}`…`{@link EDGE_Z_MAX} — edges, and the in-flight drag line
  * - {@link BLOCK_Z_BASE} — cards (+1 last interacted, +10 selected)
  * - {@link CONTAINER_CHILD_Z_BASE} — cards inside a container (same +1 / +10 steps)
- * - {@link CONNECTION_PICKER_Z} — the connection block picker
  *
  * Containers and ordinary edges occupy separate bands. A container paints an
  * opaque body, so an edge sharing its z loses the equal-z tiebreak to DOM order
@@ -23,7 +22,7 @@
  * same graph through the same React Flow layering rules; a second scale drifted
  * once already and took the preview's edges behind its containers with it.
  */
-export const EDGE_Z_BASE = 10
+const EDGE_Z_BASE = 10
 /**
  * The z-scale above is only honored when React Flow's automatic z-index
  * management is off: v12's default `basic` mode adds a parented node's
@@ -50,20 +49,8 @@ const EDGE_Z_DEPTH_MAX = 18
  * whether or not it is highlighted.
  */
 const EDGE_Z_HIGHLIGHTED = 19
-export const EDGE_Z_MAX = 20
 export const BLOCK_Z_BASE = 21
 export const CONTAINER_CHILD_Z_BASE = 1000
-export const CONNECTION_PICKER_Z = 2000
-
-/** A card's z: its baseline, lifted while it is the last interacted or selected. */
-export function getBlockZIndex(
-  baseline: number,
-  state: { isSelected?: boolean; isLastInteracted?: boolean } = {}
-): number {
-  if (state.isSelected) return baseline + 10
-  if (state.isLastInteracted) return baseline + 1
-  return baseline
-}
 
 /**
  * Places an edge in the edge band, ordered by the nesting depth of the container

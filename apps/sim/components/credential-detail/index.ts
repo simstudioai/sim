@@ -1,8 +1,0 @@
-export { AddPeopleModal } from './components/add-people-modal'
-export { CredentialDetailHeading } from './components/credential-detail-heading'
-export { CredentialDetailLayout } from './components/credential-detail-layout'
-export { CredentialMembersSection } from './components/credential-members-section'
-export { DetailSection } from './components/detail-section'
-export { UnsavedChangesModal } from './components/unsaved-changes-modal'
-export { useCredentialDetailForm } from './hooks/use-credential-detail-form'
-export { useUnsavedChangesGuard } from './hooks/use-unsaved-changes-guard'

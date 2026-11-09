@@ -23,7 +23,7 @@ export const CUSTOM_BLOCK_LIST_STALE_TIME = 60 * 1000
 /** Short — the usage count is a pre-delete safety check and must stay fresh. */
 export const CUSTOM_BLOCK_USAGES_STALE_TIME = 30 * 1000
 
-export const customBlockKeys = {
+const customBlockKeys = {
   all: ['custom-blocks'] as const,
   lists: () => [...customBlockKeys.all, 'list'] as const,
   list: (workspaceId?: string) => [...customBlockKeys.lists(), workspaceId ?? ''] as const,

@@ -14,7 +14,9 @@ import { BILLING_USAGE_LOG_SOURCE_LABELS } from '@/lib/billing/usage-sources'
 import { toast } from '@/lib/toast/sink'
 import { saveBlob } from '@/lib/uploads/client/download'
 import { useUsageLogs, useUsageSummary } from '@/hooks/queries/usage-logs'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { loadMoreOf, queryView } from '@/platform/shared/query-view'
 
 const logger = createLogger('PlatformCreditUsage')
@@ -49,17 +51,19 @@ function rowLabel(log: UsageLogEntry): string {
 /** The Subscription glance: the viewer's credits over the last 30 days. */
 export function useCreditUsageSummary() {
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const summary = useUsageSummary('30d')
   return {
     ...queryView(summary),
     total: formatCreditsLabel(summary.data ?? 0),
-    href: platformHref('/settings/billing/credit-usage', search),
+    href: platformHref(surfaceHref(scope, '/settings/billing/credit-usage'), search),
   }
 }
 
 /** Every credit-consuming event behind the viewer's usage, filtered by the URL's period. */
 export function useCreditUsageLog() {
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const [{ period, startDate, endDate }, setFilters] = useQueryStates(
     creditUsageParsers,
     creditUsageUrlKeys
@@ -72,7 +76,7 @@ export function useCreditUsageLog() {
   })
   const total = logs.data?.pages[0]?.summary.totalCredits
   return {
-    backHref: platformHref('/settings/billing', search),
+    backHref: platformHref(surfaceHref(scope, '/settings/billing'), search),
     periodOptions: PERIOD_OPTIONS,
     period,
     range: custom && startDate && endDate ? { start: startDate, end: endDate } : null,

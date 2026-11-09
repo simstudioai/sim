@@ -63,19 +63,11 @@ const RichMarkdownEditor = dynamic(
  */
 const CSV_INLINE_EDIT_MAX_BYTES = 5 * 1024 * 1024
 
-export function isTextEditable(file: {
-  type: string
-  name: string
-  size?: number | null
-}): boolean {
+function isTextEditable(file: { type: string; name: string; size?: number | null }): boolean {
   return (
     resolveFileCategory(file.type, file.name) === 'text-editable' &&
     (file.size ?? 0) <= MAX_TEXT_PREVIEW_BYTES
   )
-}
-
-export function isPreviewable(file: { type: string; name: string; size?: number | null }): boolean {
-  return resolvePreviewType(file.type, file.name) !== null && isTextEditable(file)
 }
 
 /**
@@ -83,7 +75,7 @@ export function isPreviewable(file: { type: string; name: string; size?: number 
  * the raw Monaco editor. Toolbars use this to hide the raw/split/preview mode controls,
  * which don't apply to the single-surface editor.
  */
-export function isMarkdownFile(file: { type: string; name: string }): boolean {
+function isMarkdownFile(file: { type: string; name: string }): boolean {
   return resolvePreviewType(file.type, file.name) === 'markdown'
 }
 
@@ -92,7 +84,7 @@ export function isMarkdownFile(file: { type: string; name: string }): boolean {
  * the editor would OOM loading the whole file. The viewer renders {@link CsvTablePreview} for it,
  * and toolbars use this to hide the edit/split/save controls (there is no editor to switch to).
  */
-export function isCsvStreamOnly(file: {
+function isCsvStreamOnly(file: {
   type: string | null
   name: string
   size?: number | null

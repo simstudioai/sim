@@ -14,6 +14,7 @@ import {
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { toast } from '@/lib/toast/sink'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
+import type { ShellHelp, ShellOrganizationActions } from '@/app/(product)/_components/model'
 import { useRenameOrganization } from '@/hooks/queries/organization'
 import { useUploadOrganizationLogo } from '@/hooks/queries/organization-logo'
 import {
@@ -21,8 +22,7 @@ import {
   hasAvailableDesktopUpdate,
   useDesktopUpdateState,
 } from '@/hooks/use-desktop-update-state'
-import type { ShellHelp, ShellOrganizationActions } from '@/platform/app/(shell)/_components/model'
-import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { signOutAndLeave } from '@/platform/lib/data/session'
 import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
 import type { ShellDestination } from '@/platform/shared/shell'
@@ -72,10 +72,7 @@ function useHelp(organization: PlatformOrganization): ShellHelp {
   return {
     documentationUrl: DOCS_URL,
     slackUrl: SLACK_COMMUNITY_URL,
-    downloadUrl:
-      hosted && !isDesktopApp()
-        ? `${organization.legacyOrigin}/api/desktop/update/download`
-        : undefined,
+    downloadUrl: hosted && !isDesktopApp() ? '/api/desktop/update/download' : undefined,
     desktopUpdate: hasAvailableDesktopUpdate(updateState)
       ? {
           label: desktopUpdateActionLabel(updateState),
@@ -98,18 +95,18 @@ export function useLiveAccountActions(
 ) {
   const organizationActions = useOrganizationActions(organization)
   const help = useHelp(organization)
-  const landing = destinations.find((item) => item.id !== 'settings')?.value ?? '/settings'
+  const landing =
+    destinations.find((item) => item.id !== 'settings')?.value ??
+    surfaceHref(organization, '/settings')
   return {
     organization: organizationActions,
     help,
     signOut: organization.navFlags.anonymous
       ? undefined
       : () =>
-          void signOutAndLeave(`${organization.legacyOrigin}/login?fromLogout=true`).then(
-            (left) => {
-              if (!left) toast.error('Failed to sign out. Please try again.')
-            }
-          ),
+          void signOutAndLeave('/login?fromLogout=true').then((left) => {
+            if (!left) toast.error('Failed to sign out. Please try again.')
+          }),
     requestLeave: requestSettingsLeave,
     settingsLanding: landing,
   }

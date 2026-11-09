@@ -1,25 +1,26 @@
 ---
 name: add-settings-page
-description: Add or audit settings pages that use SettingsPanel in the existing Sim app. Use implement-platform for isolated Platform settings.
+description: Add or audit the account and self-hosted settings pages that use SettingsPanel. Use implement-platform for Platform organization and workspace Settings.
 ---
 
 # Settings Page (add / audit)
 
-For `apps/sim/platform/**`, use [implement-platform](../implement-platform/SKILL.md). In a mixed request, apply the steps below only to the existing app's settings.
+For Platform Settings (`apps/sim/app/(product)/**`, `apps/sim/platform/**`), use [implement-platform](../implement-platform/SKILL.md). In a mixed request, apply the steps below only to the account and self-hosted settings.
 
 Settings page chrome (header bar, scroll region, content column, nav-driven
-title + description) is owned by the `settings/[section]/layout.tsx` shell. Each
+title + description) is owned by `StandaloneSettingsShell`, which the account and
+self-hosted `settings/layout.tsx` mount. Each
 page renders through **`SettingsPanel`**, which registers the page's header data
 (actions, search, back) with that shell and renders only the body. The full
 convention lives in `.claude/rules/sim-settings-pages.md` — read it first; this
 skill is the procedure.
 
 Key paths:
-- Chrome shell: `apps/sim/app/workspace/[workspaceId]/settings/[section]/layout.tsx` (`SettingsHeaderShell`)
+- Chrome shell: `apps/sim/components/settings/standalone-settings-shell.tsx` (`SettingsHeaderShell` from `settings-header.tsx`), mounted by `apps/sim/app/(site)/account/settings/layout.tsx` and `apps/sim/app/(site)/selfhost/settings/layout.tsx`
 - `SettingsPanel` registrar: `apps/sim/components/settings/settings-panel.tsx`
 - Nav metadata (titles + descriptions): `apps/sim/components/settings/navigation.ts`
-- Section switch + provider: `apps/sim/app/workspace/[workspaceId]/settings/[section]/settings.tsx`
-- Pages: `apps/sim/app/workspace/[workspaceId]/settings/components/<name>/<name>.tsx` and EE pages under `apps/sim/ee/<feature>/components/`
+- Section switch: `apps/sim/components/settings/account-settings-renderer.tsx` and `selfhost-settings-renderer.tsx`
+- Pages: `apps/sim/components/settings/sections/<name>/<name>.tsx` and EE pages under `apps/sim/ee/<feature>/components/`
 
 ## Mode A — Add a new settings page
 
@@ -29,10 +30,10 @@ Key paths:
    product voice per `.claude/rules/constitution.md`). Set gating flags
    (`requiresHosted`, `requiresEnterprise`, …) on `unified`, and add `planes` only if the
    section also exists on a standalone plane.
-2. **Wire the switch.** Register the module in `SECTION_MODULES`
-   (`settings/section-warmers.ts`), then add
-   `const X = dynamic(() => SECTION_MODULES.x().then((m) => m.X))` and its case in the
-   `effectiveSection` switch in `settings/[section]/settings.tsx`.
+2. **Wire the switch.** In the plane's renderer (`account-settings-renderer.tsx` or
+   `selfhost-settings-renderer.tsx`), add
+   `const X = dynamic(() => import('@/components/settings/sections/<name>/<name>').then((m) => m.X))`
+   and its branch.
 3. **Build the body inside `SettingsPanel`** per the rule's canonical page shape:
    `actions`, `search`, `children`, modal siblings in a fragment.
 4. **If the page has editable state**, wire the shared save/discard stack exactly as in
@@ -48,16 +49,15 @@ Each grep lists candidates; review every match against the expected ones named b
 
 1. Find hand-rolled shells that should be `SettingsPanel`:
    `git grep -n "flex h-full flex-col bg-\[var(--bg)\]" -- 'apps/sim/**/settings/**' 'apps/sim/ee/' ':(exclude)apps/sim/platform/**'`
-   — expected matches: the workspace and organization `settings/layout.tsx` shells and the
-   shared header shell (`components/settings/settings-header.tsx`); an entitlement/loading gate
-   is also fine. `CredentialDetailLayout` (the `settings/secrets/[credentialId]` exception) is
+   — expected match: the shared header shell (`components/settings/settings-header.tsx`); an
+   entitlement/loading gate is also fine. `CredentialDetailLayout` (the `settings/secrets/[credentialId]` exception) is
    an exempt hand-rolled shell outside these pathspecs. A detail sub-view is never a match: it
    passes `back={{ text, icon: ArrowLeft, onSelect }}` to `SettingsPanel`. Anything else is a
    violation: render it through `SettingsPanel`.
 2. Find hand-rolled title blocks:
    `git grep -n "text-\[var(--text-body)\] text-lg" -- 'apps/sim/**/settings/**' 'apps/sim/ee/' ':(exclude)apps/sim/platform/**'`
    — the only title is the `<h1>` in `settings-header.tsx`; a non-heading value at that size
-   (e.g. the credit balance in `ee/organization-usage/components/usage-credits.tsx`) is fine.
+   (e.g. a metric value in `components/settings/sections/mothership/mothership.tsx`) is fine.
 3. Find literal pixel text sizes (should be 0 — see "Text Scale" in
    `.claude/rules/sim-styling.md`):
    `git grep -nE "text-\[1[0-8]px\]" -- 'apps/sim/**/settings/**' 'apps/sim/ee/' ':(exclude)apps/sim/platform/**'`.
@@ -83,7 +83,7 @@ Read "The resource row" in `.claude/rules/sim-settings-pages.md` first — it is
 contract. Then, per page:
 
 1. Find hand-rolled rows:
-   `git grep -n "truncate text-\[var(--text-body)\] text-sm" -- 'apps/sim/app/workspace/' 'apps/sim/ee/'`
+   `git grep -n "truncate text-\[var(--text-body)\] text-sm" -- 'apps/sim/components/' 'apps/sim/ee/'`
    Every match outside `settings-resource-row.tsx` is either a row to migrate or a
    genuinely different shape (multi-line body, tabular columns, a grid) that stays
    bespoke — decide which, and say so.

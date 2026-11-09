@@ -215,24 +215,6 @@ export function SettingsActionChip({
 }
 
 /**
- * Renders a {@link SettingsAction} list as chips using each action's own
- * handlers. This is the data path for headers that take a `ReactNode`
- * (`CredentialDetailLayout`) — reach for it instead of hand-rolling `Chip`s, so
- * those surfaces keep the same chrome as the settings shell. The shell itself
- * maps through {@link SettingsActionChip} directly, since it must route every
- * handler through a ref to avoid stale closures.
- */
-export function SettingsActionChips({ actions }: { actions: SettingsAction[] }) {
-  return (
-    <>
-      {orderHeaderActions(actions).map(({ action }) => (
-        <SettingsActionChip key={action.id ?? action.text} action={action} />
-      ))}
-    </>
-  )
-}
-
-/**
  * Every header reads left→right as
  * `[secondary actions] → [Delete] → [Discard] → [Save]`.
  *
@@ -241,7 +223,7 @@ export function SettingsActionChips({ actions }: { actions: SettingsAction[] }) 
  * primary would occupy.
  *
  * The shell enforces it rather than trusting callsites, because the natural way
- * to write the array — spreading {@link saveDiscardActions} first, then adding a
+ * to write the array — spreading Save and Discard first, then adding a
  * Delete — produces the opposite order and puts a destructive chip to the right
  * of the primary one. Ranking is stable, so an action's position within its own
  * band is still the caller's to choose.

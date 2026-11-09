@@ -9,7 +9,7 @@
 import { SITE_URL } from '@/lib/core/utils/urls'
 
 /** The limit categories that can route a user to the upgrade page. */
-export const UPGRADE_REASONS = ['credits', 'storage', 'tables', 'seats'] as const
+const UPGRADE_REASONS = ['credits', 'storage', 'tables', 'seats'] as const
 
 export type UpgradeReason = (typeof UPGRADE_REASONS)[number]
 

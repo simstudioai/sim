@@ -49,17 +49,6 @@ export const SIDEBAR_DIVIDER_PAD_BELOW_CLASS = 'pt-2'
  */
 export const SIDEBAR_RAIL_CHIP_CLASS = 'group-data-[collapsed]/rail:w-[32px]'
 
-/**
- * Nested-selector variants for cmdk-based surfaces (e.g. the search modal).
- * Written as complete literal strings so Tailwind's JIT can detect them.
- */
-
-/** Matches {@link SIDEBAR_SECTION_GAP_CLASS} applied to adjacent cmdk groups. */
-export const CMDK_SECTION_GAP_CLASS = '[&_[cmdk-group]+[cmdk-group]]:mt-4'
-
-/** Matches {@link SIDEBAR_ITEM_GAP_CLASS} applied to cmdk item containers. */
-export const CMDK_ITEM_GAP_CLASS = '[&_[cmdk-group-items]]:gap-[1px]'
-
 /** Disables sidebar motion, including flyouts that portal outside the sidebar shell. */
 export const SIDEBAR_NO_MOTION_CLASS =
   'animate-none! transition-none! [&_*]:animate-none! [&_*]:transition-none!'

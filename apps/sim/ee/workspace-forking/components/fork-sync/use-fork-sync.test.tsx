@@ -9,7 +9,6 @@ import { act, type ReactNode } from 'react'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { emcnMock } from '@sim/testing/mocks/emcn.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
-import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type {
@@ -17,8 +16,6 @@ import type {
   ForkMappingEntry,
   UpdateForkMappingBody,
 } from '@/lib/api/contracts/workspace-fork'
-import { ForkSyncDetailView } from '@/ee/workspace-forking/components/fork-sync-detail-view/fork-sync-detail-view'
-import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const {
   mockUseForkMapping,
@@ -38,43 +35,6 @@ const {
 
 vi.mock('@sim/emcn-legacy', () => ({ ...emcnMock, ChipConfirmModal: () => null }))
 vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@/ee/workspace-forking/components/fork-sync/fork-sync-view', () => ({
-  ForkSyncView: ({
-    controller,
-    onDirectionChange,
-  }: {
-    controller: ForkSyncController
-    onDirectionChange: (direction: 'push' | 'pull') => void
-  }) => (
-    <>
-      <button
-        type='button'
-        onClick={() => controller.setTriggerAdoption('trigger-a', 'alternate-path')}
-      >
-        Change trigger
-      </button>
-      <button
-        type='button'
-        onClick={() => controller.setTriggerAdoption('trigger-a', 'default-path')}
-      >
-        Restore trigger
-      </button>
-      <button type='button' onClick={() => controller.toggleCopyKeys(['table:table-a'], false)}>
-        Skip copy
-      </button>
-      <button type='button' onClick={() => onDirectionChange('pull')}>
-        Pull
-      </button>
-      <button type='button' onClick={() => void controller.sync()}>
-        Sync choices
-      </button>
-      <button type='button' onClick={controller.discard}>
-        Discard choices
-      </button>
-    </>
-  ),
-}))
-
 vi.mock('@/ee/workspace-forking/hooks/workspace-fork', () => ({
   useForkMapping: mockUseForkMapping,
   useForkDiff: mockUseForkDiff,
@@ -308,123 +268,6 @@ describe('useForkSync dependent payload', () => {
     })
     const [request] = mockPromote.mock.calls[0]
     expect(request.body.copyResources?.tables).toEqual(['table-a'])
-  })
-
-  it('guards sync-only choices and becomes clean after restoring defaults or discarding', async () => {
-    vi.useFakeTimers()
-    const refreshDiff = (includeNewCandidate = false) =>
-      mockUseForkDiff.mockReturnValue({
-        data: {
-          ...diffData([]),
-          triggerMappings: [
-            {
-              sourceBlockId: 'trigger-a',
-              blockName: 'Trigger',
-              workflowName: 'Workflow',
-              ownPath: null,
-              adoptablePaths: ['default-path', 'alternate-path'],
-              defaultAdoptPath: 'default-path',
-            },
-          ],
-          copyableUnmapped: [
-            {
-              kind: 'table',
-              sourceId: 'table-a',
-              label: 'Table',
-              parentId: null,
-              parentLabel: null,
-              referenced: true,
-            },
-            ...(includeNewCandidate
-              ? [
-                  {
-                    kind: 'table',
-                    sourceId: 'table-b',
-                    label: 'New table',
-                    parentId: null,
-                    parentLabel: null,
-                    referenced: true,
-                  },
-                ]
-              : []),
-          ],
-        },
-        isError: false,
-        error: null,
-        isPlaceholderData: false,
-      })
-    refreshDiff()
-    const container = document.createElement('div')
-    const root = createRoot(container)
-    mountedRoots.push(root)
-    let queryString = ''
-    const renderDetail = () =>
-      root.render(
-        <NuqsTestingAdapter
-          hasMemory
-          onUrlUpdate={(update) => {
-            queryString = update.queryString
-          }}
-        >
-          <ForkSyncDetailView
-            title='Sync'
-            workspaceId={WORKSPACE_ID}
-            otherWorkspaceId={OTHER_WORKSPACE_ID}
-            otherWorkspaceName='Parent'
-            onBack={() => {}}
-            actions={[]}
-          />
-        </NuqsTestingAdapter>
-      )
-    act(renderDetail)
-    const expectLeave = (allowed: boolean) => {
-      let left = false
-      act(() =>
-        useSettingsDirtyStore.getState().requestLeave(() => {
-          left = true
-        })
-      )
-      expect(left).toBe(allowed)
-      useSettingsDirtyStore.getState().cancelLeave()
-    }
-    const click = (text: string) => {
-      const button = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
-        (element) => element.textContent === text
-      )
-      if (!button) throw new Error(`Missing control ${text}`)
-      act(() => button.click())
-    }
-    expectLeave(true)
-    refreshDiff(true)
-    act(renderDetail)
-    expectLeave(true)
-    mockPromoteIsPending.mockReturnValue(true)
-    act(renderDetail)
-    await act(async () => {
-      click('Pull')
-      await vi.runOnlyPendingTimersAsync()
-    })
-    expect(queryString).toBe('')
-    mockPromoteIsPending.mockReturnValue(false)
-    act(renderDetail)
-    click('Change trigger')
-    expectLeave(false)
-    click('Restore trigger')
-    expectLeave(true)
-    click('Skip copy')
-    expectLeave(false)
-    refreshDiff()
-    act(renderDetail)
-    expectLeave(false)
-    click('Discard choices')
-    expectLeave(true)
-    click('Skip copy')
-    expectLeave(false)
-    await act(async () => {
-      click('Sync choices')
-      await vi.runOnlyPendingTimersAsync()
-    })
-    expectLeave(true)
   })
 
   it('submits an effective blank for an optional dependent invalidated by a real provider change', () => {

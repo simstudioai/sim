@@ -378,19 +378,6 @@ export const updateWorkspacePutContract = defineRouteContract({
   },
 })
 
-export const deleteWorkspaceContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/workspaces/[id]',
-  params: workspaceParamsSchema,
-  body: deleteWorkspaceBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-    }),
-  },
-})
-
 export const getWorkspacePermissionsContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/permissions',

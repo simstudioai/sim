@@ -145,7 +145,7 @@ export interface TabStripItem {
 }
 
 /** Handed to {@link TabStripBaseProps.onTabDragStart} to shape the gesture it starts. */
-export interface TabStripDragContext {
+interface TabStripDragContext {
   /**
    * Declares that this gesture is not a reorder — a drag carrying a whole
    * multi-tab selection out of the strip, say. The strip drops its own drag
@@ -169,7 +169,7 @@ export interface TabStripDragContext {
 type TabStripVariant = 'attached' | 'floating' | 'underline'
 
 /** How a tab selection was initiated. */
-export type TabStripSelectionSource = 'pointer' | 'keyboard'
+type TabStripSelectionSource = 'pointer' | 'keyboard'
 
 /**
  * The new-tab slot holds either the built-in button or a caller's own control,
@@ -256,15 +256,6 @@ interface TabStripBaseProps {
    *   tab's label ellipsizes at. `attached` is fixed-width and ignores it.
    */
   className?: string
-}
-
-/**
- * Selector matching a tab's outer element. Part of the strip's API: a caller
- * building its own drag image needs the real, laid-out nodes to snapshot, and
- * this keeps it from hardcoding the attribute.
- */
-export function tabStripItemSelector(id: string): string {
-  return `[data-tab-strip-item="${CSS.escape(id)}"]`
 }
 
 /** Final horizontal position for a wheel gesture, or null when it cannot move the strip. */

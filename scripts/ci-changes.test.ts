@@ -281,9 +281,9 @@ describe('CI task attribution through real Turborepo', () => {
       docs: false,
     })
   })
-  it('selects integration and browser checks for workspace code shared with desktop execution', () => {
+  it('selects integration and browser checks for product code shared with desktop execution', () => {
     const plan = classifyFiles([
-      'apps/sim/app/workspace/[workspaceId]/home/hooks/stream/dispatch-stream-event.ts',
+      'apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/terminal/terminal.tsx',
     ])
     expect(plan.fallback).toBeUndefined()
     expect(groups(plan)).toEqual([
@@ -354,7 +354,7 @@ describe('CI task attribution through real Turborepo', () => {
     })
   })
   it.each([
-    'apps/sim/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data.ts',
+    'apps/sim/components/billing/upgrade/billing-period-toggle/billing-period-toggle.tsx',
     'apps/sim/providers/models.ts',
     'apps/sim/blocks/registry.ts',
   ])('runs SEO when landing pages consume changed workspace or backend code: %s', (file) => {
@@ -414,14 +414,14 @@ describe('CI task attribution through real Turborepo', () => {
     expect(plan.docsGroups).toEqual(['platform'])
   })
   it.each([
-    'apps/sim/platform/embedded/app/(shell)/home/home-view.tsx',
-    'apps/sim/platform/embedded/lib/data/home-model.ts',
+    'apps/sim/app/(product)/o/[organizationId]/home/page.tsx',
+    'apps/sim/platform/lib/data/home.ts',
+    'apps/sim/platform/fixtures/index.ts',
     'packages/emcn/src/components/button/button.tsx',
     'packages/emcn/src/components/button/button.module.css',
     'packages/emcn/src/styles/generated/tokens.css',
-    'packages/emcn-platform/src/components/surface/surface.tsx',
-    'apps/sim/app/o/[organizationId]/page.tsx',
-  ])('changes the build hash and selects every boundary for code app/o ships: %s', (file) => {
+    'packages/emcn-platform/src/components/surface/platform-surface.tsx',
+  ])('changes the build hash and selects every boundary for code the product ships: %s', (file) => {
     const { repo } = fixture()
     write(repo, file, 'base\n')
     git(repo, 'add', '-A')
@@ -437,16 +437,10 @@ describe('CI task attribution through real Turborepo', () => {
     expect(plan.flags).toMatchObject({ build: true, e2e_build: true, integration: true })
   })
   it.each([
-    'apps/sim/platform/app/(shell)/home/page.tsx',
-    'apps/sim/platform/lib/data/home.ts',
-    'apps/sim/platform/fixtures/index.ts',
     'apps/sim/platform/checks/live/home.spec.ts',
     'apps/sim/platform/docs/parity-ledger.md',
-    'apps/sim/platform/preview/gallery.tsx',
-    'apps/sim/platform/public/tooltips/one.svg',
-    'apps/sim/platform/next.config.ts',
     'apps/sim/scripts/platform-live-seed.ts',
-  ])('keeps a zone-only edit out of the main app build and its jobs: %s', (file) => {
+  ])('keeps a Platform check or doc edit out of the main app build and its jobs: %s', (file) => {
     const { repo } = fixture()
     write(repo, file, 'base\n')
     git(repo, 'add', '-A')
@@ -466,7 +460,7 @@ describe('CI task attribution through real Turborepo', () => {
       desktop_live: false,
     })
   })
-  it('keeps a new platform folder an input until it is declared zone-only', () => {
+  it('keeps a new platform folder an input until it is declared check-only', () => {
     const { repo } = fixture()
     const before = buildHash(repo)
     write(repo, 'apps/sim/platform/new-shared/thing.ts', 'export const thing = 1\n')

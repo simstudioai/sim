@@ -99,7 +99,7 @@ interface SimDesktopComputerUseApi {
 }
 
 /** Boolean results preserve compatibility with older installed desktop shells. */
-export type TerminalPasteResult = boolean | 'too-large'
+type TerminalPasteResult = boolean | 'too-large'
 
 const DESKTOP_SCOPE_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
 const PENDING_DESKTOP_SCOPE_PATTERN = /^pending:[A-Za-z0-9_-]{1,128}$/
@@ -524,7 +524,7 @@ interface SimDesktopBrowserImportApi {
 }
 
 /** Why a page could not be continued in another browser. */
-export type BrowserContinueSignInError =
+type BrowserContinueSignInError =
   | 'chrome-not-found'
   | 'unsupported-page'
   | 'launch-failed'
@@ -1010,7 +1010,7 @@ export interface DesktopPreferences {
   terminalDefaultZoom: DesktopZoomPercent
 }
 
-export const DESKTOP_ZOOM_PERCENTS = [67, 75, 80, 90, 100, 110, 125, 150, 175, 200] as const
+const DESKTOP_ZOOM_PERCENTS = [67, 75, 80, 90, 100, 110, 125, 150, 175, 200] as const
 
 export type DesktopZoomPercent = (typeof DESKTOP_ZOOM_PERCENTS)[number]
 
@@ -1284,9 +1284,4 @@ export {
   isStorableImportName,
   MAX_DESKTOP_IMPORT_FILE_BYTES,
 } from './local-files'
-export {
-  applyDesktopTitleBarMode,
-  DESKTOP_TITLE_BAR_ATTRIBUTE,
-  type DesktopTitleBarMode,
-  observeDesktopTitleBar,
-} from './title-bar'
+export { DESKTOP_TITLE_BAR_ATTRIBUTE, observeDesktopTitleBar } from './title-bar'

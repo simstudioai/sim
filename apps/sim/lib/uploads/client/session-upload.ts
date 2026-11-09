@@ -59,7 +59,7 @@ type InternalUploadResult<Purpose extends InternalUploadPurpose> = NonNullable<
   Extract<InternalFileUploadSession, { purpose: Purpose }>['result']
 >
 
-export type UploadInternalFileSessionParams = InternalUploadCommonParams & InternalUploadContext
+type UploadInternalFileSessionParams = InternalUploadCommonParams & InternalUploadContext
 
 interface UploadKnowledgeDocumentSessionParams extends KnowledgeDocumentUploadMetadataBody {
   workspaceId: string

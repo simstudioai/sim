@@ -4,7 +4,7 @@ import {
   getPreviewPortRows,
   PREVIEW_CARD_BORDER_WIDTH,
 } from '@/components/workflow-editor/preview/components/preview-workflow/preview-ports'
-import { estimateBlockDimensions } from '@/components/workflow-editor/utils'
+import { estimateBlockDimensions } from '@/components/workflow-editor/utils/node-position'
 import type { CanvasPort } from '@/lib/workflows/blocks/canvas-ports'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 

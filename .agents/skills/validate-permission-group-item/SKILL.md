@@ -46,7 +46,7 @@ Two structural guards must still be present:
 
 Confirm the assertions at the bottom of `fields.ts` still name a field of this kind (`AssertsAllowlistStaysPrecise`, `AssertsDenylistStaysPrecise`, `AssertsRestrictionStaysPrecise`, `AssertsAuthTypesStayPrecise`, `AssertsParserReturnsTheConfig`) — a zod generic degrading to `unknown` is invisible at runtime and quietly loses every call site's narrowing.
 
-## Step 3: Admin UI (`ee/access-control/components/group-detail.tsx`)
+## Step 3: Admin UI (`ee/access-control/lib/editor.ts`, rendered by the product's access-control section)
 
 - **Boolean:** appears automatically via `PLATFORM_FEATURES`. Confirm its `category` is in `PLATFORM_CATEGORY_ORDER`; an unlisted one renders after every ordered section.
 - **Nested allowlist / denylist** (one that qualifies a platform-feature boolean): renders **nothing** unless it is in the `featureExtras` map — keyed by the *parent boolean's feature id*, not the config key. No picker there means no admin can ever set it. Report it. Top-level lists — `allowedIntegrations`, `allowedModelProviders`, `deniedModels`, `deniedTools` — are not in `featureExtras` and must not be reported for it; they render from the dedicated Providers and Blocks sections, so check them there.

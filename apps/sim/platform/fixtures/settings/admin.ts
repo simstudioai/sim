@@ -2,7 +2,7 @@ import 'server-only'
 import type {
   AdminExample,
   DirectoryUser,
-} from '@/platform/app/(shell)/settings/_components/sections/admin/model'
+} from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/model'
 import type { Scenario } from '@/platform/fixtures'
 import { settingsWorkspaces } from '@/platform/fixtures/settings/organization'
 import { settingsScenarios } from '@/platform/fixtures/settings-data'

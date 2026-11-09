@@ -38,9 +38,9 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { deriveHostedApiKeySupport } from '../apps/sim/tools/hosted-api-key'
 import { tools } from '../apps/sim/tools/registry'
-import { hasToolId } from '../apps/sim/tools/tool-ids'
+import { getLatestToolIds, hasToolId } from '../apps/sim/tools/tool-ids'
 import type { ToolConfig } from '../apps/sim/tools/types'
-import { getTool } from '../apps/sim/tools/utils'
+import { getLatestVersionTools, getTool } from '../apps/sim/tools/utils'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
@@ -133,7 +133,7 @@ function build(registry: ToolRecord) {
   const metadata: Record<string, unknown> = {}
   const outputs: Record<string, unknown> = {}
 
-  // Sorted so the artifacts are stable across runs regardless of registry order.
+  // Sorted so the keyed artifacts are stable across runs regardless of registry order.
   for (const toolId of Object.keys(registry).sort()) {
     const tool = registry[toolId] as ToolConfig & Record<string, unknown>
     if (!tool) continue
@@ -195,8 +195,13 @@ function build(registry: ToolRecord) {
   }
 
   return {
+    /**
+     * Declaration order, not sorted: `getLatestToolIds` and `resolveToolId` walk this list the way
+     * `@/tools/utils` walks the registry, so the order of the exposed integration catalog (and any
+     * tie between versions) matches the registry's.
+     */
     ids: serializeValue(
-      Object.keys(metadata),
+      Object.keys(registry).filter((toolId) => Object.hasOwn(metadata, toolId)),
       'toolIds',
       '/** Every registered tool id, including versioned variants. */',
       'string[]'
@@ -270,7 +275,8 @@ export default ${exportName}
 }
 
 /**
- * Asserts the two tool-id resolvers agree.
+ * Asserts the two tool-id resolvers agree, and that both pick the same latest versions in the
+ * same order.
  *
  * `@/tools/utils` resolves against the live registry; `@/tools/tool-ids` against
  * the generated id list. Both exist deliberately — the registry-backed one keeps
@@ -295,6 +301,13 @@ function assertResolverParity() {
       `Tool id resolvers disagree on ${divergent.length} of ${probes.size} names ` +
         `(e.g. ${divergent.slice(0, 5).join(', ')}).\n` +
         'resolveToolId in apps/sim/tools/utils.ts and apps/sim/tools/tool-ids.ts have drifted.'
+    )
+  }
+  const fromRegistry = Object.keys(getLatestVersionTools(tools)).join('\n')
+  if (getLatestToolIds().join('\n') !== fromRegistry) {
+    throw new Error(
+      'getLatestToolIds in apps/sim/tools/tool-ids.ts no longer matches getLatestVersionTools ' +
+        'over the registry (same ids in the same order).'
     )
   }
 }

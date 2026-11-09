@@ -17,20 +17,6 @@ export const SANDBOX_UPGRADE_TITLE = 'Sandboxes require an active Max plan'
 export const SANDBOX_UPGRADE_DESCRIPTION =
   'Upgrade to Max and ensure billing is active to add dependencies, system packages, and managed CLI tools to Function blocks.'
 
-/** Delete-confirmation copy, matching the custom tool detail's wording. Names the
- *  sandbox so the dialog is self-evidently about the one you opened it from. */
-export function sandboxDeleteConfirmText(name: string) {
-  return [
-    'This will permanently delete ',
-    { text: name, bold: true },
-    {
-      text: ' and remove it from any Function blocks that are using it.',
-      error: true,
-    },
-    ' This action cannot be undone.',
-  ]
-}
-
 /** Ordered to match the Function block's own `language` dropdown. */
 export const LANGUAGE_OPTIONS = [
   { label: 'JavaScript', value: 'javascript' },
@@ -79,16 +65,6 @@ export function canRetrySandboxBuild({
   saving: boolean
 }): boolean {
   return canAdmin && !isDirty && !saving
-}
-
-export function draftFromSandbox(sandbox: Sandbox): SandboxDraft {
-  return {
-    name: sandbox.name,
-    language: sandbox.language,
-    dependencies: sandbox.dependencies.join('\n'),
-    systemPackages: sandbox.systemPackages.join('\n'),
-    cliTools: sandbox.cliTools,
-  }
 }
 
 /** Defaults to the Function block's own default language so the two agree. */

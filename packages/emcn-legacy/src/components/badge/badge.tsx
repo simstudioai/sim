@@ -108,4 +108,4 @@ const Badge = forwardRef<HTMLDivElement, BadgeProps>(function Badge(
 })
 Badge.displayName = 'Badge'
 
-export { Badge, badgeVariants }
+export { Badge }

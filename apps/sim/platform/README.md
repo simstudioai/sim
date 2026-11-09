@@ -1,63 +1,52 @@
 # Sim Platform
 
-The new Platform starts here as a standalone Next.js App Router project inside `apps/sim`. Its root opens the product Home screen. Home, Chat, Settings and organization integrations use the new EMCN library. These routes share installed dependencies with Sim. They have no database of their own: with live data they read the main app's `/api` through the [data seam](AGENTS.md#phase-3-data-seam). The existing Sim app continues to start and build as before.
+The Platform is the product's organization and workspace surface, served by the main app from its own route group, `app/(product)/`, with its own root layout. Organization pages live under `app/(product)/o/[organizationId]/` (Home, Chat, Search, Integrations, People, Settings, Access requests) and workspace pages under `app/(product)/workspace/[workspaceId]/`. This folder holds what those routes share: the [data seam](AGENTS.md#phase-3-data-seam) in `lib/`, pure helpers in `shared/`, example data in `fixtures/`, the bootstrap stylesheet in `styles/`, and the browser checks in `checks/`. The routes use the modern EMCN packages.
 
 To start or resume work in a new Sim chat, say “Use `$implement-platform` to [add, change, consolidate, or remove the UI] on [route].” The [implementation skill](../../../.agents/skills/implement-platform/SKILL.md) reads the [contract](AGENTS.md) and [ownership map](docs/component-ownership.md) for the checkout containing that route. Name the Paper section when implementing an existing design. For a code-first change, describe the desired behavior, where it should apply, and what you want to see on the live page.
 
-The shared review URL is **http://localhost:3125**. Use the existing listener and its checkout when another task is active. `next dev` reloads changes from that checkout; a different worktree is a different copy of the code. Reconcile parallel changes there before review. Do not run another review server on a new port. Temporary test servers shut down after verification.
-
-From the agreed review checkout’s repository root:
+From the repository root, start the main app with live data, or with the fixture design preview:
 
 ```sh
-bun run --cwd apps/sim dev:platform
-SIM_PLATFORM_FIXTURES=1 bun run --cwd apps/sim dev:platform
+bun run --cwd apps/sim dev
+SIM_PLATFORM_FIXTURES=1 bun run --cwd apps/sim dev
 ```
 
-Open [Home](http://localhost:3125/home), [Chat](http://localhost:3125/chat/weekly-review?state=full), [Settings](http://localhost:3125/settings), [Integrations](http://localhost:3125/integrations?state=full), or the separate [component workbench](http://localhost:3125/workbench). With the flag on, `?state=empty|full|stress` selects the fixture on any of them. `?theme=light|dark|system` selects the product appearance. Product navigation preserves these choices; nothing writes examples to storage. The URL cannot activate the server flag. Old catalog links with a recipe still open the workbench.
+Fixture mode exists only on a development server: a production build serves live data whatever its environment says. The fixture organization is `sim`. Open [Home](http://localhost:3000/o/sim/home), [Chat](http://localhost:3000/o/sim/chat/weekly-review?state=full), [Settings](http://localhost:3000/o/sim/settings), or [Integrations](http://localhost:3000/o/sim/integrations?state=full). `?state=empty|full|stress` selects the fixture on any of them. `?theme=light|dark|system` selects the product appearance. Product navigation preserves these choices; nothing writes examples to storage. The URL cannot activate the server flag. A different worktree is a different copy of the code; stop temporary test servers after verification.
 
-Settings uses the same organization catalog and section components in fixture and live routes. [General](http://localhost:3125/settings/general?state=full) includes Privacy and Account details; [Sources](http://localhost:3125/settings/integrations?state=full) is the administrator's Search source inventory. The [integration center](docs/integration-center.md) is the member-facing management surface for Apps, Skills, MCPs and Credentials. Settings examples are loaded only by the server's fixture flag. Their edits belong to the browser session; no account, credential, organization policy or subscription is changed by preview interactions.
+Settings uses the same organization catalog and section components in fixture and live routes. [General](http://localhost:3000/o/sim/settings/general?state=full) includes Privacy and Account details; [Sources](http://localhost:3000/o/sim/settings/integrations?state=full) is the administrator's Search source inventory. The [integration center](docs/integration-center.md) is the member-facing management surface for Apps, Skills, MCPs and Credentials. Settings examples are loaded only by the server's fixture flag. Their edits belong to the browser session; no account, credential, organization policy or subscription is changed by preview interactions.
 
 Integration fixtures cover the full workspace app catalog, multiple credentials, OAuth and provider-specific service-account forms, access management, suggested skills and templates. App-level actions use the control bar; credential rows open their own details. Family credentials share a canonical ID across apps. New enrollment and sharing remain UI-only, with secrets confined to the open form. The existing live Search adapter keeps its own authorized inventory and actions until the broader credential seam is connected.
 
-Settings fixtures default to Enterprise at every density. The [Team subscription](http://localhost:3125/settings/billing?state=stress&plan=team) and [Free subscription](http://localhost:3125/settings/billing?state=empty&plan=free) previews apply the selected plan to Billing, Members and the available Settings sections. The [Knowledge graphs preview](http://localhost:3125/settings/knowledge-graphs?state=stress) uses the stress viewer’s platform-admin role, benchmark access and enabled superuser mode.
+Settings fixtures default to Enterprise at every density. The [Team subscription](http://localhost:3000/o/sim/settings/billing?state=stress&plan=team) and [Free subscription](http://localhost:3000/o/sim/settings/billing?state=empty&plan=free) previews apply the selected plan to Billing, Members and the available Settings sections. The [Knowledge graphs preview](http://localhost:3000/o/sim/settings/knowledge-graphs?state=stress) uses the stress viewer’s platform-admin role, benchmark access and enabled superuser mode.
 
-The product routes live under `app/(shell)/`. Their shared App Router layout owns the shell, sidebar scroll viewport, interface preferences and chat edits. Home, Chat, Settings and Integrations pages render their own bodies inside that layout. Navigating between them keeps the sidebar reading position, including when returning from Settings. The shell selects its gated fixture and appearance from the current URL. Each route owns its components and CSS Modules in a private `_components/<component>/` folder: the [Home chart](app/%28shell%29/home/_components/activity-chart/activity-chart.tsx) sits beside its styles; the [dialog](../../../packages/emcn/src/components/modal/modal.tsx) belongs to EMCN. Shared shell UI lives in `app/(shell)/_components/`. [Shared rhythm](../../../packages/emcn/src/styles/component-roles.css) and the [ownership and interaction contract](AGENTS.md) apply throughout the product. The [Paper state inventory](docs/core-chat-states.md) enumerates the source rows in scope. The [organization integrations guide](docs/organization-integrations.md) maps the member inventory, credential actions and tool permissions to their data operations. The integration center lives at the organization root; Home and eligible workspace links open that same destination. Standalone workspaces and viewers without organization Search access retain their existing credential route. Skills, MCPs and new sharing/editor interactions currently use only server-gated fixtures. Paper workspace tabs and the control bar inform the center's anatomy. Wiki is deferred.
+The product root layout, `app/(product)/layout.tsx`, mounts one shell around every organization and workspace page. It owns the sidebar scroll viewport, interface preferences and chat edits; each page renders its own body inside it. Navigating between pages keeps the sidebar reading position, including when returning from Settings. The shell selects its gated fixture and appearance from the current URL. Each route owns its components and CSS Modules in a private `_components/<component>/` folder: the [Home chart](../app/%28product%29/o/%5BorganizationId%5D/home/_components/activity-chart/activity-chart.tsx) sits beside its styles; the [dialog](../../../packages/emcn/src/components/modal/modal.tsx) belongs to EMCN. Shared shell UI lives in `app/(product)/_components/`. [Shared rhythm](../../../packages/emcn/src/styles/component-roles.css) and the [ownership and interaction contract](AGENTS.md) apply throughout the product. The [Paper state inventory](docs/core-chat-states.md) enumerates the source rows in scope. The [organization integrations guide](docs/organization-integrations.md) maps the member inventory, credential actions and tool permissions to their data operations. The integration center lives at the organization root; Home and eligible workspace links open that same destination. Standalone workspaces and viewers without organization Search access retain their existing credential route. Skills, MCPs and new sharing/editor interactions currently use only server-gated fixtures. Paper workspace tabs and the control bar inform the center's anatomy. Wiki is deferred.
 
-A workspace row, a command-search result or a workspace in the chat panel opens that workspace’s [Dashboard](http://localhost:3125/workspace/it/dashboards?state=full) in fixture mode. The organization sidebar stays as it is and marks the workspace current, as it does Integrations. See [workspace UI](docs/workspace-ui.md) for the workspace’s four pages and their verification.
+A workspace row, a command-search result or a workspace in the chat panel opens that workspace’s [Dashboard](http://localhost:3000/workspace/it/dashboards?state=full) in fixture mode. The organization sidebar stays as it is and marks the workspace current, as it does Integrations. See [workspace UI](docs/workspace-ui.md) for the workspace’s four pages and their verification.
 
-## Live data and the zone
+## Data modes
 
-The same app serves three modes, resolved on the server:
+`resolvePlatformMode()` (`lib/data/mode.ts`) decides each server entry once:
 
-| Mode | Environment | Data |
+| Mode | When | Data |
 | --- | --- | --- |
-| `fixture` | `SIM_PLATFORM_FIXTURES=1` | Example scenarios |
-| `live` | `DATABASE_URL` and the main app's server environment, `NEXT_PUBLIC_APP_URL` | The viewer's real organization, read in process through the main app's use cases |
-| `none` | Neither | Empty routes |
+| `fixture` | A development server (`NODE_ENV !== 'production'`) with `SIM_PLATFORM_FIXTURES=1` | Example scenarios, no sign-in |
+| `live` | Everything else, including every production build | The viewer's real organization, read in process through the main app's use cases |
 
-Deployed, the Platform is a zone at `/org` on the main app's origin, so it shares the session cookie, `/api` and security headers:
-
-| Variable | Set on | Purpose |
-| --- | --- | --- |
-| `SIM_PLATFORM_BASE_PATH=/org` | Platform, at build and at `next start` | Prefixes routes and assets; `next start` re-reads the config, so without it every route answers 404 |
-| `SIM_PLATFORM_API_ORIGIN` | Platform, at runtime, standalone only | Where the browser's `/api` requests are proxied when there is no base path |
-| `NEXT_PUBLIC_APP_URL` | Platform, at runtime | The main app's public origin, for login and legacy links |
-
-To run live locally without the zone, start the main app, sign in at its origin, then start this app with the main app's environment, `SIM_PLATFORM_API_ORIGIN=http://localhost:3000` and `NEXT_PUBLIC_APP_URL=http://localhost:3000`; with no base path it proxies the browser's `/api` itself.
+The product shares the main app's origin, session cookie, `/api` and security headers. `proxy.ts` tells the shell which organization or workspace a request opens; see [Product root and shell](AGENTS.md#product-root-and-shell). Moved legacy URLs redirect permanently, statically in `next.config.ts` or, when the destination needs the workspace's organization, through `lib/navigation/legacy-redirects.ts`.
 
 ## Desktop
 
-Sim Desktop loads **the same routes and styles** in its Electron window. [The shell](../../desktop/README.md) owns preload, window buttons, fullscreen and native capabilities. The isolated renderer detects the existing bridge in `app/(shell)/_components/desktop/desktop-host.tsx`. Its shared titlebar observer synchronizes native insets and fullscreen. Local preview interactions never run a terminal, drive a browser or change native settings. Do not copy the UI into Electron or use a viewport width as a desktop detector.
+Sim Desktop loads **the same routes and styles** in its Electron window. [The shell](../../desktop/README.md) owns preload, window buttons, fullscreen and native capabilities. The renderer detects the existing bridge in `app/(product)/_components/desktop/desktop-host.tsx`. Its shared titlebar observer synchronizes native insets and fullscreen. Local preview interactions never run a terminal, drive a browser or change native settings. Do not copy the UI into Electron or use a viewport width as a desktop detector.
 
-Start the Platform above, then launch the existing desktop shell using a disposable profile:
+Start the main app above, then launch the existing desktop shell using a disposable profile:
 
 ```sh
-SIM_DESKTOP_ORIGIN=http://localhost:3125 SIM_DESKTOP_USER_DATA="$(mktemp -d)" bun run --cwd apps/desktop dev
+SIM_DESKTOP_ORIGIN=http://localhost:3000 SIM_DESKTOP_USER_DATA="$(mktemp -d)" bun run --cwd apps/desktop dev
 ```
 
 ## Using EMCN
 
-Select a theme once with `PlatformSurface`. Editors, menus, selections, links and dialogs own their keyboard behavior. `MetricGroup` and `DataTable` accept records of any length. Import shared controls from `@sim/emcn/<family>` and Platform-specific compositions from `@sim/emcn-platform/<family>`. Provide content and named states, never styles. Unique feature compositions live beside their route and use these controls. Paper structural recipes remain workbench specimens and do not substitute for interactive product components.
+Select a theme once with `PlatformSurface`. Editors, menus, selections, links and dialogs own their keyboard behavior. `MetricGroup` and `DataTable` accept records of any length. Import shared controls from `@sim/emcn/<family>` and Platform-specific compositions from `@sim/emcn-platform/<family>`. Provide content and named states, never styles. Unique feature compositions live beside their route and use these controls. Paper structural recipes in `catalog/` do not substitute for interactive product components.
 
 ```tsx
 import { Button } from '@sim/emcn/button'
@@ -77,11 +66,11 @@ Start with the [component ownership map](docs/component-ownership.md) when choos
 
 Home switches between **Tasks run** in Build and **Searches** in Search, using the same selected 7-, 30- or 90-day window and visibility setting. Customize Home follows the mode. Hover and keyboard inspection show the date and that day’s actual metric. The fixture snapshot provides dated observations and a fixed reference time; fixture-off routes show no example activity.
 
-Import [Platform time formatting](lib/time.ts) for dates, relative ages and clock ranges. Mail, attention rows and file updates display `12m ago`, `1hr ago`, `17hrs ago`, `1d ago`, then dates such as `Nov 2nd` after 48 hours. The formatter includes the year for older years. Axes use short month/day labels; a calendar date never shifts because of the browser’s timezone.
+Import [Platform time formatting](shared/time.ts) for dates, relative ages and clock ranges. Mail, attention rows and file updates display `12m ago`, `1hr ago`, `17hrs ago`, `1d ago`, then dates such as `Nov 2nd` after 48 hours. The formatter includes the year for older years. Axes use short month/day labels; a calendar date never shifts because of the browser’s timezone.
 
 ### Keyboard and dropdown behavior
 
-Focus places the caret or keyboard target without changing ordinary field paint. SearchField has one explicit exception: its underline appears on hover or focus. Keyboard focus remains visible on actions. Selection, validation and the highlighted list item retain their Paper treatments. Use the same EMCN value picker and floating surface on the workbench and in a modal. Select handles a fixed set of values, a searchable combobox supports longer lists, and an action menu supports commands and nested menus. The Help menu in the workbench exercises the cascade.
+Focus places the caret or keyboard target without changing ordinary field paint. SearchField has one explicit exception: its underline appears on hover or focus. Keyboard focus remains visible on actions. Selection, validation and the highlighted list item retain their Paper treatments. Use the same EMCN value picker and floating surface on a page and in a modal. Select handles a fixed set of values, a searchable combobox supports longer lists, and an action menu supports commands and nested menus.
 
 Import the styled EMCN owner from product UI. Its Base UI primitive handles pointer and keyboard interaction, dismissal and collision placement. Nested menus support hovering into the child, arrow-key navigation, and Escape back to the parent. The tests also check form submission, dialog-local placement and focus restoration. [Base UI Select](https://base-ui.com/react/components/select) · [Combobox](https://base-ui.com/react/components/combobox) · [Menu](https://base-ui.com/react/components/menu)
 
@@ -89,17 +78,19 @@ Import the styled EMCN owner from product UI. Its Base UI primitive handles poin
 
 The [Platform design contract](AGENTS.md) is authoritative. Use the repository's [implementation skill](../../../.agents/skills/implement-platform/SKILL.md) and its Paper companion. Start with the running product route and its approved behavior. Consult Paper for existing anatomy, roles and states. Keep verified raw Paper exports locally: they may contain private example content. Only code, design geometry, safe slots and source references enter this repo.
 
-- **Styles:** obtain Shared Light `get_tokens` (the token array) and `get_computed_styles` for the type masters (the node-to-style map); confirm theme file hashes match before assuming identical vocabulary. Run `bun scripts/sync-platform-foundations.ts <tokens.json> <registry.json> <styles.json>`, or append `--check` to compare without writing. This preserves aliases and converts scalable Paper px to rem at the 16px reference scale. Shared generated tokens and typography live in `packages/emcn/src/styles/generated`; shared roles enter through `@sim/emcn/styles/global.css`, and Platform layout roles through `@sim/emcn-platform/styles/platform.css`. The standalone app bootstrap owns Tailwind preflight and scans only component owners; product pages do not receive a styling API.
-- **Structure:** capture current Shared/Platform master JSX locally with node IDs for the compiler's anatomy check in `<exports>/<key>.jsx` and reconcile the registry and recipe contracts. Run `bun scripts/sync-platform-recipes.ts <paper-references-directory> <exports-directory>` from the repository root. Review changed keys, token aliases, CSS and nested slot geometry in the rendered workbench. Do not edit generated selectors to fix a product use.
-- **Assets:** retain canonical glyph geometry and brand paints. Media belongs in named slots; do not fetch private Paper artwork at runtime. Fixture content is removable from `fixtures/`. Remove its loader, preview calls and synthetic data together when real resource reads arrive.
+- **Styles:** obtain Shared Light `get_tokens` (the token array) and `get_computed_styles` for the type masters (the node-to-style map); confirm theme file hashes match before assuming identical vocabulary. Run `bun scripts/sync-platform-foundations.ts <tokens.json> <registry.json> <styles.json>`, or append `--check` to compare without writing. This preserves aliases and converts scalable Paper px to rem at the 16px reference scale. Shared generated tokens and typography live in `packages/emcn/src/styles/generated`; shared roles enter through `@sim/emcn/styles/global.css`, and Platform layout roles through `@sim/emcn-platform/styles/platform.css`. The product root's bootstrap (`styles/bootstrap.css`) owns Tailwind preflight and scans only component owners; product pages do not receive a styling API.
+- **Structure:** capture current Shared/Platform master JSX locally with node IDs for the compiler's anatomy check in `<exports>/<key>.jsx` and reconcile the registry and recipe contracts. Run `bun scripts/sync-platform-recipes.ts <paper-references-directory> <exports-directory>` from the repository root. Review changed keys, token aliases, CSS and nested slot geometry on the product routes that use them. Do not edit generated selectors to fix a product use.
+- **Assets:** retain canonical glyph geometry and brand paints. Media belongs in named slots; do not fetch private Paper artwork at runtime. Fixture content is removable from `fixtures/`. Remove its loader and synthetic data together when real resource reads arrive.
 - **Integration catalog:** run `bun scripts/sync-platform-integration-metadata.ts` after changing public provider metadata, connection definitions, skills, templates or registry icons. The generated server-only catalog supplies selected detail content; the directory receives compact summaries. `bun run check:platform-integration-metadata` detects drift. Runtime product code never imports the executable block/tool registry.
 
 ## Verification
 
 ```sh
 bun run check:platform-design
-bun run --cwd apps/sim type-check:platform
-bun run --cwd apps/sim build:platform
+bun run check:platform-css
+bun run check:boundaries
+bun run check:platform-parity
+bun run --cwd apps/sim type-check
 bunx --no-install playwright install chromium
 bun run --cwd apps/sim test:platform:e2e
 # On macOS, also exercise the real shell and preload:
@@ -107,19 +98,10 @@ bun run --cwd apps/desktop build
 bun run --cwd apps/sim test:platform:desktop
 ```
 
-The Platform type check generates Next.js route types and checks the isolated project. The repository type check runs it alongside the existing app’s TypeScript project.
+The fixture suites (`checks/playwright.config.ts`, `checks/desktop/playwright.config.ts`) start `next dev` with `SIM_PLATFORM_FIXTURES=1` on their own ports. To run them against a development server you already started with fixtures on, set `PLATFORM_E2E_ORIGIN`; nothing else is started or stopped. Supply `PLATFORM_REPORT_PATH` or `PLATFORM_DESKTOP_REPORT_PATH` to save JSON, failure screenshots and traces.
 
-`bun run --cwd apps/sim test:platform:live` runs `checks/live/` against an app and database you have started, using `PLATFORM_LIVE_ORIGIN`, `PLATFORM_LIVE_EMAIL`, `PLATFORM_LIVE_PASSWORD` and `PLATFORM_LIVE_ORGANIZATION_NAME`. The member needs build access: anyone else lands on a legacy route. Supply `PLATFORM_LIVE_REPORT_PATH` to save its JSON report.
+`bun run --cwd apps/sim test:platform:live` runs `checks/live/` against a production build and database you have started (`PLATFORM_LIVE_ORIGIN`, and the accounts `checks/live/session.ts` reads). `.github/scripts/http-e2e.sh platform-live` boots that stack the way CI does. Supply `PLATFORM_LIVE_REPORT_PATH` to save its JSON report.
 
-The default browser suite starts production servers with fixtures enabled and disabled. For the already-running shared preview, use the explicit existing-server mode; it starts no server and leaves the preview process unchanged:
-
-```sh
-PLATFORM_E2E_ORIGIN=http://localhost:3125 PLATFORM_REPORT_PATH=<report-path> bun run --cwd apps/sim test:platform:e2e
-PLATFORM_E2E_ORIGIN=http://localhost:3125 PLATFORM_DESKTOP_REPORT_PATH=<report-path> bun run --cwd apps/sim test:platform:desktop
-```
-
-That local mode runs fixture-enabled browser and Electron coverage. It excludes only `fixtures-off.spec.ts`, whose server gate requires a fixture-disabled process. The default production suite retains those checks; complete them on the exact final commit before shipping. `?state=empty` does not turn fixtures off. Supply `PLATFORM_REPORT_PATH` to save JSON, failure screenshots and traces. Next uses webpack for this nested app: the installed Turbopack also discovers the parent Sim project's proxy and instrumentation. Watch for that boundary when upgrading Next.
-
-The static check covers ownership, styling props, component folders, evidence, tokens, unused variants and dependency direction. It rejects a route CSS Module directly under `_components/`; put it with its component. If it flags a variant used on a real route, verify the call path and add that case to the checker. Review new shared visual variants against at least two independent consumers; semantic independence is a design review, not a count of repeated JSX rows. A workbench example cannot establish product usage. Use the rendered route to verify visual alignment. Compare both themes, keyboard and pointer states, actual overflow, text scaling and widths between approved artboards. Build the standalone app before running the browser suite to test the current sources.
+The static check covers ownership, styling props, component folders, evidence, tokens, unused variants and dependency direction. It rejects a route CSS Module directly under `_components/`; put it with its component. If it flags a variant used on a real route, verify the call path and add that case to the checker. Review new shared visual variants against at least two independent consumers; semantic independence is a design review, not a count of repeated JSX rows. Use the rendered route to verify visual alignment. Compare both themes, keyboard and pointer states, actual overflow, text scaling and widths between approved artboards.
 
 References: [Next project structure](https://nextjs.org/docs/app/getting-started/project-structure), [Next styling](https://nextjs.org/docs/app/getting-started/css), [Tailwind theme variables](https://tailwindcss.com/docs/theme), [shadcn/ui composition](https://ui.shadcn.com/docs), [Playwright assertions](https://playwright.dev/docs/test-assertions).

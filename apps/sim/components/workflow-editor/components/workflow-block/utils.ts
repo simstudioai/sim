@@ -1,7 +1,6 @@
 import type { Node, NodeProps } from '@xyflow/react'
 import { WEBHOOK_PROVIDERS } from '@/components/workflow-editor/components/workflow-block/constants'
 import type { WorkflowBlockProps } from '@/components/workflow-editor/components/workflow-block/types'
-import type { SubBlockConfig } from '@/blocks/types'
 
 /**
  * Gets the display name for a webhook provider
@@ -63,32 +62,4 @@ export function debounce<T extends (...args: any[]) => void>(
     clearTimeout(timeout)
     timeout = setTimeout(() => func(...args), wait)
   }
-}
-
-/**
- * Generates a stable key for a subblock that accounts for dynamic state changes
- * This is especially important for MCP blocks where server/tool selection affects rendering
- *
- * @param blockId - The parent block ID
- * @param subBlock - The subblock configuration
- * @param stateToUse - The current state values for the block
- * @returns A stable key string for React reconciliation
- */
-export function getSubBlockStableKey(
-  blockId: string,
-  subBlock: SubBlockConfig,
-  stateToUse: Record<string, any>
-): string {
-  if (subBlock.type === 'mcp-dynamic-args') {
-    const serverValue = stateToUse.server?.value || 'no-server'
-    const toolValue = stateToUse.tool?.value || 'no-tool'
-    return `${blockId}-${subBlock.id}-${serverValue}-${toolValue}`
-  }
-
-  if (subBlock.type === 'mcp-tool-selector') {
-    const serverValue = stateToUse.server?.value || 'no-server'
-    return `${blockId}-${subBlock.id}-${serverValue}`
-  }
-
-  return `${blockId}-${subBlock.id}`
 }

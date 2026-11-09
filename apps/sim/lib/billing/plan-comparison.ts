@@ -30,7 +30,7 @@ export type CellValue = string | boolean | CellIcon
 const SLACK: CellIcon = { icon: 'slack' }
 
 /** Names of the four plan columns — used as a discriminated union for type-safe plan selection. */
-export type PlanName = 'Free' | 'Pro' | 'Max' | 'Enterprise'
+type PlanName = 'Free' | 'Pro' | 'Max' | 'Enterprise'
 
 /** A single feature row inside a section. */
 interface ComparisonRow {

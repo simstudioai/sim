@@ -55,7 +55,7 @@ interface WorkflowEdgeData extends Record<string, unknown> {
   onDelete?: (edgeId: string) => void
 }
 
-export type WorkflowEdge = Edge<WorkflowEdgeData>
+type WorkflowEdge = Edge<WorkflowEdgeData>
 
 export interface WorkflowEdgeViewProps extends EdgeProps<WorkflowEdge> {
   /** Pre-resolved diff state (container reads the diff store). */

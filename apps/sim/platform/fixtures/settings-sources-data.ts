@@ -3,7 +3,7 @@ import type {
   SearchSource,
   SourceConnection,
   SourceSettingsData,
-} from '@/platform/app/(shell)/settings/_components/sections/integrations/model'
+} from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/model'
 import { loadIntegrationsData, type Scenario } from '@/platform/fixtures'
 import { searchSourceCatalog } from '@/platform/lib/integrations/source-catalog.generated'
 

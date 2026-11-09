@@ -1,11 +1,8 @@
-import React from 'react'
-import { Badge, formatChartLatency } from '@sim/emcn-legacy'
+import type React from 'react'
+import type { Badge } from '@sim/emcn-legacy'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { format } from 'date-fns'
-import { getIntegrationMetadata } from '@/lib/logs/get-trigger-options'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
-import { getBlock } from '@/blocks/registry'
-import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
 
 export const LOG_COLUMNS = {
   workflow: { width: 'w-[22%]', minWidth: 'min-w-[140px]', label: 'Workflow' },
@@ -50,11 +47,6 @@ export function getLogWorkflowLabel(log: {
   return log.workflow?.id || log.workflowId
     ? log.workflow?.name || 'Unknown'
     : DELETED_WORKFLOW_LABEL
-}
-
-/** Path to a workflow in the editor. */
-export function workflowEditorPath(workspaceId: string, workflowId: string): string {
-  return `/workspace/${workspaceId}/workflows/${workflowId}`
 }
 
 export type LogStatus =
@@ -112,122 +104,6 @@ export const STATUS_CONFIG: Record<
     color: 'var(--terminal-status-info-color)',
     filterable: true,
   },
-}
-
-const TRIGGER_VARIANT_MAP: Record<string, React.ComponentProps<typeof Badge>['variant']> = {
-  manual: 'gray-secondary',
-  api: 'blue',
-  schedule: 'green',
-  chat: 'purple',
-  webhook: 'orange',
-  mcp: 'cyan',
-  copilot: 'pink',
-  mothership: 'pink',
-  workflow: 'blue-secondary',
-  custom_block: 'blue-secondary',
-}
-
-interface StatusBadgeProps {
-  status: LogStatus
-}
-
-/**
- * Renders a colored badge indicating log execution status.
- * @param props - Component props containing the status
- * @returns A Badge with dot indicator and status label
- */
-export function StatusBadge({ status }: StatusBadgeProps) {
-  const config = STATUS_CONFIG[status]
-  return React.createElement(
-    Badge,
-    { variant: config.variant, dot: true, size: 'sm' },
-    config.label
-  )
-}
-
-interface TriggerBadgeProps {
-  trigger: string
-}
-
-/**
- * Renders a colored badge indicating the workflow trigger type.
- * Core triggers display with their designated colors; integrations show with icons.
- * @param props - Component props containing the trigger type
- * @returns A Badge with appropriate styling for the trigger type
- */
-export function TriggerBadge({ trigger }: TriggerBadgeProps) {
-  const metadata = getIntegrationMetadata(trigger)
-  const isIntegration = !(CORE_TRIGGER_TYPES as readonly string[]).includes(trigger)
-  const block = isIntegration ? getBlock(trigger) : null
-  const IconComponent = block?.icon
-
-  const coreVariant = TRIGGER_VARIANT_MAP[trigger]
-  if (coreVariant) {
-    return React.createElement(
-      Badge,
-      { variant: coreVariant, size: 'sm', className: 'whitespace-nowrap' },
-      metadata.label
-    )
-  }
-
-  if (IconComponent) {
-    return React.createElement(
-      Badge,
-      {
-        variant: 'gray-secondary',
-        size: 'sm',
-        icon: IconComponent,
-        className: 'whitespace-nowrap',
-      },
-      metadata.label
-    )
-  }
-
-  return React.createElement(
-    Badge,
-    { variant: 'gray-secondary', size: 'sm', className: 'whitespace-nowrap' },
-    metadata.label
-  )
-}
-
-interface LogWithDuration {
-  totalDurationMs?: number | string
-  duration?: number | string
-}
-
-/**
- * Parse duration from various log data formats.
- * Handles both numeric and string duration values.
- * @param log - Log object containing duration information
- * @returns Duration in milliseconds or null if not available
- */
-export function parseDuration(log: LogWithDuration): number | null {
-  let durationCandidate: number | null = null
-
-  if (typeof log.totalDurationMs === 'number') {
-    durationCandidate = log.totalDurationMs
-  } else if (typeof log.duration === 'number') {
-    durationCandidate = log.duration
-  } else if (typeof log.totalDurationMs === 'string') {
-    durationCandidate = Number.parseInt(String(log.totalDurationMs).replace(/[^0-9]/g, ''), 10)
-  } else if (typeof log.duration === 'string') {
-    durationCandidate = Number.parseInt(String(log.duration).replace(/[^0-9]/g, ''), 10)
-  }
-
-  return Number.isFinite(durationCandidate) ? durationCandidate : null
-}
-
-/**
- * Format latency value for display in dashboard UI.
- *
- * Delegates so the axis ticks and the surrounding table can never disagree about
- * what a duration reads as.
- *
- * @param ms - Latency in milliseconds (number)
- * @returns Formatted latency string
- */
-export function formatLatency(ms: number): string {
-  return formatChartLatency(ms)
 }
 
 export const formatDate = (dateString: string) => {

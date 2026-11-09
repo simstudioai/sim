@@ -1,8 +1,3 @@
-/** A route on the legacy surface is named by its absolute URL; Next's router must not handle it. */
-export function isAbsoluteHref(href: string): boolean {
-  return /^https?:\/\//.test(href)
-}
-
 export type Appearance = 'system' | 'light' | 'dark'
 
 export function readAppearance(value: string | string[] | null | undefined): Appearance {
@@ -20,9 +15,10 @@ interface SearchValues {
   get(key: string): string | null
 }
 
-/** Keep the selected fixture and appearance when moving between product routes. */
+/** Keep the selected fixture and appearance on a complete product path (`surfaceHref`, `workspacePath`). */
 export function platformHref(path: string, search: SearchValues) {
-  if (isAbsoluteHref(path)) return path
+  // An external address from data passes through untouched.
+  if (/^https?:\/\//.test(path)) return path
   const destination = new URL(path, 'https://platform.invalid')
   const query = destination.searchParams
   const state = search.get('state')
@@ -34,11 +30,6 @@ export function platformHref(path: string, search: SearchValues) {
   if (state === 'stress' && search.get('secrets') === 'organization')
     query.set('secrets', 'organization')
   return `${destination.pathname}${destination.search}${destination.hash}`
-}
-
-/** A file under `public/`: unlike `next/link` and the router, the browser adds no base path to it. */
-export function publicAssetPath(path: string) {
-  return `${process.env.NEXT_PUBLIC_SIM_PLATFORM_BASE_PATH ?? ''}${path}`
 }
 
 export function readScenario(value: string | string[] | null | undefined) {

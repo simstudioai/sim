@@ -40,9 +40,6 @@ export function organizationRoutes(organizationId: string) {
     search: `${root}/search`,
     searchChat: (chatId: string) => `${root}/search/chat/${chatId}`,
     integrations: `${root}/integrations`,
-    accountToolPermissions: (credentialId: string) =>
-      `${root}/integrations/accounts/${encodeURIComponent(credentialId)}`,
-    benchmark: `${root}/benchmark`,
     memberSecrets: `${root}/integrations/secrets`,
     simLinks: `${root}/settings/links`,
     people: `${root}/people`,
@@ -57,19 +54,6 @@ export function organizationRoutes(organizationId: string) {
     settingsSection: (section: string) => `${root}/settings/${section}`,
     chat: (chatId: string) => `${root}/chat/${chatId}`,
   } as const
-}
-
-/**
- * A workspace's integrations live in its organization's integration center. Before the host
- * context resolves, the workspace-scoped URL redirects there once the organization is known.
- */
-export function workspaceIntegrationsPath(
-  workspaceId: string,
-  context: { hostOrganizationId: string | null } | null
-) {
-  return context?.hostOrganizationId
-    ? organizationRoutes(context.hostOrganizationId).integrations
-    : `/workspace/${workspaceId}/integrations`
 }
 
 /** Where `sim/<name>/<values…>` resolves in this app: the address a member types, kept verbatim. */

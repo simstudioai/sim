@@ -2,26 +2,25 @@
 
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
+import type { PlatformResource } from '@/app/(product)/_components/chat/model'
+import type { PanelResources } from '@/app/(product)/_components/chat/panel/model'
 import type { useChat } from '@/hooks/mothership-chat/use-chat'
 import type {
   useChatResourcePanel,
   useResourcePanelController,
 } from '@/hooks/mothership-chat/use-resource-panel'
-import type { PlatformResource } from '@/platform/app/(shell)/_components/chat/model'
-import type { PanelResources } from '@/platform/app/(shell)/_components/chat/panel/model'
-import { useOrganization } from '@/platform/lib/data/organization'
 
 const RESOURCE_KIND: Partial<Record<string, string>> = {
   knowledgebase: 'knowledge',
   filefolder: 'folder',
 }
 
-function legacyHref(resource: MothershipResource, origin: string): string | undefined {
+function resourceHref(resource: MothershipResource): string | undefined {
   if (!resource.workspaceId) return undefined
   const kind = RESOURCE_KIND[resource.type] ?? resource.type
   return isWorkspaceResourceKind(kind)
-    ? `${origin}${workspaceResourcePath(resource.workspaceId, kind, resource.id)}`
-    : `${origin}/workspace/${encodeURIComponent(resource.workspaceId)}/home?resource=${encodeURIComponent(resource.id)}`
+    ? workspaceResourcePath(resource.workspaceId, kind, resource.id)
+    : `/workspace/${encodeURIComponent(resource.workspaceId)}/home?resource=${encodeURIComponent(resource.id)}`
 }
 
 interface PanelResourcesOptions {
@@ -36,13 +35,12 @@ export function usePanelResources({
   panel,
   controller,
 }: PanelResourcesOptions): PanelResources {
-  const { legacyOrigin } = useOrganization()
   const resources: PlatformResource[] = chat.resources.map((resource) => ({
     id: resource.id,
     type: resource.type,
     title: resource.title,
     workspaceId: resource.workspaceId,
-    href: legacyHref(resource, legacyOrigin),
+    href: resourceHref(resource),
     active: resource.id === chat.activeResourceId,
     search: resource.search,
   }))

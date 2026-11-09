@@ -1,4 +1,4 @@
-import { createLoader, createSerializer, parseAsString } from 'nuqs/server'
+import { createSerializer, parseAsString } from 'nuqs/server'
 
 /** The list's search text, written raw and debounced on the way to the URL. */
 export const integrationSearchParsers = {
@@ -20,21 +20,3 @@ export const serializeIntegrationView = createSerializer({
   ...integrationSearchParsers,
   ...integrationViewParsers,
 })
-
-/** Reads a link from before providers had their own route, so it can be sent there. */
-export const loadIntegrationView = createLoader({
-  ...integrationSearchParsers,
-  ...integrationViewParsers,
-})
-
-const integrationConnectionParams = {
-  connectorType: parseAsString.withDefault(''),
-  connectionMode: parseAsString.withDefault(''),
-  optionId: parseAsString.withDefault(''),
-  savedProviderId: parseAsString.withDefault(''),
-  provider: parseAsString.withDefault(''),
-  connectorId: parseAsString.withDefault(''),
-  credentialId: parseAsString.withDefault(''),
-}
-
-export const loadIntegrationConnectionParams = createLoader(integrationConnectionParams)

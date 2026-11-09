@@ -165,7 +165,7 @@ function highlightCodeReferences(
  * Code editor configuration and constants.
  * All code editors in the app should use these values for consistency.
  */
-export const CODE_LINE_HEIGHT_PX = 21
+const CODE_LINE_HEIGHT_PX = 21
 const COMPACT_CODE_LINE_HEIGHT_PX = 20
 
 /**
@@ -184,7 +184,7 @@ const COLLAPSE_COLUMN_WIDTH = 12
  * @param lineCount - The total number of lines in the code
  * @returns The gutter width in pixels
  */
-export function calculateGutterWidth(lineCount: number): number {
+function calculateGutterWidth(lineCount: number): number {
   const digits = String(lineCount).length
   return GUTTER_WIDTHS[Math.min(digits - 1, GUTTER_WIDTHS.length - 1)]
 }
@@ -575,48 +575,6 @@ function Content({ children, paddingLeft, className, editorRef }: CodeContentPro
       {children}
     </div>
   )
-}
-
-/**
- * Get standard Editor component props for react-simple-code-editor.
- * Returns the className and textareaClassName props (no style prop).
- *
- * @param options - Optional overrides
- * @returns Props object to spread onto Editor component
- */
-export function getCodeEditorProps(options?: {
-  isStreaming?: boolean
-  isPreview?: boolean
-  disabled?: boolean
-}) {
-  const { isStreaming = false, isPreview = false, disabled = false } = options || {}
-
-  return {
-    padding: 8,
-    className: cn(
-      // Base editor classes
-      'bg-transparent font-[inherit] text-[inherit]',
-      'text-[var(--text-primary)] dark:text-[var(--code-foreground)]',
-      'leading-[21px] outline-hidden focus:outline-hidden',
-      'min-h-[106px]',
-      // Streaming/disabled states
-      (isStreaming || disabled) && 'cursor-not-allowed opacity-50'
-    ),
-    textareaClassName: cn(
-      // Reset browser defaults
-      'border-none bg-transparent outline-hidden resize-none',
-      'focus:outline-hidden focus:ring-0',
-      // Selection styling - light and dark modes
-      'selection:bg-[var(--selection-bg)] selection:text-[var(--text-primary)]',
-      'dark:selection:bg-[var(--selection-dark)] dark:selection:text-white',
-      // Caret color - adapts to mode
-      'caret-[var(--text-primary)] dark:caret-white',
-      // Font smoothing
-      '[-webkit-font-smoothing:antialiased] [-moz-osx-font-smoothing:grayscale]',
-      // Disable interaction for streaming/preview/disabled
-      (isStreaming || isPreview || disabled) && 'pointer-events-none'
-    ),
-  }
 }
 
 /**

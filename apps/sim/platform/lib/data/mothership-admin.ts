@@ -111,6 +111,11 @@ export function refreshMothershipLicenses(client: QueryClient, env: MothershipEn
   return client.invalidateQueries({ queryKey: mothershipKeys.licenses(env) })
 }
 
+/** The account settings tab that generates a license for `env`. */
+export function licenseGeneratorHref(env: MothershipEnv) {
+  return `/account/settings/mothership?tab=licenses&env=${encodeURIComponent(env)}`
+}
+
 export function useLicenseList(env: MothershipEnv) {
   return readResponse(useMothershipLicenses(env), licenses)
 }

@@ -9,7 +9,7 @@ import {
   Tooltip,
 } from '@sim/emcn-legacy'
 
-export interface RowAction {
+interface RowAction {
   label: string
   onSelect: () => void
   /** Renders in the error color (e.g. Delete). */

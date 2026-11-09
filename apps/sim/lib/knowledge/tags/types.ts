@@ -8,16 +8,6 @@ export interface DocumentTagDefinition {
   updatedAt: Date
 }
 
-/**
- * Represents a tag assigned to a document with its slot, display name, type, and value
- */
-export interface DocumentTag {
-  slot: string
-  displayName: string
-  fieldType: string
-  value: string
-}
-
 interface CreateTagDefinitionData {
   tagSlot: string
   displayName: string

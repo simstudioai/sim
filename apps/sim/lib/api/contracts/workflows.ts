@@ -754,16 +754,6 @@ export const workflowStateResponseSchema = z.object({
   variables: z.record(z.string(), workflowVariableReadSchema),
 })
 
-export const getWorkflowNormalizedStateContract = defineRouteContract({
-  method: 'GET',
-  path: '/api/workflows/[id]/state',
-  params: workflowIdParamsSchema,
-  response: {
-    mode: 'json',
-    schema: workflowStateResponseSchema,
-  },
-})
-
 export const putWorkflowNormalizedStateContract = defineRouteContract({
   method: 'PUT',
   path: '/api/workflows/[id]/state',

@@ -16,7 +16,7 @@ export type DomainsResponse = OrganizationDomains
 
 export const DOMAINS_STALE_TIME = 60 * 1000
 
-export const domainKeys = {
+const domainKeys = {
   all: ['orgDomains'] as const,
   lists: () => [...domainKeys.all, 'list'] as const,
   list: (orgId: string) => [...domainKeys.lists(), orgId] as const,

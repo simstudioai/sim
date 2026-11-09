@@ -11,21 +11,16 @@ interface Usage {
 
 /**
  * Trace JSX from product route entries through components and local render helpers.
- * Preview modules cannot establish usage. Unresolved dynamic values need a mapping at the owner.
+ * Unresolved dynamic values need a mapping at the owner.
  */
 export function productUsage(app: string, program: ts.Program): Usage {
   const checker = program.getTypeChecker()
   const usage: Usage = { variants: new Set(), recipes: new Set() }
   const seen = new WeakMap<ts.Node, Set<string>>()
-  const preview = path.join(app, 'platform/preview/')
   const systems = ['emcn', 'emcn-platform'].map(
     (name) => path.resolve(app, '../../packages', name, 'src') + path.sep
   )
-  const zoneRoutes = path.join(app, 'platform/app')
   const productRoutes = path.resolve(app, PRODUCT_ROUTES)
-  const workbench = path.join(zoneRoutes, 'workbench/')
-  /** `platform/embedded` has no pages; these routes mount its views. */
-  const organizationRoutes = path.join(app, 'app/o')
   function declaration(node: ts.Node) {
     let symbol = checker.getSymbolAtLocation(node)
     if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
@@ -252,8 +247,7 @@ export function productUsage(app: string, program: ts.Program): Usage {
     walk(helper, scope)
   }
   function walk(fn: Component, scope: Props) {
-    const file = fn.getSourceFile().fileName
-    if (!fn.body || file.startsWith(preview) || file.startsWith(workbench)) return
+    if (!fn.body) return
     const history = seen.get(fn) ?? new Set<string>()
     const signature = JSON.stringify(scope)
     if (history.has(signature)) return
@@ -378,15 +372,11 @@ export function productUsage(app: string, program: ts.Program): Usage {
   }
   const segments = new Set<string>()
   for (const file of program.getRootFileNames()) {
-    const routes = [zoneRoutes, productRoutes, organizationRoutes].find((root) =>
-      file.startsWith(root + path.sep)
-    )
     if (
-      !routes ||
+      !file.startsWith(productRoutes + path.sep) ||
       path.basename(file) !== 'page.tsx' ||
-      file.startsWith(workbench) ||
       path
-        .relative(routes, file)
+        .relative(productRoutes, file)
         .split(path.sep)
         .some((segment) => segment.startsWith('_'))
     )
@@ -397,8 +387,8 @@ export function productUsage(app: string, program: ts.Program): Usage {
       for (const boundary of ['layout', 'template', 'error', 'loading', 'not-found']) {
         walkEntry(path.join(dir, `${boundary}.tsx`))
       }
-      if (dir === routes) {
-        walkEntry(path.join(routes, 'global-error.tsx'))
+      if (dir === productRoutes) {
+        walkEntry(path.join(productRoutes, 'global-error.tsx'))
         break
       }
     }

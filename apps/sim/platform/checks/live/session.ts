@@ -19,8 +19,6 @@ export const memberEmail = () => requireEnv('PLATFORM_LIVE_MEMBER_EMAIL')
 export const organizationId = () => requireEnv('PLATFORM_LIVE_ORGANIZATION_ID')
 export const organizationName = () => requireEnv('PLATFORM_LIVE_ORGANIZATION_NAME')
 /** The owner of an organization no rollout targets, on a deployment that targets another. */
-export const offOrganizationId = () => requireEnv('PLATFORM_LIVE_OFF_ORGANIZATION_ID')
-export const offEmail = () => requireEnv('PLATFORM_LIVE_OFF_EMAIL')
 
 type Cookies = Awaited<ReturnType<ReturnType<Page['context']>['cookies']>>
 
@@ -76,7 +74,7 @@ export async function signIn(page: Page, email: string, target: string) {
     return
   }
   await signInThroughForm(page, email, target)
-  // The login page returns to the zone root, not to the deep link it was sent from, and that
+  // The login page returns to the product home, not to the deep link it was sent from, and that
   // redirect can abort a navigation started while it is still running.
   await expect(async () => {
     await page.goto(target)

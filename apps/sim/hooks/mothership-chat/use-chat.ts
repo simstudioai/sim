@@ -735,19 +735,6 @@ export function getMothershipUseChatOptions(
   }
 }
 
-export function getWorkflowCopilotUseChatOptions(
-  options: Pick<
-    UseChatOptions,
-    'workflowId' | 'onToolResult' | 'onTitleUpdate' | 'onStreamEnd' | 'onRequestStarted'
-  > = {}
-): UseChatOptions {
-  return {
-    apiPath: MOTHERSHIP_CHAT_API_PATH,
-    stopPath: '/api/mothership/chat/stop',
-    ...options,
-  }
-}
-
 export function useChat(
   owner: string | { organizationId: string },
   initialChatId?: string,

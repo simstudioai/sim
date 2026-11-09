@@ -12,7 +12,7 @@ import type { SidebarState } from '@/stores/sidebar/types'
  * The one definition of the ceiling — the resize handle reads it, and the
  * pre-paint script in `app/_shell/site-root-layout.tsx` mirrors it inline (it cannot import).
  */
-export function getMaxSidebarWidth(viewportWidth: number): number {
+function getMaxSidebarWidth(viewportWidth: number): number {
   return Math.max(
     SIDEBAR_WIDTH.MIN,
     Math.min(SIDEBAR_WIDTH.MAX, viewportWidth * SIDEBAR_WIDTH.MAX_PERCENTAGE)

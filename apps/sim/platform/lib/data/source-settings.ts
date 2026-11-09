@@ -6,7 +6,7 @@ import { getOrganizationAccountsSettings } from '@/lib/credential-groups/applica
 import { assistantAccountOptions } from '@/lib/credential-groups/member-integrations'
 import { listSearchIntegrations } from '@/lib/knowledge/application/search-integrations'
 import { readOrganizationSecretSource } from '@/lib/organization-secrets/application/use-cases'
-import type { SearchSource } from '@/platform/app/(shell)/settings/_components/sections/integrations/model'
+import type { SearchSource } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/model'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
 import { credentialGroupCatalog } from '@/platform/lib/integrations/metadata.generated'
 import { searchSourceCatalog } from '@/platform/lib/integrations/source-catalog.generated'
