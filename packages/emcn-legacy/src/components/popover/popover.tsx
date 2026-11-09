@@ -1225,6 +1225,4 @@ export {
   PopoverFolder,
   PopoverBackButton,
   PopoverSearch,
-  PopoverDivider,
-  usePopoverContext,
 }

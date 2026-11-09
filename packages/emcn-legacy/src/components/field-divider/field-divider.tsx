@@ -54,4 +54,4 @@ function FieldDivider({ className, subblockMarker = false, ...props }: FieldDivi
   )
 }
 
-export { DashedDividerLine, FieldDivider }
+export { FieldDivider }

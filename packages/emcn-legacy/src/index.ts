@@ -11,12 +11,7 @@ export * from './components/charts'
  * glyph). Same resolution as `Calendar` and `Table`: the barrel yields the
  * COMPONENT, and the icon stays available from `@sim/emcn-legacy/icons`.
  */
-export {
-  CODE_LINE_HEIGHT_PX,
-  Code,
-  calculateGutterWidth,
-  getCodeEditorProps,
-} from './components/code/code'
+export { Code } from './components/code/code'
 export { PortalContainerProvider } from './components/portal-container/portal-container'
 export {
   SCROLL_FADE_BAND_PX,

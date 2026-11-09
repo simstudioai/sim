@@ -11,13 +11,3 @@ export function stubResizeObserver() {
     }
   )
 }
-
-/** jsdom's `<dialog>` has no `showModal` or `close`; these only flip `open`. */
-export function stubDialogMethods() {
-  HTMLDialogElement.prototype.showModal = function showModal() {
-    this.open = true
-  }
-  HTMLDialogElement.prototype.close = function close() {
-    this.open = false
-  }
-}

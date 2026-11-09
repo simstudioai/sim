@@ -9,7 +9,7 @@ interface WorkflowTextRange {
 
 const WORKFLOW_SEARCH_HIGHLIGHT_CLASS = 'rounded-sm bg-orange-400 font-normal text-inherit'
 
-export interface WorkflowSearchTextHighlight {
+interface WorkflowSearchTextHighlight {
   range?: WorkflowTextRange
   rawValue?: string
 }
@@ -23,7 +23,7 @@ export interface HighlightContext {
 
 const SYSTEM_PREFIXES = new Set(['loop', 'parallel', 'variable'])
 
-export function getValidWorkflowSearchRange(
+function getValidWorkflowSearchRange(
   text: string,
   highlight?: WorkflowSearchTextHighlight | null
 ): WorkflowTextRange | null {

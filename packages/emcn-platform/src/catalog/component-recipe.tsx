@@ -5,7 +5,7 @@ import { ScrollArea } from '@sim/emcn/scroll-area'
 import recipes from '#platform/catalog/recipes.json'
 import styles from '#platform/catalog/recipes.module.css'
 
-export type RecipeKey = keyof typeof recipes
+type RecipeKey = keyof typeof recipes
 
 interface Part {
   rule?: string
@@ -19,18 +19,6 @@ interface Part {
 interface ComponentRecipeProps<Key extends RecipeKey> {
   recipe: Key
   slots: Record<keyof (typeof recipes)[NoInfer<Key>]['slots'], ReactNode>
-}
-
-export function isRecipeKey(key: string): key is RecipeKey {
-  return Object.hasOwn(recipes, key)
-}
-
-export function recipeSlots(key: RecipeKey) {
-  return Object.entries(recipes[key].slots).map(([name, value]) => ({
-    name,
-    kind: value.startsWith('C') ? 'component' : value,
-    reference: value.startsWith('C') ? value : undefined,
-  }))
 }
 
 function isIcon(name: string): name is IconName {
@@ -61,7 +49,11 @@ function render(part: Part, slots: Readonly<Record<string, ReactNode>>, path: st
   )
 }
 
-/** A registered structural master. Interactive children and instance data enter through named slots. */
+/**
+ * A registered structural master. Interactive children and instance data enter through named slots.
+ *
+ * @public check-platform-design requires every catalog evidence owner to be an exported component.
+ */
 export function ComponentRecipe<Key extends RecipeKey>({
   recipe,
   slots,

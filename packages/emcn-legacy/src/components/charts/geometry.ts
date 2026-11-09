@@ -1,44 +1,3 @@
-export const CHART_PADDING = { top: 16, right: 28, bottom: 26, left: 26 } as const
-
-export type ChartPadding = { top: number; right: number; bottom: number; left: number }
-
-export const CHART_DEFAULT_HEIGHT = 166
-
-/** Minimum width before axis labels collide; narrower containers scroll horizontally. */
-export const CHART_MIN_WIDTH = 280
-
-export const CHART_TICK_FILL = 'var(--text-tertiary)'
-export const CHART_TICK_FONT_SIZE = 9
-export const CHART_GRID_FRACTIONS = [0.25, 0.5, 0.75] as const
-
-/** Punctuation and whitespace, which sit near half the width of a digit or letter. */
-const NARROW_GLYPH = /[.,:\s]/
-
-/** Gap between a y-axis tick label's right edge and the axis rule. */
-export const CHART_AXIS_LABEL_GAP = 8
-
-/** Quantize gutters so comparable charts keep aligned plot origins. */
-const CHART_AXIS_GUTTER_STEP = 8
-
-/** Estimate SVG label width before layout, allowing extra space to prevent clipping. */
-function estimateAxisLabelWidth(text: string): number {
-  let width = 0
-  for (const character of text) {
-    width += NARROW_GLYPH.test(character) ? 0.3 : 0.58
-  }
-  return width * CHART_TICK_FONT_SIZE
-}
-
-/** Expand the shared left gutter to accommodate the chart’s y-axis labels. */
-export function resolveChartPadding(yAxisLabels: readonly string[]): ChartPadding {
-  const widest = yAxisLabels.reduce((max, label) => Math.max(max, estimateAxisLabelWidth(label)), 0)
-  const required = Math.max(CHART_PADDING.left, widest + CHART_AXIS_LABEL_GAP)
-  return {
-    ...CHART_PADDING,
-    left: Math.ceil(required / CHART_AXIS_GUTTER_STEP) * CHART_AXIS_GUTTER_STEP,
-  }
-}
-
 /** Round a nonnegative bar scale to readable intervals, leaving headroom above its peak. */
 export function resolveBarTickValues(peak: number): number[] {
   if (!Number.isFinite(peak) || peak <= 0) return [0, 1, 2, 3, 4]
@@ -53,12 +12,6 @@ export function resolveBarTickValues(peak: number): number[] {
     Number((index * step).toPrecision(12))
   )
   return ticks.every(Number.isFinite) ? ticks : [0, peak]
-}
-
-/** Vertical clamp for plotted geometry, keeping strokes off the axis rules. */
-export function chartPlotBand(height: number): { yMin: number; yMax: number } {
-  const chartHeight = height - CHART_PADDING.top - CHART_PADDING.bottom
-  return { yMin: CHART_PADDING.top + 3, yMax: CHART_PADDING.top + chartHeight - 3 }
 }
 
 /**
