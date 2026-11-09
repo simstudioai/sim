@@ -6,6 +6,11 @@
   min-inline-size: 0;
   gap: var(--ui-section-gap);
 }
+/* A settled review hands focus back to the turn when the button it was decided from is gone. */
+.answer:focus-visible {
+  outline: var(--spacing-stroke-focus) solid var(--ui-ink);
+  outline-offset: var(--spacing-2);
+}
 .answer p,
 .result code {
   white-space: pre-wrap;
