@@ -630,10 +630,11 @@ export class ScriptedAgent {
   }
 }
 
-/** A seeded user signed in to Sim, with one workspace and named chats. */
+/** A seeded user signed in to Sim, owning an organization with one workspace and named chats. */
 export interface SeededUser {
   userId: string
   name: string
+  organizationId: string
   workspaceId: string
   sessionId: string
   /** The `better-auth.session_token` cookie value for the seeded session. */
@@ -645,6 +646,7 @@ export interface SeededUser {
 export class SimDatabase {
   readonly sql: postgres.Sql
   private readonly userIds: string[] = []
+  private readonly organizationIds: string[] = []
 
   constructor(private readonly config: LiveSimConfig) {
     this.sql = postgres(config.databaseUrl, { max: 4, onnotice: () => {} })
@@ -657,15 +659,20 @@ export class SimDatabase {
           await tx`delete from workspace where owner_id in ${tx(this.userIds)}`
           await tx`delete from project where owner_id in ${tx(this.userIds)}`
           await tx`delete from "user" where id in ${tx(this.userIds)}`
+          await tx`delete from organization where id in ${tx(this.organizationIds)}`
         })
     } finally {
       await this.sql.end({ timeout: 5 })
     }
   }
 
-  /** A user with a workspace, a session as the desktop sign-in creates, and one chat per title. */
+  /**
+   * A user owning an organization and one of its workspaces, a session as the desktop sign-in
+   * creates, and one organization agent chat per title, as the product's chat page opens them.
+   */
   async seedUser(chatTitles: string[]): Promise<SeededUser> {
     const userId = generateId()
+    const organizationId = generateId()
     const workspaceId = generateId()
     const sessionId = generateId()
     const token = generateShortId()
@@ -676,10 +683,14 @@ export class SimDatabase {
       await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
         values (${userId}, ${name}, ${email}, ${email}, true, now(), now())`
       await tx`insert into user_stats (id, user_id) values (${generateId()}, ${userId})`
-      await tx`insert into project (id, name, owner_id)
-        values (${workspaceId}, 'E2E fixture project', ${userId})`
-      await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id)
-        values (${workspaceId}, ${workspaceId}, 'Desktop tools E2E', ${userId}, ${userId})`
+      await tx`insert into organization (id, name, slug)
+        values (${organizationId}, 'Desktop tools E2E organization', ${organizationId})`
+      await tx`insert into member (id, user_id, organization_id, role)
+        values (${generateId()}, ${userId}, ${organizationId}, 'owner')`
+      await tx`insert into project (id, name, organization_id, owner_id)
+        values (${workspaceId}, 'E2E fixture project', ${organizationId}, ${userId})`
+      await tx`insert into workspace (id, project_id, name, owner_id, organization_id, billed_account_user_id)
+        values (${workspaceId}, ${workspaceId}, 'Desktop tools E2E', ${userId}, ${organizationId}, ${userId})`
       await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
         values (${generateId()}, ${userId}, 'workspace', ${workspaceId}, 'admin')`
       await tx`insert into session (id, token, user_id, user_agent, expires_at, created_at, updated_at)
@@ -687,15 +698,18 @@ export class SimDatabase {
       for (const title of chatTitles) {
         const chatId = generateId()
         chats[title] = chatId
-        await tx`insert into copilot_chats (id, user_id, workspace_id, type, title)
-          values (${chatId}, ${userId}, ${workspaceId}, 'mothership', ${title})`
+        await tx`insert into copilot_chats (id, user_id, organization_id, type, title, config)
+          values (${chatId}, ${userId}, ${organizationId}, 'mothership', ${title},
+            ${tx.json({ conversationMode: 'agent' })})`
       }
     })
     this.userIds.push(userId)
+    this.organizationIds.push(organizationId)
     const signature = createHmac('sha256', this.config.authSecret).update(token).digest('base64')
     return {
       userId,
       name,
+      organizationId,
       workspaceId,
       sessionId,
       cookie: encodeURIComponent(`${token}.${signature}`),

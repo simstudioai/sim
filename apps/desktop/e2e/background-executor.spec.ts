@@ -16,6 +16,7 @@ import { sleep } from '@sim/utils/helpers'
 import { recordCheck } from './check-report'
 import {
   answerShellDialog,
+  chatRoute,
   type FixtureCall,
   FixtureSim,
   launch,
@@ -90,7 +91,7 @@ test.describe('background executor', () => {
     app = launched.app
     const window = launched.window
     const deviceId = await registeredDevice(sim)
-    await window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
+    await window.goto(chatRoute(sim, CHAT_C))
 
     const marker = join(userData, 'terminal-marker.txt')
     const releaseCommands = join(userData, 'release-commands')
@@ -125,9 +126,9 @@ test.describe('background executor', () => {
     try {
       await answerShellDialog(await readConsent, 'Allow folder')
 
-      await window.goto(`${sim.origin}/workspace/ws-other/home`)
+      await window.goto(`${sim.origin}/workspace/ws-other/workflows`)
       await window.reload()
-      await window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
+      await window.goto(chatRoute(sim, CHAT_C))
 
       // Chat B's first command holds its queue until released, so a claim that waited for the
       // calls ahead of it to run could never happen in time.
@@ -436,7 +437,7 @@ test.describe('background executor', () => {
     // Larger than one 8 MB read, so the file crosses Electron in several chunks.
     const large = Buffer.alloc(9 * 1024 * 1024, 7)
     writeFileSync(join(source, 'q3', 'export.bin'), large)
-    await launched.window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
+    await launched.window.goto(chatRoute(sim, CHAT_C))
 
     const importConsent = launched.app.waitForEvent('window')
     const call = sim.issue(deviceId, CHAT_B, 'import_local_files', {
@@ -636,7 +637,7 @@ test.describe('background executor', () => {
     sim.enabled = false
     const launched = await launch(sim, mkdtempSync(join(tmpdir(), 'sim-executor-h-')))
     app = launched.app
-    await launched.window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
+    await launched.window.goto(chatRoute(sim, CHAT_C))
     await expect.poll(() => sim.requests.includes('POST /api/desktop/devices')).toBe(true)
 
     await check(
@@ -656,7 +657,7 @@ test.describe('background executor', () => {
     const enabled = await launch(sim, mkdtempSync(join(tmpdir(), 'sim-executor-h2-')))
     app = enabled.app
     const deviceId = await registeredDevice(sim)
-    await enabled.window.goto(`${sim.origin}/workspace/${WORKSPACE}/chat/${CHAT_C}`)
+    await enabled.window.goto(chatRoute(sim, CHAT_C))
     await check('H: an enabled device offers itself for binding', async () => {
       const device = await enabled.window.evaluate(() =>
         (

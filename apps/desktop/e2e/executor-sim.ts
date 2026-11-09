@@ -22,6 +22,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 
 const DESKTOP_DIR = fileURLToPath(new URL('..', import.meta.url))
 export const WORKSPACE = 'ws-e2e'
+/** The organization whose chat pages the window shows; chats live under `/o/<organization>/chat`. */
+const ORGANIZATION = 'org-e2e'
+
+/** A chat's page in the product, where the window sits while background calls run. */
+export function chatRoute(sim: FixtureSim, chatId: string): string {
+  return `${sim.origin}/o/${ORGANIZATION}/chat/${chatId}`
+}
 const LEASE_RENEW_MS = 1_000
 export const RECONCILE_MS = 2_000
 
