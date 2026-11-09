@@ -14,9 +14,9 @@ import {
   expect,
   notProvable,
   onHome,
+  org,
   orgUrl,
   refused,
-  root,
   section,
   sql,
   url,
@@ -26,122 +26,129 @@ import {
 import {
   composer,
   expectPageNotFound,
-  homeRegion,
   railLink,
   searchField,
 } from '@/scripts/org-redesign-e2e/locators'
 
 export async function landingChecks() {
   section('1 Where they land')
-  await check('a member signing in lands on Home, not Search', async () => {
+  // A member who cannot build has no Home: they land on Search, and their chats open under it
+  // (platform/docs/org-parity.md:18, :255, :348). Builders still land on Home.
+  const landsOnSearch = (address: URL) => address.pathname === org.search
+  await check('a member who cannot build signs in to Search', async () => {
     await withSession(null, async ({ page }) => {
       await page.goto(url('/login'))
       await page.locator('#email').fill(MEMBER.email)
       await page.locator('#password').fill(PASSWORD)
       await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-      await expect(page).toHaveURL(orgUrl('/home'), { timeout: 45_000 })
-      await expect(composer(page)).toBeVisible()
-    })
-  })
-  for (const persona of [MEMBER, ADMIN, OWNER, NARROW]) {
-    await check(
-      `${persona.key}: /o and /o/[id] and /home reach Home with no Search redirect`,
-      async () => {
-        await withSession(persona, async ({ page }) => {
-          for (const path of ['/o', root, '/home']) {
-            await page.goto(url(path))
-            await expect(page).toHaveURL(orgUrl('/home'))
-          }
-          await expect(composer(page)).toBeVisible()
-        })
-      }
-    )
-  }
-  await check('member: Search first load pins the saved mode into the URL', async () => {
-    await withSession(MEMBER, async ({ page }) => {
-      await page.goto(orgUrl('/search'))
-      await expect(page).toHaveURL(orgUrl('/search?mode=search'))
+      await expect(page).toHaveURL(landsOnSearch, { timeout: 45_000 })
       await expect(searchField(page)).toBeVisible()
     })
   })
-  await check('assistant chats redirect into Search from /chat', async () => {
+  for (const persona of [ADMIN, OWNER]) {
+    await check(`${persona.key}: /o and /o/[id] and /home reach Home`, async () => {
+      await withSession(persona, async ({ page }) => {
+        for (const path of ['/o', org.root, '/home']) {
+          await page.goto(url(path))
+          await expect(page).toHaveURL(url(org.home))
+        }
+        await expect(composer(page)).toBeVisible()
+      })
+    })
+  }
+  for (const persona of [MEMBER, NARROW]) {
+    await check(`${persona.key}: /o and /o/[id] and /home reach Search`, async () => {
+      await withSession(persona, async ({ page }) => {
+        for (const path of ['/o', org.root, '/home', org.home]) {
+          await page.goto(url(path))
+          await expect(page).toHaveURL(landsOnSearch)
+        }
+        await expect(searchField(page)).toBeVisible()
+      })
+    })
+  }
+  await check('member: Search first load pins the saved mode into the URL', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(orgUrl(`/chat/${MEMBER_CHATS.assistant.id}`))
-      await expect(page).toHaveURL(orgUrl(`/search/chat/${MEMBER_CHATS.assistant.id}`))
-      await expect(
-        page.getByText(`Here is what I found about ${MEMBER_CHATS.assistant.title}.`)
-      ).toBeVisible()
+      await page.goto(url(org.search))
+      await expect(page).toHaveURL(url(`${org.search}?mode=search`))
+      await expect(searchField(page)).toBeVisible()
+    })
+  })
+  await check("a member's assistant chat opens under Search, from /chat too", async () => {
+    await withSession(MEMBER, async ({ page }) => {
+      const reply = page.getByText(`Here is what I found about ${MEMBER_CHATS.assistant.title}.`)
+      await page.goto(url(org.chat(MEMBER_CHATS.assistant.id)))
+      await expect(page).toHaveURL((address) => address.pathname.startsWith(org.search))
+      await page.goto(url(org.searchChat(MEMBER_CHATS.assistant.id)))
+      await expect(page).toHaveURL(url(org.searchChat(MEMBER_CHATS.assistant.id)))
+      await expect(reply).toBeVisible()
     })
   })
   await check(
-    'an agent chat is not found for a member and renders for an admin',
+    "a member's agent chat lands on Search unread, and renders for an admin",
     async () => {
       await withSession(MEMBER, async (session) => {
         const { page } = session
-        await page.goto(orgUrl(`/chat/${MEMBER_CHATS.agent.id}`))
-        await expectPageNotFound(page)
-        await page.goto(orgUrl(`/search/chat/${MEMBER_CHATS.agent.id}`))
-        await expectPageNotFound(page)
+        const transcript = page.getByText(`Here is what I found about ${MEMBER_CHATS.agent.title}.`)
+        for (const path of [
+          org.chat(MEMBER_CHATS.agent.id),
+          org.searchChat(MEMBER_CHATS.agent.id),
+        ]) {
+          await page.goto(url(path))
+          await expect(page).toHaveURL(landsOnSearch)
+          await expect(searchField(page)).toBeVisible()
+          await expect(transcript).toHaveCount(0)
+        }
         await withRestore(
           () =>
             sql`update copilot_chats set last_seen_at = now() where id = ${MEMBER_CHATS.agent.id}`,
           async () => {
             await sql`update copilot_chats set last_seen_at = null where id = ${MEMBER_CHATS.agent.id}`
-            await page.goto(orgUrl('/home'))
+            await page.goto(url(org.search))
             await expect(railLink(page, MEMBER_CHATS.assistant.title)).toBeVisible()
             await session.settle()
             await expect(railLink(page, MEMBER_CHATS.agent.title)).toHaveCount(0)
-            await expect(
-              homeRegion(page, 'Needs your attention').getByText(MEMBER_CHATS.agent.title)
-            ).toHaveCount(0)
           }
         )
       })
       await withSession(ADMIN, async ({ page }) => {
-        await page.goto(orgUrl(`/search/chat/${ADMIN_CHATS.agent.id}`))
-        await expect(page).toHaveURL(orgUrl(`/chat/${ADMIN_CHATS.agent.id}`))
+        await page.goto(url(org.searchChat(ADMIN_CHATS.agent.id)))
+        await expect(page).toHaveURL(url(org.chat(ADMIN_CHATS.agent.id)))
         await expect(
           page.getByText(`Here is what I found about ${ADMIN_CHATS.agent.title}.`)
         ).toBeVisible()
       })
-    },
-    {
-      // The member's own agent chat, on both of its routes.
-      allow: [
-        refused(404, 'GET', `${root}/chat/${MEMBER_CHATS.agent.id}`),
-        refused(404, 'GET', `${root}/search/chat/${MEMBER_CHATS.agent.id}`),
-      ],
     }
   )
   await check(
-    'a chat that is not theirs, or in another organization, is not found',
+    'a chat that is not theirs, or in another organization, never opens',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(orgUrl(`/chat/${ADMIN_CHATS.agent.id}`))
+        await page.goto(url(org.chat(ADMIN_CHATS.agent.id)))
+        await expect(page).toHaveURL(landsOnSearch)
+        await expect(
+          page.getByText(`Here is what I found about ${ADMIN_CHATS.agent.title}.`)
+        ).toHaveCount(0)
+        await page.goto(url(org.searchChat(ADMIN_CHATS.assistant.id)))
         await expectPageNotFound(page)
-        await page.goto(orgUrl(`/search/chat/${ADMIN_CHATS.assistant.id}`))
-        await expectPageNotFound(page)
-        await page.getByRole('link', { name: 'Return home', exact: true }).click()
-        await expect(page).toHaveURL(orgUrl('/home'))
-        await expect(composer(page)).toBeVisible()
+        await page.getByRole('button', { name: 'Return home', exact: true }).click()
+        await expect(page).toHaveURL(landsOnSearch)
+        await expect(searchField(page)).toBeVisible()
       })
     },
     {
-      // Someone else's chats, which must read as absent.
-      allow: [
-        refused(404, 'GET', `${root}/chat/${ADMIN_CHATS.agent.id}`),
-        refused(404, 'GET', `${root}/search/chat/${ADMIN_CHATS.assistant.id}`),
-      ],
+      // Someone else's assistant chat, which must read as absent.
+      allow: [refused(404, 'GET', org.searchChat(ADMIN_CHATS.assistant.id))],
     }
   )
   await check('signed out, every organization route goes to login', async () => {
     await withSession(null, async ({ page }) => {
       for (const path of [
-        '/home',
-        '/links',
-        '/integrations?connectorType=gmail&provider=gmail&connectionMode=live&optionId=gmail',
+        org.home,
+        org.simLinks,
+        `${org.integrations}?connectorType=gmail&provider=gmail&connectionMode=live&optionId=gmail`,
       ]) {
-        await page.goto(orgUrl(`${path}`))
+        await page.goto(url(path))
         await expect(page).toHaveURL((address) => address.pathname === '/login')
       }
     })
@@ -154,7 +161,7 @@ export async function landingChecks() {
     await onHome(OUTSIDER, async ({ page }) => {
       const heading = page.getByRole('heading', { name: 'Organization access denied' })
       await expect(heading).toBeVisible()
-      await expect(page.getByRole('link', { name: 'View your workspaces' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'View your workspaces' })).toBeVisible()
       // The other route states center in the page; this one sat at the top.
       const box = await heading.boundingBox()
       const viewport = page.viewportSize()
@@ -169,43 +176,50 @@ export async function landingChecks() {
     'settings redirects and aliases resolve, and unavailable sections are not found',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(orgUrl('/settings'))
-        await expect(page).toHaveURL(orgUrl('/settings/general'))
-        await page.goto(orgUrl('/settings/authorized-apps'))
+        const location = page.getByLabel('Settings location')
+        // Bare Settings opens General in place; the product does not rewrite the URL.
+        await page.goto(url(org.settings))
+        await expect(location).toContainText('General')
+        await page.goto(url(org.settingsSection('authorized-apps')))
         await expect(page).toHaveURL(
           (address) =>
-            address.pathname === `${root}/settings/general` &&
+            address.pathname === org.settingsSection('general') &&
             address.searchParams.get('view') === 'authorized-apps'
         )
-        await page.goto(orgUrl('/settings/team'))
-        await expect(page.getByPlaceholder('Search members…')).toBeVisible()
+        await page.goto(url(org.settingsSection('team')))
+        await expect(page).toHaveURL(
+          (address) => address.pathname === org.settingsSection('members')
+        )
+        await expect(page.getByRole('textbox', { name: 'Search members' })).toBeVisible()
         await page.goto(orgUrl('/access-requests'))
-        await expect(page).toHaveURL((address) => address.pathname === `${root}/settings/requests`)
-        await page.goto(orgUrl('/settings/audit-logs'))
+        await expect(page).toHaveURL(
+          (address) => address.pathname === org.settingsSection('requests')
+        )
+        await page.goto(url(org.settingsSection('audit-logs')))
         await expectPageNotFound(page)
       })
     },
     // Audit logs is the one section a member may not open here.
-    { allow: [refused(404, 'GET', `${root}/settings/audit-logs`)] }
+    { allow: [refused(404, 'GET', org.settingsSection('audit-logs'))] }
   )
   await check(
     'People is not found with its flag off, and bad Integrations params are not found',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(orgUrl('/people'))
+        await page.goto(url(org.people))
         await expectPageNotFound(page)
-        await page.goto(orgUrl('/integrations?connectorType=not-a-connector'))
+        await page.goto(url(`${org.integrations}?connectorType=not-a-connector`))
         await expectPageNotFound(page)
-        await page.goto(orgUrl('/integrations?slack=!!'))
+        await page.goto(url(`${org.integrations}?slack=!!`))
         await expectPageNotFound(page)
       })
     },
     {
       // The flag-off page and the two malformed queries this check opens.
       allow: [
-        refused(404, 'GET', `${root}/people`),
-        refused(404, 'GET', `${root}/integrations?connectorType=not-a-connector`),
-        refused(404, 'GET', `${root}/integrations?slack=!!`),
+        refused(404, 'GET', org.people),
+        refused(404, 'GET', `${org.integrations}?connectorType=not-a-connector`),
+        refused(404, 'GET', `${org.integrations}?slack=!!`),
       ],
     }
   )

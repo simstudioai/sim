@@ -29,6 +29,7 @@ import {
   compareWorkflowVersionsDataSchema,
 } from '@/lib/api/contracts/workflow-comparison'
 import { readResponseTextWithLimit } from '@/lib/core/utils/stream-limits'
+import { workspaceResourceWebUrl } from '@/lib/resources/urls'
 import { generateWorkflowDiffSummary } from '@/lib/workflows/comparison/compare'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
@@ -77,6 +78,11 @@ const outsiderId = generateId()
 const workspaceId = generateId()
 const foreignWorkspaceId = generateId()
 const workflowId = generateId()
+/**
+ * The product opens a workspace only inside an organization, so retained browser fixtures give the
+ * owner a personal organization holding both workspaces, as signup does.
+ */
+const browserOrganizationId = generateId()
 const workspaceKey = `sk-sim-fixture-${generateId()}`
 const foreignKey = `sk-sim-fixture-${generateId()}`
 const sessionToken = generateShortId()
@@ -222,10 +228,18 @@ async function seed() {
       await tx`insert into account (id, account_id, provider_id, user_id, password, created_at, updated_at)
         values (${generateId()}, ${ownerId}, 'credential', ${ownerId}, ${password}, now(), now())`
     }
+    if (keepFixtures) {
+      await tx`insert into organization (id, name, slug, kind, created_at, updated_at)
+        values (${browserOrganizationId}, 'Version comparison fixture', ${`personal-${ownerId.toLowerCase()}`}, 'personal', now(), now())`
+      await tx`insert into member (id, user_id, organization_id, role)
+        values (${generateId()}, ${ownerId}, ${browserOrganizationId}, 'owner')`
+    }
+    const organizationId = keepFixtures ? browserOrganizationId : null
     for (const id of [workspaceId, foreignWorkspaceId]) {
-      await tx`insert into project (id, name, owner_id) values (${id}, 'Version comparison project', ${ownerId})`
-      await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id)
-        values (${id}, ${id}, 'Version comparison fixture', ${ownerId}, ${ownerId})`
+      await tx`insert into project (id, name, owner_id, organization_id)
+        values (${id}, 'Version comparison project', ${ownerId}, ${organizationId})`
+      await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id, organization_id)
+        values (${id}, ${id}, 'Version comparison fixture', ${ownerId}, ${ownerId}, ${organizationId})`
     }
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
       values (${generateId()}, ${ownerId}, 'workspace', ${workspaceId}, 'admin')`
@@ -306,7 +320,7 @@ async function seedBrowserWorkflows() {
     browserWorkflows.push({
       id,
       name,
-      url: new URL(`/workspace/${workspaceId}/w/${id}`, baseUrl).toString(),
+      url: workspaceResourceWebUrl(baseUrl.toString(), workspaceId, 'workflow', id),
       expectedChecks: scenario.expectedChecks,
       browserReferences: scenario.browserReferences,
     })

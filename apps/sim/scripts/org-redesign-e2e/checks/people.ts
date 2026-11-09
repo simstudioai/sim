@@ -9,21 +9,26 @@ import {
   DESKTOP,
   expect,
   onHome,
-  orgUrl,
+  org,
   PHONE,
   section,
+  url,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
 import { mainNav, navLabels, routePrefetched } from '@/scripts/org-redesign-e2e/locators'
+
+const directoryPath = `${org.people}?view=directory`
 
 /** What the name keeps of the table at 390px, once its columns have joined the row's summary. */
 const MIN_PHONE_NAME_SHARE = 0.7
 
 export async function peoplePhaseChecks() {
   section('People with its flag on')
+  // Links is a Settings section now (org-parity.md, "Sim Links entry"), so it leaves the nav.
   await check('nav: People sits after Search', async () => {
     await onHome(MEMBER, async ({ page }) => {
-      assert.deepEqual(await navLabels(page), ['Home', 'Search', 'People', 'Integrations', 'Links'])
+      // A member who cannot build has no Home (platform/docs/org-parity.md:255).
+      assert.deepEqual(await navLabels(page), ['Search', 'People', 'Integrations'])
     })
   })
   await check('loading rows sit on the page gutter the heading and content use', async () => {
@@ -36,7 +41,7 @@ export async function peoplePhaseChecks() {
         await route.continue()
       })
       const prefetched = routePrefetched(page, isPeoplePayload)
-      await page.goto(orgUrl('/home'))
+      await page.goto(url(org.search))
       const link = mainNav(page).getByRole('link', { name: 'People', exact: true })
       await link.hover()
       await prefetched()
@@ -58,7 +63,7 @@ export async function peoplePhaseChecks() {
     async () => {
       await withSession(MEMBER, async (session) => {
         const { page } = session
-        await page.goto(orgUrl('/people'))
+        await page.goto(url(org.people))
         await expect(page.getByRole('button', { name: 'Org chart' })).toBeVisible()
         await expect(page.getByText(/organization admin/i).first()).toBeVisible()
         await session.settle()
@@ -71,22 +76,24 @@ export async function peoplePhaseChecks() {
   )
   await check('an admin can sync and import from the empty state', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(orgUrl('/people'))
+      await page.goto(url(org.people))
       await expect(page.getByRole('button', { name: 'Connect Okta' })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Import profiles' })).toBeVisible()
     })
   })
   await check('the directory lists the organization', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(orgUrl('/people?view=directory'))
-      await expect(page.getByText(ADMIN.name).first()).toBeVisible()
+      await page.goto(url(directoryPath))
+      await expect(
+        page.getByRole('table', { name: 'People' }).getByText(ADMIN.name).first()
+      ).toBeVisible()
     })
   })
   await check('a phone gives the directory to the name, unbroken, on the page gutter', async () => {
     await withSession(
       MEMBER,
       async ({ page }) => {
-        await page.goto(orgUrl('/people?view=directory'))
+        await page.goto(url(directoryPath))
         const email = page.getByText(CONNECTED.email, { exact: true }).first()
         await expect(email).toBeVisible()
         const layout = await email.evaluate((node) => {
@@ -137,10 +144,10 @@ async function walkPeopleRoutes() {
             for (const viewport of [DESKTOP, PHONE]) {
               await session.page.setViewportSize({ width: viewport.width, height: viewport.height })
               for (const [name, path] of [
-                ['chart', 'people'],
-                ['directory', 'people?view=directory'],
+                ['chart', org.people],
+                ['directory', directoryPath],
               ]) {
-                const response = await session.page.goto(orgUrl(`/${path}`))
+                const response = await session.page.goto(url(path))
                 assert((response?.status() ?? 500) < 400, `${path} ${response?.status()}`)
                 await session.contentReady()
                 await expect(

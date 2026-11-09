@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { db } from '@sim/db'
-import { member, permissions, workspace as workspaceTable } from '@sim/db/schema'
+import { member, organization, permissions, workspace as workspaceTable } from '@sim/db/schema'
 import { insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { ROOM_ACCESS_REVOKED_EVENT } from '@sim/realtime-protocol/events'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -245,7 +245,15 @@ try {
       JSON.stringify({ ...fixture, readerAccount, readerCookie }),
       { mode: 0o600 }
     )
-    if (canonicalWorkspace.organizationId)
+    const [workspaceOrganization] = canonicalWorkspace.organizationId
+      ? await db
+          .select({ kind: organization.kind })
+          .from(organization)
+          .where(eq(organization.id, canonicalWorkspace.organizationId))
+      : []
+    // A personal organization holds only its owner: like an invited collaborator, the reader keeps
+    // its own personal organization and reaches the workspace through its permission alone.
+    if (canonicalWorkspace.organizationId && workspaceOrganization?.kind === 'team')
       await db.insert(member).values({
         id: generateId(),
         userId: fixture.readerId,

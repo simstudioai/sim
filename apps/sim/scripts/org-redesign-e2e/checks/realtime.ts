@@ -1,15 +1,19 @@
 import assert from 'node:assert/strict'
 import type { Page } from '@playwright/test'
-import { ADMIN, MEMBER } from '@/scripts/org-redesign-e2e/fixture'
+import { workspaceEntry } from '@/platform/lib/workspace-navigation'
+import { ADMIN, MEMBER, MEMBER_ADMIN_WORKSPACE } from '@/scripts/org-redesign-e2e/fixture'
 import {
   check,
   expect,
-  orgUrl,
   pathOf,
   refused,
   section,
+  url,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
+
+/** The workspace layout mounts the socket its tabs share; organization pages open none. */
+const realtimePage = url(workspaceEntry(MEMBER_ADMIN_WORKSPACE.id))
 
 export async function realtimeChecks() {
   section('Realtime')
@@ -24,7 +28,7 @@ export async function realtimeChecks() {
     })
     return connection
   }
-  await check('a signed-in page mints a real token and its socket connects', async () => {
+  await check('a workspace page mints a real token and its socket connects', async () => {
     await withSession(
       MEMBER,
       async ({ page }) => {
@@ -32,7 +36,7 @@ export async function realtimeChecks() {
         const minted = page.waitForResponse(
           (response) => pathOf(response.url()) === '/api/auth/socket-token'
         )
-        await page.goto(orgUrl('/home'))
+        await page.goto(realtimePage)
         assert.equal((await minted).status(), 200)
         await expect.poll(() => connection.connected).toBe(true)
       },
@@ -56,7 +60,7 @@ export async function realtimeChecks() {
               json: { error: 'Too many requests' },
             })
           })
-          await page.goto(orgUrl('/home'))
+          await page.goto(realtimePage)
           await expect.poll(() => connection.connected).toBe(true)
           assert(
             attempts[1] - attempts[0] >= 2_000,

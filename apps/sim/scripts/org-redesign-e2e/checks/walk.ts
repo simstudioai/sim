@@ -19,15 +19,15 @@ import {
   artifactDirectory,
   beginWalk,
   DESKTOP,
-  orgUrl,
+  org,
   type Persona,
   PHONE,
   pathOf,
   record,
-  root,
   routes,
   section,
   type Theme,
+  url,
   type Viewport,
   WALK_CONCURRENCY,
   withSession,
@@ -36,36 +36,53 @@ import { composer } from '@/scripts/org-redesign-e2e/locators'
 import { stubConnectedHome } from '@/scripts/org-redesign-e2e/stubs'
 
 const settingsRoutes = (sections: readonly string[]) =>
-  sections.map((section) => ({ name: `settings-${section}`, path: `settings/${section}` }))
+  sections.map((section) => ({ name: `settings-${section}`, path: org.settingsSection(section) }))
 
-function routesFor(persona: Persona): { name: string; path: string }[] {
-  const shared = [
-    { name: 'home', path: 'home' },
-    { name: 'search', path: 'search?mode=search' },
-    { name: 'search-empty-query', path: 'search?mode=search&q=warranty' },
-    { name: 'assistant', path: 'search?mode=assistant' },
-    { name: 'integrations', path: 'integrations' },
-    { name: 'integration-gmail', path: 'integrations/gmail' },
-    { name: 'integration-gitlab', path: 'integrations/gitlab' },
-    { name: 'generic-secrets', path: 'integrations/secrets' },
-    { name: 'links', path: 'links' },
-    { name: 'links-new', path: 'links?create=new-link' },
+/** Who can build here, and so has Home; everyone else lands on Search (org-parity.md:255). */
+const BUILDERS: readonly Persona[] = [ADMIN, OWNER]
+
+interface WalkRoute {
+  name: string
+  path: string
+  /** Where the route settles when it redirects by design. */
+  lands?: string
+}
+
+/** Each persona's routes, as full paths from the organization's route builder. */
+function routesFor(persona: Persona): WalkRoute[] {
+  const home: WalkRoute = BUILDERS.includes(persona)
+    ? { name: 'home', path: org.home }
+    : { name: 'home', path: org.home, lands: org.search }
+  const shared: WalkRoute[] = [
+    home,
+    { name: 'search', path: `${org.search}?mode=search` },
+    { name: 'search-empty-query', path: `${org.search}?mode=search&q=warranty` },
+    { name: 'assistant', path: `${org.search}?mode=assistant` },
+    { name: 'integrations', path: org.integrations },
+    { name: 'integration-gmail', path: `${org.integrations}/gmail` },
+    { name: 'integration-gitlab', path: `${org.integrations}/gitlab` },
+    { name: 'generic-secrets', path: org.memberSecrets },
+    { name: 'links', path: org.simLinks },
+    { name: 'links-new', path: `${org.simLinks}?create=new-link` },
     ...settingsRoutes(SETTINGS_FOR_ALL),
   ]
   if (persona === MEMBER)
-    return [...shared, { name: 'assistant-chat', path: `search/chat/${MEMBER_CHATS.assistant.id}` }]
+    return [...shared, { name: 'assistant-chat', path: org.searchChat(MEMBER_CHATS.assistant.id) }]
   if (persona === ADMIN || persona === OWNER)
     return [
       ...shared,
-      ...(persona === ADMIN ? [{ name: 'agent-chat', path: `chat/${ADMIN_CHATS.agent.id}` }] : []),
+      ...(persona === ADMIN ? [{ name: 'agent-chat', path: org.chat(ADMIN_CHATS.agent.id) }] : []),
       ...settingsRoutes([...SETTINGS_FOR_ADMIN, 'search-mcp']),
     ]
   if (persona === CONNECTED)
     return [
-      { name: 'home', path: 'home' },
-      { name: 'integrations', path: 'integrations' },
-      { name: 'integration-gmail', path: 'integrations/gmail' },
-      { name: 'tool-permissions', path: `integrations/accounts/${GRANTS.gmail.credentialId}` },
+      home,
+      { name: 'integrations', path: org.integrations },
+      { name: 'integration-gmail', path: `${org.integrations}/gmail` },
+      {
+        name: 'tool-permissions',
+        path: `${org.integrations}/gmail?account=${GRANTS.gmail.credentialId}`,
+      },
     ]
   return shared
 }
@@ -74,8 +91,6 @@ function routesFor(persona: Persona): { name: string; path: string }[] {
 const SLOWEST_READS = 5
 /** How far a probe grows the viewport to see which panes follow it. */
 const PANE_PROBE_PX = 200
-/** Home's composer types its suggestion out, then holds it this long before deleting it. */
-const TYPED_PLACEHOLDER = '[placeholder^="Ask Sim to "]:not([placeholder$="..."])'
 
 /**
  * The app scrolls inside its own panes, so the viewport grows to what they hold before the shot. A
@@ -107,9 +122,6 @@ export async function fullPageScreenshot(page: Page, path: string, viewport: Vie
   const height = await viewportHolding(page, viewport)
   await page.setViewportSize({ width: viewport.width, height })
   await sleep(150)
-  await page.waitForFunction((typing) => !document.querySelector(typing), TYPED_PLACEHOLDER, {
-    timeout: 10_000,
-  })
   await page.screenshot({
     path,
     fullPage: true,
@@ -136,13 +148,13 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
         for (const route of routesFor(persona)) {
           session.reads.length = 0
           const navigated = performance.now()
-          const response = await page.goto(orgUrl(`/${route.path}`), { timeout: 60_000 })
+          const response = await page.goto(url(route.path), { timeout: 60_000 })
           const documentMs = Math.round(performance.now() - navigated)
           const contentReadyMs = await session.contentReady().catch((error) => {
             failures.push(`${route.name}: ${getErrorMessage(error)}`)
             return null
           })
-          if (route.name === 'home')
+          if (route.name === 'home' && !route.lands)
             await composer(page)
               .waitFor({ timeout: 20_000 })
               .catch(() => failures.push('home never left its skeleton'))
@@ -153,7 +165,21 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
             .catch(() => session.settle().then(() => fullPageScreenshot(page, path, viewport)))
             .catch((error) => failures.push(`${route.name} screenshot: ${getErrorMessage(error)}`))
           const facts = await page.evaluate(() => ({
-            dark: document.documentElement.classList.contains('dark'),
+            // The surface follows the system appearance, so the painted canvas is what says dark.
+            dark: (() => {
+              const start = document.querySelector('main') ?? document.body
+              for (let at: Element | null = start; at; at = at.parentElement) {
+                const color = getComputedStyle(at).backgroundColor
+                const channels = color.match(/[\d.]+/g)?.map(Number)
+                const alpha = color.includes('/') ? channels?.at(-1) : channels?.[3]
+                if (!channels || channels.length < 3 || alpha === 0) continue
+                if (/^okl/.test(color)) return channels[0] < 0.5
+                const scale = color.startsWith('color(') ? 255 : 1
+                const [red, green, blue] = channels.map((channel) => channel * scale)
+                return 0.2126 * red + 0.7152 * green + 0.0722 * blue < 128
+              }
+              return false
+            })(),
             font: getComputedStyle(document.body).fontFamily,
             overflow: document.documentElement.scrollWidth - innerWidth,
             surfaces: document.querySelectorAll('[data-platform-ui]').length,
@@ -185,7 +211,7 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
           })
           if ((response?.status() ?? 500) >= 400)
             failures.push(`${route.name} status ${response?.status()}`)
-          const expectedPathname = `${root}/${route.path.split('?')[0]}`
+          const expectedPathname = route.lands ?? route.path.split('?')[0]
           if (new URL(page.url()).pathname !== expectedPathname)
             failures.push(`${route.name} landed on ${pathOf(page.url())}`)
           if (facts.dark !== (theme === 'dark')) failures.push(`${route.name} wrong theme`)

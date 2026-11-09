@@ -31,6 +31,8 @@ import { generateRandomHex } from '@sim/utils/random'
 import postgres from 'postgres'
 import { chatContextsSchema } from '@/lib/api/contracts/mothership-chat-context'
 import { MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import { workspaceResourcePath } from '@/lib/resources/urls'
 import { dropOnChat } from '@/scripts/browser-extension-e2e/chat-file-drop'
 
 /** Authenticated packaged-browser acceptance against a real local Sim app and disposable Postgres. */
@@ -127,7 +129,9 @@ let releaseHeldRequest = () => {}
 const alphaId = generateId()
 const betaId = generateId()
 const deniedId = generateId()
-const organizationId = generateId()
+/** The viewer's personal organization, which sign-up provisions; read back after sign-up. */
+let organizationId = ''
+let organizationName = ''
 const otherOrganizationId = generateId()
 const otherOrganizationChatId = generateId()
 const hostProjectId = generateId()
@@ -248,18 +252,28 @@ async function recordSnapshot(target: Frame | Page) {
 async function seed() {
   assert(userId)
   const owner = userId
+  // Sign-up gives every person their own organization, and their workspaces live in it.
+  await expect
+    .poll(async () => (await sql`select 1 from member where user_id=${owner}`).length)
+    .toBe(1)
+  const [personal] = await sql`select o.id, o.name, o.kind from member m
+    join organization o on o.id = m.organization_id where m.user_id=${owner}`
+  assert.equal(personal?.kind, 'personal', 'Sign-up did not provision a personal organization')
+  organizationId = String(personal.id)
+  organizationName = String(personal.name)
+  const organization = organizationId
   await sql.begin(async (tx) => {
-    await tx`insert into project (id, name, owner_id) values (${alphaId}, 'Extension QA project', ${owner})`
+    await tx`insert into project (id, name, owner_id, organization_id) values (${alphaId}, 'Extension QA project', ${owner}, ${organization})`
     for (const [id, name] of [
       [alphaId, 'Extension QA alpha'],
       [betaId, 'Extension QA beta'],
     ] as const) {
-      await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id) values (${id}, ${alphaId}, ${name}, ${owner}, ${owner})`
+      await tx`insert into workspace (id, project_id, organization_id, name, owner_id, billed_account_user_id) values (${id}, ${alphaId}, ${organization}, ${name}, ${owner}, ${owner})`
       await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type) values (${generateId()}, ${owner}, 'workspace', ${id}, 'admin')`
     }
     for (let index = 0; index < 24; index++) {
       const id = generateId()
-      await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id) values (${id}, ${alphaId}, ${`Extension QA workspace ${index + 1}`}, ${owner}, ${owner})`
+      await tx`insert into workspace (id, project_id, organization_id, name, owner_id, billed_account_user_id) values (${id}, ${alphaId}, ${organization}, ${`Extension QA workspace ${index + 1}`}, ${owner}, ${owner})`
       await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type) values (${generateId()}, ${owner}, 'workspace', ${id}, 'admin')`
     }
     await tx`update workspace set created_at = '2020-01-01T00:00:00Z' where id = ${alphaId}`
@@ -319,11 +333,6 @@ async function seed() {
   })
 }
 
-async function seedViewerOrganization() {
-  assert(userId)
-  await sql`insert into organization (id, name, slug, created_at) values (${organizationId}, 'Extension QA organization', ${organizationId}, now())`
-  await sql`insert into member (id, user_id, organization_id, role) values (${generateId()}, ${userId}, ${organizationId}, 'owner')`
-}
 async function seedOtherOrganization() {
   assert(userId)
   await sql`insert into organization (id, name, slug, created_at) values (${otherOrganizationId}, 'Other QA organization', ${otherOrganizationId}, now())`
@@ -602,9 +611,10 @@ try {
           assert(response, 'Refresh must return a document response')
           assert.equal(response.status(), 200)
           assert(response.request().isNavigationRequest(), 'Refresh must reload the app document')
-          await expect(
-            app.getByRole('link', { name: 'Extension QA alpha', exact: true })
-          ).toBeVisible()
+          await expect
+            .poll(() => new URL(app.url()).pathname)
+            .toBe(`/extension/o/${organizationId}`)
+          await expect(app.getByRole('textbox', { name: 'Ask Sim', exact: true })).toBeVisible()
           signInRecoveryReceipts.push({ phase: 'recovered', documentStatus: response.status() })
           await screenshot('sign-in-manual-recovered', recovery)
         } finally {
@@ -620,21 +630,22 @@ try {
     assert(login, 'The sign-in tab must remain open until returning to the original panel')
     await login.close()
     await shell.bringToFront()
-    await expect(
-      frame().getByRole('link', { name: 'Extension QA alpha', exact: true })
-    ).toBeVisible()
+    // A signed-in member lands on their organization's chat; its scope menu lists the workspaces.
+    await expect.poll(() => new URL(frame().url()).pathname).toBe(`/extension/o/${organizationId}`)
+    await expect(frame().getByRole('textbox', { name: 'Ask Sim', exact: true })).toBeVisible()
+    await screenshot('organization-landing')
+    await frame().getByRole('button', { name: organizationName, exact: true }).click()
+    const workspaceMenu = frame().getByRole('menu')
+    const alpha = workspaceMenu.getByRole('menuitem', { name: 'Extension QA alpha', exact: true })
+    await expect(alpha).toBeVisible()
     await screenshot('workspace-picker')
-    const workspaceList = frame().getByRole('navigation', { name: 'Workspaces', exact: true })
     assert(
-      await workspaceList.evaluate((list) => {
-        const scroll = list.closest('main')
-        return scroll !== null && scroll.scrollHeight > scroll.clientHeight
-      }),
-      'The workspace picker fixture does not overflow'
+      await workspaceMenu.evaluate((menu) => menu.scrollHeight > menu.clientHeight),
+      'The workspace menu fixture does not overflow'
     )
-    await workspaceList.getByRole('link').last().scrollIntoViewIfNeeded()
+    await workspaceMenu.getByRole('menuitem').last().scrollIntoViewIfNeeded()
     await screenshot('workspace-picker-end')
-    await frame().getByRole('link', { name: 'Extension QA alpha', exact: true }).click()
+    await alpha.click()
     await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible({
       timeout: 120_000,
     })
@@ -1293,7 +1304,7 @@ try {
       await frame().getByRole('link', { name: 'Open in Sim', exact: true }).click()
       const app = await opened
       try {
-        await app.waitForURL(`${base.origin}/workspace/${alphaId}/chat/${historyId}`)
+        await app.waitForURL(`${base.origin}${organizationRoutes(organizationId).chat(historyId)}`)
         await app.getByRole('button', { name: 'Review page context: Extension QA page' }).click()
         const preview = app.getByRole('dialog', { name: 'Page context', exact: true })
         await expect(preview).toBeVisible()
@@ -1331,8 +1342,8 @@ try {
         return route.abort()
       })
       try {
-        await app.goto(`${base.origin}/workspace/${alphaId}/chat/${historyId}`)
-        const input = app.getByRole('textbox', { name: 'Message', exact: true })
+        await app.goto(`${base.origin}${organizationRoutes(organizationId).chat(historyId)}`)
+        const input = app.getByRole('textbox', { name: 'Ask a follow-up…', exact: true })
         await input.fill('Keep the ordinary draft')
         const drop = await app.evaluateHandle(() => {
           let received: DragEvent | undefined
@@ -1349,7 +1360,7 @@ try {
         const image = { text: remote.href, html: `<img src="${remote.href}">`, uri: remote.href }
         await dropOnChat(
           app,
-          app.getByRole('button', { name: 'Add resources', exact: true }),
+          app.getByRole('button', { name: 'Add attachment', exact: true }),
           image
         )
         assert.equal(await drop.evaluate((prevented) => prevented()), true)
@@ -1416,7 +1427,9 @@ try {
       const popup = browserContext.waitForEvent('page')
       await frame().getByRole('button', { name: 'Extension QA workflow', exact: true }).click()
       const resource = await popup
-      await resource.waitForURL(`${base.origin}/workspace/${alphaId}/w/${workflowId}`)
+      await resource.waitForURL(
+        `${base.origin}${workspaceResourcePath(alphaId, 'workflow', workflowId)}`
+      )
       assert.equal(await resource.evaluate(() => window.opener), null)
       await resource.close()
       await frame().getByRole('button', { name: 'New chat', exact: true }).click()
@@ -1426,6 +1439,8 @@ try {
   await checkNavigation(
     'A sanitized link draft saves in the current organization and opens its destination',
     async () => {
+      assert(userId)
+      const viewer = userId
       let draft = await openPage()
       await setPageViewport(draft, 1280, 900)
       const endpoint = `/api/organizations/${organizationId}/sim-links`
@@ -1433,14 +1448,23 @@ try {
       draft.on('request', (request) => {
         if (new URL(request.url()).pathname === endpoint && request.method() === 'POST') writes++
       })
+      let membershipRemoved = false
+      const restoreMembership = async () => {
+        if (!membershipRemoved) return
+        await sql`insert into member (id, user_id, organization_id, role) values (${generateId()}, ${viewer}, ${organizationId}, 'owner')`
+        membershipRemoved = false
+      }
       try {
+        // A person whose organization provisioning has not run yet belongs to none.
+        await sql`delete from member where organization_id=${organizationId} and user_id=${viewer}`
+        membershipRemoved = true
         await draft.goto(`${base.origin}/extension/create-link`)
         await expect(
           draft.getByRole('heading', { name: 'Links unavailable', exact: true })
         ).toBeVisible()
         await screenshot('create-link-unavailable', draft)
         await draft.close()
-        await seedViewerOrganization()
+        await restoreMembership()
         draft = await openPage()
         await setPageViewport(draft, 1280, 900)
         draft.on('request', (request) => {
@@ -1471,7 +1495,7 @@ try {
         )
         await dialog.getByRole('button', { name: 'Create', exact: true }).click()
         assert.equal((await saved).status(), 200)
-        await draft.waitForURL(`${base.origin}/o/${organizationId}/links`)
+        await draft.waitForURL(`${base.origin}${organizationRoutes(organizationId).simLinks}`)
         const [row] =
           await sql`select name, url from sim_link where organization_id=${organizationId}`
         assert.equal(row?.name, 'qa-draft')
@@ -1492,7 +1516,8 @@ try {
         throw error
       } finally {
         await draft.close()
-        await sql`delete from organization where id=${organizationId}`
+        await restoreMembership()
+        await sql`delete from sim_link where organization_id=${organizationId}`
       }
     }
   )
@@ -2103,14 +2128,17 @@ try {
       await expect(frame().getByText('This workspace is unavailable.')).toBeVisible()
       await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toHaveCount(0)
       await frame().getByRole('link', { name: 'Choose another workspace' }).click()
-      await frame().getByRole('link', { name: 'Extension QA alpha', exact: true }).click()
+      await expect
+        .poll(() => new URL(frame().url()).pathname)
+        .toBe(`/extension/o/${organizationId}`)
+      await frame().getByRole('button', { name: organizationName, exact: true }).click()
+      await frame().getByRole('menuitem', { name: 'Extension QA alpha', exact: true }).click()
       await expect(frame().getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
     }
   )
   await checkComposer(
     'Organization default landing binds page-only submissions to the organization',
     async () => {
-      await seedViewerOrganization()
       await navigate(`${base.origin}/extension`)
       await expect
         .poll(() => new URL(frame().url()).pathname)
@@ -2763,15 +2791,10 @@ try {
   await checkComposer(
     'Page controls stay reachable above a long organization workspace list',
     async () => {
-      assert(userId)
-      const projectId = generateId()
-      await sql`insert into project (id, name, owner_id, organization_id)
-      values (${projectId}, 'Menu QA project', ${userId}, ${organizationId})`
+      const workspaces = await sql`select id from workspace
+        where organization_id = ${organizationId} and name like 'Extension QA workspace %'`
+      assert.equal(workspaces.length, 24)
       try {
-        const workspaces =
-          await sql`update workspace set organization_id = ${organizationId}, project_id = ${projectId}
-        where project_id = ${alphaId} and name like 'Extension QA workspace %' returning id`
-        assert.equal(workspaces.length, 24)
         await setPanelViewport(320, 640)
         await navigate(`${base.origin}/extension/o/${organizationId}`)
         await frame().getByRole('button', { name: 'Add resources', exact: true }).click()
@@ -2808,14 +2831,11 @@ try {
         await screenshot('page-controls-short-panel')
         await rows.last().press('Escape')
       } finally {
-        await sql`update workspace set organization_id = null, project_id = ${alphaId} where project_id = ${projectId}`
-        await sql`delete from project where id = ${projectId}`
         await setPanelViewport(390, 844)
       }
     }
   )
   if (group === 'access') {
-    await seedViewerOrganization()
     await seedOtherOrganization()
     await seedHostedWorkspace()
     await setActiveOrganization()
@@ -3393,12 +3413,14 @@ try {
     await sql.begin(async (tx) => {
       await tx`delete from workspace where id=${hostedWorkspaceId}`
       await tx`delete from project where id=${hostProjectId}`
-      await tx`delete from organization where id in (${organizationId}, ${otherOrganizationId})`
+      // Projects restrict their organization's deletion, so they go first.
       for (const id of [owner, otherUserId]) {
         await tx`delete from workspace where owner_id=${id}`
         await tx`delete from project where owner_id=${id}`
-        await tx`delete from "user" where id=${id}`
       }
+      await tx`delete from organization where id in (select organization_id from member where user_id=${owner})`
+      await tx`delete from organization where id in (${organizationId}, ${otherOrganizationId})`
+      for (const id of [owner, otherUserId]) await tx`delete from "user" where id=${id}`
     })
     const remaining = await sql`select id from "user" where id=${owner}`
     assert.equal(remaining.length, 0)

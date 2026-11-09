@@ -12,12 +12,17 @@ declare global {
 export const menuEntry = (page: Page, name: string | RegExp) =>
   page.getByRole('menuitem', { name, exact: typeof name === 'string' })
 
-export const sidebar = (page: Page) =>
-  page.getByRole('complementary', { name: 'Organization sidebar' })
+/** The one product sidebar every organization and workspace page shares. */
+export const sidebar = (page: Page) => page.getByRole('complementary', { name: 'Platform sidebar' })
 export const mainNav = (page: Page) => page.getByRole('navigation', { name: 'Main navigation' })
-export const composer = (page: Page) => page.getByRole('textbox', { name: 'Ask Sim' })
+/**
+ * The shared message composer on Home and in a chat. Its accessible name is its placeholder, which
+ * changes with the mode and the turn, so it is found by the composer it sits in.
+ */
+export const composer = (page: Page) =>
+  page.getByRole('main').locator('[data-elevation="composer"]').getByRole('textbox').first()
 export const searchField = (page: Page) =>
-  page.getByRole('textbox', { name: 'Search your sources' })
+  page.getByRole('search').getByRole('textbox', { name: 'Search', exact: true })
 export const dialog = (page: Page, name: string | RegExp) => page.getByRole('dialog', { name })
 export const orgChip = (page: Page) => page.getByRole('button', { name: 'Organization menu' })
 export const orgCard = (page: Page) => dialog(page, 'Organization menu')
@@ -48,8 +53,9 @@ export async function expectPageNotFound(page: Page) {
 export const railLink = (page: Page, label: string) =>
   sidebar(page).getByRole('link', { name: label, exact: true })
 
-export const accountChip = (page: Page) =>
-  sidebar(page).getByRole('button', { name: /, account menu$/ })
+/** The footer's account control, named by the person it belongs to. */
+export const accountChip = (page: Page, name: string) =>
+  sidebar(page).locator('footer').getByRole('button', { name, exact: true })
 
 /** The row around a rail link: its status glyph sits beside the link, not in it. */
 export const railRow = (page: Page, label: string) =>
@@ -57,8 +63,11 @@ export const railRow = (page: Page, label: string) =>
     .locator('[data-action-side]')
     .filter({ has: page.getByRole('link', { name: label, exact: true }) })
 
+/** A collapsible sidebar section: a region named for it, holding its disclosure. */
+export const railRegion = (page: Page, name: string) =>
+  sidebar(page).getByRole('region', { name, exact: true })
 export const railSection = (page: Page, name: string) =>
-  sidebar(page).locator('summary', { hasText: name })
+  railRegion(page, name).locator('summary', { hasText: name })
 
 /** Opens a section row's options menu: the button appears on hover. */
 export async function openRowMenu(page: Page, label: string) {

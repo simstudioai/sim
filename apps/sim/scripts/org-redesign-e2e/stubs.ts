@@ -6,7 +6,7 @@ import type {
 } from '@/lib/api/contracts/organization-home'
 import { CONNECTED, GRANTS, NAMED_LINKS, ORGANIZATION_ID } from '@/scripts/org-redesign-e2e/fixture'
 
-export const FOUR_WAY_MEETINGS = ['Board prep', 'Budget review', 'Hiring loop', 'Vendor call']
+const FOUR_WAY_MEETINGS = ['Board prep', 'Budget review', 'Hiring loop', 'Vendor call']
 /** Adjacent meetings, a pair side by side with one shorter than its slot, then a four-way overlap. */
 const BUSY_DAY_EVENTS = [
   { title: 'Morning planning', start: '09:30', end: '10:00', people: [{ name: 'Ada Lovelace' }] },
@@ -21,7 +21,7 @@ const BUSY_DAY_EVENTS = [
   ...FOUR_WAY_MEETINGS.map((title) => ({ title, start: '13:00', end: '14:00', people: [] })),
 ]
 
-export const EMAIL_THREAD = (): OrganizationHomeEmail['threads'][number] => ({
+const EMAIL_THREAD = (): OrganizationHomeEmail['threads'][number] => ({
   id: 'thread-1',
   credentialId: GRANTS.gmail.credentialId,
   sender: 'Grace Hopper',

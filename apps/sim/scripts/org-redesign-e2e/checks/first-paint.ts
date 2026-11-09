@@ -12,8 +12,9 @@ import {
   expect,
   firstPaints,
   onHome,
-  orgUrl,
+  org,
   section,
+  url,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
 import { composer, searchField } from '@/scripts/org-redesign-e2e/locators'
@@ -81,36 +82,37 @@ export async function firstPaintChecks() {
   const pages = [
     {
       name: 'Home',
-      path: 'home',
+      path: org.home,
       primary: (page: Page) => composer(page),
       prefetched: [...PREFETCHED_ON_LAYOUT, ...PREFETCHED_INVENTORY, ...PREFETCHED_HISTORY],
     },
     {
       name: 'Search',
-      path: 'search?mode=search',
+      path: `${org.search}?mode=search`,
       primary: (page: Page) => searchField(page),
       prefetched: [...PREFETCHED_ON_LAYOUT, ...PREFETCHED_HISTORY],
     },
     {
       name: 'Integrations',
-      path: 'integrations',
+      path: org.integrations,
       primary: (page: Page) => page.getByRole('link', { name: /^Gmail/ }),
       prefetched: [...PREFETCHED_ON_LAYOUT, ...PREFETCHED_INVENTORY, ...PREFETCHED_SECRET_SOURCE],
     },
     {
       name: 'Links',
-      path: 'links',
+      path: org.simLinks,
       primary: (page: Page) => page.getByRole('row').nth(1),
       prefetched: [...PREFETCHED_ON_LAYOUT, ...PREFETCHED_LINKS],
     },
     {
       name: 'Links by opens',
-      path: 'links?sort=popular&dir=desc',
+      path: `${org.simLinks}?sort=popular&dir=desc`,
       primary: (page: Page) => page.getByRole('row').nth(1),
       prefetched: [...PREFETCHED_ON_LAYOUT, ...PREFETCHED_LINKS],
     },
   ] satisfies {
     name: string
+    /** A full path from the organization's route builder. */
     path: string
     primary: (page: Page) => Locator
     prefetched: { label: string; pattern: RegExp }[]
@@ -120,35 +122,36 @@ export async function firstPaintChecks() {
     async () => {
       await withSession(ADMIN, async (session) => {
         const { page } = session
-        await page.goto(orgUrl('/home'))
-        await composer(page).first().waitFor({ timeout: 30_000 })
+        await page.goto(url(org.home))
+        await composer(page).waitFor({ timeout: 30_000 })
         await session.settle()
         const reads = () =>
           session.requests.map(({ path }) => path).filter((path) => isPerWorkspaceRead(path))
         assert.deepEqual(reads(), [], 'The composer read every workspace on load')
-        await page.getByRole('button', { name: 'Add resources' }).click()
-        const menu = page.getByRole('menu')
-        await expect(
-          menu.getByRole('menuitem', { name: MEMBER_ADMIN_WORKSPACE.name })
-        ).toBeVisible()
+        await page.getByRole('button', { name: 'Add attachment', exact: true }).click()
+        const menu = page.getByRole('menu', { name: 'Add attachment' })
+        const workspaceRow = menu.getByRole('menuitem', {
+          name: MEMBER_ADMIN_WORKSPACE.name,
+          exact: true,
+        })
+        await expect(workspaceRow).toBeVisible()
         await expect.poll(() => reads().length).toBeGreaterThan(0)
         await session.settle()
-        await expect(menu.getByText('Loading resources')).toHaveCount(0)
-        await menu.getByPlaceholder('Search resources').fill(MEMBER_ADMIN_WORKSPACE.name)
-        await expect(
-          menu.getByRole('menuitem', { name: MEMBER_ADMIN_WORKSPACE.name })
-        ).toBeVisible()
+        await page.getByLabel('Search resources', { exact: true }).fill(MEMBER_ADMIN_WORKSPACE.name)
+        await expect(workspaceRow).toBeVisible()
       })
     }
   )
   await check('a slash in an admin composer reads skills, not the resource lists', async () => {
     await withSession(ADMIN, async (session) => {
       const { page } = session
-      await page.goto(orgUrl('/home'))
-      await composer(page).first().waitFor({ timeout: 30_000 })
+      await page.goto(url(org.home))
+      await composer(page).waitFor({ timeout: 30_000 })
       await session.settle()
-      await composer(page).first().pressSequentially('/')
-      await expect(page.getByRole('menu').getByRole('menuitem').first()).toBeVisible()
+      await composer(page).pressSequentially('/')
+      await expect(
+        page.getByRole('listbox', { name: 'Skills and MCP servers' }).getByRole('option').first()
+      ).toBeVisible()
       await session.settle()
       const reads = session.requests
         .map(({ path }) => path)
@@ -171,7 +174,7 @@ export async function firstPaintChecks() {
           reads.push(route.request().url())
           return route.fulfill({ status: 500, json: { error: 'The client must not need this' } })
         })
-        await page.goto(orgUrl('/links'))
+        await page.goto(url(org.simLinks))
         await expect(
           page.getByRole('row').filter({ hasText: NAMED_LINKS.handbook.name })
         ).toBeVisible()
@@ -182,9 +185,9 @@ export async function firstPaintChecks() {
           [],
           'The seeded first page was fetched again'
         )
-        await page.goto(orgUrl('/links?sort=popular&dir=desc'))
+        await page.goto(url(`${org.simLinks}?sort=popular&dir=desc`))
         await expect(page.getByRole('row').nth(1)).toContainText(NAMED_LINKS.mostUsed.name)
-        await page.goto(orgUrl(`/links?search=${NAMED_LINKS.mostUsed.name}`))
+        await page.goto(url(`${org.simLinks}?search=${NAMED_LINKS.mostUsed.name}`))
         await expect(page.getByRole('row').nth(1)).toContainText(NAMED_LINKS.mostUsed.name)
         await session.settle()
         assert.deepEqual(
@@ -198,12 +201,13 @@ export async function firstPaintChecks() {
   )
   await check('the Links document already carries the first page of rows', async () => {
     await onHome(MEMBER, async ({ context }) => {
-      const html = await (await context.request.get(orgUrl('/links'))).text()
+      const html = await (await context.request.get(url(org.simLinks))).text()
       assert(html.includes(NAMED_LINKS.handbook.url), 'The document holds the seeded rows')
     })
   })
   for (const persona of [MEMBER, ADMIN]) {
-    for (const entry of pages) {
+    // A member who cannot build has no Home to measure (platform/docs/org-parity.md:255).
+    for (const entry of pages.filter(({ name }) => persona === ADMIN || name !== 'Home')) {
       await check(
         `${persona.key} ${entry.name}: measured, no duplicate or prefetched-key fetch`,
         async () => {
@@ -211,7 +215,7 @@ export async function firstPaintChecks() {
             const { page } = session
             // `open` routes the socket token, which turns off the context's HTTP cache, so both loads
             // fetch every script: hydration can wait on a route's chunk, as on a first visit.
-            await page.goto(orgUrl(`/${entry.path}`))
+            await page.goto(url(entry.path))
             await entry.primary(page).first().waitFor({ timeout: 30_000 })
             await session.settle()
             session.requests.length = 0
@@ -225,7 +229,7 @@ export async function firstPaintChecks() {
             })
             await page.addInitScript(traceFaviconImages)
             const started = performance.now()
-            await page.goto(orgUrl(`/${entry.path}`), { waitUntil: 'commit' })
+            await page.goto(url(entry.path), { waitUntil: 'commit' })
             await entry.primary(page).first().waitFor({ timeout: 30_000 })
             const primaryVisibleMs = Math.round(performance.now() - started)
             await session.settle()
