@@ -69,6 +69,12 @@ export function dividerXAt(clientX: number, geometry: DragGeometry): number {
   return geometry.panelRight - panelWidthAt(clientX, geometry)
 }
 
+/**
+ * The chat area width, in rem, at or below which the panel takes over the conversation rather than
+ * sitting beside it: the `panel-frame` container query in the chat's `panels.module.css`.
+ */
+const SIDE_BY_SIDE_MIN_REM = 48
+
 /** Width one arrow-key press on the divider moves the panel by, in CSS px. */
 export const KEYBOARD_STEP_PX = 32
 
@@ -348,8 +354,21 @@ export function useMothershipResize(
     if (el) syncDividerValue(e.currentTarget, el)
   }, [])
 
+  /**
+   * Whether the chat area leaves room to lay the panel out beside the conversation. At or below
+   * {@link SIDE_BY_SIDE_MIN_REM} the panel takes over the conversation instead, so an unattached
+   * panel or a narrow chat area never fits.
+   */
+  const panelFitsBesideChat = useCallback(() => {
+    const frame = mothershipRef.current?.parentElement
+    if (!frame) return false
+    const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize)
+    return frame.getBoundingClientRect().width > SIDE_BY_SIDE_MIN_REM * rem
+  }, [])
+
   return {
     mothershipRef: attachPanel,
+    panelFitsBesideChat,
     handleResizePointerDown,
     handleResizeKeyDown,
     handleResizeFocus,

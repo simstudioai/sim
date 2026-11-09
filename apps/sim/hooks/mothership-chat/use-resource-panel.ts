@@ -28,7 +28,7 @@ import {
   type useChat,
 } from '@/hooks/mothership-chat/use-chat'
 import { useMothershipResize } from '@/hooks/mothership-chat/use-mothership-resize'
-import { isMobileViewport, useIsMobile } from '@/hooks/use-is-mobile'
+import { useIsMobile } from '@/hooks/use-is-mobile'
 
 /** URL selection and event attention are installed before the chat starts streaming. */
 export function useResourcePanelController() {
@@ -89,6 +89,8 @@ export function useResourcePanelController() {
   }, [])
   const [resourceCollapseOwnedByUser, setResourceCollapseOwnedByUser] = useState(false)
   const resourceSelectionOwnedByUserRef = useRef(false)
+  /** Bound by `useChatResourcePanel` in the same render, once the panel's resize hook exists. */
+  const panelFitsBesideChatRef = useRef<() => boolean>(() => false)
 
   function handleResourceEvent(resourceId: string, options?: ResourceEventOptions) {
     const activeResourceId = effectiveActiveResourceIdRef.current
@@ -101,7 +103,7 @@ export function useResourcePanelController() {
       selectionOwnedByUser: resourceSelectionOwnedByUserRef.current,
     })
 
-    const keepChatVisible = isMobileViewport() && isResourceCollapsedRef.current
+    const keepChatVisible = isResourceCollapsedRef.current && !panelFitsBesideChatRef.current()
     if (presentation.revealPanel && !keepChatVisible) setResourceCollapsed(false)
     if (presentation.markActivity || keepChatVisible) {
       setResourceActivityIds((current) => new Set(current).add(resourceId))
@@ -141,6 +143,7 @@ export function useResourcePanelController() {
     setResourceCollapseOwnedByUser,
     resourceSelectionOwnedByUserRef,
     effectiveActiveResourceIdRef,
+    panelFitsBesideChatRef,
     onResourceEvent: handleResourceEvent,
   }
 }
@@ -182,11 +185,18 @@ export function useChatResourcePanel(
     setResourceCollapseOwnedByUser,
     resourceSelectionOwnedByUserRef,
     effectiveActiveResourceIdRef,
+    panelFitsBesideChatRef,
     onResourceEvent: handleResourceEvent,
   } = controller
-  const { mothershipRef, handleResizePointerDown, handleResizeKeyDown, handleResizeFocus } =
-    useMothershipResize(desktopScopeId, { userId, collapsed: isResourceCollapsed })
+  const {
+    mothershipRef,
+    panelFitsBesideChat,
+    handleResizePointerDown,
+    handleResizeKeyDown,
+    handleResizeFocus,
+  } = useMothershipResize(desktopScopeId, { userId, collapsed: isResourceCollapsed })
   effectiveActiveResourceIdRef.current = activeResourceId
+  panelFitsBesideChatRef.current = panelFitsBesideChat
   const resourceAttentionChatIdRef = useRef(resolvedChatId)
 
   const collapseResource = useCallback(() => {
@@ -286,10 +296,9 @@ export function useChatResourcePanel(
 
   useEffect(() => {
     if (
-      isCompactLayout ||
-      isMobileViewport() ||
       !(resources.length > 0 && isResourceCollapsedRef.current) ||
-      resourceCollapseOwnedByUser
+      resourceCollapseOwnedByUser ||
+      !panelFitsBesideChat()
     ) {
       return
     }
@@ -297,7 +306,7 @@ export function useChatResourcePanel(
     setSkipResourceTransition(true)
     const id = requestAnimationFrame(() => setSkipResourceTransition(false))
     return () => cancelAnimationFrame(id)
-  }, [isCompactLayout, resources, resourceCollapseOwnedByUser, setResourceCollapsed])
+  }, [resources, resourceCollapseOwnedByUser, panelFitsBesideChat, setResourceCollapsed])
 
   useEffect(() => {
     if (resources.length === 0 && !isResourceCollapsedRef.current) {

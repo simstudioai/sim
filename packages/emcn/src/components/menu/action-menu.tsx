@@ -580,7 +580,11 @@ export function MenuItem({
       {icon && <Icon name={icon} />}
       <span className={popup.label}>{label}</span>
       {!(choice || checked !== undefined) && shortcut && (
-        <kbd className={styles.hint} data-type={inline?.layout === 'browser' ? 'T052' : 'T001'}>
+        <kbd
+          className={styles.hint}
+          data-type={inline?.layout === 'browser' ? 'T052' : 'T001'}
+          aria-hidden
+        >
           {shortcut}
         </kbd>
       )}
