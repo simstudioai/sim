@@ -220,7 +220,8 @@ export function LiveCredentialCard({
                 />
               ) : null
             case 'secret_input':
-              if (item.scope === 'organization' && organizationGate) return null
+              if (item.scope === 'organization' && (organizationGate || saver.gatePending))
+                return null
               if ((item.scope ?? 'workspace') === 'workspace' && !canEdit) return null
               return savedRows.has(index) ? (
                 <p key={controlId} data-type='T048'>

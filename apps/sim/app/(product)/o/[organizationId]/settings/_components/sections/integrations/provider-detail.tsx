@@ -278,7 +278,7 @@ export function ProviderDetail({ connectorType }: ProviderDetailProps) {
                   disabled={sources.isFetchingNextPage}
                   onClick={() => void sources.fetchNextPage()}
                 >
-                  {sources.isFetchingNextPage ? 'Loading' : 'Load more'}
+                  {sources.isFetchingNextPage ? 'Loading…' : 'Load more'}
                 </Button>
               ) : null}
             </>

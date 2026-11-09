@@ -2,7 +2,7 @@
 
 import { type ReactNode, useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { AnimatedNumber, MetricGroup } from '@sim/emcn/data-display'
+import { MetricGroup } from '@sim/emcn/data-display'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import styles from '@/components/dashboard-panel/dashboard-panel.module.css'
 import { ChartCanvas } from '@/components/file-viewer/chart-canvas'
@@ -212,21 +212,9 @@ export function DashboardPanel({
   if ('stat' in block) {
     const metric = data?.rows[0]?.[data.columns[0]]
     if (query.isPending && !query.isError) return null
-    const operation = source.aggregate && Object.values(source.aggregate)[0]?.op
-    const unit = metric != null && block.unit ? ` ${block.unit}` : ''
-    const value = query.isError ? (
-      'Unavailable'
-    ) : typeof metric === 'number' && Number.isFinite(metric) ? (
-      <>
-        <AnimatedNumber
-          value={metric}
-          maximumFractionDigits={operation === 'count' || operation === 'countDistinct' ? 0 : 2}
-        />
-        {unit}
-      </>
-    ) : (
-      `${formatChartValue(metric)}${unit}`
-    )
+    const value = query.isError
+      ? 'Unavailable'
+      : `${formatChartValue(metric)}${metric != null && block.unit ? ` ${block.unit}` : ''}`
     return (
       <section aria-label={title} aria-busy={query.isFetching} className={styles.panel}>
         <MetricGroup metrics={[{ label: title, value }]} />
