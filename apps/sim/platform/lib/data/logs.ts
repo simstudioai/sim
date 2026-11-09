@@ -503,7 +503,7 @@ export interface RunDashboardWorkflow {
   runs: number
   /** Successful runs as a share of all, 0–100. */
   successRate: number
-  segments: readonly { at: number; runs: number; failed: number }[]
+  segments: readonly { at: number; runs: number; failed: number; avgDurationMs: number }[]
 }
 
 function latestRun(workflow: DashboardStatsResponse['workflows'][number]) {
@@ -557,6 +557,7 @@ export function useRunDashboard(workspaceId: string, view: RunListView) {
             at: Date.parse(segment.timestamp),
             runs: segment.totalExecutions,
             failed: segment.totalExecutions - segment.successfulExecutions,
+            avgDurationMs: segment.avgDurationMs,
           })),
         })
       ),

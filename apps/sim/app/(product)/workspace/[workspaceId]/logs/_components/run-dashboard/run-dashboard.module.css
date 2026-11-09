@@ -73,21 +73,39 @@
   min-inline-size: 0;
 }
 .strip {
-  display: block;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  align-items: stretch;
   inline-size: 100%;
   block-size: var(--spacing-16);
+  gap: var(--spacing-stroke-default);
+  user-select: none;
 }
+/* Each segment is a button over the row's own target, so picking one never toggles the workflow. */
 .segment {
-  fill: var(--ui-divider);
+  flex: 1;
+  min-inline-size: 0;
+  block-size: 100%;
+  padding: 0;
+  border: 0;
+  background: var(--ui-divider);
+  cursor: pointer;
 }
 .segment[data-state="success"] {
-  fill: var(--status-success);
+  background: var(--status-success);
 }
 .segment[data-state="mixed"] {
-  fill: var(--status-warning);
+  background: var(--status-warning);
 }
 .segment[data-state="failed"] {
-  fill: var(--control-danger);
+  background: var(--control-danger);
+}
+.segment[aria-pressed="true"] {
+  outline: var(--spacing-stroke-default) solid var(--ui-ink);
+  outline-offset: var(--spacing-stroke-default);
 }
 .number {
   color: var(--ui-secondary);
