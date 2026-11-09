@@ -1,12 +1,13 @@
 import { redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
-import {
-  getOrganizationSurfaceContext,
-  resolveOrganizationLanding,
-} from '@/lib/organizations/surface'
+import { getOrganizationSurfaceGate, resolveOrganizationLanding } from '@/lib/organizations/surface'
 import { ExtensionWorkspaces } from '@/app/(site)/extension/workspaces'
 
+/**
+ * Opens the viewer's team Assistant when they can use it, and the workspace picker otherwise. A
+ * personal organization stands in for having no team, which has always opened the picker.
+ */
 export default async function ExtensionPage() {
   const session = await getSession()
   if (session?.user) {
@@ -15,8 +16,12 @@ export default async function ExtensionPage() {
       getActiveOrganizationId(session)
     )
     if (organizationId) {
-      const context = await getOrganizationSurfaceContext(organizationId, session.user.id)
-      if (context?.mothershipAvailable && (context.canBuild || context.searchAccess.memberScoped)) {
+      const gate = await getOrganizationSurfaceGate(organizationId, session.user.id)
+      if (
+        gate?.organization.kind === 'team' &&
+        gate.mothershipAvailable &&
+        (gate.canBuild || gate.searchAccess.memberScoped)
+      ) {
         redirect(`/extension/o/${encodeURIComponent(organizationId)}`)
       }
     }
