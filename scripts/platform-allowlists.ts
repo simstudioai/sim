@@ -73,8 +73,6 @@ const CODE_FIRST_VARIANTS: ReasonedAllowlist = {
 const LOADING_COPY_OWNERS: ReasonedAllowlist = {
   [`${PRODUCT_ROUTES}_components/composer/message-composer.tsx`]:
     "Emir's composer: the @ menu names its pending list while the draft keeps focus and typing",
-  [`${ORGANIZATION_ROUTES}integrations/_components/slack-search-actions/slack-search-actions.tsx`]:
-    "Predates the synonyms: the Check connection button's pending label lacks its ellipsis",
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/document-view/document-view.tsx`]:
     "The document editor's save status reports a write, not a pending read",
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/chat-tab/chat-tab.tsx`]:
@@ -905,10 +903,7 @@ const FIXTURE_BRANCH_VIEWS: ReasonedAllowlist = {
     'Predates the rule: the preferences model keeps fixture toggles local',
 }
 /** Live-reachable modules that import fixture code a normal build then evaluates. */
-const FIXTURE_IMPORTS_FROM_LIVE: ReasonedAllowlist = {
-  [`${ORGANIZATION_ROUTES}integrations/_components/credential-detail/credential-detail.tsx`]:
-    'Renders ToolPermissions, a live view kept in the fixtures folder; move it out of fixtures/',
-}
+const FIXTURE_IMPORTS_FROM_LIVE: ReasonedAllowlist = {}
 /** Files that render a failed read's copy outside `FailureNotice`. */
 const FAILURE_COPY_OWNERS: ReasonedAllowlist = {
   [`${PRODUCT_ROUTES}_components/sidebar/chats-section.tsx`]:

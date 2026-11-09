@@ -445,7 +445,7 @@ export const upsertWorkspaceCredentialMemberBodySchema = z.object({
   role: workspaceCredentialRoleSchema.default('member'),
 })
 
-export const setWorkspaceCredentialMembersBodySchema = z.object({
+const setWorkspaceCredentialMembersBodySchema = z.object({
   members: z
     .array(z.object({ userId: z.string().min(1), role: workspaceCredentialRoleSchema }))
     .max(1000),
