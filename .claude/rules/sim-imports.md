@@ -26,10 +26,10 @@ Use barrel exports (`index.ts`) when a folder has 3+ exports. Import from barrel
 
 ```typescript
 // ✓ Good
-import { FileViewer, PreviewPanel } from '@/components/file-viewer'
+import { OTPVerificationEmail } from '@/components/emails'
 
 // ✗ Bad
-import { FileViewer } from '@/components/file-viewer/file-viewer'
+import { OTPVerificationEmail } from '@/components/emails/auth/otp-verification-email'
 ```
 
 ## Code-splitting through barrels

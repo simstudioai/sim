@@ -19,7 +19,7 @@ import {
 } from '../apps/sim/blocks/registry'
 import { formatIntegrationType } from '../apps/sim/blocks/types'
 import { getManagedOAuthConnectorPolicy } from '../apps/sim/lib/auth/connectors/managed-oauth'
-import { getOrganizationCredentialTypeCatalog } from '../apps/sim/lib/credential-groups/credential-types'
+import { getOrganizationCredentialTypeCatalog } from '../apps/sim/lib/credential-groups/credential-type-catalog'
 import {
   getManagedMcpConnector,
   MANAGED_MCP_CONNECTOR_IDS,

@@ -28,7 +28,6 @@
     "apps/sim/app/api/workflows/[id]/executions/[executionId]/stream/route.ts": 1,
     "apps/sim/app/api/workflows/[id]/state/route.ts": 1,
     "apps/sim/app/api/workflows/middleware.ts": 1,
-    "apps/sim/app/api/workflows/route.ts": 1,
     "apps/sim/app/api/workflows/utils.ts": 1,
     "apps/sim/background/workflow-execution.ts": 2,
     "apps/sim/blocks/blocks/agent.test.ts": 1,
