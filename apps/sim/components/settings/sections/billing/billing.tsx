@@ -120,7 +120,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const upgradeWorkspaceId = isOrganizationScope
     ? organizationBilling?.upgradeWorkspaceId
     : subscriptionData?.data?.upgradeWorkspaceId
-  const upgradeHref = upgradeWorkspaceId ? buildUpgradeHref(upgradeWorkspaceId) : null
+  const upgradeHref = upgradeWorkspaceId ? buildUpgradeHref() : null
   const prefetchUpgrade = () => {
     if (upgradeHref) router.prefetch(upgradeHref)
   }

@@ -26,9 +26,11 @@ connectWorkflowStores()
 
 interface ExtensionWorkspaceProps {
   workspaceId: string
+  /** The organization the workspace's pages open in, or `null` when the viewer cannot open it. */
+  organizationId: string | null
 }
 
-export function ExtensionWorkspace({ workspaceId }: ExtensionWorkspaceProps) {
+export function ExtensionWorkspace({ workspaceId, organizationId }: ExtensionWorkspaceProps) {
   const { data, isPending, error, refetch } = useWorkspaceHostContextQuery(workspaceId, {
     refetchInterval: WORKSPACE_HOST_CONTEXT_STALE_TIME,
     refetchOnWindowFocus: true,
@@ -36,7 +38,7 @@ export function ExtensionWorkspace({ workspaceId }: ExtensionWorkspaceProps) {
   if (isApiClientError(error) && error.status === 401) return <ExtensionSessionExpired />
   if (isPending) return <ExtensionLoading />
   const accessDenied = isApiClientError(error) && (error.status === 403 || error.status === 404)
-  if (accessDenied || !data) {
+  if (accessDenied || !data || !organizationId) {
     return (
       <main className='flex h-dvh flex-col items-center justify-center gap-4 bg-[var(--bg)] p-6 text-[var(--text-body)] text-small'>
         <p>This workspace is unavailable.</p>
@@ -68,7 +70,11 @@ export function ExtensionWorkspace({ workspaceId }: ExtensionWorkspaceProps) {
             configKey='hideCopilot'
             navigationAction={<ChipLink href='/extension'>Back to chat</ChipLink>}
           >
-            <ExtensionChat workspaceId={workspaceId} workspaceName={data.workspace.name} />
+            <ExtensionChat
+              workspaceId={workspaceId}
+              organizationId={organizationId}
+              workspaceName={data.workspace.name}
+            />
           </PermissionAccessBoundary>
           <ChatPlanModal />
         </WorkspacePermissionsProvider>

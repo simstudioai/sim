@@ -9,18 +9,21 @@ import type {
   useChatResourcePanel,
   useResourcePanelController,
 } from '@/hooks/mothership-chat/use-resource-panel'
+import { useOrganization } from '@/platform/lib/data/organization'
+import { type SurfaceScope, surfaceHref } from '@/platform/lib/data/organization-model'
 
 const RESOURCE_KIND: Partial<Record<string, string>> = {
   knowledgebase: 'knowledge',
   filefolder: 'folder',
 }
 
-function resourceHref(resource: MothershipResource): string | undefined {
+/** A workspace resource opens on its workspace page; any other opens beside the organization's Home. */
+function resourceHref(scope: SurfaceScope, resource: MothershipResource): string | undefined {
   if (!resource.workspaceId) return undefined
   const kind = RESOURCE_KIND[resource.type] ?? resource.type
   return isWorkspaceResourceKind(kind)
     ? workspaceResourcePath(resource.workspaceId, kind, resource.id)
-    : `/workspace/${encodeURIComponent(resource.workspaceId)}/home?resource=${encodeURIComponent(resource.id)}`
+    : `${surfaceHref(scope, '/home')}?${new URLSearchParams({ resource: resource.id })}`
 }
 
 interface PanelResourcesOptions {
@@ -35,12 +38,13 @@ export function usePanelResources({
   panel,
   controller,
 }: PanelResourcesOptions): PanelResources {
+  const scope = useOrganization()
   const resources: PlatformResource[] = chat.resources.map((resource) => ({
     id: resource.id,
     type: resource.type,
     title: resource.title,
     workspaceId: resource.workspaceId,
-    href: resourceHref(resource),
+    href: resourceHref(scope, resource),
     active: resource.id === chat.activeResourceId,
     search: resource.search,
   }))
