@@ -10,17 +10,19 @@ import {
   check,
   DESKTOP,
   expect,
-  orgUrl,
+  org,
   type Persona,
   PHONE,
   section,
   sql,
+  url,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
 import { expectPageNotFound, openOrgCard } from '@/scripts/org-redesign-e2e/locators'
 
 interface StateShot {
   name: string
+  /** A full path from the organization's route builder. */
   path: string
   /** Before the page loads, for a read this suite has no upstream for. */
   stub?: (page: Page) => Promise<void>
@@ -34,10 +36,10 @@ interface StateShot {
 }
 
 const STATE_SHOTS: readonly StateShot[] = [
-  { name: 'settings-admin', path: 'settings/admin?q=member' },
+  { name: 'settings-admin', path: `${org.settingsSection('admin')}?q=member` },
   {
     name: 'settings-mothership',
-    path: 'settings/mothership',
+    path: org.settingsSection('mothership'),
     // The proxy needs an upstream and super admin mode; the page's own gate is what the shot shows.
     stub: async (page) => {
       await page.route('**/api/admin/mothership**', (route) =>
@@ -71,16 +73,16 @@ const STATE_SHOTS: readonly StateShot[] = [
       )
     },
   },
-  { name: 'not-found', path: 'settings/does-not-exist' },
+  { name: 'not-found', path: org.settingsSection('does-not-exist') },
   {
     name: 'collapsed-sidebar',
-    path: 'home',
+    path: org.home,
     desktopOnly: true,
     open: (page) => page.getByRole('button', { name: 'Collapse sidebar', exact: true }).click(),
   },
   {
     name: 'menu-row-actions',
-    path: 'settings/members',
+    path: org.settingsSection('members'),
     open: (page) =>
       page
         .getByRole('button', { name: /^Actions for / })
@@ -89,36 +91,33 @@ const STATE_SHOTS: readonly StateShot[] = [
   },
   {
     name: 'flyout-organization',
-    path: 'home',
+    path: org.home,
     open: async (page) => {
       await openOrgCard(page)
     },
     openOnPhone: async (page) => {
-      await page
-        .getByRole('button', { name: /open (sidebar|menu|navigation)/i })
-        .first()
-        .click()
+      await page.getByRole('button', { name: 'Expand sidebar', exact: true }).click()
       await openOrgCard(page)
     },
   },
   {
     name: 'modal-invite',
-    path: 'settings/members',
+    path: org.settingsSection('members'),
     open: (page) => page.getByRole('button', { name: 'Invite', exact: true }).click(),
   },
   {
     name: 'modal-create-group',
-    path: 'settings/access-control',
+    path: org.settingsSection('access-control'),
     open: (page) => page.getByRole('button', { name: 'Create group', exact: true }).click(),
   },
   {
     name: 'modal-add-source',
-    path: 'settings/integrations',
+    path: org.settingsSection('integrations'),
     open: (page) => page.getByRole('button', { name: 'Add source', exact: true }).click(),
   },
   {
     name: 'modal-add-user',
-    path: 'settings/admin',
+    path: org.settingsSection('admin'),
     open: (page) => page.getByRole('button', { name: 'Add user', exact: true }).click(),
   },
 ]
@@ -139,7 +138,7 @@ export async function stateScreenshots() {
               shot.persona ?? ADMIN,
               async (session) => {
                 await shot.stub?.(session.page)
-                const response = await session.page.goto(orgUrl(`/${shot.path}`), {
+                const response = await session.page.goto(url(shot.path), {
                   timeout: 60_000,
                 })
                 await session.contentReady()
@@ -188,9 +187,9 @@ export async function stateScreenshots() {
         await withSession(
           OUTSIDER,
           async (session) => {
-            await session.page.goto(orgUrl('/home'), { timeout: 60_000 })
+            await session.page.goto(url(org.home), { timeout: 60_000 })
             await expect(
-              session.page.getByRole('link', { name: 'View your workspaces' })
+              session.page.getByRole('button', { name: 'View your workspaces' })
             ).toBeVisible()
             await session.page.screenshot({
               path: resolve(artifactDirectory, `state__access-denied__${viewport.name}.png`),

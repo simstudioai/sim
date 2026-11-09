@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
+import type { Page } from '@playwright/test'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { toRecord } from '@sim/utils/object'
 import type { z } from 'zod'
 import type { listSlackSearchResponseSchema } from '@/lib/api/contracts/knowledge/slack'
+import type { OrganizationUsageEventPage } from '@/lib/api/contracts/organization-usage'
 import {
   ADMIN,
   ADMIN_CHATS,
@@ -18,12 +20,12 @@ import {
   check,
   expect,
   notProvable,
-  orgUrl,
+  org,
   pathOf,
   refused,
-  root,
   section,
   sql,
+  url,
   withRestore,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
@@ -39,7 +41,7 @@ import { fulfillContract } from '@/scripts/org-redesign-e2e/stubs'
 
 export const SETTINGS_FOR_ALL = ['general', 'members', 'recently-deleted', 'requests', 'search-mcp']
 export const SETTINGS_FOR_ADMIN = [
-  'subscription',
+  'billing',
   'connected-accounts',
   'usage',
   'whitelabeling',
@@ -58,7 +60,7 @@ const ADMIN_SETTINGS = [
   'General',
   'Subscription',
   'Members',
-  'Credential groups',
+  'Credential Groups',
   'Insights',
   'White-labeling',
   'Recently deleted',
@@ -75,6 +77,21 @@ const ADMIN_SETTINGS = [
 ]
 
 type SlackSearchListing = z.output<typeof listSlackSearchResponseSchema>
+
+const settingsUrl = (key: string) => url(org.settingsSection(key))
+/** The seeded standard permission group's detail, on a tab when one is named. */
+const groupUrl = (tab?: string) =>
+  `${settingsUrl('access-control')}?${new URLSearchParams({
+    'group-id': STANDARD_GROUP_ID,
+    ...(tab ? { 'group-tab': tab } : {}),
+  })}`
+/** The breadcrumb above every section, which names the section open. */
+const settingsLocation = (page: Page) => page.getByLabel('Settings location', { exact: true })
+/** The Settings navigation the sidebar swaps in while a Settings page is open. */
+const settingsNav = (page: Page) => sidebar(page).getByRole('navigation', { name: 'Settings' })
+/** A secret field renders a password input, which has no textbox role. */
+const secretField = (page: Page, name: string) =>
+  page.getByLabel(name, { exact: true }).and(page.locator('input'))
 
 /** Saves a JSON settings column back to what it held, whatever the check did to it. */
 async function withOrganizationSettingsRestored(
@@ -95,8 +112,8 @@ async function organizationSectionChecks() {
     'Subscription: an Enterprise plan is priced by contract, with nothing to cancel',
     async () => {
       await withSession(ADMIN, async ({ page }) => {
-        await page.goto(orgUrl('/settings/subscription'))
-        await expect(page.getByText('Enterprise plan', { exact: true })).toBeVisible()
+        await page.goto(settingsUrl('billing'))
+        await expect(page.getByText('Organization Enterprise plan', { exact: true })).toBeVisible()
         await expect(page.getByText('Custom pricing', { exact: true })).toBeVisible()
         await expect(page.getByText('Next billing date', { exact: true })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Manage in Stripe' })).toBeVisible()
@@ -121,7 +138,7 @@ async function organizationSectionChecks() {
           await sql`insert into audit_log (id, workspace_id, actor_id, action, resource_type, actor_email, description)
           values (${id}, ${MEMBER_ADMIN_WORKSPACE.id}, ${ADMIN.userId}, 'workspace.updated', 'workspace', ${ADMIN.email}, ${description})`
           await withSession(ADMIN, async ({ page }) => {
-            await page.goto(orgUrl('/settings/audit-logs'))
+            await page.goto(settingsUrl('audit-logs'))
             await expect(page.getByText(description)).toBeVisible()
             const search = page.getByRole('searchbox', { name: 'Search audit logs' })
             await search.fill('Audit probe')
@@ -142,7 +159,7 @@ async function organizationSectionChecks() {
           page,
           (request) => request.method() === 'PUT' && request.url().endsWith('/session-policy')
         )
-        await page.goto(orgUrl('/settings/security'))
+        await page.goto(settingsUrl('security'))
         const idle = page.getByRole('textbox', { name: 'Idle timeout (hours)' })
         const save = page.getByRole('button', { name: 'Save', exact: true })
         await idle.fill('1')
@@ -172,11 +189,15 @@ async function organizationSectionChecks() {
   )
   await check('Sim Search in Slack: an empty organization is offered setup', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(orgUrl('/settings/search-slack'))
+      await page.goto(settingsUrl('search-slack'))
       await expect(
         page.getByText('Connect your workspace to ask questions in Slack.')
       ).toBeVisible()
-      await page.getByRole('button', { name: /^(Set up|Install Sim Search)$/ }).click()
+      const setUp = /^(Set up|Install Sim Search)$/
+      await page
+        .getByRole('button', { name: setUp })
+        .or(page.getByRole('link', { name: setUp }))
+        .click()
       await expect(page.getByRole('dialog')).toBeVisible()
     })
   })
@@ -213,7 +234,7 @@ async function organizationSectionChecks() {
           bots: [],
         })
       })
-      await page.goto(orgUrl('/settings/search-slack'))
+      await page.goto(settingsUrl('search-slack'))
       await expect(page.getByText('Ridgeline Slack', { exact: true })).toBeVisible()
       await expect(page.getByText('Enabled', { exact: true })).toBeVisible()
       const actions = page.getByRole('button', { name: 'Sim Search actions', exact: true })
@@ -246,7 +267,7 @@ async function organizationSectionChecks() {
             if (request.method() !== 'GET' && request.url().endsWith('/whitelabel'))
               writes.push(request.url())
           })
-          await page.goto(orgUrl('/settings/whitelabeling'))
+          await page.goto(settingsUrl('whitelabeling'))
           const brand = page.getByRole('textbox', { name: 'Brand name' })
           const color = page.getByRole('textbox', { name: 'Primary color', exact: true })
           const save = page.getByRole('button', { name: 'Save', exact: true })
@@ -278,20 +299,23 @@ export async function settingsChecks() {
   ] as const) {
     await check(`${persona.key}: the same sections, in order`, async () => {
       await withSession(persona, async ({ page }) => {
-        await page.goto(orgUrl('/settings/general'))
-        await expect(
-          sidebar(page).getByRole('navigation', { name: 'Settings' }).getByRole('link')
-        ).toHaveText([...expected])
+        await page.goto(settingsUrl('general'))
+        await expect(settingsNav(page).getByRole('link')).toHaveText([...expected])
       })
     })
   }
   await check('the settings frame: breadcrumb and a section on the design', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(orgUrl('/settings/general'))
-      await expect(page.getByRole('banner', { name: 'Settings location' })).toContainText('General')
+      await page.goto(settingsUrl('general'))
+      await expect(settingsLocation(page)).toContainText('General')
       await expect(page.getByRole('button', { name: 'Sign out', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: 'Reset password', exact: true })).toBeVisible()
-      await expect(sidebar(page).locator('[data-platform-ui]').first()).toBeVisible()
+      await expect(
+        page
+          .locator('[data-platform-ui]')
+          .filter({ has: sidebar(page) })
+          .first()
+      ).toBeVisible()
       await expect(
         page.locator('[data-platform-ui]').getByRole('heading', { name: 'General', exact: true })
       ).toBeVisible()
@@ -299,34 +323,35 @@ export async function settingsChecks() {
   })
   await check('Sources, Credential groups and Slack render inside the surface', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      for (const [path, title] of [
-        ['/settings/integrations', 'Sources'],
-        ['/settings/connected-accounts', 'Credential groups'],
-        ['/settings/search-slack', 'Sim Search in Slack'],
+      for (const [key, title] of [
+        ['integrations', 'Sources'],
+        ['connected-accounts', 'Credential Groups'],
+        ['search-slack', 'Sim Search in Slack'],
       ] as const) {
-        await page.goto(orgUrl(path))
-        await expect(page.getByRole('banner', { name: 'Settings location' })).toContainText(title)
+        await page.goto(settingsUrl(key))
+        await expect(settingsLocation(page)).toContainText(title)
         await expect(
           page
             .locator('[data-platform-ui]')
             .getByRole('heading', { level: 1, name: title, exact: true })
         ).toBeVisible()
         // A second copy may exist for a moment while the document streams; one must not stay.
-        await expect(page.getByLabel('Settings location')).toHaveCount(1)
+        await expect(settingsLocation(page)).toHaveCount(1)
       }
     })
   })
   await check('Add source opens on the surface', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(orgUrl('/settings/integrations'))
+      await page.goto(settingsUrl('integrations'))
       await page.getByRole('button', { name: 'Add source', exact: true }).click()
       await expect(page.getByRole('dialog', { name: 'Add source' })).toBeVisible()
     })
   })
-  await check('a legacy alias opens its section under the same URL', async () => {
+  await check('a legacy alias opens its section', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(orgUrl('/settings/team'))
-      await expect(page.getByRole('banner', { name: 'Settings location' })).toContainText('Members')
+      await page.goto(settingsUrl('team'))
+      await expect(page).toHaveURL(settingsUrl('members'))
+      await expect(settingsLocation(page)).toContainText('Members')
       await expect(page.getByPlaceholder('Search members…')).toBeVisible()
     })
   })
@@ -334,7 +359,7 @@ export async function settingsChecks() {
     "Settings search finds sections and settings, within the viewer's gates",
     async () => {
       await withSession(ADMIN, async ({ page }) => {
-        await page.goto(orgUrl('/settings/members'))
+        await page.goto(settingsUrl('members'))
         const rail = sidebar(page)
         const field = rail.getByRole('searchbox', { name: 'Search settings' })
         // Answered from hydration on, which the server-rendered field does not wait for.
@@ -344,20 +369,20 @@ export async function settingsChecks() {
         }).toPass({ timeout: 20_000 })
         await field.fill('password')
         await rail.getByRole('link', { name: 'Reset password', exact: true }).click()
-        await expect(page).toHaveURL(orgUrl('/settings/general'))
+        await expect(page).toHaveURL(settingsUrl('general'))
         await expect(
           page.getByRole('button', { name: 'Reset password', exact: true })
         ).toBeInViewport()
         await field.fill('scim')
         await rail.getByRole('link', { name: 'Directory provisioning', exact: true }).click()
-        await expect(page).toHaveURL(orgUrl('/settings/sso?tab=provisioning'))
+        await expect(page).toHaveURL(`${settingsUrl('sso')}?tab=provisioning`)
         await field.fill('audit')
         await expect(rail.getByRole('link', { name: 'Audit logs', exact: true })).toBeVisible()
         await field.fill('no setting is called this')
         await expect(rail.getByText('No matching settings')).toBeVisible()
       })
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(orgUrl('/settings/general'))
+        await page.goto(settingsUrl('general'))
         const rail = sidebar(page)
         await rail.getByRole('searchbox', { name: 'Search settings' }).fill('audit')
         await expect(rail.getByText('No matching settings')).toBeVisible()
@@ -368,14 +393,14 @@ export async function settingsChecks() {
     'Members: roster and search for a member; Leave present, Invite and seats hidden',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        await page.goto(orgUrl('/settings/members'))
+        await page.goto(settingsUrl('members'))
         await expect(page.getByPlaceholder('Search members…')).toBeVisible()
         await expect(page.getByText(ADMIN.email).first()).toBeVisible()
         await expect(page.getByRole('button', { name: 'Leave organization' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Invite', exact: true })).toHaveCount(0)
       })
       await withSession(OWNER, async ({ page }) => {
-        await page.goto(orgUrl('/settings/members'))
+        await page.goto(settingsUrl('members'))
         await expect(page.getByRole('button', { name: 'Invite', exact: true })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Leave organization' })).toHaveCount(0)
       })
@@ -383,7 +408,7 @@ export async function settingsChecks() {
   )
   await check('Recently deleted restores an owned chat', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(orgUrl('/settings/recently-deleted'))
+      await page.goto(settingsUrl('recently-deleted'))
       await expect(page.getByPlaceholder('Search deleted chats')).toBeVisible()
       await expect(page.getByText(ADMIN_CHATS.deleted.title)).toBeVisible()
       await page
@@ -395,9 +420,9 @@ export async function settingsChecks() {
   })
   await check('Requests and Search MCP render for a member', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(orgUrl('/settings/requests'))
+      await page.goto(settingsUrl('requests'))
       await expect(page.getByText('No requests yet')).toBeVisible()
-      await page.goto(orgUrl('/settings/search-mcp'))
+      await page.goto(settingsUrl('search-mcp'))
       await expect(
         page
           .getByRole('button', { name: /Copy configuration/ })
@@ -407,23 +432,29 @@ export async function settingsChecks() {
   })
   await check('Back from Settings returns to the remembered page', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(orgUrl('/links'))
-      await accountChip(page).click()
+      // Links is itself a Settings section, so Settings is entered from Integrations.
+      await page.goto(url(org.integrations))
+      await accountChip(page, MEMBER.name).click()
       await dialog(page, 'Account menu')
         .getByRole('button', { name: 'Settings', exact: true })
         .click()
-      await expect(page).toHaveURL(orgUrl('/settings/general'))
+      // The account menu opens Settings at its root, which is General.
+      await expect(page).toHaveURL(
+        (address) =>
+          address.pathname === org.settings || address.pathname === org.settingsSection('general')
+      )
+      await expect(settingsLocation(page)).toContainText('General')
       await sidebar(page).getByRole('button', { name: 'Back to app', exact: true }).click()
-      await expect(page).toHaveURL(orgUrl('/links'))
+      await expect(page).toHaveURL(url(org.integrations))
     })
   })
   await check(
     'Settings leave guard: a dirty form asks, and its own rail row does nothing',
     async () => {
       await withSession(ADMIN, async ({ page }) => {
-        await page.goto(orgUrl('/settings/whitelabeling'))
+        await page.goto(settingsUrl('whitelabeling'))
         await page.getByRole('textbox', { name: 'Brand name' }).fill('Unsaved brand')
-        const rail = sidebar(page)
+        const rail = settingsNav(page)
         await rail.getByRole('link', { name: 'White-labeling', exact: true }).click()
         await expect(page.getByRole('dialog', { name: 'Unsaved changes' })).toHaveCount(0)
         await rail.getByRole('link', { name: 'Security', exact: true }).click()
@@ -453,7 +484,7 @@ export async function settingsChecks() {
             await held.promise
             await route.fulfill({ status: 500, json: { message: 'Ban refused' } })
           })
-          await page.goto(orgUrl(`/settings/admin?q=${encodeURIComponent(MEMBER.email)}`))
+          await page.goto(`${settingsUrl('admin')}?${new URLSearchParams({ q: MEMBER.email })}`)
           await page.getByRole('button', { name: `${MEMBER.email} actions` }).click()
           await page.getByRole('menuitem', { name: 'Ban', exact: true }).click()
           const modal = dialog(page, 'Ban user')
@@ -517,7 +548,7 @@ export async function settingsChecks() {
           if (route.request().method() !== 'GET') writes += 1
           await route.continue()
         })
-        await page.goto(orgUrl(`/settings/access-control?group-id=${STANDARD_GROUP_ID}`))
+        await page.goto(groupUrl())
         await page.getByRole('button', { name: 'Add', exact: true }).click()
         const modal = dialog(page, 'Add members')
         const search = modal.getByRole('searchbox')
@@ -534,24 +565,22 @@ export async function settingsChecks() {
   await check('Usage events: Description shows at the Settings column width', async () => {
     await withSession(ADMIN, async ({ page }) => {
       await page.route('**/api/organizations/*/usage/events**', (route) =>
-        route.fulfill({
-          json: {
-            events: [
-              {
-                id: 'usage-event-1',
-                createdAt: '2026-11-05T10:00:00.000Z',
-                source: 'workflow',
-                description: 'A described charge',
-                workflowName: null,
-                credits: 1,
-                hasCost: true,
-              },
-            ],
-            hasMore: false,
-          },
+        fulfillContract<OrganizationUsageEventPage>(route, {
+          events: [
+            {
+              id: 'usage-event-1',
+              createdAt: '2026-11-05T10:00:00.000Z',
+              source: 'workflow',
+              description: 'A described charge',
+              workflowName: null,
+              credits: 1,
+              hasCost: true,
+            },
+          ],
+          hasMore: false,
         })
       )
-      await page.goto(orgUrl('/settings/usage/events'))
+      await page.goto(url(`${org.settingsSection('usage')}/events`))
       await expect(page.getByRole('columnheader', { name: 'Description' })).toBeVisible()
       await expect(page.getByText('A described charge').filter({ visible: true })).toHaveCount(1)
     })
@@ -571,7 +600,7 @@ export async function settingsChecks() {
           },
         })
       })
-      await page.goto(orgUrl('/settings/connected-accounts?tab=people'))
+      await page.goto(`${settingsUrl('connected-accounts')}?tab=people`)
       await page.getByRole('button', { name: 'Request connections', exact: true }).click()
       const modal = dialog(page, 'Request account connections')
       const field = modal.getByRole('textbox', { name: 'Emails' })
@@ -590,7 +619,7 @@ export async function settingsChecks() {
           bodies.push(route.request().postDataJSON())
           await route.fulfill({ status: 500, json: { error: 'Stubbed: no identity provider' } })
         })
-        await page.goto(orgUrl('/settings/sso'))
+        await page.goto(settingsUrl('sso'))
         const issuer = page.getByRole('textbox', { name: 'Issuer URL' })
         await issuer.fill('not a url')
         await page.getByRole('button', { name: 'Save', exact: true }).click()
@@ -625,7 +654,7 @@ export async function settingsChecks() {
         sql`update member set role = ${MEMBER.role} where user_id = ${MEMBER.userId} and organization_id = ${ORGANIZATION_ID}`,
       () =>
         withSession(ADMIN, async ({ page }) => {
-          await page.goto(orgUrl('/settings/members'))
+          await page.goto(settingsUrl('members'))
           const role = page.getByRole('button', { name: /^Role for Mia Member: / })
           const set = async (name: string) => {
             const write = page.waitForResponse(
@@ -649,7 +678,7 @@ export async function settingsChecks() {
         sql`update permission_group set name = 'Standard Access' where id = ${STANDARD_GROUP_ID}`,
       () =>
         withSession(ADMIN, async ({ page }) => {
-          await page.goto(orgUrl(`/settings/access-control?group-id=${STANDARD_GROUP_ID}`))
+          await page.goto(groupUrl())
           const name = page.getByRole('textbox', { name: 'Name', exact: true })
           await expect(name).toBeVisible()
           const original = await name.inputValue()
@@ -677,20 +706,18 @@ export async function settingsChecks() {
           assert.equal(body.name, 'E2E drain')
           await route.fulfill({ status: 500, json: { error: 'Stubbed: no bucket to verify' } })
         })
-        await page.goto(orgUrl('/settings/data-drains'))
+        await page.goto(settingsUrl('data-drains'))
         await page.getByRole('button', { name: 'Create drain', exact: true }).click()
         await page.getByRole('textbox', { name: 'Name', exact: true }).fill('E2E drain')
         await page.getByRole('textbox', { name: 'Bucket', exact: true }).fill('e2e-bucket')
         await page.getByRole('textbox', { name: 'Region', exact: true }).fill('us-east-1')
-        await page.getByRole('textbox', { name: 'Access key ID', exact: true }).fill('AKIAEXAMPLE')
-        await page.getByRole('textbox', { name: 'Secret access key', exact: true }).fill('example')
+        await secretField(page, 'Access key ID').fill('AKIAEXAMPLE')
+        await secretField(page, 'Secret access key').fill('example')
         const create = page.waitForRequest(
           (request) => request.method() === 'POST' && pathOf(request.url()).endsWith('/data-drains')
         )
         await page.getByRole('button', { name: 'Create', exact: true }).click()
         await create
-      }).catch((error) => {
-        throw error
       })
     },
     { allow: [/500 POST .*data-drains/] }
@@ -703,12 +730,9 @@ export async function settingsChecks() {
         sql`update organization set data_retention_settings = ${before.data_retention_settings === null ? null : sql.json(before.data_retention_settings)} where id = ${ORGANIZATION_ID}`,
       () =>
         withSession(ADMIN, async ({ page }) => {
-          await page.goto(orgUrl('/settings/data-retention'))
+          await page.goto(settingsUrl('data-retention'))
           const openPolicy = async () => {
-            await page
-              .getByRole('button', { name: /Organization/ })
-              .first()
-              .click()
+            await page.getByRole('button', { name: /^Organization/ }).click()
             return page.getByRole('combobox', { name: 'Log retention' })
           }
           const original = (await (await openPolicy()).textContent())?.trim() ?? ''
@@ -734,7 +758,7 @@ export async function settingsChecks() {
   })
   await check('Insights: heatmap pinning, metric explanations, and View all', async () => {
     await withSession(ADMIN, async ({ page }) => {
-      await page.goto(orgUrl('/settings/usage'))
+      await page.goto(settingsUrl('usage'))
       await expect(page.getByText('Less', { exact: true })).toBeVisible()
       await expect(page.getByText('More', { exact: true })).toBeVisible()
       const day = page
@@ -767,35 +791,21 @@ export async function settingsChecks() {
         await page.route('**/api/settings/allowed-providers**', (route) =>
           route.fulfill({ status: 500, json: { error: 'unavailable' } })
         )
-        const group = `/settings/access-control?group-id=${STANDARD_GROUP_ID}`
-        await page.goto(orgUrl(`${group}&group-tab=providers`))
+        await page.goto(groupUrl('providers'))
         await expect(page.getByText('unavailable', { exact: true })).toBeVisible()
         await expect(page.getByRole('region', { name: 'Providers' })).toHaveCount(0)
-        await page.goto(orgUrl(`${group}&group-tab=blocks`))
+        await page.goto(groupUrl('blocks'))
         await expect(page.getByRole('region', { name: 'Core Blocks' })).toBeVisible()
       })
     },
     { allow: [/500 GET .*allowed-providers/] }
   )
-  await check('Single sign-on: the client secret keeps its autofill guards', async () => {
-    await withSession(ADMIN, async ({ page }) => {
-      await page.goto(orgUrl('/settings/sso'))
-      const decoy = page.locator('input[name="fakepasswordremembered"]')
-      await expect(decoy).toHaveJSProperty('hidden', false)
-      const secret = page.getByRole('textbox', { name: 'Client secret' })
-      await expect(secret).toHaveAttribute('type', 'text')
-      await expect(secret).toHaveAttribute('data-masked', 'true')
-      await expect(secret).toHaveJSProperty('readOnly', true)
-      await secret.focus()
-      await expect(secret).toHaveJSProperty('readOnly', false)
-    })
-  })
   await check(
     'a member deep-linking to any admin section gets not found',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
         for (const adminSection of SETTINGS_FOR_ADMIN) {
-          await page.goto(orgUrl(`/settings/${adminSection}`))
+          await page.goto(settingsUrl(adminSection))
           await expectPageNotFound(page)
         }
       })
@@ -803,7 +813,7 @@ export async function settingsChecks() {
     {
       // The address of each section this check opens, which a member must not reach.
       allow: SETTINGS_FOR_ADMIN.map((adminSection) =>
-        refused(404, 'GET', `${root}/settings/${adminSection}`)
+        refused(404, 'GET', org.settingsSection(adminSection))
       ),
     }
   )

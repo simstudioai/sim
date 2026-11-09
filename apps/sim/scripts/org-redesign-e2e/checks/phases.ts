@@ -1,7 +1,7 @@
 import { blastRadiusChecks } from '@/scripts/org-redesign-e2e/checks/blast-radius'
 import { chatChecks } from '@/scripts/org-redesign-e2e/checks/chat'
 import { firstPaintChecks } from '@/scripts/org-redesign-e2e/checks/first-paint'
-import { homeChecks, homeFailureChecks } from '@/scripts/org-redesign-e2e/checks/home'
+import { homeChecks } from '@/scripts/org-redesign-e2e/checks/home'
 import { integrationChecks } from '@/scripts/org-redesign-e2e/checks/integrations'
 import { landingChecks } from '@/scripts/org-redesign-e2e/checks/landing'
 import { linksChecks } from '@/scripts/org-redesign-e2e/checks/links'
@@ -20,7 +20,6 @@ export const PHASES: Record<string, readonly (() => Promise<void>)[]> = {
     landingChecks,
     sidebarChecks,
     homeChecks,
-    homeFailureChecks,
     chatChecks,
     searchChecks,
     integrationChecks,

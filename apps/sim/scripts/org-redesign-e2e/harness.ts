@@ -19,6 +19,7 @@ import { sleep } from '@sim/utils/helpers'
 import { escapeRegExp, truncate } from '@sim/utils/string'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { ADMIN, type EVERYONE, ORGANIZATION_ID } from '@/scripts/org-redesign-e2e/fixture'
 
 /**
@@ -51,9 +52,11 @@ const reportPath = resolve(requiredEnvironment('ORG_REDESIGN_E2E_REPORT_PATH'))
 export const phase = process.env.ORG_REDESIGN_E2E_PHASE ?? 'main'
 export const artifactDirectory = `${reportPath}.artifacts`
 export const sql = postgres(databaseUrl.toString(), { max: 2 })
-export const root = `/o/${ORGANIZATION_ID}`
+/** Every route of the suite's organization, from the one builder the product's links use. */
+export const org = organizationRoutes(ORGANIZATION_ID)
 export const url = (path: string) => `${origin}${path}`
-export const orgUrl = (path: string) => url(`${root}${path}`)
+/** A path under the organization root that has no route builder, such as `/access-requests`. */
+export const orgUrl = (path: string) => url(`${org.root}${path}`)
 
 export type Persona = (typeof EVERYONE)[number]
 type Status = 'passed' | 'failed' | 'skipped'
@@ -516,7 +519,7 @@ export async function onHome(
   await withSession(
     persona,
     async (session) => {
-      await session.page.goto(orgUrl('/home'))
+      await session.page.goto(url(org.home))
       await run(session)
     },
     options

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import type { Page } from '@playwright/test'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { sleep } from '@sim/utils/helpers'
+import { organizationRoutes, simLinkPath } from '@/lib/navigation/paths'
 import {
   ADMIN,
   LINK_COUNT,
@@ -14,10 +15,9 @@ import {
 import {
   check,
   expect,
-  orgUrl,
+  org,
   PHONE,
   refused,
-  root,
   section,
   sql,
   url,
@@ -29,14 +29,15 @@ import {
   assertNoHorizontalOverflow,
   clipboard,
   dialog,
-  mainNav,
   menuEntry,
   pageTurn,
   routePrefetched,
+  sidebar,
 } from '@/scripts/org-redesign-e2e/locators'
 
 export async function linksChecks() {
-  const linksUrl = orgUrl('/links')
+  /** Links is a Settings section; `/links` only redirects here. */
+  const linksUrl = url(org.simLinks)
   const rowFor = (page: Page, name: string) =>
     page.getByRole('row').filter({ has: page.getByText(name, { exact: true }) })
   const search = (page: Page) => page.getByRole('searchbox', { name: 'Search links' })
@@ -101,7 +102,7 @@ export async function linksChecks() {
         await expect(
           row.getByText(NAMED_LINKS.restricted.description, { exact: true }).first()
         ).toBeVisible()
-        await expect(row.getByText(/^Restricted · /)).toBeVisible()
+        await expect(row.getByText('Restricted', { exact: true })).toBeVisible()
         const columns = await page.getByRole('columnheader').allInnerTexts()
         assert(!columns.join().includes('Created by'), `Columns ${columns}`)
         const [nameCell, list] = [
@@ -208,7 +209,7 @@ export async function linksChecks() {
           page.getByRole('menu', { name: 'Link actions' }).getByRole('menuitem')
         ).toHaveText(['Open', 'Copy link', 'Edit', 'Delete'])
         await menuEntry(page, 'Copy link').click()
-        await expect.poll(() => clipboard(page)).toBe(url(`/sim/${NAMED_LINKS.handbook.name}`))
+        await expect.poll(() => clipboard(page)).toBe(url(simLinkPath(NAMED_LINKS.handbook.name)))
         await expect(page.getByText('Link copied')).toBeVisible()
         await row.getByRole('button', { name: `${NAMED_LINKS.handbook.name} actions` }).click()
         await expect(menuEntry(page, 'Edit')).toBeVisible()
@@ -300,7 +301,9 @@ export async function linksChecks() {
             await expect(page).toHaveURL((address) => !address.searchParams.has('create'))
             await search(page).fill('parts-lookup')
             await expect(rowFor(page, 'parts-lookup')).toBeVisible()
-            const opened = await page.request.get(url('/sim/parts-lookup/123'), { maxRedirects: 0 })
+            const opened = await page.request.get(url(simLinkPath('parts-lookup', '123')), {
+              maxRedirects: 0,
+            })
             assert.equal(opened.headers().location, 'https://parts.example.com/123')
           })
       ),
@@ -313,9 +316,11 @@ export async function linksChecks() {
       await expect(modal.getByRole('textbox', { name: 'Name' })).toHaveValue('brand-new')
       await modal.getByRole('button', { name: 'Cancel', exact: true }).click()
       await expect(page).toHaveURL((address) => !address.searchParams.has('create'))
-      await page.goto(url('/sim/brand-new'))
+      await page.goto(url(simLinkPath('brand-new')))
       await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
-      await expect(page.locator(`a[href*="links?create=brand-new"]`).first()).toBeVisible()
+      const offer = page.getByRole('link', { name: 'Create link', exact: true })
+      await expect(offer).toBeVisible()
+      await expect(offer).toHaveAttribute('href', `${org.simLinks}?create=brand-new`)
     })
   })
   await check('a validation problem shows on its field, and the modal holds while saving', () =>
@@ -375,7 +380,9 @@ export async function linksChecks() {
           await modal.getByRole('button', { name: 'Delete', exact: true }).click()
           await expect(modal).toHaveCount(0)
           await expect(rowFor(page, 'removable-link')).toHaveCount(0)
-          const opened = await page.request.get(url('/sim/removable-link'), { maxRedirects: 0 })
+          const opened = await page.request.get(url(simLinkPath('removable-link')), {
+            maxRedirects: 0,
+          })
           assert.notEqual(opened.headers().location, 'https://removable.example.com')
         })
     )
@@ -386,17 +393,20 @@ export async function linksChecks() {
       await withSession(MEMBER, async ({ page }) => {
         const hold = createDeferred<void>()
         const isLinksPayload = (address: URL) =>
-          address.pathname === `${root}/links` && address.searchParams.has('_rsc')
+          address.pathname === org.simLinks && address.searchParams.has('_rsc')
         // Only the click's own read: the router shows the loading state from what a prefetch delivered.
         await page.route(isLinksPayload, async (route) => {
           if (route.request().headers()['next-router-prefetch'] === undefined) await hold.promise
           await route.continue()
         })
         const prefetched = routePrefetched(page, isLinksPayload)
-        await page.goto(orgUrl('/home'))
-        await mainNav(page).getByRole('link', { name: 'Links', exact: true }).hover()
+        await page.goto(url(org.settingsSection('general')))
+        const entry = sidebar(page)
+          .getByRole('navigation', { name: 'Settings' })
+          .getByRole('link', { name: 'Links', exact: true })
+        await entry.hover()
         await prefetched()
-        await mainNav(page).getByRole('link', { name: 'Links', exact: true }).click()
+        await entry.click()
         await expect(page.getByRole('status', { name: 'Loading links' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'New link', exact: true })).toBeVisible()
         hold.resolve()
@@ -413,7 +423,7 @@ export async function linksChecks() {
         })
       })
       await withSession(OUTSIDER, async ({ page }) => {
-        await page.goto(url(`/o/${OUTSIDE_ORGANIZATION_ID}/links`))
+        await page.goto(url(organizationRoutes(OUTSIDE_ORGANIZATION_ID).simLinks))
         await expect(page.getByText('Create short links like handbook')).toBeVisible()
         await page.getByRole('button', { name: 'New link', exact: true }).last().click()
         await expect(dialog(page, 'New link')).toBeVisible()
