@@ -28,7 +28,6 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminBadRequestResponse,
-  adminInternalErrorResponse,
   adminInvalidJsonResponse,
   adminNotFoundResponse,
   adminValidationErrorResponse,
