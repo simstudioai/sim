@@ -4,17 +4,18 @@ type PlatformMode = 'fixture' | 'live' | 'none'
 
 /**
  * Where this server's data comes from, read once per request by each server entry. Fixtures win so
- * a design session stays on its examples even with an API origin in its environment. With neither,
- * routes render their empty fixture-off states.
+ * a design session stays on its examples even with a database in its environment. Live reads run the
+ * application's use cases in process, so they need its database. With neither, routes render their
+ * empty fixture-off states.
  */
 export function resolvePlatformMode(): PlatformMode {
   if (process.env.SIM_PLATFORM_FIXTURES === '1') return 'fixture'
-  return process.env.SIM_PLATFORM_API_ORIGIN ? 'live' : 'none'
+  return process.env.DATABASE_URL ? 'live' : 'none'
 }
 
 /**
  * A production zone behind the rewrite serves only live data: fixtures there would show examples to
- * anyone with no login, and with no API origin its routes render with no gate at all.
+ * anyone with no login, and with no database its routes render with no gate at all.
  */
 export function assertDeployableMode() {
   if (process.env.NODE_ENV !== 'production') return

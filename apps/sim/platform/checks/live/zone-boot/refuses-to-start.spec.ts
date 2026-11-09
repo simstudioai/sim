@@ -9,6 +9,8 @@ import { expect, test } from '@playwright/test'
  */
 const PORT = 3035
 const ORIGIN = `http://127.0.0.1:${PORT}`
+/** Only its presence decides the mode; nothing this suite requests reads it. */
+const DATABASE = 'postgresql://127.0.0.1:5432/sim'
 
 let running: ChildProcess | undefined
 
@@ -29,7 +31,7 @@ function startZone(env: Record<string, string>) {
       env: {
         ...process.env,
         NODE_ENV: 'production',
-        SIM_PLATFORM_API_ORIGIN: undefined,
+        DATABASE_URL: undefined,
         SIM_PLATFORM_FIXTURES: undefined,
         SIM_PLATFORM_BASE_PATH: '/org',
         ...env,
@@ -54,7 +56,7 @@ test.afterEach(async () => {
   await exited
 })
 
-test('a production zone with no API origin refuses to start', async () => {
+test('a production zone with no database refuses to start', async () => {
   const { exitCode, output } = startZone({})
   expect(await exitCode).toBe(1)
   expect(output.join('')).toMatch(/its data mode is \\?"none\\?"/)
@@ -62,15 +64,15 @@ test('a production zone with no API origin refuses to start', async () => {
 
 test('a production zone on fixtures refuses to start', async () => {
   const { exitCode, output } = startZone({
-    SIM_PLATFORM_API_ORIGIN: 'http://127.0.0.1:3027',
+    DATABASE_URL: DATABASE,
     SIM_PLATFORM_FIXTURES: '1',
   })
   expect(await exitCode).toBe(1)
   expect(output.join('')).toMatch(/its data mode is \\?"fixture\\?"/)
 })
 
-test('a production zone with an API origin starts under the same command', async () => {
-  const { output } = startZone({ SIM_PLATFORM_API_ORIGIN: 'http://127.0.0.1:3027' })
+test('a production zone with a database starts under the same command', async () => {
+  const { output } = startZone({ DATABASE_URL: DATABASE })
   await expect
     .poll(
       async () => {

@@ -1,22 +1,15 @@
 import 'server-only'
-import { isApiClientError } from '@/lib/api/client/errors'
-import { getMothershipChatContract } from '@/lib/api/contracts/mothership-chats'
-import { serverRequestJson } from '@/platform/lib/data/server-request'
+import type { ConversationMode } from '@/lib/mothership/chat/intent'
+import { getAccessibleCopilotChatAuth } from '@/lib/mothership/chat/lifecycle'
+import { requireSessionViewer } from '@/platform/lib/data/server-read'
 
 /**
- * Whether the viewer may open a chat, and in which mode. The chat API answers 404 outside the
- * viewer's access, so this read is the authorization; any other failure propagates to the error
+ * Whether the viewer may open a chat, and in which mode. This is the chat route's own access check:
+ * a chat outside the viewer's access is `null`, and any other failure propagates to the error
  * boundary rather than rendering an empty chat.
  */
-export async function readChatMode(chatId: string): Promise<'agent' | 'assistant' | 'plan' | null> {
-  try {
-    const { chat } = await serverRequestJson(getMothershipChatContract, {
-      params: { chatId },
-      query: {},
-    })
-    return chat.mode
-  } catch (error) {
-    if (isApiClientError(error) && (error.status === 404 || error.status === 403)) return null
-    throw error
-  }
+export async function readChatMode(chatId: string): Promise<ConversationMode | null> {
+  const { principal } = await requireSessionViewer()
+  const chat = await getAccessibleCopilotChatAuth(chatId, principal.userId, { principal })
+  return chat?.mode ?? null
 }

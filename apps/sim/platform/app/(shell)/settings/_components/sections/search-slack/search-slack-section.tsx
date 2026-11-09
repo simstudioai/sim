@@ -3,7 +3,7 @@ import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_comp
 import { SlackConnections } from '@/platform/app/(shell)/settings/_components/sections/search-slack/slack-connections'
 import { loadSlackSettings } from '@/platform/fixtures'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
-import { readSlackConnections, readSlackManifest } from '@/platform/lib/data/settings-slack'
+import { readSlackManifest } from '@/platform/lib/data/settings-slack'
 import { readScenario } from '@/platform/lib/navigation'
 
 export default async function SearchSlackSection({ organization, query }: SettingsSectionProps) {
@@ -11,7 +11,9 @@ export default async function SearchSlackSection({ organization, query }: Settin
   const fixture = await loadSlackSettings(readScenario(query.state))
   const inventory =
     fixture?.inventory ??
-    (await readSlackConnections(organization.organization.id).catch(() => null))
+    (await import('@/platform/lib/data/slack-connections').then(({ readSlackConnections }) =>
+      readSlackConnections(organization.organization.id).catch(() => null)
+    ))
   const origin = fixture?.origin ?? organization.legacyOrigin
   return (
     <SlackConnections

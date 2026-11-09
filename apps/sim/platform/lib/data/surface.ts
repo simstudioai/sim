@@ -1,11 +1,12 @@
 import 'server-only'
 import { cache } from 'react'
 import { createLogger } from '@sim/logger'
-import { isApiClientError } from '@/lib/api/client/errors'
 import { getOrganizationSurfaceContract } from '@/lib/api/contracts/organization'
+import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { readOrganizationSurface as readOrganizationSurfaceUseCase } from '@/lib/organizations/application/surface'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { serverRequestJson } from '@/platform/lib/data/server-request'
+import { asRouteResponse, readSessionViewer } from '@/platform/lib/data/server-read'
 
 const logger = createLogger('PlatformSurface')
 
@@ -14,23 +15,34 @@ type OrganizationSurfaceResult =
   | { status: 'unauthenticated' | 'denied' | 'unavailable' }
 
 /**
- * The viewer's organization surface, shared by the layout and every page under it in one request.
- * `unavailable` is a failed read, which must never render as an empty organization.
+ * The viewer's surface in `organizationId`, or in their landing organization when none is named,
+ * shared by the layout and every page under it in one request. An organization the viewer does not
+ * belong to is `denied`. `unavailable` is a failed read, which must never render as an empty
+ * organization.
  */
-export const readOrganizationSurface = cache(async (): Promise<OrganizationSurfaceResult> => {
-  try {
-    const surface = await serverRequestJson(getOrganizationSurfaceContract, {})
-    return {
-      status: 'ok',
-      organization: { ...surface, legacyOrigin: getBaseUrl(), routePrefix: '' },
+export const readOrganizationSurface = cache(
+  async (organizationId?: string): Promise<OrganizationSurfaceResult> => {
+    try {
+      const viewer = await readSessionViewer()
+      if (!viewer) return { status: 'unauthenticated' }
+      const surface = await asRouteResponse(
+        getOrganizationSurfaceContract,
+        await readOrganizationSurfaceUseCase.execute({
+          principal: viewer.principal,
+          input: { organizationId },
+        })
+      )
+      return {
+        status: 'ok',
+        organization: { ...surface, legacyOrigin: getBaseUrl(), routePrefix: '' },
+      }
+    } catch (error) {
+      if (error instanceof OrganizationMembershipNotFoundError) return { status: 'denied' }
+      logger.error('Could not read the organization surface', { error })
+      return { status: 'unavailable' }
     }
-  } catch (error) {
-    if (isApiClientError(error) && error.status === 401) return { status: 'unauthenticated' }
-    if (isApiClientError(error) && error.status === 403) return { status: 'denied' }
-    logger.error('Could not read the organization surface', { error })
-    return { status: 'unavailable' }
   }
-})
+)
 
 /**
  * A main-app URL for a server redirect. Same origin as this page once deployed, but `redirect()`
