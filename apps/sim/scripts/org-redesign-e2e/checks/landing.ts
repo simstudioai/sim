@@ -84,20 +84,20 @@ export async function landingChecks() {
     })
   })
   await check(
-    "a member's agent chat lands on Search unread, and renders for an admin",
+    "a member's agent chat lands on Search or is not found, unread, and renders for an admin",
     async () => {
       await withSession(MEMBER, async (session) => {
         const { page } = session
         const transcript = page.getByText(`Here is what I found about ${MEMBER_CHATS.agent.title}.`)
-        for (const path of [
-          org.chat(MEMBER_CHATS.agent.id),
-          org.searchChat(MEMBER_CHATS.agent.id),
-        ]) {
-          await page.goto(url(path))
-          await expect(page).toHaveURL(landsOnSearch)
-          await expect(searchField(page)).toBeVisible()
-          await expect(transcript).toHaveCount(0)
-        }
+        // Agent routes send a member who cannot build to Search before any chat is read.
+        await page.goto(url(org.chat(MEMBER_CHATS.agent.id)))
+        await expect(page).toHaveURL(landsOnSearch)
+        await expect(searchField(page)).toBeVisible()
+        await expect(transcript).toHaveCount(0)
+        // Search only opens assistant chats, so an agent chat there is absent, as in legacy.
+        await page.goto(url(org.searchChat(MEMBER_CHATS.agent.id)))
+        await expectPageNotFound(page)
+        await expect(transcript).toHaveCount(0)
         await withRestore(
           () =>
             sql`update copilot_chats set last_seen_at = now() where id = ${MEMBER_CHATS.agent.id}`,
@@ -117,6 +117,10 @@ export async function landingChecks() {
           page.getByText(`Here is what I found about ${ADMIN_CHATS.agent.title}.`)
         ).toBeVisible()
       })
+    },
+    {
+      // The member's own agent chat, which Search does not open.
+      allow: [refused(404, 'GET', org.searchChat(MEMBER_CHATS.agent.id))],
     }
   )
   await check(
