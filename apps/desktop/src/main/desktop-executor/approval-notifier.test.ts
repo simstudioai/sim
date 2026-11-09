@@ -82,6 +82,15 @@ describe('approval notifications', () => {
     expect(opened).toEqual(['/o/org-1/chat/chat-b'])
   })
 
+  it('opens a workspace chat from before the organization cutover at its workspace route', () => {
+    const { notifier, notifications, opened } = harness()
+
+    notifier.update([{ ...approval('call-1'), organizationId: null, workspaceId: 'ws-1' }])
+    notifications[0]?.click()
+
+    expect(opened).toEqual(['/workspace/ws-1/chat/chat-b'])
+  })
+
   it('closes the notification once the call is decided', () => {
     const { notifier, notifications } = harness()
     notifier.update([approval('call-1')])
