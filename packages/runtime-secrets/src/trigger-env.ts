@@ -26,6 +26,9 @@ const TRIGGER_OWNED_KEYS: ReadonlySet<string> = new Set([
   'REDIS_TLS_SERVERNAME',
   // A VPC-internal base URL is unreachable from Trigger.dev's cloud.
   'INTERNAL_API_BASE_URL',
+  // The app dials an egress gateway through the VPC load balancer; workers dial it through their
+  // own endpoint, so each gateway's `url` differs. The credentials and routing source are shared.
+  'OUTBOUND_GATEWAYS',
   // Schema-migration credential: runs never migrate, so they never hold it.
   'MIGRATION_DATABASE_URL',
   // `syncEnvVars` refuses to sync it, so it can only ever be set by hand.
