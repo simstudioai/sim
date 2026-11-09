@@ -1,5 +1,0 @@
-.details {
-  display: grid;
-  min-inline-size: 0;
-  gap: var(--ui-widget-content-gap);
-}

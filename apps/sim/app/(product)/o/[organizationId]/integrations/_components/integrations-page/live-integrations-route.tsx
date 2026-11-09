@@ -8,6 +8,12 @@ import { readIntegrationLinks } from '@/platform/lib/data/integration-links'
 import { integrationsMode } from '@/platform/lib/data/integrations-mode'
 import { prefetchIntegrations } from '@/platform/lib/data/prefetch-integrations'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
+import {
+  appPagePath,
+  findWorkspaceApp,
+  readIntegrationsWorkspaceScope,
+  toAppSummaries,
+} from '@/platform/lib/data/workspace-integrations'
 
 interface LiveIntegrationsRouteProps {
   /** The `/integrations/[provider]` segment; absent on the index. */
@@ -20,8 +26,8 @@ interface LiveIntegrationsRouteProps {
 }
 
 /**
- * The member's own connections, the same page the organization surface embeds; an organization
- * without member-scoped accounts serves its viewer's workspace credentials and skills instead.
+ * The member's own connections beside one workspace's catalog, credentials and skills; an
+ * organization without member-scoped accounts serves only the workspace's.
  */
 export async function LiveIntegrationsRoute({ section, searchParams }: LiveIntegrationsRouteProps) {
   const surface = await readOrganizationSurface()
@@ -42,11 +48,21 @@ export async function LiveIntegrationsRoute({ section, searchParams }: LiveInteg
     section || !searchParams ? undefined : await readIntegrationLinks(organization, searchParams)
   if (links?.kind === 'invalid') notFound()
   if (links?.kind === 'redirect') redirect(links.href)
+  const [{ workspaces, workspace, apps }, state] = await Promise.all([
+    readIntegrationsWorkspaceScope(organizationId, searchParams?.workspace),
+    prefetchIntegrations(organization),
+  ])
+  const workspaceDetail = section ? findWorkspaceApp(apps, section) : undefined
+  // A legacy link names an app by its kebab-case slug; member segments never take that form.
+  if (workspaceDetail && section === workspaceDetail.slug && section !== workspaceDetail.id)
+    redirect(appPagePath(organization, workspaceDetail.id, searchParams))
   return (
-    <HydrationBoundary state={await prefetchIntegrations(organization)}>
+    <HydrationBoundary state={state}>
       <IntegrationsRoute
         organizationId={organizationId}
         section={section}
+        workspace={{ workspaces, workspaceId: workspace?.id ?? null, apps: toAppSummaries(apps) }}
+        workspaceDetail={workspaceDetail}
         connectionRequest={
           links?.connectionTarget && (
             <SearchConnectionRequest
