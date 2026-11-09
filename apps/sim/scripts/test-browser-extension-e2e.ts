@@ -80,6 +80,8 @@ const checks: {
 }[] = []
 const screenshots: string[] = []
 const browserErrors: string[] = []
+/** Console errors and warnings from every frame, kept in the report so a missing UI state can be traced. */
+const browserConsole: string[] = []
 const voiceDiagnostics: Record<string, unknown>[] = []
 const signInRecoveryReceipts: Record<string, unknown>[] = []
 const httpErrors: { path: string; status: number; injected: boolean }[] = []
@@ -447,6 +449,10 @@ try {
       route.fulfill({ json: { sttAvailable: true } })
     )
     page.on('pageerror', (error) => browserErrors.push(error.message))
+    page.on('console', (message) => {
+      if (message.type() === 'error' || message.type() === 'warning')
+        browserConsole.push(`${message.type()}: ${message.text()}`)
+    })
     page.on('request', (request) => {
       pendingRequests.add(request)
       const url = new URL(request.url())
@@ -3468,6 +3474,7 @@ try {
         checks,
         screenshots,
         browserErrors,
+        browserConsole,
         voiceDiagnostics,
         signInRecoveryReceipts,
         failedRequests,
