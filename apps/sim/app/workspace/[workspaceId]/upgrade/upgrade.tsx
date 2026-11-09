@@ -13,7 +13,16 @@ import {
   type PlanTier,
   type UpgradeCardId,
 } from '@/lib/billing/client'
+import { useUpgradeState } from '@/lib/billing/client/upgrade-state'
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
+import {
+  ENTERPRISE_PLAN_CREDITS,
+  ENTERPRISE_PLAN_FEATURES,
+  MAX_PLAN_CREDITS,
+  MAX_PLAN_FEATURES,
+  PRO_PLAN_CREDITS,
+  PRO_PLAN_FEATURES,
+} from '@/lib/billing/plan-configs'
 import { DEFAULT_UPGRADE_HEADER, UPGRADE_REASON_COPY } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
@@ -22,15 +31,6 @@ import {
   ComparisonTable,
   UpgradePlanCard,
 } from '@/app/workspace/[workspaceId]/upgrade/components'
-import { useUpgradeState } from '@/app/workspace/[workspaceId]/upgrade/hooks'
-import {
-  ENTERPRISE_PLAN_CREDITS,
-  ENTERPRISE_PLAN_FEATURES,
-  MAX_PLAN_CREDITS,
-  MAX_PLAN_FEATURES,
-  PRO_PLAN_CREDITS,
-  PRO_PLAN_FEATURES,
-} from '@/app/workspace/[workspaceId]/upgrade/plan-configs'
 import {
   upgradeReasonParam,
   upgradeUrlKeys,

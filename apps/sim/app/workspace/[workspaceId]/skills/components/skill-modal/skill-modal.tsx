@@ -15,18 +15,18 @@ import {
 import { getErrorMessage } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
 import {
+  isSkillNameConflictError,
+  parseSkillMarkdown,
+  validateSkillName,
+} from '@/lib/skills/authoring'
+import {
   SKILL_CONTENT_PLACEHOLDER,
   SKILL_DESCRIPTION_MAX_LENGTH,
   SKILL_DESCRIPTION_PLACEHOLDER,
   SKILL_NAME_HINT,
   SKILL_NAME_PLACEHOLDER,
-} from '@/app/workspace/[workspaceId]/skills/components/skill-copy'
+} from '@/lib/skills/copy'
 import { SkillImport } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
-import {
-  isSkillNameConflictError,
-  parseSkillMarkdown,
-  validateSkillName,
-} from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SkillDefinition } from '@/hooks/queries/skills'
 import { useCreateSkill, useUpdateSkill } from '@/hooks/queries/skills'
 

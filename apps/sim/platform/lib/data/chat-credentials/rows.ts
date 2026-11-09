@@ -201,7 +201,9 @@ export function useUsageLink(action: string) {
     canManage: !hosted || organization.viewer.isAdmin,
     upgrade,
     href: hosted
-      ? '/settings/billing'
+      ? upgrade
+        ? '/settings/billing/plans?reason=credits'
+        : '/settings/billing'
       : upgrade
         ? buildHostedUpgradeUrl()
         : HOSTED_BILLING_SETTINGS_URL,

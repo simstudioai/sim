@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { Checkbox } from '@sim/emcn/checkbox'
-import { Icon } from '@sim/emcn/icon'
 import { Modal } from '@sim/emcn/modal'
 import { useActiveSearchTarget } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/grouped-checkbox-list/grouped-checkbox-list.module.css'
@@ -86,20 +85,17 @@ export function GroupedCheckboxList({
 
   return (
     <>
-      <button
-        type='button'
-        className={styles.trigger}
+      <Button
+        variant='secondary'
+        size='compact'
+        icon='I050'
+        count={noneSelected ? undefined : selectedValues.length}
+        aria-label={`Configure PII types, ${summary.toLowerCase()}`}
         disabled={disabled}
         onClick={() => setOpen(true)}
       >
-        <span className={styles.triggerLabel} data-type='T043'>
-          <Icon name='I050' />
-          Configure PII Types
-        </span>
-        <span className={styles.summary} data-empty={noneSelected || undefined} data-type='T043'>
-          {summary}
-        </span>
-      </button>
+        Configure PII types
+      </Button>
       <Modal open={open} onOpenChange={setOpen} title='Select PII Types to Detect'>
         <div className={styles.body}>
           <div className={styles.bulk}>

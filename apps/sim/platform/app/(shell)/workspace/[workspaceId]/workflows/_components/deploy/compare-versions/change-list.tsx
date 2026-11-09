@@ -262,8 +262,8 @@ const BlockCard = memo(function BlockCard({
         </span>
         <StatusTag label={status.label} intent={status.intent} />
         {hasBody && (
-          <span className={styles.chevron} data-open={open || undefined}>
-            <Icon name='I051' />
+          <span className={styles.chevron}>
+            <Icon name={open ? 'I051' : 'I090'} />
           </span>
         )}
       </button>

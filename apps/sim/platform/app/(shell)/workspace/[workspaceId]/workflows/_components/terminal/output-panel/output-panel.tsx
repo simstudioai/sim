@@ -14,9 +14,9 @@ import {
 import { IconButton } from '@sim/emcn/button'
 import { ControlRow } from '@sim/emcn/button/control-row'
 import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
-import { Input } from '@sim/emcn/field/inputs'
-import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
-import { PointerMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/pointer-menu/pointer-menu'
+import { ActionMenu, type MenuAction, PointActionMenu } from '@sim/emcn/menu/action-menu'
+import { FindBar } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/find-bar/find-bar'
+import { ResizeHandle } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/resize-handle/resize-handle'
 import { AgentThinking } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/terminal/agent-thinking/agent-thinking'
 import {
   CodeViewer,
@@ -167,11 +167,9 @@ export const OutputPanel = memo(function OutputPanel({
   return (
     <div ref={panelRef} className={styles.panel}>
       {!isMobile && (
-        <div
-          className={styles.resizer}
-          role='separator'
-          aria-orientation='vertical'
-          aria-label='Resize output panel'
+        <ResizeHandle
+          edge='inline-start'
+          label='Resize output panel'
           onPointerDown={onResizeStart}
         />
       )}
@@ -250,34 +248,16 @@ export const OutputPanel = memo(function OutputPanel({
       </div>
 
       {isSearchActive && (
-        <div className={styles.search} data-material='floating' data-elevation='menu'>
-          <span className={styles.query}>
-            <Input
-              label='Search output'
-              inputRef={searchInputRef}
-              value={searchQuery}
-              placeholder='Search'
-              spellCheck={false}
-              autoComplete='off'
-              onChange={setSearchQuery}
-            />
-          </span>
-          <span className={styles.count} data-type='T052' aria-live='polite'>
-            {matchCount > 0 ? `${currentMatchIndex + 1} of ${matchCount}` : 'No results'}
-          </span>
-          <IconButton
-            label='Previous match'
-            icon='I023'
-            disabled={matchCount === 0}
-            onClick={goToPreviousMatch}
+        <div className={styles.search}>
+          <FindBar
+            label='Search output'
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            inputRef={searchInputRef}
+            results={{ index: currentMatchIndex, count: matchCount }}
+            onStep={(direction) => (direction === 1 ? goToNextMatch() : goToPreviousMatch())}
+            onClose={closeSearch}
           />
-          <IconButton
-            label='Next match'
-            icon='I102'
-            disabled={matchCount === 0}
-            onClick={goToNextMatch}
-          />
-          <IconButton label='Close search' icon='I105' onClick={closeSearch} />
         </div>
       )}
 
@@ -333,10 +313,9 @@ export const OutputPanel = memo(function OutputPanel({
         )}
       </div>
 
-      <PointerMenu
+      <PointActionMenu
         label='Output actions'
-        isOpen={menu !== null}
-        position={menu ?? { x: 0, y: 0 }}
+        point={menu}
         onClose={() => setMenu(null)}
         actions={() => [
           {

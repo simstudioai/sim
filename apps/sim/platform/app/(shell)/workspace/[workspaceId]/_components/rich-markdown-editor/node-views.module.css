@@ -37,15 +37,6 @@
   opacity: 1;
 }
 
-/* The read-only language sits where the editable trigger does, at the compact Button's metrics. */
-.codeLanguage {
-  display: inline-flex;
-  align-items: center;
-  min-block-size: var(--spacing-28);
-  padding-inline: var(--spacing-8);
-  color: var(--ui-secondary);
-}
-
 .codeBlock pre.codeSource {
   margin: 0;
   padding-inline-end: var(--spacing-80);
@@ -86,14 +77,12 @@
   position: relative;
 }
 
+/* The tag's place over the block, revealed with the block's hover or focus. */
 .rawBadge {
   position: absolute;
   inset-block-start: var(--spacing-6);
   inset-inline-end: var(--spacing-8);
-  padding: var(--spacing-2) var(--spacing-6);
-  border-radius: var(--radius-item);
-  background: var(--ui-hover);
-  color: var(--ui-secondary);
+  display: flex;
   opacity: 0;
   pointer-events: none;
   user-select: none;

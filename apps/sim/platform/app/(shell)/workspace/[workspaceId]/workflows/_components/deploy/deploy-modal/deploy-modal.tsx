@@ -1,21 +1,22 @@
 'use client'
 
 import { type ComponentProps, useEffect, useRef, useState } from 'react'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
+import { CreateApiKeyModal } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/create-api-key-modal/create-api-key-modal'
+import { CreateMcpServerModal } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/create-mcp-server-modal/create-mcp-server-modal'
 import { ApiInfoModal } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/api-tab/api-info-modal'
 import { ApiTab } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/api-tab/api-tab'
-import { CreateApiKeyModal } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/api-tab/create-api-key-modal'
 import { ChatTab } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/chat-tab/chat-tab'
 import { useChatDeploy } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/chat-tab/use-chat-deploy'
 import { CompareVersions } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/compare-versions/compare-versions'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/deploy-modal/deploy-modal.module.css'
 import { DeployStatus } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/deploy-modal/deploy-status'
-import { CreateMcpServerModal } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/mcp-tab/create-mcp-server-modal'
 import { McpTab } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/mcp-tab/mcp-tab'
 import { useMcpTool } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/mcp-tab/use-mcp-tool'
 import { VersionDescription } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/version-description/version-description'
@@ -483,11 +484,7 @@ function DeployDialog({
                         onLoad={(version) => setLoadTarget({ workflowId, version })}
                       />
                     ) : (
-                      versionsData && (
-                        <p className={styles.empty} data-type='T060'>
-                          No deployments yet
-                        </p>
-                      )
+                      versionsData && <EmptyState title='No deployments yet' />
                     )}
                   </>
                 )}

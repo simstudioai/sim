@@ -9,7 +9,10 @@ import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { formatDuration } from '@sim/utils/formatting'
 import { useViewerTimeZone } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/enrichment-details/enrichment-details.module.css'
-import { SidePanel } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/side-panel/side-panel'
+import {
+  SidePanel,
+  SidePanelNote,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/side-panel/side-panel'
 import {
   type EnrichmentProviderOutcome,
   type EnrichmentRunDetail,
@@ -241,12 +244,7 @@ function EnrichmentDetailsContent({
       />
     )
   const detail = query.data
-  if (!detail)
-    return (
-      <p className={styles.note} data-type='T060'>
-        No enrichment details for this run
-      </p>
-    )
+  if (!detail) return <SidePanelNote>No enrichment details for this run</SidePanelNote>
   return (
     <ContentTabs
       label='Enrichment details'

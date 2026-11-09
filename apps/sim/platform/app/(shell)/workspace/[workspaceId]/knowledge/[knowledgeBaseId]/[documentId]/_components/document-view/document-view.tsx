@@ -10,10 +10,16 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { Pagination } from '@sim/emcn/pagination'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
-import { FailureNotice } from '@sim/emcn/status'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
+import {
+  type ResourceColumn,
+  type ResourceRow,
+  ResourceTable,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/resource-table/resource-table'
+import { useResourceSelection } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/resource-table/use-resource-selection'
 import {
   LiveWorkspacePage,
   WorkspaceEmpty,
@@ -21,6 +27,7 @@ import {
 import { DocumentTagsModal } from '@/platform/app/(shell)/workspace/[workspaceId]/knowledge/_components/document-tags-modal/document-tags-modal'
 import {
   documentHref,
+  formatTokenCount,
   knowledgeBaseHref,
   knowledgeListHref,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/knowledge-base/model'
@@ -29,7 +36,6 @@ import {
   ChunkEditor,
   type ChunkSaveStatus,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/chunk-editor/chunk-editor'
-import { ChunkTable } from '@/platform/app/(shell)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/chunk-table/chunk-table'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/document-view/document-view.module.css'
 import {
   type ChunkData,
@@ -60,7 +66,9 @@ import { toast } from '@/platform/shared/toast'
 /** Chunk search feels snappier than the shared window, as it does on the legacy page. */
 const SEARCH_DEBOUNCE_MS = 200
 const PAGE_SIZE = 50
-const NONE: ReadonlySet<string> = new Set()
+const NO_IDS: readonly string[] = []
+const PREVIEW_LENGTH = 150
+const CONTEXT_BEFORE = 30
 /** How long a failed create says so before its button reads Create chunk again. */
 const CREATE_FAILURE_DWELL_MS = 2000
 /** After a page change, how often the list is checked for the chunk to open, and how many times. */
@@ -81,6 +89,29 @@ const SORTS = [
 ] as const
 
 const SORT_FIELD = { index: 'chunkIndex', tokens: 'tokenCount', status: 'enabled' } as const
+
+/** The list's lanes after the content: index, tokens on the trailing edge, and whether it is searchable. */
+const CHUNK_COLUMNS: readonly ResourceColumn[] = [
+  { id: 'index', label: 'Index', width: 'tight' },
+  { id: 'tokens', label: 'Tokens', numeric: true, width: 'compact' },
+  { id: 'status', label: 'Status', width: 'compact', narrow: true },
+]
+
+/**
+ * The chunk's first 150 characters, or 150 around the first search term it contains, so a match
+ * deep in a long chunk is still in view.
+ */
+function preview(content: string, query: string) {
+  if (content.length <= PREVIEW_LENGTH) return content
+  for (const term of query.trim().toLowerCase().split(/\s+/).filter(Boolean)) {
+    const at = content.toLowerCase().indexOf(term)
+    if (at === -1) continue
+    const start = Math.max(0, at - CONTEXT_BEFORE)
+    const end = Math.min(content.length, start + PREVIEW_LENGTH)
+    return `${start > 0 ? '…' : ''}${content.slice(start, end)}${end < content.length ? '…' : ''}`
+  }
+  return `${content.slice(0, PREVIEW_LENGTH - 1).trimEnd()}…`
+}
 
 function chunks(count: number) {
   return `${count.toLocaleString()} chunk${count === 1 ? '' : 's'}`
@@ -150,7 +181,6 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
   const deleteDocument = useDeleteDocument()
   const updateDocument = useUpdateDocument()
 
-  const [selected, setSelected] = useState<ReadonlySet<string>>(NONE)
   const [creating, setCreating] = useState(false)
   const [dirty, setDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<ChunkSaveStatus>('idle')
@@ -175,6 +205,12 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
     ? list.error || (searchQuery.error ? searchQuery.error.message : null)
     : null
   const editing = openChunkId !== null || creating
+  const selection = useResourceSelection({
+    rowIds: completed ? rows.map((item) => item.id) : NO_IDS,
+    onDelete: editable ? () => setBulkDeleting(true) : undefined,
+    keyboardBlocked: !completed || !editable || editing,
+  })
+  const selected = selection.selected
   const openIndex = openChunkId ? rows.findIndex((item) => item.id === openChunkId) : -1
   const openChunk = openIndex >= 0 ? rows[openIndex] : null
   const canPrevious = openIndex > 0 || currentPage > 1
@@ -323,7 +359,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
           if (operation !== 'delete' && result.errorCount === 0 && !showingSearch)
             for (const item of targets)
               list.updateChunk(item.id, { enabled: operation === 'enable' })
-          setSelected(NONE)
+          selection.clear()
         },
       }
     )
@@ -570,7 +606,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
             options={STATUS_OPTIONS}
             value={enabled}
             onValueChange={(value) => {
-              setSelected(NONE)
+              selection.clear()
               void setParams({
                 enabled: value === 'enabled' || value === 'disabled' ? value : null,
                 page: null,
@@ -594,21 +630,36 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
 
   const listViewport = useRef<HTMLDivElement | null>(null)
   const listColumn = useScrollEdges<HTMLDivElement>('vertical', { viewport: listViewport })
-  const statusRow = !document
-    ? undefined
-    : completed
+  const processing: { title: string; description?: string } | undefined =
+    !document || completed
       ? undefined
       : status === 'pending'
-        ? 'Document processing pending…'
+        ? { title: 'Document processing pending…' }
         : status === 'processing'
-          ? 'Document processing in progress…'
+          ? { title: 'Document processing in progress…' }
           : status === 'failed'
-            ? 'Document processing failed'
+            ? { title: 'Document processing failed' }
             : status === 'skipped'
-              ? document.processingError
-                ? `Skipped · ${document.processingError}`
-                : 'Document skipped'
-              : 'Document not ready'
+              ? { title: 'Document skipped', description: document.processingError ?? undefined }
+              : { title: 'Document not ready' }
+  const chunkById = new Map(rows.map((item) => [item.id, item]))
+  const chunkRows: ResourceRow[] = completed
+    ? rows.map((item) => ({
+        id: item.id,
+        name: preview(item.content, searchText),
+        label: `Chunk ${item.chunkIndex}`,
+        onOpen: () => setOpenChunk(item.id),
+        cells: {
+          index: String(item.chunkIndex),
+          tokens: formatTokenCount(item.tokenCount),
+          status: item.enabled ? (
+            <StatusTag label='Enabled' intent='success' />
+          ) : (
+            <StatusTag label='Disabled' />
+          ),
+        },
+      }))
+    : []
 
   let content: ReactNode
   if (access.hidden)
@@ -669,28 +720,17 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
             message={chunkError}
           />
         ) : (
-          <ChunkTable
-            chunks={completed ? rows : []}
-            query={searchText}
-            statusRow={statusRow}
-            selection={
-              completed && editable
-                ? {
-                    selected,
-                    toggle: (chunkId, checked) =>
-                      setSelected((current) => {
-                        const next = new Set(current)
-                        if (checked) next.add(chunkId)
-                        else next.delete(chunkId)
-                        return next
-                      }),
-                    toggleAll: (checked) =>
-                      setSelected(checked ? new Set(rows.map((item) => item.id)) : NONE),
-                  }
-                : undefined
-            }
-            onOpen={(target) => setOpenChunk(target.id)}
-            rowActions={rowActions}
+          <ResourceTable
+            label='Chunks'
+            nameLabel='Content'
+            columns={CHUNK_COLUMNS}
+            rows={chunkRows}
+            marks={searchText.trim().split(/\s+/).filter(Boolean)}
+            selection={completed && editable ? selection : undefined}
+            rowActions={(row) => {
+              const target = chunkById.get(row.id)
+              return target ? rowActions(target) : []
+            }}
             backgroundActions={[
               {
                 id: 'new',
@@ -734,7 +774,9 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
               },
             ]}
             empty={
-              nothingToIndex ? (
+              processing ? (
+                <WorkspaceEmpty title={processing.title} description={processing.description} />
+              ) : nothingToIndex ? (
                 <EmptyState
                   title='Nothing to index'
                   description='This image holds no searchable information, such as a logo or an icon.'
@@ -770,7 +812,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
               page={currentPage}
               pageCount={totalPages}
               onPageChange={(next) => {
-                setSelected(NONE)
+                selection.clear()
                 listViewport.current?.scrollTo({ top: 0 })
                 void goToPage(next)
               }}
@@ -855,11 +897,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
         pendingLabel='Deleting…'
         onConfirm={async (target) => {
           await deleteChunk.mutateAsync({ knowledgeBaseId, documentId, chunkId: target.id })
-          setSelected((current) => {
-            const next = new Set(current)
-            next.delete(target.id)
-            return next
-          })
+          if (selection.selected.has(target.id)) selection.toggle(target.id, false, false)
         }}
       />
       <ConfirmDialog

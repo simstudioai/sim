@@ -29,13 +29,14 @@ import {
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
 } from '@/lib/billing/subscriptions/utils'
-import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { isUsageLimitDraftDirty, resolveUsageLimitDraft } from '@/lib/billing/usage-limit-draft'
 import { getBaseUrl } from '@/lib/core/utils/urls'
+import { useAwsMarketplaceBilling } from '@/hooks/queries/aws-marketplace'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
+import { platformUrl } from '@/platform/lib/data/base-path'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
 import { queryView } from '@/platform/shared/query-view'
@@ -71,6 +72,7 @@ export function useBillingSection(organization: PlatformOrganization) {
   const portal = useOpenBillingPortal()
   const subscriptionClient = useSubscription()
   const fixture = useFixtureSettingsActions()
+  const marketplace = useAwsMarketplaceBilling(organizationId)
 
   const billing = summary.data?.data
   const plan = billing?.subscriptionPlan ?? 'free'
@@ -116,9 +118,7 @@ export function useBillingSection(organization: PlatformOrganization) {
   const state = billing?.subscriptionState
   const weeklyRefresh = getPlanWeeklyRefreshDollars(plan) * (billing?.totalSeats || 1)
   const upgradeHref =
-    !fixture && billing?.upgradeWorkspaceId
-      ? `${organization.legacyOrigin}${buildUpgradeHref(billing.upgradeWorkspaceId)}`
-      : null
+    !fixture && billing?.upgradeWorkspaceId ? platformUrl('/settings/billing/plans') : null
 
   function openPortal() {
     if (fixture || !canManage) return
@@ -138,15 +138,20 @@ export function useBillingSection(organization: PlatformOrganization) {
       : '',
     planTitle:
       state === 'lapsed' ? `Organization ${planName} plan ended` : `Organization ${planName} plan`,
-    priceText:
-      state === 'free'
+    priceText: marketplace.billedThroughMarketplace
+      ? free
+        ? 'AWS Marketplace setup in progress'
+        : 'Billed through AWS Marketplace'
+      : state === 'free'
         ? 'No active organization subscription'
         : state === 'lapsed'
           ? 'Choose a new plan for this organization'
           : enterprise
             ? 'Custom pricing'
             : `$${getPlanTierDollars(plan)} per user/month, ${interval}`,
-    showExplorePlans: !enterprise,
+    /** An unresolved Marketplace lookup gates plan changes the same as Marketplace billing does. */
+    showExplorePlans:
+      !enterprise && marketplace.isResolved && !marketplace.billedThroughMarketplace,
     explorePlansHref: permissions.showUpgradePlans ? upgradeHref : null,
     showUsageLimit: paid && !enterprise,
     usageLimit: { current: limit, minimum: included, canEdit: canManage, organizationId },
@@ -169,6 +174,10 @@ export function useBillingSection(organization: PlatformOrganization) {
       },
     },
     showSubscription: paid || enterprise,
+    /** The viewer's own credit usage, which Enterprise manages out of band. */
+    showCreditUsage: !enterprise,
+    /** Organization limit emails go to admins who have not turned them off. */
+    showUsageNotifications: !free && !enterprise && isOrgAdminRole(billing?.userRole),
     periodEndLabel: billing?.cancelAtPeriodEnd ? 'Access until' : 'Next billing date',
     periodEnd: billing?.billingPeriodEnd
       ? formatCalendarDate(billing.billingPeriodEnd.slice(0, 10), 'full')

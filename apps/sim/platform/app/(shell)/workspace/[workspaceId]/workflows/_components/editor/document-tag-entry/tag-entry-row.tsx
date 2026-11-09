@@ -2,11 +2,9 @@
 
 import { useId } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { FieldFrame } from '@sim/emcn/field'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
-import {
-  RuleCard,
-  RuleField,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/filter-builder/rule-card'
+import { RuleCard } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/filter-builder/rule-card'
 import { getActiveWorkflowSearchHighlight } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
 import { ReferenceField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/reference-field/reference-field'
 import type {
@@ -117,7 +115,7 @@ export function TagEntryRow({
         }}
         disabled={readOnly || tagsLoading}
       />
-      <RuleField label='Value' htmlFor={valueId}>
+      <FieldFrame id={valueId} label='Value'>
         <ReferenceField
           controller={controller}
           fieldKey={`${tag.id}-value`}
@@ -136,7 +134,7 @@ export function TagEntryRow({
             valuePath: [index, 'value'],
           })}
         />
-      </RuleField>
+      </FieldFrame>
     </RuleCard>
   )
 }

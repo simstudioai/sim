@@ -15,7 +15,8 @@ interface ShellGateProps {
   children: ReactNode
 }
 
-function ShellGate({ title, description, fullPage, children }: ShellGateProps) {
+/** A centered message with its actions, inside the shell or, with `fullPage`, in place of it. */
+export function ShellGate({ title, description, fullPage, children }: ShellGateProps) {
   const gate = (
     <main className={styles.gate} data-full-page={fullPage || undefined}>
       <EmptyState
@@ -91,6 +92,25 @@ export function PageNotFound({ fullPage }: PageNotFoundProps) {
       fullPage={fullPage}
       title='Page not found'
       description="The page you're looking for doesn't exist or has been moved."
+    >
+      <Button onClick={() => router.back()}>Go back</Button>
+      <Button variant='primary' onClick={() => router.push('/')}>
+        Return home
+      </Button>
+    </ShellGate>
+  )
+}
+
+/**
+ * A workspace page that does not exist, or a workspace the viewer cannot open: the workspace layout
+ * does not tell the two apart, so neither reveals whether the workspace exists.
+ */
+export function WorkspacePageNotFound() {
+  const router = useRouter()
+  return (
+    <ShellGate
+      title='Page not found'
+      description="This page doesn't exist, has been moved, or is in a workspace you don't have access to. Ask a workspace administrator for access or choose another workspace."
     >
       <Button onClick={() => router.back()}>Go back</Button>
       <Button variant='primary' onClick={() => router.push('/')}>

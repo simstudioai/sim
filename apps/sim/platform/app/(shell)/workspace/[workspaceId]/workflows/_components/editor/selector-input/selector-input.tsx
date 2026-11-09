@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { InlineNotice } from '@sim/emcn/status'
 import { SelectorCombobox } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/selector-input/selector-combobox'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/selector-input/selector-input.module.css'
 import {
   type SubBlockConfig,
   useCollaborativeWorkflow,
@@ -79,11 +79,7 @@ export function SelectorInput({
 
   if (!selectorKey) {
     const serviceId = subBlock.serviceId || 'unknown'
-    return (
-      <p className={styles.unsupported} data-type='T052'>
-        Selector not supported for service: {serviceId}
-      </p>
-    )
+    return <InlineNotice message={`Selector not supported for service: ${serviceId}`} />
   }
 
   return (

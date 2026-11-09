@@ -1,8 +1,8 @@
 'use client'
 
 import { type ReactNode, useId } from 'react'
-import { Icon } from '@sim/emcn/icon'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/filter-builder/rule-card.module.css'
+import { FoldToggle } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/fold-toggle/fold-toggle'
 
 /** Props for {@link RuleCard}. */
 interface RuleCardProps {
@@ -52,18 +52,9 @@ export function RuleCard({
     <div className={styles.card} role='group' aria-label={label}>
       <div className={styles.header}>
         {onToggle ? (
-          <button
-            type='button'
-            className={styles.toggle}
-            aria-expanded={!collapsed}
-            aria-controls={collapsed ? undefined : bodyId}
-            onClick={onToggle}
-          >
-            <span className={styles.chevron}>
-              <Icon name={collapsed ? 'I032' : 'I051'} />
-            </span>
+          <FoldToggle open={!collapsed} controls={bodyId} onToggle={onToggle}>
             {heading}
-          </button>
+          </FoldToggle>
         ) : (
           <span className={styles.heading}>{heading}</span>
         )}
@@ -74,26 +65,6 @@ export function RuleCard({
           {children}
         </div>
       )}
-    </div>
-  )
-}
-
-/** Props for {@link RuleField}. */
-interface RuleFieldProps {
-  label: string
-  /** The id of the native field the label names and focuses. */
-  htmlFor?: string
-  children: ReactNode
-}
-
-/** A labelled field inside a {@link RuleCard} whose control renders no label of its own. */
-export function RuleField({ label, htmlFor, children }: RuleFieldProps) {
-  return (
-    <div className={styles.field}>
-      <label className={styles.fieldLabel} htmlFor={htmlFor} data-type='T059'>
-        {label}
-      </label>
-      {children}
     </div>
   )
 }
