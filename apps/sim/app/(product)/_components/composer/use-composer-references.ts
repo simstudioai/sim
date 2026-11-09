@@ -94,8 +94,9 @@ export function useComposerReferences(composer: ComposerController) {
       additions.size || remove.length ? { add: [...additions.values()], remove } : undefined
     )
     const position = editor.current?.selectionStart ?? canonical.length
-    if (dismissed !== null && triggerAt(canonical, position, nextMatches)?.start !== dismissed)
-      setDismissed(null)
+    const next = triggerAt(canonical, position, nextMatches)
+    if (dismissed !== null && next?.start !== dismissed) setDismissed(null)
+    if (next?.prefix === '@') composer.onReferenceSearch?.(next.query)
   }
 
   function replace(start: number, end: number, insertion: string, item?: ComposerOption) {

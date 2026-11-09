@@ -1,0 +1,220 @@
+'use client'
+
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
+import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { type LogFilters, useLogsList } from '@/hooks/queries/logs'
+import { useMothershipChats } from '@/hooks/queries/mothership-chats'
+import { useTablesList } from '@/hooks/queries/tables'
+import { useWorkspaceFilePickerOptions } from '@/hooks/queries/workspace-files'
+import { formatTimestamp } from '@/platform/shared/time'
+import type { ChatContext } from '@/stores/panel'
+
+/** How many of the most recently updated files a workspace offers before anything is typed. */
+const RECENT_FILE_LIMIT = 100
+
+/** How many workspaces read their lists at once; the next starts as each settles. */
+const READ_CONCURRENCY = 8
+
+const LOG_FILTERS: LogFilters = {
+  timeRange: 'All time',
+  level: 'all',
+  workflowIds: [],
+  folderIds: [],
+  triggers: [],
+  searchQuery: '',
+  limit: 50,
+  sortBy: 'date',
+  sortOrder: 'desc',
+}
+
+interface NamedRecord {
+  id: string
+  name: string
+}
+
+interface WorkspaceLists {
+  tables?: readonly NamedRecord[]
+  files?: readonly NamedRecord[]
+  /** The query the files are the server's matches for, or empty for the recent files. */
+  fileQuery: string
+  knowledgeBases?: readonly NamedRecord[]
+  chats?: readonly NamedRecord[]
+  logs?: readonly {
+    id: string
+    executionId: string | null
+    workflowId: string | null
+    createdAt: string
+    workflow: { name: string | null } | null
+  }[]
+  pending: boolean
+}
+
+interface WorkspaceReaderProps {
+  workspaceId: string
+  fileSearch: string
+  onRead: (workspaceId: string, lists: WorkspaceLists) => void
+}
+
+/** One workspace's mention lists, through the same queries and options legacy's inventory used. */
+function WorkspaceReader({ workspaceId, fileSearch, onRead }: WorkspaceReaderProps) {
+  const tables = useTablesList(workspaceId, 'active')
+  const files = useWorkspaceFilePickerOptions(workspaceId, fileSearch, {
+    limit: RECENT_FILE_LIMIT,
+  })
+  const knowledgeBases = useKnowledgeBasesQuery(workspaceId)
+  const chats = useMothershipChats(workspaceId)
+  const logs = useLogsList(workspaceId, LOG_FILTERS)
+  const pending =
+    tables.isPending ||
+    files.isPending ||
+    knowledgeBases.isPending ||
+    chats.isPending ||
+    logs.isPending
+  const lists = useMemo(
+    (): WorkspaceLists => ({
+      tables: tables.data,
+      files: files.files,
+      fileQuery: files.matchedQuery,
+      knowledgeBases: knowledgeBases.data,
+      chats: chats.data,
+      logs: logs.data?.pages.flatMap((page) => page.logs),
+      pending,
+    }),
+    [
+      tables.data,
+      files.files,
+      files.matchedQuery,
+      knowledgeBases.data,
+      chats.data,
+      logs.data,
+      pending,
+    ]
+  )
+  useEffect(() => {
+    onRead(workspaceId, lists)
+  }, [workspaceId, lists, onRead])
+  return null
+}
+
+function workspaceGroups(
+  workspaces: readonly NamedRecord[],
+  lists: Readonly<Record<string, WorkspaceLists>>
+) {
+  const owned = <T,>(read: (lists: WorkspaceLists) => readonly T[] | undefined) =>
+    workspaces.flatMap((workspace) =>
+      (lists[workspace.id] ? (read(lists[workspace.id]) ?? []) : []).map((record) => ({
+        record,
+        workspaceId: workspace.id,
+        workspaceName: workspace.name,
+      }))
+    )
+  const item = (
+    workspaceId: string,
+    workspaceName: string,
+    id: string,
+    name: string,
+    context: ChatContext
+  ) => ({ id: `${workspaceId}:${id}`, name, workspaceId, workspaceName, context })
+  return [
+    {
+      group: 'Chats',
+      items: owned((list) => list.chats).map(({ record, workspaceId, workspaceName }) =>
+        item(workspaceId, workspaceName, record.id, record.name, {
+          kind: 'past_chat',
+          chatId: record.id,
+          label: record.name,
+          workspaceId,
+        })
+      ),
+    },
+    {
+      group: 'Tables',
+      items: owned((list) => list.tables).map(({ record, workspaceId, workspaceName }) =>
+        item(workspaceId, workspaceName, record.id, record.name, {
+          kind: 'table',
+          tableId: record.id,
+          label: record.name,
+          workspaceId,
+        })
+      ),
+    },
+    {
+      group: 'Files',
+      items: workspaces.flatMap((workspace) => {
+        const list = lists[workspace.id]
+        return (list?.files ?? []).map((file) => ({
+          ...item(workspace.id, workspace.name, file.id, file.name, {
+            kind: 'file',
+            fileId: file.id,
+            label: file.name,
+            workspaceId: workspace.id,
+          }),
+          ...(list?.fileQuery ? { matchedQuery: list.fileQuery } : {}),
+        }))
+      }),
+    },
+    {
+      group: 'Knowledge Bases',
+      items: owned((list) => list.knowledgeBases).map(({ record, workspaceId, workspaceName }) =>
+        item(workspaceId, workspaceName, record.id, record.name, {
+          kind: 'knowledge',
+          knowledgeId: record.id,
+          label: record.name,
+          workspaceId,
+        })
+      ),
+    },
+    {
+      group: 'Logs',
+      items: owned((list) => list.logs).map(({ record, workspaceId, workspaceName }) => {
+        // The name keeps the absolute time: it is saved with the chat, where an age goes stale.
+        const name = `${record.workflow?.name ?? record.workflowId ?? 'Unknown'} · ${formatTimestamp(Date.parse(record.createdAt))}`
+        const executionId = record.executionId ?? record.id
+        return {
+          ...item(workspaceId, workspaceName, executionId, name, {
+            kind: 'logs',
+            executionId,
+            label: name,
+            workspaceId,
+          }),
+          family: 'Logs',
+        }
+      }),
+    },
+  ]
+}
+
+/**
+ * The chats, tables, files, knowledge bases and logs of each workspace, for `@` mentions. Each
+ * workspace's lists are separate queries, so a renderless reader per workspace runs them; the
+ * composer mounts `readers` while the inventory is wanted.
+ */
+export function useWorkspaceReferences(
+  workspaces: readonly NamedRecord[],
+  fileSearch: string
+): { references: ReturnType<typeof workspaceGroups>; loading: boolean; readers: ReactNode } {
+  const [lists, setLists] = useState<Record<string, WorkspaceLists>>({})
+  const onRead = useCallback((workspaceId: string, next: WorkspaceLists) => {
+    setLists((current) =>
+      current[workspaceId] === next ? current : { ...current, [workspaceId]: next }
+    )
+  }, [])
+  const settled = workspaces.filter((workspace) => lists[workspace.id]?.pending === false).length
+  const [readable, setReadable] = useState(0)
+  if (workspaces.length && settled + READ_CONCURRENCY > readable)
+    setReadable(settled + READ_CONCURRENCY)
+  return {
+    references: workspaceGroups(workspaces, lists),
+    loading: workspaces.some((workspace) => lists[workspace.id]?.pending !== false),
+    readers: workspaces
+      .slice(0, readable)
+      .map((workspace) => (
+        <WorkspaceReader
+          key={workspace.id}
+          workspaceId={workspace.id}
+          fileSearch={fileSearch}
+          onRead={onRead}
+        />
+      )),
+  }
+}

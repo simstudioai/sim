@@ -21,6 +21,7 @@ import { resolveMessageCitations } from '@/components/mothership-chat/message-co
 import { isToolDone } from '@/components/mothership-chat/message-content/tool-status'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { searchConnectionTargetSchema } from '@/lib/knowledge/search/connection-target'
+import { isChatContext } from '@/lib/mothership/chat/context'
 import {
   type ContentSegment,
   type CredentialItemData,
@@ -377,16 +378,19 @@ export function attachmentKind(mediaType: string): ChatAttachment['kind'] {
   return 'document'
 }
 
+/** A saved context restores only with its resource identity, which prompt recall sends again. */
 function contextReference(context: ChatMessageContext, index: number): ChatAttachment {
   return {
     id: `context:${index}`,
     kind: 'reference',
     name: context.label,
     metadata: context.kind,
+    ...(isChatContext(context) ? { context } : {}),
   }
 }
 
 function toUserAttachments(message: ChatMessage): ChatAttachment[] {
+  const uploads = new Map(message.fileAttachments?.map((upload) => [upload.id, upload]))
   return [
     ...(message.attachments ?? []).map((file) => ({
       id: file.id,
@@ -394,6 +398,7 @@ function toUserAttachments(message: ChatMessage): ChatAttachment[] {
       metadata: file.media_type,
       kind: attachmentKind(file.media_type),
       source: file.previewUrl,
+      upload: uploads.get(file.id),
     })),
     ...(message.contexts ?? []).map(contextReference),
   ]

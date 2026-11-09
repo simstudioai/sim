@@ -9,6 +9,8 @@ import { useFileAttachments } from '@/components/workflow-editor/components/pane
 import { useSession } from '@/lib/auth/client'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { getMothershipAttachmentUrl } from '@/lib/mothership/chat/attachment-preview'
+import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import type { FileAttachmentForApi } from '@/lib/mothership/chat/types'
 import {
   MOTHERSHIP_EFFORT_OPTIONS,
@@ -46,6 +48,7 @@ import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { attachmentKind } from '@/platform/lib/data/chat-model'
+import { useWorkspaceReferences } from '@/platform/lib/data/chat-references'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useStartSearch } from '@/platform/lib/data/search'
@@ -69,6 +72,16 @@ function selectedReferenceId(
   if (context.kind === 'workspace') return context.workspaceId
   if (context.kind === 'workflow' && context.workspaceId)
     return `${context.workspaceId}:${context.workflowId}`
+  if (context.kind === 'table' && context.workspaceId)
+    return `${context.workspaceId}:${context.tableId}`
+  if (context.kind === 'file' && context.workspaceId)
+    return `${context.workspaceId}:${context.fileId}`
+  if (context.kind === 'knowledge' && context.workspaceId && context.knowledgeId)
+    return `${context.workspaceId}:${context.knowledgeId}`
+  if (context.kind === 'past_chat' && context.workspaceId)
+    return `${context.workspaceId}:${context.chatId}`
+  if (context.kind === 'logs' && context.workspaceId && context.executionId)
+    return `${context.workspaceId}:${context.executionId}`
   if (context.kind === 'skill') {
     return context.workspaceId
       ? `${context.workspaceId}:${context.skillId}`
@@ -159,10 +172,12 @@ export function useLiveComposer({
   }, [initialKey, key])
   const [pickerOpened, setPickerOpened] = useState(false)
   const inventoryEnabled = !assistant && pickerOpened
-  const { references, skills, referencesLoading, skillsLoading } = useOrganizationInventory(
-    inventoryEnabled,
-    organization.id
-  )
+  const [referenceSearch, setReferenceSearch] = useState('')
+  const inventory = useOrganizationInventory(inventoryEnabled, organization.id)
+  const { skills, skillsLoading } = inventory
+  const resources = useWorkspaceReferences(inventory.workspaces, referenceSearch)
+  const references = [...inventory.references, ...resources.references]
+  const referencesLoading = inventory.referencesLoading || resources.loading
   const files = useFileAttachments({
     userId,
     organizationId: organization.id,
@@ -300,11 +315,40 @@ export function useLiveComposer({
       useMothershipDraftsStore.getState().clearDraft(key)
       files.clearAttachedFiles()
     },
+    restore: (next) => {
+      if (
+        next.attachments.some(
+          (attachment) => attachment.kind === 'reference' && !attachment.context
+        )
+      )
+        toast.info(UNAVAILABLE_CONTEXT_NOTICE)
+      write({ text: next.text, contexts: next.attachments.flatMap((item) => item.context ?? []) })
+      files.restoreAttachedFiles(
+        next.attachments.flatMap(({ upload, source }) =>
+          upload
+            ? [
+                {
+                  id: upload.id,
+                  key: upload.key,
+                  name: upload.filename,
+                  type: upload.media_type,
+                  size: upload.size,
+                  path: getMothershipAttachmentUrl(upload),
+                  uploading: false,
+                  previewUrl: source,
+                },
+              ]
+            : []
+        )
+      )
+    },
     references,
     referencesLoading,
     skillsLoading,
     skills,
     onPickerOpen: () => setPickerOpened(true),
+    onReferenceSearch: setReferenceSearch,
+    readers: resources.readers,
     settings,
     accept: assistant ? ASSISTANT_ACCEPT : undefined,
     voice: voice.isSupported
@@ -388,6 +432,7 @@ function useOrganizationInventory(enabled: boolean, organizationId: string) {
   const loadingWorkspaces =
     enabled && (workspaceQuery.isPending || workspaceQuery.isPlaceholderData)
   return {
+    workspaces: owned,
     references,
     skills,
     referencesLoading: loadingWorkspaces || workflows.some((query) => query.isPending),

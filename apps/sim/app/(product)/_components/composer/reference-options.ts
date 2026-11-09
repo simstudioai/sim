@@ -138,7 +138,8 @@ export function filterOptions(options: readonly ComposerOption[], prefix: string
       rank = name === search ? 0 : name.startsWith(search) ? 1 : name.includes(search) ? 2 : 3
       if (
         rank === 3 &&
-        ![item.workspaceName, ...(prefix === '/' ? [item.detail] : [])].some((field) =>
+        item.matchedQuery?.toLowerCase() !== search &&
+        ![item.workspaceName, item.family, ...(prefix === '/' ? [item.detail] : [])].some((field) =>
           field?.toLowerCase().includes(search)
         )
       )

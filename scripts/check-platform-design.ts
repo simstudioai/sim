@@ -492,6 +492,8 @@ const seamHelpers = new Set([
   'lib/knowledge/filters/types',
   'lib/knowledge/search/connection-target',
   'lib/knowledge/search/results',
+  'lib/mothership/chat/attachment-preview',
+  'lib/mothership/chat/context',
   'lib/mothership/chat/search-params',
   'lib/mothership/chat/special-tags',
   'lib/mothership/chat/types',

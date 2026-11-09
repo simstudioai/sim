@@ -144,6 +144,11 @@ export function Conversation({ runtime, composer, placeholders, header }: Conver
                 }
                 onSubmit={runtime.send}
                 onStop={running ? runtime.stop : undefined}
+                history={turns.flatMap((turn) =>
+                  turn.role === 'user' && (turn.prompt.text || turn.prompt.attachments.length)
+                    ? [{ id: turn.id, draft: turn.prompt }]
+                    : []
+                )}
               />
             </PageOverflow>
           </PageColumn>
