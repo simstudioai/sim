@@ -3,8 +3,10 @@ import {
   billingSubscriptionMockFns,
 } from '@sim/testing/mocks/billing-subscription.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 
 import {

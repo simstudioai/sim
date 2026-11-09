@@ -16,6 +16,9 @@ vi.mock('server-only', () => ({}))
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/workspaces/shell-organization', () => ({ resolveWorkspaceShellOrganizationId }))
+vi.mock('@/lib/organizations/provision-personal', () => ({
+  resolveOrProvisionLandingOrganization: vi.fn(),
+}))
 
 import { redirectLegacyWorkspaceUrl } from '@/platform/lib/data/legacy-redirects'
 
@@ -34,7 +37,11 @@ describe('redirectLegacyWorkspaceUrl', () => {
     await expect(
       redirectLegacyWorkspaceUrl('ws-1', ['upgrade'], { reason: 'credits' })
     ).rejects.toThrow('NEXT_REDIRECT:/o/viewer-org/settings/billing/plans?reason=credits')
-    expect(resolveWorkspaceShellOrganizationId).toHaveBeenCalledWith('ws-1', 'viewer')
+    expect(resolveWorkspaceShellOrganizationId).toHaveBeenCalledWith(
+      'ws-1',
+      'viewer',
+      expect.any(Function)
+    )
   })
 
   it('answers not found for a workspace the viewer cannot open', async () => {

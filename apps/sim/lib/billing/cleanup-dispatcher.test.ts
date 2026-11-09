@@ -133,6 +133,31 @@ describe('organization-owned Search retention dispatch', () => {
     expect(mockEnqueue).not.toHaveBeenCalled()
   })
 
+  it("applies a personal organization's owner plan retention to its soft-deleted content", async () => {
+    setEnvFlags({ isBillingEnabled: true })
+    vi.mocked(getHighestPriorityPersonalSubscription).mockResolvedValueOnce(null)
+    queueTableRows(schemaMock.organization, [
+      { id: 'org-personal', kind: 'personal', ownerId: 'owner-1', settings: null },
+    ])
+    queueTableRows(schemaMock.organization, [])
+
+    await dispatchCleanupJobs('cleanup-soft-deletes')
+
+    expect(getHighestPriorityPersonalSubscription).toHaveBeenCalledWith('owner-1', {
+      onError: 'throw',
+    })
+    expect(mockGetOrganizationSubscription).not.toHaveBeenCalled()
+    expect(mockEnqueue).toHaveBeenCalledWith(
+      'cleanup-soft-deletes',
+      expect.objectContaining({
+        plan: 'free',
+        organizationIds: ['org-personal'],
+        retentionHours: 30 * 24,
+      }),
+      expect.any(Object)
+    )
+  })
+
   it('fails closed after an organization plan lookup error', async () => {
     setEnvFlags({ isBillingEnabled: true })
     mockGetOrganizationSubscription.mockRejectedValue(new Error('subscription unavailable'))

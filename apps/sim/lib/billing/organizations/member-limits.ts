@@ -16,6 +16,7 @@ import { resolveSubscriptionUsagePeriod } from '@/lib/billing/core/reporting-per
 import type { UsageQueryPeriod } from '@/lib/billing/core/usage-log'
 import { toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import type { DbOrTx } from '@/lib/db/types'
+import { requireTeamOrganization } from '@/lib/organizations/team-only'
 
 const logger = createLogger('OrgMemberLimits')
 
@@ -108,6 +109,7 @@ export async function setOrgMemberUsageLimit(
     return
   }
 
+  await requireTeamOrganization(organizationId, 'per-member usage limits', executor)
   await executor
     .insert(organizationMemberUsageLimit)
     .values({

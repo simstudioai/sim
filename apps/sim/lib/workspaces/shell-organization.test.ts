@@ -5,7 +5,8 @@
  * organization this resolves. Failure modes: an organization-less workspace (a personal workspace
  * kept outside the team its owner joined) resolving to nothing, so its pages answer not found and
  * its saved links 404, or to an organization other than the viewer's; and a workspace the viewer
- * cannot open disclosing an organization.
+ * cannot open disclosing an organization. Membership in a workspace's own organization is proven
+ * against real PostgreSQL in `personal-organization-shell.integration.ts`.
  */
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -54,12 +55,6 @@ describe('resolveWorkspaceShellOrganizationId', () => {
     expect(await resolveWorkspaceShellOrganizationId('ws-1', 'viewer')).toBe('viewer-org')
     expect(checkWorkspaceAccess).toHaveBeenCalledWith('ws-1', 'viewer')
     expect(resolveOrganizationLanding).toHaveBeenCalledWith('viewer', null)
-  })
-
-  it('opens a workspace in an organization in its own organization', async () => {
-    checkWorkspaceAccess.mockResolvedValue(access('team-org'))
-    expect(await resolveWorkspaceShellOrganizationId('ws-1', 'viewer')).toBe('team-org')
-    expect(resolveOrganizationLanding).not.toHaveBeenCalled()
   })
 
   it.each([null, 'team-org'])(

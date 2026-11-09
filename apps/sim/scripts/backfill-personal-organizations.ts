@@ -4,19 +4,21 @@
  * Gives every account outside a team its personal organization and attaches the workspaces it
  * owns without one (with their Projects), so every person belongs to an organization.
  *
- * Deploy order (see scripts/backfill-personal-organizations.md): migrations 0455 and 0456, then the
+ * Deploy order (see scripts/backfill-personal-organizations.md): migrations 0455 to 0457, then the
  * app, background workers and Trigger.dev tasks on the release that reads `organization.kind`,
  * all fully rolled out; only then run this script. That release bills a personal organization's
  * workspaces to their owner exactly as before; the previous one would bill them to an
- * organization with no plan. New signups already get their personal organization at signup, and
- * opening the workspace list provisions one for anyone this script has not reached yet, so the
- * order of users does not matter.
+ * organization with no plan. New signups get their personal organization at signup, and the
+ * product shell provisions one for anyone in no organization who opens a product page before this
+ * script reaches them. Both create the organization and its owner membership only; neither attaches
+ * an existing workspace, so this script is the only path that moves existing workspaces (and their
+ * payer bookkeeping) into personal organizations. The order of users does not matter.
  *
  * On an instance-organization deployment (`INSTANCE_ORG_NAME`), users outside every organization
  * join the instance organization instead, as signup does there.
  *
- * Every write goes through `provisionPersonalOrganization`, the helper signup uses: one short
- * transaction per user under the invitation, organization and billing-identity locks every
+ * Every write goes through `provisionPersonalOrganization`, which only this script calls: one
+ * short transaction per user under the invitation, organization and billing-identity locks every
  * attach path takes, so it is safe while the app serves traffic. It is idempotent and resumable:
  * a user who already has their personal organization only gets newly found organization-less
  * workspaces attached; a user in a team is left alone, their organization-less workspaces

@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import type { DataRetentionSettings, WorkspaceMode } from '@sim/db/schema'
 import {
   folder,
+  member,
   organization,
   project,
   workspace,
@@ -427,7 +428,14 @@ async function forEachCleanupChunk(
     let afterOrganizationId: string | null = null
     while (!shouldStop()) {
       const organizations = await db
-        .select({ id: organization.id, settings: organization.dataRetentionSettings })
+        .select({
+          id: organization.id,
+          kind: organization.kind,
+          settings: organization.dataRetentionSettings,
+          ownerId: sql<string | null>`(SELECT ${member.userId} FROM ${member}
+            WHERE ${member.organizationId} = ${organization.id} AND ${member.role} = 'owner'
+            ORDER BY ${member.createdAt} LIMIT 1)`,
+        })
         .from(organization)
         .where(afterOrganizationId ? gt(organization.id, afterOrganizationId) : undefined)
         .orderBy(asc(organization.id))
@@ -439,9 +447,21 @@ async function forEachCleanupChunk(
         let plan: PlanCategory = 'enterprise'
         if (isBillingEnabled) {
           try {
-            const subscription = await getOrganizationSubscription(row.id, { onError: 'throw' })
-            if (!subscription) continue
-            plan = getPlanType(subscription.plan)
+            /**
+             * A personal organization bills its owner, so its content keeps the retention its
+             * owner's personal workspaces get from their own plan (free when they have none).
+             */
+            if (row.kind === 'personal') {
+              if (!row.ownerId) continue
+              const subscription = await getHighestPriorityPersonalSubscription(row.ownerId, {
+                onError: 'throw',
+              })
+              plan = getPlanType(subscription?.plan)
+            } else {
+              const subscription = await getOrganizationSubscription(row.id, { onError: 'throw' })
+              if (!subscription) continue
+              plan = getPlanType(subscription.plan)
+            }
           } catch (error) {
             if (failOnLookupError) throw error
             logger.error('Skipping organization cleanup after plan lookup failed', {
