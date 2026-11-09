@@ -18,6 +18,10 @@
   // invalidate the cache.
   "cacheMaxAge": "7d",
   "cacheMaxSize": "40GB",
+  // Bun applies `patches/*` to installed dependencies, but `bun.lock` records only each patch's
+  // path, so editing a patch leaves every task hash unchanged and replays a build of the
+  // unpatched dependency. Hash the patch contents into every task.
+  "globalDependencies": ["patches/**"],
   "tasks": {
     "ci:runtime": {
       "dependsOn": ["^ci:runtime"],
