@@ -65,18 +65,9 @@ export const GET = withRouteHandler(async (request: Request) => {
     activeOrganizationId,
     scope,
   })
-  const { lastActiveWorkspaceId, pinnedWorkspaceIds } = payload
-  let { creationPolicy } = payload
+  const { lastActiveWorkspaceId, pinnedWorkspaceIds, creationPolicy } = payload
 
   if (scope === 'active' && payload.workspaces.length === 0) {
-    /** The default workspace is created inside the viewer's organization, so they need one first. */
-    if (creationPolicy.observedOrganizationId === null) {
-      await ensureUserOrganization(session.user.id)
-      creationPolicy = await getWorkspaceCreationPolicy({
-        userId: session.user.id,
-        activeOrganizationId,
-      })
-    }
     if (!creationPolicy.canCreate) {
       return NextResponse.json({
         workspaces: [],

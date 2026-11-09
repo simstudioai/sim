@@ -8,6 +8,7 @@ import {
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { knowledgeAvailabilityMock } from '@sim/testing/mocks/knowledge-availability.mock'
 import { knowledgeContextsMock } from '@sim/testing/mocks/knowledge-contexts.mock'
+import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
 import { permissionGroupsResolveMock } from '@sim/testing/mocks/permission-groups-resolve.mock'
 import { urlsMockFns } from '@sim/testing/mocks/urls.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -29,6 +30,7 @@ const hoisted = vi.hoisted(() => ({
   insert: vi.fn(),
   update: vi.fn(),
 }))
+vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
 vi.mock('@/lib/slack-search/shared-app', () => ({ readSharedSlackSearchApp: hoisted.shared }))
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)

@@ -29,7 +29,7 @@ describe('mapLegacyWorkspaceUrl', () => {
     ['integrations', '/o/org-1/integrations'],
     ['integrations?slack=connected', '/o/org-1/integrations?slack=connected'],
     ['integrations/github', '/o/org-1/integrations/github'],
-    ['integrations/connected/cred-1', '/o/org-1/integrations?tab=credentials'],
+    ['integrations/connected/cred-1', '/o/org-1/integrations/accounts/cred-1'],
     ['upgrade', '/o/org-1/settings/billing/plans'],
     ['upgrade?reason=credits&ref=email', '/o/org-1/settings/billing/plans?reason=credits'],
     ['settings/general', '/o/org-1/settings/general'],

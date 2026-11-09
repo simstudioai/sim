@@ -1,4 +1,5 @@
 import { LRUCache } from 'lru-cache'
+import { isTeamOrganization } from '@/lib/billing/core/payer-organization'
 import { resolveOrganizationPlan } from '@/lib/billing/core/subscription'
 import { coalesceLocally } from '@/lib/concurrency/singleflight'
 import { isHosted } from '@/lib/core/config/env-flags'
@@ -38,7 +39,11 @@ const entitlementCache = new LRUCache<string, boolean>({
  * {@link isOrganizationBYOKEntitledCached} instead.
  */
 export async function isOrganizationBYOKEntitled(organizationId: string): Promise<boolean> {
-  return isHosted && (await resolveOrganizationPlan(organizationId))
+  return (
+    isHosted &&
+    (await isTeamOrganization(organizationId)) &&
+    (await resolveOrganizationPlan(organizationId))
+  )
 }
 
 /**

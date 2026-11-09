@@ -26,6 +26,7 @@ import {
   lockOrganizationSearchApproval,
 } from '@/lib/knowledge/search/integration-policy'
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
+import { requireTeamOrganization } from '@/lib/organizations/team-only'
 import { refuseCapability } from '@/lib/permission-groups/capabilities'
 import { isOrganizationCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
 import { NativeSearchError } from '@/lib/sim-search/live/http'
@@ -200,6 +201,7 @@ export const approveSearchIntegration = defineAuthorizedKnowledgeUseCase({
     if (!source) {
       throw new OrchestrationError('validation', 'This integration is not supported by Sim Search')
     }
+    if (input.approved) await requireTeamOrganization(organizationId, 'Sim Search integrations')
     if (
       input.approved &&
       !(await isSearchProviderEnabled(input.connectorType, {

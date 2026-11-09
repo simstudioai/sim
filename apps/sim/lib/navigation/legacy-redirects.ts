@@ -140,7 +140,7 @@ export function mapLegacyWorkspaceUrl({
   if (head === 'skills' && rest.length === 1) return skillsUrl(organizationId, workspaceId, rest[0])
   if (head === 'integrations' && rest.length === 0) return withQuery(routes.integrations, query)
   if (head === 'integrations' && rest.length === 2 && rest[0] === 'connected')
-    return `${routes.integrations}?tab=credentials`
+    return withQuery(routes.account(rest[1]), query)
   if (head === 'integrations' && rest.length === 1)
     return withQuery(routes.integration(rest[0]), query)
   if (head === 'upgrade' && rest.length === 0) {

@@ -50,6 +50,9 @@ export function organizationRoutes(organizationId: string) {
     searchChat: (chatId: string) => `${root}/search/chat/${chatId}`,
     integrations: `${root}/integrations`,
     integration: (providerId: string) => `${root}/integrations/${encodeURIComponent(providerId)}`,
+    /** A connected account's own page: its tool permissions. */
+    account: (credentialId: string) =>
+      `${root}/integrations/accounts/${encodeURIComponent(credentialId)}`,
     accessRequests: `${root}/access-requests`,
     memberSecrets: `${root}/integrations/secrets`,
     simLinks: `${root}/settings/links`,

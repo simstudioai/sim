@@ -1,0 +1,239 @@
+/**
+ * Which organization the product shell opens a workspace in, and on-demand personal organization
+ * provisioning, against real PostgreSQL. Failure modes: a guest on someone's personal workspace,
+ * or an external collaborator on a team's workspace, sent to an organization surface they are not
+ * a member of (access denied); an account outside every organization answering not found on its
+ * own workspaces; on-demand provisioning attaching existing workspaces (a payer change during a
+ * rolling deploy, owed only to the backfill); and concurrent first page loads creating two
+ * personal organizations.
+ */
+import { db } from '@sim/db'
+import {
+  member,
+  organization,
+  permissions,
+  project,
+  user,
+  userStats,
+  workspace,
+} from '@sim/db/schema'
+import { generateId } from '@sim/utils/id'
+import { eq, inArray } from 'drizzle-orm'
+import { afterAll, describe, expect, it } from 'vitest'
+import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
+import {
+  ensureUserOrganization,
+  provisionPersonalOrganization,
+  resolveOrProvisionLandingOrganization,
+} from '@/lib/organizations/provision-personal'
+import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
+import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/shell-organization'
+
+const userIds: string[] = []
+
+async function createUser(): Promise<string> {
+  const id = `shell-org-user-${generateId()}`
+  const now = new Date()
+  await db.insert(user).values({
+    id,
+    name: 'Shell Org Test',
+    email: `${id}@shell-org.test`,
+    emailVerified: true,
+    createdAt: now,
+    updatedAt: now,
+  })
+  await db.insert(userStats).values({ id: generateId(), userId: id, storageUsedBytes: 0 })
+  userIds.push(id)
+  return id
+}
+
+async function createWorkspace(
+  ownerId: string,
+  organizationId: string | null,
+  observedOrganizationId: string | null = organizationId
+): Promise<string> {
+  const created = await db.transaction((tx) =>
+    createWorkspaceInTransaction(tx, {
+      userId: ownerId,
+      name: 'Workspace',
+      organizationId,
+      observedOrganizationId,
+      governingPermissionGroupOrganizationId: null,
+      workspaceMode: organizationId ? 'organization' : 'personal',
+      billedAccountUserId: ownerId,
+      skipDefaultWorkflow: true,
+    })
+  )
+  return created.id
+}
+
+async function grantWorkspace(userId: string, workspaceId: string): Promise<void> {
+  const now = new Date()
+  await db.insert(permissions).values({
+    id: generateId(),
+    userId,
+    entityType: 'workspace',
+    entityId: workspaceId,
+    permissionType: 'write',
+    createdAt: now,
+    updatedAt: now,
+  })
+}
+
+async function membershipsOf(userId: string) {
+  return db
+    .select({ organizationId: member.organizationId, role: member.role, kind: organization.kind })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(eq(member.userId, userId))
+}
+
+async function workspaceOrganizationId(workspaceId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ organizationId: workspace.organizationId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+  return row.organizationId
+}
+
+/** The product shell's resolution: `readWorkspaceShellOrganizationId` composes exactly these. */
+function shellOrganization(workspaceId: string, userId: string) {
+  return resolveWorkspaceShellOrganizationId(
+    workspaceId,
+    userId,
+    resolveOrProvisionLandingOrganization
+  )
+}
+
+afterAll(async () => {
+  if (userIds.length === 0) return
+  const workspaces = await db
+    .select({ id: workspace.id, projectId: workspace.projectId })
+    .from(workspace)
+    .where(inArray(workspace.ownerId, userIds))
+  const organizations = await db
+    .select({ id: member.organizationId })
+    .from(member)
+    .where(inArray(member.userId, userIds))
+  if (workspaces.length > 0) {
+    await db.delete(workspace).where(
+      inArray(
+        workspace.id,
+        workspaces.map((row) => row.id)
+      )
+    )
+    await db.delete(project).where(
+      inArray(
+        project.id,
+        workspaces.flatMap((row) => (row.projectId ? [row.projectId] : []))
+      )
+    )
+  }
+  if (organizations.length > 0) {
+    await db.delete(organization).where(
+      inArray(
+        organization.id,
+        organizations.map((row) => row.id)
+      )
+    )
+  }
+  await db.delete(user).where(inArray(user.id, userIds))
+})
+
+describe('the organization a workspace opens in', () => {
+  it("opens a guest's view of someone's personal workspace in the guest's own organization", async () => {
+    const ownerId = await createUser()
+    const guestId = await createUser()
+    const ownerOrganizationId = await ensureUserOrganization(ownerId)
+    const guestOrganizationId = await ensureUserOrganization(guestId)
+    const shared = await createWorkspace(ownerId, ownerOrganizationId)
+    await grantWorkspace(guestId, shared)
+
+    expect(await shellOrganization(shared, guestId)).toBe(guestOrganizationId)
+    expect(await shellOrganization(shared, ownerId)).toBe(ownerOrganizationId)
+  })
+
+  it("opens an external collaborator's view of a team workspace in their own organization", async () => {
+    const teamOwnerId = await createUser()
+    const externalId = await createUser()
+    const { organizationId: teamId } = await createOrganizationWithOwner({
+      ownerUserId: teamOwnerId,
+      name: 'Team',
+      slug: `team-${generateId()}`.toLowerCase(),
+    })
+    const externalOrganizationId = await ensureUserOrganization(externalId)
+    const teamWorkspace = await createWorkspace(teamOwnerId, teamId)
+    await grantWorkspace(externalId, teamWorkspace)
+
+    expect(await shellOrganization(teamWorkspace, externalId)).toBe(externalOrganizationId)
+    expect(await shellOrganization(teamWorkspace, teamOwnerId)).toBe(teamId)
+  })
+
+  it('names no organization for a workspace the viewer cannot open', async () => {
+    const ownerId = await createUser()
+    const strangerId = await createUser()
+    const ownerOrganizationId = await ensureUserOrganization(ownerId)
+    const privateWorkspace = await createWorkspace(ownerId, ownerOrganizationId)
+
+    expect(await shellOrganization(privateWorkspace, strangerId)).toBeNull()
+    expect(await membershipsOf(strangerId)).toEqual([])
+  })
+
+  it('opens the workspaces of an account in no organization in a personal one made on demand', async () => {
+    const ownerId = await createUser()
+    const legacy = await createWorkspace(ownerId, null)
+
+    const organizationId = await shellOrganization(legacy, ownerId)
+
+    expect(await membershipsOf(ownerId)).toEqual([
+      { organizationId, role: 'owner', kind: 'personal' },
+    ])
+    expect(await workspaceOrganizationId(legacy)).toBeNull()
+  })
+})
+
+describe('on-demand personal organization provisioning', () => {
+  it('creates the organization and owner membership only, attaching no existing workspace', async () => {
+    const ownerId = await createUser()
+    const first = await createWorkspace(ownerId, null)
+    const second = await createWorkspace(ownerId, null)
+
+    const organizationId = await ensureUserOrganization(ownerId)
+
+    expect(await membershipsOf(ownerId)).toEqual([
+      { organizationId, role: 'owner', kind: 'personal' },
+    ])
+    expect(await workspaceOrganizationId(first)).toBeNull()
+    expect(await workspaceOrganizationId(second)).toBeNull()
+
+    const backfilled = await provisionPersonalOrganization(ownerId)
+    expect(backfilled).toMatchObject({ status: 'provisioned', organizationId, created: false })
+    expect(await workspaceOrganizationId(first)).toBe(organizationId)
+  })
+
+  it('creates one organization for concurrent first page loads', async () => {
+    const ownerId = await createUser()
+
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => resolveOrProvisionLandingOrganization(ownerId))
+    )
+
+    const memberships = await membershipsOf(ownerId)
+    expect(memberships).toHaveLength(1)
+    expect(new Set(results)).toEqual(new Set([memberships[0].organizationId]))
+  })
+
+  it('leaves a team member in their team', async () => {
+    const ownerId = await createUser()
+    const { organizationId: teamId } = await createOrganizationWithOwner({
+      ownerUserId: ownerId,
+      name: 'Team',
+      slug: `team-${generateId()}`.toLowerCase(),
+    })
+
+    expect(await resolveOrProvisionLandingOrganization(ownerId)).toBe(teamId)
+    expect(await membershipsOf(ownerId)).toEqual([
+      { organizationId: teamId, role: 'owner', kind: 'team' },
+    ])
+  })
+})

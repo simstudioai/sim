@@ -254,6 +254,7 @@ const serverSeamHelpers = new Set([
   'lib/organization-secrets/application/use-cases',
   'lib/organizations/application/member-roster',
   'lib/organizations/application/surface',
+  'lib/organizations/provision-personal',
   'lib/settings/prefetch-current-user-settings',
   'lib/sim-links/application/use-cases',
   'lib/users/application/read-current-user',
