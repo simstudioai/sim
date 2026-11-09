@@ -1153,7 +1153,6 @@
     "apps/sim/blocks/blocks/telegram.test.ts": 2,
     "apps/sim/blocks/blocks/tiktok.test.ts": 1,
     "apps/sim/blocks/registry.ts": 2,
-    "apps/sim/components/dashboards/dashboard-panel.tsx": 2,
     "apps/sim/components/file-viewer/html-preview-navigation.test.ts": 2,
     "apps/sim/components/file-viewer/rich-markdown-editor/block-image-paragraph.test.ts": 1,
     "apps/sim/components/file-viewer/rich-markdown-editor/collaboration/apply-streamed-markdown.test.ts": 7,
