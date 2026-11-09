@@ -22,11 +22,13 @@ import type {
   BrowserPanelBounds,
   BrowserPanelSnapshot,
   BrowserTabsState,
+  BrowserTheme,
   BrowserToolName,
 } from '@sim/browser-protocol'
 import type {
   BrowserAddToChatPayload,
   BrowserToolbarCommand,
+  DesktopAppearanceTheme,
   SimDesktopBrowserAgentApi,
 } from '@sim/desktop-bridge'
 import { isPendingDesktopScopeId } from '@sim/desktop-bridge'
@@ -370,6 +372,18 @@ export async function openUrlInNewBrowserTab(
   const state = await openBrowserTab(scopeId)
   sendBrowserPanelAction('navigate', { url }, scopeId)
   return state?.activeTabId ?? null
+}
+
+/** Mirrors Sim's raw light/dark/system preference into embedded pages. */
+export function reportBrowserTheme(theme: BrowserTheme): void {
+  bridge()?.setTheme(theme)
+}
+
+/** Subscribes to browser appearance changes initiated by native desktop UI. */
+export function onBrowserAppearanceThemeChanged(
+  callback: (theme: DesktopAppearanceTheme) => void
+): () => void {
+  return bridge()?.onAppearanceThemeChanged(callback) ?? (() => {})
 }
 
 /** Opens the native browser overflow menu above the embedded page. */

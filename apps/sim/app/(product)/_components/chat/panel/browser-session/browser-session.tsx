@@ -7,6 +7,12 @@ import { Input } from '@sim/emcn/field/inputs'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import styles from '@/app/(product)/_components/chat/panel/browser-session/browser-session.module.css'
+import {
+  AppLaunchNotice,
+  PageDialogModal,
+  PagePromptModal,
+  PermissionModal,
+} from '@/app/(product)/_components/chat/panel/browser-session/page-prompts'
 import { FindBar } from '@/app/(product)/_components/find-bar/find-bar'
 import { useBrowserPanel } from '@/platform/lib/data/browser-panel'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
@@ -97,6 +103,15 @@ export function BrowserSession({ scopeId, visible }: BrowserSessionProps) {
           onClick={(event) => browser.openMenu(event.currentTarget)}
         />
       </div>
+      {browser.launchNotice && (
+        <div className={styles.notice}>
+          <AppLaunchNotice
+            key={browser.launchNotice.requestId}
+            notice={browser.launchNotice}
+            onRespond={browser.respondPrompt}
+          />
+        </div>
+      )}
       {find.open && (
         <div className={styles.find}>
           <FindBar
@@ -151,6 +166,19 @@ export function BrowserSession({ scopeId, visible }: BrowserSessionProps) {
           </section>
         )}
       </div>
+      {browser.permission && (
+        <PermissionModal key={browser.permission.requestId} permission={browser.permission} />
+      )}
+      {browser.dialog && (
+        <PageDialogModal
+          key={browser.dialog.requestId}
+          dialog={browser.dialog}
+          onAnswer={browser.answerDialog}
+        />
+      )}
+      {browser.prompt && (
+        <PagePromptModal prompt={browser.prompt} onRespond={browser.respondPrompt} />
+      )}
     </div>
   )
 }

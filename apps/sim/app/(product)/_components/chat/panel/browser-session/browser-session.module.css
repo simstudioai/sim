@@ -19,6 +19,11 @@
   flex: 1;
   min-inline-size: 0;
 }
+/* A page's request to open another app, beneath the toolbar and outside the live page. */
+.notice {
+  flex: none;
+  padding: var(--spacing-8) var(--spacing-12) 0;
+}
 /* Docked beneath the toolbar, outside the host, so it never covers the live page. */
 .find {
   display: flex;

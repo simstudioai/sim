@@ -3,11 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   BrowserFindResult,
+  BrowserMediaPermissionRequest,
+  BrowserPagePromptResponse,
   BrowserPanelAnchor,
   BrowserPanelBounds,
   BrowserPanelSnapshot,
+  BrowserSitePermissionRequest,
 } from '@sim/browser-protocol'
-import type { BrowserToolbarCommand } from '@sim/desktop-bridge'
+import { isBrowserTheme } from '@sim/browser-protocol'
+import type { BrowserToolbarCommand, DesktopAppearanceTheme } from '@sim/desktop-bridge'
 import {
   type BrowserPanelSnapshotLayer,
   createBrowserPanelGeometryOcclusionLease,
@@ -18,26 +22,84 @@ import {
 } from '@/lib/browser-agent/panel-occlusion'
 import {
   findInBrowserPage,
+  onBrowserAppearanceThemeChanged,
   onBrowserFindClose,
   onBrowserFindOpen,
   onBrowserFindResult,
   onBrowserToolbarCommand,
   reportBrowserPanelBounds,
   reportBrowserPanelFocused,
+  reportBrowserTheme,
   sendBrowserPanelAction,
   setBrowserPanelOccluded,
   showBrowserToolbarMenu,
   stopBrowserFind,
   supportsAtomicBrowserPanelOcclusion,
 } from '@/lib/browser-agent/transport'
+import {
+  loadDesktopBrowserAppearanceTheme,
+  resolveDesktopAppearanceTheme,
+} from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
 import {
   type BrowserPageIssueCopy,
   browserPageIssueCopy,
   resolveUrlBarInput,
 } from '@/platform/lib/data/browser-page-issue'
+import { useSurfaceTheme } from '@/platform/lib/data/surface-theme'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { MOTHERSHIP_WIDTH } from '@/stores/constants'
+
+/** Keeps a click or keystroke aimed at the page from answering a prompt as it appears. */
+const ACTIVATION_DELAY_MS = 500
+
+/**
+ * False until a page-raised prompt has been on screen long enough to be read. Hiding it disarms it
+ * again, so a prompt shown after waiting behind another dialog starts its delay when it appears.
+ */
+export function useActivationDelay(visible: boolean): boolean {
+  const [armed, setArmed] = useState(false)
+  useEffect(() => {
+    if (!visible) {
+      setArmed(false)
+      return
+    }
+    const timer = setTimeout(() => setArmed(true), ACTIVATION_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [visible])
+  return armed
+}
+
+/** Covers every prompt kind across the admitted native tabs without unbounded retention. */
+const MAX_ANSWERED_REQUESTS = 256
+
+/** Claims the one renderer answer the shell accepts for a page request. */
+function claimAnswer(answered: Set<string>, requestId: string): boolean {
+  if (answered.has(requestId)) return false
+  answered.add(requestId)
+  while (answered.size > MAX_ANSWERED_REQUESTS) {
+    const oldest = answered.values().next().value
+    if (typeof oldest !== 'string') break
+    answered.delete(oldest)
+  }
+  return true
+}
+
+type PermissionRequest = BrowserMediaPermissionRequest | BrowserSitePermissionRequest
+
+/** What a page's permission request asks, in the words the legacy browser used. */
+function permissionCopy(request: PermissionRequest): { title: string; description: string } {
+  if ('tabId' in request)
+    return {
+      title: 'Open another website?',
+      description: `This page wants to open ${request.origin}. Allow this destination for the rest of this browser task? Only continue if you trust this website.`,
+    }
+  const devices = request.devices.join(' and ')
+  return {
+    title: `Allow ${request.origin} to use your ${devices}?`,
+    description: `Allowing gives this page access to your ${devices} until it navigates. Block if you did not expect this request.`,
+  }
+}
 
 /** Re-report unchanged bounds before the main-process visibility lease expires. */
 const PANEL_HEARTBEAT_INTERVAL_MS = 1_000
@@ -123,6 +185,30 @@ export function useBrowserPanel({ scopeId, visible, onSettings }: BrowserPanelOp
       (!pageState.url || pageState.url === 'about:blank')
   )
   const hasRendererPage = Boolean(pageState?.issue) || blank
+  const answeredRef = useRef<Set<string> | null>(null)
+  const answered = (answeredRef.current ??= new Set())
+  const permission = pageState?.sitePermissionRequest ?? pageState?.mediaPermissionRequest
+  const [answeredPermission, setAnsweredPermission] = useState<string | null>(null)
+  const decidePermission = useCallback(
+    (request: PermissionRequest, allowed: boolean) => {
+      if (!claimAnswer(answered, request.requestId)) return
+      setAnsweredPermission(request.requestId)
+      sendBrowserPanelAction(
+        'tabId' in request ? 'respond-site-permission' : 'respond-media-permission',
+        { requestId: request.requestId, allowed },
+        scopeId
+      )
+    },
+    [answered, scopeId]
+  )
+  // A permission request on a tab nobody can see is refused rather than left waiting.
+  useEffect(() => {
+    if (!visible && permission) decidePermission(permission, false)
+  }, [visible, permission, decidePermission])
+  // The shell answers page dialogs and refuses page prompts until the panel says it shows them.
+  useEffect(() => {
+    sendBrowserPanelAction('enable-page-dialogs', { pagePrompts: true }, scopeId)
+  }, [scopeId])
   const panelRef = useRef<HTMLDivElement>(null)
   const hostRef = useRef<HTMLDivElement>(null)
   const getHostRect = useCallback(() => hostRef.current?.getBoundingClientRect() ?? null, [])
@@ -133,6 +219,27 @@ export function useBrowserPanel({ scopeId, visible, onSettings }: BrowserPanelOp
     useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible, getHostRect)
   const onSettingsRef = useRef(onSettings)
   onSettingsRef.current = onSettings
+  const [panelElement, setPanelElement] = useState<HTMLDivElement | null>(null)
+  const surfaceTheme = useSurfaceTheme(panelElement)
+  const [appearanceTheme, setAppearanceTheme] = useState<DesktopAppearanceTheme | null>(null)
+
+  // Embedded pages follow Sim's appearance, or the browser's own choice in desktop settings.
+  useEffect(() => {
+    let active = true
+    void loadDesktopBrowserAppearanceTheme().then((next) => {
+      if (active) setAppearanceTheme(next)
+    })
+    const unsubscribe = onBrowserAppearanceThemeChanged(setAppearanceTheme)
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [])
+  useEffect(() => {
+    if (!appearanceTheme) return
+    const next = resolveDesktopAppearanceTheme(appearanceTheme, surfaceTheme)
+    if (isBrowserTheme(next)) reportBrowserTheme(next)
+  }, [appearanceTheme, surfaceTheme])
 
   useEffect(
     () =>
@@ -358,9 +465,35 @@ export function useBrowserPanel({ scopeId, visible, onSettings }: BrowserPanelOp
       }
     : null
 
+  const permissionShown =
+    visible && permission && permission.requestId !== answeredPermission ? permission : null
   return {
     page,
-    panelRef,
+    /** A permission prompt waiting on the reader, with its question. */
+    permission: permissionShown
+      ? {
+          requestId: permissionShown.requestId,
+          ...permissionCopy(permissionShown),
+          decide: (allowed: boolean) => decidePermission(permissionShown, allowed),
+        }
+      : null,
+    /** A Leave page? question the page is holding navigation for; a permission prompt goes first. */
+    dialog: visible && !permissionShown ? (pageState?.dialog ?? null) : null,
+    /** A sign-in or app-launch decision; it waits behind a permission prompt and a page dialog. */
+    prompt: visible && !permissionShown && !pageState?.dialog ? (pageState?.prompt ?? null) : null,
+    launchNotice: pageState?.appLaunchNotice ?? null,
+    answerDialog: (requestId: string, accept: boolean) => {
+      if (claimAnswer(answered, requestId))
+        sendBrowserPanelAction('respond-dialog', { requestId, allowed: accept }, scopeId)
+    },
+    respondPrompt: (requestId: string, response: BrowserPagePromptResponse) => {
+      if (claimAnswer(answered, requestId))
+        sendBrowserPanelAction('respond-prompt', { requestId, response }, scopeId)
+    },
+    panelRef: (element: HTMLDivElement | null) => {
+      panelRef.current = element
+      setPanelElement(element)
+    },
     hostRef,
     snapshot: shownSnapshot
       ? {
