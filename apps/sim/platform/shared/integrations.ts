@@ -33,9 +33,9 @@ export interface OrganizationIntegration {
   searchReads: readonly { id: string; label: string }[]
   requestedScopes: readonly { id: string; label: string }[] | null
   accessDescription: string
-  /** `blocked` carries its reason in `status`. */
+  /** `blocked` carries its reason in `status`, absent while the policy read is pending. */
   availability: 'ready' | 'managed' | 'blocked'
-  status: string
+  status?: string
   /** The free connection slot, absent when every slot holds an account. */
   connectionTarget?: MemberIntegration['connectionTarget']
   accounts: readonly IntegrationAccount[]

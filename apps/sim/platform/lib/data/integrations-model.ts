@@ -25,7 +25,7 @@ function availabilityOf(entry: MemberIntegration): OrganizationIntegration['avai
 
 function memberIntegrationStatus(entry: MemberIntegration) {
   if (entry.managed) return 'Organization managed'
-  if (!entry.ready) return entry.description ?? 'Checking availability'
+  if (!entry.ready) return entry.description
   if (entry.accounts.length)
     return entry.accounts.length === 1 ? '1 account' : `${entry.accounts.length} accounts`
   return 'Not connected'

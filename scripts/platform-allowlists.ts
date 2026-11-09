@@ -77,8 +77,6 @@ const LOADING_COPY_OWNERS: ReasonedAllowlist = {
     "The document editor's save status reports a write, not a pending read",
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/chat-tab/chat-tab.tsx`]:
     "The identifier field's spinner carries a visually hidden status for screen readers",
-  'platform/lib/data/integrations-model.ts':
-    'Predates the synonyms: a member integration not yet ready reads as checking availability',
 }
 
 /** Frames that hold a legacy composer between surfaces, where foundation tokens do not reach. */
