@@ -1705,6 +1705,9 @@ try {
         return route.fulfill({ status: 403, json: { error: 'QA admission rejected' } })
       })
       try {
+        // The previous check's tab took the window; the panel's frame is hit-tested against it.
+        await shell.bringToFront()
+        await setPanelViewport(390, 844)
         await expect(mic).toBeVisible()
         await input.fill('Keep my draft')
         assert.equal(sessions.length, 0, 'Voice started before an explicit click')
