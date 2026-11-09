@@ -7,11 +7,9 @@ export {
   useRemoveWorkspaceCredentialMember,
   useUpdateWorkspaceCredential,
   useUpsertWorkspaceCredentialMember,
-  useWorkspaceCredential,
   useWorkspaceCredentialMembers,
 } from '@/hooks/queries/credentials'
 export { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
-export { useCredentialDetailForm } from '@/platform/lib/data/secrets/use-credential-detail-form'
 export { useAtlassianServiceAccount } from './atlassian-service-account'
 export { useDataverseReconnect } from './dataverse-reconnect'
 export { checkEnvVarTrigger, useEnvVarSuggestions } from './env-var-suggestions'

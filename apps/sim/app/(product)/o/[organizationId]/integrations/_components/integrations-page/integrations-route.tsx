@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { SavedAccountModal } from '@/app/(product)/_components/service-account-modal/saved-account-modal'
 import { IntegrationDetails } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-details/integration-details'
 import { IntegrationList } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-list/integration-list'
@@ -10,11 +10,18 @@ import {
   IntegrationsHeading,
   IntegrationsPage,
 } from '@/app/(product)/o/[organizationId]/integrations/_components/integrations-page/integrations-page'
-import { useLiveSkills } from '@/app/(product)/o/[organizationId]/integrations/_components/live-skills/live-skills'
 import { MemberSecrets } from '@/app/(product)/o/[organizationId]/integrations/_components/member-secrets/member-secrets'
 import { ProviderHeading } from '@/app/(product)/o/[organizationId]/integrations/_components/provider-heading/provider-heading'
 import { QueryFailure } from '@/app/(product)/o/[organizationId]/integrations/_components/query-failure/query-failure'
 import { ToolPermissionsPanel } from '@/app/(product)/o/[organizationId]/integrations/_components/tool-permissions/tool-permissions-panel'
+import {
+  RestrictedIntegration,
+  WorkspaceIntegrationDetails,
+} from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-integration-details/workspace-integration-details'
+import {
+  type IntegrationsWorkspaceScope,
+  useWorkspaceDirectory,
+} from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-integrations/workspace-directory'
 import {
   defaultIntegrationPaths,
   useIntegrationActions,
@@ -22,6 +29,7 @@ import {
   useMemberIntegrations,
 } from '@/platform/lib/data/integrations'
 import { integrationCenterHref } from '@/platform/lib/integrations/center-navigation'
+import type { WorkspaceAppDetail } from '@/platform/lib/integrations/workspace-catalog'
 import { GENERIC_SECRETS_SEGMENT } from '@/platform/shared/integrations'
 
 export interface IntegrationsRouteProps {
@@ -32,6 +40,10 @@ export interface IntegrationsRouteProps {
   connectionRequest?: ReactNode
   /** The host's handoff from Slack onboarding, beside the heading. */
   handoff?: ReactNode
+  /** The workspace whose apps, credentials and skills the page lists beside the member's own. */
+  workspace: IntegrationsWorkspaceScope
+  /** The app the `[provider]` segment names in that workspace's catalog. */
+  workspaceDetail?: WorkspaceAppDetail
 }
 
 export function IntegrationsRoute({
@@ -39,22 +51,31 @@ export function IntegrationsRoute({
   section,
   connectionRequest,
   handoff,
+  workspace: workspaceScope,
+  workspaceDetail,
 }: IntegrationsRouteProps) {
   const params = useSearchParams()
+  const router = useRouter()
   const { integrations, genericSecrets, inventory, policies, secrets } =
     useMemberIntegrations(organizationId)
   const actions = useIntegrationActions(organizationId)
   const { search, account, clearAccount, serialize } = useIntegrationsView()
-  const skills = useLiveSkills()
+  const directory = useWorkspaceDirectory(organizationId, workspaceScope)
+  const { workspace, connections } = directory
+  const skills = directory.skills
   const defaults = defaultIntegrationPaths(organizationId)
   const indexPath = defaults.index
   const pathOf = (id: string) => `${indexPath}/${encodeURIComponent(id)}`
   const integrationHref = (id: string) =>
-    serialize(integrationCenterHref(pathOf(id), params), { q: search })
-  const indexHref = serialize(integrationCenterHref(indexPath, params), { q: search })
-  const memberSecretsHref = serialize(integrationCenterHref(defaults.memberSecrets, params), {
-    q: search,
-  })
+    directory.keep(serialize(integrationCenterHref(pathOf(id), params), { q: search }))
+  const indexHref = directory.keep(
+    serialize(integrationCenterHref(indexPath, params), { q: search })
+  )
+  const memberSecretsHref = directory.keep(
+    serialize(integrationCenterHref(defaults.memberSecrets, params), { q: search })
+  )
+  const openAccount = (id: string) => (credentialId: string) =>
+    router.push(serialize(integrationHref(id), { account: credentialId }), { scroll: false })
 
   const inventoryFailure = inventory.error ? (
     <QueryFailure message='Could not load your connections' query={inventory} />
@@ -67,6 +88,7 @@ export function IntegrationsRoute({
       {secrets.error && (
         <QueryFailure message='Could not load secret connections' query={secrets} />
       )}
+      {directory.failure}
     </>
   )
 
@@ -83,6 +105,8 @@ export function IntegrationsRoute({
               {readFailures}
               <IntegrationList
                 integrations={integrations}
+                workspaceApps={directory.summaries}
+                workspaceCredentials={directory.credentialLinks}
                 secrets={genericSecrets}
                 integrationHref={integrationHref}
                 secretsHref={
@@ -90,19 +114,28 @@ export function IntegrationsRoute({
                     ? memberSecretsHref
                     : integrationHref(GENERIC_SECRETS_SEGMENT)
                 }
-                settled={policies.isSuccess && secrets.isSuccess}
+                settled={policies.isSuccess && secrets.isSuccess && directory.settled}
                 skills={skills.tab}
+                scopeFilter={directory.scopeFilter}
               />
             </>
           ))}
+        {directory.requestDialog}
       </IntegrationsPage>
     )
 
   const integration = integrations.find((item) => item.id === section)
+  const named = integration ?? workspaceDetail
   const back =
-    account && integration
-      ? { href: integrationHref(integration.id), label: `Back to ${integration.name}` }
+    account && named
+      ? { href: integrationHref(named.id), label: `Back to ${named.name}` }
       : { href: indexHref, label: 'Integrations' }
+  const disconnect = async (credentialId: string) => {
+    if (integration?.accounts.some((item) => item.id === credentialId))
+      await actions.disconnect(credentialId)
+    else await connections.disconnect(credentialId)
+    if (account === credentialId) clearAccount()
+  }
   const unavailable = (loading: boolean) =>
     loading ? null : <EmptyState title='This integration is no longer available.' />
 
@@ -131,25 +164,18 @@ export function IntegrationsRoute({
               {readFailures}
               {integration ? (
                 <IntegrationDetails
-                  key={integration.id}
+                  key={`${workspace?.id ?? ''}:${integration.id}`}
                   integration={integration}
                   accountId={account}
                   integrationHref={integrationHref(integration.id)}
-                  accountHref={(credentialId) =>
-                    serialize(integrationCenterHref(pathOf(integration.id), params), {
-                      q: search,
-                      account: credentialId,
-                    })
-                  }
-                  pending={actions.pending}
+                  onOpen={openAccount(integration.id)}
+                  pending={actions.pending || connections.pending}
                   onConnect={() => {
                     if (integration.connectionTarget) actions.connect(integration.connectionTarget)
                   }}
                   onReconnect={actions.reconnect}
-                  onDisconnect={async (credentialId) => {
-                    await actions.disconnect(credentialId)
-                    if (account === credentialId) clearAccount()
-                  }}
+                  onDisconnect={disconnect}
+                  onLeave={clearAccount}
                   renderToolPermissions={(credentialId) => (
                     <ToolPermissionsPanel
                       key={credentialId}
@@ -157,6 +183,26 @@ export function IntegrationsRoute({
                       credentialId={credentialId}
                     />
                   )}
+                  workspaceApp={
+                    workspace && workspaceDetail && workspaceDetail.access !== 'restricted'
+                      ? { app: workspaceDetail, workspace, credentials: directory.credentials }
+                      : undefined
+                  }
+                />
+              ) : workspace && workspaceDetail?.access === 'restricted' ? (
+                <RestrictedIntegration app={workspaceDetail} workspaceId={workspace.id} />
+              ) : workspace && workspaceDetail ? (
+                <WorkspaceIntegrationDetails
+                  key={`${workspace.id}:${workspaceDetail.id}`}
+                  app={workspaceDetail}
+                  workspace={workspace}
+                  credentials={directory.credentials}
+                  accountId={account}
+                  integrationHref={integrationHref(workspaceDetail.id)}
+                  onOpen={openAccount(workspaceDetail.id)}
+                  pending={connections.pending}
+                  onDisconnect={disconnect}
+                  onLeave={clearAccount}
                 />
               ) : (
                 !policies.error && unavailable(policies.isPending)
