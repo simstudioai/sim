@@ -126,12 +126,17 @@ test.describe('Home for the seeded administrator', () => {
     await expect(recent).toHaveCount(0)
   })
 
-  test('an unread chat needs attention and opens from there', async ({ page }) => {
+  test('an assistant chat opens under Search, and Home paints no attention list', async ({
+    page,
+  }) => {
     await signInAsAdmin(page, liveRoute('/home'))
-    const attention = page.getByRole('region', { name: 'Needs your attention', exact: true })
-    await expect(attention.getByText('Vendor renewals')).toBeVisible()
-    await expect(attention.getByText('Quarterly review')).toHaveCount(0)
-    await attention.getByText('Vendor renewals').click()
+    await expect(
+      page.getByRole('region', { name: 'Needs your attention', exact: true })
+    ).toHaveCount(0)
+    await page
+      .getByRole('region', { name: 'Chats', exact: true })
+      .getByRole('link', { name: 'Vendor renewals' })
+      .click()
     await expect(page).toHaveURL(liveRoutePattern('/search/chat/22222222-'))
     await expect(page.getByText('Here is what I found about Vendor renewals.')).toBeVisible()
   })
@@ -275,18 +280,13 @@ test.describe('Home with connected accounts', () => {
     await expect(email.getByText('Grace Hopper')).toBeVisible()
   })
 
-  test('an account Google stopped honoring asks to reconnect, here and in attention', async ({
-    page,
-  }) => {
+  test('an account Google stopped honoring asks to reconnect', async ({ page }) => {
     await serveWidgets(page, { json: { accounts: [account(GRANT, 'needs_reauth')], threads: [] } })
     await open(page)
     await expect(
       page
         .getByRole('region', { name: 'Email', exact: true })
         .getByText('Reconnect your email', { exact: true })
-    ).toBeVisible()
-    await expect(
-      page.getByRole('region', { name: 'Needs your attention', exact: true }).getByText(/Reconnect/)
     ).toBeVisible()
   })
 

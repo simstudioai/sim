@@ -344,20 +344,16 @@ export async function homeChecks() {
       }
     )
   })
-  await check('Unread chats need attention and open under Search', async () => {
+  await check('Assistant chats open under Search, and Home paints no attention list', async () => {
     const { id, title } = ADMIN_CHATS.assistant
-    await withRestore(
-      () => sql`update copilot_chats set last_seen_at = null where id = ${id}`,
-      () =>
-        withSession(ADMIN, async ({ page }) => {
-          await sql`update copilot_chats set last_seen_at = null where id = ${id}`
-          await page.goto(homeUrl)
-          const row = homeRegion(page, 'Needs your attention').getByRole('link', { name: title })
-          await expect(row).toHaveAttribute('href', org.searchChat(id))
-          await row.click()
-          await expect(page).toHaveURL((address) => address.pathname === org.searchChat(id))
-        })
-    )
+    await withSession(ADMIN, async ({ page }) => {
+      await page.goto(homeUrl)
+      await expect(homeRegion(page, 'Needs your attention')).toHaveCount(0)
+      const row = sidebar(page).getByRole('link', { name: title })
+      await expect(row).toHaveAttribute('href', org.searchChat(id))
+      await row.click()
+      await expect(page).toHaveURL((address) => address.pathname === org.searchChat(id))
+    })
   })
   await check('Customize Home hides a widget, and Undo brings it back', async () => {
     await onHome(ADMIN, async ({ page }) => {

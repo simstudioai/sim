@@ -350,7 +350,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Sort workspaces | None | Hidden | See the Shell rows above |
 | Chats section visibility | `organization-sidebar.tsx` | Unverified | No live check yet. `chatsAvailable` from `canListOrganizationChats` |
 | Chat list | `use-organization-chats.ts` | Done | "a chat renames and deletes" |
-| Mode-aware link | `use-organization-chats.ts` | Done | "an unread chat needs attention" opens an Assistant chat under Search |
+| Mode-aware link | `use-organization-chats.ts` | Done | "an assistant chat opens under Search" |
 | Status dot and pin glyph | `chats-section.tsx` | Unverified | No live check yet. `chatStatus` in `chats-section.tsx`, through Chip's `status` slot, which keeps it beside the always-shown row action on touch |
 | No chats yet, silent while loading, retry on failure | `chats-section.tsx` | Unverified | No live check yet. `section-status.tsx` |
 | Chat row options and right click | `use-organization-chat-actions.ts` | Done | "a chat renames and deletes" |
@@ -395,7 +395,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Home | Activity chart: Searches | None; Platform only | Hidden | No truthful source: `organization_search_history` keeps 20 rolling entries per person, assistant chats count conversations rather than searches, and `organization_search_mcp_invocation` covers MCP alone. Needs a search event or counter table. Search mode shows no chart and drops it from Customize |
 | Home | Recents | None; Platform only | Done | "Recents list the viewer’s real history" |
 | Home | Recents the panel shows for files and workspaces | None; Platform only | Hidden | A per-user recent destinations store |
-| Home | Needs your attention | None; Platform only | Hidden | Hidden by design until Emir's pass: `HIDDEN_SECTIONS` in `home-dashboard.tsx` renders no attention list. `AttentionList`, `toAttentionItems` and its read stay, so "an unread chat needs attention" and "an account Google stopped honoring" no longer hold until it returns |
+| Home | Needs your attention | None; Platform only | Hidden | Hidden by design until Emir's pass: `HIDDEN_SECTIONS` in `home-dashboard.tsx` renders no attention list; "Home paints no attention list" pins it. `AttentionList`, `toAttentionItems` and its read stay for his pass |
 | Home | Cross-chat approvals in Needs your attention | None; Platform only | Hidden | Pending tool permissions and assistant reviews are listed per chat. Needs a member-scoped list across chats |
 | Home | Customize Home | `stores/organization-home/store.ts` | Unverified | No live check yet. Hide and Undo persist in this browser per viewer and organization under legacy's `organization-home:v1` key, cleared on sign-out (`useHiddenHomeWidgets` in `lib/data/home.ts`). Live Home renders its heading, composer and Recents at once; only the widgets a viewer can hide wait for the session to name the viewer, so a hidden widget never reads. Fixture sessions keep the choice for the session |
 | Home | Workspaces widget: rows with status and last run, See more, its own read | `platform/embedded/.../home-workspaces.tsx`, `/home/workspace-activity` | Declined | Emir Karabeg removed it from the Platform's Home in `2f1bf5ac21`, leaving Customize Home to Activity, Email and Calendar; the sidebar lists the workspaces. A stored `Workspaces` choice under `organization-home:v1` is ignored. The `/home/workspace-activity` route, contract and use case remain with no Platform reader |

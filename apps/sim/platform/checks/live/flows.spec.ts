@@ -27,11 +27,6 @@ test('a chat pins and marks unread, and both survive a reload', async ({ page })
   await list.getByRole('button', { name: 'Actions for Quarterly review' }).click()
   await expect(page.getByRole('menuitem', { name: 'Unpin', exact: true })).toBeVisible()
   await page.getByRole('menuitem', { name: 'Mark as unread', exact: true }).click()
-  await expect(
-    page
-      .getByRole('region', { name: 'Needs your attention', exact: true })
-      .getByText('Quarterly review')
-  ).toBeVisible()
   await page.reload()
   await list.getByRole('button', { name: 'Actions for Quarterly review' }).click()
   await page.getByRole('menuitem', { name: 'Mark as read', exact: true }).click()
