@@ -122,6 +122,10 @@ test('A gated tool holds the turn until the prompt is answered', async ({ page }
     request.url().includes('/api/copilot/tool-permission')
   )
   await allow.click()
-  await decided
+  expect((await (await decided).response())?.ok(), 'the decision was refused').toBe(true)
   await expect(allow).toHaveCount(0, { timeout: 60_000 })
+  // The scripted worker's resumed leg: Sim carried the decision back and the turn finished.
+  await expect(page.getByText('The approval probe has its answer.')).toBeVisible({
+    timeout: 60_000,
+  })
 })

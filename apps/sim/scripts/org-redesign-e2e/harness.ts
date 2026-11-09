@@ -123,7 +123,6 @@ export const routes: {
 }[] = []
 export const firstPaints: FirstPaint[] = []
 const unexpected: Problem[] = []
-let clientAddress = 0
 let currentCheck = 'Setup'
 let currentSection = 'Setup'
 /** Set once every phase has run: until then a clean report only says nothing has failed yet. */
@@ -146,8 +145,8 @@ const ENVIRONMENT_CONSOLE_NOISE = [
 ]
 /** How long a route may keep showing a first read before the walk fails it as stuck. */
 const CONTENT_DEADLINE_MS = 20_000
-/** The gap between the two looks that must agree: the next read starts after a chunk or a mount. */
-const CONTENT_RECHECK_MS = 300
+/** How soon a skeleton with no read behind it is looked at again. */
+const SKELETON_RECHECK_MS = 100
 const LOADING_STATUS = /^(Loading|Checking|Searching|Updating)\b/
 const HIGH_VOLUME_REQUEST = /\/api\/mothership\/events|\/socket\.io\/|\/api\/auth\/socket-token/
 
@@ -267,7 +266,10 @@ function isPageRead(request: Request) {
 
 class Session {
   private readonly inflight = new Set<Request>()
-  private lastActivity = Date.now()
+  /** How many page reads have started, so a wait can tell whether a new one began meanwhile. */
+  private readsStarted = 0
+  /** Woken by every page read that starts or ends. */
+  private readonly activityWaiters = new Set<() => void>()
   /** The document a navigation is loading, until it replaces the page. */
   private loadingDocument: Request | null = null
   readonly requests: { method: string; path: string; type: string }[] = []
@@ -300,8 +302,9 @@ class Session {
         this.loadingDocument = request
       if (isPageRead(request)) {
         this.inflight.add(request)
-        this.lastActivity = Date.now()
+        this.readsStarted += 1
         this.readStarted.set(request, Date.now())
+        this.wakeActivityWaiters()
       }
       if (isSameOrigin(request.url()))
         this.requests.push({
@@ -317,9 +320,10 @@ class Session {
       for (const request of this.inflight)
         if (request !== this.loadingDocument) this.inflight.delete(request)
       this.loadingDocument = null
+      this.wakeActivityWaiters()
     })
     const settled = (request: Request) => {
-      if (this.inflight.delete(request)) this.lastActivity = Date.now()
+      if (this.inflight.delete(request)) this.wakeActivityWaiters()
       const started = this.readStarted.get(request)
       if (started === undefined) return
       this.readStarted.delete(request)
@@ -354,16 +358,56 @@ class Session {
     })
   }
 
+  private wakeActivityWaiters() {
+    for (const wake of this.activityWaiters) wake()
+    this.activityWaiters.clear()
+  }
+
+  /** Resolves when a page read next starts or ends, or after `ms`. */
+  private nextActivity(ms: number) {
+    return new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, ms)
+      this.activityWaiters.add(() => {
+        clearTimeout(timer)
+        resolve()
+      })
+    })
+  }
+
   /**
-   * Quiet for 400ms on the page's own reads (`isPageRead`), ignoring the SSE and socket connections
-   * that never finish. Fails at its deadline, naming what is still out, because every caller goes on
-   * to reason about a quiet page.
+   * Resolves once the page's main thread has been idle (`requestIdleCallback`): the work a commit
+   * scheduled, including the effects that start the next read, has run. A navigation that replaces
+   * the document mid-wait counts as activity, so the caller looks again.
+   */
+  private async idle(ms: number) {
+    try {
+      await this.page.evaluate(
+        (timeout) =>
+          new Promise<void>((resolve) => requestIdleCallback(() => resolve(), { timeout })),
+        ms
+      )
+      return true
+    } catch (error) {
+      if (/Execution context was destroyed|navigation/i.test(getErrorMessage(error))) return false
+      throw error
+    }
+  }
+
+  /**
+   * Every page read (`isPageRead`) that started has finished, and the page went idle without
+   * starting another; the SSE and socket connections that never finish are not reads. Fails at its
+   * deadline naming what is still out, because every caller goes on to reason about a quiet page.
    */
   async settle(maxMs = 8_000) {
     const deadline = Date.now() + maxMs
     while (Date.now() < deadline) {
-      if (this.inflight.size === 0 && Date.now() - this.lastActivity > 400) return
-      await sleep(100)
+      if (this.inflight.size > 0) {
+        await this.nextActivity(deadline - Date.now())
+        continue
+      }
+      const started = this.readsStarted
+      const wentIdle = await this.idle(Math.max(1, deadline - Date.now()))
+      if (wentIdle && this.inflight.size === 0 && this.readsStarted === started) return
     }
     throw new Error(
       `The page did not go quiet in ${maxMs}ms. Still out: ${this.readsOut() || 'none'}`
@@ -380,14 +424,12 @@ class Session {
     const loading = () => this.page.evaluate(loadingStatesOnScreen, LOADING_STATUS.source)
     let showing: string[] = []
     while (Date.now() - started < maxMs) {
-      await this.settle(maxMs - (Date.now() - started)).catch(() => {})
+      await this.settle(maxMs - (Date.now() - started))
       showing = await loading()
-      if (showing.length === 0) {
-        await sleep(CONTENT_RECHECK_MS)
-        showing = await loading()
-        if (showing.length === 0 && this.inflight.size === 0) return Date.now() - started
-      }
-      await sleep(100)
+      if (showing.length === 0) return Date.now() - started
+      // A skeleton still on screen with nothing in flight is waiting on a chunk or a mount: look
+      // again when its read starts, or shortly, for one that clears without a read.
+      await this.nextActivity(SKELETON_RECHECK_MS)
     }
     throw new Error(
       `Still loading after ${maxMs}ms: ${showing.join(', ') || 'no skeleton'}. Reads still out: ${this.readsOut() || 'none'}`
@@ -431,12 +473,7 @@ async function open(persona: Persona | null, options: OpenOptions = {}): Promise
   const scope = checkScope.getStore()
   if (scope?.cancelled) throw new Error('The check timed out; it may not open another session')
   const viewport = options.viewport ?? DESKTOP
-  clientAddress += 1
   const context = await browser.newContext({
-    // Better Auth limits by address, and hundreds of loads from one would be nobody's real traffic.
-    extraHTTPHeaders: {
-      'x-forwarded-for': `10.0.${Math.floor(clientAddress / 250)}.${clientAddress % 250}`,
-    },
     viewport: { width: viewport.width, height: viewport.height },
     colorScheme: options.theme ?? 'light',
     hasTouch: viewport === PHONE,

@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test'
 import { escapeRegExp } from '@sim/utils/string'
 import { adminEmail, requireEnv, signInAsAdmin } from '@/platform/checks/live/session'
+import { withLiveDatabase } from '@/platform/checks/live/support/database'
 import { liveRoute } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
@@ -37,18 +38,26 @@ test('a chat pins and marks unread, and both survive a reload', async ({ page })
 test('a workspace pins and renames through its row menu', async ({ page }) => {
   await signInAsAdmin(page, liveRoute('/home'))
   const list = workspaces(page)
-  await list.getByRole('button', { name: 'Actions for Marketing' }).click()
-  await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
-  await page.reload()
-  await list.getByRole('button', { name: 'Actions for Marketing' }).click()
-  await expect(page.getByRole('menuitem', { name: 'Unpin', exact: true })).toBeVisible()
-  await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
-  const dialog = page.getByRole('dialog')
-  await dialog.getByRole('textbox').fill('Growth')
-  await dialog.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(list.getByRole('link', { name: 'Growth', exact: true })).toBeVisible()
-  await page.reload()
-  await expect(list.getByRole('link', { name: 'Growth', exact: true })).toBeVisible()
+  try {
+    await list.getByRole('button', { name: 'Actions for Marketing' }).click()
+    await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
+    await page.reload()
+    await list.getByRole('button', { name: 'Actions for Marketing' }).click()
+    await expect(page.getByRole('menuitem', { name: 'Unpin', exact: true })).toBeVisible()
+    await page.getByRole('menuitem', { name: 'Rename', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('textbox').fill('Growth')
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(list.getByRole('link', { name: 'Growth', exact: true })).toBeVisible()
+    await page.reload()
+    await expect(list.getByRole('link', { name: 'Growth', exact: true })).toBeVisible()
+  } finally {
+    // The seeded name is what every other check and a rerun look the workspace up by.
+    await withLiveDatabase(
+      (sql) =>
+        sql`update workspace set name = 'Marketing' where id = 'platform-live-workspace-second'`
+    )
+  }
 })
 
 test('Mod+B collapses the sidebar, the choice survives a reload, and Expand restores it', async ({

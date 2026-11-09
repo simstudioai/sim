@@ -6,6 +6,11 @@ import {
   signIn,
   signInAsAdmin,
 } from '@/platform/checks/live/session'
+import {
+  type SeededPerson,
+  withLiveDatabase,
+  withPerson,
+} from '@/platform/checks/live/support/database'
 import { liveRoute, liveRoutePattern } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
@@ -59,15 +64,12 @@ test.describe('Home on real data', () => {
     )
   })
 
-  test('a member who cannot read the activity summary gets no chart rather than an empty one', async ({
-    page,
-  }) => {
+  test('Home charts the activity summary the seeded administrator may read', async ({ page }) => {
     const summary = await page.request.get(
       `/api/organizations/${organizationId()}/usage/activity/summary?preset=7d&timezone=UTC`
     )
-    const chart = page.getByRole('region', { name: 'Tasks run', exact: true })
-    if (summary.status() === 200) await expect(chart).toBeVisible()
-    else await expect(chart).toHaveCount(0)
+    expect(summary.status()).toBe(200)
+    await expect(page.getByRole('region', { name: 'Tasks run', exact: true })).toBeVisible()
   })
 
   test('the widget reads refuse an organization the member does not belong to', async ({
@@ -96,6 +98,17 @@ test('a member who cannot build lands on Search, not an error', async ({ page })
   await signIn(page, memberEmail(), liveRoute('/home'))
   await expect(page).toHaveURL(liveRoutePattern('/search'))
   await expect(page.getByRole('textbox', { name: 'Search' })).toBeVisible()
+})
+
+test('a member who cannot build lands on Search from a deep link to a new chat or a saved workspace Home', async ({
+  page,
+}) => {
+  await signIn(page, memberEmail(), liveRoute('/search'))
+  for (const deepLink of [liveRoute('/chat/new'), '/workspace/platform-live-workspace-main/home']) {
+    await page.goto(deepLink)
+    await expect(page, deepLink).toHaveURL(liveRoutePattern('/search', '(?:\\?|$)'))
+    await expect(page.getByRole('textbox', { name: 'Search' })).toBeVisible()
+  }
 })
 
 test.describe('Home for the seeded administrator', () => {
@@ -173,15 +186,12 @@ test.describe('Home for the seeded administrator', () => {
  * does with each answer. `home-widgets.integration.ts` proves the reads behind them.
  */
 test.describe('Home with connected accounts', () => {
+  const connectedEmail = () => requireEnv('PLATFORM_LIVE_CONNECTED_EMAIL')
   const GRANT = 'platform-live-grant-gmail'
   const CALENDAR_GRANT = 'platform-live-grant-google-calendar'
 
-  function account(credentialId: string, state: string) {
-    return {
-      credentialId,
-      displayName: requireEnv('PLATFORM_LIVE_CONNECTED_EMAIL'),
-      state,
-    }
+  function account(credentialId: string, state: string, displayName = connectedEmail()) {
+    return { credentialId, displayName, state }
   }
 
   const THREADS = [
@@ -229,8 +239,7 @@ test.describe('Home with connected accounts', () => {
     })
   }
 
-  const open = (page: Page) =>
-    signIn(page, requireEnv('PLATFORM_LIVE_CONNECTED_EMAIL'), liveRoute('/home'))
+  const open = (page: Page) => signIn(page, connectedEmail(), liveRoute('/home'))
 
   test('a connected member reads their mail, opens a thread, and keeps a chosen day', async ({
     page,
@@ -300,19 +309,60 @@ test.describe('Home with connected accounts', () => {
     await expect(email.getByText('Connect your email', { exact: true })).toHaveCount(0)
   })
 
+  /**
+   * A connected administrator made for one check, holding copies of the seeded member's Gmail and
+   * Calendar grants, so removing theirs leaves the seeded member's for every other check and run.
+   */
+  async function withOwnConnectedMember(check: (person: SeededPerson) => Promise<void>) {
+    await withPerson(
+      'connected',
+      { organizationId: organizationId(), role: 'admin' },
+      async (person) => {
+        await withLiveDatabase((sql) =>
+          sql.begin(async (tx) => {
+            await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
+            select ${person.id} || '-' || entity_id, ${person.id}, entity_type, entity_id, permission_type
+            from permissions
+            where user_id = (select id from "user" where email = ${connectedEmail()})
+              and entity_type = 'workspace'`
+            await tx`insert into credential_group_enrollment
+            select (jsonb_populate_record(null::credential_group_enrollment, to_jsonb(e) || jsonb_build_object(
+              'id', ${`${person.id}-enrollment`}, 'user_id', ${person.id}, 'email', ${person.email},
+              'invitation_token_hash', ${`${person.id}-token`}))).*
+            from credential_group_enrollment e where e.id = 'platform-live-enrollment'`
+            for (const grant of [GRANT, CALENDAR_GRANT]) {
+              await tx`insert into credential
+              select (jsonb_populate_record(null::credential, to_jsonb(c) || jsonb_build_object(
+                'id', ${`${person.id}-${grant}`}, 'created_by', ${person.id},
+                'credential_group_enrollment_id', ${`${person.id}-enrollment`},
+                'display_name', ${person.email}))).*
+              from credential c where c.id = ${grant}`
+            }
+          })
+        )
+        await check(person)
+      }
+    )
+  }
+
   test('disconnecting removes the account for real and returns to the connect prompt', async ({
     page,
   }) => {
-    await serveWidgets(page)
-    await open(page)
-    const email = page.getByRole('region', { name: 'Email', exact: true })
-    await email.getByRole('button', { name: 'Email options' }).click()
-    await page.getByRole('menuitem', { name: 'Disconnect Email' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Disconnect Email?' })
-    await dialog.getByRole('button', { name: 'Disconnect', exact: true }).click()
-    await expect(dialog).toBeHidden()
-    await expect(email.getByText('Connect your email', { exact: true })).toBeVisible()
-    await page.reload()
-    await expect(email.getByText('Connect your email', { exact: true })).toBeVisible()
+    await withOwnConnectedMember(async (person) => {
+      const grant = `${person.id}-${GRANT}`
+      await serveWidgets(page, {
+        json: { accounts: [account(grant, 'ready', person.email)], threads: [] },
+      })
+      await signIn(page, person.email, liveRoute('/home'))
+      const email = page.getByRole('region', { name: 'Email', exact: true })
+      await email.getByRole('button', { name: 'Email options' }).click()
+      await page.getByRole('menuitem', { name: 'Disconnect Email' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Disconnect Email?' })
+      await dialog.getByRole('button', { name: 'Disconnect', exact: true }).click()
+      await expect(dialog).toBeHidden()
+      await expect(email.getByText('Connect your email', { exact: true })).toBeVisible()
+      await page.reload()
+      await expect(email.getByText('Connect your email', { exact: true })).toBeVisible()
+    })
   })
 })

@@ -29,7 +29,11 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
-import { addUserToOrganization } from '@/lib/billing/organizations/membership'
+import {
+  addUserToOrganization,
+  ensureUserInOrganizationTx,
+} from '@/lib/billing/organizations/membership'
+import type { DbTransaction } from '@/lib/db/types'
 import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
 
 const userIds: string[] = []
@@ -168,6 +172,29 @@ async function waitForLockWaiter(): Promise<void> {
   throw new Error('no statement ever waited on a lock')
 }
 
+/**
+ * Runs `write` in a transaction and holds it open, uncommitted, until `release`: the moment a
+ * racing request arrives in production. Resolves once `write` has run.
+ */
+async function holdOpen<T>(write: (tx: DbTransaction) => Promise<T>) {
+  let release: () => void = () => undefined
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let written: () => void = () => undefined
+  const wrote = new Promise<void>((resolve) => {
+    written = resolve
+  })
+  const settled = db.transaction(async (tx) => {
+    const result = await write(tx)
+    written()
+    await held
+    return result
+  })
+  await Promise.race([wrote, settled])
+  return { release, settled }
+}
+
 describe('joining a team while the personal organization is still being written to', () => {
   it('keeps a chat committed mid-join instead of cascading it away with the organization', async () => {
     const joinerId = await createUser()
@@ -226,30 +253,41 @@ describe('joining a team while the personal organization is still being written 
       .insert(copilotChats)
       .values({ id: generateId(), userId: joinerId, organizationId: personalId })
 
-    const results = await Promise.all(
-      [firstTeamId, secondTeamId].map((organizationId) =>
-        addUserToOrganization({
-          userId: joinerId,
-          organizationId,
-          role: 'member',
-          skipBillingLogic: true,
-          skipSeatValidation: true,
-        })
-      )
+    // The first acceptance has joined and moved everything, uncommitted, when the second arrives.
+    const { release, settled: first } = await holdOpen((tx) =>
+      ensureUserInOrganizationTx(tx, {
+        userId: joinerId,
+        organizationId: firstTeamId,
+        role: 'member',
+        skipBillingLogic: true,
+        skipSeatValidation: true,
+      })
     )
+    const second = addUserToOrganization({
+      userId: joinerId,
+      organizationId: secondTeamId,
+      role: 'member',
+      skipBillingLogic: true,
+      skipSeatValidation: true,
+    })
+    await waitForLockWaiter()
+    release()
 
-    expect(results.filter((result) => result.success)).toHaveLength(1)
+    expect(await first).toMatchObject({ success: true, alreadyMember: false })
+    expect(await second).toMatchObject({
+      success: false,
+      failureCode: 'already-in-other-organization',
+    })
     const memberships = await db
       .select({ organizationId: member.organizationId })
       .from(member)
       .where(eq(member.userId, joinerId))
-    expect(memberships).toHaveLength(1)
-    expect([firstTeamId, secondTeamId]).toContain(memberships[0].organizationId)
+    expect(memberships).toEqual([{ organizationId: firstTeamId }])
     const chats = await db
       .select({ organizationId: copilotChats.organizationId })
       .from(copilotChats)
       .where(eq(copilotChats.userId, joinerId))
-    expect(chats).toEqual([{ organizationId: memberships[0].organizationId }])
+    expect(chats).toEqual([{ organizationId: firstTeamId }])
     const personal = await db
       .select({ id: organization.id })
       .from(organization)
@@ -261,18 +299,22 @@ describe('joining a team while the personal organization is still being written 
     const joinerId = await createUser()
     const teamId = await team(await createUser())
 
-    const [joined] = await Promise.all([
-      addUserToOrganization({
+    // The join has written its membership, uncommitted, when the first page load provisions.
+    const { release, settled: joined } = await holdOpen((tx) =>
+      ensureUserInOrganizationTx(tx, {
         userId: joinerId,
         organizationId: teamId,
         role: 'member',
         skipBillingLogic: true,
         skipSeatValidation: true,
-      }),
-      createPersonalOrganization(joinerId),
-    ])
+      })
+    )
+    const provisioned = createPersonalOrganization(joinerId)
+    await waitForLockWaiter()
+    release()
 
-    expect(joined).toMatchObject({ success: true })
+    expect(await joined).toMatchObject({ success: true })
+    expect(await provisioned).toBe(teamId)
     const memberships = await db
       .select({ organizationId: member.organizationId, kind: organization.kind })
       .from(member)

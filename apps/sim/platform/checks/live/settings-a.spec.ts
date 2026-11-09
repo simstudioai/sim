@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test'
-import { organizationName, signInAsAdmin } from '@/platform/checks/live/session'
+import { adminEmail, organizationName, signInAsAdmin } from '@/platform/checks/live/session'
+import { withLiveDatabase } from '@/platform/checks/live/support/database'
 import { liveRoute } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
@@ -28,18 +29,25 @@ test('a theme chosen here persists across a reload and repaints the shell', asyn
 test('a display name saves through the profile read', async ({ page }) => {
   await page.goto(settings())
   const name = `Live ${Date.now()}`
-  // The row's button is named by the value it edits: the seeded name, or an earlier run's.
-  await page
-    .getByRole('region', { name: 'Profile' })
-    .getByRole('button', { name: /^(?:Ada Admin|Live \d+)$/ })
-    .click()
-  await page
-    .getByRole('dialog', { name: 'Edit display name' })
-    .getByRole('textbox', { name: 'Display name' })
-    .fill(name)
-  await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await page.reload()
-  await expect(page.getByRole('region', { name: 'Profile' })).toContainText(name)
+  try {
+    // The row's button is named by the value it edits: the seeded name, or an earlier run's.
+    await page
+      .getByRole('region', { name: 'Profile' })
+      .getByRole('button', { name: /^(?:Ada Admin|Live \d+)$/ })
+      .click()
+    await page
+      .getByRole('dialog', { name: 'Edit display name' })
+      .getByRole('textbox', { name: 'Display name' })
+      .fill(name)
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+    await page.reload()
+    await expect(page.getByRole('region', { name: 'Profile' })).toContainText(name)
+  } finally {
+    // Home greets the administrator by the seeded first name.
+    await withLiveDatabase(
+      (sql) => sql`update "user" set name = 'Ada Admin' where email = ${adminEmail()}`
+    )
+  }
 })
 
 test('unbacked preferences stay out of live settings', async ({ page }) => {
@@ -89,8 +97,11 @@ test('Insights keeps its window in the URL and carries it to the events ledger',
   page,
 }) => {
   const response = await page.goto(settings('/usage'))
-  test.skip(response?.status() === 404, 'This organization has no Insights section')
-  await page.getByRole('radio', { name: 'Activity' }).click()
+  expect(response?.status(), 'hosted Enterprise serves Insights').toBe(200)
+  const activity = page.getByRole('radio', { name: 'Activity' })
+  await activity.click()
+  // The tab commits to the URL once React has taken the choice; a URL read first can race it.
+  await expect(activity).toBeChecked()
   await expect(page).toHaveURL(/tab=activity/)
   await expect(page.getByRole('region', { name: 'Breakdown' })).toBeVisible()
   await page.getByRole('radio', { name: 'Overview' }).click()
@@ -107,7 +118,7 @@ test('Insights keeps its window in the URL and carries it to the events ledger',
 
 test('links: create, find, open, edit and delete on the Platform', async ({ page, context }) => {
   const response = await page.goto(settings('/links'))
-  test.skip(response?.status() === 404, 'This organization does not have Sim Links')
+  expect(response?.status(), 'the live environment turns Sim Links on').toBe(200)
   const name = `live-${Date.now()}`
   await page.getByRole('button', { name: 'New link', exact: true }).first().click()
   await expect(page).toHaveURL(/create=/)
@@ -151,18 +162,15 @@ test('links: create, find, open, edit and delete on the Platform', async ({ page
 test('an unknown sim/ link opens the editor here, prefilled', async ({ page }) => {
   const name = `missing-${Date.now()}`
   const response = await page.goto(settings(`/links?create=${name}`))
-  test.skip(response?.status() === 404, 'This organization does not have Sim Links')
+  expect(response?.status(), 'the live environment turns Sim Links on').toBe(200)
   await expect(page.getByRole('dialog').getByLabel('Name')).toHaveValue(name)
 })
 
 test('white-labeling reports its entitlement from the read', async ({ page }) => {
   const response = await page.goto(settings('/whitelabeling'))
-  test.skip(response?.status() === 404, 'This organization has no White-labeling section')
-  await expect(
-    page
-      .getByRole('region', { name: 'Brand identity' })
-      .or(page.getByRole('heading', { name: /requires an active Enterprise plan/ }))
-  ).toBeVisible()
+  expect(response?.status(), 'hosted Enterprise serves White-labeling').toBe(200)
+  // The seeded organization holds an active Enterprise subscription.
+  await expect(page.getByRole('region', { name: 'Brand identity' })).toBeVisible()
 })
 
 test('recently deleted separates an empty list from a loading one', async ({ page }) => {

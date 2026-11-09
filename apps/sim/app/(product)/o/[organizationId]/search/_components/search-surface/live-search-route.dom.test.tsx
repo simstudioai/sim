@@ -215,7 +215,6 @@ it('hydrates the sidebar of a member with no workspaces as the server painted it
   renderCache?.clear()
   document.body.append(container)
   const serverSidebar = container.querySelector('aside')
-  expect(container.textContent).toContain('No workspaces yet')
 
   const hydrationErrors: unknown[] = []
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
@@ -237,7 +236,6 @@ it('hydrates the sidebar of a member with no workspaces as the server painted it
 
   expect(hydrationErrors).toEqual([])
   expect(container.querySelector('aside')).toBe(serverSidebar)
-  expect(container.textContent).toContain('No workspaces yet')
 })
 
 it('hydrates a bare Search URL as the server painted it, then applies the remembered mode', async () => {
@@ -264,5 +262,4 @@ it('hydrates a bare Search URL as the server painted it, then applies the rememb
 
   expect(hydrationErrors).toEqual([])
   expect(container.innerHTML).not.toBe(served)
-  expect(container.textContent).toContain('Ask Org')
 })

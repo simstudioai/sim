@@ -7,6 +7,7 @@ import {
   signIn,
   signInThroughForm,
 } from '@/platform/checks/live/session'
+import { withLiveDatabase } from '@/platform/checks/live/support/database'
 import { liveLoginPattern, liveRoute, liveRoutePattern } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
@@ -48,10 +49,17 @@ test('an organization admin can rename the organization inline, and the name sur
     await page.keyboard.press('Escape')
   }
 
-  await rename(renamed)
-  await page.reload()
-  await expect(menu).toContainText(renamed)
-  await rename(original)
+  try {
+    await rename(renamed)
+    await page.reload()
+    await expect(menu).toContainText(renamed)
+    await rename(original)
+  } finally {
+    // A rename that fails part-way must not leave every later check on another name.
+    await withLiveDatabase(
+      (sql) => sql`update organization set name = ${original} where id = ${organizationId()}`
+    )
+  }
 })
 
 test('a member sees no identity controls, and the server refuses the rename anyway', async ({
@@ -148,7 +156,8 @@ test('a chat renames and deletes through the real API', async ({ page }) => {
 })
 
 test('sign out ends the session and the zone returns to login', async ({ page }) => {
-  await signInThroughForm(page, adminEmail(), liveRoute(''))
+  // A session of its own: signing out ends only it.
+  await signIn(page, adminEmail(), liveRoute(''))
   // The bare organization URL redirects in the browser, which would close a menu opened first.
   await expect(page).toHaveURL(liveRoutePattern('', '/'))
   const footer = page.getByRole('complementary', { name: 'Platform sidebar' }).locator('footer')
