@@ -597,7 +597,7 @@ test.describe('desktop tools against a live Sim', () => {
     // The desktop reloads into the login page once signing out completes, which would end any
     // tool; holding the sign-out shows the tool ends at sign-out itself, not at that reload.
     const signOut = proxy.hold((method, path) => method === 'POST' && path === '/api/auth/sign-out')
-    await click(page, page.getByRole('button', { name: 'Account menu', exact: true }))
+    await click(page, page.getByRole('button', { name: user.name, exact: true }))
     await click(
       page,
       page.getByRole('dialog', { name: 'Account menu' }).getByRole('button', { name: 'Sign out' })
