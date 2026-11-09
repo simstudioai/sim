@@ -9,10 +9,7 @@ import {
 } from '@/lib/billing/organizations/membership'
 import type { DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
-import {
-  isInstanceOrganizationMode,
-  joinInstanceOrganization,
-} from '@/lib/organizations/instance-org'
+import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
 import { createPersonalOrganizationTx } from '@/lib/organizations/personal'
 import { resolveOrganizationLanding } from '@/lib/organizations/surface'
 import { transferWorkspaceProjects } from '@/lib/projects/membership'
@@ -201,12 +198,11 @@ export async function createPersonalOrganization(userId: string): Promise<string
 
 /**
  * Puts a user who belongs to no organization into one and returns it: the instance organization on
- * an instance-organization deployment, otherwise their personal organization
- * ({@link createPersonalOrganization}, which attaches no workspace). Surfaces reach it only through
- * the `ensureViewerOrganization` command.
+ * an instance-organization deployment, otherwise (or when the instance organization cannot admit
+ * them) their personal organization ({@link createPersonalOrganization}, which attaches no
+ * workspace). Surfaces reach it only through the `ensureViewerOrganization` command.
  */
 export async function ensureUserOrganization(userId: string): Promise<string | null> {
-  if (!isInstanceOrganizationMode()) return createPersonalOrganization(userId)
-  await joinInstanceOrganization(userId)
-  return resolveOrganizationLanding(userId, null)
+  if (await joinInstanceOrganization(userId)) return resolveOrganizationLanding(userId, null)
+  return createPersonalOrganization(userId)
 }

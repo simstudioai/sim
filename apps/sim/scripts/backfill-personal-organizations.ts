@@ -189,7 +189,9 @@ async function main(): Promise<void> {
       for (const userId of batch) {
         try {
           if (instanceMode) {
-            await joinInstanceOrganization(userId)
+            if (!(await joinInstanceOrganization(userId))) {
+              throw new Error('The instance organization did not admit this user')
+            }
             report.provisioned += 1
             continue
           }

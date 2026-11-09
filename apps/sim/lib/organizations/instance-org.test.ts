@@ -123,11 +123,14 @@ describe('instance organization', () => {
   })
 
   describe('joining', () => {
-    it('never throws, so a failure cannot block signup', async () => {
+    it('reports a refused membership, so the caller can fall back to a personal organization', async () => {
       queueRows([{ id: 'org_existing' }])
-      mockEnsureUserInOrganization.mockRejectedValue(new Error('database unavailable'))
+      mockEnsureUserInOrganization.mockResolvedValueOnce({
+        success: false,
+        error: 'User is already a member of another organization.',
+      })
 
-      await expect(joinInstanceOrganization('user-2')).resolves.toBeUndefined()
+      await expect(joinInstanceOrganization('user-2')).resolves.toBe(false)
     })
   })
 })

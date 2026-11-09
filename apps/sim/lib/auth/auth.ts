@@ -174,10 +174,6 @@ import { isSalesforceOAuthProviderId, withSalesforceInstanceScope } from '@/lib/
 import { fetchSalesforceInstanceUrl } from '@/lib/oauth/salesforce-instance.server'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
-import {
-  isInstanceOrganizationMode,
-  joinInstanceOrganization,
-} from '@/lib/organizations/instance-org'
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
@@ -442,20 +438,16 @@ export const auth = betterAuth({
            * module is imported lazily to keep the billing graph out of the auth
            * module's load path.
            */
-          if (isInstanceOrganizationMode()) {
-            await joinInstanceOrganization(user.id)
-          } else {
-            try {
-              const { createPersonalOrganization } = await import(
-                '@/lib/organizations/provision-personal'
-              )
-              await createPersonalOrganization(user.id)
-            } catch (error) {
-              logger.error(
-                '[databaseHooks.user.create.after] Failed to provision personal organization',
-                { userId: user.id, error }
-              )
-            }
+          try {
+            const { ensureUserOrganization } = await import(
+              '@/lib/organizations/provision-personal'
+            )
+            await ensureUserOrganization(user.id)
+          } catch (error) {
+            logger.error('[databaseHooks.user.create.after] Failed to provision an organization', {
+              userId: user.id,
+              error,
+            })
           }
 
           if (isHosted && user.email && user.emailVerified) {
