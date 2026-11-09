@@ -216,11 +216,21 @@ export async function homeChecks() {
         await expect(
           calendar.getByRole('button', { name: 'Google Calendar', exact: true })
         ).toBeEnabled()
+        // Both boxes come from one frame: Home's widgets paint as their reads land, so the column
+        // can move between two separate reads.
         const measureCard = async (region: Locator, provider: string) => {
-          const [card, connect] = [
-            await region.boundingBox(),
-            await region.getByRole('button', { name: provider, exact: true }).boundingBox(),
-          ]
+          const { card, connect } = await region
+            .getByRole('button', { name: provider, exact: true })
+            .evaluate(
+              (button, section) => {
+                const box = (node: Element) => {
+                  const { x, y, width, height } = node.getBoundingClientRect()
+                  return width && height ? { x, y, width, height } : null
+                }
+                return { card: box(section), connect: box(button) }
+              },
+              await region.elementHandle()
+            )
           assert(card && connect, `The ${provider} card and its button are on screen`)
           assert(
             connect.y >= card.y && connect.y + connect.height <= card.y + card.height,
@@ -250,27 +260,35 @@ export async function homeChecks() {
     }
   )
   await check('Recents list real history and × removes it for good', async () => {
-    await onHome(ADMIN, async (session) => {
-      const { page } = session
-      const recents = homeRegion(page, 'Recents')
-      const row = recents.getByRole('link', { name: SEEDED_SOURCE.title })
-      await expect(row).toBeVisible()
-      await row.hover()
-      const removed = page.waitForResponse(
-        (response) =>
-          response.request().method() === 'DELETE' &&
-          new URL(response.url()).pathname.endsWith('/search/history/sources')
-      )
-      await recents
-        .getByRole('button', { name: `Remove ${SEEDED_SOURCE.title} from recents` })
-        .click()
-      await expect(row).toHaveCount(0)
-      assert.ok((await removed).ok(), 'The server refused the removal')
-      await page.reload()
-      await expect(homeRegion(page, 'Email')).toBeVisible()
-      await session.settle()
-      await expect(recents.getByRole('link', { name: SEEDED_SOURCE.title })).toHaveCount(0)
-    })
+    // Search's history check reads the same seeded visit later, so the removal is put back.
+    const [before] =
+      await sql`select sources from organization_search_history where user_id = ${ADMIN.userId} and organization_id = ${ORGANIZATION_ID}`
+    await withRestore(
+      () =>
+        sql`update organization_search_history set sources = ${sql.json(before?.sources ?? [])} where user_id = ${ADMIN.userId} and organization_id = ${ORGANIZATION_ID}`,
+      () =>
+        onHome(ADMIN, async (session) => {
+          const { page } = session
+          const recents = homeRegion(page, 'Recents')
+          const row = recents.getByRole('link', { name: SEEDED_SOURCE.title })
+          await expect(row).toBeVisible()
+          await row.hover()
+          const removed = page.waitForResponse(
+            (response) =>
+              response.request().method() === 'DELETE' &&
+              new URL(response.url()).pathname.endsWith('/search/history/sources')
+          )
+          await recents
+            .getByRole('button', { name: `Remove ${SEEDED_SOURCE.title} from recents` })
+            .click()
+          await expect(row).toHaveCount(0)
+          assert.ok((await removed).ok(), 'The server refused the removal')
+          await page.reload()
+          await expect(homeRegion(page, 'Email')).toBeVisible()
+          await session.settle()
+          await expect(recents.getByRole('link', { name: SEEDED_SOURCE.title })).toHaveCount(0)
+        })
+    )
   })
   await check('Recents collapse repeats, and every chip has a mark', async () => {
     const [before] =
