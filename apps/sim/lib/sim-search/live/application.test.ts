@@ -1190,14 +1190,15 @@ describe('authorized live retrieval', () => {
     ).rejects.toBe('user_stop:test')
   })
   it('refuses a chunk index other than zero before reading the document from its provider', async () => {
-    const search = await searchLiveKnowledge.execute({ principal, input })
+    const [result] = (await searchLiveKnowledge.execute({ principal, input })).results
+    if (!result) throw new Error('Expected the search fixture to return a result')
     mocks.read.mockClear()
     await expect(
       readLiveDocument.execute({
         principal,
         input: {
           workspaceId: 'workspace',
-          documentId: search.results[0]!.documentId,
+          documentId: result.documentId,
           limit: 1,
           startChunkIndex: 3,
           resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
