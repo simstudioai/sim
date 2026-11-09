@@ -27,19 +27,8 @@
 .heading {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-row-gap);
   min-block-size: var(--ui-table-head);
-}
-.heading h2 {
   margin: 0;
-}
-.heading > :last-child {
-  margin-inline-end: calc(-1 * var(--ui-action-overhang));
-}
-.empty {
-  margin: 0;
-  color: var(--ui-secondary);
 }
 /* A connector's sync source and state, under its name in the row's detail. */
 .detail {
@@ -48,12 +37,10 @@
   gap: var(--ui-stack-gap);
   min-inline-size: 0;
 }
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ui-action-gap) var(--ui-row-gap);
+/* The sync state in its ink, then what else describes the sync, read as one detail line. */
+.state {
   min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 /* Whatever a connector needs before it can sync again, on the text edge under its row. */
 .attention {

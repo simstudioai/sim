@@ -44,3 +44,33 @@
     display: none;
   }
 }
+
+.personCell {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.summary,
+.summaryDepartment {
+  display: none;
+}
+
+.summary {
+  gap: var(--spacing-2);
+  margin-block-start: var(--spacing-4);
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* The breakpoints where the table hides its columns: what leaves the row joins the person's cell. */
+@container (width < 48rem) {
+  .summary {
+    display: grid;
+  }
+}
+
+@container (width < 30rem) {
+  .summaryDepartment {
+    display: inline;
+  }
+}

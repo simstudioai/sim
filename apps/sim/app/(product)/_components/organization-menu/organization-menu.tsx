@@ -52,6 +52,7 @@ interface OrganizationMenuProps {
   organization?: ShellData['organization']
   actions?: ShellOrganizationActions
   onSettings: () => void
+  onOpen?: () => void
 }
 
 export function OrganizationMenu({
@@ -59,6 +60,7 @@ export function OrganizationMenu({
   organization,
   actions,
   onSettings,
+  onOpen,
 }: OrganizationMenuProps) {
   const [open, setOpen] = useState(false)
   const [invite, setInvite] = useState(false)
@@ -126,6 +128,7 @@ export function OrganizationMenu({
           // The field's blur saves the draft; closing now would unmount it and hide a failure.
           if (!next && draftName !== null) return
           if (next && trigger instanceof HTMLElement) opener.current = trigger
+          if (next) onOpen?.()
           setOpen(next)
         }}
         trigger={(button) => (

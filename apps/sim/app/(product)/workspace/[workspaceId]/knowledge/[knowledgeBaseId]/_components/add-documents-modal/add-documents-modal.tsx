@@ -6,7 +6,7 @@ import { FileField } from '@sim/emcn/field/file-field'
 import { Modal } from '@sim/emcn/modal'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
-import { Spinner, StatusTag } from '@sim/emcn/status'
+import { Spinner, StatusText } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import styles from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/add-documents-modal/add-documents-modal.module.css'
@@ -166,7 +166,7 @@ export function AddDocumentsModal({
                     ? `${Math.round(status.progress)}%`
                     : formatFileSize(file.size, { includeBytes: true })}
                 </span>
-                {isFailed && <StatusTag label='Failed' intent='danger' />}
+                {isFailed && <StatusText label='Failed' intent='danger' />}
                 <span className={styles.actions}>
                   {sending ? (
                     <Spinner />

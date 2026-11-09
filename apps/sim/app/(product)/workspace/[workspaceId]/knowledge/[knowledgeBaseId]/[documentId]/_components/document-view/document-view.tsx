@@ -10,7 +10,7 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { Pagination } from '@sim/emcn/pagination'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
-import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { FailureNotice, StatusText } from '@sim/emcn/status'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { toast } from '@/lib/toast/sink'
@@ -650,9 +650,9 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
           index: String(item.chunkIndex),
           tokens: formatTokenCount(item.tokenCount),
           status: item.enabled ? (
-            <StatusTag label='Enabled' intent='success' />
+            <StatusText label='Enabled' intent='success' />
           ) : (
-            <StatusTag label='Disabled' />
+            <StatusText label='Disabled' />
           ),
         },
       }))

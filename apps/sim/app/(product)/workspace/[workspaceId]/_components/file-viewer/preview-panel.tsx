@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { useRouter } from 'next/navigation'
 import { DataTable } from '@/app/(product)/workspace/[workspaceId]/_components/file-preview/data-table'
 import { MermaidDiagram } from '@/app/(product)/workspace/[workspaceId]/_components/file-preview/mermaid-diagram'
@@ -370,12 +371,7 @@ function CsvPreview({ content, workspaceId, file }: CsvPreviewProps) {
   const scrollRef = useHorizontalWheelScroll()
   const { headers, rows, truncated } = useMemo(() => parseCsv(content), [content])
   useCsvTruncationImport(workspaceId, file, truncated)
-  if (headers.length === 0)
-    return (
-      <p className={styles.empty} data-type='T060'>
-        No data to display
-      </p>
-    )
+  if (headers.length === 0) return <EmptyState title='No data to display' />
   return (
     <div ref={scrollRef} className={styles.table}>
       <DataTable headers={headers} rows={rows} />

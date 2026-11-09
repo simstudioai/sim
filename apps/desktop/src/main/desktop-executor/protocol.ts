@@ -45,6 +45,8 @@ export type DesktopInboxItem =
       toolName: string
       chatId: string
       chatTitle: string | null
+      /** Absent from a Sim that predates it; a notification without it opens no chat. */
+      organizationId: string | null
       workspaceId: string | null
       summary: string | null
     }
@@ -147,6 +149,7 @@ function parseInboxItem(value: unknown): DesktopInboxItem | null {
       toolName: value.toolName,
       chatId: value.chatId,
       chatTitle: value.chatTitle,
+      organizationId: typeof value.organizationId === 'string' ? value.organizationId : null,
       workspaceId: value.workspaceId,
       summary: value.summary,
     }

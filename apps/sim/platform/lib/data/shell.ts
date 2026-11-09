@@ -11,6 +11,7 @@ import {
   useWorkspaceCreationPolicy,
 } from '@/hooks/queries/workspace'
 import { useCanOpenOrganizationChat, useChatListActions } from '@/platform/lib/data/chat-list'
+import { useNavWarmers } from '@/platform/lib/data/nav-warmers'
 import { useOrganization } from '@/platform/lib/data/organization'
 import {
   canListOrganizationChats,
@@ -105,13 +106,19 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
   const chatActions = useChatListActions(organizationId)
   const workspaceActions = useWorkspaceActions(liveWorkspaceHome)
   const accountActions = useLiveAccountActions(organization, navigation.destinations)
+  const navWarmers = useNavWarmers()
   return {
     data: {
       appearance: settings.data?.theme,
       organization: organization.organization,
       user: toShellUser(profile.data),
+      // An organization-less personal workspace renders in the viewer's own organization, which
+      // is the only one whose shell they can open, so it is listed beside the organization's.
       workspaces: (workspaces.data ?? [])
-        .filter((workspace) => workspace.organizationId === organizationId)
+        .filter(
+          (workspace) =>
+            workspace.organizationId === organizationId || workspace.organizationId === null
+        )
         .map((workspace) => toShellWorkspace(workspace, pinnedIds.data)),
       chats: (chats.data ?? []).filter(canOpenChat).map((chat) => toShellChat(organization, chat)),
       inbox: [],
@@ -131,6 +138,11 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
     },
     actions: {
       ...accountActions,
+      warmDestination(destinationId) {
+        navWarmers.schedule(destinationId)
+        return navWarmers.cancel
+      },
+      warmSettings: navWarmers.warmSettings,
       chats: { ...chatActions, retry: () => void chats.refetch() },
       workspaces: { ...workspaceActions, retry: () => void workspaces.refetch() },
     },

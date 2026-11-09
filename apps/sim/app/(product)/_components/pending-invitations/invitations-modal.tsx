@@ -7,7 +7,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { DetailsField } from '@sim/emcn/field/details-field'
 import { ListField } from '@sim/emcn/field/list-field'
 import { Modal } from '@sim/emcn/modal'
-import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { FailureNotice, StatusText } from '@sim/emcn/status'
 import styles from '@/app/(product)/_components/pending-invitations/pending-invitations.module.css'
 import { type PendingInvitation, usePendingInvitations } from '@/platform/lib/data/invitations'
 
@@ -75,7 +75,7 @@ export function InvitationsModal({ open, onOpenChange }: InvitationsModalProps) 
               </span>
             </ActivityBody>
           </div>
-          {invitation.workspace && <StatusTag label={invitation.workspace.access} />}
+          {invitation.workspace && <StatusText label={invitation.workspace.access} />}
           {!hasDetails && actions}
         </div>
         {invitation.joinNotice && (

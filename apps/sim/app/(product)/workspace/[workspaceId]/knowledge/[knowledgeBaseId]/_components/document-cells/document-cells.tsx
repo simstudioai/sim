@@ -1,7 +1,7 @@
 'use client'
 
 import { OverflowText } from '@sim/emcn/overflow-text'
-import { Spinner, StatusTag } from '@sim/emcn/status'
+import { StatusText } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
 import styles from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/document-cells/document-cells.module.css'
 import {
@@ -24,29 +24,29 @@ export function DocumentStatus({
 }) {
   switch (getDocumentIndexingStatus(document)) {
     case 'pending':
-      return <StatusTag label='Pending' />
+      return <StatusText label='Pending' />
     case 'processing':
-      return <StatusTag label='Processing' intent='info' leading={<Spinner />} />
+      return <StatusText label='Processing' intent='info' live />
     case 'skipped':
-      return <StatusTag label='Skipped' />
+      return <StatusText label='Skipped' />
     case 'failed':
       return document.processingError ? (
         <Tooltip label={document.processingError}>
           <span className={styles.explained}>
-            <StatusTag label='Failed' intent='danger' />
+            <StatusText label='Failed' intent='danger' />
           </span>
         </Tooltip>
       ) : (
-        <StatusTag label='Failed' intent='danger' />
+        <StatusText label='Failed' intent='danger' />
       )
     case 'completed':
       return document.enabled ? (
-        <StatusTag label='Enabled' intent='success' />
+        <StatusText label='Enabled' intent='success' />
       ) : (
-        <StatusTag label='Disabled' />
+        <StatusText label='Disabled' />
       )
     default:
-      return <StatusTag label='Unknown' />
+      return <StatusText label='Unknown' />
   }
 }
 

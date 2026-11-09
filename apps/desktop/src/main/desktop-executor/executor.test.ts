@@ -863,6 +863,7 @@ describe('registration', () => {
         toolName: 'terminal',
         chatId: 'chat-a',
         chatTitle: 'Fix CI',
+        organizationId: null,
         workspaceId: 'ws-1',
         summary: 'npm publish',
       },

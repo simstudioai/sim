@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyState } from '@sim/emcn/empty-state'
 import { DataTable } from '@/app/(product)/workspace/[workspaceId]/_components/file-preview/data-table'
 import {
   PreviewError,
@@ -27,12 +28,7 @@ export function CsvTablePreview({ file, workspaceId }: CsvTablePreviewProps) {
   const failure = resolvePreviewError((error as Error | null) ?? null, null)
   if (failure) return <PreviewError label='CSV' error={failure} />
   if (!data) return null
-  if (data.headers.length === 0)
-    return (
-      <p className={styles.empty} data-type='T060'>
-        No data to display
-      </p>
-    )
+  if (data.headers.length === 0) return <EmptyState title='No data to display' />
   return (
     <div ref={scrollRef} className={styles.frame}>
       <DataTable headers={data.headers} rows={data.rows} />

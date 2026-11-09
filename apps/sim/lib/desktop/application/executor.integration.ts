@@ -496,6 +496,7 @@ describe.runIf(Boolean(redisUrl))('desktop background executor protocol', () => 
           toolName: 'terminal',
           chatId: run.chatId,
           chatTitle: 'Fix CI',
+          organizationId: null,
           workspaceId: run.workspaceId,
           summary: 'npm test',
         },

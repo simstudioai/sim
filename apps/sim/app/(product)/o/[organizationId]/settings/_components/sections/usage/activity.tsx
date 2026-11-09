@@ -34,11 +34,16 @@ function SummaryView({ summary }: { summary: ReturnType<typeof useActivitySummar
         <>
           <MetricGroup metrics={summary.metrics} />
           <div className={styles.cards}>
-            <BarChart
-              title='Workflow runs'
-              bars={summary.outcomeBars}
-              series={summary.outcomeSeries}
-            />
+            <div className={styles.captioned}>
+              <BarChart
+                title='Workflow runs'
+                bars={summary.outcomeBars}
+                series={summary.outcomeSeries}
+              />
+              <p className={styles.quiet} data-type='T060'>
+                Other includes cancelled, paused, and unfinished runs.
+              </p>
+            </div>
             <TrendChart title='Chat runs' points={summary.chatPoints} />
           </div>
         </>

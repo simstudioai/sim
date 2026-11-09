@@ -5,7 +5,7 @@ import { Button } from '@sim/emcn/button'
 import { DataTable, MetricGroup } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
-import { InlineNotice, StatusTag } from '@sim/emcn/status'
+import { InlineNotice, StatusText } from '@sim/emcn/status'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
@@ -359,7 +359,7 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
                     : `v${workflow.version}`,
               },
               cells: {
-                state: workflow.stale ? <StatusTag label='Out of date' intent='warning' /> : null,
+                state: workflow.stale ? <StatusText label='Out of date' intent='warning' /> : null,
               },
               href: frozenWorkflowHref(workspaceId, name, workflow, searchParams),
             }))}

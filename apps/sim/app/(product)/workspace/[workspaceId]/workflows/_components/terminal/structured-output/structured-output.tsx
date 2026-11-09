@@ -14,7 +14,7 @@ import {
 } from 'react'
 import { Icon } from '@sim/emcn/icon'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
-import { StatusTag } from '@sim/emcn/status'
+import { StatusText } from '@sim/emcn/status'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/terminal/structured-output/structured-output.module.css'
 import {
@@ -255,7 +255,7 @@ function NodeHeader({ name, type, isExpanded, isError, summary, onToggle }: Node
       <span className={styles.key} data-error={isError || undefined} data-type='T060'>
         {name}
       </span>
-      <StatusTag label={type} intent={isError ? 'danger' : 'neutral'} />
+      <StatusText label={type} intent={isError ? 'danger' : 'neutral'} />
       {!isExpanded && summary && (
         <span className={styles.summary} data-type='T060'>
           {summary}
@@ -713,7 +713,7 @@ export const StructuredOutput = memo(function StructuredOutput({
           <span className={styles.key} data-type='T060'>
             running
           </span>
-          <StatusTag label='Running' intent='success' />
+          <StatusText label='Running' intent='info' live />
         </div>
       </div>
     )

@@ -2,12 +2,12 @@
 
 import { Fragment } from 'react'
 import { ActivityRow } from '@sim/emcn/activity-row'
-import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { RowList } from '@sim/emcn/settings-section/row-list'
-import { FailureNotice, Spinner, StatusTag } from '@sim/emcn/status'
+import { FailureNotice, Spinner, StatusText } from '@sim/emcn/status'
 import {
   ConnectorRecovery,
   MemberEnrollment,
@@ -35,13 +35,12 @@ interface ConnectorsRailProps {
   canEdit: boolean
   /** Opens a connector's settings, documents and history. */
   onOpen: (connectorId: string) => void
-  onNew: () => void
 }
 
 /**
  * The sources that sync into a knowledge base, beside its documents: each with its mark, what it
  * syncs, where its sync stands and when it last ran, and whatever needs attention before it can
- * sync again. A connector opens its dialog; the rail also starts a new one.
+ * sync again. A connector opens its dialog; the control bar starts a new one.
  */
 export function ConnectorsRail({
   workspaceId,
@@ -52,26 +51,18 @@ export function ConnectorsRail({
   onRetry,
   canEdit,
   onOpen,
-  onNew,
 }: ConnectorsRailProps) {
   const scroller = useScrollEdges<HTMLElement>('vertical')
   const now = Date.now()
   return (
     <aside ref={scroller} className={styles.rail} aria-label='Connectors'>
-      <div className={styles.heading}>
-        <h2 data-type='T093'>Connectors</h2>
-        {canEdit && (
-          <Button variant='quiet' size='compact' icon='I074' onClick={onNew}>
-            New
-          </Button>
-        )}
-      </div>
+      <h2 className={styles.heading} data-type='T093'>
+        Connectors
+      </h2>
       {error ? (
         <FailureNotice message='Could not load connectors.' onRetry={onRetry} />
       ) : connectors.length === 0 ? (
-        <p className={styles.empty} data-type='T060'>
-          No connected sources yet.
-        </p>
+        <EmptyState title='No connected sources yet' />
       ) : (
         <RowList label='Connected sources'>
           {connectors.map((connector) => {
@@ -94,14 +85,16 @@ export function ConnectorsRail({
                   detailContent={
                     <span className={styles.detail}>
                       {source && <OverflowText text={source}>{source}</OverflowText>}
-                      <span className={styles.tags}>
-                        <StatusTag
+                      <span className={styles.state}>
+                        <StatusText
                           label={status.label}
                           intent={status.intent}
-                          leading={state.syncInFlight ? <Spinner /> : undefined}
+                          live={state.syncInFlight}
                         />
-                        {state.syncsPerMember && <StatusTag label='Per member' />}
-                        {lastSync}
+                        {[state.syncsPerMember && 'Per member', lastSync]
+                          .filter(Boolean)
+                          .map((part) => ` · ${part}`)
+                          .join('')}
                       </span>
                     </span>
                   }

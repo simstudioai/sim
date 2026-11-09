@@ -9,12 +9,6 @@
   color: var(--ui-secondary);
   text-align: center;
 }
-.empty {
-  display: grid;
-  flex: 1;
-  place-items: center;
-  color: var(--ui-secondary);
-}
 .sheets {
   display: flex;
   flex: 1;

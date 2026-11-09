@@ -10,10 +10,10 @@
       "gateways": {}
     },
     "app/(product)/layout.tsx": {
-      "modules": 2501,
+      "modules": 2556,
       "gateways": {
-        "apps/sim/app/(product)/_components/product-shell.tsx": 2403,
-        "apps/sim/app/(product)/_components/live-shell/live-shell.tsx": 2115,
+        "apps/sim/app/(product)/_components/product-shell.tsx": 2458,
+        "apps/sim/app/(product)/_components/live-shell/live-shell.tsx": 2169,
         "apps/sim/lib/auth/index.ts": 1336,
         "apps/sim/blocks/registry.ts": 944,
         "apps/sim/blocks/registry-maps.ts": 942,

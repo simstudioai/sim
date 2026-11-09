@@ -50,6 +50,6 @@ describe('resolveSettingsHref unified settings navigation', () => {
         hostContext: HOST_CONTEXT,
         viewerUserId: 'external-a',
       })
-    ).toBe('/workspace/workspace-b/upgrade')
+    ).toBe('/upgrade')
   })
 })

@@ -10,6 +10,7 @@ import { SourcesResourceContent } from '@/components/mothership-chat/mothership-
 import { fetchWorkspaceResourceRef } from '@/components/mothership-chat/resolve-resource-ref'
 import type { FileAttachmentForApi } from '@/lib/mothership/chat/types'
 import type { WorkspaceResourceRef } from '@/lib/mothership/resources/types'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
 import { ExtensionHeader } from '@/app/(site)/extension/[workspaceId]/header'
 import {
@@ -25,10 +26,12 @@ import type { ChatContext } from '@/stores/panel'
 
 interface ExtensionChatProps {
   workspaceId: string
+  /** The organization whose chat pages open this workspace's chats in Sim. */
+  organizationId: string
   workspaceName: string
 }
 
-export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps) {
+export function ExtensionChat({ workspaceId, organizationId, workspaceName }: ExtensionChatProps) {
   const { userId } = useExtensionIdentity()
   const history = useMothershipChats(workspaceId)
   const queryClient = useQueryClient()
@@ -54,7 +57,8 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
       void setSelectedChatId(chatId)
     },
   })
-  const appHref = `/workspace/${encodeURIComponent(workspaceId)}/${chat.resolvedChatId ? `chat/${encodeURIComponent(chat.resolvedChatId)}` : 'home'}`
+  const routes = organizationRoutes(organizationId)
+  const appHref = chat.resolvedChatId ? routes.chat(chat.resolvedChatId) : routes.newChat
   const sourceMessage = chat.messages.find(
     (message) =>
       message.role === 'assistant' &&
@@ -89,7 +93,7 @@ export function ExtensionChat({ workspaceId, workspaceName }: ExtensionChatProps
       destination.location.replace(
         isWorkspaceResourceKind(kind)
           ? workspaceResourcePath(workspaceId, kind, resource.id)
-          : `${appHref}?resource=${encodeURIComponent(resource.id)}`
+          : `${appHref}?${new URLSearchParams({ resource: resource.id })}`
       )
     } catch {
       destination.close()

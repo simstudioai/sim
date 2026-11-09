@@ -22,6 +22,8 @@ export type DesktopInboxEntry =
       toolName: string
       chatId: string
       chatTitle: string | null
+      /** The organization of an organization chat, whose page the notification opens. */
+      organizationId: string | null
       workspaceId: string | null
       summary: string | null
     }
@@ -62,6 +64,7 @@ export function classifyDesktopInbox(rows: DesktopInboxRow[]): DesktopInboxEntry
           toolName: row.toolName,
           chatId: row.chatId,
           chatTitle: row.chatTitle,
+          organizationId: row.chatOrganizationId,
           workspaceId: row.workspaceId,
           summary: summarize(args),
         })

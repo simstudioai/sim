@@ -259,8 +259,8 @@ const serverSeamHelpers = new Set([
   'lib/users/application/read-current-user',
   'lib/workflows/application/read-workflow-definition',
   'lib/workspaces/list',
-  'lib/workspaces/permissions/utils',
   'lib/workspaces/seed-workspace-list',
+  'lib/workspaces/shell-organization',
 ])
 /**
  * Application modules every Platform file may import, views included, because the Platform and the
@@ -556,6 +556,7 @@ const seamHelpers = new Set([
   'stores/folders/types',
   'stores/mothership-drafts/store',
   'stores/mothership-effort/store',
+  'stores/organization-home/store',
   'stores/panel',
   'stores/table/types',
   'stores/tool-permission/store',
