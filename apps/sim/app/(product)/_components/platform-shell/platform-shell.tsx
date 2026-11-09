@@ -80,7 +80,8 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
     : undefined
   const location = workspaceLocation(pathname)
   const conversation = surfacePath.startsWith('/chat')
-  const activeChat = conversation ? surfacePath.split('/')[2] : undefined
+  /** An agent chat opens under `/chat`, an assistant chat under Search. */
+  const activeChat = /^\/(?:search\/)?chat\/([^/]+)/.exec(surfacePath)?.[1]
   const home = surfacePath === '/home'
   const integrations = surfacePath === '/integrations' || surfacePath.startsWith('/integrations/')
   const people = surfacePath === '/people' || surfacePath.startsWith('/people/')

@@ -29,6 +29,7 @@ export function AccountMenu({
     <AnchoredPopover
       presentation='menu'
       label='Account menu'
+      triggerLabel={name}
       anchor={anchor}
       open={open}
       onOpenChange={(next) => {

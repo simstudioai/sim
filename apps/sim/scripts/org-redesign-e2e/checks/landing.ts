@@ -40,7 +40,9 @@ export async function landingChecks() {
       await page.locator('#email').fill(MEMBER.email)
       await page.locator('#password').fill(PASSWORD)
       await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-      await expect(page).toHaveURL(landsOnSearch, { timeout: 45_000 })
+      // Polled rather than awaited as a navigation: /home streams its redirect, which Next answers
+      // with both a client navigation and a meta refresh, and the one that loses is aborted.
+      await expect.poll(() => landsOnSearch(new URL(page.url())), { timeout: 45_000 }).toBe(true)
       await expect(searchField(page)).toBeVisible()
     })
   })

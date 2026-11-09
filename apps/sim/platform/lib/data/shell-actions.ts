@@ -67,13 +67,19 @@ const SUPPORT: ShellHelp['support'] = {
   },
 }
 
+/** The only desktop build offered is for macOS. iPadOS reports itself as a Mac, but with touch. */
+function canInstallMacApp() {
+  if (typeof navigator === 'undefined' || isDesktopApp()) return false
+  return /Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints <= 1
+}
+
 function useHelp(organization: PlatformOrganization): ShellHelp {
   const updateState = useDesktopUpdateState()
   const { hosted } = organization.deployment
   return {
     documentationUrl: DOCS_URL,
     slackUrl: SLACK_COMMUNITY_URL,
-    downloadUrl: hosted && !isDesktopApp() ? '/api/desktop/update/download' : undefined,
+    downloadUrl: hosted && canInstallMacApp() ? '/api/desktop/update/download' : undefined,
     desktopUpdate: hasAvailableDesktopUpdate(updateState)
       ? {
           label: desktopUpdateActionLabel(updateState),

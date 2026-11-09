@@ -77,7 +77,9 @@ export async function sidebarChecks() {
         'page'
       )
       await page.goto(url(org.chat(ADMIN_CHATS.agent.id)))
-      await expect(mainNav(page).locator('[aria-current="page"]')).toHaveCount(0)
+      // The open chat's own row in the Chats section is current; no destination row is.
+      await expect(railLink(page, ADMIN_CHATS.agent.title)).toHaveAttribute('aria-current', 'page')
+      await expect(mainNav(page).locator('[aria-current="page"]:not(nav section *)')).toHaveCount(0)
     })
   })
   await check(
