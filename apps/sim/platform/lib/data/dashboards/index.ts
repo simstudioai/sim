@@ -1,7 +1,7 @@
 /**
  * The Dashboard tab's seam: the workspace's one dashboard document, legacy's parser, and legacy's
- * time-range state and URL keys, unchanged. Panels read their tables through the same names the
- * markdown embed uses, from `@/platform/lib/data/files/dashboards`.
+ * time-range state and URL keys, unchanged. Panels render through
+ * `@/components/dashboard-panel`, the panel the markdown embed uses.
  */
 
 export {

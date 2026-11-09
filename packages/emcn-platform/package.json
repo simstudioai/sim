@@ -58,7 +58,6 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@base-ui/react": "1.9.0",
     "@sim/emcn": "workspace:*"
   },
   "peerDependencies": {

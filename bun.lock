@@ -746,7 +746,6 @@
       "name": "@sim/emcn-platform",
       "version": "0.1.0",
       "dependencies": {
-        "@base-ui/react": "1.9.0",
         "@sim/emcn": "workspace:*",
       },
       "devDependencies": {

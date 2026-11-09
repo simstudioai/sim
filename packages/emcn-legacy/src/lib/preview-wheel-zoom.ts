@@ -59,23 +59,6 @@ function applyHorizontalWheel(container: HTMLElement, event: WheelEvent): void {
 }
 
 /**
- * Bind horizontal wheel gestures for a preview scroll container that has no zoom of its
- * own — the tabular CSV/XLSX previews, whose table is wider than its frame. A mouse whose
- * wheel reports only `deltaY` otherwise has no way to reach that overflow short of dragging
- * the scrollbar. Unlike {@link bindPreviewWheelZoom} this leaves `ctrl`/`cmd`+wheel alone,
- * so browser page zoom still works over a table.
- */
-export function bindPreviewHorizontalWheel(container: HTMLElement): () => void {
-  const onWheel = (event: WheelEvent) => {
-    if (event.ctrlKey || event.metaKey) return
-    applyHorizontalWheel(container, event)
-  }
-
-  container.addEventListener('wheel', onWheel, { capture: true, passive: false })
-  return () => container.removeEventListener('wheel', onWheel, { capture: true })
-}
-
-/**
  * Bind browser pinch/ctrl-wheel zoom and horizontal wheel gestures for preview
  * scroll containers. Trackpad pinch fires `wheel` with `ctrlKey=true`; without
  * a non-passive native listener the browser falls back to page zoom. `metaKey`

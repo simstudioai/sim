@@ -21,7 +21,7 @@ import {
 /** How often a relative range advances its end to the present while the page is visible. */
 const LIVE_TICK_MS = 60_000
 
-export interface DashboardTimeState {
+interface DashboardTimeState {
   range: DashboardRange | 'custom' | null
   from: string | null
   to: string | null

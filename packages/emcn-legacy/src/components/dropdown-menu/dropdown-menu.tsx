@@ -486,19 +486,6 @@ const DropdownMenuSearchInput = React.forwardRef<
 })
 DropdownMenuSearchInput.displayName = 'DropdownMenuSearchInput'
 
-const DropdownMenuShortcut = ({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) => {
-  return (
-    <span
-      className={cn(
-        'ml-auto shrink-0 pl-3 text-[var(--text-muted)] text-caption tabular-nums',
-        className
-      )}
-      {...props}
-    />
-  )
-}
-DropdownMenuShortcut.displayName = 'DropdownMenuShortcut'
-
 export {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -509,7 +496,6 @@ export {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSearchInput,
-  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,

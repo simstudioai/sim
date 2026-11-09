@@ -14,18 +14,13 @@ import { createImageTargetGuard } from '@/components/file-viewer/rich-markdown-e
 import { normalizeLinkHref } from '@/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import styles from '@/components/file-viewer/rich-markdown-editor/node-views.module.css'
 import { useEditorEditable } from '@/components/file-viewer/rich-markdown-editor/use-editor-editable'
-import { useFileContentSource } from '@/hooks/use-file-content-source'
+import { type ImageDimensions, useFileContentSource } from '@/hooks/use-file-content-source'
 
 const MIN_WIDTH = 64
 
 /** A bare pixel count (`"640"`) that needs a `px` suffix, vs. an already-unit'd size (`"50%"`). */
 const BARE_PIXEL_SIZE = /^\d+$/
 const PIXEL_SIZE = /^\d+(?:\.\d+)?px$/
-
-interface ImageDimensions {
-  width: number
-  height: number
-}
 
 /**
  * The image node view: drag the body to move it, drag the corner handle (shown when selected) to
