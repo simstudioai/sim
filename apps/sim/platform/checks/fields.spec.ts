@@ -1,5 +1,5 @@
-import { test } from '@playwright/test'
 import { checkCredentialFields } from '@/platform/checks/field-checks'
+import { test } from '@/platform/checks/fixture-test'
 import { fixtureOrigin } from '@/platform/checks/routes'
 
 for (const theme of ['light', 'dark']) {

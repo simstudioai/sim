@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
+import { test } from '@/platform/checks/fixture-test'
 import { fixtureUrl } from '@/platform/checks/routes'
 
 test('credential Back returns to its directory origin with filters intact', async ({ page }) => {

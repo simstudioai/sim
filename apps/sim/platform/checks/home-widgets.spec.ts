@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
+import { test } from '@/platform/checks/fixture-test'
 import { fixtureUrl } from '@/platform/checks/routes'
 
 test('Home recent links scroll, open independently and share dismissals with Chat', async ({
