@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@sim/emcn/button'
-import { StatusTag } from '@sim/emcn/status'
+import { StatusText } from '@sim/emcn/status'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/schedule-info/schedule-info.module.css'
 import { useSubBlockStore, useWorkflowScope } from '@/platform/lib/data/workflow-editor'
 import {
@@ -63,7 +63,7 @@ export function ScheduleInfo({ blockId, isPreview = false }: ScheduleInfoProps) 
       {exhausted ? (
         <div className={styles.status}>
           <div className={styles.statusRow}>
-            <StatusTag label='Disabled' intent='warning' />
+            <StatusText label='Disabled' intent='warning' />
             <Button
               variant='quiet'
               size='compact'
@@ -85,7 +85,7 @@ export function ScheduleInfo({ blockId, isPreview = false }: ScheduleInfoProps) 
       ) : (
         failedCount > 0 && (
           <div className={styles.statusRow}>
-            <StatusTag label={`${failedCount} failed`} intent='warning' />
+            <StatusText label={`${failedCount} failed`} intent='warning' />
           </div>
         )
       )}
