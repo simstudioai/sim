@@ -17,12 +17,14 @@ import { Input } from '@sim/emcn/field/inputs'
 import { Icon, type IconName } from '@sim/emcn/icon'
 import { ActionMenu, ContextActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
+import { escapeRegExp } from '@sim/utils/string'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import Link from 'next/link'
 import { ListEnd } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/list-end/list-end'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/resource-table/resource-table.module.css'
 import type { ResourceDrag } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/resource-table/use-resource-drag'
 import type { ResourceSelection } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/resource-table/use-resource-selection'
+import { SelectionBar } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/selection-bar/selection-bar'
 
 /** Rows drawn beyond the viewport, so a fast scroll never shows a blank band. */
 const OVERSCAN = 8
@@ -30,6 +32,7 @@ const OVERSCAN = 8
 const ROW_ESTIMATE = 42
 const LIST_GAP = 2
 const FIRST_PAINT = { width: 0, height: 960 }
+const NO_TERMS: readonly string[] = []
 
 /** One of the list's typed columns, after the name. */
 export interface ResourceColumn {
@@ -53,8 +56,10 @@ export interface ResourceRow {
   /** Unique across both kinds: a folder's id comes from `folderRowId`. */
   id: string
   name: string
-  /** An interface glyph, or a brand mark such as a connector's. */
-  icon: IconName | { providerId: string }
+  /** Names the row's controls when its name is long content, such as a chunk's text. */
+  label?: string
+  /** An interface glyph, or a brand mark such as a connector's; content rows such as chunks have none. */
+  icon?: IconName | { providerId: string }
   folder?: boolean
   pinned?: boolean
   /** Shows a lock after the name, as a locked workflow or folder does. */
@@ -79,6 +84,8 @@ interface RowRename {
 interface ResourceTableProps {
   /** Names the list, such as "Tables". */
   label: string
+  /** The first column's caption, "Name" unless the rows hold content, such as chunks. */
+  nameLabel?: string
   columns: readonly ResourceColumn[]
   rows: readonly ResourceRow[]
   /** A row's commands, offered from its ellipsis and on right-click. */
@@ -98,6 +105,8 @@ interface ResourceTableProps {
   loadMore?: { hasMore: boolean; onLoadMore: () => void }
   /** A find-in-list term to mark in names, and the match to bring into view. */
   find?: { query: string; activeId: string | null }
+  /** Terms each marked wherever they appear in names, such as a search's words. */
+  marks?: readonly string[]
   /** What shows in place of rows when there are none; the background menu still covers it. */
   empty?: ReactNode
 }
@@ -111,6 +120,7 @@ interface ResourceTableProps {
  */
 export function ResourceTable({
   label,
+  nameLabel = 'Name',
   columns,
   rows,
   rowActions,
@@ -123,6 +133,7 @@ export function ResourceTable({
   drag,
   loadMore,
   find,
+  marks,
   empty,
 }: ResourceTableProps) {
   const list = useRef<HTMLOListElement>(null)
@@ -182,6 +193,7 @@ export function ResourceTable({
   const selectedCount = selected?.size ?? 0
   const allSelected = hasRows && selectedCount >= rows.length
   const narrowed = columns.some((column) => column.narrow)
+  const terms = find?.query ? [find.query, ...(marks ?? [])] : (marks ?? NO_TERMS)
 
   const content = (
     <div
@@ -205,7 +217,7 @@ export function ResourceTable({
                 />
               </span>
             )}
-            <span className={styles.name}>Name</span>
+            <span className={styles.name}>{nameLabel}</span>
             {columns.map((column) => (
               <ColumnCell key={column.id} column={column}>
                 {column.label}
@@ -228,6 +240,7 @@ export function ResourceTable({
                     rename={rename?.rowId === row.id ? rename : null}
                     drag={drag}
                     find={find}
+                    terms={terms}
                   />
                 </li>
               )
@@ -304,6 +317,7 @@ interface ResourceRowViewProps {
   rename: RowRename | null
   drag?: ResourceDrag
   find?: { query: string; activeId: string | null }
+  terms: readonly string[]
 }
 
 function ResourceRowView({
@@ -314,6 +328,7 @@ function ResourceRowView({
   rename,
   drag,
   find,
+  terms,
 }: ResourceRowViewProps) {
   const extend = useRef(false)
   const isSelected = selection?.selected.has(row.id) ?? false
@@ -322,7 +337,8 @@ function ResourceRowView({
   const retarget = (open: boolean) => {
     if (open && selection && !selection.selected.has(row.id)) selection.replace([row.id])
   }
-  const name = <MarkedName name={row.name} query={find?.query} />
+  const rowLabel = row.label ?? row.name
+  const name = <MarkedName name={row.name} terms={terms} />
   const view = (
     <div
       className={styles.row}
@@ -345,7 +361,7 @@ function ResourceRowView({
           }}
         >
           <Checkbox
-            label={`Select ${row.name}`}
+            label={`Select ${rowLabel}`}
             labelHidden
             checked={isSelected}
             onCheckedChange={(checked) => selection.toggle(row.id, checked, extend.current)}
@@ -355,17 +371,17 @@ function ResourceRowView({
       <span className={styles.name} data-type='T060'>
         {typeof row.icon === 'string' ? (
           <Icon name={row.icon} />
-        ) : (
+        ) : row.icon ? (
           <Icon providerId={row.icon.providerId} />
-        )}
+        ) : null}
         {rename ? (
           <RenameField rename={rename} name={row.name} />
         ) : row.href ? (
-          <Link href={row.href} className={styles.open} draggable={false}>
+          <Link href={row.href} className={styles.open} draggable={false} aria-label={row.label}>
             <OverflowText text={row.name}>{name}</OverflowText>
           </Link>
         ) : (
-          <button type='button' className={styles.open} onClick={row.onOpen}>
+          <button type='button' className={styles.open} aria-label={row.label} onClick={row.onOpen}>
             <OverflowText text={row.name}>{name}</OverflowText>
           </button>
         )}
@@ -388,7 +404,7 @@ function ResourceRowView({
       {actions && (
         <span className={styles.action}>
           <ActionMenu
-            label={`Actions for ${row.name}`}
+            label={`Actions for ${rowLabel}`}
             icon='I108'
             triggerSize='compact'
             tooltip={false}
@@ -402,7 +418,7 @@ function ResourceRowView({
   )
   if (!actions) return view
   return (
-    <ContextActionMenu label={`Actions for ${row.name}`} actions={actions} onOpenChange={retarget}>
+    <ContextActionMenu label={`Actions for ${rowLabel}`} actions={actions} onOpenChange={retarget}>
       {view}
     </ContextActionMenu>
   )
@@ -416,24 +432,20 @@ function CellValue({ value, numeric }: { value: ReactNode; numeric?: boolean }) 
   return value
 }
 
-/** A name with a find term's matches marked. */
-function MarkedName({ name, query }: { name: string; query?: string }) {
-  const needle = query?.trim().toLowerCase()
-  if (!needle) return name
-  const parts: ReactNode[] = []
-  const lower = name.toLowerCase()
-  let from = 0
-  for (let at = lower.indexOf(needle); at !== -1; at = lower.indexOf(needle, from)) {
-    if (at > from) parts.push(name.slice(from, at))
-    parts.push(
-      <mark key={at} className={styles.match}>
-        {name.slice(at, at + needle.length)}
+/** A name with each term's matches marked. */
+function MarkedName({ name, terms }: { name: string; terms: readonly string[] }) {
+  const needles = terms.map((term) => term.trim()).filter(Boolean)
+  if (needles.length === 0) return name
+  const pattern = new RegExp(`(${needles.map(escapeRegExp).join('|')})`, 'gi')
+  return name.split(pattern).map((part, index) =>
+    index % 2 === 1 ? (
+      <mark key={index} className={styles.match}>
+        {part}
       </mark>
+    ) : (
+      part
     )
-    from = at + needle.length
-  }
-  if (from < name.length) parts.push(name.slice(from))
-  return parts
+  )
 }
 
 function RenameField({ rename, name }: { rename: RowRename; name: string }) {
@@ -482,18 +494,14 @@ function BulkBar({ count, limit, actions }: BulkBarProps) {
   const overLimit = limit !== undefined && count > limit
   return (
     <div className={styles.bulkFrame}>
-      <div
-        className={styles.bulk}
-        role='toolbar'
+      <SelectionBar
         aria-label='Selection actions'
-        data-material='floating'
-        data-elevation='menu'
-      >
-        <span className={styles.count} data-type='T060' role='status'>
-          {overLimit
+        label={
+          overLimit
             ? `${count} selected · select ${limit} or fewer`
-            : `${count.toLocaleString()} selected`}
-        </span>
+            : `${count.toLocaleString()} selected`
+        }
+      >
         {actions.map((action) =>
           action.children ? (
             <ActionMenu
@@ -517,7 +525,7 @@ function BulkBar({ count, limit, actions }: BulkBarProps) {
             </Button>
           )
         )}
-      </div>
+      </SelectionBar>
     </div>
   )
 }

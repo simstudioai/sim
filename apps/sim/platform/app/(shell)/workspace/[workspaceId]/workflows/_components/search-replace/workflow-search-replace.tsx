@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { IconButton } from '@sim/emcn/button'
 import { Input } from '@sim/emcn/field/inputs'
+import { OverflowText } from '@sim/emcn/overflow-text'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { useShallow } from 'zustand/react/shallow'
 import { useRegisterGlobalCommands } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/global-commands/global-commands'
@@ -641,7 +642,7 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
         }}
       >
         <span className={styles.title} data-type='T060'>
-          Search and replace
+          <OverflowText text='Search and replace'>Search and replace</OverflowText>
         </span>
         <div
           role='presentation'

@@ -2,6 +2,7 @@
 
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { CopyButton } from '@sim/emcn/button/copy-button'
+import { StatusTag } from '@sim/emcn/status'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { MermaidDiagram } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/mermaid-diagram'
@@ -169,9 +170,7 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
                 }))}
               />
             ) : (
-              <span className={styles.codeLanguage} data-type='T052'>
-                {label}
-              </span>
+              <StatusTag label={label} />
             ))}
           {(isDiff || (!isRendered && editable)) && (
             <ToolbarButton label='Wrap' pressed={wrap} onClick={() => setWrap((value) => !value)} />

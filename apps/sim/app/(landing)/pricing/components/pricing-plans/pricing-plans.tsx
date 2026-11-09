@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { useQueryStates } from 'nuqs'
 import { getUpgradeCardCta, type PlanTier, type UpgradeCardId } from '@/lib/billing/client'
 import { ANNUAL_DISCOUNT_RATE, CREDIT_TIERS } from '@/lib/billing/constants'
+import { type CellValue, COMPARISON_SECTIONS } from '@/lib/billing/plan-comparison'
 import { DEMO_HREF, SIGNUP_HREF } from '@/app/(landing)/constants'
 import {
   PricingCard,
@@ -12,10 +13,6 @@ import {
 } from '@/app/(landing)/pricing/components/pricing-card'
 import { pricingParsers, pricingUrlKeys } from '@/app/(landing)/pricing/search-params'
 import { BillingPeriodToggle } from '@/app/workspace/[workspaceId]/upgrade/components'
-import {
-  type CellValue,
-  COMPARISON_SECTIONS,
-} from '@/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data'
 
 /**
  * A public visitor has no subscription, so each card's canonical label and

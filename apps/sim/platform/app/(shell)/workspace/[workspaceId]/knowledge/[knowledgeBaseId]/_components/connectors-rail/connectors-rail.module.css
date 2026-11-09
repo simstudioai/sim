@@ -41,57 +41,12 @@
   margin: 0;
   color: var(--ui-secondary);
 }
-.list {
+/* A connector's sync source and state, under its name in the row's detail. */
+.detail {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--ui-content-gap);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--ui-row-gap);
-  min-inline-size: 0;
-}
-/* The row's hover surface reaches past the rail's text edge, as list rows do elsewhere. */
-.row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: var(--ui-row-gap);
-  min-inline-size: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset));
-  padding: var(--spacing-6) var(--ui-row-inset);
-  border: 0;
-  border-radius: var(--radius-item);
-  background: transparent;
-  color: var(--ui-ink);
-  text-align: start;
-  cursor: pointer;
-}
-.row:hover {
-  background: var(--ui-hover);
-}
-.mark {
-  display: flex;
-  align-items: center;
-  block-size: var(--ui-glyph-size);
-}
-.copy {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  min-inline-size: 0;
   gap: var(--ui-stack-gap);
-}
-.name,
-.detail {
-  display: flex;
   min-inline-size: 0;
-}
-.detail {
-  color: var(--ui-secondary);
 }
 .tags {
   display: flex;
@@ -99,7 +54,17 @@
   align-items: center;
   gap: var(--ui-action-gap) var(--ui-row-gap);
   min-inline-size: 0;
-  padding-block-start: var(--ui-stack-gap);
+}
+/* Whatever a connector needs before it can sync again, on the text edge under its row. */
+.attention {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+  padding-inline: var(--ui-row-inset);
+}
+.attention:empty {
+  display: none;
 }
 .pending {
   display: flex;

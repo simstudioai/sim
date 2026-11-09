@@ -1,8 +1,7 @@
 'use client'
 
 import type { RefObject } from 'react'
-import type { MenuAction } from '@sim/emcn/menu/action-menu'
-import { PointerMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/pointer-menu/pointer-menu'
+import { type MenuAction, PointActionMenu } from '@sim/emcn/menu/action-menu'
 import { TriggerUtils } from '@/platform/lib/data/workflows'
 
 /**
@@ -310,11 +309,10 @@ export function BlockMenu({
   }
 
   return (
-    <PointerMenu
+    <PointActionMenu
       label={isSingleBlock ? 'Block actions' : 'Selected blocks actions'}
-      isOpen={isOpen}
-      position={position}
-      menuRef={menuRef}
+      point={isOpen ? position : null}
+      popupRef={menuRef}
       onClose={onClose}
       actions={buildActions}
     />

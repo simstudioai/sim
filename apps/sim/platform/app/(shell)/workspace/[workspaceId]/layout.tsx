@@ -8,9 +8,12 @@ export const dynamic = 'force-dynamic'
 export default async function WorkspaceLayout({ children }: { children: ReactNode }) {
   if (resolvePlatformMode() !== 'live')
     return <WorkspaceSession mode='fixture'>{children}</WorkspaceSession>
-  const { WorkspaceRealtime } = await import('@/platform/lib/data/realtime')
+  const [{ WorkspaceRealtime }, { readWorkspaceTabFlags }] = await Promise.all([
+    import('@/platform/lib/data/realtime'),
+    import('@/platform/lib/data/workflow-tests/flag'),
+  ])
   return (
-    <WorkspaceSession mode='live'>
+    <WorkspaceSession mode='live' tabFlags={await readWorkspaceTabFlags()}>
       <WorkspaceRealtime>{children}</WorkspaceRealtime>
     </WorkspaceSession>
   )

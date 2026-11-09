@@ -1,8 +1,7 @@
 'use client'
 
-import { useId, useState } from 'react'
-import { Switch } from '@sim/emcn/switch'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/retry-settings/retry-settings.module.css'
+import { useState } from 'react'
+import { FieldFrame, SwitchField } from '@sim/emcn/field'
 import { ShortInput } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/short-input/short-input'
 import {
   BLOCK_RETRY_DEFAULT_TRIES,
@@ -63,10 +62,7 @@ function RetryNumberField({
     if (next !== value) onCommit(next)
   }
   return (
-    <div className={styles.field}>
-      <span className={styles.label} data-type='T059'>
-        {config.title}
-      </span>
+    <FieldFrame label={config.title ?? ''}>
       <ShortInput
         blockId={blockId}
         subBlockId={config.id}
@@ -77,7 +73,7 @@ function RetryNumberField({
         disabled={disabled}
         allowReferences={false}
       />
-    </div>
+    </FieldFrame>
   )
 }
 
@@ -86,7 +82,6 @@ function RetryNumberField({
  * the numbers, so turning it back on restores them.
  */
 export function RetrySettings({ blockId, retry, disabled, onChange }: RetrySettingsProps) {
-  const toggleId = useId()
   const enabled = retry?.enabled === true
   const maxTries = retry?.maxTries ?? BLOCK_RETRY_DEFAULT_TRIES
   const waitBetweenTriesMs = retry?.waitBetweenTriesMs ?? BLOCK_RETRY_DEFAULT_WAIT_MS
@@ -95,18 +90,12 @@ export function RetrySettings({ blockId, retry, disabled, onChange }: RetrySetti
 
   return (
     <>
-      <div className={styles.toggle} data-disabled={disabled || undefined}>
-        <Switch
-          id={toggleId}
-          label='Retry on fail'
-          checked={enabled}
-          onCheckedChange={(next) => setPolicy({ enabled: next })}
-          disabled={disabled}
-        />
-        <label htmlFor={toggleId} className={styles.label} data-type='T060'>
-          Retry on fail
-        </label>
-      </div>
+      <SwitchField
+        label='Retry on fail'
+        checked={enabled}
+        disabled={disabled}
+        onCheckedChange={(next) => setPolicy({ enabled: next })}
+      />
       {enabled && (
         <>
           <RetryNumberField

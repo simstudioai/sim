@@ -44,6 +44,17 @@ interface ResourceLibrary {
   leave: (id: string) => void
 }
 
+/** The live Skills tab: a workspace's skills, which the tab lists one workspace at a time. */
+export interface SkillsTab {
+  /** The workspace choice, where the library's ownership filter sits. */
+  filter: ReactNode
+  /** Create and import, ending the control bar. */
+  actions: ReactNode
+  content: ReactNode
+  empty: boolean
+  settled: boolean
+}
+
 interface IntegrationCenterProps {
   /**
    * The directory's page heading. A resource opened in place replaces the directory and this heading
@@ -53,6 +64,7 @@ interface IntegrationCenterProps {
   apps: readonly AppSummary[]
   credentials?: readonly AppSummary[]
   library?: ResourceLibrary
+  skills?: SkillsTab
   settled?: boolean
 }
 
@@ -69,6 +81,7 @@ export function IntegrationCenter({
   apps,
   credentials = [],
   library,
+  skills,
   settled = true,
 }: IntegrationCenterProps) {
   const pathname = usePathname()
@@ -87,7 +100,9 @@ export function IntegrationCenter({
   const [creating, setCreating] = useState<IntegrationResource['kind'] | null>(null)
   const tabs = library
     ? CENTER_TABS
-    : CENTER_TABS.filter((tab) => tab.id === 'apps' || tab.id === 'credentials')
+    : CENTER_TABS.filter(
+        (tab) => tab.id === 'apps' || tab.id === 'credentials' || (tab.id === 'skills' && skills)
+      )
   const current: IntegrationTab = tabs.some((tab) => tab.id === view.tab) ? view.tab : 'apps'
   const base = `${pathname}?${search.toString()}`
   const destinations = tabs.map((tab) => ({
@@ -140,8 +155,10 @@ export function IntegrationCenter({
   const editing = isOpening
     ? undefined
     : library?.data.resources.find((resource) => resource.id === view.resource)
-  const empty =
-    current === 'apps'
+  const liveSkills = current === 'skills' && !library ? skills : undefined
+  const empty = liveSkills
+    ? liveSkills.empty
+    : current === 'apps'
       ? !visibleApps.length
       : !resources.length && !(current === 'credentials' && credentialLinks.length)
 
@@ -264,6 +281,8 @@ export function IntegrationCenter({
                   }
                 }}
               />
+            ) : liveSkills ? (
+              liveSkills.filter
             ) : (
               <ChoiceMenu
                 label='Category'
@@ -298,6 +317,7 @@ export function IntegrationCenter({
                 },
               ]}
             />
+            {liveSkills?.actions}
             {current !== 'apps' && library && (
               <Button
                 variant='secondary'
@@ -318,7 +338,9 @@ export function IntegrationCenter({
           </ControlBar>
         </div>
         <div className={styles.groups}>
-          {current === 'apps' ? (
+          {liveSkills ? (
+            liveSkills.content
+          ) : current === 'apps' ? (
             <>
               <AppGroup
                 title='Connected'
@@ -356,7 +378,7 @@ export function IntegrationCenter({
               ))}
             </>
           )}
-          {settled && empty && (
+          {(liveSkills ? liveSkills.settled : settled) && empty && (
             <section className={styles.empty} aria-label='Search results'>
               <h2 data-type='T059'>
                 {term ? 'No results found' : `No ${current === 'mcps' ? 'MCPs' : current} yet`}
@@ -366,7 +388,9 @@ export function IntegrationCenter({
                   ? 'Try a different name or clear your filters.'
                   : current === 'apps'
                     ? 'Apps available to your organization appear here.'
-                    : 'Your personal and shared connections appear here.'}
+                    : liveSkills
+                      ? 'Skills in this workspace appear here.'
+                      : 'Your personal and shared connections appear here.'}
               </p>
             </section>
           )}

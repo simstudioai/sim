@@ -12,6 +12,7 @@ import {
 import { ControlRow } from '@sim/emcn/button/control-row'
 import { useShallow } from 'zustand/react/shallow'
 import { EditorPanel } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/editor-panel/editor-panel'
+import { ResizeHandle } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/resize-handle/resize-handle'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/right-panel/right-panel.module.css'
 import {
   Toolbar,
@@ -142,13 +143,7 @@ export function RightPanel({ toolbarRef, variables }: RightPanelProps) {
 
   return (
     <aside ref={panelRef} className={styles.panel} aria-label='Workflow panel'>
-      <div
-        className={styles.resizer}
-        role='separator'
-        aria-orientation='vertical'
-        aria-label='Resize panel'
-        onPointerDown={startResize}
-      />
+      <ResizeHandle edge='inline-start' label='Resize panel' onPointerDown={startResize} />
       <div className={styles.tabs} role='tablist' aria-label='Panel' onKeyDown={onTabKeyDown}>
         {TABS.map((tab) => (
           <ControlRow

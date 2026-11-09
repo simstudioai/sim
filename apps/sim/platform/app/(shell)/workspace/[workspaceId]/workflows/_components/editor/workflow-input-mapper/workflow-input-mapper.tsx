@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo } from 'react'
+import { FieldFrame } from '@sim/emcn/field'
 import {
   ActiveSearchTargetProvider,
   useActiveSearchTarget,
@@ -103,10 +104,7 @@ export function WorkflowInputMapper({
               }
             : null
         return (
-          <div key={field.name} className={styles.field}>
-            <span className={styles.label} data-type='T059'>
-              {field.name}
-            </span>
+          <FieldFrame key={field.name} label={field.name}>
             <ActiveSearchTargetProvider value={fieldSearchTarget}>
               <ShortInput
                 blockId={blockId}
@@ -118,7 +116,7 @@ export function WorkflowInputMapper({
                 config={{ id: syntheticId, type: 'short-input', title: field.name }}
               />
             </ActiveSearchTargetProvider>
-          </div>
+          </FieldFrame>
         )
       })}
     </div>

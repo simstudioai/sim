@@ -6,6 +6,7 @@ import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { generateId } from '@sim/utils/id'
 import { useActiveSearchTarget } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import { EntryCard } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/entry-card/entry-card'
+import { ActionField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/field-label-row/field-label-row'
 import { formatDisplayText } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/formatted-text'
 import {
   getActiveWorkflowSearchHighlight,
@@ -289,16 +290,11 @@ export function VariablesInput({
               }}
               disabled={isReadOnly}
             />
-            <div className={styles.field}>
-              <div className={styles.labelRow}>
-                <label
-                  className={styles.label}
-                  data-type='T059'
-                  htmlFor={usesBooleanPicker ? undefined : `${entryId}-value`}
-                >
-                  Value
-                </label>
-                {assignment.type === 'boolean' && (
+            <ActionField
+              label='Value'
+              htmlFor={usesBooleanPicker ? undefined : `${entryId}-value`}
+              actions={
+                assignment.type === 'boolean' && (
                   <Button
                     variant='quiet'
                     size='compact'
@@ -313,8 +309,9 @@ export function VariablesInput({
                   >
                     {isManualBoolean ? 'Selector' : 'Manual'}
                   </Button>
-                )}
-              </div>
+                )
+              }
+            >
               {usesBooleanPicker ? (
                 <SearchableSelect
                   label='Value'
@@ -350,7 +347,7 @@ export function VariablesInput({
                   searchHighlight={valueSearchHighlight}
                 />
               )}
-            </div>
+            </ActionField>
           </EntryCard>
         )
       })}

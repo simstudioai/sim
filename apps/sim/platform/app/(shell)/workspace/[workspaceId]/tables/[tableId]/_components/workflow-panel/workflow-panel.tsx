@@ -3,14 +3,15 @@
 import { useMemo, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { Disclosure } from '@sim/emcn/disclosure'
-import { TextField } from '@sim/emcn/field'
+import { SwitchField, TextField } from '@sim/emcn/field'
+import { ListField } from '@sim/emcn/field/list-field'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
-import { Switch } from '@sim/emcn/switch'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
   SidePanel,
+  SidePanelNote,
   SidePanelSection,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/side-panel/side-panel'
 import { InputMappingFields } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/workflow-panel/input-mapping-fields'
@@ -18,11 +19,11 @@ import {
   blockOutputGroups,
   encodeOutputValue,
   orderPickedOutputs,
+  previewBlocks,
   startBlockInputs,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/workflow-panel/outputs'
 import { RunAfterField } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/workflow-panel/run-after-field'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/workflow-panel/workflow-panel.module.css'
-import { WorkflowPreview } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/workflow-panel/workflow-preview'
 import { platformUrl } from '@/platform/lib/data/base-path'
 import {
   type AddWorkflowGroupBodyInput,
@@ -464,22 +465,35 @@ function WorkflowPanelForm({
       )}
 
       {selectedWorkflowId && !workflowState.isLoading && (
-        <SidePanelSection title='Workflow preview'>
-          <WorkflowPreview
-            state={deployedState ?? null}
-            onOpen={
-              isEnrichment
-                ? undefined
-                : () =>
-                    window.open(
-                      platformUrl(
-                        `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(selectedWorkflowId)}`
-                      ),
-                      '_blank',
-                      'noopener,noreferrer'
-                    )
-            }
-          />
+        <SidePanelSection>
+          {deployedState ? (
+            <ListField
+              label='Workflow preview'
+              groups={[{ id: 'blocks', items: previewBlocks(deployedState) }]}
+            />
+          ) : (
+            <SidePanelNote>Unable to load the workflow preview</SidePanelNote>
+          )}
+          {deployedState && !isEnrichment && (
+            <span className={styles.previewOpen}>
+              <Button
+                variant='quiet'
+                size='compact'
+                trailingIcon='I037'
+                onClick={() =>
+                  window.open(
+                    platformUrl(
+                      `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(selectedWorkflowId)}`
+                    ),
+                    '_blank',
+                    'noopener,noreferrer'
+                  )
+                }
+              >
+                Open workflow
+              </Button>
+            </span>
+          )}
         </SidePanelSection>
       )}
 
@@ -536,10 +550,7 @@ function WorkflowPanelForm({
 
       {!isEditOutputMode && (
         <SidePanelSection>
-          <div className={styles.switchRow}>
-            <span data-type='T059'>Auto-run workflow</span>
-            <Switch label='Auto-run workflow' checked={autoRun} onCheckedChange={setAutoRun} />
-          </div>
+          <SwitchField label='Auto-run workflow' checked={autoRun} onCheckedChange={setAutoRun} />
           {autoRun && (
             <RunAfterField
               columns={depOptions}

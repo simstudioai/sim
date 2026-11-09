@@ -3,11 +3,7 @@
 import { useState } from 'react'
 import { ChipModalField } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  type ParsedSkill,
-  readSkillFile,
-  SKILL_IMPORT_ACCEPT,
-} from '@/app/workspace/[workspaceId]/skills/components/utils'
+import { type ParsedSkill, readSkillFile, SKILL_IMPORT_ACCEPT } from '@/lib/skills/authoring'
 
 interface SkillImportProps {
   onImport: (data: ParsedSkill) => void

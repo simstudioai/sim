@@ -8,7 +8,10 @@ import { InlineNotice } from '@sim/emcn/status'
 import { enrichmentMark } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/column-types/enrichment-marks'
 import { EnrichmentConfig } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/enrichments-panel/enrichment-config'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/enrichments-panel/enrichments-panel.module.css'
-import { SidePanel } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/side-panel/side-panel'
+import {
+  SidePanel,
+  SidePanelNote,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/side-panel/side-panel'
 import {
   ALL_ENRICHMENTS,
   type ColumnDefinition,
@@ -103,9 +106,7 @@ export function EnrichmentsPanel({
         onValueChange={setQuery}
       />
       {enrichments.length === 0 ? (
-        <p className={styles.note} data-type='T060'>
-          No enrichments found.
-        </p>
+        <SidePanelNote>No enrichments found.</SidePanelNote>
       ) : (
         <ul className={styles.catalog} aria-label='Enrichments'>
           {enrichments.map((enrichment) => (

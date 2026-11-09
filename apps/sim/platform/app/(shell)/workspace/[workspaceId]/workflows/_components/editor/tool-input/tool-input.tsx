@@ -15,6 +15,7 @@ import {
 } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import { formatDisplayText } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/formatted-text'
 import { getActiveWorkflowSearchHighlight } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
+import { ItemCard } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/item-card/item-card'
 import { McpOperationPolicyEditor } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/mcp-operation-policy/mcp-operation-policy'
 import type { CanonicalToggle } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/sub-block/sub-block'
 import {
@@ -25,7 +26,6 @@ import {
   McpIssueBadge,
   WorkflowDeployBadge,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/tool-badges'
-import { ToolCard } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/tool-card'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/tool-input.module.css'
 import { ToolMark } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/tool-mark'
 import { ToolParam } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/tool-param'
@@ -1207,7 +1207,7 @@ export const ToolInput = memo(function ToolInput({
         )?.label
 
         return (
-          <ToolCard
+          <ItemCard
             key={`${tool.customToolId || tool.toolId || toolIndex}-${toolIndex}`}
             mark={mark}
             title={toolDisplayName}
@@ -1339,7 +1339,7 @@ export const ToolInput = memo(function ToolInput({
               />
             )}
             {displaySubBlocks.map(renderParam)}
-          </ToolCard>
+          </ItemCard>
         )
       })}
 

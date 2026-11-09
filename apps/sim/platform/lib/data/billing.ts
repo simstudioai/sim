@@ -29,13 +29,13 @@ import {
   hasPaidSubscriptionStatus,
   hasUsableSubscriptionAccess,
 } from '@/lib/billing/subscriptions/utils'
-import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { isUsageLimitDraftDirty, resolveUsageLimitDraft } from '@/lib/billing/usage-limit-draft'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
+import { platformUrl } from '@/platform/lib/data/base-path'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
 import { queryView } from '@/platform/shared/query-view'
@@ -116,9 +116,7 @@ export function useBillingSection(organization: PlatformOrganization) {
   const state = billing?.subscriptionState
   const weeklyRefresh = getPlanWeeklyRefreshDollars(plan) * (billing?.totalSeats || 1)
   const upgradeHref =
-    !fixture && billing?.upgradeWorkspaceId
-      ? `${organization.legacyOrigin}${buildUpgradeHref(billing.upgradeWorkspaceId)}`
-      : null
+    !fixture && billing?.upgradeWorkspaceId ? platformUrl('/settings/billing/plans') : null
 
   function openPortal() {
     if (fixture || !canManage) return

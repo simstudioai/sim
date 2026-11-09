@@ -1,6 +1,7 @@
 'use client'
 
 import { type ComponentProps, useEffect, useRef, useState } from 'react'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { InlineNotice } from '@sim/emcn/status'
@@ -483,11 +484,7 @@ function DeployDialog({
                         onLoad={(version) => setLoadTarget({ workflowId, version })}
                       />
                     ) : (
-                      versionsData && (
-                        <p className={styles.empty} data-type='T060'>
-                          No deployments yet
-                        </p>
-                      )
+                      versionsData && <EmptyState title='No deployments yet' />
                     )}
                   </>
                 )}

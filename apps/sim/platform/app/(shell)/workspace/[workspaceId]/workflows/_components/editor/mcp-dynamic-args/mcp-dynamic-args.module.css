@@ -21,53 +21,6 @@
   white-space: nowrap;
 }
 
-.toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-12);
-  inline-size: fit-content;
-  cursor: pointer;
-}
-
-.toggle[data-disabled] {
-  cursor: not-allowed;
-}
-
-.toggleLabel {
-  color: var(--ui-ink);
-}
-
-.toggle[data-disabled] .toggleLabel {
-  opacity: var(--opacity-disabled);
-}
-
-.slider {
-  display: flex;
-  align-items: center;
-  min-block-size: var(--spacing-app-chip);
-  gap: var(--spacing-12);
-}
-
-.range {
-  flex: 1;
-  min-inline-size: 0;
-  margin: 0;
-  accent-color: var(--ui-ink);
-  cursor: pointer;
-}
-
-.range:disabled {
-  cursor: not-allowed;
-}
-
-.sliderValue {
-  flex: none;
-  min-inline-size: var(--spacing-24);
-  color: var(--ui-secondary);
-  font-variant-numeric: tabular-nums;
-  text-align: end;
-}
-
 .note {
   color: var(--ui-secondary);
 }
