@@ -22,10 +22,9 @@ describe('package boundary command', () => {
         path.join(fixture, 'apps/docs/package.json'),
         JSON.stringify({ name: 'example-docs' })
       )
-      copyFileSync(
-        path.join(ROOT, 'scripts/check-monorepo-boundaries.ts'),
-        path.join(fixture, 'scripts/check-monorepo-boundaries.ts')
-      )
+      for (const script of ['check-monorepo-boundaries.ts', 'platform-product-routes.ts']) {
+        copyFileSync(path.join(ROOT, 'scripts', script), path.join(fixture, 'scripts', script))
+      }
       const cases = [
         ["import { value } from '@/lib/value'", false],
         ["import '@/lib/value'", false],
@@ -73,10 +72,9 @@ describe('package boundary command', () => {
       mkdirSync(path.join(fixture, 'scripts'))
       mkdirSync(path.join(fixture, 'packages'))
       mkdirSync(path.join(fixture, 'apps/sim/lib/widgets/application'), { recursive: true })
-      copyFileSync(
-        path.join(ROOT, 'scripts/check-monorepo-boundaries.ts'),
-        path.join(fixture, 'scripts/check-monorepo-boundaries.ts')
-      )
+      for (const script of ['check-monorepo-boundaries.ts', 'platform-product-routes.ts']) {
+        copyFileSync(path.join(ROOT, 'scripts', script), path.join(fixture, 'scripts', script))
+      }
       const useCase = 'apps/sim/lib/widgets/application/use-case.ts'
       const cases = [
         ["import { NextResponse } from 'next/server'", useCase, false],
@@ -146,10 +144,9 @@ describe('package boundary command', () => {
         mkdirSync(path.join(fixture, 'apps/sim/platform/embedded/app/(shell)/widget'), {
           recursive: true,
         })
-        copyFileSync(
-          path.join(ROOT, 'scripts/check-monorepo-boundaries.ts'),
-          path.join(fixture, 'scripts/check-monorepo-boundaries.ts')
-        )
+        for (const script of ['check-monorepo-boundaries.ts', 'platform-product-routes.ts']) {
+          copyFileSync(path.join(ROOT, 'scripts', script), path.join(fixture, 'scripts', script))
+        }
         run(fixture, (...args) =>
           spawnSync('bun', [path.join(fixture, 'scripts/check-monorepo-boundaries.ts'), ...args], {
             cwd: fixture,
