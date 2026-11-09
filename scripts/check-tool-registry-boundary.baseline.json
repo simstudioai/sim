@@ -284,14 +284,14 @@
     "app/(product)/workspace/[workspaceId]/files/[fileId]/page.tsx": {
       "modules": 548,
       "gateways": {
-        "apps/sim/app/(product)/_components/workspace/files/file-view/file-view.tsx": 565,
-        "apps/sim/app/(product)/workspace/[workspaceId]/_components/file-viewer/file-viewer.tsx": 284,
-        "apps/sim/app/(product)/workspace/[workspaceId]/_components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 157,
-        "apps/sim/platform/lib/data/files/markdown/index.ts": 91,
-        "apps/sim/hooks/queries/kb/knowledge.ts": 61,
-        "apps/sim/lib/api/contracts/index.ts": 54,
-        "apps/sim/hooks/queries/kb/connectors.ts": 43,
-        "apps/sim/app/(product)/workspace/[workspaceId]/_components/file-viewer/pptx-preview.tsx": 41
+        "apps/sim/app/(product)/_components/workspace/files/file-view/file-view.tsx": 552,
+        "apps/sim/components/file-viewer/file-viewer.tsx": 280,
+        "apps/sim/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 157,
+        "apps/sim/lib/api/contracts/index.ts": 51,
+        "apps/sim/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 46,
+        "apps/sim/components/file-viewer/pptx-preview.tsx": 43,
+        "apps/sim/hooks/queries/kb/knowledge.ts": 41,
+        "apps/sim/lib/pptx-renderer/sim-pptx-viewer.ts": 41
       }
     },
     "app/(product)/workspace/[workspaceId]/files/page.tsx": {
