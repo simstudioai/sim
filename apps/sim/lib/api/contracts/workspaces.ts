@@ -327,8 +327,6 @@ export const workspaceCreditAvailabilitySchema = z.object({
   scope: z.enum(['payer', 'member', 'effective']),
 })
 
-export type WorkspaceCreditAvailability = z.output<typeof workspaceCreditAvailabilitySchema>
-
 export const getWorkspaceCreditAvailabilityContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/credit-availability',
