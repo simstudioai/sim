@@ -12,53 +12,6 @@
 }
 
 /* A run's facts as the workspace Logs page reads them: caption over value, in shared columns. */
-.facts {
-  display: grid;
-  grid-template-columns: repeat(
-      auto-fill,
-      minmax(calc(var(--spacing-128) + var(--spacing-16)), 1fr)
-    );
-  min-inline-size: 0;
-  margin: 0;
-  gap: var(--spacing-16) var(--spacing-24);
-}
-.fact {
-  display: grid;
-  align-content: start;
-  min-inline-size: 0;
-  gap: var(--spacing-4);
-}
-.fact dt {
-  color: var(--ui-secondary);
-}
-.fact dd {
-  display: flex;
-  align-items: center;
-  min-inline-size: 0;
-  margin: 0;
-  gap: var(--ui-action-gap);
-  color: var(--ui-ink);
-  font-variant-numeric: tabular-nums;
-}
-.factLink {
-  display: flex;
-  min-inline-size: 0;
-  color: var(--ui-ink);
-  text-decoration: none;
-}
-.factLink:hover {
-  text-decoration: underline;
-}
-.factLink:focus-visible {
-  outline: var(--spacing-stroke-focus) solid var(--ui-ink);
-  outline-offset: var(--spacing-2);
-  border-radius: var(--radius-item);
-}
-.factAction {
-  display: inline-flex;
-  flex: none;
-  margin-block: calc(-1 * var(--spacing-4));
-}
 
 /* A payload in the chat tool payload's monospace; each wrapped line keeps its indent. */
 .payload {
@@ -161,126 +114,24 @@
   min-inline-size: 0;
 }
 
-/* The span tree on one clock, bounded so the selected span's details stay in reach beneath it. */
+/*
+ * The span tree on one clock, bounded so the selected span's details stay in reach beneath it. It
+ * scrolls, so it reaches one row inset past the column edge and pads that back for the rows' hover
+ * surfaces.
+ */
 .tree {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
   max-block-size: var(--spacing-320);
-  margin: 0;
   margin-inline: calc(-1 * var(--ui-row-inset));
-  padding: 0;
-  gap: var(--ui-list-gap);
+  padding-inline: var(--ui-row-inset);
   overflow-y: auto;
   overscroll-behavior: contain;
-  list-style: none;
-}
-.spanRow {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  min-inline-size: 0;
-  padding: var(--spacing-4) var(--ui-row-inset);
-  gap: var(--spacing-4);
-  border-radius: var(--radius-item);
-  cursor: pointer;
-}
-.spanRow:hover {
-  background: var(--ui-hover);
-}
-.spanRow[data-selected] {
-  background: var(--ui-selected);
-}
-.spanRow:focus-visible {
-  outline: var(--spacing-stroke-focus) solid var(--ui-ink);
-  outline-offset: calc(-1 * var(--spacing-stroke-focus));
-}
-.spanLine {
-  display: flex;
-  align-items: center;
-  min-inline-size: 0;
-  gap: var(--spacing-6);
-}
-/* One level of nesting, as wide as a disclosure, with a hairline under its ancestor's disclosure. */
-.spanGuide {
-  position: relative;
-  flex: none;
-  align-self: stretch;
-  inline-size: var(--spacing-16);
-}
-.spanGuide::before {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: calc(50% - var(--spacing-stroke-default) / 2);
-  border-inline-start: var(--ui-conversation-rule);
-  content: "";
-}
-.spanDisclosure {
-  display: grid;
-  flex: none;
-  place-items: center;
-  inline-size: var(--spacing-16);
-  block-size: var(--spacing-16);
-  border-radius: var(--radius-item);
-  color: var(--ui-secondary);
-}
-button.spanDisclosure {
-  cursor: pointer;
-}
-button.spanDisclosure:hover {
-  color: var(--ui-ink);
 }
 .spanMark {
   display: grid;
   flex: none;
   place-items: center;
   color: var(--ui-secondary);
-}
-.spanName {
-  display: flex;
-  flex: 1;
-  min-inline-size: 0;
-  color: var(--ui-secondary);
-}
-.spanName[data-match] {
-  color: var(--ui-ink);
-}
-.spanName[data-failed] {
-  color: var(--control-danger);
-}
-.spanDuration {
-  flex: none;
-  color: var(--ui-secondary);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-.spanTimeline {
-  display: block;
-  inline-size: 100%;
-  block-size: var(--spacing-4);
-  overflow: visible;
-}
-.track {
-  stroke: var(--ui-divider);
-  stroke-width: var(--spacing-stroke-default);
-  vector-effect: non-scaling-stroke;
-}
-.spanBar {
-  fill: var(--color-chart-series);
-}
-.spanBar[data-paint="agent"] {
-  fill: var(--status-success);
-}
-.spanBar[data-paint="loop"] {
-  fill: var(--ui-plot-primary);
-}
-.spanBar[data-paint="parallel"] {
-  fill: var(--status-warning);
-}
-.spanBar[data-paint="workflow"] {
-  fill: var(--ui-plot-violet-1);
-}
-.spanBar[data-paint="error"] {
-  fill: var(--control-danger);
 }
 
 .inspectorHeader {
@@ -305,14 +156,4 @@ button.spanDisclosure:hover {
 }
 .inspectorName[data-failed] {
   color: var(--control-danger);
-}
-@media (pointer: coarse) {
-  button.spanDisclosure {
-    position: relative;
-  }
-  button.spanDisclosure::after {
-    position: absolute;
-    inset: calc((var(--spacing-16) - var(--spacing-app-touch-target)) / 2);
-    content: "";
-  }
 }

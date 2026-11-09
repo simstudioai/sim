@@ -41,29 +41,3 @@
   translate: -50% 0;
   pointer-events: none;
 }
-.actionBarSurface {
-  display: flex;
-  align-items: center;
-  min-inline-size: 0;
-  gap: var(--spacing-8);
-  padding-block: var(--spacing-4);
-  padding-inline: var(--spacing-8);
-  border: var(--spacing-stroke-default) solid var(--ui-border);
-  border-radius: var(--radius-menu-shared);
-  pointer-events: auto;
-}
-/* The count gives way before the actions, so a narrow grid never pushes Run past its edge. */
-.actionBarLabel {
-  min-inline-size: 0;
-  padding-inline: var(--spacing-4);
-  overflow: hidden;
-  color: var(--ui-secondary);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.actionBarActions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--ui-action-gap);
-}

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Modal } from '@sim/emcn/modal'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/lock-settings/lock-settings.module.css'
+import { SettingsRow } from '@sim/emcn/settings-section'
 import { LOCK_FIELDS, type TableLocks, useUpdateTableLocks } from '@/platform/lib/data/tables'
 
 const LOCK_CHOICES = [
@@ -86,27 +86,19 @@ export function LockSettingsModal({
       pending={updateLocks.isPending}
       onConfirm={handleSave}
     >
-      <div className={styles.rows}>
-        {LOCK_FIELDS.map((field) => (
-          <div key={field.key} className={styles.row}>
-            <div className={styles.copy}>
-              <span data-type='T043'>{field.label}</span>
-              <span className={styles.hint} data-type='T060'>
-                {field.hint}
-              </span>
-            </div>
-            <SegmentedControl
-              label={field.label}
-              description={field.hint}
-              options={choices}
-              value={(overrides[field.key] ?? locks[field.key]) ? 'deny' : 'allow'}
-              onSelect={(value) =>
-                setOverrides((previous) => ({ ...previous, [field.key]: value === 'deny' }))
-              }
-            />
-          </div>
-        ))}
-      </div>
+      {LOCK_FIELDS.map((field) => (
+        <SettingsRow key={field.key} label={field.label} description={field.hint}>
+          <SegmentedControl
+            label={field.label}
+            description={field.hint}
+            options={choices}
+            value={(overrides[field.key] ?? locks[field.key]) ? 'deny' : 'allow'}
+            onSelect={(value) =>
+              setOverrides((previous) => ({ ...previous, [field.key]: value === 'deny' }))
+            }
+          />
+        </SettingsRow>
+      ))}
     </Modal>
   )
 }

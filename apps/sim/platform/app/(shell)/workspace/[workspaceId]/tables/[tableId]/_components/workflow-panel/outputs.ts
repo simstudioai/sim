@@ -102,8 +102,7 @@ export function orderPickedOutputs(
 
 interface PreviewBlock {
   id: string
-  name: string
-  type: string
+  label: string
 }
 
 /** The deployment's blocks in run order, without canvas notes, for the compact preview. */
@@ -112,6 +111,6 @@ export function previewBlocks(state: WorkflowState | null | undefined): PreviewB
   const blocks = Object.values(state.blocks).filter((block) => !isAnnotationOnlyBlock(block.type))
   const distances = getBlockExecutionOrder(blocks, state.edges ?? [])
   return blocks
-    .map((block) => ({ id: block.id, name: block.name, type: block.type }))
+    .map((block) => ({ id: block.id, label: block.name }))
     .sort((a, b) => executionRank(distances, a.id) - executionRank(distances, b.id))
 }
