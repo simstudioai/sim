@@ -652,12 +652,7 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
         layout='fill'
         controls={controls}
       >
-        {access.hidden ? (
-          <WorkspaceEmpty
-            title='Knowledge bases are turned off'
-            description='Your permission group hides knowledge bases in this workspace.'
-          />
-        ) : base.error && !knowledgeBase ? (
+        {base.error && !knowledgeBase ? (
           <WorkspaceEmpty
             title='Knowledge base not found'
             description='It may have been deleted or moved.'
