@@ -3,7 +3,7 @@ import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server'
 import { NextRequest } from 'next/server'
 import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
-import { SHELL_SCOPE_HEADER } from '@/lib/navigation/shell-scope'
+import { SHELL_PATH_HEADER, SHELL_SCOPE_HEADER } from '@/lib/navigation/shell-scope'
 import { config, proxy, resolveApiCorsPolicy } from '@/proxy'
 
 setEnv({
@@ -353,5 +353,18 @@ describe('proxy shell scope', () => {
   it('never forwards a scope the client sent', async () => {
     expect(await forwardedScope('/home', 'org:org-2')).toBeNull()
     expect(await forwardedScope('/o/org-1/home', 'org:org-2')).toBe('org:org-1')
+  })
+
+  it('names the location the shell resolves, never one the client sent', async () => {
+    const headers = new Headers({
+      cookie: 'better-auth.session_token=session',
+      [SHELL_PATH_HEADER]: '/o/org-2/home',
+    })
+    const response = await proxy(
+      new NextRequest('https://app.sim.test/o/org-1/search?q=x', { headers })
+    )
+    expect(response.headers.get(`x-middleware-request-${SHELL_PATH_HEADER}`)).toBe(
+      '/o/org-1/search?q=x'
+    )
   })
 })

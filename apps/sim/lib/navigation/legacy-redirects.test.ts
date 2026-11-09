@@ -2,7 +2,8 @@
  * @vitest-environment node
  *
  * Failure mode: a saved link, email, or stored chat reference to a moved workspace URL lands on a
- * 404, or on another organization, instead of the page that replaced it.
+ * 404, or on another organization, instead of the page that replaced it, or reaches a renamed
+ * Settings section through a second redirect.
  */
 import { describe, expect, it } from 'vitest'
 import { mapLegacyWorkspaceUrl } from '@/lib/navigation/legacy-redirects'
@@ -33,7 +34,9 @@ describe('mapLegacyWorkspaceUrl', () => {
     ['upgrade', '/o/org-1/settings/billing/plans'],
     ['upgrade?reason=credits&ref=email', '/o/org-1/settings/billing/plans?reason=credits'],
     ['settings/general', '/o/org-1/settings/general'],
-    ['settings/subscription', '/o/org-1/settings/subscription'],
+    ['settings/subscription', '/o/org-1/settings/billing'],
+    ['settings/team?tab=pending', '/o/org-1/settings/members?tab=pending'],
+    ['settings/privacy', '/o/org-1/settings/general?view=privacy'],
     ['settings/billing/credit-usage', '/o/org-1/settings/billing/credit-usage'],
     ['settings/usage/events?period=7d', '/o/org-1/settings/usage/events?period=7d'],
     [

@@ -20,15 +20,6 @@ import { LIBRARY_MERGED_SLUGS, LIBRARY_MOVED_BLOG_SLUGS } from './lib/library/re
 const ACCEPTS_MARKDOWN = '(.*,)?\\s*text/markdown\\s*([;,].*)?'
 const REFUSES_MARKDOWN =
   '(.*,)?\\s*text/markdown(\\s*;[^,]*?)?\\s*;\\s*q\\s*=\\s*0(\\.0{0,3})?\\s*(,.*)?'
-/** Organization settings sections the legacy surface reached by an older name. */
-const ORGANIZATION_SETTINGS_ALIASES: Readonly<Record<string, string>> = {
-  organization: 'members',
-  team: 'members',
-  subscription: 'billing',
-  domains: 'sso',
-  sessions: 'security',
-}
-
 const MARKDOWN_REQUEST = {
   has: [{ type: 'header' as const, key: 'accept', value: ACCEPTS_MARKDOWN }],
   missing: [{ type: 'header' as const, key: 'accept', value: REFUSES_MARKDOWN }],
@@ -609,16 +600,6 @@ const nextConfig: NextConfig = {
       {
         source: '/o/:organizationId/skills',
         destination: '/o/:organizationId/integrations?tab=skills',
-        permanent: true,
-      },
-      ...Object.entries(ORGANIZATION_SETTINGS_ALIASES).map(([alias, section]) => ({
-        source: `/o/:organizationId/settings/${alias}`,
-        destination: `/o/:organizationId/settings/${section}`,
-        permanent: true,
-      })),
-      {
-        source: '/o/:organizationId/settings/authorized-apps',
-        destination: '/o/:organizationId/settings/general?view=authorized-apps',
         permanent: true,
       },
       {

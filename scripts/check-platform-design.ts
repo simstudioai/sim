@@ -278,13 +278,15 @@ const serverSeamHelpers = new Set([
  */
 /**
  * Host modules the product shares with the rest of the app: one toast sink, one desktop tool
- * lifetime, the app's path builders, and the file viewer with the markdown editor and dashboard
- * panel it renders, which the public share page also renders. They draw only with shared EMCN.
+ * lifetime, the app's path builders and Settings aliases, and the file viewer with the markdown
+ * editor and dashboard panel it renders, which the public share page also renders. They draw only
+ * with shared EMCN.
  */
 const platformHostModules: ReadonlySet<string> = new Set([
   'lib/toast/sink',
   'hooks/mothership-chat/desktop-tool-lifetimes',
   'lib/navigation/paths',
+  'lib/navigation/settings-aliases',
   'components/file-viewer/file-viewer',
   'components/file-viewer/collaboration/file-doc-room',
   'components/file-viewer/types',

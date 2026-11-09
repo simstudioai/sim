@@ -441,6 +441,7 @@ export async function proxy(request: NextRequest) {
     }
     const requestHeaders = new Headers(request.headers)
     requestHeaders.delete(SHELL_SCOPE_HEADER)
+    requestHeaders.delete(SHELL_PATH_HEADER)
     const shellScope = shellScopeHeaderValue(url.pathname)
     if (shellScope) requestHeaders.set(SHELL_SCOPE_HEADER, shellScope)
     requestHeaders.set(SHELL_PATH_HEADER, `${url.pathname}${url.search}`)

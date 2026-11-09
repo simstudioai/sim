@@ -1,4 +1,5 @@
 import { workspacePath } from '@/lib/navigation/paths'
+import { platformHref } from '@/platform/lib/navigation'
 /** Where a server's data comes from, as far as the workspace pages are concerned. */
 export type WorkspaceDataMode = 'fixture' | 'live'
 
@@ -45,13 +46,22 @@ export function workspaceTabs(mode: WorkspaceDataMode, flags: WorkspaceTabFlags 
 }
 
 /** The page a workspace opens on: Dashboard on example data, Workflows on live data, as legacy does. */
-export function workspaceHome(mode: WorkspaceDataMode): WorkspaceTab {
+function workspaceHome(mode: WorkspaceDataMode): WorkspaceTab {
   return mode === 'live' ? 'workflows' : 'dashboards'
 }
 
 /** The page a workspace opens on for a server's data, linked directly so no redirect sits in between. */
 export function workspaceHomePath(workspaceId: string, mode: WorkspaceDataMode) {
   return workspacePath(workspaceId, workspaceHome(mode))
+}
+
+/** Where a workspace's bare URL redirects: its home page, with the fixture query kept. */
+export function workspaceRootHref(
+  workspaceId: string,
+  mode: WorkspaceDataMode,
+  search: Parameters<typeof platformHref>[1]
+) {
+  return platformHref(workspaceHomePath(workspaceId, mode), search)
 }
 
 /** The workspace a path is under, and the record it shows, if any. */

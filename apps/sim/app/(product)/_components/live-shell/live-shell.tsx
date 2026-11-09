@@ -9,16 +9,11 @@ import { ProductSession } from '@/app/(product)/_components/product-session'
 import { SessionState } from '@/app/(product)/_components/session-state/session-state'
 import { AccessDenied, SurfaceUnavailable } from '@/app/(product)/_components/shell-gate/shell-gate'
 import { LiveSourceLinks } from '@/app/(product)/_components/source-row/live-source-links'
-import { resolveEntryRedirect } from '@/platform/lib/data/landing'
-import {
-  OUTSIDE_ORGANIZATION_HREF,
-  resolveSurfaceRedirect,
-} from '@/platform/lib/data/organization-model'
+import { OUTSIDE_ORGANIZATION_HREF } from '@/platform/lib/data/organization-model'
 import { prefetchShell } from '@/platform/lib/data/prefetch-shell'
 import { LiveProviders } from '@/platform/lib/data/providers'
-import { readEntrySearchPin } from '@/platform/lib/data/search-pin'
+import { followProductRoute, readDocumentLocation } from '@/platform/lib/data/route-resolution'
 import { resolveSettingsNavigation } from '@/platform/lib/data/settings-navigation'
-import { readShellLocation } from '@/platform/lib/data/shell-scope'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
 const LOGIN_PATH = '/login'
@@ -26,7 +21,9 @@ const LOGIN_PATH = '/login'
 /**
  * The shell for a live session, in the organization this request's shell belongs to: the legacy
  * organization layout's gates, in its order, against data read in process. Each gate decides
- * before anything product-shaped renders.
+ * before anything product-shaped renders. The page below streams inside the Suspense boundary, so a
+ * redirect it raised would paint this shell first; the document's own route resolution
+ * (`followProductRoute`) runs here instead, and answers with one HTTP redirect.
  */
 export async function LiveShell({
   telemetry,
@@ -48,13 +45,9 @@ export async function LiveShell({
   }
 
   const { organization } = surface
+  const location = await readDocumentLocation()
+  if (location) await followProductRoute(organization, location)
   const cookieStore = await cookies()
-  const location = await readShellLocation()
-  const surfaceRedirect =
-    resolveSurfaceRedirect(organization) ??
-    resolveEntryRedirect(organization, location) ??
-    (await readEntrySearchPin(organization, location))
-  if (surfaceRedirect) redirect(surfaceRedirect)
 
   return (
     <LiveProviders

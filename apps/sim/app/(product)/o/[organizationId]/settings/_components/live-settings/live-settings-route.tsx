@@ -1,4 +1,5 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound, permanentRedirect, redirect } from 'next/navigation'
+import { settingsAliasHref } from '@/lib/navigation/settings-aliases'
 import { SettingsLeaveGuard } from '@/app/(product)/_components/session-state/settings-leave-guard'
 import {
   isClientSettingsSection,
@@ -8,7 +9,7 @@ import { SettingsScreen } from '@/app/(product)/o/[organizationId]/settings/_com
 import { OrganizationSettingsSection } from '@/app/(product)/o/[organizationId]/settings/_components/settings-section/settings-section'
 import { resolveLegacyRequestLink } from '@/platform/lib/data/legacy-request-link'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { resolveLiveSetting, resolveSettingsAlias } from '@/platform/lib/data/settings-navigation'
+import { resolveLiveSetting } from '@/platform/lib/data/settings-navigation'
 
 interface LiveSettingsRouteProps {
   organization: PlatformOrganization
@@ -30,8 +31,8 @@ export async function LiveSettingsRoute({
     for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value])
       params.append(name, item)
   }
-  const alias = resolveSettingsAlias(organization, path, params)
-  if (alias) redirect(alias)
+  const alias = settingsAliasHref(organization.routePrefix, path, params)
+  if (alias) permanentRedirect(alias)
   const requestLink = !subpath.length && resolveLegacyRequestLink(organization, key, query)
   if (requestLink) {
     if (!resolveLiveSetting('requests', organization)) notFound()

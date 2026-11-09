@@ -5,7 +5,7 @@ import { SearchSurface } from '@/app/(product)/o/[organizationId]/search/_compon
 import { readChatMode } from '@/platform/lib/data/chat-gate'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { prefetchSearch } from '@/platform/lib/data/prefetch-search'
-import { readPinnedSearchHref } from '@/platform/lib/data/search-pin'
+import { followProductRoute, productLocation } from '@/platform/lib/data/route-resolution'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
 interface LiveSearchRouteProps {
@@ -18,16 +18,17 @@ export async function LiveSearchRoute({ chatId, searchParams = {} }: LiveSearchR
   const surface = await readOrganizationSurface()
   if (surface.status !== 'ok') return null
   const { organization } = surface
-  if (!organization.searchAccess.memberScoped) redirect(surfaceHref(organization, '/settings'))
+  const path = chatId ? `/search/chat/${encodeURIComponent(chatId)}` : '/search'
+  await followProductRoute(
+    organization,
+    productLocation(surfaceHref(organization, path), searchParams)
+  )
   if (chatId) {
-    if (!organization.mothershipAvailable) redirect(surfaceHref(organization, '/search'))
     const mode = await readChatMode(chatId, organization.organization.id)
     if (!mode) notFound()
     if (mode !== 'assistant') redirect(surfaceHref(organization, `/chat/${chatId}`))
     return <SearchSurface chatId={chatId} />
   }
-  const pinned = await readPinnedSearchHref(organization, searchParams)
-  if (pinned) redirect(pinned)
   return (
     <HydrationBoundary state={await prefetchSearch(organization)}>
       <SearchSurface />

@@ -10,8 +10,11 @@ import { resolveRolledOutOrganizationId } from '@/lib/navigation/resolve-app-ent
 import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
+import { resolveOrganizationGate } from '@/platform/lib/data/route-resolution'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
 import { readShellOrganizationId } from '@/platform/lib/data/shell-scope'
+import { readOrganizationSurface } from '@/platform/lib/data/surface'
+import { DEFAULT_WORKSPACE_SETTING } from '@/platform/lib/data/workspace-settings'
 
 const logger = createLogger('PlatformWorkspaceEntry')
 
@@ -39,7 +42,8 @@ function workspaceDestination(workspaceId: string, query: WorkspaceEntryQuery): 
     const path = workspacePath(workspaceId, 'upgrade')
     return isUpgradeReason(query.reason) ? `${path}?${UPGRADE_REASON_PARAM}=${query.reason}` : path
   }
-  if (query.redirect === 'settings') return workspacePath(workspaceId, 'settings')
+  if (query.redirect === 'settings')
+    return workspacePath(workspaceId, `settings/${DEFAULT_WORKSPACE_SETTING}`)
   return workspaceEntry(workspaceId)
 }
 
@@ -106,17 +110,23 @@ export async function resolveWorkspaceEntry(
 
 /**
  * The organization a viewer who cannot create a workspace is handed to, as the workspace list route
- * decides it. A failed lookup leaves them on the blocked explanation, as it does there.
+ * decides it. A failed lookup leaves them on the blocked explanation, as it does there, and so does
+ * an organization with nothing of theirs: its gate would send them straight back here.
  */
 async function resolveForwardOrganizationId(
   userId: string,
   activeOrganizationId: string | null
 ): Promise<string | null> {
   const session = { user: { id: userId }, session: { activeOrganizationId } }
+  let organizationId: string | null
   try {
-    return await resolveRolledOutOrganizationId(session)
+    organizationId = await resolveRolledOutOrganizationId(session)
   } catch (error) {
     logger.warn('Could not resolve an organization to forward a blocked viewer to', { error })
     return null
   }
+  if (!organizationId) return null
+  const surface = await readOrganizationSurface(organizationId)
+  if (surface.status !== 'ok' || resolveOrganizationGate(surface.organization)) return null
+  return organizationId
 }

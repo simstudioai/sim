@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { ShellOrganizationGuard } from '@/app/(product)/_components/shell-organization-guard/shell-organization-guard'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
@@ -10,17 +10,22 @@ interface OrganizationLayoutProps {
 
 /**
  * Authorizes the organization the URL names. A viewer outside it gets not found; the shell has
- * already answered signed-out and failed reads in its own gates.
+ * already answered signed-out and failed reads in its own gates. A client navigation into the
+ * organization skips the shell, so the organization gate runs here too.
  */
 export default async function OrganizationLayout({ children, params }: OrganizationLayoutProps) {
   if (resolvePlatformMode() !== 'live') return children
-  const [{ organizationId }, { readOrganizationSurface }] = await Promise.all([
-    params,
-    import('@/platform/lib/data/surface'),
-  ])
+  const [{ organizationId }, { readOrganizationSurface }, { resolveOrganizationGate }] =
+    await Promise.all([
+      params,
+      import('@/platform/lib/data/surface'),
+      import('@/platform/lib/data/route-resolution'),
+    ])
   const surface = await readOrganizationSurface(organizationId)
   if (surface.status === 'denied') notFound()
   if (surface.status !== 'ok') return null
+  const gate = resolveOrganizationGate(surface.organization)
+  if (gate) redirect(gate)
   return (
     <ShellOrganizationGuard organizationId={surface.organization.organization.id}>
       {children}

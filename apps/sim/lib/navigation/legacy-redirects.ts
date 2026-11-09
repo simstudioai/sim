@@ -5,6 +5,7 @@
  * Pure: the page passes the organization it read, and this decides the destination.
  */
 import { organizationRoutes, WORKSPACES_PATH } from '@/lib/navigation/paths'
+import { settingsAliasHref } from '@/lib/navigation/settings-aliases'
 
 interface LegacyWorkspaceUrl {
   workspaceId: string
@@ -25,13 +26,13 @@ interface SettingsRedirectIds {
 interface SettingsRedirect {
   /** A legacy path below `/workspace/{workspaceId}/`; a `:name` segment matches any one segment. */
   legacy: `settings${string}` | `access-requests${string}`
-  /** Where it lands, without a query: the legacy query is carried over. */
-  target: (ids: SettingsRedirectIds) => string
+  /** Where it lands, with the legacy query carried over. */
+  target: (ids: SettingsRedirectIds, query: URLSearchParams) => string
 }
 
 /**
- * Legacy workspace Settings sections that moved to organization Settings, under the same key: the
- * organization Settings route and `next.config.ts` resolve the renamed ones (`subscription`, `team`…).
+ * Legacy workspace Settings sections that moved to organization Settings. A renamed one
+ * (`subscription`, `team`…) lands on its section through `settingsAliasHref` in the same hop.
  */
 const ORGANIZATION_SETTINGS: readonly string[] = [
   'general',
@@ -78,16 +79,24 @@ const SETTINGS_REDIRECTS: readonly SettingsRedirect[] = [
   ...ORGANIZATION_SETTINGS.map(
     (section): SettingsRedirect => ({
       legacy: `settings/${section}`,
-      target: ({ organizationId }) => organizationRoutes(organizationId).settingsSection(section),
+      target: ({ organizationId }, query) => {
+        const routes = organizationRoutes(organizationId)
+        return (
+          settingsAliasHref(routes.root, section.split('/'), query) ??
+          withQuery(routes.settingsSection(section), query)
+        )
+      },
     })
   ),
   {
     legacy: 'settings/apikeys',
-    target: ({ workspaceId }) => workspaceSettings(workspaceId, 'api-keys'),
+    target: ({ workspaceId }, query) =>
+      withQuery(workspaceSettings(workspaceId, 'api-keys'), query),
   },
   {
     legacy: 'access-requests',
-    target: ({ workspaceId }) => workspaceSettings(workspaceId, 'requests'),
+    target: ({ workspaceId }, query) =>
+      withQuery(workspaceSettings(workspaceId, 'requests'), query),
   },
 ]
 
@@ -162,8 +171,5 @@ export function mapLegacyWorkspaceUrl({
 
   const settings = matchSettingsRedirect(segments)
   if (!settings) return null
-  return withQuery(
-    settings.redirect.target({ organizationId, workspaceId, params: settings.params }),
-    query
-  )
+  return settings.redirect.target({ organizationId, workspaceId, params: settings.params }, query)
 }

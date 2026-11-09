@@ -1,8 +1,8 @@
 import { HydrationBoundary } from '@tanstack/react-query'
-import { redirect } from 'next/navigation'
 import { LiveHome } from '@/app/(product)/o/[organizationId]/home/_components/live-home/live-home'
-import { resolveHomeRedirect } from '@/platform/lib/data/organization-model'
-import { prefetchHome, resolveHomeHandoff } from '@/platform/lib/data/prefetch-home'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
+import { prefetchHome } from '@/platform/lib/data/prefetch-home'
+import { followProductRoute, productLocation } from '@/platform/lib/data/route-resolution'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
 interface LiveHomeRouteProps {
@@ -14,10 +14,10 @@ export async function LiveHomeRoute({ searchParams }: LiveHomeRouteProps) {
   const surface = await readOrganizationSurface()
   // The layout already rendered this outcome's login, denial or error state.
   if (surface.status !== 'ok') return null
-  const destination =
-    resolveHomeRedirect(surface.organization) ??
-    resolveHomeHandoff(surface.organization, searchParams)
-  if (destination) redirect(destination)
+  await followProductRoute(
+    surface.organization,
+    productLocation(surfaceHref(surface.organization, '/home'), searchParams)
+  )
   return (
     <HydrationBoundary state={await prefetchHome(surface.organization)}>
       <LiveHome />

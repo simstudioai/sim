@@ -7,12 +7,16 @@ export default async function Page({ params }: { params: Promise<{ organizationI
   const { organizationId } = await params
   if (resolvePlatformMode() !== 'live')
     redirect(surfaceHref({ routePrefix: `/o/${organizationId}` }, '/home'))
-  const [{ readOrganizationSurface }, { organizationLandingPath }] = await Promise.all([
+  const [{ readOrganizationSurface }, { followProductRoute, productLocation }] = await Promise.all([
     import('@/platform/lib/data/surface'),
-    import('@/platform/lib/data/landing'),
+    import('@/platform/lib/data/route-resolution'),
   ])
   const surface = await readOrganizationSurface(organizationId)
   // The layout already rendered this outcome's denial or error state.
   if (surface.status !== 'ok') return null
-  redirect(organizationLandingPath(surface.organization))
+  await followProductRoute(
+    surface.organization,
+    productLocation(surface.organization.routePrefix, {})
+  )
+  return null
 }
