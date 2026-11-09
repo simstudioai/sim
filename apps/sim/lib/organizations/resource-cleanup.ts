@@ -1,133 +1,25 @@
 import { db } from '@sim/db'
-import { copilotChats, document, knowledgeBase, organization, workspaceFiles } from '@sim/db/schema'
+import { copilotChats, organization, workspaceFiles } from '@sim/db/schema'
 import { describeError, toError } from '@sim/utils/errors'
-import { chunkArray } from '@sim/utils/helpers'
-import { and, asc, eq, gt, inArray, isNotNull, isNull, type SQL } from 'drizzle-orm'
-import { z } from 'zod'
+import { and, asc, eq, gt, inArray, isNull } from 'drizzle-orm'
 import { cleanupCopilotBackend } from '@/lib/cleanup/chat-cleanup'
 import { env } from '@/lib/core/config/env'
 import { enqueueOutboxEvent, type OutboxHandlerRegistry } from '@/lib/core/outbox/service'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import type { DbTransaction } from '@/lib/db/types'
 import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
-import { ORGANIZATION_RESOURCE_CLEANUP_EVENT } from '@/lib/organizations/resource-cleanup-event'
+import {
+  CLEANUP_BATCH_SIZE,
+  enqueueFilePages,
+  enqueueOrganizationStoredObjectCleanup,
+  ORGANIZATION_RESOURCE_CLEANUP_EVENT,
+  organizationResourceCleanupSchema,
+} from '@/lib/organizations/resource-cleanup-event'
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { createStorageReferenceGuard } from '@/lib/users/storage-reference-guard'
 import { toDisposableStorageObject } from '@/lib/users/storage-sweep'
 
-const CLEANUP_BATCH_SIZE = 100
 const FILE_DELETE_CONCURRENCY = 10
-
-const organizationIdSchema = z.string().min(1).max(255)
-
-const organizationResourceCleanupSchema = z.discriminatedUnion('kind', [
-  /** Knowledge-base keys, as events queued before objects carried their storage context name them. */
-  z
-    .object({
-      kind: z.literal('files'),
-      organizationId: organizationIdSchema,
-      storageKeys: z.array(z.string().min(1).max(8192)).min(1).max(CLEANUP_BATCH_SIZE),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('objects'),
-      organizationId: organizationIdSchema,
-      objects: z
-        .array(z.object({ key: z.string().min(1).max(8192), context: z.string().min(1) }).strict())
-        .min(1)
-        .max(CLEANUP_BATCH_SIZE),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('chats'),
-      organizationId: organizationIdSchema,
-      chatIds: z.array(z.string().uuid()).min(1).max(CLEANUP_BATCH_SIZE),
-    })
-    .strict(),
-])
-
-interface ObjectRow {
-  key: string | null
-  context: string
-}
-
-async function enqueueObjects(tx: DbTransaction, organizationId: string, rows: ObjectRow[]) {
-  const objects = rows.flatMap(({ key, context }) => {
-    const object = key ? toDisposableStorageObject(key, context) : null
-    return object ? [object] : []
-  })
-  for (const chunk of chunkArray(objects, CLEANUP_BATCH_SIZE)) {
-    await enqueueOutboxEvent(
-      tx,
-      ORGANIZATION_RESOURCE_CLEANUP_EVENT,
-      organizationResourceCleanupSchema.parse({ kind: 'objects', organizationId, objects: chunk })
-    )
-  }
-}
-
-/**
- * Every stored object of the files `scope` selects, page by page. Neither organization files nor
- * chat uploads keep versions (`workspace_file_version_owner_match` admits only workspace and
- * Project files), so the file rows name every object.
- */
-async function enqueueFilePages(tx: DbTransaction, organizationId: string, scope: SQL | undefined) {
-  let cursor: string | undefined
-  while (true) {
-    const files = await tx
-      .select({ id: workspaceFiles.id, key: workspaceFiles.key, context: workspaceFiles.context })
-      .from(workspaceFiles)
-      .where(and(scope, cursor ? gt(workspaceFiles.id, cursor) : undefined))
-      .orderBy(asc(workspaceFiles.id))
-      .limit(CLEANUP_BATCH_SIZE)
-    if (files.length === 0) return
-    await enqueueObjects(tx, organizationId, files)
-    cursor = files[files.length - 1].id
-    if (files.length < CLEANUP_BATCH_SIZE) return
-  }
-}
-
-/**
- * Queues every stored object of the organization's Knowledge files (connector caches) and of its
- * knowledge bases' documents, in the caller's transaction and before the rows that name them are
- * deleted. The caller holds the organization row lock.
- */
-export async function enqueueOrganizationStoredObjectCleanup(
-  tx: DbTransaction,
-  organizationId: string
-): Promise<void> {
-  await enqueueFilePages(
-    tx,
-    organizationId,
-    and(eq(workspaceFiles.organizationId, organizationId), isNull(workspaceFiles.workspaceId))
-  )
-
-  let documentCursor: string | undefined
-  while (true) {
-    const documents = await tx
-      .select({ id: document.id, key: document.storageKey })
-      .from(document)
-      .innerJoin(knowledgeBase, eq(knowledgeBase.id, document.knowledgeBaseId))
-      .where(
-        and(
-          eq(knowledgeBase.organizationId, organizationId),
-          isNotNull(document.storageKey),
-          documentCursor ? gt(document.id, documentCursor) : undefined
-        )
-      )
-      .orderBy(asc(document.id))
-      .limit(CLEANUP_BATCH_SIZE)
-    if (documents.length === 0) break
-    await enqueueObjects(
-      tx,
-      organizationId,
-      documents.map(({ key }) => ({ key, context: 'knowledge-base' }))
-    )
-    documentCursor = documents[documents.length - 1].id
-    if (documents.length < CLEANUP_BATCH_SIZE) break
-  }
-}
 
 /**
  * Captures canonical bindings before the org FK cascade removes them: every stored object of the
@@ -225,10 +117,9 @@ export const organizationResourceCleanupOutboxHandlers = {
       payload.kind === 'files'
         ? payload.storageKeys.map((key) => ({ key, context: 'knowledge-base' }))
         : payload.objects
-    const disposable = objects.map(({ key, context }) => {
+    const disposable = objects.flatMap(({ key, context }) => {
       const object = toDisposableStorageObject(key, context)
-      if (!object) throw new Error('Invalid organization storage object')
-      return object
+      return object ? [object] : []
     })
     const referenced = await createStorageReferenceGuard()(disposable.map(({ key }) => key))
     const failures = await mapWithConcurrency(

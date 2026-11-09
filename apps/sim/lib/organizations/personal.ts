@@ -36,7 +36,7 @@ import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { enqueuePersonalOrganizationAuditTx } from '@/lib/organizations/lifecycle-audit'
-import { enqueueOrganizationStoredObjectCleanup } from '@/lib/organizations/resource-cleanup'
+import { enqueueOrganizationStoredObjectCleanup } from '@/lib/organizations/resource-cleanup-event'
 import { transferWorkspaceProjects } from '@/lib/projects/membership'
 
 const logger = createLogger('PersonalOrganization')
