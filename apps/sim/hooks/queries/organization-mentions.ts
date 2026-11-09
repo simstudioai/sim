@@ -9,7 +9,7 @@ import {
 /** Short: a resource created elsewhere should reach the picker on its next opening. */
 const ORGANIZATION_MENTIONS_STALE_TIME = 10 * 1000
 
-export interface MentionRequest {
+interface MentionRequest {
   query: string
   workspaceId?: string
   family?: MentionFamily
