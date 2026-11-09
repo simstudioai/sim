@@ -294,6 +294,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Active item highlighting | `organization-sidebar.tsx` | Unverified | No live check yet. Existing `sidebar.tsx` |
 | Settings rail replaces app rail | `organization-sidebar.tsx` | Unverified | No live check yet. Existing `sidebar.tsx` |
 | Settings nav per role and plan | `organization-settings-sidebar.tsx` | Unverified | No live check yet. Foundation: `settings-navigation/destinations.ts` |
+| Settings search: sections and the settings inside them, synonyms, admin and hosted entries gated, a result opens its tab and brings its row into view | `platform/embedded/lib/data/settings-search.ts` | Unverified | No live check yet. The legacy index and matching in `platform/shared/settings-search.ts`, attached to each section the viewer may open by `resolveSettingsNavigation`; `?row=` is revealed and stripped by `settings-screen.tsx`. `scripts/org-redesign-e2e/checks/settings.ts` exercises it but has not run against this build |
 | Leave settings, return to prior page | `settings-return.ts` | Unverified | No live check yet. `settingsReturn` in `lib/data/shell-actions.ts` |
 | Org chip with logo or initial | `organization-header.tsx` | Unverified | No live check yet. `organization-menu.tsx` |
 | Collapsed chip as expand control | `organization-header.tsx` | Hidden | Product decision: the opener control does this, with no rail to hold a chip |
