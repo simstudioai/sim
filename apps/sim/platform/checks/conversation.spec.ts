@@ -1,4 +1,5 @@
-import { expect, type Locator, test } from '@playwright/test'
+import { expect, type Locator } from '@playwright/test'
+import { test } from '@/platform/checks/fixture-test'
 import { fixtureUrl } from '@/platform/checks/routes'
 
 test('Home can hide, undo, disconnect and reconnect widgets without losing the rest of the dashboard', async ({

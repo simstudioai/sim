@@ -1,4 +1,5 @@
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
+import { test } from '@/platform/checks/fixture-test'
 import { fixtureUrl } from '@/platform/checks/routes'
 
 test('a chat panel preserves its file, tabs and focus across resize, collapse and restore', async ({
@@ -56,8 +57,5 @@ test('a chat panel preserves its file, tabs and focus across resize, collapse an
   await page.keyboard.press('Enter')
   await page.getByRole('menuitemcheckbox', { name: 'Workspaces' }).click()
   await panel.getByRole('button', { name: 'Workspace', exact: true }).last().click()
-  // The first workspace route this suite opens, which the development server compiles on arrival.
-  await expect(page).toHaveURL(/\/workspace\/operations\/dashboards\?.*state=full/, {
-    timeout: 60_000,
-  })
+  await expect(page).toHaveURL(/\/workspace\/operations\/dashboards\?.*state=full/)
 })
