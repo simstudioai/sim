@@ -4,6 +4,7 @@ import { useRef, useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { Input } from '@sim/emcn/field/inputs'
+import { FindBar } from '@sim/emcn/find-bar'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import styles from '@/app/(product)/_components/chat/panel/browser-session/browser-session.module.css'
@@ -13,7 +14,6 @@ import {
   PagePromptModal,
   PermissionModal,
 } from '@/app/(product)/_components/chat/panel/browser-session/page-prompts'
-import { FindBar } from '@/app/(product)/_components/find-bar/find-bar'
 import { useBrowserPanel } from '@/platform/lib/data/browser-panel'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
