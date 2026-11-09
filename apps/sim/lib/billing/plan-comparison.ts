@@ -18,7 +18,7 @@ const MAX_TIER = tierByName('Max')
 const formatCredits = (credits: number): string => credits.toLocaleString('en-US')
 
 /** A brand icon rendered in a cell instead of a check/em-dash/text. */
-export interface CellIcon {
+interface CellIcon {
   /** Icon identifier resolved to a component by the table renderer. */
   icon: 'slack'
 }
@@ -33,7 +33,7 @@ const SLACK: CellIcon = { icon: 'slack' }
 export type PlanName = 'Free' | 'Pro' | 'Max' | 'Enterprise'
 
 /** A single feature row inside a section. */
-export interface ComparisonRow {
+interface ComparisonRow {
   /** Row label displayed in the left column. */
   label: string
   /**
@@ -45,14 +45,14 @@ export interface ComparisonRow {
 }
 
 /** A labelled group of comparison rows. */
-export interface ComparisonSection {
+interface ComparisonSection {
   /** Section header label. */
   title: string
   rows: ComparisonRow[]
 }
 
 /** Column metadata for the four plan headers. */
-export interface PlanColumn {
+interface PlanColumn {
   /** Plan name — matches the {@link PlanName} discriminant. */
   name: PlanName
   /**

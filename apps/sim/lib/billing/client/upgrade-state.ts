@@ -24,7 +24,7 @@ interface UseUpgradeStateOptions {
   workspaceId: string
 }
 
-export interface UpgradeState {
+interface UpgradeState {
   isLoading: boolean
   isAnnual: boolean
   setIsAnnual: (v: boolean) => void
