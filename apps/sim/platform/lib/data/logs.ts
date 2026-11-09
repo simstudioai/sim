@@ -5,11 +5,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQuery } from '@tanstack/react-query'
 import type { inferParserType } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
-import type {
-  DashboardStatsResponse,
-  LogTraceSpan,
-  WorkflowLogDetail,
-  WorkflowLogSummary,
+import {
+  type DashboardStatsResponse,
+  type LogTraceSpan,
+  traceSpansSchema,
+  type WorkflowLogDetail,
+  type WorkflowLogSummary,
 } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import {
@@ -491,6 +492,37 @@ export function useLiveRuns(workspaceId: string, view: RunListView) {
   }
 }
 
+function snapshotRunIds(pages: readonly { logs: readonly WorkflowLogSummary[] }[]) {
+  return pages.flatMap((page) =>
+    page.logs.flatMap((log) => (log.executionId ? [log.executionId] : []))
+  )
+}
+
+/**
+ * The runs either side of one in its list's order, for legacy's ArrowUp/ArrowDown between runs. It
+ * reads the list's own snapshot, the same query the list holds for the view, so the order is the one
+ * the reader left. At the last run read so far, `readNext` reads the next page and answers the run
+ * after it, as legacy's list loads more when its selection reaches the end.
+ */
+export function useRunNeighbors(workspaceId: string, executionId: string, view: RunListView) {
+  const snapshot = useLogsSnapshot(workspaceId, listFilters(view))
+  const ids = snapshotRunIds(snapshot.data?.pages ?? [])
+  const index = ids.indexOf(executionId)
+  return {
+    previous: index > 0 ? ids[index - 1] : undefined,
+    next: index >= 0 ? ids[index + 1] : undefined,
+    /** The run is the last one read and the list has more. */
+    hasMore: index >= 0 && index === ids.length - 1 && snapshot.hasNextPage,
+    loadingMore: snapshot.isFetchingNextPage,
+    readNext: async () => {
+      const result = await snapshot.fetchNextPage()
+      const read = snapshotRunIds(result.data?.pages ?? [])
+      const at = read.indexOf(executionId)
+      return at >= 0 ? read[at + 1] : undefined
+    },
+  }
+}
+
 /** A dashboard series point: the segment's start and its value. */
 export interface RunSeriesPoint {
   at: number
@@ -503,7 +535,7 @@ export interface RunDashboardWorkflow {
   runs: number
   /** Successful runs as a share of all, 0–100. */
   successRate: number
-  segments: readonly { at: number; runs: number; failed: number }[]
+  segments: readonly { at: number; runs: number; failed: number; avgDurationMs: number }[]
 }
 
 function latestRun(workflow: DashboardStatsResponse['workflows'][number]) {
@@ -557,6 +589,7 @@ export function useRunDashboard(workspaceId: string, view: RunListView) {
             at: Date.parse(segment.timestamp),
             runs: segment.totalExecutions,
             failed: segment.totalExecutions - segment.successfulExecutions,
+            avgDurationMs: segment.avgDurationMs,
           })),
         })
       ),
@@ -641,14 +674,71 @@ interface SnapshotBlock {
   status: string
   output?: unknown
   step: TraceSpan
+  /** The child workflow a workflow block ran, frozen as this run ran it, to open in its place. */
+  child?: SnapshotWorkflow
+}
+
+/** A workflow as one run executed it: its frozen state and each block's run. */
+interface SnapshotWorkflow {
+  name: string
+  workflowState: WorkflowState
+  blocks: Map<string, SnapshotBlock>
 }
 
 function isPauseOutput(output: unknown) {
   return typeof output === 'object' && output !== null && '_pauseMetadata' in output
 }
 
+function isWorkflowState(value: unknown): value is WorkflowState {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'blocks' in value &&
+    typeof value.blocks === 'object' &&
+    value.blocks !== null
+  )
+}
+
+/**
+ * A workflow block's child run, as legacy's snapshot drills into it: the child's frozen state by the
+ * span's snapshot ID, and its block runs from the span's children (or, on logs stored before those,
+ * the `childTraceSpans` its output carried). The name is the child's own, then the one its output
+ * recorded.
+ */
+function childWorkflow(
+  span: LogTraceSpan,
+  origin: number,
+  childStates: Readonly<Record<string, unknown>>
+): SnapshotWorkflow | undefined {
+  const snapshotId =
+    'childWorkflowSnapshotId' in span && typeof span.childWorkflowSnapshotId === 'string'
+      ? span.childWorkflowSnapshotId
+      : undefined
+  const state = snapshotId ? childStates[snapshotId] : undefined
+  if (!isWorkflowState(state)) return undefined
+  const output = typeof span.output === 'object' && span.output !== null ? span.output : undefined
+  const stored =
+    output && 'childTraceSpans' in output
+      ? traceSpansSchema.safeParse(output.childTraceSpans)
+      : undefined
+  const spans = span.children?.length ? span.children : stored?.success ? stored.data : []
+  const recordedName =
+    output && 'childWorkflowName' in output && typeof output.childWorkflowName === 'string'
+      ? output.childWorkflowName
+      : undefined
+  return {
+    name: state.metadata?.name || recordedName || 'Child workflow',
+    workflowState: state,
+    blocks: snapshotBlocks(spans, origin, childStates),
+  }
+}
+
 /** Each block's first recorded span, in trace order, as legacy's snapshot maps blocks to runs. */
-function snapshotBlocks(spans: readonly LogTraceSpan[], origin: number) {
+function snapshotBlocks(
+  spans: readonly LogTraceSpan[],
+  origin: number,
+  childStates: Readonly<Record<string, unknown>>
+) {
   const blocks = new Map<string, SnapshotBlock>()
   const visit = (span: LogTraceSpan) => {
     if (span.blockId && !blocks.has(span.blockId))
@@ -656,6 +746,7 @@ function snapshotBlocks(spans: readonly LogTraceSpan[], origin: number) {
         status: isPauseOutput(span.output) ? 'pending' : (span.status ?? 'unknown'),
         output: span.output,
         step: toTraceSpan(span, origin),
+        child: childWorkflow(span, origin, childStates),
       })
     span.children?.forEach(visit)
   }
@@ -665,7 +756,7 @@ function snapshotBlocks(spans: readonly LogTraceSpan[], origin: number) {
 
 /**
  * A run's frozen workflow: the state it executed with, which blocks ran and how, and each block's
- * step. A run recorded before snapshots existed has no state to draw, which `migrated` says. A run
+ * step, with the child workflow a workflow block ran. A run recorded before snapshots existed has no state to draw, which `migrated` says. A run
  * without a snapshot reads as missing.
  */
 export function useRunSnapshot(workspaceId: string, executionId: string) {
@@ -686,6 +777,10 @@ export function useRunSnapshot(workspaceId: string, executionId: string) {
     run: log && toRunSummary(log),
     workflowState: migrated ? undefined : ((state ?? undefined) as WorkflowState | undefined),
     migrated,
-    blocks: snapshotBlocks(log?.executionData.traceSpans ?? [], startedAt),
+    blocks: snapshotBlocks(
+      log?.executionData.traceSpans ?? [],
+      startedAt,
+      snapshot.data?.childWorkflowSnapshots ?? {}
+    ),
   }
 }
