@@ -4,14 +4,18 @@
  * Failure mode: `/o/<org>/chat/<id>` rendering a chat the viewer may open that belongs to another
  * organization, which then reads and writes under the wrong organization's shell.
  */
+import {
+  mothershipChatLifecycleMock,
+  mothershipChatLifecycleMockFns,
+} from '@sim/testing/mocks/mothership-chat-lifecycle.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getAccessibleCopilotChatAuth, readWorkspaceShellOrganizationId } = vi.hoisted(() => ({
-  getAccessibleCopilotChatAuth: vi.fn(),
+const { readWorkspaceShellOrganizationId } = vi.hoisted(() => ({
   readWorkspaceShellOrganizationId: vi.fn(),
 }))
+const getAccessibleCopilotChatAuth = mothershipChatLifecycleMockFns.mockGetAccessibleCopilotChatAuth
 vi.mock('server-only', () => ({}))
-vi.mock('@/lib/mothership/chat/lifecycle', () => ({ getAccessibleCopilotChatAuth }))
+vi.mock('@/lib/mothership/chat/lifecycle', () => mothershipChatLifecycleMock)
 vi.mock('@/platform/lib/data/shell-scope', () => ({ readWorkspaceShellOrganizationId }))
 vi.mock('@/platform/lib/data/server-read', () => ({
   requireSessionViewer: async () => ({
