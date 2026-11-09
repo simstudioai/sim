@@ -20,7 +20,7 @@ import { SearchTabProvider } from '@/app/(product)/_components/search/search-res
 import { useLiveChatRuntime } from '@/platform/lib/data/chat'
 import { useLiveComposer } from '@/platform/lib/data/chat-composer'
 import { usePanelResources } from '@/platform/lib/data/chat-panel'
-import { useChatRestore, useViewerId } from '@/platform/lib/data/chat-restore'
+import { useChatMountable, useViewerId } from '@/platform/lib/data/chat-restore'
 import { useAssistantGetStarted } from '@/platform/lib/data/home'
 import { useOrganization } from '@/platform/lib/data/organization'
 import type { SummaryRequest } from '@/platform/lib/data/search-summary'
@@ -108,8 +108,8 @@ function LiveConversation({
 }
 
 /**
- * The live conversation surface. It waits for the viewer, which is known only after hydration, then
- * remounts per viewer, organization, chat and mode, which is how the hook starts each chat clean.
+ * The live conversation surface. It mounts in the browser only, after hydration, then remounts per
+ * viewer, organization, chat and mode, which is how the hook starts each chat clean.
  */
 export function LiveChat({
   chatId,
@@ -122,8 +122,8 @@ export function LiveChat({
 }: LiveChatProps) {
   const { organization } = useOrganization()
   const userId = useViewerId()
-  const restored = useChatRestore(chatId, destination)
-  if (restored || !userId) return null
+  const mountable = useChatMountable(chatId, destination)
+  if (!mountable || !userId) return null
   return (
     <LiveConversation
       key={`${userId}:${organization.id}:${chatId ?? 'new'}:${destination}`}

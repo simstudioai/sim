@@ -1,33 +1,13 @@
 'use client'
 
-import { type ReactNode, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { signOut, useSession } from '@/lib/auth/client'
-import { SessionContext, type SessionHookResult } from '@/lib/auth/session-context'
 import { useSessionExpiry } from '@/lib/auth/session-expiry'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { useStopImpersonating } from '@/hooks/queries/admin-users'
-import { useSessionQuery } from '@/hooks/queries/session'
 import { clearUserData } from '@/stores'
 
 const logger = createLogger('PlatformSession')
-
-/** Backs `useSession` for the query hooks that read it, from the canonical session query. */
-export function SessionProvider({ children }: { children: ReactNode }) {
-  const { data, isPending, error, refetch } = useSessionQuery()
-  const value = useMemo<SessionHookResult>(
-    () => ({
-      data: data ?? null,
-      isPending,
-      error,
-      refetch: async () => {
-        await refetch()
-      },
-    }),
-    [data, isPending, error, refetch]
-  )
-  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
-}
 
 /**
  * Signs out while clearing what this viewer holds in the tab (`clearUserData`: running desktop

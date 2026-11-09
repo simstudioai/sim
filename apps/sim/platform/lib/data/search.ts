@@ -33,6 +33,7 @@ import {
   useSearchHistory,
 } from '@/hooks/queries/search-history'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { useClientStored } from '@/hooks/use-client-stored'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { useSummaryQueue } from '@/platform/lib/data/search-summary'
@@ -157,10 +158,11 @@ export function useSearchSurface(chatId: string | undefined) {
     organizationSearchUrlKeys
   )
   const { q: query, mode: urlMode, source, updated, from, to } = params
-  // Empty until hydrated (`useSession`), so server markup and hydration never read the cookie.
-  const remembered = userId
-    ? readRememberedSearchMode(readSearchModeCookie(organizationId), userId)
-    : null
+  // The browser's cookie; server markup and hydration paint without it.
+  const remembered = useClientStored(
+    () => readRememberedSearchMode(readSearchModeCookie(organizationId), userId),
+    null
+  )
   const routeMode =
     !urlMode && hasConversation
       ? 'assistant'
