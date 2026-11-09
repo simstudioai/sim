@@ -42,7 +42,7 @@ function schemaParamTriggered(
 }
 
 /** What the `<` reference picker hangs from the code field's caret. */
-export interface ReferencePickerProps {
+interface ReferencePickerProps {
   visible: boolean
   inputValue: string
   cursorPosition: number
