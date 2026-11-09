@@ -613,6 +613,12 @@ const seamHelpers = new Set([
   'lib/url-state',
   'lib/workspaces/permissions/role-lock',
   'stores/settings/dirty/store',
+  // Workspace Secrets and BYOK settings: the secrets editor's row helpers and record writes,
+  // credential-sharing email resolution and the provider brand glyphs.
+  'components/icons',
+  'components/secrets/secret-rows',
+  'lib/core/utils/records',
+  'lib/workspaces/sharing',
   // The workflow editor's logic, re-exported by `lib/data/workflows` for the ported canvas views.
   'app/_styles/fonts/season/season',
   'components/settings/settings-navigation-provider',
