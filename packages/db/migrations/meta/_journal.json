@@ -3200,6 +3200,13 @@
       "when": 1794219156974,
       "tag": "0457_personal_organization_team_only_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 458,
+      "version": "7",
+      "when": 1794256289997,
+      "tag": "0458_personal_organization_single_owner",
+      "breakpoints": true
     }
   ]
 }
