@@ -1,25 +1,20 @@
 'use client'
 
-import { ActivityRow } from '@sim/emcn/activity-row'
 import { EmptyState } from '@sim/emcn/empty-state'
 import type { ChatSource } from '@/app/(product)/_components/chat/model'
 import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
+import { SourceRow } from '@/app/(product)/_components/source-row/source-row'
 
-/** Every document one answer cited, each opening at its source. */
+/** Every document one answer cited, in the same row a search result and the reply's list use. */
 export function CitedSources({ sources }: { sources: readonly ChatSource[] }) {
   return (
     <section className={styles.sources} aria-label='Cited sources'>
       {sources.length ? (
-        <ul className={styles.sourceList}>
+        <div className={styles.sourceList}>
           {sources.map((source) => (
-            <ActivityRow
-              key={source.url}
-              title={source.title}
-              detail={source.site}
-              onOpen={() => window.open(source.url, '_blank', 'noopener,noreferrer')}
-            />
+            <SourceRow key={source.id} row={source} />
           ))}
-        </ul>
+        </div>
       ) : (
         <EmptyState title='No cited sources are available for this response.' />
       )}

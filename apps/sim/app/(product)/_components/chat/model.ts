@@ -1,4 +1,5 @@
 import type { ComposerDraft } from '@/app/(product)/_components/composer/model'
+import type { SourceRowData } from '@/app/(product)/_components/source-row/source-row'
 import type {
   CredentialItemData,
   SearchConnectionTarget,
@@ -150,17 +151,12 @@ export type PlatformTurn =
       endsWithInteraction?: boolean
       /** A persisted id, so the turn can be forked from. */
       forkable?: boolean
-      /** The documents its answer cites, once each, in first-cited order. */
+      /** The documents its answer cites, once each in first-cited order; lane work cites none. */
       sources?: readonly ChatSource[]
     }
 
-/** A document an answer cites. */
-export interface ChatSource {
-  url: string
-  title: string
-  /** The site or product it lives in, when known. */
-  site?: string
-}
+/** A document an answer cites, in the row shape Search results share. */
+export type ChatSource = SourceRowData
 
 type ChatRuntimeStatus = 'idle' | 'loading' | 'sending' | 'reconnecting'
 

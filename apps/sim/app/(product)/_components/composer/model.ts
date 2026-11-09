@@ -1,4 +1,4 @@
-import type { DragEvent } from 'react'
+import type { DragEvent, ReactNode } from 'react'
 import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import type { ChatContext, FileAttachmentForApi } from '@/platform/lib/data/chat-types'
 
@@ -60,6 +60,13 @@ export interface ComposerReference {
   /** Resource family whose browse tree contains this selectable folder. */
   folderFor?: string
   skillKind?: 'mcp'
+  /** A family name an `@` query also matches, for rows named after something else. */
+  family?: string
+  /**
+   * The query this row is the server's ranked match for (by name, word or folder path). It stays
+   * listed for that query rather than being filtered again by its name.
+   */
+  matchedQuery?: string
 }
 
 export type ComposerReferences = {
@@ -118,11 +125,17 @@ export interface ComposerController extends ComposerInventory {
   addPastedText: (text: string) => void
   removeAttachment: (id: string) => void
   clear: () => void
+  /** Replaces the draft with a message sent earlier, for prompt recall. */
+  restore: (draft: ComposerDraft) => void
   referencesDisabled?: boolean
   referencesLoading?: boolean
   skillsLoading?: boolean
   /** Tells the host a picker opened, which is when it reads the inventories behind them. */
   onPickerOpen?: () => void
+  /** What follows an `@` as it is typed, which the host searches files by. */
+  onReferenceSearch?: (query: string) => void
+  /** Renderless readers the inventory needs mounted while the composer is. */
+  readers?: ReactNode
   settings?: ComposerSettings
   drop?: ComposerDropHandlers
   voice?: ComposerVoice

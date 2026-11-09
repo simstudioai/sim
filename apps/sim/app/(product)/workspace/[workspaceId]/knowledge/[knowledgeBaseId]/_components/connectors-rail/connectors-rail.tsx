@@ -2,12 +2,12 @@
 
 import { Fragment } from 'react'
 import { ActivityRow } from '@sim/emcn/activity-row'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { RowList } from '@sim/emcn/settings-section/row-list'
 import { FailureNotice, Spinner, StatusText } from '@sim/emcn/status'
+import { Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
 import {
   ConnectorRecovery,
   MemberEnrollment,
@@ -62,7 +62,8 @@ export function ConnectorsRail({
       {error ? (
         <FailureNotice message='Could not load connectors.' onRetry={onRetry} />
       ) : connectors.length === 0 ? (
-        <EmptyState title='No connected sources yet' />
+        // A rail is too narrow for an EmptyState block, as a dialog's picker is.
+        <Muted>No connected sources yet.</Muted>
       ) : (
         <RowList label='Connected sources'>
           {connectors.map((connector) => {

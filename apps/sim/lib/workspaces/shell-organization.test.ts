@@ -7,18 +7,20 @@
  * its saved links 404, or to an organization other than the viewer's; and a workspace the viewer
  * cannot open disclosing an organization.
  */
+import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mapLegacyWorkspaceUrl } from '@/lib/navigation/legacy-redirects'
 import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
-const { checkWorkspaceAccess, resolveOrganizationLanding } = vi.hoisted(() => ({
-  checkWorkspaceAccess: vi.fn(),
+const { resolveOrganizationLanding } = vi.hoisted(() => ({
   resolveOrganizationLanding: vi.fn(),
 }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({ checkWorkspaceAccess }))
+vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 vi.mock('@/lib/organizations/surface', () => ({ resolveOrganizationLanding }))
 
 import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/shell-organization'
+
+const checkWorkspaceAccess = permissionsMockFns.mockCheckWorkspaceAccess
 
 function access(organizationId: string | null, hasAccess = true): WorkspaceAccess {
   return {

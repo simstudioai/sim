@@ -2,6 +2,7 @@
 
 import { type MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@sim/emcn/icon'
+import { OverflowText } from '@sim/emcn/overflow-text'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { StatusText } from '@sim/emcn/status'
 import { formatDuration } from '@sim/utils/formatting'
@@ -149,11 +150,11 @@ const LogRow = memo(function LogRow({
           </span>
         )}
         <span className={styles.label} data-error={status.error || undefined} data-type='T060'>
-          {label}
+          <OverflowText text={label}>{label}</OverflowText>
         </span>
         {hasChildren && (
-          <span className={styles.chevron} data-collapsed={!isExpanded || undefined}>
-            <Icon name='I051' />
+          <span className={styles.chevron}>
+            <Icon name={isExpanded ? 'I051' : 'I090'} />
           </span>
         )}
       </span>
@@ -199,7 +200,12 @@ export const LogList = memo(function LogList({
   const setList = useCallback(
     (element: HTMLDivElement | null) => {
       setViewport(element)
-      return measureEdges(element)
+      const stopMeasuring = measureEdges(element)
+      // A returned cleanup replaces React's null call, so it also lets go of the element.
+      return () => {
+        stopMeasuring?.()
+        setViewport(null)
+      }
     },
     [measureEdges]
   )

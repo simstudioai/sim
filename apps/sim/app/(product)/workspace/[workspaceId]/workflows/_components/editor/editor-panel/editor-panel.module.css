@@ -26,12 +26,10 @@
 }
 
 .title {
+  display: flex;
   flex: 1;
   min-inline-size: 0;
-  overflow: hidden;
   color: var(--ui-ink);
-  text-overflow: ellipsis;
-  white-space: nowrap;
   cursor: pointer;
   user-select: none;
 }

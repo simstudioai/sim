@@ -12,13 +12,12 @@
   pointer-events: auto;
 }
 .label {
+  display: flex;
   max-inline-size: 100%;
+  min-inline-size: 0;
   padding-inline: var(--ui-row-inset);
-  overflow: hidden;
   color: var(--ui-secondary);
   font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .actions {
   display: flex;

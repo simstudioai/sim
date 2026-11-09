@@ -1,10 +1,4 @@
-export interface SearchSourceRow {
-  id: string
-  url: string
-  title: string
-  meta?: string
-  snippet?: string
-}
+import type { SourceRowData } from '@/app/(product)/_components/source-row/source-row'
 
 interface SearchFilterOption {
   id: string
@@ -14,7 +8,7 @@ interface SearchFilterOption {
 /** One search's results and controls, the same on the Search route and in a chat panel tab. */
 export interface SearchResultsData {
   status: 'idle' | 'searching' | 'updating' | 'error' | 'ready' | 'needs-range'
-  rows: readonly SearchSourceRow[]
+  rows: readonly SourceRowData[]
   /** The apps this search reached, which is what the source filter offers. */
   providers: readonly string[]
   retry: () => void
@@ -40,7 +34,6 @@ export interface SearchResultsData {
       onChange: (from: string, to: string) => void
     }
   }
-  onCopyLink: (row: SearchSourceRow) => void
-  onOpen: (row: SearchSourceRow) => void
-  onSummarize?: (row: SearchSourceRow) => void
+  onOpen: (row: SourceRowData) => void
+  onSummarize?: (row: SourceRowData) => void
 }

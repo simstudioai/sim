@@ -13,7 +13,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionContext, type SessionHookResult } from '@/lib/auth/session-context'
-import type { SearchSourceRow } from '@/app/(product)/_components/search/model'
+import type { SourceRowData } from '@/app/(product)/_components/source-row/source-row'
 import { type SummaryRequest, useSendSummary } from '@/platform/lib/data/search-summary'
 
 const mocks = vi.hoisted(() => ({
@@ -100,7 +100,7 @@ function renderHook<P, T>(useHook: (props: P) => T, initialProps: P) {
 
 function surfaceAtSearch() {
   const hook = renderHook(() => useSearchSurface(undefined), undefined)
-  const row = hook.result.current.results.rows[0] as SearchSourceRow
+  const row = hook.result.current.results.rows[0] as SourceRowData
   return { ...hook, row }
 }
 

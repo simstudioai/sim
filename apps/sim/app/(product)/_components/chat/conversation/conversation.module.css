@@ -1,4 +1,5 @@
 .chat {
+  position: relative;
   display: flex;
   flex-direction: column;
   block-size: 100%;
@@ -55,4 +56,20 @@
 .automated strong {
   font-weight: var(--font-weight-medium);
   color: var(--ui-ink);
+}
+/* Places the shared find bar over the top of the thread, beneath the header. */
+.find {
+  position: absolute;
+  inset-block-start: var(--spacing-56);
+  inset-inline-end: var(--spacing-16);
+  z-index: 1;
+  max-inline-size: calc(100% - var(--spacing-32));
+}
+/* Find matches: every hit tinted, the active one underlined in the same hue. */
+.chat ::highlight(chat-find) {
+  background-color: var(--status-warning-soft);
+}
+.chat ::highlight(chat-find-active) {
+  background-color: var(--status-warning-soft);
+  text-decoration: underline var(--spacing-2) var(--status-warning);
 }

@@ -597,7 +597,13 @@ export const StructuredOutput = memo(function StructuredOutput({
     (element: HTMLDivElement | null) => {
       setViewport(element)
       contentRef.current = element
-      return measureEdges(element)
+      const stopMeasuring = measureEdges(element)
+      // A returned cleanup replaces React's null call, so it also lets go of the element.
+      return () => {
+        stopMeasuring?.()
+        setViewport(null)
+        contentRef.current = null
+      }
     },
     [contentRef, measureEdges]
   )

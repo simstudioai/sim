@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { OverflowText } from '@sim/emcn/overflow-text'
 import styles from '@/app/(product)/workspace/[workspaceId]/_components/selection-bar/selection-bar.module.css'
 
 interface SelectionBarProps {
@@ -24,7 +25,7 @@ export function SelectionBar({ label, 'aria-label': ariaLabel, children }: Selec
       data-elevation='menu'
     >
       <span className={styles.label} data-type='T060' role='status'>
-        {label}
+        <OverflowText text={label}>{label}</OverflowText>
       </span>
       <span className={styles.actions}>{children}</span>
     </div>

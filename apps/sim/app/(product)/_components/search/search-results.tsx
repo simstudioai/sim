@@ -9,7 +9,7 @@ import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import Link from 'next/link'
 import type { SearchResultsData } from '@/app/(product)/_components/search/model'
 import styles from '@/app/(product)/_components/search/search.module.css'
-import { SourceRow } from '@/app/(product)/_components/search/source-row'
+import { SourceRow } from '@/app/(product)/_components/source-row/source-row'
 
 function moveFocus(event: KeyboardEvent<HTMLElement>) {
   if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
@@ -97,7 +97,6 @@ export function SearchResults({ results }: { results: SearchResultsData }) {
             key={row.id}
             row={row}
             onOpen={results.onOpen}
-            onCopyLink={results.onCopyLink}
             onSummarize={results.onSummarize}
           />
         ))}

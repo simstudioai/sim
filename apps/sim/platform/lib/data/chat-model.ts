@@ -21,6 +21,8 @@ import { resolveMessageCitations } from '@/components/mothership-chat/message-co
 import { isToolDone } from '@/components/mothership-chat/message-content/tool-status'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { searchConnectionTargetSchema } from '@/lib/knowledge/search/connection-target'
+import { isChatContext } from '@/lib/mothership/chat/context'
+import { linkSiteName } from '@/lib/mothership/chat/source-link'
 import {
   type ContentSegment,
   type CredentialItemData,
@@ -28,6 +30,7 @@ import {
   parseLastCredentialTag,
   parseLastQuestionTag,
   parseSpecialTags,
+  type SourceTagData,
 } from '@/lib/mothership/chat/special-tags'
 import type { ChatMessage, ChatMessageContext, ToolCallData } from '@/lib/mothership/chat/types'
 import {
@@ -51,6 +54,7 @@ import type {
   PlatformTurn,
 } from '@/app/(product)/_components/chat/model'
 import type { ChatAttachment } from '@/app/(product)/_components/composer/model'
+import { formatInstantDate } from '@/platform/shared/time'
 import { getToolMetadata } from '@/tools/metadata'
 
 /** Tool payloads are diagnostic text, never the whole of a file a tool wrote. */
@@ -302,15 +306,21 @@ function toLane(
   }
 }
 
-/** A settled message never changes, so a long transcript re-parses only the turn in progress. */
-const SETTLED_TURNS = new WeakMap<
-  ChatMessage,
-  { pairing: string; parts: PlatformPart[]; copyText: string; sources: ChatSource[] }
->()
+/** Where a source lives, who wrote it and when it changed, in the order a result row reads them. */
+function sourceMeta(source: SourceTagData): string {
+  const updatedAt = source.updatedAt ? new Date(source.updatedAt) : null
+  return [
+    linkSiteName(source.url, source.siteName),
+    source.author?.trim(),
+    updatedAt && !Number.isNaN(updatedAt.getTime()) ? formatInstantDate(updatedAt) : undefined,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
 
 /**
- * Every distinct document the answer's own prose cites, in first-cited order: the same text its
- * inline citations come from, so lane scratch work and every fetched result stay out.
+ * Each document the answer's own prose cites, once by URL in first-cited order. Text a lane folds
+ * into its agent group is scratch work, so only the top-level text segments count.
  */
 function citedSources(segments: readonly MessageSegment[]): ChatSource[] {
   const byUrl = new Map<string, ChatSource>()
@@ -318,15 +328,23 @@ function citedSources(segments: readonly MessageSegment[]): ChatSource[] {
     if (segment.type !== 'text') continue
     for (const part of parseSpecialTags(segment.content, false).segments) {
       if (part.type !== 'source' || byUrl.has(part.data.url)) continue
-      byUrl.set(part.data.url, {
-        url: part.data.url,
-        title: part.data.title || part.data.siteName || part.data.url,
-        site: part.data.siteName,
+      const source = part.data
+      byUrl.set(source.url, {
+        id: source.url,
+        url: source.url,
+        title: source.title?.trim() || linkSiteName(source.url, source.siteName),
+        meta: sourceMeta(source),
       })
     }
   }
   return [...byUrl.values()]
 }
+
+/** A settled message never changes, so a long transcript re-parses only the turn in progress. */
+const SETTLED_TURNS = new WeakMap<
+  ChatMessage,
+  { pairing: string; parts: PlatformPart[]; copyText: string; sources: ChatSource[] }
+>()
 
 function toParts(
   segments: MessageSegment[],
@@ -398,16 +416,19 @@ export function attachmentKind(mediaType: string): ChatAttachment['kind'] {
   return 'document'
 }
 
+/** A saved context restores only with its resource identity, which prompt recall sends again. */
 function contextReference(context: ChatMessageContext, index: number): ChatAttachment {
   return {
     id: `context:${index}`,
     kind: 'reference',
     name: context.label,
     metadata: context.kind,
+    ...(isChatContext(context) ? { context } : {}),
   }
 }
 
 function toUserAttachments(message: ChatMessage): ChatAttachment[] {
+  const uploads = new Map(message.fileAttachments?.map((upload) => [upload.id, upload]))
   return [
     ...(message.attachments ?? []).map((file) => ({
       id: file.id,
@@ -415,6 +436,7 @@ function toUserAttachments(message: ChatMessage): ChatAttachment[] {
       metadata: file.media_type,
       kind: attachmentKind(file.media_type),
       source: file.previewUrl,
+      upload: uploads.get(file.id),
     })),
     ...(message.contexts ?? []).map(contextReference),
   ]

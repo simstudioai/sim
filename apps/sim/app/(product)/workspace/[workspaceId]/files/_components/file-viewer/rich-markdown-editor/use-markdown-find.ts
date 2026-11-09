@@ -10,8 +10,8 @@ import {
   replaceAllFindMatches,
   setFindQuery,
   stepFindMatch,
-  useFindShortcut,
 } from '@/platform/lib/data/files/markdown'
+import { useFindShortcut } from '@/platform/lib/data/find-shortcut'
 
 /** The class the find plugin puts on the active match. */
 const ACTIVE_MATCH_SELECTOR = "[class~='rich-find-match-active']"

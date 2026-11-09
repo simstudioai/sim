@@ -5,6 +5,7 @@ import { IconButton } from '@sim/emcn/button'
 import { Disclosure } from '@sim/emcn/disclosure'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
+import { OverflowText } from '@sim/emcn/overflow-text'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { isEqual } from 'es-toolkit'
@@ -413,15 +414,18 @@ export function EditorPanel() {
               <h2
                 className={styles.title}
                 data-type='T059'
-                title={title}
                 onDoubleClick={handleStartRename}
                 onMouseDown={(event) => {
                   if (event.detail === 2) event.preventDefault()
                 }}
               >
-                {blockNameSearchHighlight
-                  ? formatDisplayText(title, { workflowSearchHighlight: blockNameSearchHighlight })
-                  : title}
+                <OverflowText text={title}>
+                  {blockNameSearchHighlight
+                    ? formatDisplayText(title, {
+                        workflowSearchHighlight: blockNameSearchHighlight,
+                      })
+                    : title}
+                </OverflowText>
               </h2>
             )}
           </div>

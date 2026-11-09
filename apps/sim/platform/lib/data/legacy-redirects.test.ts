@@ -5,6 +5,7 @@
  * workspace opens in for the viewer (an organization-less workspace opens in the viewer's own), or
  * disclosing an organization for a workspace the viewer cannot open.
  */
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getSession } from '@/lib/auth'
 
@@ -13,17 +14,7 @@ const { resolveWorkspaceShellOrganizationId } = vi.hoisted(() => ({
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
-vi.mock('next/navigation', () => ({
-  notFound: () => {
-    throw new Error('not found')
-  },
-  permanentRedirect: (target: string) => {
-    throw new Error(`redirect ${target}`)
-  },
-  redirect: (target: string) => {
-    throw new Error(`redirect ${target}`)
-  },
-}))
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/workspaces/shell-organization', () => ({ resolveWorkspaceShellOrganizationId }))
 
 import { redirectLegacyWorkspaceUrl } from '@/platform/lib/data/legacy-redirects'
@@ -42,12 +33,12 @@ describe('redirectLegacyWorkspaceUrl', () => {
     resolveWorkspaceShellOrganizationId.mockResolvedValue('viewer-org')
     await expect(
       redirectLegacyWorkspaceUrl('ws-1', ['upgrade'], { reason: 'credits' })
-    ).rejects.toThrow('redirect /o/viewer-org/settings/billing/plans?reason=credits')
+    ).rejects.toThrow('NEXT_REDIRECT:/o/viewer-org/settings/billing/plans?reason=credits')
     expect(resolveWorkspaceShellOrganizationId).toHaveBeenCalledWith('ws-1', 'viewer')
   })
 
   it('answers not found for a workspace the viewer cannot open', async () => {
     resolveWorkspaceShellOrganizationId.mockResolvedValue(null)
-    await expect(redirectLegacyWorkspaceUrl('ws-1', ['home'], {})).rejects.toThrow('not found')
+    await expect(redirectLegacyWorkspaceUrl('ws-1', ['home'], {})).rejects.toThrow('NEXT_NOT_FOUND')
   })
 })

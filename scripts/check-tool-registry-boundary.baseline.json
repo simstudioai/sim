@@ -31,9 +31,9 @@
       "gateways": {}
     },
     "app/(product)/o/[organizationId]/chat/[[...id]]/page.tsx": {
-      "modules": 2528,
+      "modules": 2582,
       "gateways": {
-        "apps/sim/app/(product)/_components/chat/live/live-chat-route.tsx": 2349,
+        "apps/sim/app/(product)/_components/chat/live/live-chat-route.tsx": 2388,
         "apps/sim/platform/lib/data/server-read.ts": 1345,
         "apps/sim/lib/auth/index.ts": 1343,
         "apps/sim/blocks/registry.ts": 944,
@@ -161,29 +161,29 @@
       }
     },
     "app/(product)/o/[organizationId]/search/chat/[id]/page.tsx": {
-      "modules": 2453,
+      "modules": 2507,
       "gateways": {
-        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route.tsx": 2451,
+        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route.tsx": 2505,
         "apps/sim/platform/lib/data/server-read.ts": 1345,
         "apps/sim/lib/auth/index.ts": 1343,
         "apps/sim/blocks/registry.ts": 944,
         "apps/sim/blocks/registry-maps.ts": 942,
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,
-        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface.tsx": 466
+        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface.tsx": 519
       }
     },
     "app/(product)/o/[organizationId]/search/page.tsx": {
-      "modules": 2453,
+      "modules": 2507,
       "gateways": {
-        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route.tsx": 2451,
+        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route.tsx": 2505,
         "apps/sim/platform/lib/data/server-read.ts": 1345,
         "apps/sim/lib/auth/index.ts": 1343,
         "apps/sim/blocks/registry.ts": 944,
         "apps/sim/blocks/registry-maps.ts": 942,
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,
-        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface.tsx": 466
+        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface.tsx": 519
       }
     },
     "app/(product)/o/[organizationId]/settings/[[...section]]/page.tsx": {

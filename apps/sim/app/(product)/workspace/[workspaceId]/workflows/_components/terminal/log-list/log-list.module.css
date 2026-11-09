@@ -54,10 +54,8 @@
 }
 
 .label {
+  display: flex;
   min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .label[data-error] {
@@ -68,10 +66,6 @@
   display: inline-flex;
   flex: none;
   color: var(--ui-secondary);
-}
-
-.chevron[data-collapsed] > svg {
-  transform: rotate(-90deg);
 }
 
 .duration {
