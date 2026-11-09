@@ -1,0 +1,38 @@
+.list {
+  display: grid;
+  gap: var(--spacing-24);
+}
+
+.invitation {
+  display: grid;
+  gap: var(--spacing-12);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-row-gap);
+  min-inline-size: 0;
+}
+
+.identity {
+  flex: 1 1 var(--spacing-192);
+  min-inline-size: 0;
+}
+
+.detail {
+  color: var(--ui-secondary);
+}
+
+.paragraphs {
+  display: grid;
+  gap: var(--spacing-8);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ui-action-gap);
+}

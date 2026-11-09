@@ -659,14 +659,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
     : []
 
   let content: ReactNode
-  if (access.hidden)
-    content = (
-      <WorkspaceEmpty
-        title='Knowledge bases are turned off'
-        description='Your permission group hides knowledge bases in this workspace.'
-      />
-    )
-  else if (documentRead.error && !document)
+  if (documentRead.error && !document)
     content = (
       <WorkspaceEmpty
         title='Document not found'

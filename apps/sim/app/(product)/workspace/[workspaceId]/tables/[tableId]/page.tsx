@@ -13,11 +13,16 @@ export default async function Page({
   params: Promise<{ workspaceId: string; tableId: string }>
 }) {
   if (resolvePlatformMode() !== 'live') notFound()
-  const [{ workspaceId, tableId }, { TableRoute }] = await Promise.all([
+  const [{ workspaceId, tableId }, { TableRoute }, { AccessBoundary }] = await Promise.all([
     params,
     import(
       '@/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/table-route/table-route'
     ),
+    import('@/app/(product)/workspace/[workspaceId]/_components/access-required/access-boundary'),
   ])
-  return <TableRoute workspaceId={workspaceId} tableId={tableId} />
+  return (
+    <AccessBoundary workspaceId={workspaceId} gate='hideTablesTab' current='tables' layout='canvas'>
+      <TableRoute workspaceId={workspaceId} tableId={tableId} />
+    </AccessBoundary>
+  )
 }
