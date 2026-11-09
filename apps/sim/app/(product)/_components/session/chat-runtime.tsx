@@ -14,6 +14,7 @@ type ChatHandlers = Pick<
   | 'rate'
   | 'fork'
   | 'openResource'
+  | 'viewSources'
   | 'finishTerminalHandoff'
 >
 type ChatInteractions = Pick<ChatRuntime, 'approvals' | 'review'>
@@ -46,6 +47,9 @@ export function ChatRuntimeProvider({
     rate: runtime.rate && (async (input) => latest.current.rate?.(input)),
     fork: runtime.fork && (async (turnId) => latest.current.fork?.(turnId)),
     openResource: runtime.openResource && ((ref) => latest.current.openResource?.(ref)),
+    viewSources:
+      runtime.viewSources &&
+      ((turnId, requestId) => latest.current.viewSources?.(turnId, requestId)),
     finishTerminalHandoff:
       runtime.finishTerminalHandoff &&
       ((terminalId) => latest.current.finishTerminalHandoff?.(terminalId)),

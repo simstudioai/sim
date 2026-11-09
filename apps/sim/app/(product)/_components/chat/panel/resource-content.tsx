@@ -4,6 +4,7 @@ import { ControlRow } from '@sim/emcn/button/control-row'
 import { EmptyState } from '@sim/emcn/empty-state'
 import Link from 'next/link'
 import type { PlatformResource } from '@/app/(product)/_components/chat/model'
+import { CitedSources } from '@/app/(product)/_components/chat/panel/cited-sources'
 import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
 import { SearchResultsPanel } from '@/app/(product)/_components/search/search-results-host'
 
@@ -11,6 +12,7 @@ import { SearchResultsPanel } from '@/app/(product)/_components/search/search-re
 export function ResourceContent({ resource }: { resource: PlatformResource }) {
   if (resource.type === 'search' && resource.search)
     return <SearchResultsPanel resource={resource} />
+  if (resource.type === 'sources') return <CitedSources sources={resource.sources ?? []} />
   return (
     <div className={styles.document}>
       <EmptyState

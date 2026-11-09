@@ -1,6 +1,6 @@
 'use client'
 
-import { type FormEvent, useState } from 'react'
+import type { FormEvent } from 'react'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { Input } from '@sim/emcn/field/inputs'
@@ -12,8 +12,60 @@ import { LiveChat } from '@/app/(product)/_components/chat/live/live-chat'
 import { SearchResults } from '@/app/(product)/_components/search/search-results'
 import styles from '@/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface.module.css'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { useSearchSurface } from '@/platform/lib/data/search'
+import { useSearchField, useSearchSurface } from '@/platform/lib/data/search'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
+
+interface SearchFieldProps {
+  query: string
+  searching: boolean
+  onSubmit: (value: string) => void
+  onStop: () => void
+  newSearch?: { label: string; disabled: boolean; onStart: () => void }
+}
+
+function SearchField({ query, searching, onSubmit, onStop, newSearch }: SearchFieldProps) {
+  const field = useSearchField({ query, searching, onSubmit, onStop })
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    field.submit()
+  }
+  return (
+    <form className={styles.field} onSubmit={submit} role='search'>
+      <Input
+        label='Search'
+        placeholder='Search your company’s knowledge…'
+        value={field.value}
+        onChange={field.setValue}
+        disabled={!field.hydrated}
+        inputRef={field.inputRef}
+      />
+      {searching ? (
+        <Button variant='muted' size='compact' onClick={field.submitOrStop}>
+          Stop
+        </Button>
+      ) : (
+        <Button
+          variant='primary'
+          size='compact'
+          disabled={!field.canSubmit}
+          onClick={field.submitOrStop}
+        >
+          Search
+        </Button>
+      )}
+      {newSearch && (
+        <Button
+          variant='muted'
+          size='compact'
+          disabled={newSearch.disabled}
+          onClick={newSearch.onStart}
+        >
+          {newSearch.label}
+        </Button>
+      )}
+    </form>
+  )
+}
 
 interface SearchSurfaceProps {
   chatId?: string
@@ -23,16 +75,9 @@ export function SearchSurface({ chatId }: SearchSurfaceProps) {
   const surface = useSearchSurface(chatId)
   const scope = useSurfaceScope()
   const { mode, query, assistantAvailable, history } = surface
-  const [draft, setDraft] = useState(query)
-  const [draftQuery, setDraftQuery] = useState(query)
-  if (draftQuery !== query) {
-    setDraftQuery(query)
-    setDraft(query)
-  }
-  function submit(event: FormEvent) {
-    event.preventDefault()
-    surface.submit(draft)
-  }
+  const newAction = surface.canStartNew
+    ? { label: surface.newLabel, disabled: surface.startingNew, onStart: surface.startNew }
+    : undefined
   const modeSwitch = assistantAvailable && (
     <SegmentedControl
       label='Search mode'
@@ -50,12 +95,28 @@ export function SearchSurface({ chatId }: SearchSurfaceProps) {
       {assistantAvailable && (mode === 'assistant' || surface.assistantStarted) && (
         <div className={styles.assistant} hidden={mode !== 'assistant'}>
           <LiveChat
+            key={surface.conversationInstance}
             chatId={chatId}
             destination='assistant'
             chatPath={(id) => surfaceHref(scope, `/search/chat/${id}`)}
             summaryRequest={surface.pendingSummary}
             onSummaryConsumed={surface.consumeSummary}
-            header={<div className={styles.switch}>{modeSwitch}</div>}
+            header={
+              <div className={styles.switch}>
+                {modeSwitch}
+                {mode === 'assistant' && newAction && (
+                  <Button
+                    variant='quiet'
+                    size='compact'
+                    icon='I074'
+                    disabled={newAction.disabled}
+                    onClick={newAction.onStart}
+                  >
+                    {newAction.label}
+                  </Button>
+                )}
+              </div>
+            }
           />
         </div>
       )}
@@ -67,40 +128,14 @@ export function SearchSurface({ chatId }: SearchSurfaceProps) {
           </header>
           <PageColumn>
             <div className={styles.column}>
-              <form className={styles.field} onSubmit={submit} role='search'>
-                <Input
-                  label='Search'
-                  placeholder='Search your company’s knowledge…'
-                  value={draft}
-                  onChange={setDraft}
-                />
-                {surface.searching ? (
-                  <Button variant='muted' size='compact' onClick={surface.stop}>
-                    Stop
-                  </Button>
-                ) : (
-                  <Button
-                    variant='primary'
-                    size='compact'
-                    disabled={!draft.trim()}
-                    onClick={() => surface.submit(draft)}
-                  >
-                    Search
-                  </Button>
-                )}
-                {query && (
-                  <Button
-                    variant='muted'
-                    size='compact'
-                    onClick={() => {
-                      setDraft('')
-                      surface.clear()
-                    }}
-                  >
-                    New search
-                  </Button>
-                )}
-              </form>
+              <SearchField
+                key={query}
+                query={query}
+                searching={surface.searching}
+                onSubmit={surface.submit}
+                onStop={surface.stop}
+                newSearch={newAction}
+              />
               {query || surface.filtered ? (
                 <SearchResults results={surface.results} />
               ) : history.status === 'error' ? (
@@ -121,10 +156,7 @@ export function SearchSurface({ chatId }: SearchSurfaceProps) {
                     <RecentItems
                       label='Recent searches'
                       items={history.queries}
-                      onSelect={(id) => {
-                        setDraft(id)
-                        surface.submit(id)
-                      }}
+                      onSelect={surface.submit}
                     />
                   )}
                   <Button variant='muted' size='compact' onClick={history.clear}>
