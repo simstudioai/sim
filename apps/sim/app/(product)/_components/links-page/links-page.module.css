@@ -1,16 +1,26 @@
 .page {
-  /* Settings' breadcrumb, heading and toolbar, and their gaps: all that sits above the table's scroller. */
+  /* Settings' breadcrumb, then the actions and options rows above the table's scroller, and their gaps. */
   --ui-table-viewport-offset: calc(
     var(--spacing-48) +
-    2 *
-    var(--spacing-app-control-md) +
     3 *
-    var(--spacing-24)
+    var(--spacing-app-control-md) +
+    4 *
+    var(--ui-product-section-gap)
   );
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
-  gap: var(--spacing-24);
+  gap: var(--ui-product-section-gap);
+}
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+.options > :first-child {
+  flex: 1 1 var(--spacing-128);
+  min-inline-size: 0;
 }
 .favicon {
   flex: none;
@@ -26,8 +36,8 @@
 .summary {
   display: none;
   min-inline-size: 0;
-  gap: var(--spacing-2);
-  margin-block-start: var(--spacing-2);
+  gap: var(--ui-stack-gap);
+  margin-block-start: var(--ui-stack-gap);
   color: var(--ui-secondary);
 }
 .summaryDestination {
