@@ -1,4 +1,4 @@
-import type { IconName } from '@sim/emcn/icon'
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import type { BooleanPermissionGroupConfigKey } from '@/lib/permission-groups/features'
 

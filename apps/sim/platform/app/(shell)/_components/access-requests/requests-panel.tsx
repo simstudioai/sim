@@ -35,8 +35,8 @@ export function RequestsPanel({ scope, reviewOrganizationId }: RequestsPanelProp
           }
         />
       )}
-      {view === 'review' && reviewOrganizationId ? (
-        <ReviewRequests organizationId={reviewOrganizationId} />
+      {view === 'review' ? (
+        reviewOrganizationId && <ReviewRequests organizationId={reviewOrganizationId} />
       ) : (
         <MyRequests scope={scope} view={view} mine={mine} />
       )}

@@ -31,10 +31,16 @@ const RESOURCE_KINDS: ReadonlyArray<{ key: ResourceKey; label: string }> = [
 ]
 
 function fullSelection(data: GetForkResourcesResponse): ResourceSelection {
-  const entries = RESOURCE_KINDS.map(
-    (kind) => [kind.key, new Set(data[kind.key].map((item) => item.id))] as const
-  )
-  return Object.fromEntries(entries) as ResourceSelection
+  const ids = (key: ResourceKey) => new Set(data[key].map((item) => item.id))
+  return {
+    files: ids('files'),
+    tables: ids('tables'),
+    knowledgeBases: ids('knowledgeBases'),
+    customTools: ids('customTools'),
+    skills: ids('skills'),
+    mcpServers: ids('mcpServers'),
+    workflowMcpServers: ids('workflowMcpServers'),
+  }
 }
 
 interface ForkWorkspaceModalProps {
