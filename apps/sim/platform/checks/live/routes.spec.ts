@@ -144,6 +144,6 @@ test('Each route names its own tab', async ({ page }) => {
   ]
   for (const [route, title] of titles) {
     await page.goto(route as string)
-    await expect(page).toHaveTitle(title as string)
+    await expect(page).toHaveTitle(`${title} | Sim`)
   }
 })

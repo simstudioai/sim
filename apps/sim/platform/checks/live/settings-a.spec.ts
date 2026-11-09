@@ -4,8 +4,10 @@ import { liveRoute } from '@/platform/checks/routes'
 
 const settings = (path = '') => liveRoute(`/settings${path}`)
 
+// Settings itself, not the bare organization URL: that one renders, then redirects in the browser,
+// and the redirect aborts a navigation a test starts before it lands.
 test.beforeEach(async ({ page }) => {
-  await signInAsAdmin(page, liveRoute(''))
+  await signInAsAdmin(page, settings())
 })
 
 test('a theme chosen here persists across a reload and repaints the shell', async ({ page }) => {

@@ -7,6 +7,17 @@ import { liveRoute } from '@/platform/checks/routes'
 const chats = (page: Page) => page.getByRole('region', { name: 'Chats', exact: true })
 const workspaces = (page: Page) => page.getByRole('region', { name: 'Workspaces', exact: true })
 
+/**
+ * The shell attaches its shortcut listener when it hydrates, which can finish after `load`, so a
+ * press that lands on the server-rendered page is lost. Presses until `landed` holds.
+ */
+async function pressShortcut(page: Page, key: string, landed: () => Promise<void>) {
+  await expect(async () => {
+    await page.keyboard.press(key)
+    await landed()
+  }).toPass({ timeout: 15_000 })
+}
+
 test('a chat pins and marks unread, and both survive a reload', async ({ page }) => {
   await signInAsAdmin(page, liveRoute('/home'))
   const list = chats(page)
@@ -52,8 +63,7 @@ test('Mod+B collapses the sidebar, the choice survives a reload, and Expand rest
   await signInAsAdmin(page, liveRoute('/home'))
   const sidebar = page.getByRole('complementary', { name: 'Platform sidebar' })
   await expect(sidebar).toBeVisible()
-  await page.keyboard.press('ControlOrMeta+b')
-  await expect(sidebar).toBeHidden()
+  await pressShortcut(page, 'ControlOrMeta+b', () => expect(sidebar).toBeHidden({ timeout: 1_000 }))
   await page.reload()
   await expect(sidebar).toBeHidden()
   await page.getByRole('button', { name: 'Expand sidebar' }).click()
@@ -64,9 +74,10 @@ test('Mod+B collapses the sidebar, the choice survives a reload, and Expand rest
 
 test('Mod+K opens the palette, which finds a real workspace and a chat', async ({ page }) => {
   await signInAsAdmin(page, liveRoute('/home'))
-  await page.keyboard.press('ControlOrMeta+k')
   const palette = page.getByRole('dialog', { name: 'Search' })
-  await expect(palette).toBeVisible()
+  await pressShortcut(page, 'ControlOrMeta+k', () =>
+    expect(palette).toBeVisible({ timeout: 1_000 })
+  )
   const field = palette.getByRole('combobox', { name: 'Search the platform' })
   await field.fill('Operations')
   await expect(palette.getByText('Operations')).toBeVisible()

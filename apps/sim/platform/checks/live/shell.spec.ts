@@ -24,6 +24,7 @@ test('signing in through the zone lands on a shell showing the real organization
 
 async function open(page: Page, email: string) {
   await signIn(page, email, liveRoute(''))
+  await expect(page).toHaveURL(liveRoutePattern('', '/'))
   await expect(page.getByRole('button', { name: 'Organization menu' })).toBeVisible()
 }
 
@@ -147,6 +148,8 @@ test('a chat renames and deletes through the real API', async ({ page }) => {
 
 test('sign out ends the session and the zone returns to login', async ({ page }) => {
   await signInThroughForm(page, adminEmail(), liveRoute(''))
+  // The bare organization URL redirects in the browser, which would close a menu opened first.
+  await expect(page).toHaveURL(liveRoutePattern('', '/'))
   const footer = page.getByRole('complementary', { name: 'Platform sidebar' }).locator('footer')
   await footer.getByRole('button').first().click()
   await page

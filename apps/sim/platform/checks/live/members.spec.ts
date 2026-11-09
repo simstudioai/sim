@@ -47,8 +47,20 @@ test('a role change persists and a failed one is reported', async ({ page }) => 
   await openMembers(page)
   const target = requireEnv('PLATFORM_LIVE_ROLE_TARGET_EMAIL')
   const roleSelect = () => memberRow(page, target).getByRole('button', { name: /^Role for/ })
-  await roleSelect().click()
-  await page.getByRole('menuitemradio', { name: 'Admin' }).click()
+  /** Picks `role` and waits for the server to answer: a reload sent first reads the old role. */
+  async function chooseRole(role: 'Admin' | 'Member') {
+    await roleSelect().click()
+    const [saved] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PUT' &&
+          new URL(response.url()).pathname.includes('/members/')
+      ),
+      page.getByRole('menuitemradio', { name: role }).click(),
+    ])
+    expect(saved.ok()).toBe(true)
+  }
+  await chooseRole('Admin')
   await page.reload()
   await expect(roleSelect()).toHaveText(/Admin/)
 
@@ -63,8 +75,7 @@ test('a role change persists and a failed one is reported', async ({ page }) => 
   await expect(roleSelect()).toHaveText(/Admin/)
   await page.unroute('**/api/organizations/*/members/*')
 
-  await roleSelect().click()
-  await page.getByRole('menuitemradio', { name: 'Member' }).click()
+  await chooseRole('Member')
   await page.reload()
   await expect(roleSelect()).toHaveText(/Member/)
 })

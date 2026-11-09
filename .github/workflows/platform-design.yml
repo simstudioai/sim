@@ -66,7 +66,6 @@ env:
   ENCRYPTION_KEY: '0000000000000000000000000000000000000000000000000000000000000000'
   STRIPE_SECRET_KEY: 'dummy_key_for_ci_only'
   STRIPE_WEBHOOK_SECRET: 'dummy_secret_for_ci_only'
-  RESEND_API_KEY: 'dummy_key_for_ci_only'
   AWS_REGION: 'us-west-2'
 
 jobs:
@@ -89,6 +88,9 @@ jobs:
           TURBO_CACHE_DIR: .turbo
           # Lint's type-check already holds the routes; this build only serves the browser suites.
           NEXT_BUILD_SKIP_TYPE_CHECK: 'true'
+          # Build only: a running app with this key sends through Resend, which refuses it and so
+          # fails every invite; with no mail provider the app logs each message as sent.
+          RESEND_API_KEY: 'dummy_key_for_ci_only'
         run: bunx turbo run build --filter=@sim/app
       # Everything `next start` reads beside node_modules and the source tree, which each job checks
       # out and installs itself, as checks.yml's e2e-build packages it.
