@@ -18,10 +18,14 @@ export const adminV1OrganizationMemberParamsSchema = adminV1IdParamsSchema.exten
   memberId: z.string().min(1),
 })
 
+const adminV1OrganizationKindSchema = z.enum(['personal', 'team'])
+
 export const adminV1OrganizationSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
+  /** A personal organization holds one account's personal workspaces; a team is everything else. */
+  kind: adminV1OrganizationKindSchema,
   logo: z.string().nullable(),
   orgUsageLimit: z.string().nullable(),
   storageUsedBytes: z.number(),
@@ -199,10 +203,15 @@ const adminV1TransferOwnershipResultSchema = z.object({
   billingBlockInherited: z.boolean(),
 })
 
+/** Lists team organizations unless `kind=personal` asks for the personal ones. */
+export const adminV1ListOrganizationsQuerySchema = adminV1PaginationQuerySchema.extend({
+  kind: adminV1OrganizationKindSchema.default('team'),
+})
+
 export const adminV1ListOrganizationsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v1/admin/organizations',
-  query: adminV1PaginationQuerySchema,
+  query: adminV1ListOrganizationsQuerySchema,
   response: {
     mode: 'json',
     schema: adminV1ListResponseSchema(adminV1OrganizationSchema),

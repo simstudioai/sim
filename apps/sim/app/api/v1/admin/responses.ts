@@ -4,6 +4,7 @@
  * Consistent response formatting for all Admin API endpoints.
  */
 
+import { getPostgresErrorCode } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import type { z } from 'zod'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
@@ -87,6 +88,20 @@ export function adminInvalidJsonResponse(): NextResponse {
 
 export function adminInternalErrorResponse(message = 'Internal server error'): NextResponse {
   return errorResponse('INTERNAL_ERROR', message, 500)
+}
+
+/**
+ * A failed organization write: one the database refused by a check constraint or trigger (a
+ * personal organization takes no team configuration and no member beyond its owner) is a 409
+ * conflict with the organization's kind, anything else a 500.
+ */
+export function adminWriteErrorResponse(error: unknown, message: string): NextResponse {
+  if (getPostgresErrorCode(error) === '23514') {
+    return adminConflictResponse(
+      'The organization refuses this change: personal organizations hold no team configuration and no member besides their owner.'
+    )
+  }
+  return adminInternalErrorResponse(message)
 }
 
 export function adminNotConfiguredResponse(): NextResponse {

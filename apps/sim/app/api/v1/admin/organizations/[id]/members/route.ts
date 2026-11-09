@@ -59,6 +59,7 @@ import {
   adminInvalidJsonResponse,
   adminNotFoundResponse,
   adminValidationErrorResponse,
+  adminWriteErrorResponse,
   listResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
@@ -451,7 +452,7 @@ export const POST = withRouteHandler(
         )
       }
       logger.error('Admin API: Failed to add organization member', { error, organizationId })
-      return adminInternalErrorResponse('Failed to add organization member')
+      return adminWriteErrorResponse(error, 'Failed to add organization member')
     }
   })
 )

@@ -355,6 +355,7 @@ export interface AdminOrganization {
   id: string
   name: string
   slug: string
+  kind: 'personal' | 'team'
   logo: string | null
   orgUsageLimit: string | null
   storageUsedBytes: number
@@ -369,7 +370,15 @@ export interface AdminOrganizationDetail extends AdminOrganization {
 
 export type AdminOrganizationSource = Pick<
   DbOrganization,
-  'id' | 'name' | 'slug' | 'logo' | 'orgUsageLimit' | 'storageUsedBytes' | 'createdAt' | 'updatedAt'
+  | 'id'
+  | 'name'
+  | 'slug'
+  | 'kind'
+  | 'logo'
+  | 'orgUsageLimit'
+  | 'storageUsedBytes'
+  | 'createdAt'
+  | 'updatedAt'
 >
 
 export function toAdminOrganization(dbOrg: AdminOrganizationSource): AdminOrganization {
@@ -377,6 +386,7 @@ export function toAdminOrganization(dbOrg: AdminOrganizationSource): AdminOrgani
     id: dbOrg.id,
     name: dbOrg.name,
     slug: dbOrg.slug,
+    kind: dbOrg.kind,
     logo: dbOrg.logo,
     orgUsageLimit: dbOrg.orgUsageLimit,
     storageUsedBytes: dbOrg.storageUsedBytes,

@@ -51,6 +51,7 @@ import {
   adminInvalidJsonResponse,
   adminNotFoundResponse,
   adminValidationErrorResponse,
+  adminWriteErrorResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 import type { AdminMember, AdminMemberDetail } from '@/app/api/v1/admin/types'
@@ -224,7 +225,7 @@ export const PATCH = withRouteHandler(
       return singleResponse(data)
     } catch (error) {
       logger.error('Admin API: Failed to update member', { error, organizationId, memberId })
-      return adminInternalErrorResponse('Failed to update member')
+      return adminWriteErrorResponse(error, 'Failed to update member')
     }
   })
 )
