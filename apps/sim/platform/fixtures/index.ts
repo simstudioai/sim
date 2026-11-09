@@ -1,6 +1,4 @@
 import 'server-only'
-import type { AttachmentItem } from '@sim/emcn/attachments/tile'
-import type { PropertyItem } from '@sim/emcn/property-list'
 import type { RecentItem } from '@sim/emcn-platform/recent-items'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import type { IntegrationsData } from '@/platform/lib/integrations/fixture-model'
@@ -14,43 +12,6 @@ export const FIXTURE_ORGANIZATION_ID = 'sim'
 /** The example organization's `routePrefix`: its routes live under `/o/sim`. */
 export const FIXTURE_ROUTE_PREFIX = `/o/${FIXTURE_ORGANIZATION_ID}`
 
-export interface PreviewData {
-  collections: {
-    recent: RecentItem[]
-    attachments: AttachmentItem[]
-    steps: { id: string; description: string }[]
-  }
-  dashboard: {
-    destinations: string[]
-    metrics: { label: string; value: string }[]
-    rows: { id: string; values: Partial<Record<string, string | number | null>> }[]
-  }
-  samples: {
-    labels: string[]
-    captions: string[]
-    properties: PropertyItem[]
-    avatarSrc?: string
-    media?: { src: string; label: string }
-    recipients: { address: string; invalid?: boolean }[]
-    ranges: string[]
-    actions: string[]
-    notes: string
-  }
-  charts: {
-    maximum?: number
-    trend: { date: string; value: number }[]
-    bars: { label: string; values: [number, number] }[]
-    distribution: { label: string; value: number }[]
-  }
-  specimen: Readonly<Record<string, string>>
-  organization: {
-    name: string
-    members: string[]
-    permissionGroups: string[]
-    workspaces: { id: string; name: string; chats: string[] }[]
-  }
-}
-
 /** Only invoke the scenario's import on a development server that opted into preview data. */
 function fixture<T, Args extends unknown[]>(
   read: (scenario: Scenario, ...args: Args) => Promise<T>
@@ -59,9 +20,6 @@ function fixture<T, Args extends unknown[]>(
     resolvePlatformMode() === 'fixture' ? read(scenario, ...args) : Promise.resolve(null)
 }
 
-export const loadPreviewData = fixture(
-  async (scenario) => (await import('@/platform/fixtures/data')).scenarios[scenario]
-)
 export const loadShellData = fixture(async (scenario) => {
   const [{ shellScenarios }, { conversationScenarios }] = await Promise.all([
     import('@/platform/fixtures/shell-data'),

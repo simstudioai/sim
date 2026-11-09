@@ -56,19 +56,6 @@ export function organizationRoutes(organizationId: string) {
   } as const
 }
 
-/**
- * A workspace's integrations live in its organization's integration center. Before the host
- * context resolves, the workspace-scoped URL redirects there once the organization is known.
- */
-export function workspaceIntegrationsPath(
-  workspaceId: string,
-  context: { hostOrganizationId: string | null } | null
-) {
-  return context?.hostOrganizationId
-    ? organizationRoutes(context.hostOrganizationId).integrations
-    : `/workspace/${workspaceId}/integrations`
-}
-
 /** Where `sim/<name>/<values…>` resolves in this app: the address a member types, kept verbatim. */
 export function simLinkPath(...segments: string[]): string {
   return ['/sim', ...segments.map(encodeURIComponent)].join('/')
