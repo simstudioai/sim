@@ -44,13 +44,13 @@
       }
     },
     "app/(product)/o/[organizationId]/home/page.tsx": {
-      "modules": 2734,
+      "modules": 2793,
       "gateways": {
-        "apps/sim/app/(product)/o/[organizationId]/home/_components/live-home/live-home-route.tsx": 2565,
+        "apps/sim/app/(product)/o/[organizationId]/home/_components/live-home/live-home-route.tsx": 2614,
         "apps/sim/blocks/registry-maps.ts": 940,
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,
-        "apps/sim/platform/lib/data/prefetch-home.ts": 432,
+        "apps/sim/platform/lib/data/prefetch-home.ts": 433,
         "apps/sim/platform/lib/data/prefetch-integrations.ts": 426,
         "apps/sim/lib/credential-groups/application/organization-accounts.ts": 237,
         "apps/sim/platform/lib/data/server-read.ts": 236
