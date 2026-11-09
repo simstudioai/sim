@@ -82,7 +82,11 @@ function baseUtility(className) {
  * The product's stylesheets: its bootstrap, its route modules and the Platform package. The
  * design system there owns its own stroke widths, so Tailwind's 1px stays as written.
  */
-const PRODUCT_STYLESHEETS = ['/apps/sim/app/(product)/', '/apps/sim/platform/', '/packages/emcn-platform/']
+const PRODUCT_STYLESHEETS = [
+  '/apps/sim/app/(product)/',
+  '/apps/sim/platform/',
+  '/packages/emcn-platform/',
+]
 
 function isHairlineRule(rule) {
   return rule.selectors.some((selector) =>
