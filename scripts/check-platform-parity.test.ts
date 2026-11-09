@@ -36,6 +36,27 @@ describe('auditLedger', () => {
     expect(audit('| Role | x | Open |  |\n')[0]).toContain('gives no proof')
   })
 
+  it('refuses a capability listed twice in one domain', () => {
+    const row = '| Role | x | Open | Not yet |\n'
+    expect(audit(`${row}${row}`)[0]).toContain('repeats the row at line 3')
+    const domains =
+      '| Domain | Capability | Legacy source | Status | Proof or reason |\n| --- | --- | --- | --- | --- |\n'
+    expect(
+      auditLedger({
+        ledger: `${domains}| Chat | Role | x | Open | a |\n| Search | Role | x | Open | a |\n| Chat | Role | y | Open | b |\n`,
+        testFiles: new Set(),
+        liveTitles: [],
+      })
+    ).toEqual([
+      expect.stringContaining('org-parity.md:5: "Role" in Chat repeats the row at line 3'),
+    ])
+  })
+
+  it('lets a section point back at a Domain row of the same name', () => {
+    const ledger = `| Domain | Capability | Legacy source | Status | Proof or reason |\n| --- | --- | --- | --- | --- |\n| Shell | Inbox | None | Hidden | a |\n\n## Shell\n\n${HEADER}| Inbox | None | Hidden | See above |\n`
+    expect(auditLedger({ ledger, testFiles: new Set(), liveTitles: [] })).toEqual([])
+  })
+
   it('refuses a Done row whose test did not pass in the given run', () => {
     const title = 'a role change persists and a failed one is reported'
     const row = '| Role | x | Done | "a role change persists" |\n'
