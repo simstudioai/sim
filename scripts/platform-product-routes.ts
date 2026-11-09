@@ -6,4 +6,4 @@
  */
 export const PRODUCT_ROUTES = 'platform/app/(shell)/'
 /** The organization pages inside {@link PRODUCT_ROUTES}; workspace pages sit at its `workspace/`. */
-export const ORGANIZATION_ROUTES = PRODUCT_ROUTES
+export const ORGANIZATION_ROUTES = `${PRODUCT_ROUTES}`
