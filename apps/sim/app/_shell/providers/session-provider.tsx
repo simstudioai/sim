@@ -11,7 +11,8 @@ import {
   extractSessionDataFromAuthClientResult,
   getActiveOrganizationId,
 } from '@/lib/auth/session-response'
-import { sessionKeys, useSessionQuery } from '@/hooks/queries/session'
+import { useSessionQuery } from '@/hooks/queries/session'
+import { sessionKeys } from '@/hooks/queries/utils/session-keys'
 
 const logger = createLogger('SessionProvider')
 

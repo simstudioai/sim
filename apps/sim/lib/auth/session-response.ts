@@ -38,6 +38,40 @@ export function getActiveOrganizationId(session: unknown): string | null {
   return typeof value === 'string' ? value : null
 }
 
+/**
+ * A server session cut down to {@link AppSession}'s fields, the only ones a page may hand the
+ * browser. Everything else the server session carries stays out: the session token, IP address
+ * and user agent, and user columns such as ban and billing state.
+ */
+export function toAppSession(session: unknown): AppSession {
+  if (!isRecordLike(session) || !isRecordLike(session.user)) return null
+  const { user } = session
+  if (typeof user.id !== 'string' || typeof user.email !== 'string') return null
+  const meta: Record<string, unknown> = isRecordLike(session.session) ? session.session : {}
+  return {
+    user: {
+      id: user.id,
+      email: user.email,
+      ...(typeof user.emailVerified === 'boolean' && { emailVerified: user.emailVerified }),
+      ...((typeof user.name === 'string' || user.name === null) && { name: user.name }),
+      ...((typeof user.image === 'string' || user.image === null) && { image: user.image }),
+      ...(typeof user.role === 'string' && { role: user.role }),
+      ...(user.createdAt instanceof Date && { createdAt: user.createdAt }),
+      ...(user.updatedAt instanceof Date && { updatedAt: user.updatedAt }),
+    },
+    session: {
+      ...(typeof meta.id === 'string' && { id: meta.id }),
+      ...(typeof meta.userId === 'string' && { userId: meta.userId }),
+      ...(typeof meta.activeOrganizationId === 'string' && {
+        activeOrganizationId: meta.activeOrganizationId,
+      }),
+      ...((typeof meta.impersonatedBy === 'string' || meta.impersonatedBy === null) && {
+        impersonatedBy: meta.impersonatedBy,
+      }),
+    },
+  }
+}
+
 interface BetterAuthErrorEnvelope {
   data: null
   error: {

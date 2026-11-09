@@ -4,8 +4,9 @@
  * A first-paint read is only worth its seat if the client finds it, and may never cost the page.
  * Failure modes: an entry under a key the hook does not read, a read for a viewer the route would
  * refuse, a failed read or one outside its route contract hydrating as success or taking its
- * neighbours down, a slow read holding the shell past its budget, and a Links list whose input or
- * cached shape differs from what the page's infinite query reads.
+ * neighbours down, a slow read holding the shell past its budget, a Links list whose input or
+ * cached shape differs from what the page's infinite query reads, and a seeded session that carries
+ * the session token (or any other server-only field) into the page or ages from the wrong time.
  */
 import type { DehydratedState } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +16,7 @@ import { simLinksQueryOptions } from '@/hooks/queries/sim-links'
 import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 import { organizationSecretKeys } from '@/hooks/queries/utils/organization-secret-keys'
 import { searchHistoryKeys } from '@/hooks/queries/utils/search-history-keys'
+import { sessionKeys } from '@/hooks/queries/utils/session-keys'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 
 const mocks = vi.hoisted(() => ({
@@ -96,6 +98,7 @@ const ACCOUNTS_KEY = [...organizationAccountsKeys.detail('org-1')]
 const INTEGRATIONS_KEY = [...searchIntegrationsQueryOptions('org-1').queryKey]
 const HISTORY_KEY = [...searchHistoryKeys.list('org-1', 'viewer')]
 const SECRET_SOURCE_KEY = [...organizationSecretKeys.source('org-1')]
+const SESSION_KEY = [...sessionKeys.detail()]
 
 const seeded = (state: DehydratedState) => state.queries.map(({ queryKey }) => queryKey)
 
@@ -206,6 +209,94 @@ describe('a slow read', () => {
       } as unknown as PlatformOrganization)
       await vi.advanceTimersByTimeAsync(2_000)
       await expect(shell).resolves.toMatchObject({ queries: [] })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('the session the shell seeds', () => {
+  const CREATED = new Date('2026-01-01T00:00:00.000Z')
+  const SERVER_SESSION = {
+    user: {
+      id: 'viewer',
+      email: 'viewer@example.com',
+      emailVerified: true,
+      name: 'Viewer',
+      image: null,
+      role: 'user',
+      createdAt: CREATED,
+      updatedAt: CREATED,
+      banned: false,
+      banReason: null,
+      stripeCustomerId: 'cus_secret',
+    },
+    session: {
+      id: 'session-1',
+      userId: 'viewer',
+      token: 'session-token-secret',
+      ipAddress: '203.0.113.7',
+      userAgent: 'agent-secret',
+      expiresAt: new Date('2026-12-01T00:00:00.000Z'),
+      createdAt: CREATED,
+      updatedAt: CREATED,
+      activeOrganizationId: 'org-1',
+      impersonatedBy: 'admin-1',
+    },
+    // double-cast-allowed: the organization plugin's field is not on Better Auth's inferred type
+  } as unknown as NonNullable<Awaited<ReturnType<typeof getSession>>>
+
+  function shellFor() {
+    mocks.workspaces.mockRejectedValue(new Error('not under test'))
+    mocks.profile.mockRejectedValue(new Error('not under test'))
+    mocks.settings.mockRejectedValue(new Error('not under test'))
+    return prefetchShell({
+      ...organization(),
+      mothershipAvailable: false,
+      // double-cast-allowed: only the fields the shell's reads gate on matter to what they seed
+    } as unknown as PlatformOrganization)
+  }
+
+  it('holds the fields the client session query holds and none the server keeps', async () => {
+    vi.mocked(getSession).mockResolvedValue(SERVER_SESSION)
+    const state = await shellFor()
+    const entry = state.queries.find(
+      ({ queryKey }) => JSON.stringify(queryKey) === JSON.stringify(SESSION_KEY)
+    )
+    expect(entry?.state.data).toEqual({
+      user: {
+        id: 'viewer',
+        email: 'viewer@example.com',
+        emailVerified: true,
+        name: 'Viewer',
+        image: null,
+        role: 'user',
+        createdAt: CREATED,
+        updatedAt: CREATED,
+      },
+      session: {
+        id: 'session-1',
+        userId: 'viewer',
+        activeOrganizationId: 'org-1',
+        impersonatedBy: 'admin-1',
+      },
+    })
+    const payload = JSON.stringify(state)
+    for (const secret of ['session-token-secret', '203.0.113.7', 'agent-secret', 'cus_secret']) {
+      expect(payload).not.toContain(secret)
+    }
+  })
+
+  it('ages from the server read, so the client query is fresh on first paint', async () => {
+    vi.useFakeTimers({ now: new Date('2026-11-09T12:00:00.000Z') })
+    try {
+      vi.mocked(getSession).mockResolvedValue(SERVER_SESSION)
+      const state = await shellFor()
+      const entry = state.queries.find(
+        ({ queryKey }) => JSON.stringify(queryKey) === JSON.stringify(SESSION_KEY)
+      )
+      expect(entry?.state.status).toBe('success')
+      expect(entry?.state.dataUpdatedAt).toBe(Date.parse('2026-11-09T12:00:00.000Z'))
     } finally {
       vi.useRealTimers()
     }

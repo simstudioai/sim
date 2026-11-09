@@ -4,13 +4,9 @@ import {
   type AppSession,
   extractSessionDataFromAuthClientResult,
 } from '@/lib/auth/session-response'
+import { sessionKeys } from '@/hooks/queries/utils/session-keys'
 
 export const SESSION_STALE_TIME = 5 * 60 * 1000
-
-export const sessionKeys = {
-  all: ['session'] as const,
-  detail: () => [...sessionKeys.all, 'detail'] as const,
-}
 
 async function fetchSession(
   signal?: AbortSignal,

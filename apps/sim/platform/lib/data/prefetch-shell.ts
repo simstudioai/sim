@@ -2,6 +2,8 @@ import 'server-only'
 import { type DehydratedState, dehydrate } from '@tanstack/react-query'
 import { listMothershipChatsContract } from '@/lib/api/contracts/mothership-chats'
 import { getUserProfileContract } from '@/lib/api/contracts/user'
+import { getSession } from '@/lib/auth'
+import { toAppSession } from '@/lib/auth/session-response'
 import { listOrganizationChats } from '@/lib/mothership/chat/organization-chats'
 import { prefetchCurrentUserSettings } from '@/lib/settings/prefetch-current-user-settings'
 import { getCurrentUserProfileUseCase } from '@/lib/users/application/read-current-user'
@@ -17,6 +19,7 @@ import {
   mothershipChatKeys,
 } from '@/hooks/queries/mothership-chats'
 import { makeQueryClient } from '@/hooks/queries/utils/query-client'
+import { sessionKeys } from '@/hooks/queries/utils/session-keys'
 import {
   canListOrganizationChats,
   type PlatformOrganization,
@@ -31,11 +34,15 @@ import {
  * The legacy sidebar's reads for first paint, under the client hooks' keys and mappers. A failed
  * read is never dehydrated, so the client retries it. An empty workspace list stays uncached for
  * the same reason as the legacy seed: the client's own read reaches the default-workspace path.
+ * The session query is seeded from the session this request already read, cut to the fields the
+ * browser may hold, so first paint makes no `get-session` request of its own.
  */
 export async function prefetchShell(organization: PlatformOrganization): Promise<DehydratedState> {
   const { principal, activeOrganizationId } = await requireSessionViewer()
   const organizationId = organization.organization.id
   const queryClient = makeQueryClient()
+  const session = toAppSession(await getSession())
+  if (session) queryClient.setQueryData(sessionKeys.detail(), session)
   await Promise.all([
     canListOrganizationChats(organization) &&
       queryClient.prefetchQuery({

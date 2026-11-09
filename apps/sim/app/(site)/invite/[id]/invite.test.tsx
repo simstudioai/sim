@@ -66,7 +66,7 @@ vi.mock('@/app/(site)/invite/components/status-card', () => ({
 }))
 
 import Invite from '@/app/(site)/invite/[id]/invite'
-import { sessionKeys } from '@/hooks/queries/session'
+import { sessionKeys } from '@/hooks/queries/utils/session-keys'
 
 const mockPush = nextNavigationMockFns.router.push
 nextNavigationMockFns.mockUseParams.mockReturnValue({ id: 'invitation-1' })
