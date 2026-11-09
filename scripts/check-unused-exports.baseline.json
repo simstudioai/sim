@@ -49,7 +49,6 @@
   "apps/desktop/src/main/tray.ts#RecentChatStatus",
   "apps/desktop/src/main/tray.ts#addTrayEnvironmentSubscript",
   "apps/desktop/src/main/tray.ts#buildTrayMenuTemplate",
-  "apps/desktop/src/main/tray.ts#chatRoute",
   "apps/desktop/src/main/tray.ts#trayEnvironmentMarker",
   "apps/desktop/src/main/updater.ts#parseSemver",
   "apps/desktop/src/main/updater.ts#updateCheckIntervalMs",
