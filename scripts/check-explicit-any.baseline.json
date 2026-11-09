@@ -1080,7 +1080,6 @@
     "apps/sim/app/api/chat/[identifier]/route.ts": 1,
     "apps/sim/app/api/copilot/chat/stream/route.test.ts": 1,
     "apps/sim/app/api/copilot/chat/stream/route.ts": 1,
-    "apps/sim/app/api/copilot/chats/route.ts": 2,
     "apps/sim/app/api/credential-groups/enroll/[token]/oauth/[optionId]/route.test.ts": 1,
     "apps/sim/app/api/credential-groups/oauth-callback.test.ts": 4,
     "apps/sim/app/api/credential-groups/oauth-callback.ts": 2,

@@ -1,6 +1,6 @@
 import 'server-only'
 import { cookies, headers } from 'next/headers'
-import { permanentRedirect, redirect } from 'next/navigation'
+import { notFound, permanentRedirect, redirect } from 'next/navigation'
 import { resourceParam } from '@/lib/mothership/chat/search-params'
 import { mapLegacyWorkspaceUrl } from '@/lib/navigation/legacy-redirects'
 import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
@@ -215,6 +215,8 @@ export async function followProductRoute(
     readRememberedMode(organization),
     workspaceId ? readWorkspaceShellOrganizationId(workspaceId) : null,
   ])
+  // A workspace the viewer cannot open answers 404 before anything streams, and names no organization.
+  if (workspaceId && workspaceOrganizationId === null) notFound()
   const target = resolveProductRedirect(location, {
     organization,
     rememberedSearchMode,

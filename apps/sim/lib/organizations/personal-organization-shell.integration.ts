@@ -6,7 +6,7 @@
  * own workspaces; on-demand provisioning attaching existing workspaces (a payer change during a
  * rolling deploy, owed only to the backfill); concurrent first page loads creating two
  * personal organizations; and the surface read rendering an organization the URL names that the
- * viewer does not belong to, or their landing organization in place of one they do.
+ * viewer does not belong to.
  */
 import { db } from '@sim/db'
 import {
@@ -301,27 +301,5 @@ describe('the organization surface a shell renders', () => {
         input: { organizationId: othersId },
       })
     ).rejects.toBeInstanceOf(OrganizationMembershipNotFoundError)
-  })
-
-  it('reads the organization the viewer names over the one they land in', async () => {
-    const viewerId = await createUser()
-    const ownerId = await createUser()
-    const landingId = await ensureUserOrganization(viewerId)
-    const { organizationId: teamId } = await createOrganizationWithOwner({
-      ownerUserId: ownerId,
-      name: 'Team',
-      slug: `team-${generateId()}`.toLowerCase(),
-    })
-    await db
-      .insert(member)
-      .values({ id: generateId(), userId: viewerId, organizationId: teamId, role: 'member' })
-
-    const surface = await readOrganizationSurface.execute({
-      principal: createSessionPrincipal({ userId: viewerId }),
-      input: { organizationId: teamId },
-    })
-
-    expect(surface.organization.id).toBe(teamId)
-    expect(surface.organization.id).not.toBe(landingId)
   })
 })

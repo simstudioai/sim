@@ -20,7 +20,13 @@ vi.mock('@/platform/lib/data/shell-scope', () => ({
 
 import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { type RouteContext, resolveProductRedirect } from '@/platform/lib/data/route-resolution'
+import {
+  followProductRoute,
+  productLocation,
+  type RouteContext,
+  resolveProductRedirect,
+} from '@/platform/lib/data/route-resolution'
+import { readWorkspaceShellOrganizationId } from '@/platform/lib/data/shell-scope'
 
 interface Access {
   mothershipAvailable?: boolean
@@ -191,5 +197,27 @@ describe('resolveProductRedirect', () => {
 
   it('renders a path whose encoding is malformed', () => {
     expect(resolve('/workspace/%E0%A4%A/settings/team')).toBeNull()
+  })
+})
+
+describe('followProductRoute', () => {
+  it('answers not found for a workspace the viewer cannot open, before any redirect', async () => {
+    vi.mocked(readWorkspaceShellOrganizationId).mockResolvedValue(null)
+    await expect(
+      followProductRoute(
+        organization({ mothershipAvailable: false }),
+        productLocation('/workspace/ws-outside/home', {})
+      )
+    ).rejects.toMatchObject({ digest: 'NEXT_HTTP_ERROR_FALLBACK;404' })
+  })
+
+  it('opens a workspace the viewer can open', async () => {
+    vi.mocked(readWorkspaceShellOrganizationId).mockResolvedValue('org-1')
+    await expect(
+      followProductRoute(
+        organization({ mothershipAvailable: false }),
+        productLocation('/workspace/ws-1/workflows', {})
+      )
+    ).resolves.toBeUndefined()
   })
 })
