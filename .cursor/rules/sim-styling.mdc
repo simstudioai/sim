@@ -101,11 +101,11 @@ The chip family is the canonical chrome: `ChipInput`, `ChipTextarea`, `ChipModal
 - **Leading icon** → `icon` prop (rendered 14px in `--text-icon`).
 - **Trailing buttons** (reveal/copy/fetch) → `endAdornment`.
 - **Inner-input styling** (e.g. `font-mono`, number-spinner reset) → `inputClassName` (ChipInput only). See `components/integrations/connect-slack-bot-modal/connect-slack-bot-modal.tsx`.
-- **`ChipModalField` controls take NO className.** Pass `title`/`value`/`onChange`/`error`/`hint`/`required`/`flush`. The field owns label, control, and error/hint rendering. See `components/skills/skill-modal/skill-modal.tsx`.
+- **`ChipModalField` controls take NO className.** Pass `title`/`value`/`onChange`/`error`/`hint`/`required`/`flush`. The field owns label, control, and error/hint rendering. See `app/(landing)/integrations/components/request-integration-modal.tsx`.
 
 ### What className MAY carry
 
-Layout/sizing ONLY: `flex-1`, `w-full`, `w-[Npx]`, `min-w-0`, `max-w-*`, margins. `truncate` is allowed only for the explicit overflow exceptions above, never as a general layout class. Example: `<ChipInput icon={Search} className='min-w-0 flex-1' .../>` (`components/knowledge/base/components/connector-documents/connector-documents.tsx`). NEVER re-specify canonical chrome — the component already applies it.
+Layout/sizing ONLY: `flex-1`, `w-full`, `w-[Npx]`, `min-w-0`, `max-w-*`, margins. `truncate` is allowed only for the explicit overflow exceptions above, never as a general layout class. Example: `<ChipInput icon={Search} className='min-w-0 flex-1' .../>`. NEVER re-specify canonical chrome — the component already applies it.
 
 ### Form / chip-modal layout rhythm
 

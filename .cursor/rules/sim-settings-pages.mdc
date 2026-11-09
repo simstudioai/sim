@@ -1,6 +1,6 @@
 ---
 description: "Settings page layout and SettingsPanel design-system compliance"
-globs: ["apps/sim/app/(site)/{account,selfhost}/settings/**","apps/sim/components/{resource-tile,credential-detail}/**","apps/sim/components/{settings,permissions}/**","apps/sim/ee/**/components/**"]
+globs: ["apps/sim/app/(site)/{account,selfhost}/settings/**","apps/sim/components/resource-tile/**","apps/sim/components/settings/**","apps/sim/ee/**/components/**"]
 ---
 
 <!-- Generated from .claude/rules/sim-settings-pages.md by `bun run skills:sync`. Edit the source, not this file. -->
@@ -8,8 +8,8 @@ globs: ["apps/sim/app/(site)/{account,selfhost}/settings/**","apps/sim/component
 # Settings Pages
 
 These rules cover the settings outside the Platform: the account and self-hosted settings
-(`app/(site)/account/settings/`, `app/(site)/selfhost/settings/`) and the `components/settings`,
-`components/permissions` and `ee/**/components` modules in this rule's paths. Platform Settings follow
+(`app/(site)/account/settings/`, `app/(site)/selfhost/settings/`) and the `components/settings` and
+`ee/**/components` modules in this rule's paths. Platform Settings follow
 `sim-platform-views.md`. Each layout mounts `StandaloneSettingsShell`
 (`@/components/settings/standalone-settings-shell`), which owns page chrome via
 `SettingsHeaderShell` — a fixed header bar (a left back chip + right-aligned
@@ -313,36 +313,10 @@ A list row does not carry Delete when the resource has a detail page.
 
 ## Save / Discard + unsaved-changes guard
 
-Any settings surface with editable state uses **one** shared stack — never
-hand-roll a Save button, a Discard button, a `beforeunload`, or an "Unsaved
-changes" modal:
+Any settings surface with editable state uses **one** shared guard — never
+hand-roll a `beforeunload` or an "Unsaved changes" modal. Save and Discard are
+`SettingsAction` data in the panel's `actions`:
 
-- **`saveDiscardActions(config)`** (`@/components/settings/save-discard-actions`)
-  — returns the canonical **Discard + Save** `SettingsAction[]`. **Save is always
-  rendered** (primary), disabled until there is something to save, so every
-  editable surface announces its primary action in the same place and a create
-  form is never a page with no visible way to commit it; **Discard appears only
-  when dirty**. Spread it into a `SettingsPanel` `actions` array, beside any
-  sibling actions (a detail view's Delete / Remove override). Config: `dirty`,
-  `saving`, `onSave`, `onDiscard`, `saveDisabled?`, `saveTooltip?`, `creating?`,
-  `saveLabel?`, `savingLabel?`. Create flows pass `creating` — the
-  Create / Creating... labels come as a pair and can never drift apart.
-  `saveLabel`/`savingLabel` are only for genuinely bespoke wording (SSO's
-  `Update`); never hand-roll the pair to get a create label.
-- **`<SaveDiscardChips {...config} />`** (same module) — the identical rule
-  rendered as chips, for surfaces whose header takes a `ReactNode` instead of
-  action data (`CredentialDetailLayout`: skills, secrets, connected credentials).
-  Both stacks derive from the one function; never hand-roll a Save chip.
-
-`CredentialDetailLayout` stays slot-driven for exactly two reasons: its back
-control is a real `<ChipLink href>` (deep-linkable / middle-clickable, which
-`SettingsBackAction`'s `onSelect` cannot express), and actions like
-`SkillImportButton` own a hidden file input and their own pending state.
-**Everything else in one of those headers should be `SettingsAction` data**
-rendered through `<SettingsActionChips actions={…} />` from
-`@/components/settings/settings-header` — that is the shared chip path, and it
-is what keeps tone/icon/variant/tooltip handling from drifting between the two
-shells. Reach for it before hand-rolling a `Chip`.
 - **`useSettingsUnsavedGuard({ isDirty, navigationBlocked, onDiscard })`** from
   `@/hooks/use-settings-unsaved-guard` registers one editor with the
   shared settings store. Register every full-page draft, including inline creation
@@ -350,9 +324,7 @@ shells. Reach for it before hand-rolling a `Chip`.
 - **`onDiscard` resets the registered draft.** The root `SettingsNavigationGuard`
   owns the discard dialog, internal link interception, browser Back/Forward, and
   refresh protection for registered editors. Do not add a per-page dialog or
-  history listener for an editor using this hook. Skill create/detail pages retain
-  their existing `useUnsavedChangesGuard` and local dialog until they migrate to
-  the shared registration.
+  history listener for an editor using this hook.
 - **Native history needs entry indexes.** The Navigation API supplies them for
   legacy entries. Without it, native traversal to an unindexed entry cannot be
   cancelled reliably; never guess a direction or rewrite the history stack.
@@ -380,9 +352,6 @@ for the left back chip, `title` (the entity name), and the header `actions`, the
 render the body. Do NOT hand-roll a shell or header bar; a tab bar renders as the
 first body child. Gate/early-return states (not-entitled, loading, upgrade
 prompts) stay as-is.
-
-The route-based credential detail (`settings/secrets/[credentialId]`) is the lone
-exception — it lives outside `[section]` and keeps its own `CredentialDetailLayout`.
 
 ## Audit checklist
 

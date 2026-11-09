@@ -1,5 +1,5 @@
 import { escapeRegExp } from '@sim/utils/string'
-import { organizationId } from './live/session'
+import { organizationId } from '@/platform/checks/live/session'
 
 /**
  * Where the browser checks reach the Platform. A spec names a route by its path in the product
