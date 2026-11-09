@@ -77,9 +77,10 @@ export async function sidebarChecks() {
         'page'
       )
       await page.goto(url(org.chat(ADMIN_CHATS.agent.id)))
-      // The open chat's own row in the Chats section is current; no destination row is.
+      // The open chat's own row in the Chats section is current; no destination row is. A scoped
+      // locator matches ancestors only below its scope, so the sections are named without the nav.
       await expect(railLink(page, ADMIN_CHATS.agent.title)).toHaveAttribute('aria-current', 'page')
-      await expect(mainNav(page).locator('[aria-current="page"]:not(nav section *)')).toHaveCount(0)
+      await expect(mainNav(page).locator('[aria-current="page"]:not(section *)')).toHaveCount(0)
     })
   })
   await check(
