@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
-import { workspacePath } from '@/lib/navigation/paths'
+import { matchPathPattern, searchParamsQuery, workspacePath } from '@/lib/navigation/paths'
 import { WORKSPACE_SETTINGS_SUBPATHS } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import {
   LiveWorkspaceSettings,
@@ -22,18 +22,6 @@ export async function generateMetadata({
   return { title: key ? workspaceSettingTitle(key) : 'Settings' }
 }
 
-function matchesSubpath(patterns: readonly string[] | undefined, subpath: readonly string[]) {
-  return Boolean(
-    patterns?.some((pattern) => {
-      const segments = pattern.split('/')
-      return (
-        segments.length === subpath.length &&
-        segments.every((value, index) => value.startsWith(':') || value === subpath[index])
-      )
-    })
-  )
-}
-
 export default async function Page({
   params,
   searchParams,
@@ -48,11 +36,7 @@ export default async function Page({
   }
   const [key, ...subpath] = path
   if (!key) {
-    const params = new URLSearchParams()
-    for (const [name, value] of Object.entries(query)) {
-      for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value])
-        params.append(name, item)
-    }
+    const params = searchParamsQuery(query)
     const destination = workspacePath(workspaceId, `settings/${DEFAULT_WORKSPACE_SETTING}`)
     redirect(params.size ? `${destination}?${params}` : destination)
   }
@@ -61,7 +45,11 @@ export default async function Page({
     const { redirectLegacyWorkspaceUrl } = await import('@/platform/lib/data/legacy-redirects')
     return redirectLegacyWorkspaceUrl(workspaceId, ['settings', ...path], query)
   }
-  if (subpath.length && !matchesSubpath(WORKSPACE_SETTINGS_SUBPATHS[key], subpath)) notFound()
+  if (
+    subpath.length &&
+    !WORKSPACE_SETTINGS_SUBPATHS[key]?.some((pattern) => matchPathPattern(pattern, subpath))
+  )
+    notFound()
   return (
     <LiveWorkspaceSettings workspaceId={workspaceId} section={key}>
       <WorkspaceSettingsSection

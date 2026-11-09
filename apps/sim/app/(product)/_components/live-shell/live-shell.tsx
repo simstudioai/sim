@@ -1,7 +1,5 @@
 import { type ReactNode, Suspense } from 'react'
-import { getSessionCookie } from 'better-auth/cookies'
-import { cookies, headers } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { resolveLiveDestinations } from '@/app/(product)/_components/destinations'
 import { LiveComposerHost } from '@/app/(product)/_components/live-shell/live-composer-host'
 import { StaleSession } from '@/app/(product)/_components/live-shell/stale-session'
@@ -35,10 +33,8 @@ export async function LiveShell({
 }) {
   const surface = await readOrganizationSurface()
   if (surface.status !== 'ok') {
-    if (surface.status === 'unauthenticated') {
-      if (getSessionCookie(await headers())) return <StaleSession loginHref={LOGIN_PATH} />
-      redirect(LOGIN_PATH)
-    }
+    // The proxy sends a request with no session cookie to login, so this one's cookie is stale.
+    if (surface.status === 'unauthenticated') return <StaleSession loginHref={LOGIN_PATH} />
     if (surface.status === 'denied')
       return <AccessDenied workspacesHref={OUTSIDE_ORGANIZATION_HREF} />
     return <SurfaceUnavailable />

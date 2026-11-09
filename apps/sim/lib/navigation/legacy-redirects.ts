@@ -4,7 +4,7 @@
  * read that, after authorizing the viewer, so `next.config.ts` cannot redirect them statically.
  * Pure: the page passes the organization it read, and this decides the destination.
  */
-import { organizationRoutes, WORKSPACES_PATH } from '@/lib/navigation/paths'
+import { matchPathPattern, organizationRoutes, WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { settingsAliasHref } from '@/lib/navigation/settings-aliases'
 
 interface LegacyWorkspaceUrl {
@@ -102,17 +102,8 @@ const SETTINGS_REDIRECTS: readonly SettingsRedirect[] = [
 
 function matchSettingsRedirect(segments: readonly string[]) {
   for (const redirect of SETTINGS_REDIRECTS) {
-    const pattern = redirect.legacy.split('/')
-    if (pattern.length !== segments.length) continue
-    const params: Record<string, string> = {}
-    const matches = pattern.every((part, index) => {
-      if (part.startsWith(':')) {
-        params[part.slice(1)] = segments[index]
-        return true
-      }
-      return part === segments[index]
-    })
-    if (matches) return { redirect, params }
+    const params = matchPathPattern(redirect.legacy, segments)
+    if (params) return { redirect, params }
   }
   return null
 }
