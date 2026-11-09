@@ -3562,7 +3562,6 @@
   "apps/sim/lib/api/contracts/workspace-fork.ts#updateForkSyncDefaultBodySchema",
   "apps/sim/lib/api/contracts/workspaces.ts#WorkspaceMode",
   "apps/sim/lib/api/contracts/workspaces.ts#WorkspacePermissionsViewer",
-  "apps/sim/lib/api/contracts/workspaces.ts#WorkspaceUser",
   "apps/sim/lib/api/contracts/workspaces.ts#createWorkspaceBodySchema",
   "apps/sim/lib/api/contracts/workspaces.ts#deploymentFeaturesSchema",
   "apps/sim/lib/api/contracts/workspaces.ts#workspaceCreationPolicySchema",

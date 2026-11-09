@@ -27,6 +27,10 @@ interface CredentialDetailProps {
   onLeave: () => void
   fields?: ReactNode
   onReplace?: () => void
+  /** The Permissions tab's content where the account's tool policies come from live data. */
+  permissions?: ReactNode
+  /** Holds the name and description where nothing can rename this credential. */
+  detailsReadOnly?: boolean
 }
 
 export function CredentialDetail({
@@ -41,12 +45,25 @@ export function CredentialDetail({
   onLeave,
   fields,
   onReplace,
+  permissions,
+  detailsReadOnly = false,
 }: CredentialDetailProps) {
   const [view, setView] = useQueryStates(credentialDetailParams)
   const [displayName, setDisplayName] = useState(credential.displayName)
   const [description, setDescription] = useState(credential.description)
   const [error, setError] = useState<string>()
-  const editable = credential.role === 'admin' && credential.scope.kind !== 'organization-managed'
+  const manageable = credential.role === 'admin' && credential.scope.kind !== 'organization-managed'
+  const editable = manageable && !detailsReadOnly
+  const permissionsContent =
+    permissions ??
+    (credential.permissions && (
+      <ToolPermissions
+        account={credential}
+        permissions={credential.permissions}
+        readOnly={!editable}
+        onChange={(next) => onChange({ ...credential, permissions: next })}
+      />
+    ))
   const dirty = displayName !== credential.displayName || description !== credential.description
   return (
     <>
@@ -58,7 +75,7 @@ export function CredentialDetail({
       <ContentTabs
         label='Credential details'
         actions={
-          editable ? (
+          manageable ? (
             <>
               {onReplace && (
                 <Button variant='quiet' size='compact' onClick={onReplace}>
@@ -77,7 +94,7 @@ export function CredentialDetail({
           ) : undefined
         }
         current={
-          view.credentialTab === 'permissions' && !credential.permissions
+          view.credentialTab === 'permissions' && !permissionsContent
             ? 'details'
             : view.credentialTab
         }
@@ -189,21 +206,8 @@ export function CredentialDetail({
               />
             ),
           },
-          ...(credential.permissions
-            ? [
-                {
-                  id: 'permissions',
-                  label: 'Permissions',
-                  content: (
-                    <ToolPermissions
-                      account={credential}
-                      permissions={credential.permissions}
-                      readOnly={!editable}
-                      onChange={(permissions) => onChange({ ...credential, permissions })}
-                    />
-                  ),
-                },
-              ]
+          ...(permissionsContent
+            ? [{ id: 'permissions', label: 'Permissions', content: permissionsContent }]
             : []),
         ]}
       />
