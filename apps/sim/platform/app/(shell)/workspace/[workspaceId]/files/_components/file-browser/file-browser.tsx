@@ -498,7 +498,8 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
     toast.error(message, {
       action: {
         label: 'Upgrade',
-        onClick: () => router.push(platformHref('/settings/billing', searchParams)),
+        onClick: () =>
+          router.push(platformHref('/settings/billing/plans?reason=storage', searchParams)),
       },
     })
 
