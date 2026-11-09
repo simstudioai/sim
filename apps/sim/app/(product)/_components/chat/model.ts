@@ -174,7 +174,8 @@ interface ToolApprovalProgress {
   submitted: readonly string[]
 }
 
-interface AssistantReviewField {
+/** A reviewed field as shown: readable label and value, and whether the reader may change it. */
+export interface AssistantReviewField {
   name: string
   label: string
   value: string
@@ -190,13 +191,18 @@ export interface AssistantReviewAction {
   fields: readonly AssistantReviewField[]
 }
 
+/** What one reviewed action did, and the fields it ran with while they are still kept. */
 export interface AssistantReceipt {
   id: string
   title: string
   state: string
   stateLabel: string
-  detail?: string
+  /** The action's leading field, shown while the receipt is closed. */
+  summary?: string
   warning?: string
+  account?: string
+  /** Absent once the details are no longer available. */
+  fields?: readonly AssistantReviewField[]
 }
 
 /**
@@ -225,18 +231,25 @@ export interface ChatRuntime {
   decideTools: (ids: readonly string[], decision: ToolDecision) => Promise<'ok' | 'gone'>
   /** Actions in review for this chat, keyed by the tool call that proposed them. */
   review?: {
-    /** The latest assistant turn in this chat, which the pending actions belong to. */
+    /** The assistant turn the pending actions belong to. */
     turnId?: string
+    chatId?: string
+    /** A turn is streaming, so the current turn's receipts poll. */
+    active: boolean
+    /** The stream each assistant turn ran on, which names that turn's receipts. */
+    streamIds: ReadonlyMap<string, string>
     status: 'loading' | 'ready' | 'error'
     actions: readonly AssistantReviewAction[]
-    receipts: readonly AssistantReceipt[]
+    /** More actions wait behind this batch. */
+    more: boolean
     pending: boolean
     retry: () => void
+    /** Resolves to the failure message of each action that could not be saved. */
     decide: (
       actionIds: readonly string[],
       decision: 'allow' | 'skip',
       edits?: Record<string, Record<string, string>>
-    ) => Promise<void>
+    ) => Promise<Record<string, string>>
   }
   rate?: (input: {
     query: string

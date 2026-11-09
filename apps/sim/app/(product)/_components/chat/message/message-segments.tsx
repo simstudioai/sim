@@ -27,14 +27,31 @@ export interface UsageNoticeProps {
   message: string
 }
 
+/** One assistant turn's action history, read by the stream it ran on. */
+export interface TurnReceiptsProps {
+  chatId: string
+  streamId: string
+  /** The turn is still streaming, so its receipts poll. */
+  active: boolean
+  mountedTurnCount: number
+  /** Actions still waiting for review, which show as review cards instead. */
+  pendingIds: ReadonlySet<string>
+}
+
 /** Cards that talk to a backend, supplied by the live chat. A fixture transcript carries none. */
 export interface ChatCards {
   Credential: ComponentType<CredentialCardProps>
   Usage: ComponentType<UsageNoticeProps>
+  TurnReceipts?: ComponentType<TurnReceiptsProps>
 }
 
 const Cards = createContext<ChatCards | null>(null)
 export const ChatCardsProvider = Cards.Provider
+
+/** The live chat's backend cards, or null in a fixture transcript. */
+export function useChatCards(): ChatCards | null {
+  return useContext(Cards)
+}
 
 function Segment({ segment }: { segment: PlatformSegment }) {
   const runtime = useChatHandlers()
