@@ -24,6 +24,23 @@ const InviteModal = dynamic(
   { ssr: false }
 )
 
+/** Lazy like the invite form: both read the viewer's real invitations, which fixtures never have. */
+const ViewInvitationsItem = dynamic(
+  () =>
+    import('@/app/(product)/_components/pending-invitations/pending-invitations').then(
+      (module) => module.ViewInvitationsItem
+    ),
+  { ssr: false }
+)
+
+const InvitationsModal = dynamic(
+  () =>
+    import('@/app/(product)/_components/pending-invitations/invitations-modal').then(
+      (module) => module.InvitationsModal
+    ),
+  { ssr: false }
+)
+
 function focusNameField(frame: HTMLDivElement | null) {
   const field = frame?.querySelector('input')
   field?.focus()
@@ -45,6 +62,7 @@ export function OrganizationMenu({
 }: OrganizationMenuProps) {
   const [open, setOpen] = useState(false)
   const [invite, setInvite] = useState(false)
+  const [invitations, setInvitations] = useState(false)
   const [draftName, setDraftName] = useState<string | null>(null)
   const [renameError, setRenameError] = useState<string | null>(null)
   const [renaming, setRenaming] = useState(false)
@@ -218,8 +236,20 @@ export function OrganizationMenu({
               onSettings()
             }}
           />
+          {actions && (
+            <ViewInvitationsItem
+              onOpen={() => {
+                opener.current?.focus({ preventScroll: true })
+                setOpen(false)
+                setInvitations(true)
+              }}
+            />
+          )}
         </div>
       </AnchoredPopover>
+      {actions && invitations && (
+        <InvitationsModal open={invitations} onOpenChange={setInvitations} />
+      )}
       {actions ? (
         invite && <InviteModal open={invite} onOpenChange={setInvite} />
       ) : (
