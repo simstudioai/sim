@@ -1,20 +1,3 @@
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-section-gap);
-  min-inline-size: 0;
-}
-.switchRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-16);
-  min-inline-size: 0;
-}
-.switchRow label {
-  min-inline-size: 0;
-  color: var(--ui-ink);
-}
 .status,
 .available {
   display: inline-flex;

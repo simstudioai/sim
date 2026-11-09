@@ -4,57 +4,54 @@ import { forwardRef, useImperativeHandle, useMemo, useRef } from 'react'
 import type { Editor } from '@tiptap/core'
 import type { SlashCommandItem } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/slash-commands'
 import { SuggestionList } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/suggestion-list'
+import type { SuggestionPlacement } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/suggestion-popup'
 import {
   type SuggestionKeyDownHandler,
   useSuggestionKeyboard,
 } from '@/platform/lib/data/files/markdown'
 
-interface SlashCommandListProps {
+interface SlashCommandListProps extends SuggestionPlacement {
   items: SlashCommandItem[]
   command: (item: SlashCommandItem) => void
   editor: Editor
 }
 
+/** The commands with each group's together, in the order the groups first appear. */
+function inGroupOrder(items: SlashCommandItem[]): SlashCommandItem[] {
+  const rank = new Map<string, number>()
+  for (const item of items) if (!rank.has(item.group)) rank.set(item.group, rank.size)
+  return [...items].sort((a, b) => (rank.get(a.group) ?? 0) - (rank.get(b.group) ?? 0))
+}
+
 /** The `/` block menu: grouped commands with their shortcuts, driven by arrow keys and Enter. */
 export const SlashCommandList = forwardRef<SuggestionKeyDownHandler, SlashCommandListProps>(
-  function SlashCommandList({ items, command, editor }, ref) {
-    const containerRef = useRef<HTMLDivElement>(null)
+  function SlashCommandList({ items, command, editor, anchor, onDismiss }, ref) {
+    const ordered = useMemo(() => inGroupOrder(items), [items])
+    const rows = useMemo(
+      () =>
+        ordered.map((item) => ({ name: item.title, group: item.group, shortcut: item.shortcut })),
+      [ordered]
+    )
+    // The shared list scrolls its active row into view itself.
+    const listRef = useRef<HTMLElement>(null)
     const { activeIndex, setActiveIndex, onKeyDown } = useSuggestionKeyboard(
-      items,
+      ordered,
       command,
-      containerRef
+      listRef
     )
     useImperativeHandle(ref, () => ({ onKeyDown }), [onKeyDown])
-
-    const groups = useMemo(() => {
-      const ordered: { group: string; items: { item: SlashCommandItem; index: number }[] }[] = []
-      const byGroup = new Map<string, (typeof ordered)[number]>()
-      items.forEach((item, index) => {
-        const bucket = byGroup.get(item.group)
-        if (bucket) bucket.items.push({ item, index })
-        else {
-          const next = { group: item.group, items: [{ item, index }] }
-          byGroup.set(item.group, next)
-          ordered.push(next)
-        }
-      })
-      return ordered
-    }, [items])
 
     return (
       <SuggestionList
         editor={editor}
-        containerRef={containerRef}
-        groups={groups}
-        activeIndex={activeIndex}
-        setActiveIndex={setActiveIndex}
-        command={command}
-        ariaLabel='Commands'
-        idPrefix='slash-command'
-        emptyLabel='No results'
-        itemKey={(item) => item.title}
-        itemLabel={(item) => item.title}
-        itemDetail={(item) => item.shortcut}
+        label='Commands'
+        empty='No results'
+        rows={rows}
+        active={activeIndex}
+        onHighlight={setActiveIndex}
+        onSelect={(index) => command(ordered[index])}
+        anchor={anchor}
+        onDismiss={onDismiss}
       />
     )
   }

@@ -5,17 +5,6 @@
   min-inline-size: 0;
 }
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-field-label-gap);
-  min-inline-size: 0;
-}
-
-.label {
-  color: var(--ui-ink);
-}
-
 .note {
   color: var(--ui-secondary);
 }

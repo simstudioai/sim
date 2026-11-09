@@ -2,8 +2,10 @@
 
 import { useRef } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { FieldFrame } from '@sim/emcn/field'
 import { generateId } from '@sim/utils/id'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/eval-input/eval-input.module.css'
+import { FieldLabelRow } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/field-label-row/field-label-row'
 import { LongInput } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/long-input/long-input'
 import { ShortInput } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/short-input/short-input'
 import { useSubBlockValue } from '@/platform/lib/data/workflow-editor'
@@ -113,35 +115,32 @@ export function EvalInput({
         const maxText = boundText(metric, 'max')
         return (
           <div key={metric.id} className={styles.metric}>
-            <div className={styles.header}>
-              <span className={styles.title} data-type='T060'>
-                {title}
-              </span>
-              {!isPreview && (
-                <span className={styles.actions}>
-                  <IconButton
-                    label='Add metric'
-                    icon='I074'
-                    size='compact'
-                    tooltip
-                    disabled={disabled}
-                    onClick={addMetric}
-                  />
-                  <IconButton
-                    label='Delete metric'
-                    icon='I105'
-                    size='compact'
-                    tooltip
-                    disabled={disabled || metrics.length === 1}
-                    onClick={() => removeMetric(metric.id)}
-                  />
-                </span>
-              )}
-            </div>
-            <div className={styles.field}>
-              <span className={styles.label} data-type='T059'>
-                Name
-              </span>
+            <FieldLabelRow
+              label={title}
+              actions={
+                !isPreview && (
+                  <>
+                    <IconButton
+                      label='Add metric'
+                      icon='I074'
+                      size='compact'
+                      tooltip
+                      disabled={disabled}
+                      onClick={addMetric}
+                    />
+                    <IconButton
+                      label='Delete metric'
+                      icon='I105'
+                      size='compact'
+                      tooltip
+                      disabled={disabled || metrics.length === 1}
+                      onClick={() => removeMetric(metric.id)}
+                    />
+                  </>
+                )
+              }
+            />
+            <FieldFrame label='Name'>
               <ShortInput
                 blockId={blockId}
                 subBlockId={subBlockId}
@@ -160,11 +159,8 @@ export function EvalInput({
                 allowReferences={false}
                 workflowSearchValuePath={[index, 'name']}
               />
-            </div>
-            <div className={styles.field}>
-              <span className={styles.label} data-type='T059'>
-                Description
-              </span>
+            </FieldFrame>
+            <FieldFrame label='Description'>
               <LongInput
                 blockId={blockId}
                 subBlockId={subBlockId}
@@ -182,12 +178,9 @@ export function EvalInput({
                 disabled={disabled}
                 workflowSearchValuePath={[index, 'description']}
               />
-            </div>
+            </FieldFrame>
             <div className={styles.range}>
-              <div className={styles.field}>
-                <span className={styles.label} data-type='T059'>
-                  Min Value
-                </span>
+              <FieldFrame label='Min Value'>
                 <ShortInput
                   blockId={blockId}
                   subBlockId={subBlockId}
@@ -206,11 +199,8 @@ export function EvalInput({
                   allowReferences={false}
                   workflowSearchValuePath={[index, 'range', 'min']}
                 />
-              </div>
-              <div className={styles.field}>
-                <span className={styles.label} data-type='T059'>
-                  Max Value
-                </span>
+              </FieldFrame>
+              <FieldFrame label='Max Value'>
                 <ShortInput
                   blockId={blockId}
                   subBlockId={subBlockId}
@@ -229,7 +219,7 @@ export function EvalInput({
                   allowReferences={false}
                   workflowSearchValuePath={[index, 'range', 'max']}
                 />
-              </div>
+              </FieldFrame>
             </div>
           </div>
         )

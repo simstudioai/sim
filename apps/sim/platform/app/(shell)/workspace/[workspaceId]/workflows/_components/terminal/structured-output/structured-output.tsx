@@ -2,7 +2,6 @@
 
 import {
   createContext,
-  type KeyboardEvent,
   memo,
   type ReactNode,
   type RefObject,
@@ -239,12 +238,6 @@ function renderHighlightedSegments(
   return segments
 }
 
-function onToggleKey(event: KeyboardEvent, toggle: () => void) {
-  if (event.key !== 'Enter' && event.key !== ' ') return
-  event.preventDefault()
-  toggle()
-}
-
 interface NodeHeaderProps {
   name: string
   type: ValueType
@@ -257,14 +250,7 @@ interface NodeHeaderProps {
 /** A key's row: its name, its value type, a count while folded, and the disclosure chevron. */
 function NodeHeader({ name, type, isExpanded, isError, summary, onToggle }: NodeHeaderProps) {
   return (
-    <div
-      className={styles.header}
-      role='button'
-      tabIndex={0}
-      aria-expanded={isExpanded}
-      onClick={onToggle}
-      onKeyDown={(event) => onToggleKey(event, onToggle)}
-    >
+    <button type='button' className={styles.header} aria-expanded={isExpanded} onClick={onToggle}>
       <span className={styles.key} data-error={isError || undefined} data-type='T060'>
         {name}
       </span>
@@ -274,10 +260,10 @@ function NodeHeader({ name, type, isExpanded, isError, summary, onToggle }: Node
           {summary}
         </span>
       )}
-      <span className={styles.chevron} data-collapsed={!isExpanded || undefined}>
-        <Icon name='I051' />
+      <span className={styles.chevron}>
+        <Icon name={isExpanded ? 'I051' : 'I090'} />
       </span>
-    </div>
+    </button>
   )
 }
 

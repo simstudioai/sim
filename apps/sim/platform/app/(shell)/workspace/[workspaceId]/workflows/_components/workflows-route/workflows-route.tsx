@@ -855,6 +855,11 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
       description={
         canEdit ? 'Create one to start building.' : 'Ask a workspace admin to create one.'
       }
+      action={
+        canEdit && !ops.isCreatingWorkflow
+          ? { label: 'Create workflow', onClick: () => ops.createWorkflow(null) }
+          : undefined
+      }
     />
   )
 

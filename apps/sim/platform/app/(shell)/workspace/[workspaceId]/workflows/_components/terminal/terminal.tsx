@@ -13,9 +13,9 @@ import {
 } from 'react'
 import { IconButton } from '@sim/emcn/button'
 import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
-import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
+import { ActionMenu, type MenuAction, PointActionMenu } from '@sim/emcn/menu/action-menu'
 import { useRegisterGlobalCommands } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/global-commands/global-commands'
-import { PointerMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/pointer-menu/pointer-menu'
+import { ResizeHandle } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/resize-handle/resize-handle'
 import { LogList } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/terminal/log-list/log-list'
 import { OutputPanel } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/terminal/output-panel/output-panel'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/terminal/terminal.module.css'
@@ -556,11 +556,9 @@ export function Terminal() {
       }}
     >
       {!isMobile && (
-        <div
-          className={styles.resizer}
-          role='separator'
-          aria-orientation='horizontal'
-          aria-label='Resize terminal'
+        <ResizeHandle
+          edge='block-start'
+          label='Resize terminal'
           onPointerDown={startTerminalResize}
         />
       )}
@@ -648,10 +646,9 @@ export function Terminal() {
           />
         )}
       </div>
-      <PointerMenu
+      <PointActionMenu
         label='Log actions'
-        isOpen={rowMenu !== null}
-        position={rowMenu ?? { x: 0, y: 0 }}
+        point={rowMenu}
         onClose={() => setRowMenu(null)}
         actions={rowMenuActions}
       />
