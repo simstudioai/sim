@@ -373,39 +373,39 @@ Every section of the legacy settings (`components/settings/navigation.ts`, `app/
 
 | Domain | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- | --- |
-| Settings home | General | `app/workspace/[workspaceId]/settings` | Open | `/settings/general`: org Settings, Account. Existing section; its capabilities are the rows under Settings: personal |
-| Settings home | Desktop | `app/workspace/[workspaceId]/settings` | Open | `/settings/desktop`: org Settings, Account, listed only in the desktop app |
-| Settings home | Browser, passwords | `app/workspace/[workspaceId]/settings` | Open | `/settings/browser`: org Settings, Account, listed only in the desktop app |
-| Settings home | Terminal | `app/workspace/[workspaceId]/settings` | Open | `/settings/terminal`: org Settings, Account, listed only in the desktop app |
-| Settings home | Subscription | `app/workspace/[workspaceId]/settings` | Open | `/settings/billing`: org Settings, Account. Existing section; rows under Settings: billing and usage |
-| Settings home | Credit usage | `app/workspace/[workspaceId]/settings` | Open | `/settings/billing/credit-usage`: org Settings, a Subscription sub-page |
-| Settings home | Teammates | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/teammates`: workspace Settings tab |
-| Settings home | Secrets | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/secrets`: workspace Settings tab |
-| Settings home | Secret details, references and usage | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/secrets/[credentialId]`: workspace Settings tab, a Secrets sub-page |
-| Settings home | BYOK | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/byok`: workspace Settings tab |
-| Settings home | Sandboxes | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/sandboxes`: workspace Settings tab |
-| Settings home | Custom tools | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/custom-tools`: workspace Settings tab |
-| Settings home | MCP tools | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/mcp`: workspace Settings tab |
-| Settings home | MCP servers | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/workflow-mcp-servers`: workspace Settings tab |
-| Settings home | Sim API keys | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/api-keys`: workspace Settings tab |
-| Settings home | Sim Mailer | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/inbox`: workspace Settings tab |
-| Settings home | Recently deleted, workspace items | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/recently-deleted`: workspace Settings tab. Deleted chats stay in org Settings |
-| Settings home | Workspace forks | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/forks`: workspace Settings tab |
-| Settings home | Custom blocks | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/custom-blocks`: workspace Settings tab |
-| Settings home | Requests, workspace scope | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/requests`: workspace Settings tab, the shared Requests panel with the workspace scope |
-| Settings home | Members | `app/workspace/[workspaceId]/settings` | Open | `/settings/members`: org Settings. Existing section |
-| Settings home | Credential groups | `app/workspace/[workspaceId]/settings` | Open | `/settings/connected-accounts`: org Settings. Existing section |
-| Settings home | Insights and usage events | `app/workspace/[workspaceId]/settings` | Open | `/settings/usage`, `/settings/usage/events`: org Settings. Existing section |
-| Settings home | Permission groups | `app/workspace/[workspaceId]/settings` | Open | `/settings/access-control`: org Settings. Existing section |
-| Settings home | Audit logs | `app/workspace/[workspaceId]/settings` | Open | `/settings/audit-logs`: org Settings. Existing section |
-| Settings home | Single sign-on | `app/workspace/[workspaceId]/settings` | Open | `/settings/sso`: org Settings. Existing section |
-| Settings home | Security | `app/workspace/[workspaceId]/settings` | Open | `/settings/security`: org Settings. Existing section |
-| Settings home | Data retention | `app/workspace/[workspaceId]/settings` | Open | `/settings/data-retention`: org Settings. Existing section |
-| Settings home | Data drains | `app/workspace/[workspaceId]/settings` | Open | `/settings/data-drains`: org Settings. Existing section |
-| Settings home | White-labeling | `app/workspace/[workspaceId]/settings` | Open | `/settings/whitelabeling`: org Settings. Existing section |
-| Settings home | Admin | `app/workspace/[workspaceId]/settings` | Open | `/settings/admin`: org Settings, Platform. Existing section |
-| Settings home | Mothership | `app/workspace/[workspaceId]/settings` | Open | `/settings/mothership`: org Settings, Platform. Existing section |
-| Settings home | Self hosting | `app/workspace/[workspaceId]/settings` | Open | `/settings/self-host`: org Settings, Platform, on a self-hosted deployment |
+| Settings home | General | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/general`: org Settings, Account. Existing section; its capabilities are the rows under Settings: personal |
+| Settings home | Desktop | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/desktop`: org Settings, Account, listed only in the desktop app. No live check yet. Ported: preferences, notifications, updates, computer use; refuses without the bridge |
+| Settings home | Browser, passwords | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/browser`: org Settings, Account, listed only in the desktop app. No live check yet. Ported with passwords, import and clearing; `browserView`, `browserImport`, `browserClear` kept |
+| Settings home | Terminal | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/terminal`: org Settings, Account, listed only in the desktop app. No live check yet. Ported: run commands, theme picker, zoom |
+| Settings home | Subscription | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/billing`: org Settings, Account. Existing section; rows under Settings: billing and usage |
+| Settings home | Credit usage | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/billing/credit-usage`: org Settings, a Subscription sub-page. No live check yet. Ported: the glance and the page with period, range, export; shown on non-Enterprise plans because every user now has an organization. Reads the viewer's own usage logs |
+| Settings home | Teammates | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/teammates`: workspace Settings tab. No live check yet. Ported with a workspace invite modal in the section; the zone invite modal only invites to the organization |
+| Settings home | Secrets | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/secrets`: workspace Settings tab. No live check yet. Ported, with pending create requests from the `{{` suggestion |
+| Settings home | Secret details, references and usage | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/secrets/[credentialId]`: workspace Settings tab, a Secrets sub-page. No live check yet. Ported. A reference names the stored field id and a run trigger is text: block titles and icons need the blocks registry |
+| Settings home | BYOK | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/byok`: workspace Settings tab. No live check yet. Ported with organization scope. Nebius and Thinking Machines show the generic mark |
+| Settings home | Sandboxes | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/sandboxes`: workspace Settings tab. No live check yet. Ported with the locked upgrade notice. Managed CLIs lose alias search |
+| Settings home | Custom tools | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/custom-tools`: workspace Settings tab. No live check yet. Ported, sharing the promoted custom tool editor with the workflow editor |
+| Settings home | MCP tools | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/mcp`: workspace Settings tab. No live check yet. Ported with `mcpServerId`. Authorize moved from the list row to the server's details |
+| Settings home | MCP servers | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/workflow-mcp-servers`: workspace Settings tab. No live check yet. Ported with `mcpServerId` and `server-tab` |
+| Settings home | Sim API keys | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/api-keys`: workspace Settings tab. No live check yet. Ported, combined scope, sharing the promoted create dialog with deploy |
+| Settings home | Sim Mailer | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/inbox`: workspace Settings tab. No live check yet. Ported with the locked upgrade notice |
+| Settings home | Recently deleted, workspace items | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/recently-deleted`: workspace Settings tab. Deleted chats stay in org Settings. No live check yet. Ported; restoring a folder opens the Workflows list in it |
+| Settings home | Workspace forks | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/forks`: workspace Settings tab. No live check yet. Ported except Compare in sync and the `<block.output>` picker in custom-block fields, which need the canvas-owned preview and tag dropdown |
+| Settings home | Custom blocks | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/custom-blocks`: workspace Settings tab. No live check yet. Ported. Its chunk bundles the blocks registry for the output picker, as Tables' workflow panel does |
+| Settings home | Requests, workspace scope | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/requests`: workspace Settings tab, the shared Requests panel with the workspace scope. No live check yet. Ported; zone access-request links open it |
+| Settings home | Members | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/members`: org Settings. Existing section |
+| Settings home | Credential groups | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/connected-accounts`: org Settings. Existing section |
+| Settings home | Insights and usage events | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/usage`, `/settings/usage/events`: org Settings. Existing section |
+| Settings home | Permission groups | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/access-control`: org Settings. Existing section |
+| Settings home | Audit logs | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/audit-logs`: org Settings. Existing section |
+| Settings home | Single sign-on | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/sso`: org Settings. Existing section |
+| Settings home | Security | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/security`: org Settings. Existing section |
+| Settings home | Data retention | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/data-retention`: org Settings. Existing section |
+| Settings home | Data drains | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/data-drains`: org Settings. Existing section |
+| Settings home | White-labeling | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/whitelabeling`: org Settings. Existing section |
+| Settings home | Admin | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/admin`: org Settings, Platform. Existing section |
+| Settings home | Mothership | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/mothership`: org Settings, Platform. Existing section |
+| Settings home | Self hosting | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/self-host`: org Settings, Platform, on a self-hosted deployment. No live check yet. Ported |
 
 ## Workspace pages
 
@@ -433,7 +433,7 @@ The workspace's Dashboard, Issues, Changelog and Logs are Platform pages with fi
 | Workspace | Live workflow view in the deploy modal, API language examples, editor connections panel, canvas error notifications, panel and floating chat, floating variables | `w/[workflowId]/` | Hidden | Removed by product direction |
 | Workspace | Tests list, Run all, test details and run picker | `app/workspace/[workspaceId]/tests/` | Unverified | No live check yet. Behind `workflow-tests` |
 | Workspace | Test source edited beside its results; preview of the exact version a test ran against | `tests/components/test-dashboard.tsx` | Open | Edit opens the file in Files and ran-against rows open the current workflow: the file viewer and canvas preview are route-owned and need promoting first |
-| Workspace | Workspace settings tab | `app/workspace/[workspaceId]/settings/` | Legacy | The tab exists and is empty by product direction; settings stay on the legacy workspace |
+| Workspace | Workspace settings tab: sections, navigation, gates, restricted sections with Request access | `app/workspace/[workspaceId]/settings/` | Unverified | No live check yet. `lib/data/workspace-settings` mirrors the legacy settings sidebar's gates; see Settings: legacy settings homes |
 
 ## Zone
 
