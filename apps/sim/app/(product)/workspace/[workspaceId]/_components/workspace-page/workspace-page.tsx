@@ -195,7 +195,7 @@ interface WorkspaceEmptyProps {
   action?: { label: string; href: string } | { label: string; onClick: () => void }
 }
 
-/** An empty tab, in the page flow beneath its controls. */
+/** An empty tab, centered in the space beneath its controls. */
 export function WorkspaceEmpty({ title, description, action }: WorkspaceEmptyProps) {
   return (
     <div className={styles.empty}>
