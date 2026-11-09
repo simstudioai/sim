@@ -247,6 +247,8 @@ test('chat panel sizes survive navigation, chat switches, collapse, and layout c
         platform: 'browser',
         tsconfig: join(SIM_DIR, 'tsconfig.json'),
         define: { 'process.env.NODE_ENV': '"development"' },
+        // One bundle inlines the file viewer's lazy Monaco editor, whose stylesheet loads its icon font.
+        loader: { '.ttf': 'dataurl' },
       })
       javascript = bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.text ?? ''
       stylesheet = `${css.css}\n${bundle.outputFiles.find((file) => file.path.endsWith('.css'))?.text ?? ''}`
