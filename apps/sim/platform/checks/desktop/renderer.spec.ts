@@ -118,8 +118,10 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
     page = await app.firstWindow()
     const window = await app.browserWindow(page)
     await window.evaluate((native) => native.setContentSize(960, 720))
-    await page.waitForURL((url) => url.origin === desktopOrigin)
-    // The window's own entry load must settle before the spec navigates it elsewhere.
+    // The entry route hands off to the workspace resolver, which lands on the organization's Home;
+    // the spec navigates only once that walk has settled there.
+    const organizationHome = new URL(fixtureUrl('/home', desktopOrigin)).pathname
+    await page.waitForURL((url) => url.pathname === organizationHome, { timeout: 120_000 })
     await waitUntilHydrated(page)
     for (const theme of ['light', 'dark']) {
       await checkCredentialFields(page, desktopOrigin, theme, testInfo, () =>
