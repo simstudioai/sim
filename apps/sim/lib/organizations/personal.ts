@@ -35,6 +35,7 @@ import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/iden
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { enqueuePersonalOrganizationAuditTx } from '@/lib/organizations/lifecycle-audit'
 import { enqueueOrganizationStoredObjectCleanup } from '@/lib/organizations/resource-cleanup'
 import { transferWorkspaceProjects } from '@/lib/projects/membership'
 
@@ -122,6 +123,12 @@ export async function createPersonalOrganizationTx(
     role: 'owner',
     createdAt: now,
   })
+  await enqueuePersonalOrganizationAuditTx(tx, {
+    change: 'created',
+    organizationId,
+    userId,
+    metadata: {},
+  })
   return organizationId
 }
 
@@ -207,6 +214,12 @@ export async function convertPersonalOrganizationToTeamTx(
     .set({ kind: 'team', name, slug, metadata, updatedAt: new Date() })
     .where(eq(organization.id, personal.organizationId))
 
+  await enqueuePersonalOrganizationAuditTx(tx, {
+    change: 'converted',
+    organizationId: personal.organizationId,
+    userId,
+    metadata: { detachedWorkspaceIds },
+  })
   logger.info('Converted personal organization into a team', {
     userId,
     organizationId: personal.organizationId,
@@ -502,6 +515,17 @@ export async function retirePersonalOrganizationTx(
     .where(and(eq(member.userId, userId), eq(member.organizationId, personalOrganizationId)))
   await tx.delete(organization).where(eq(organization.id, personalOrganizationId))
 
+  await enqueuePersonalOrganizationAuditTx(tx, {
+    change: 'retired',
+    organizationId: personalOrganizationId,
+    userId,
+    metadata: {
+      targetOrganizationId,
+      detachedWorkspaceIds,
+      movedCounts: moved,
+      deletedCounts: deleted,
+    },
+  })
   logger.info('Retired personal organization on joining another organization', {
     userId,
     personalOrganizationId,

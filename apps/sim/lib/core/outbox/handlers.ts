@@ -43,6 +43,7 @@ import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/docume
 import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
 import { INBOX_CLEANUP_EVENT } from '@/lib/mothership/inbox/cleanup-event'
 import { MEMORY_CLEANUP_EVENT } from '@/lib/mothership/memories/cleanup-event'
+import { PERSONAL_ORGANIZATION_AUDIT_EVENT } from '@/lib/organizations/lifecycle-audit-event'
 import { ORGANIZATION_RESOURCE_CLEANUP_EVENT } from '@/lib/organizations/resource-cleanup-event'
 import {
   PROJECT_FILE_DOCUMENT_RETIRE_EVENT,
@@ -197,6 +198,15 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
         '@/lib/knowledge/documents/processing-outbox-handler'
       )
       return knowledgeDocumentProcessingOutboxHandlers
+    },
+  },
+  {
+    events: [PERSONAL_ORGANIZATION_AUDIT_EVENT],
+    load: async () => {
+      const { personalOrganizationAuditOutboxHandlers } = await import(
+        '@/lib/organizations/lifecycle-audit'
+      )
+      return personalOrganizationAuditOutboxHandlers
     },
   },
   {

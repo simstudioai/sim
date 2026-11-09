@@ -10,6 +10,7 @@
  */
 import { db } from '@sim/db'
 import {
+  auditLog,
   copilotChats,
   invitation,
   knowledgeExternalDirectory,
@@ -19,13 +20,14 @@ import {
   organizationBYOKKeys,
   organizationSearchMcpInvocation,
   organizationSecretSource,
+  outboxEvent,
   user,
   userStats,
 } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
@@ -33,6 +35,8 @@ import {
   addUserToOrganization,
   ensureUserInOrganizationTx,
 } from '@/lib/billing/organizations/membership'
+import { personalOrganizationAuditOutboxHandlers } from '@/lib/organizations/lifecycle-audit'
+import { PERSONAL_ORGANIZATION_AUDIT_EVENT } from '@/lib/organizations/lifecycle-audit-event'
 import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
 
 const userIds: string[] = []
@@ -155,6 +159,57 @@ describe('joining a team from a personal organization', () => {
       .from(knowledgeExternalDirectory)
       .where(inArray(knowledgeExternalDirectory.organizationId, [personalId, teamId]))
     expect(directories).toEqual([])
+  })
+})
+
+describe('auditing a personal organization’s retirement', () => {
+  it('records the retirement with what moved and what was deleted, once the join commits', async () => {
+    const joinerId = await createUser()
+    const teamId = await team(await createUser())
+    const personalId = await personalOrganizationOf(joinerId)
+    await db.insert(copilotChats).values({ userId: joinerId, organizationId: personalId })
+
+    await addUserToOrganization({
+      userId: joinerId,
+      organizationId: teamId,
+      role: 'member',
+      skipBillingLogic: true,
+      skipSeatValidation: true,
+    })
+    const events = await db
+      .select({ id: outboxEvent.id, payload: outboxEvent.payload })
+      .from(outboxEvent)
+      .where(
+        and(
+          eq(outboxEvent.eventType, PERSONAL_ORGANIZATION_AUDIT_EVENT),
+          sql`${outboxEvent.payload}->>'organizationId' = ${personalId}`
+        )
+      )
+    for (const event of events) {
+      await personalOrganizationAuditOutboxHandlers[PERSONAL_ORGANIZATION_AUDIT_EVENT](
+        event.payload,
+        { eventId: event.id } as Parameters<
+          (typeof personalOrganizationAuditOutboxHandlers)[typeof PERSONAL_ORGANIZATION_AUDIT_EVENT]
+        >[1]
+      )
+    }
+
+    const entries = await db
+      .select({ action: auditLog.action, metadata: auditLog.metadata })
+      .from(auditLog)
+      .where(eq(auditLog.resourceId, personalId))
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        { action: 'organization.created', metadata: expect.objectContaining({ kind: 'personal' }) },
+        {
+          action: 'organization.deleted',
+          metadata: expect.objectContaining({
+            targetOrganizationId: teamId,
+            movedCounts: expect.objectContaining({ copilot_chats: 1 }),
+          }),
+        },
+      ])
+    )
   })
 })
 
