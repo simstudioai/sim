@@ -147,8 +147,12 @@ test('a dashboard section choice changes only that section; the period changes t
 test('chart points open the shared tooltip by pointer and by keyboard', async ({ page }) => {
   await page.goto(fixtureUrl('/workspace/it/dashboards?state=full'))
   const plot = main(page).getByRole('group', { name: 'Requests data' })
-  await plot.hover({ position: { x: 40, y: 40 } })
-  await expect(page.getByRole('tooltip')).toBeVisible()
+  // The plot hydrates after `load`, and a pointer move over its server-rendered markup is lost.
+  await expect(async () => {
+    await page.mouse.move(0, 0)
+    await plot.hover({ position: { x: 40, y: 40 } })
+    await expect(page.getByRole('tooltip')).toBeVisible({ timeout: 1_000 })
+  }).toPass({ timeout: 15_000 })
   await page.mouse.move(0, 0)
   await expect(page.getByRole('tooltip')).toBeHidden()
   await plot.focus()

@@ -56,5 +56,8 @@ test('a chat panel preserves its file, tabs and focus across resize, collapse an
   await page.keyboard.press('Enter')
   await page.getByRole('menuitemcheckbox', { name: 'Workspaces' }).click()
   await panel.getByRole('button', { name: 'Workspace', exact: true }).last().click()
-  await expect(page).toHaveURL(/\/workspace\/operations\/dashboards\?.*state=full/)
+  // The first workspace route this suite opens, which the development server compiles on arrival.
+  await expect(page).toHaveURL(/\/workspace\/operations\/dashboards\?.*state=full/, {
+    timeout: 60_000,
+  })
 })
