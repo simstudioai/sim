@@ -49,7 +49,7 @@ import { db } from '@sim/db'
 import { member, organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { and, asc, count, eq, gt, type SQL } from 'drizzle-orm'
+import { and, asc, count, eq, gt } from 'drizzle-orm'
 import {
   acquireOrganizationMutationLock,
   acquireUserBillingIdentityLock,
@@ -98,9 +98,8 @@ class HoldsContent extends Error {
   }
 }
 
-function personalOrganizationsWhere(cursor: string | null): SQL {
-  const personal = eq(organization.kind, 'personal')
-  return cursor ? (and(personal, gt(organization.id, cursor)) as SQL) : personal
+function personalOrganizationsWhere(cursor: string | null) {
+  return and(eq(organization.kind, 'personal'), cursor ? gt(organization.id, cursor) : undefined)
 }
 
 /**
