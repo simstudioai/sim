@@ -81,8 +81,16 @@ function watchForBreakage(page: Page) {
   return problems
 }
 
-async function settle(page: Page) {
-  await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {})
+/** The page has rendered its content and holds no loading state, so its screenshot is of it. */
+async function settle(page: Page, route: string) {
+  await expect(
+    page.locator('main, [data-platform-ui]').first(),
+    `${route} rendered an empty shell`
+  ).toHaveText(/\S/)
+  await expect(
+    page.getByRole('status', { name: /Loading/i }),
+    `${route} is still loading`
+  ).toHaveCount(0)
 }
 
 async function visitEverywhere(page: Page, name: string, route: string) {
@@ -92,7 +100,7 @@ async function visitEverywhere(page: Page, name: string, route: string) {
       await page.emulateMedia({ colorScheme })
       const response = await page.goto(route)
       expect(response?.status(), `${route} status`).toBeLessThan(400)
-      await settle(page)
+      await settle(page, route)
       await page.screenshot({
         path: path.join(SCREENSHOTS, `${name}-${viewport.name}-${colorScheme}.png`),
         fullPage: true,
@@ -101,8 +109,6 @@ async function visitEverywhere(page: Page, name: string, route: string) {
         getComputedStyle(document.body).fontFamily.includes('Times')
       )
       expect(unstyled, `${route} rendered with no stylesheet`).toBe(false)
-      const text = (await page.locator('main, [data-platform-ui]').first().innerText()).trim()
-      expect(text.length, `${route} rendered an empty shell`).toBeGreaterThan(0)
     }
   }
 }
