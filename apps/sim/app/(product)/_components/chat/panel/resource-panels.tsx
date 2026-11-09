@@ -9,6 +9,8 @@ import type { PanelResources } from '@/app/(product)/_components/chat/panel/mode
 import { PanelTabs } from '@/app/(product)/_components/chat/panel/panel-tabs'
 import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
 import { ResourceContent } from '@/app/(product)/_components/chat/panel/resource-content'
+import { referenceOptions } from '@/app/(product)/_components/composer/reference-options'
+import { ResourceMenu } from '@/app/(product)/_components/composer/resource-menu'
 
 interface ResourcePanelsProps {
   panel: PanelResources
@@ -26,6 +28,22 @@ export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
   const trigger = useRef<HTMLButtonElement>(null)
   /** Set by a press inside the panel, so a tab chosen by pointer can be told from arrow keys. */
   const pointer = useRef(false)
+  const { picker } = panel
+  const add = (
+    <ResourceMenu
+      label='Add resource'
+      items={referenceOptions({ references: picker.items })}
+      onSelect={picker.onSelect}
+      onOpenChange={(open) => {
+        if (open) picker.onOpen()
+      }}
+      onWorkspaceOpen={picker.onWorkspaceOpen}
+      onSearchChange={picker.onSearchChange}
+      moreFor={picker.moreFor}
+      workspaceLoaded={picker.workspaceLoaded}
+      selectWorkspaces={false}
+    />
+  )
   const currentResource = resources.find((resource) => resource.active) ?? resources[0]
   const current = currentResource?.id ?? ''
   const tabs = resources.map((resource) => ({
@@ -87,6 +105,7 @@ export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
               onSelect={(id) => onSelect(id, pointer.current)}
               onRemove={onRemove}
               onReorder={onReorder}
+              add={add}
               actions={
                 currentResource?.href &&
                 currentResource.workspaceId && (
@@ -105,7 +124,11 @@ export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
               }}
             />
           ) : (
-            <EmptyState title='Nothing open yet' description='Resources Sim works on open here.' />
+            <EmptyState
+              title='Nothing open yet'
+              description='Resources Sim works on open here.'
+              action={add}
+            />
           )}
         </aside>
       </div>

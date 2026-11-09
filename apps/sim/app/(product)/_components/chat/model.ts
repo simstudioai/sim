@@ -1,3 +1,4 @@
+import type { FileEditingProps, FileStreamProps } from '@/components/file-viewer/types'
 import type { ComposerDraft } from '@/app/(product)/_components/composer/model'
 import type { SourceRowData } from '@/app/(product)/_components/source-row/source-row'
 import type {
@@ -176,6 +177,17 @@ export interface PlatformResource {
   search?: SearchResource
   /** What a Sources tab lists: the documents one answer cited. */
   sources?: readonly ChatSource[]
+  /** A file the agent is writing into this tab, shown as it arrives. */
+  stream?: FileStream
+}
+
+/**
+ * The file an agent is writing, as the shared file viewer takes it: the in-flight text while it
+ * streams, and the edit lock that holds the file read-only until the write settles.
+ */
+export interface FileStream extends FileStreamProps {
+  /** The record a new file shows under before it is stored; absent when writing a stored file. */
+  unsaved?: FileEditingProps['file']
 }
 
 /** Cross-turn tool-permission progress, so only one card offers the bulk action. */
@@ -191,6 +203,13 @@ export interface AssistantReviewField {
   value: string
   editable: boolean
   multiline: boolean
+  /**
+   * Where the preview lists it: a target the action acts on, its readable content, or a secondary
+   * detail behind Details. Fields arrive in that order.
+   */
+  role: 'target' | 'primary' | 'detail'
+  /** The content's leading text field, set in a stronger type role. */
+  prominent: boolean
 }
 
 export interface AssistantReviewAction {

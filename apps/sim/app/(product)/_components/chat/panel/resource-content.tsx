@@ -20,6 +20,15 @@ const WorkspaceResource = dynamic(
   { ssr: false }
 )
 
+/** A new file the agent is still writing, which has no workspace page to load yet. */
+const StreamingFile = dynamic(
+  () =>
+    import('@/app/(product)/_components/chat/panel/workspace-resource/streaming-file').then(
+      (module) => module.StreamingFile
+    ),
+  { ssr: false }
+)
+
 /** The kinds a tab shows live, in the same view their workspace page shows. */
 const WORKSPACE_KINDS: ReadonlySet<string> = new Set([
   'file',
@@ -54,6 +63,10 @@ export function ResourceContent({
   if (resource.type === 'terminal')
     return <TerminalSession scopeId={desktopScopeId} visible={visible} />
   if (resource.type === 'sources') return <CitedSources sources={resource.sources ?? []} />
+  if (resource.stream?.unsaved)
+    return selected ? (
+      <StreamingFile file={resource.stream.unsaved} stream={resource.stream} />
+    ) : null
   if (resource.workspaceId && WORKSPACE_KINDS.has(resource.type))
     return selected ? (
       <WorkspaceResource resource={resource} workspaceId={resource.workspaceId} />

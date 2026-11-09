@@ -81,7 +81,12 @@ function ResourceView({ resource, workspaceId }: WorkspaceResourceProps) {
       return (
         <AccessBoundary workspaceId={workspaceId} gate='hideFilesTab' current='files' layout='fill'>
           <WorkspaceRealtime>
-            <FileView key={resource.id} workspaceId={workspaceId} fileId={resource.id} />
+            <FileView
+              key={resource.id}
+              workspaceId={workspaceId}
+              fileId={resource.id}
+              stream={resource.stream}
+            />
           </WorkspaceRealtime>
         </AccessBoundary>
       )

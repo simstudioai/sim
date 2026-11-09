@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
+import { Disclosure } from '@sim/emcn/disclosure'
 import { Input, TextArea } from '@sim/emcn/field/inputs'
 import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
 import { omit } from '@sim/utils/object'
@@ -17,16 +18,56 @@ import { useChatInteractions } from '@/app/(product)/_components/session/chat-ru
 type Edits = Record<string, Record<string, string>>
 type Decision = 'allow' | 'skip'
 
-function FieldValues({ fields }: { fields: readonly AssistantReviewField[] }) {
+function FieldValues({
+  fields,
+}: {
+  fields: readonly Pick<AssistantReviewField, 'name' | 'label' | 'value' | 'prominent'>[]
+}) {
   return (
     <dl className={styles.fields}>
       {fields.map((field) => (
         <div key={field.name}>
           <dt data-type='T052'>{field.label}</dt>
-          <dd data-type='T048'>{field.value}</dd>
+          <dd data-type={field.prominent ? 'T047' : 'T048'}>{field.value}</dd>
         </div>
       ))}
     </dl>
+  )
+}
+
+interface ActionPreviewProps {
+  account: string
+  fields: readonly AssistantReviewField[]
+  /** Lists the details too, rather than behind their disclosure, as a receipt does. */
+  full?: boolean
+}
+
+/**
+ * Readable content first, as legacy's preview read: the account and the targets the action acts
+ * on, its content, then the remaining parameters behind Details.
+ */
+function ActionPreview({ account, fields, full = false }: ActionPreviewProps) {
+  const shown = fields.filter((field) => field.value !== '')
+  const primary = shown.filter((field) => field.role === 'primary')
+  const details = shown.filter((field) => field.role === 'detail')
+  return (
+    <>
+      <FieldValues
+        fields={[
+          { name: 'account', label: 'Account', value: account, prominent: false },
+          ...shown.filter((field) => field.role === 'target'),
+        ]}
+      />
+      {primary.length > 0 && <FieldValues fields={primary} />}
+      {details.length > 0 &&
+        (full ? (
+          <FieldValues fields={details} />
+        ) : (
+          <Disclosure label='Details' variant='activity'>
+            <FieldValues fields={details} />
+          </Disclosure>
+        ))}
+    </>
   )
 }
 
@@ -68,14 +109,18 @@ function ActionCard({ action, edits, error, disabled, saving, onEdit, onDecide }
           </Button>
         )}
       </div>
-      <dl className={styles.fields}>
-        <div>
-          <dt data-type='T052'>Account</dt>
-          <dd data-type='T048'>{action.account?.name ?? 'Account unavailable'}</dd>
-        </div>
-      </dl>
       {editing ? (
         <div className={styles.fields}>
+          <FieldValues
+            fields={[
+              {
+                name: 'account',
+                label: 'Account',
+                value: action.account?.name ?? 'Account unavailable',
+                prominent: false,
+              },
+            ]}
+          />
           {fields.map((field) =>
             field.editable ? (
               field.multiline ? (
@@ -103,7 +148,7 @@ function ActionCard({ action, edits, error, disabled, saving, onEdit, onDecide }
           )}
         </div>
       ) : (
-        <FieldValues fields={fields} />
+        <ActionPreview account={action.account?.name ?? 'Account unavailable'} fields={fields} />
       )}
       {(inactive || !action.account) && (
         <p className={styles.quiet} data-type='T052'>
@@ -171,17 +216,10 @@ export function Receipt({ receipt }: { receipt: AssistantReceipt }) {
       )}
       {expanded &&
         (receipt.fields ? (
-          <FieldValues
-            fields={[
-              {
-                name: 'account',
-                label: 'Account',
-                value: receipt.account ?? 'Account unavailable',
-                editable: false,
-                multiline: false,
-              },
-              ...receipt.fields,
-            ]}
+          <ActionPreview
+            account={receipt.account ?? 'Account unavailable'}
+            fields={receipt.fields}
+            full
           />
         ) : (
           <p className={styles.quiet} data-type='T052'>

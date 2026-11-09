@@ -1,6 +1,15 @@
 'use client'
 
-import { type CSSProperties, memo, type ReactNode, type Ref, useCallback, useRef } from 'react'
+import {
+  type CSSProperties,
+  memo,
+  type ReactNode,
+  type Ref,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import Link from 'next/link'
 import { IconButton } from '#emcn/components/button/button'
@@ -15,7 +24,7 @@ import { ContentTabs } from '#emcn/components/tabs/content-tabs'
 import { Tooltip } from '#emcn/components/tooltip/tooltip'
 
 interface MetricGroupProps {
-  metrics: readonly { label: string; value: string | number; description?: string }[]
+  metrics: readonly { label: string; value: ReactNode; description?: string }[]
 }
 
 export function MetricGroup({ metrics }: MetricGroupProps) {
@@ -37,6 +46,61 @@ export function MetricGroup({ metrics }: MetricGroupProps) {
         ))}
       </dl>
     </div>
+  )
+}
+
+/** easeInOut: a count that starts and settles gently. */
+function easeInOut(progress: number) {
+  return progress < 0.5 ? 2 * progress * progress : 1 - (-2 * progress + 2) ** 2 / 2
+}
+
+interface AnimatedNumberProps {
+  value: number
+  maximumFractionDigits?: number
+}
+
+/**
+ * A number that counts to each new value over `--ui-motion-count`, from whatever it shows when the
+ * value changes, so an update mid-count stays continuous. Reduced motion zeroes the token and the
+ * value jumps. Assistive technology reads the final value only.
+ */
+export function AnimatedNumber({ value, maximumFractionDigits = 2 }: AnimatedNumberProps) {
+  const formatter = useMemo(
+    () => new Intl.NumberFormat(undefined, { maximumFractionDigits }),
+    [maximumFractionDigits]
+  )
+  const counter = useRef<HTMLSpanElement>(null)
+  const shown = useRef(value)
+  useEffect(() => {
+    const element = counter.current
+    if (!element) return
+    const from = shown.current
+    const show = (current: number) => {
+      shown.current = current
+      element.textContent = formatter.format(current)
+    }
+    const duration = Number.parseFloat(
+      getComputedStyle(element).getPropertyValue('--ui-motion-count')
+    )
+    if (from === value || !(duration > 0)) {
+      show(value)
+      return
+    }
+    const start = performance.now()
+    let frame = requestAnimationFrame(function step(now) {
+      const progress = Math.min((now - start) / duration, 1)
+      show(from + (value - from) * easeInOut(progress))
+      if (progress < 1) frame = requestAnimationFrame(step)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [value, formatter])
+  return (
+    <span className={styles.count}>
+      <span ref={counter} aria-hidden='true'>
+        {formatter.format(shown.current)}
+      </span>
+      <span data-visually-hidden=''>{formatter.format(value)}</span>
+    </span>
   )
 }
 

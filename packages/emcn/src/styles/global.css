@@ -101,6 +101,7 @@
   --emcn-motion-spinner: 800ms;
   --emcn-motion-pulse: 1500ms;
   --emcn-motion-caret: 1000ms;
+  --emcn-motion-count: 280ms;
   --emcn-ease-standard: ease;
   --emcn-type-title-size: var(--text-heading);
   --emcn-type-title-leading: var(--leading-32);
@@ -128,5 +129,6 @@
     --emcn-motion-spinner: 0ms;
     --emcn-motion-pulse: 0ms;
     --emcn-motion-caret: 0ms;
+    --emcn-motion-count: 0ms;
   }
 }

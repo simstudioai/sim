@@ -53,8 +53,12 @@
   gap: var(--spacing-4);
 }
 .metric dd,
-.table {
+.table,
+.count {
   font-variant-numeric: tabular-nums;
+}
+.count {
+  display: inline-grid;
 }
 .section {
   display: grid;
