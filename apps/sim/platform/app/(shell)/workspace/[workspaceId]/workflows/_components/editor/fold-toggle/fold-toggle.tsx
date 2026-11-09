@@ -30,7 +30,7 @@ export function FoldToggle({ open, controls, onToggle, children }: FoldTogglePro
       onClick={onToggle}
     >
       <span className={styles.chevron}>
-        <Icon name={open ? 'I051' : 'I032'} />
+        <Icon name={open ? 'I051' : 'I090'} />
       </span>
       {children}
     </button>
