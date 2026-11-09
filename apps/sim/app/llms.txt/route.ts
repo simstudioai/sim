@@ -21,6 +21,7 @@ import {
   markdownResponse,
   navMenuLines,
   PRICING_LINE,
+  SECURITY_LINES,
   SITEMAP_LINE,
   SOLUTION_LINES,
   section,
@@ -52,6 +53,7 @@ export async function GET() {
         ...navMenuLines(PLATFORM_MENU),
         PRICING_LINE,
       ]),
+      section('Security and governance', SECURITY_LINES),
       section('Solutions', SOLUTION_LINES),
       section(
         'Customers',
