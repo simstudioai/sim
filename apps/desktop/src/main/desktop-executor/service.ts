@@ -47,6 +47,11 @@ const logger = createLogger('DesktopExecutorService')
 /** Batches the burst of cookie and preference events a sign-in produces into one registration. */
 const REGISTRATION_DEBOUNCE_MS = 1_000
 const REGISTRATION_RETRY_MAX_MS = 5 * 60_000
+/**
+ * How long a turn sent before this device's due registration has answered waits for it. Past
+ * this the turn goes out unbound and runs in its chat view, as it would on a dormant device.
+ */
+const DEVICE_WAIT_MS = 5_000
 /** How often a device Sim has not enabled checks whether that changed. */
 const DORMANT_RECHECK_MS = 15 * 60_000
 const ONLINE_POLL_MS = 2_000
@@ -73,7 +78,12 @@ export interface DesktopExecutorService {
   start(): void
   /** Re-registers after a sign-in, a session change, or a change to what this device can run. */
   refreshRegistration(): void
-  getDevice(): DesktopExecutorDevice | null
+  /**
+   * The device a new turn binds to. While none is registered and a registration is due (the
+   * debounced one after sign-in, or one in flight), it waits up to {@link DEVICE_WAIT_MS} for
+   * that answer, so a turn sent in the first second after sign-in still runs in the background.
+   */
+  getDevice(): Promise<DesktopExecutorDevice | null>
   /**
    * The calls whose real result ({@link isDeliveredResult}) is in the journal and not yet
    * acknowledged, so recovery will hand it to the model. Read once, before recovery can change the
@@ -134,6 +144,10 @@ export function createDesktopExecutorService(
   let doorbell: InboxDoorbell | null = null
   let reconcileTimer: ReturnType<typeof setTimeout> | null = null
   let registrationTimer: ReturnType<typeof setTimeout> | null = null
+  /** The scheduled registration answers a trigger now, rather than being a backoff or recheck. */
+  let registrationDue = false
+  /** Settles for the turns waiting on a due registration once it has answered. */
+  let dueRegistration: { settled: Promise<void>; settle: () => void } | null = null
   let registering = false
   let registerAgain = false
   let registrationAttempt = 0
@@ -347,6 +361,8 @@ export function createDesktopExecutorService(
         nextTiming.enabled && nextTiming.protocolVersion === DESKTOP_EXECUTOR_PROTOCOL_VERSION
           ? { deviceId: id, protocolVersion: DESKTOP_EXECUTOR_PROTOCOL_VERSION }
           : null
+      // A waiting turn needs only the device, not the executor's recovery that follows.
+      if (device) releaseDeviceWaiters()
       logger.info('Desktop executor registered', { enabled: nextTiming.enabled })
       // Off on this Sim, and nothing here to finish: stay dormant. No inbox, no doorbell; only
       // a slow recheck, so switching the executor on in Sim reaches this device without a relaunch.
@@ -410,13 +426,33 @@ export function createDesktopExecutorService(
     }
   }
 
+  function releaseDeviceWaiters(): void {
+    dueRegistration?.settle()
+    dueRegistration = null
+  }
+
+  /** Releases the waiting turns once no due registration is scheduled or running. */
+  function settleDueRegistration(): void {
+    if (registering || (registrationTimer && registrationDue)) return
+    releaseDeviceWaiters()
+  }
+
   function scheduleRegistration(delayMs = REGISTRATION_DEBOUNCE_MS): void {
     if (!started) return
     if (registrationTimer) clearTimeout(registrationTimer)
+    registrationDue = delayMs <= REGISTRATION_DEBOUNCE_MS
+    if (registrationDue && !dueRegistration) {
+      let settle = () => {}
+      const settled = new Promise<void>((resolve) => {
+        settle = resolve
+      })
+      dueRegistration = { settled, settle }
+    }
     registrationTimer = setTimeout(() => {
       registrationTimer = null
       void runRegistration()
     }, delayMs)
+    settleDueRegistration()
   }
 
   /** One registration at a time; a trigger that lands mid-flight registers once more after it. */
@@ -433,6 +469,7 @@ export function createDesktopExecutorService(
       } while (registerAgain)
     } finally {
       registering = false
+      settleDueRegistration()
     }
   }
 
@@ -484,7 +521,17 @@ export function createDesktopExecutorService(
     refreshRegistration() {
       scheduleRegistration()
     },
-    getDevice() {
+    async getDevice() {
+      if (!device && dueRegistration) {
+        let timer: ReturnType<typeof setTimeout> | undefined
+        await Promise.race([
+          dueRegistration.settled,
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, DEVICE_WAIT_MS)
+          }),
+        ])
+        clearTimeout(timer)
+      }
       return device
     },
     pendingResults() {
@@ -505,6 +552,7 @@ export function createDesktopExecutorService(
       generation += 1
       if (registrationTimer) clearTimeout(registrationTimer)
       registrationTimer = null
+      settleDueRegistration()
       await resetExecutor()
       await journal.clear()
       await retireInstallId()

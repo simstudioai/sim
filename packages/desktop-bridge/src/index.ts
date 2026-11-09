@@ -1215,7 +1215,10 @@ export interface DesktopExecutorDevice {
 
 /** The background executor in the desktop main process. */
 interface SimDesktopExecutorApi {
-  /** Null until the device registers, and whenever Sim reports the executor off. */
+  /**
+   * Null until the device registers, and whenever Sim reports the executor off. Asked while a
+   * registration is due (just after sign-in), it answers once that registration has.
+   */
   getDevice(): Promise<DesktopExecutorDevice | null>
 }
 

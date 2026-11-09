@@ -399,7 +399,7 @@ export interface IpcDeps {
     setOrigin: (origin: string) => Promise<DesktopServerChangeResult>
   }
   /** The device a new chat turn may bind to, or null while Sim has not enabled one. */
-  getExecutorDevice: () => DesktopExecutorDevice | null
+  getExecutorDevice: () => Promise<DesktopExecutorDevice | null>
 }
 
 /**
