@@ -27,6 +27,7 @@ import {
   formatDuration,
 } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/format'
 import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+import { useRevealRow } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import styles from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-list/run-list.module.css'
 import {
   RUN_STATUS_LABEL,
@@ -382,11 +383,15 @@ interface RunRowProps {
   actions?: () => readonly MenuAction[]
 }
 
-/** One run in Paper's RunRow lanes; the workflow name opens it across the whole row. */
+/**
+ * One run in Paper's RunRow lanes; the workflow name opens it across the whole row. The run last
+ * stepped to in its details scrolls into view when the reader returns.
+ */
 function RunRow({ run, href, referenceTime, actions }: RunRowProps) {
   const label = `Actions for the ${run.workflow.name} run`
+  const revealRow = useRevealRow(run.id)
   const row = (
-    <div className={styles.row} data-actions={actions ? '' : undefined}>
+    <div ref={revealRow} className={styles.row} data-actions={actions ? '' : undefined}>
       <span className={styles.workflow} data-type='T060'>
         <Link
           href={href}

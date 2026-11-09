@@ -16,6 +16,7 @@ import {
   DetailSection,
   DetailSplit,
 } from '@/app/(product)/workspace/[workspaceId]/_components/detail-split/detail-split'
+import type { PreviewMode } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/types'
 import { useMinuteClock } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/rename-dialog'
 import { formatDuration } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/format'
 import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
@@ -49,6 +50,21 @@ const TestSource = dynamic(
     ).then((module) => module.TestSource),
   { ssr: false }
 )
+
+/**
+ * The layout one press of the layout action moves to, as legacy's test page cycled: results, then
+ * the source alone, then the source beside the results, then back to the results.
+ */
+function nextLayoutAction(layout: PreviewMode, canEdit: boolean) {
+  if (layout === 'editor') return { label: 'Split', icon: 'I038' as const, next: 'split' as const }
+  if (layout === 'split')
+    return { label: 'Preview', icon: 'eye' as const, next: 'preview' as const }
+  return {
+    label: canEdit ? 'Edit' : 'View source',
+    icon: 'I036' as const,
+    next: 'editor' as const,
+  }
+}
 
 /** A case's name under its file's one top-level describe. */
 function caseName(path: readonly string[]) {
@@ -147,8 +163,10 @@ interface TestDetailsProps {
 /**
  * One test's results in one run, the latest unless the run menu chose another: totals, freshness,
  * every case and the workflows it ran against. A running latest run shows live. Run runs it again
- * against the deployed workflows. The test's source opens beside the results in the Files editor;
- * Run waits while it holds unsaved edits. A workflow it ran against opens frozen at that version.
+ * against the deployed workflows. The layout action cycles the results, the test's source alone in
+ * the Files editor, and the source beside the results; the layout lasts while the page is open, and
+ * Run waits while the open source holds unsaved edits. A workflow it ran against opens frozen at
+ * that version.
  */
 export function TestDetails({ workspaceId, name }: TestDetailsProps) {
   const searchParams = useSearchParams()
@@ -166,9 +184,9 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
   const run = viewedRunId ? (chosen.data ?? null) : (detail?.latestRun ?? null)
   const running = run?.status === 'running'
   const elapsed = useElapsed(running && run ? run.startedAt : null)
-  const [sourceOpen, setSourceOpen] = useState(false)
+  const [layout, setLayout] = useState<PreviewMode>('preview')
   const [sourceDirty, setSourceDirty] = useState(false)
-  const unsaved = sourceOpen && sourceDirty
+  const unsaved = layout !== 'preview' && sourceDirty
 
   const back = {
     href: platformHref(workspacePath(workspaceId, 'tests'), searchParams),
@@ -228,10 +246,11 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
     hasResults ? cases.filter((testCase) => testCase.state === state).length.toLocaleString() : '—'
   const durationMs = run?.report?.tests.reduce((total, result) => total + result.durationMs, 0)
   const notice = freshness(run, now)
+  const layoutAction = nextLayoutAction(layout, canEdit)
 
   const actions = (
     <>
-      {runOptions.length > 0 && (
+      {layout !== 'editor' && runOptions.length > 0 && (
         <ChoiceMenu
           label='Run shown'
           options={runOptions}
@@ -244,14 +263,13 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
       <Button
         variant='quiet'
         size='compact'
-        icon='I036'
-        selected={sourceOpen}
+        icon={layoutAction.icon}
         onClick={() => {
-          setSourceOpen((open) => !open)
+          setLayout(layoutAction.next)
           setSourceDirty(false)
         }}
       >
-        {canEdit ? 'Edit' : 'View source'}
+        {layoutAction.label}
       </Button>
       <Button
         variant='secondary'
@@ -271,18 +289,48 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
     </>
   )
 
+  const heading = (
+    <DirectoryHeading
+      title={detail.test.title}
+      description={detail.test.description ?? undefined}
+    />
+  )
+
+  if (layout === 'editor')
+    return (
+      <DetailSplit
+        back={back}
+        actions={actions}
+        label={`${detail.test.title} source`}
+        railLabel='Test source'
+        read={read}
+        content='editor'
+      >
+        {heading}
+        <TestSource
+          workspaceId={workspaceId}
+          name={name}
+          fileId={detail.test.fileId}
+          canEdit={canEdit}
+          placement='page'
+          onDirtyChange={setSourceDirty}
+        />
+      </DetailSplit>
+    )
+
   return (
     <DetailSplit
       back={back}
       actions={actions}
       label={`${detail.test.title} results`}
       rail={
-        sourceOpen && (
+        layout === 'split' && (
           <TestSource
             workspaceId={workspaceId}
             name={name}
             fileId={detail.test.fileId}
             canEdit={canEdit}
+            placement='rail'
             onDirtyChange={setSourceDirty}
           />
         )
@@ -291,10 +339,7 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
       railLabel='Test source'
       read={read}
     >
-      <DirectoryHeading
-        title={detail.test.title}
-        description={detail.test.description ?? undefined}
-      />
+      {heading}
       <MetricGroup
         metrics={[
           { label: 'Passing', value: count('pass') },

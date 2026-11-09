@@ -13,15 +13,24 @@ interface TestSourceProps {
   name: string
   fileId: string
   canEdit: boolean
+  /** Beside the results in their rail, or alone filling the page's working area. */
+  placement: 'rail' | 'page'
   onDirtyChange: (dirty: boolean) => void
 }
 
 /**
- * A test's source file in the same editor Files opens it in, beside its results. Every save is
- * checked on the server: a refused save keeps the edit and says why above the editor, and an
- * accepted one rereads the test, so its cases and freshness follow what was saved.
+ * A test's source file in the same editor Files opens it in, beside its results or alone. Every
+ * save is checked on the server: a refused save keeps the edit and says why above the editor, and
+ * an accepted one rereads the test, so its cases and freshness follow what was saved.
  */
-export function TestSource({ workspaceId, name, fileId, canEdit, onDirtyChange }: TestSourceProps) {
+export function TestSource({
+  workspaceId,
+  name,
+  fileId,
+  canEdit,
+  placement,
+  onDirtyChange,
+}: TestSourceProps) {
   const record = useWorkspaceFileRecord(workspaceId, fileId)
   const refreshTest = useRefreshWorkflowTest(workspaceId, name)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -40,7 +49,7 @@ export function TestSource({ workspaceId, name, fileId, canEdit, onDirtyChange }
   if (!record.data) return null
 
   return (
-    <div className={styles.source}>
+    <div className={styles.source} data-placement={placement}>
       {saveError && <InlineNotice intent='danger' title='Not saved' message={saveError} />}
       <div className={styles.editor}>
         <FileViewer
