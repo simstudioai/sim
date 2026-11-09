@@ -1,7 +1,6 @@
 'use client'
 
-import type React from 'react'
-import { useDeferredValue, useEffect, useMemo } from 'react'
+import { type ReactNode, useDeferredValue, useEffect, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { client } from '@/lib/auth/client'
@@ -16,20 +15,19 @@ import { sessionKeys } from '@/hooks/queries/utils/session-keys'
 
 const logger = createLogger('SessionProvider')
 
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+/**
+ * Checkout returns with `?upgraded=true` (`lib/billing/client/upgrade.ts`). Strips the flag, then
+ * re-reads the session past Better Auth's cookie cache, refreshes the plan surfaces, and activates
+ * the viewer's organization when they belong to exactly one and none is active.
+ */
+function useUpgradeReturnReconcile() {
   const queryClient = useQueryClient()
-  const query = useSessionQuery()
-  const { data, isPending, error, refetch } = query
 
   useEffect(() => {
     let isCancelled = false
 
     const params = new URLSearchParams(window.location.search)
-    const wasUpgraded = params.get('upgraded') === 'true'
-
-    if (!wasUpgraded) {
-      return
-    }
+    if (params.get('upgraded') !== 'true') return
 
     params.delete('upgraded')
     const newUrl = params.toString()
@@ -37,70 +35,55 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       : window.location.pathname
     window.history.replaceState({}, '', newUrl)
 
-    const refreshAfterUpgrade = async () => {
+    const readFreshSession = async () => {
       const res = await client.getSession({ query: { disableCookieCache: true } })
       const fresh = extractSessionDataFromAuthClientResult(res) as AppSession
-
       if (isCancelled) return null
-
       await queryClient.cancelQueries({ queryKey: sessionKeys.detail() })
       queryClient.setQueryData(sessionKeys.detail(), fresh)
       return fresh
     }
 
-    const initializeSession = async () => {
+    const reconcile = async () => {
       let session: AppSession = null
       try {
-        session = await refreshAfterUpgrade()
+        session = await readFreshSession()
       } catch (e) {
         logger.warn('Failed to refresh session after subscription upgrade', { error: e })
       }
 
-      if (isCancelled) {
-        return
-      }
+      if (isCancelled) return
 
       // Refresh the plan surfaces even if the cookie-bypass read above failed: they
       // query server truth (not the session cookie cache), so they still reconcile.
       queryClient.invalidateQueries({ queryKey: ['organizations'] })
       queryClient.invalidateQueries({ queryKey: ['subscription'] })
 
-      const activeOrganizationId = getActiveOrganizationId(session)
-      if (!session || activeOrganizationId) {
-        return
-      }
+      if (!session || getActiveOrganizationId(session)) return
 
       try {
         const organizationsResponse = await client.organization.list()
         const organizations = organizationsResponse.data ?? []
         const organizationId = organizations.length === 1 ? organizations[0]?.id : null
-
-        if (!organizationId || isCancelled) {
-          return
-        }
+        if (!organizationId || isCancelled) return
 
         await client.organization.setActive({ organizationId })
-
-        if (!isCancelled) {
-          const res = await client.getSession({ query: { disableCookieCache: true } })
-          const fresh = extractSessionDataFromAuthClientResult(res) as AppSession
-          if (!isCancelled) {
-            await queryClient.cancelQueries({ queryKey: sessionKeys.detail() })
-            queryClient.setQueryData(sessionKeys.detail(), fresh)
-          }
-        }
+        if (!isCancelled) await readFreshSession()
       } catch (error) {
         logger.warn('Failed to activate organization after subscription upgrade', { error })
       }
     }
 
-    void initializeSession()
+    void reconcile()
 
     return () => {
       isCancelled = true
     }
   }, [queryClient])
+}
 
+/** Identifies the signed-in viewer to PostHog and starts session recording; resets on sign-out. */
+function useAnalyticsIdentity(session: AppSession | undefined, isPending: boolean) {
   useEffect(() => {
     if (isPending) return
 
@@ -109,12 +92,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         try {
           if (typeof posthog.identify !== 'function') return
 
-          if (data?.user) {
-            posthog.identify(data.user.id, {
-              email: data.user.email,
-              name: data.user.name,
-              email_verified: data.user.emailVerified,
-              created_at: data.user.createdAt,
+          if (session?.user) {
+            posthog.identify(session.user.id, {
+              email: session.user.email,
+              name: session.user.name,
+              email_verified: session.user.emailVerified,
+              created_at: session.user.createdAt,
             })
             if (
               typeof posthog.startSessionRecording === 'function' &&
@@ -129,7 +112,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         } catch {}
       })
       .catch(() => {})
-  }, [data, isPending])
+  }, [session, isPending])
+}
+
+/**
+ * Backs `useSession` from the canonical session query, which the Platform shell seeds on the
+ * server. Every root mounts this one provider, so the upgrade return and analytics identity hold
+ * on site, legacy and Platform pages alike.
+ */
+export function SessionProvider({ children }: { children: ReactNode }) {
+  const { data, isPending, error, refetch } = useSessionQuery()
+  useUpgradeReturnReconcile()
+  useAnalyticsIdentity(data, isPending)
 
   const value = useMemo<SessionHookResult>(
     () => ({

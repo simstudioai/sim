@@ -581,6 +581,7 @@ const seamHelpers = new Set([
   'lib/auth/oauth-provider',
   'lib/auth/session-context',
   'lib/auth/session-expiry',
+  'lib/auth/session-provider',
   'lib/billing/client/utils',
   'lib/billing/client/billing-scope',
   'lib/billing/client/plan-view',
