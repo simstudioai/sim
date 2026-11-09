@@ -13,39 +13,6 @@
   scrollbar-width: none;
 }
 
-/* A format toggle takes the compact quiet Button's metrics and adds the pressed state Button lacks. */
-.toggle {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  min-block-size: var(--spacing-28);
-  padding-inline: var(--spacing-8);
-  border: 0;
-  border-radius: var(--ui-control-radius);
-  background: transparent;
-  color: var(--ui-ink);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.toggle:not(:disabled):hover {
-  background: var(--ui-hover);
-}
-
-.toggle[aria-pressed="true"] {
-  background: var(--ui-selected);
-}
-
-.toggle:disabled {
-  cursor: not-allowed;
-}
-
-.toggle:focus-visible {
-  outline: var(--spacing-stroke-focus) solid var(--ui-strong);
-  outline-offset: calc(-1 * var(--spacing-stroke-focus));
-}
-
 .divider {
   flex: none;
   inline-size: var(--spacing-stroke-default);
@@ -59,16 +26,9 @@
   flex: none;
 }
 
-.input {
+/* The link field's width inside the bar; the field owns its frame. */
+.link {
+  display: flex;
+  flex: none;
   inline-size: var(--spacing-224);
-  min-block-size: var(--spacing-28);
-  padding-inline: var(--spacing-8);
-  border: 0;
-  background: transparent;
-  color: var(--ui-ink);
-  outline: none;
-}
-
-.input::placeholder {
-  color: var(--ui-muted);
 }

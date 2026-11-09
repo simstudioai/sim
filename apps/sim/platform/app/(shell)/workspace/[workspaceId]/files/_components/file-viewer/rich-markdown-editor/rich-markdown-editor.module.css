@@ -7,6 +7,15 @@
   min-inline-size: 0;
 }
 
+/* Find floats at the editor's top end, over the document, as an in-page find does. */
+.findFrame {
+  position: absolute;
+  inset-block-start: var(--spacing-8);
+  inset-inline-end: 0;
+  z-index: 3;
+  max-inline-size: calc(100% - var(--spacing-16));
+}
+
 .notices {
   display: grid;
   gap: var(--ui-list-gap);

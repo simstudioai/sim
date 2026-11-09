@@ -1,6 +1,9 @@
+import type { IconName } from '@sim/emcn/icon'
 import { providerMarkIds } from '@sim/emcn/icon/provider-mark-ids.generated'
-import type { SuggestionMark } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/suggestion-list'
 import { BLOCK_NAMES, type MentionItem, type MentionKind } from '@/platform/lib/data/files/markdown'
+
+/** A mention's leading mark: an interface glyph or a provider's brand mark. */
+type SuggestionMark = { name: IconName } | { providerId: string }
 
 const KIND_MARKS: Partial<Record<MentionKind, SuggestionMark>> = {
   folder: { name: 'I100' },
