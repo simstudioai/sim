@@ -150,20 +150,22 @@ sent. Dropping the headers from every response also strips the declared length
 from file downloads, which then arrive chunked with no size, and the
 `Content-Encoding: none` marker that keeps streaming responses uncompressed.
 
-The same file's patch narrows that rule in `sendResponse`, in both the CommonJS
-and ESM builds. A response whose `Content-Encoding` names a real coding keeps
+The same file's patch narrows that rule in `sendResponse`: the CommonJS and ESM
+module builds, and the copy prebundled into
+`compiled/next-server/server.runtime.prod.js`, which `next start` runs. A response whose `Content-Encoding` names a real coding keeps
 upstream's behavior: its length and coding are dropped. A response with no coding,
 or with `identity`/`none`, was not decoded, so its `Content-Length` and coding are
 forwarded. `Transfer-Encoding` is never forwarded; Node frames the response
 itself. Route handlers, App Page rendering, and the edge runtime are otherwise
 unchanged.
 
-`test:headers:e2e` sends real responses through both builds of `sendResponse`
-over loopback HTTP. The unencoded, `identity`, and `none` checks fail against
+`test:headers:e2e` sends real responses through both module builds of
+`sendResponse` over loopback HTTP. The unencoded, `identity`, and `none` checks fail against
 unpatched 16.4.5. The decoded-body and transfer-coding checks fail when their
 guards are removed; forwarding a decoded body's stale length leaves the client
 unable to parse the connection. The project-files E2E's large-download check
-asserts the declared length of a 100 MB file served through the running app.
+covers the production runtime: it asserts the declared length of a 100 MB file
+served by the built app.
 
 Remove this part of the patch when upstream forwards framing for undecoded
 route-handler bodies, and keep both regression checks.
