@@ -1,5 +1,6 @@
 /** @vitest-environment jsdom */
 import { authClientMock, authClientMockFns } from '@sim/testing/mocks/auth-client.mock'
+import { sleep } from '@sim/utils/helpers'
 import { dehydrate, hydrate, QueryClient } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -73,7 +74,7 @@ describe('useSessionQuery over a server-seeded session', () => {
       queryClient: seededClient(Date.now()),
     })
     expect(result.current.data).toEqual(CACHED_SESSION)
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await sleep(0)
     expect(mockGetSession).not.toHaveBeenCalled()
   })
 

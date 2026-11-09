@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { isRecordLike, toRecord } from '@sim/utils/object'
 import { ApiClientError } from '@/lib/api/client/errors'
 
 /**
@@ -47,7 +47,7 @@ export function toAppSession(session: unknown): AppSession {
   if (!isRecordLike(session) || !isRecordLike(session.user)) return null
   const { user } = session
   if (typeof user.id !== 'string' || typeof user.email !== 'string') return null
-  const meta: Record<string, unknown> = isRecordLike(session.session) ? session.session : {}
+  const meta = toRecord(session.session)
   return {
     user: {
       id: user.id,
