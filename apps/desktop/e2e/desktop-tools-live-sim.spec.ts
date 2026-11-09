@@ -102,11 +102,11 @@ test.describe('desktop tools against a live Sim', () => {
         JSON.stringify(
           {
             url: page?.url(),
-            composer: await page
-              ?.getByRole('textbox')
-              .last()
-              .inputValue({ timeout: 2_000 })
-              .catch(() => null),
+            composer: page
+              ? await composer(page)
+                  .inputValue({ timeout: 2_000 })
+                  .catch(() => null)
+              : null,
             pageErrors,
             requests: proxy
               .seen(testStartedAt)
@@ -159,7 +159,7 @@ test.describe('desktop tools against a live Sim', () => {
         `/api/mothership/chats/${user.chats['Warm other chat']}`,
         `/api/mothership/chat/stream?chatId=${user.chats['Warm chat']}`,
         `/api/workspaces/${user.workspaceId}/files/folders`,
-        '/api/copilot/chats',
+        `/api/mothership/chats?organizationId=${user.organizationId}`,
         '/api/users/me/settings',
         '/api/auth/oauth/connections',
         '/api/desktop/inbox',
@@ -217,8 +217,8 @@ test.describe('desktop tools against a live Sim', () => {
       await expect(page.getByText('Warmed up.')).toBeVisible({ timeout: 2 * COMPILE_MS })
       await send(page, '[warm-stop] wait for Stop', COMPILE_MS)
       await expect(page.getByText('Stopping soon.')).toBeVisible({ timeout: COMPILE_MS })
-      await click(page, page.getByRole('button', { name: 'Stop generation' }), COMPILE_MS)
-      await expect(page.getByRole('button', { name: 'Stop generation' })).toBeHidden({
+      await click(page, stopButton(page), COMPILE_MS)
+      await expect(stopButton(page)).toBeHidden({
         timeout: COMPILE_MS,
       })
       await proxy.settled(COMPILE_MS)
@@ -230,8 +230,9 @@ test.describe('desktop tools against a live Sim', () => {
     }
   }
 
+  /** The product's chat page: chats belong to the organization, not to a workspace. */
   const chatPath = (user: SeededUser, title: string) =>
-    `/workspace/${user.workspaceId}/chat/${user.chats[title]}`
+    `/o/${user.organizationId}/chat/${user.chats[title]}`
 
   /** Launches the app signed in as `user`, showing the chat titled `title`. */
   async function openApp(user: SeededUser, title: string, timeout = 120_000): Promise<Page> {
@@ -264,7 +265,15 @@ test.describe('desktop tools against a live Sim', () => {
     return page
   }
 
-  const composer = (page: Page) => page.getByRole('textbox').last()
+  /** The chat composer, named by its placeholder: first message, follow-up, or while a turn runs. */
+  const composer = (page: Page) =>
+    page.getByRole('textbox', {
+      name: /^(Ask about your business|Ask a follow-up|Add a follow-up)/,
+    })
+  const stopButton = (page: Page) => page.getByRole('button', { name: 'Stop response' })
+  /** The sidebar's chat list, where the user switches chats. */
+  const chatLink = (page: Page, title: string) =>
+    page.getByRole('region', { name: 'Chats', exact: true }).getByRole('link', { name: title })
 
   /** The dev app's error overlay, if it is up, with the errors the window reported. */
   async function devOverlay(page: Page): Promise<{ text: string; consoleOnly: boolean } | null> {
@@ -350,7 +359,7 @@ test.describe('desktop tools against a live Sim', () => {
     title: string,
     timeout = 30_000
   ): Promise<void> {
-    await click(page, page.getByRole('link', { name: title }).first(), timeout)
+    await click(page, chatLink(page, title).first(), timeout)
     await expect(page).toHaveURL(new RegExp(`${user.chats[title]}$`), { timeout })
   }
 
@@ -442,7 +451,7 @@ test.describe('desktop tools against a live Sim', () => {
     await claim.arrival(ARRIVAL_MS, 'The read’s claim')
     const turnStream = proxy.seen(since).find(isChatStream)
     if (!turnStream) throw new Error('The turn’s stream never reached Sim')
-    await click(page, page.getByRole('link', { name: 'Other chat' }).first())
+    await click(page, chatLink(page, 'Other chat').first())
     // The view let go of the turn's stream, the moment a read tied to that view would end.
     // Electron gives the held claim 8 s, so this waits only a few.
     await expect.poll(() => turnStream.clientClosedAt, { timeout: 6_000 }).toBeDefined()
@@ -488,7 +497,7 @@ test.describe('desktop tools against a live Sim', () => {
     await laterFolder.arrival(ARRIVAL_MS, 'The next folder')
 
     const stoppedAt = Date.now()
-    await click(page, page.getByRole('button', { name: 'Stop generation' }))
+    await click(page, stopButton(page))
     // Stop cancels the import's request in flight, which ends the import, and records the call as
     // cancelled; the stopped import reports nothing that could contest that record.
     await expect.poll(() => laterFolder.isAbandoned, { timeout: 15_000 }).toBe(true)
@@ -556,10 +565,13 @@ test.describe('desktop tools against a live Sim', () => {
     // A crash reports nothing on its way out, unlike a closed window: only the lapse of the
     // lease the page was renewing tells Sim the import is gone.
     const crashedAt = Date.now()
-    await app?.evaluate(({ webContents }) => {
-      for (const contents of webContents.getAllWebContents())
-        if (contents.getURL().includes('/workspace/')) contents.forcefullyCrashRenderer()
-    })
+    await app?.evaluate(
+      ({ webContents }, chatPage) => {
+        for (const contents of webContents.getAllWebContents())
+          if (contents.getURL().includes(chatPage)) contents.forcefullyCrashRenderer()
+      },
+      chatPath(user, 'Crashing import chat')
+    )
     await agent.waitForResume(() => Boolean(agent.resultFor(callId())), 150_000)
     const result = agent.resultFor(callId())
     expect(result?.data).toMatchObject({ outcomeUnknown: true })
@@ -585,8 +597,11 @@ test.describe('desktop tools against a live Sim', () => {
     // The desktop reloads into the login page once signing out completes, which would end any
     // tool; holding the sign-out shows the tool ends at sign-out itself, not at that reload.
     const signOut = proxy.hold((method, path) => method === 'POST' && path === '/api/auth/sign-out')
-    await click(page, page.getByRole('button', { name: user.name }))
-    await click(page, page.getByRole('menuitem', { name: 'Sign out' }))
+    await click(page, page.getByRole('button', { name: 'Account menu', exact: true }))
+    await click(
+      page,
+      page.getByRole('dialog', { name: 'Account menu' }).getByRole('button', { name: 'Sign out' })
+    )
     await signOut.arrival(ARRIVAL_MS, 'The sign-out')
     await expect.poll(() => firstUpload.isAbandoned, { timeout: 15_000 }).toBe(true)
     const abandonedAt = Date.now()
@@ -696,7 +711,7 @@ test.describe('desktop tools against a live Sim', () => {
     const lateClaim = proxy.hold(isDesktopClaim, { deliverIfAbandoned: true })
     await send(page, '[stopped-claim] read my secret')
     const claim = await lateClaim.arrival(ARRIVAL_MS, 'The read’s claim')
-    await click(page, page.getByRole('button', { name: 'Stop generation' }))
+    await click(page, stopButton(page))
     // Stop settles the call nobody has claimed yet as never started.
     await expect.poll(() => callState(chatId), { timeout: 30_000 }).toMatch(/^cancelled/)
     lateClaim.release()

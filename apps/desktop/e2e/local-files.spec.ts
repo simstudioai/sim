@@ -59,23 +59,26 @@ test('native file tools remember folder consent across chats and restarts until 
     const bundle = await build({
       stdin: {
         contents: `import { createRoot } from 'react-dom/client';
-import { ToastProvider } from '@sim/emcn-legacy';
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
-import { PathParamsContext } from 'next/dist/shared/lib/hooks-client-context.shared-runtime';
-import { Desktop } from '@/components/settings/sections/desktop/desktop';
 import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context';
-import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header';
-import { SettingsSectionProvider } from '@/components/settings/settings-panel';
+import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface';
+import { NotificationSession, NotificationTray } from '@/app/(product)/_components/notification-tray/notification-tray';
+import DesktopSection from '@/app/(product)/o/[organizationId]/settings/_components/sections/desktop/desktop-section';
+import { SurfaceScopeProvider } from '@/platform/lib/surface-scope';
 const router = { bfcacheId: 'fixture', back: () => history.back(), forward: () => history.forward(), refresh: () => location.reload(), push: url => location.assign(url), replace: url => location.replace(url), prefetch: () => {} };
+const organization = { featureFlags: { 'mothership-computer-use': false } };
 createRoot(document.getElementById('settings')).render(
   <AppRouterContext.Provider value={router}>
-    <PathParamsContext.Provider value={{ workspaceId: 'fixture' }}>
-      <ToastProvider><SettingsHeaderProvider><SettingsHeaderShell>
-        <FeatureFlagsProvider flags={{ dashboards: false, 'workflow-tests': false, 'mothership-model-selector': false, 'mothership-plan-mode': false }}>
-          <SettingsSectionProvider plane='workspace' section='desktop'><Desktop /></SettingsSectionProvider>
-        </FeatureFlagsProvider>
-      </SettingsHeaderShell></SettingsHeaderProvider></ToastProvider>
-    </PathParamsContext.Provider>
+    <SurfaceScopeProvider routePrefix='/o/fixture-organization'>
+      <FeatureFlagsProvider flags={{ dashboards: false, 'workflow-tests': false, 'mothership-model-selector': false, 'mothership-plan-mode': false }}>
+        <PlatformSurface theme='light' canvas>
+          <NotificationSession>
+            <DesktopSection organization={organization} subpath={[]} query={{}} />
+            <NotificationTray history={[]} navigate={url => location.assign(url)} />
+          </NotificationSession>
+        </PlatformSurface>
+      </FeatureFlagsProvider>
+    </SurfaceScopeProvider>
   </AppRouterContext.Provider>
 );`,
         resolveDir: SIM_DIR,
@@ -93,10 +96,11 @@ createRoot(document.getElementById('settings')).render(
       define: { 'process.env.NODE_ENV': '"development"' },
     })
     const config = await loadPostcssConfig({}, SIM_DIR)
-    const cssPath = join(SIM_DIR, 'app/_styles/globals.css')
-    const css = await postcss(config.plugins).process(readFileSync(cssPath, 'utf8'), {
-      from: cssPath,
-    })
+    const css = await postcss(config.plugins).process(
+      '@import "./bootstrap.css";\n@import "@sim/emcn-platform/styles/platform.css";',
+      { from: join(SIM_DIR, 'platform/styles/bootstrap.css') }
+    )
+    const stylesheet = `${css.css}\n${bundle.outputFiles.find((file) => file.path.endsWith('.css'))?.text ?? ''}`
     server = createServer(async (request, response) => {
       const path = new URL(request.url ?? '/', 'http://127.0.0.1').pathname
       if (path === '/settings.js' || path === '/settings.css') {
@@ -104,7 +108,7 @@ createRoot(document.getElementById('settings')).render(
         response.end(
           path.endsWith('.js')
             ? bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.text
-            : css.css
+            : stylesheet
         )
         return
       }
@@ -186,9 +190,9 @@ createRoot(document.getElementById('settings')).render(
       app.focus({ steal: true })
       host.focus()
     })
-    await expect(window.getByRole('heading', { name: 'Local files', exact: true })).toHaveText(
-      'Local files'
-    )
+    await expect(
+      window.getByRole('heading', { name: 'Local files', exact: true, level: 1 })
+    ).toHaveText('Local files')
     const invoke = (input: DesktopLocalFileRequest) =>
       window.evaluate(async (request) => {
         const api = (globalThis as typeof globalThis & { simDesktop: SimDesktopApi }).simDesktop
@@ -465,21 +469,27 @@ createRoot(document.getElementById('settings')).render(
         path: test.info().outputPath('desktop-settings-full-access.png'),
         animations: 'disabled',
       })
-      await window.evaluate(() => document.documentElement.classList.add('dark'))
+      const setTheme = (theme: 'light' | 'dark') =>
+        window.evaluate(
+          (value) =>
+            document.querySelector('[data-platform-ui]')?.setAttribute('data-theme', value),
+          theme
+        )
+      await setTheme('dark')
       await window.screenshot({
         path: test.info().outputPath('desktop-settings-full-access-dark.png'),
         animations: 'disabled',
       })
-      await window.evaluate(() => document.documentElement.classList.remove('dark'))
+      await setTheme('light')
       expect(await invoke({ operation: 'read', toolCallId: 'notAuthorized' })).toMatchObject({
         ok: false,
       })
       await app?.close()
       app = await launch()
       window = await app.firstWindow()
-      await expect(window.getByRole('heading', { name: 'Local files', exact: true })).toHaveText(
-        'Local files'
-      )
+      await expect(
+        window.getByRole('heading', { name: 'Local files', exact: true, level: 1 })
+      ).toHaveText('Local files')
       await expect
         .poll(() =>
           window.evaluate(async () =>
@@ -892,9 +902,9 @@ createRoot(document.getElementById('settings')).render(
       await app?.close()
       app = await launch()
       window = await app.firstWindow()
-      await expect(window.getByRole('heading', { name: 'Local files', exact: true })).toHaveText(
-        'Local files'
-      )
+      await expect(
+        window.getByRole('heading', { name: 'Local files', exact: true, level: 1 })
+      ).toHaveText('Local files')
       expect(await invoke({ operation: 'read', toolCallId: 'text' })).toMatchObject({ ok: true })
     })
     await test.step('forgetting a folder revokes native reads and survives restart', async () => {
@@ -903,9 +913,9 @@ createRoot(document.getElementById('settings')).render(
       await app?.close()
       app = await launch()
       window = await app.firstWindow()
-      await expect(window.getByRole('heading', { name: 'Local files', exact: true })).toHaveText(
-        'Local files'
-      )
+      await expect(
+        window.getByRole('heading', { name: 'Local files', exact: true, level: 1 })
+      ).toHaveText('Local files')
       const revoked = await requestPermission({ operation: 'read', toolCallId: 'text' })
       await revoked.prompt
         .getByRole('button', { name: 'Allow folder', exact: true })
@@ -920,9 +930,9 @@ createRoot(document.getElementById('settings')).render(
       writeFileSync(join(source, 'report.txt'), 'replacement contents')
       app = await launch()
       window = await app.firstWindow()
-      await expect(window.getByRole('heading', { name: 'Local files', exact: true })).toHaveText(
-        'Local files'
-      )
+      await expect(
+        window.getByRole('heading', { name: 'Local files', exact: true, level: 1 })
+      ).toHaveText('Local files')
       const replaced = await requestPermission({ operation: 'read', toolCallId: 'text' })
       await replaced.prompt
         .getByRole('button', { name: "Don't allow", exact: true })

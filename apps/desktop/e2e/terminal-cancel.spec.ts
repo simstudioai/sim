@@ -7,7 +7,14 @@ import type { SimDesktopApi } from '@sim/desktop-bridge'
 import { sleep } from '@sim/utils/helpers'
 import { randomInt } from '@sim/utils/random'
 import { recordCheck } from './check-report'
-import { FixtureSim, launch, processRunning, registeredDevice, settled } from './executor-sim'
+import {
+  chatRoute,
+  FixtureSim,
+  launch,
+  processRunning,
+  registeredDevice,
+  settled,
+} from './executor-sim'
 
 /**
  * Stopping the agent's terminal commands in the real app, with real shells and a real tmux
@@ -327,7 +334,7 @@ test.describe('terminal cancel', () => {
     launched.app.process().stdout?.on('data', (chunk: Buffer) => appOutput.push(chunk.toString()))
     launched.app.process().stderr?.on('data', (chunk: Buffer) => appOutput.push(chunk.toString()))
     const deviceId = await registeredDevice(sim)
-    await launched.window.goto(`${sim.origin}/workspace/ws-e2e/chat/${CHAT_PLAIN}`)
+    await launched.window.goto(chatRoute(sim, CHAT_PLAIN))
     return { window: launched.window, deviceId, userData }
   }
 
