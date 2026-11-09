@@ -35,8 +35,8 @@ export function WorkspaceEntry({
     )
   return (
     <ShellGate
-      title='Could not load your workspaces'
-      description='Something went wrong while loading your workspaces. Please try again.'
+      title='Something went wrong'
+      description='Sim could not load your workspaces. Please try again.'
     >
       <Button variant='primary' onClick={() => router.refresh()}>
         Try again

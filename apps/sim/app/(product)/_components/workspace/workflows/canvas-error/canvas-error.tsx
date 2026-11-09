@@ -17,33 +17,16 @@ const logger = createLogger('ErrorBoundary')
 /** Keeps a runaway stack out of the event payload without losing the top frames. */
 const MAX_REPORTED_COMPONENT_STACK = 2000
 
-interface ErrorUIProps {
-  title?: string
-  message?: string
-  onReset?: () => void
-}
-
-/**
- * The canvas's failure state, centered in the space it replaces, with a way to try again. Without
- * `onReset`, trying again reloads the page.
- */
-export function ErrorUI({
-  title = 'Something went wrong',
-  message = 'An unexpected error occurred. Please try again or refresh the page.',
-  onReset,
-}: ErrorUIProps) {
+/** The canvas's crash state, centered in the space it replaces; trying again reloads the page. */
+function ErrorUI() {
   return (
     <div className={styles.frame}>
       <EmptyState
         graphic={<Icon name='warning-triangle' />}
-        title={title}
-        description={message}
+        title='Something went wrong'
+        description='An unexpected error occurred. Please try again or refresh the page.'
         action={
-          <Button
-            variant='secondary'
-            size='compact'
-            onClick={onReset ?? (() => window.location.reload())}
-          >
+          <Button variant='secondary' size='compact' onClick={() => window.location.reload()}>
             Try again
           </Button>
         }

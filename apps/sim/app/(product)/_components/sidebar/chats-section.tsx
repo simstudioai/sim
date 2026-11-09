@@ -187,8 +187,7 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
           <SectionStatus
             status={status}
             isEmpty={chats.length === 0}
-            emptyLabel='No chats yet'
-            failureLabel='Could not load chats'
+            items='chats'
             onRetry={actions.retry}
           />
           {chats.map((item) => {

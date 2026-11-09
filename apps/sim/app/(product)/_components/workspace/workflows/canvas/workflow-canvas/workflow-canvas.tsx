@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn/lib/cn'
+import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
@@ -67,10 +68,7 @@ import {
   reactFlowFitViewOptions,
   reactFlowProOptions,
 } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/workflow-canvas-constants'
-import {
-  ErrorBoundary,
-  ErrorUI,
-} from '@/app/(product)/_components/workspace/workflows/canvas-error/canvas-error'
+import { ErrorBoundary } from '@/app/(product)/_components/workspace/workflows/canvas-error/canvas-error'
 import { CanvasMenu } from '@/app/(product)/_components/workspace/workflows/canvas-menu/canvas-menu'
 import { CommandList } from '@/app/(product)/_components/workspace/workflows/command-list/command-list'
 import { FocusBlockDeepLink } from '@/app/(product)/_components/workspace/workflows/focus-block-deep-link/focus-block-deep-link'
@@ -4910,10 +4908,10 @@ const WorkflowContent = memo(function WorkflowContent({
         {!isWorkflowReady && (
           <div className={styles.loading}>
             {workflowLoadError ? (
-              <ErrorUI
+              <FailureNotice
                 title='Unable to load workflow'
                 message={workflowLoadError}
-                onReset={() => {
+                onRetry={() => {
                   if (workflowMapFailed) {
                     void workflowMap.refetch()
                     return

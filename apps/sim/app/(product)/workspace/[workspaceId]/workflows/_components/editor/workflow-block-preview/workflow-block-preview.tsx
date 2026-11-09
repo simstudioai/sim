@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { FailureNotice } from '@sim/emcn/status'
 import Link from 'next/link'
 import { workspacePath } from '@/lib/navigation/paths'
 import { WorkflowPreview } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-preview/workflow-preview'
@@ -66,12 +67,19 @@ interface WorkflowBlockPreviewProps {
  * in a new tab. The frame stays empty while the child loads.
  */
 export function WorkflowBlockPreview({ workspaceId, workflowId }: WorkflowBlockPreviewProps) {
-  const { data: workflowState, isLoading } = useWorkflowState(workflowId)
+  const child = useWorkflowState(workflowId)
+  if (child.isError)
+    return (
+      <FailureNotice
+        message='Unable to load preview'
+        retrying={child.isFetching}
+        onRetry={() => void child.refetch()}
+      />
+    )
   return (
     <PreviewFrame
       workspaceId={workspaceId}
-      workflowState={workflowState}
-      unavailable={isLoading ? undefined : 'Unable to load preview'}
+      workflowState={child.data}
       action={
         <IconButton
           label='Open workflow'

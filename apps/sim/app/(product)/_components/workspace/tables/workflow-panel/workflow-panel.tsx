@@ -7,13 +7,13 @@ import { SwitchField, TextField } from '@sim/emcn/field'
 import { ListField } from '@sim/emcn/field/list-field'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { FailureNotice } from '@sim/emcn/status'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import {
   SidePanel,
-  SidePanelNote,
   SidePanelSection,
 } from '@/app/(product)/_components/workspace/tables/side-panel/side-panel'
 import { InputMappingFields } from '@/app/(product)/_components/workspace/tables/workflow-panel/input-mapping-fields'
@@ -471,7 +471,11 @@ function WorkflowPanelForm({
               groups={[{ id: 'blocks', items: previewBlocks(deployedState) }]}
             />
           ) : (
-            <SidePanelNote>Unable to load the workflow preview</SidePanelNote>
+            <FailureNotice
+              message='Unable to load the workflow preview'
+              retrying={workflowState.isFetching}
+              onRetry={() => void workflowState.refetch()}
+            />
           )}
           {deployedState && !isEnrichment && (
             <span className={styles.previewOpen}>

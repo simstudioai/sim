@@ -6,24 +6,19 @@ interface SectionStatusProps {
   /** Absent means the rows are simply there, so nothing here applies. */
   status?: ShellQueryStatus
   isEmpty: boolean
-  emptyLabel: string
-  failureLabel: string
+  /** The plural rows this section lists, such as `chats`. */
+  items: string
   onRetry?: () => void
 }
 
 /** Loading stays silent, like the legacy sidebar; empty and failure each say which they are. */
-export function SectionStatus({
-  status,
-  isEmpty,
-  emptyLabel,
-  failureLabel,
-  onRetry,
-}: SectionStatusProps) {
-  if (status === 'error') return <FailureNotice message={failureLabel} onRetry={onRetry} />
+export function SectionStatus({ status, isEmpty, items, onRetry }: SectionStatusProps) {
+  if (status === 'error')
+    return <FailureNotice message={`Could not load ${items}`} onRetry={onRetry} />
   if (status === 'success' && isEmpty)
     return (
       <p className={styles.message} data-type='T052'>
-        {emptyLabel}
+        No {items} yet
       </p>
     )
   return null

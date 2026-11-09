@@ -445,7 +445,7 @@ export function SnapshotBlock({ workspaceId, workflowState, blockId, run }: Snap
                   workspaceId={workspaceId}
                   workflowState={run.child?.workflowState}
                   expandHref={run.child?.href}
-                  unavailable={step ? 'Unable to load preview' : 'Not run'}
+                  unavailable={step ? 'Preview unavailable' : 'Not run'}
                 />
               ) : (
                 <WorkflowBlockPreview workspaceId={workspaceId} workflowId={childWorkflowId} />

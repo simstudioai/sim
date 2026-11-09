@@ -905,28 +905,7 @@ const FIXTURE_BRANCH_VIEWS: ReasonedAllowlist = {
 /** Live-reachable modules that import fixture code a normal build then evaluates. */
 const FIXTURE_IMPORTS_FROM_LIVE: ReasonedAllowlist = {}
 /** Files that render a failed read's copy outside `FailureNotice`. */
-const FAILURE_COPY_OWNERS: ReasonedAllowlist = {
-  [`${PRODUCT_ROUTES}_components/sidebar/chats-section.tsx`]:
-    "The sidebar section's own failure row carries its Retry",
-  [`${PRODUCT_ROUTES}_components/sidebar/workspaces-section.tsx`]:
-    "The sidebar section's own failure row carries its Retry",
-  [`${PRODUCT_ROUTES}_components/workspace/tables/workflow-panel/workflow-panel.tsx`]:
-    'Predates the rule: the workflow panel names its failed read inline',
-  [`${PRODUCT_ROUTES}_components/workspace/workflows/canvas/workflow-canvas/workflow-canvas.tsx`]:
-    "The canvas keeps the legacy editor's error view unchanged",
-  [`${ORGANIZATION_ROUTES}people/_components/directory-sync/connect-modal.tsx`]:
-    'Predates the rule: the connect dialog names its failed read inline',
-  [`${ORGANIZATION_ROUTES}people/_components/import/import-modal.tsx`]:
-    'Predates the rule: the import dialog names its failed connection read inline',
-  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/compare-versions/compare-versions.tsx`]:
-    'Predates the rule: the version compare names its failed read inline',
-  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/workflow-block-preview/workflow-block-preview.tsx`]:
-    'Predates the rule: the block preview names its failed read inline',
-  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/snapshot-block/snapshot-block.tsx`]:
-    'Predates the rule: the snapshot block names its failed read inline',
-  [`${PRODUCT_ROUTES}workspace/_components/workspace-entry/workspace-entry.tsx`]:
-    "Predates the rule: the workspace entry's gate names its failed read",
-}
+const FAILURE_COPY_OWNERS: ReasonedAllowlist = {}
 /** Files whose product copy still spells an ellipsis as three periods. */
 const ASCII_ELLIPSIS_COPY: ReasonedAllowlist = {}
 

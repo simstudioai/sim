@@ -102,8 +102,7 @@ export function WorkspacesSection({
           <SectionStatus
             status={data?.status?.workspaces}
             isEmpty={workspaces.length === 0}
-            emptyLabel='No workspaces yet'
-            failureLabel='Could not load workspaces'
+            items='workspaces'
             onRetry={retry}
           />
           {workspaces.slice(0, visibleCount).map((item) => {

@@ -5,7 +5,7 @@ import { IconButton } from '@sim/emcn/button'
 import { Icon } from '@sim/emcn/icon'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
-import { InlineNotice } from '@sim/emcn/status'
+import { FailureNotice } from '@sim/emcn/status'
 import { getPreviewBlockDimensions } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-preview/preview-dimensions'
 import { WorkflowPreview } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-preview/workflow-preview'
 import { ChangeList } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/compare-versions/change-list'
@@ -146,9 +146,13 @@ export function CompareVersions({ workflowId, versions, initial, onClose }: Comp
         <div className={styles.body}>
           {loadError ? (
             <div className={styles.failure}>
-              <InlineNotice
-                intent='danger'
+              <FailureNotice
                 message={loadError.message || 'Could not load one of the versions.'}
+                retrying={baseQuery.isFetching || targetQuery.isFetching}
+                onRetry={() => {
+                  if (baseQuery.isError) void baseQuery.refetch()
+                  if (targetQuery.isError) void targetQuery.refetch()
+                }}
               />
             </div>
           ) : (
