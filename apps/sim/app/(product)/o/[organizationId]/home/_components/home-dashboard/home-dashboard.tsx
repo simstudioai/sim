@@ -26,6 +26,11 @@ import type {
 import { RetryButton } from '@/app/(product)/o/[organizationId]/home/_components/retry-button/retry-button'
 
 const WIDGETS: readonly HomeWidget[] = ['Activity', 'Email', 'Calendar']
+/**
+ * Home sections held back by design until the designer's pass. Their views and reads stay; Home
+ * renders none of them.
+ */
+const HIDDEN_SECTIONS: ReadonlySet<'Needs your attention'> = new Set(['Needs your attention'])
 const ACTIVITY_METRIC_TITLES: Record<HomeMode, string> = { Build: 'Tasks run', Search: 'Searches' }
 
 interface HomeDashboardProps {
@@ -162,11 +167,13 @@ export function HomeDashboard({
                   )}
                 </div>
                 <div className={styles.column}>
-                  <AttentionList
-                    state={view.attention}
-                    asOf={view.asOf}
-                    onRetry={actions.retryAttention}
-                  />
+                  {!HIDDEN_SECTIONS.has('Needs your attention') && (
+                    <AttentionList
+                      state={view.attention}
+                      asOf={view.asOf}
+                      onRetry={actions.retryAttention}
+                    />
+                  )}
                   {!hiddenWidgets.includes('Calendar') && (
                     <ConnectedWidget
                       title='Calendar'
