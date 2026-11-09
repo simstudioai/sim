@@ -1,3 +1,4 @@
+import { ChatScreen } from '@/app/(product)/_components/chat/conversation/chat-screen'
 import { FixtureChat } from '@/app/(product)/_components/chat/conversation/fixture-chat'
 import { ChatPanels } from '@/app/(product)/_components/chat/panel/chat-panels'
 import {
@@ -19,8 +20,10 @@ export async function FixtureChatScreen({ scenario, chatId }: FixtureChatScreenP
     loadShellData(scenario),
   ])
   return (
-    <ChatPanels workspaces={shell?.workspaces ?? []} data={panel} key={chatId ?? 'new'}>
-      <FixtureChat data={data?.chat ?? null} chatId={chatId} />
-    </ChatPanels>
+    <ChatScreen>
+      <ChatPanels workspaces={shell?.workspaces ?? []} data={panel} key={chatId ?? 'new'}>
+        <FixtureChat data={data?.chat ?? null} chatId={chatId} />
+      </ChatPanels>
+    </ChatScreen>
   )
 }

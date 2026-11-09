@@ -18,7 +18,7 @@ const settingRowParser = parseAsString.withOptions({ history: 'replace', scroll:
  */
 function useSettingRowReveal() {
   const [row, setRow] = useQueryState(SETTING_ROW_PARAM, settingRowParser)
-  const rootRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLElement>(null)
   useEffect(() => {
     const root = rootRef.current
     if (!row || !root) return
@@ -84,12 +84,12 @@ export function SettingsScreen({ title, children }: SettingsScreenProps) {
         </span>
       </header>
       <PageColumn>
-        <div ref={content} className={styles.content}>
+        <main ref={content} className={styles.content}>
           <header className={styles.heading}>
             <h1 data-type='T076'>{title}</h1>
           </header>
           {children}
-        </div>
+        </main>
       </PageColumn>
     </>
   )

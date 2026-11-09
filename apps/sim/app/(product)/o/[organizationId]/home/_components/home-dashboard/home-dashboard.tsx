@@ -79,7 +79,7 @@ export function HomeDashboard({
     }
   }
   return (
-    <div className={styles.scroller}>
+    <main className={styles.scroller}>
       <PageColumn>
         <div className={styles.dashboard}>
           <PlatformSurface theme='system'>
@@ -196,6 +196,6 @@ export function HomeDashboard({
           </PlatformSurface>
         </div>
       </PageColumn>
-    </div>
+    </main>
   )
 }

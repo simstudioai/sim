@@ -1,5 +1,6 @@
 import 'server-only'
 import { notFound, redirect } from 'next/navigation'
+import { ChatScreen } from '@/app/(product)/_components/chat/conversation/chat-screen'
 import { LiveChat } from '@/app/(product)/_components/chat/live/live-chat'
 import { readChatMode } from '@/platform/lib/data/chat-gate'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
@@ -19,5 +20,9 @@ export async function LiveChatRoute({ chatId }: { chatId?: string }) {
     if (!mode) notFound()
     if (mode === 'assistant') redirect(surfaceHref(organization, `/search/chat/${chatId}`))
   }
-  return <LiveChat chatId={chatId} destination='agent' />
+  return (
+    <ChatScreen>
+      <LiveChat chatId={chatId} destination='agent' />
+    </ChatScreen>
+  )
 }

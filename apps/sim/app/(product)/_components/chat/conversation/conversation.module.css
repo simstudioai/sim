@@ -1,3 +1,7 @@
+/* Adds no box, so the chat page's landmark leaves the conversation filling the shell's pane. */
+.screen {
+  display: contents;
+}
 .chat {
   position: relative;
   display: flex;

@@ -30,7 +30,7 @@ export function LinksFrame({
   const hosted = useLinksHosted()
   return (
     <PageColumn>
-      <main className={styles.page}>
+      <div className={styles.page}>
         <header className={styles.heading}>
           <h1 data-type='T076'>Links</h1>
           <div className={styles.actions}>
@@ -61,7 +61,7 @@ export function LinksFrame({
           />
         </div>
         {children}
-      </main>
+      </div>
     </PageColumn>
   )
 }
