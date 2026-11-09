@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { type ReactNode, useState } from 'react'
 import { type DehydratedState, HydrationBoundary, QueryClientProvider } from '@tanstack/react-query'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
@@ -21,7 +21,12 @@ function LiveShellProvider({
   children: ReactNode
 }) {
   const shell = useShellData(navigation)
-  return <LiveShellContext.Provider value={shell}>{children}</LiveShellContext.Provider>
+  const [firstPaint] = useState(shell.data)
+  return (
+    <LiveShellContext.Provider value={{ ...shell, firstPaint }}>
+      {children}
+    </LiveShellContext.Provider>
+  )
 }
 
 interface LiveProvidersProps {
