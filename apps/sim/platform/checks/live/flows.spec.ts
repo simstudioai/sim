@@ -63,6 +63,9 @@ test('Mod+B collapses the sidebar, the choice survives a reload, and Expand rest
   await signInAsAdmin(page, liveRoute('/home'))
   const sidebar = page.getByRole('complementary', { name: 'Platform sidebar' })
   await expect(sidebar).toBeVisible()
+  // Home's composer takes focus as it mounts and Mod+B leaves a focused field alone, as legacy did.
+  await expect(page.getByRole('textbox', { name: /Ask about your business/ })).toBeFocused()
+  await page.locator('body').click({ position: { x: 700, y: 20 } })
   await pressShortcut(page, 'ControlOrMeta+b', () => expect(sidebar).toBeHidden({ timeout: 1_000 }))
   await page.reload()
   await expect(sidebar).toBeHidden()
