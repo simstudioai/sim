@@ -50,7 +50,12 @@ interface RowStatusProps {
 
 /** A row's end: Running while it runs, then canceled or its duration. */
 function RowStatus({ isRunning, isCanceled, durationMs }: RowStatusProps) {
-  if (isRunning) return <StatusText label='Running' intent='info' live />
+  if (isRunning)
+    return (
+      <span className={styles.duration} data-type='T052'>
+        <StatusText label='Running' intent='info' />
+      </span>
+    )
   return (
     <span className={styles.duration} data-type='T052'>
       {isCanceled ? 'canceled' : (formatDuration(durationMs, { precision: 2 }) ?? '-')}

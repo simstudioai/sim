@@ -255,7 +255,9 @@ function NodeHeader({ name, type, isExpanded, isError, summary, onToggle }: Node
       <span className={styles.key} data-error={isError || undefined} data-type='T060'>
         {name}
       </span>
-      <StatusText label={type} intent={isError ? 'danger' : 'neutral'} />
+      <span data-type='T052'>
+        <StatusText label={type} intent={isError ? 'danger' : 'neutral'} />
+      </span>
       {!isExpanded && summary && (
         <span className={styles.summary} data-type='T060'>
           {summary}
@@ -719,7 +721,9 @@ export const StructuredOutput = memo(function StructuredOutput({
           <span className={styles.key} data-type='T060'>
             running
           </span>
-          <StatusText label='Running' intent='info' live />
+          <span data-type='T052'>
+            <StatusText label='Running' intent='info' />
+          </span>
         </div>
       </div>
     )

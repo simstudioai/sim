@@ -4,7 +4,7 @@ import { Button } from '@sim/emcn/button'
 import { Input } from '@sim/emcn/field/inputs'
 import { Icon } from '@sim/emcn/icon'
 import { SettingsRow, SettingsSection, SettingsSurface } from '@sim/emcn/settings-section'
-import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { FailureNotice, StatusText } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { Tooltip } from '@sim/emcn/tooltip'
 import {
@@ -178,7 +178,7 @@ export function BillingView({
               const details = (
                 <>
                   <span data-type='T059'>{invoice.date}</span>
-                  <StatusTag label={invoice.statusLabel} intent={invoice.statusIntent} />
+                  <StatusText label={invoice.statusLabel} intent={invoice.statusIntent} />
                   <span data-type='T060'>{invoice.amount}</span>
                   <span className={styles.description} data-type='T060'>
                     {invoice.description}

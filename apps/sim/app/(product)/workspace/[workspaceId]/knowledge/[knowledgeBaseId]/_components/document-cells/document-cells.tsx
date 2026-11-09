@@ -26,7 +26,7 @@ export function DocumentStatus({
     case 'pending':
       return <StatusText label='Pending' />
     case 'processing':
-      return <StatusText label='Processing' intent='info' live />
+      return <StatusText label='Processing' intent='info' />
     case 'skipped':
       return <StatusText label='Skipped' />
     case 'failed':

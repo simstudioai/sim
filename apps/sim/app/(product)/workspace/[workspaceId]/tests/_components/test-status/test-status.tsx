@@ -15,7 +15,7 @@ const TEST_STATUS: Record<WorkflowTestRecord['status'], { label: string; intent:
 /** A test's latest outcome in its semantic ink, as Logs shows a run's status. */
 export function TestStatus({ status }: { status: WorkflowTestRecord['status'] }) {
   const config = TEST_STATUS[status]
-  return <StatusText label={config.label} intent={config.intent} live={status === 'running'} />
+  return <StatusText label={config.label} intent={config.intent} />
 }
 
 export type CaseState = 'queued' | 'running' | 'pass' | 'fail' | 'skip' | 'none'

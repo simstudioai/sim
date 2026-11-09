@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useId } from 'react'
-import { StatusTag } from '@sim/emcn/status'
+import { StatusText } from '@sim/emcn/status'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/entry-card/entry-card.module.css'
 import { FoldToggle } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/fold-toggle/fold-toggle'
 
@@ -41,7 +41,11 @@ export function EntryCard({
           <span className={styles.title} data-type='T060'>
             {title}
           </span>
-          {typeTag && <StatusTag label={typeTag} />}
+          {typeTag && (
+            <span data-type='T052'>
+              <StatusText label={typeTag} />
+            </span>
+          )}
         </FoldToggle>
         {actions && <span className={styles.actions}>{actions}</span>}
       </div>
