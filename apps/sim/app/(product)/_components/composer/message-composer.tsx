@@ -16,6 +16,7 @@ import {
   type PromptHistoryEntry,
   usePromptHistory,
 } from '@/app/(product)/_components/composer/use-prompt-history'
+import { useSkillListHold } from '@/app/(product)/_components/composer/use-skill-list-hold'
 import { useComposerFocus } from '@/app/(product)/_components/session/composer-host'
 
 interface MessageComposerProps {
@@ -46,12 +47,13 @@ export function MessageComposer({
   const picker = useRef<HTMLInputElement>(null)
   const folder = useRef<HTMLInputElement>(null)
   const uploading = files.some((file) => file.uploading)
-  function submit() {
+  function send() {
     if (uploading) return
     if (!text.trim() && !files.length) return
     if (onSubmit({ text: text.trim(), attachments: files }) === false) return
     composer.clear()
   }
+  const hold = useSkillListHold({ composer, text, resync: () => refs.update(text), send })
   const settingsMenu = settings && <ComposerSettingsMenu settings={settings} />
   return (
     <div
@@ -59,6 +61,7 @@ export function MessageComposer({
       data-material='reading'
       data-elevation='composer'
       data-dragging={drop?.dragging || undefined}
+      aria-busy={hold.holding || undefined}
       onDragEnter={drop?.onDragEnter}
       onDragOver={drop?.onDragOver}
       onDragLeave={drop?.onDragLeave}
@@ -86,7 +89,7 @@ export function MessageComposer({
           refs.onKeyDown(event)
           recall(event)
         }}
-        onSubmit={submit}
+        onSubmit={hold.submit}
         onPasteFiles={composer.addFiles}
         onPasteText={composer.addPastedText}
       />
@@ -173,8 +176,8 @@ export function MessageComposer({
               label='Send message'
               icon='I023'
               variant='solid'
-              disabled={uploading || (!text.trim() && !files.length)}
-              onClick={submit}
+              disabled={hold.holding || uploading || (!text.trim() && !files.length)}
+              onClick={hold.submit}
             />
           )}
         </div>

@@ -156,7 +156,11 @@ export function useComposerReferences(composer: ComposerController) {
           key,
           index: (active + (event.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length,
         })
-    } else if ((event.key === 'Enter' || event.key === 'Tab') && (rows[active] || loading)) {
+    } else if (
+      (event.key === 'Enter' || event.key === 'Tab') &&
+      (rows[active] || (loading && trigger.prefix === '@'))
+    ) {
+      // A `/name` typed while skills load is sent and held until they land, so Enter falls through.
       event.preventDefault()
       if (rows[active]) choose(rows[active], true)
     }
