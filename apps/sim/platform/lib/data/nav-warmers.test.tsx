@@ -21,7 +21,6 @@ const { surface } = vi.hoisted(() => ({
     searchAccess: { memberScoped: true },
     viewer: { isAdmin: false, canConnectSearchIntegrations: true },
     connectedAccountsAvailable: true,
-    navFlags: { simLinks: true },
   },
 }))
 
@@ -80,7 +79,6 @@ beforeEach(() => {
   vi.spyOn(queryClient, 'prefetchInfiniteQuery').mockImplementation(record as never)
   surface.viewer.isAdmin = false
   surface.viewer.canConnectSearchIntegrations = true
-  surface.navFlags.simLinks = true
 })
 
 afterEach(() => {
@@ -111,9 +109,8 @@ describe('warming a nav row', () => {
 
   it('leaves alone what the viewer’s page would refuse', async () => {
     surface.viewer.canConnectSearchIntegrations = false
-    surface.navFlags.simLinks = false
     const warmers = renderWarmers()
-    for (const destination of ['integrations', 'people', 'links']) {
+    for (const destination of ['integrations', 'people']) {
       warmers.schedule(destination)
       await settleDwell()
     }

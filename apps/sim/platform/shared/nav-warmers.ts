@@ -3,11 +3,9 @@
 import { useEffect, useRef } from 'react'
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
-import { simLinksSortParams } from '@/lib/sim-links/search-params'
 import { organizationAccountsQueryOptions } from '@/hooks/queries/organization-accounts'
 import { peopleListQueryOptions } from '@/hooks/queries/people'
 import { searchIntegrationsQueryOptions } from '@/hooks/queries/search-integrations'
-import { simLinksQueryOptions } from '@/hooks/queries/sim-links'
 import {
   dropFailedSpeculativeQuery,
   prefetchQueryOnIntent,
@@ -22,8 +20,6 @@ interface NavWarmerHost {
   organizationId: string
   isAdmin: boolean
   canReadIntegrations: boolean
-  /** The destination id of Sim links on this surface, absent where they are not offered. */
-  simLinksDestination?: string
   settingsHref: (section: WarmedSettingsSection) => string
   warmSettingsSection: (queryClient: QueryClient, section: WarmedSettingsSection) => void
 }
@@ -52,13 +48,6 @@ export function useNavWarmers(host: NavWarmerHost) {
     }
     if (destination === 'people' && host.isAdmin) {
       const options = peopleListQueryOptions(organizationId, '', '', { scope: 'roots' })
-      void queryClient
-        .prefetchInfiniteQuery(options)
-        .then(() => dropFailedSpeculativeQuery(queryClient, options.queryKey))
-    }
-    if (destination === host.simLinksDestination) {
-      const { column, direction } = simLinksSortParams.default
-      const options = simLinksQueryOptions(organizationId, '', column, direction)
       void queryClient
         .prefetchInfiniteQuery(options)
         .then(() => dropFailedSpeculativeQuery(queryClient, options.queryKey))

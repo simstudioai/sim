@@ -15,6 +15,7 @@ import { OverflowText } from '@sim/emcn/overflow-text'
 import { ScrollArea } from '@sim/emcn/scroll-area'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { Tooltip } from '@sim/emcn/tooltip'
+import { compareStrings } from '@sim/utils/string'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CommandMenu } from '@/app/(product)/_components/command-menu/command-menu'
 import { PageCommandsProvider } from '@/app/(product)/_components/command-menu/page-commands'
@@ -92,7 +93,7 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
     liveActions ? (data?.chats ?? []) : session.chats,
     chatOrder,
     (item) => item.title,
-    (left, right) => (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '')
+    (left, right) => compareStrings(right.updatedAt ?? '', left.updatedAt ?? '')
   )
   const workspaces = orderSidebarItems(
     liveActions ? (data?.workspaces ?? []) : session.workspaces,

@@ -24,7 +24,6 @@ export function useNavWarmers() {
     organizationId,
     isAdmin,
     canReadIntegrations: canReadMemberIntegrations(organization),
-    simLinksDestination: organization.navFlags.simLinks ? 'links' : undefined,
     settingsHref: (section) => surfaceHref(organization, `/settings/${section}`),
     warmSettingsSection: (queryClient: QueryClient, section) => {
       if (section !== 'members') return
