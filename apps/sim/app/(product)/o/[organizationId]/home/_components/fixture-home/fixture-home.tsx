@@ -82,7 +82,7 @@ export function FixtureHome({ data, recentLinks }: FixtureHomeProps) {
   const { recents, removeRecent } = useRecentHistory(recentLinks)
   const [dayOffset, setDayOffset] = useState(0)
   if (!preferences) throw new Error('Home needs interface preferences')
-  const { connections, setConnections } = preferences
+  const { connections, setConnections, hiddenWidgets, setHiddenWidgets } = preferences
   const widgetActions = (widget: keyof typeof CONNECT_OPTIONS): HomeWidgetActions => ({
     connect: data ? () => setConnections((current) => ({ ...current, [widget]: true })) : undefined,
     disconnect: () => setConnections((current) => ({ ...current, [widget]: false })),
@@ -130,5 +130,20 @@ export function FixtureHome({ data, recentLinks }: FixtureHomeProps) {
     retryRecents: () => {},
     removeRecent,
   }
-  return <ZoneHomeDashboard view={view} actions={actions} />
+  return (
+    <ZoneHomeDashboard
+      view={view}
+      actions={actions}
+      hiddenWidgets={hiddenWidgets}
+      onWidgetHiddenChange={(widget, hidden) =>
+        setHiddenWidgets((current) =>
+          hidden
+            ? current.includes(widget)
+              ? current
+              : [...current, widget]
+            : current.filter((item) => item !== widget)
+        )
+      }
+    />
+  )
 }
