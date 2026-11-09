@@ -358,6 +358,8 @@ const seamHelpers = new Set([
   'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments',
   'blocks/custom/overlay',
   'components/assistant-actions/presentation',
+  'components/dashboards/search-params',
+  'components/dashboards/use-dashboard-time',
   'connectors/auth',
   'connectors/gitlab/permission-config/csv-files',
   'connectors/gitlab/permission-config/use-permission-form',

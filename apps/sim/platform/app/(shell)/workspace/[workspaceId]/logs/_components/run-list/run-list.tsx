@@ -7,21 +7,19 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
-import { ListEnd } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/list-end/list-end'
+import {
+  ListEnd,
+  type ListEndProps,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/list-end/list-end'
 import {
   WorkspaceEmpty,
-  WorkspacePage,
+  WorkspaceTabPage,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
 import {
   formatComputeUnits,
   formatDuration,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/format'
-import type {
-  RunSummary,
-  RunsData,
-  WorkspaceRead,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
-import { useRevealedCount } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
+import type { WorkspaceRead } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/run-list/run-list.module.css'
 import {
   RUN_STATUS_LABEL,
@@ -31,14 +29,14 @@ import {
 import { platformHref } from '@/platform/lib/navigation'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import {
+  RUN_PERIODS,
   RUN_SORTS,
   RUN_STATUSES,
   runListParams,
   serializeRunList,
 } from '@/platform/lib/workspace-views'
 import { formatRelativeTime } from '@/platform/shared/time'
-
-const PAGE_SIZE = 50
+import type { RunSummary, TabWorkspace } from '@/platform/shared/workspace-records'
 
 const SORT_LABEL: Record<(typeof RUN_SORTS)[number], string> = {
   newest: 'Started newest first',
@@ -47,59 +45,59 @@ const SORT_LABEL: Record<(typeof RUN_SORTS)[number], string> = {
   cu: 'Compute Units highest first',
 }
 
-function compareRuns(sort: (typeof RUN_SORTS)[number]) {
-  return (left: RunSummary, right: RunSummary) => {
-    switch (sort) {
-      case 'oldest':
-        return left.startedAt - right.startedAt
-      case 'duration':
-        return (right.durationMs ?? -1) - (left.durationMs ?? -1)
-      case 'cu':
-        return (right.cu ?? -1) - (left.cu ?? -1)
-      default:
-        return right.startedAt - left.startedAt
-    }
-  }
+const PERIOD_LABEL: Record<(typeof RUN_PERIODS)[number], string> = {
+  all: 'All time',
+  '1h': 'Past hour',
+  '24h': 'Past 24 hours',
+  '7d': 'Past 7 days',
+  '30d': 'Past 30 days',
+}
+
+export interface RunFilterOption {
+  value: string
+  label: string
 }
 
 interface RunListProps {
   /** How the page's read stands; ready when omitted. */
   read?: WorkspaceRead
-  /** The latest runs; the page refreshes itself, so new runs join on their own. */
-  data: RunsData
+  workspace: TabWorkspace
+  /** The surface's single reference instant for start ages. */
+  referenceTime: number
+  /** The runs the view's period, filters and sort select, in order, as far as they have been read. */
+  runs: readonly RunSummary[]
+  /** What the Trigger and Workflow filters offer. */
+  triggers: readonly RunFilterOption[]
+  workflows: readonly RunFilterOption[]
+  /** Reading further down the list; the page refreshes itself, so new runs join on their own. */
+  more: ListEndProps
 }
 
 /**
- * Every run in the workspace, newest first. A row opens the run's trace; filters and sort shape the
- * list, and new runs join as the page refreshes.
+ * Every run in the workspace, newest first. A row opens the run's trace; the period, filters and
+ * sort live in the URL and shape the list, and new runs join as the page refreshes.
  */
-export function RunList({ data, read }: RunListProps) {
+export function RunList({
+  read,
+  workspace,
+  referenceTime,
+  runs,
+  triggers,
+  workflows,
+  more,
+}: RunListProps) {
   const search = useSearchParams()
   const [view, setView] = useQueryStates(runListParams, { history: 'replace', shallow: true })
-  const workflows = [
-    ...new Map(data.runs.map((run) => [run.workflow.id, run.workflow])).values(),
-  ].sort((left, right) => left.name.localeCompare(right.name))
-  const triggers = [...new Set(data.runs.map((run) => run.trigger.label))].sort()
-  // A trigger or workflow no longer among the runs, from an old link, reads as all of them.
-  const trigger = triggers.includes(view.trigger) ? view.trigger : 'all'
-  const workflow = workflows.some((item) => item.id === view.workflow) ? view.workflow : 'all'
-  const [revealed, revealMore] = useRevealedCount(
-    `logs/${data.workspace.id}/${view.status}/${trigger}/${workflow}/${view.sort}`,
-    PAGE_SIZE
-  )
-  const matches = data.runs
-    .filter(
-      (run) =>
-        (view.status === 'all' || run.status === view.status) &&
-        (trigger === 'all' || run.trigger.label === trigger) &&
-        (workflow === 'all' || run.workflow.id === workflow)
-    )
-    .sort(compareRuns(view.sort))
-  const base = workspacePath(data.workspace.id, 'logs')
+  const filtered =
+    view.period !== 'all' ||
+    view.status !== 'all' ||
+    view.trigger !== 'all' ||
+    view.workflow !== 'all'
+  const base = workspacePath(workspace.id, 'logs')
   const runHref = (id: string) =>
     serializeRunList(platformHref(`${base}/${encodeURIComponent(id)}`, search), view)
 
-  const controls = data.runs.length > 0 && (
+  const controls = (runs.length > 0 || filtered) && (
     <ControlBar
       leading={
         <>
@@ -118,24 +116,30 @@ export function RunList({ data, read }: RunListProps) {
           />
           <ChoiceMenu
             label='Trigger'
-            options={[
-              { value: 'all', label: 'All triggers' },
-              ...triggers.map((trigger) => ({ value: trigger, label: trigger })),
-            ]}
-            value={trigger}
+            options={[{ value: 'all', label: 'All triggers' }, ...triggers]}
+            value={triggers.some((option) => option.value === view.trigger) ? view.trigger : 'all'}
             onValueChange={(trigger) =>
               void setView({ trigger: trigger === 'all' ? null : trigger })
             }
           />
           <ChoiceMenu
             label='Workflow'
-            options={[
-              { value: 'all', label: 'All workflows' },
-              ...workflows.map((workflow) => ({ value: workflow.id, label: workflow.name })),
-            ]}
-            value={workflow}
+            options={[{ value: 'all', label: 'All workflows' }, ...workflows]}
+            value={
+              workflows.some((option) => option.value === view.workflow) ? view.workflow : 'all'
+            }
             onValueChange={(workflow) =>
               void setView({ workflow: workflow === 'all' ? null : workflow })
+            }
+          />
+          <ChoiceMenu
+            label='Period'
+            options={RUN_PERIODS.map((period) => ({ value: period, label: PERIOD_LABEL[period] }))}
+            value={view.period}
+            onValueChange={(period) =>
+              void setView({
+                period: RUN_PERIODS.find((value) => value === period && value !== 'all') ?? null,
+              })
             }
           />
         </>
@@ -156,18 +160,20 @@ export function RunList({ data, read }: RunListProps) {
   )
 
   return (
-    <WorkspacePage read={read} workspace={data.workspace} current='logs' controls={controls}>
-      {!data.runs.length ? (
-        <WorkspaceEmpty
-          title='No runs yet'
-          description='Runs appear here when a workflow in this workspace runs.'
-        />
-      ) : !matches.length ? (
-        <WorkspaceEmpty
-          title='No matching runs'
-          description='Try another status, trigger or workflow.'
-          action={{ label: 'Clear filters', onClick: () => void setView(null) }}
-        />
+    <WorkspaceTabPage read={read} workspace={workspace} current='logs' controls={controls}>
+      {!runs.length ? (
+        filtered ? (
+          <WorkspaceEmpty
+            title='No matching runs'
+            description='Try another period, status, trigger or workflow.'
+            action={{ label: 'Clear filters', onClick: () => void setView(null) }}
+          />
+        ) : (
+          <WorkspaceEmpty
+            title='No runs yet'
+            description='Runs appear here when a workflow in this workspace runs.'
+          />
+        )
       ) : (
         <div className={styles.table}>
           <div className={styles.header} data-type='T050' aria-hidden='true'>
@@ -181,7 +187,7 @@ export function RunList({ data, read }: RunListProps) {
             <span className={styles.numeric}>Started</span>
           </div>
           <ol className={styles.rows} aria-label='Runs'>
-            {matches.slice(0, revealed).map((run) => (
+            {runs.map((run) => (
               <li key={run.id}>
                 <Link
                   href={runHref(run.id)}
@@ -194,7 +200,7 @@ export function RunList({ data, read }: RunListProps) {
                     run.cu === null
                       ? 'Compute Units unknown'
                       : `${formatComputeUnits(run.cu)} Compute Units`,
-                    `started ${formatRelativeTime(run.startedAt, data.referenceTime)}`,
+                    `started ${formatRelativeTime(run.startedAt, referenceTime)}`,
                   ].join(', ')}
                 >
                   <span className={styles.workflow} data-type='T060'>
@@ -213,15 +219,20 @@ export function RunList({ data, read }: RunListProps) {
                     {formatComputeUnits(run.cu, 'compact')}
                   </span>
                   <span className={styles.number} data-type='T060'>
-                    {formatRelativeTime(run.startedAt, data.referenceTime)}
+                    {formatRelativeTime(run.startedAt, referenceTime)}
                   </span>
                 </Link>
               </li>
             ))}
           </ol>
-          <ListEnd hasMore={matches.length > revealed} onLoadMore={revealMore} />
+          <ListEnd
+            hasMore={more.hasMore}
+            onLoadMore={more.onLoadMore}
+            loading={more.loading}
+            error={more.error}
+          />
         </div>
       )}
-    </WorkspacePage>
+    </WorkspaceTabPage>
   )
 }

@@ -30,8 +30,10 @@ export const RUN_STATUSES = [
   'cancelled',
 ] as const
 export const RUN_SORTS = ['newest', 'oldest', 'duration', 'cu'] as const
+export const RUN_PERIODS = ['all', '1h', '24h', '7d', '30d'] as const
 
 export const runListParams = {
+  period: parseAsStringLiteral(RUN_PERIODS).withDefault('all'),
   status: parseAsStringLiteral(RUN_STATUSES).withDefault('all'),
   trigger: parseAsString.withDefault('all'),
   workflow: parseAsString.withDefault('all'),

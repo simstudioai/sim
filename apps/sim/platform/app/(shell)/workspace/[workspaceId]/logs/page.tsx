@@ -1,12 +1,17 @@
 import { EmptyState } from '@sim/emcn/empty-state'
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { LogsRoute } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/logs-route/logs-route'
 import { loadWorkspaceRuns } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
-import { readScenario } from '@/platform/lib/navigation'
+import { platformHref, readScenario } from '@/platform/lib/navigation'
+import { workspacePath } from '@/platform/lib/workspace-navigation'
+import { withRunListView } from '@/platform/lib/workspace-views'
 
 export const metadata: Metadata = { title: 'Logs' }
+
+/** The mode is per-request; a build with no API origin must not freeze the answer. */
+export const dynamic = 'force-dynamic'
 
 export default async function Page({
   params,
@@ -15,8 +20,24 @@ export default async function Page({
   const [{ workspaceId }, query] = await Promise.all([params, searchParams])
   const mode = resolvePlatformMode()
   if (mode === 'live') {
-    const { redirectWorkspaceTabToLegacy } = await import('@/platform/lib/data/workspace-directory')
-    redirectWorkspaceTabToLegacy(workspaceId, 'logs', undefined, query)
+    // Links into legacy's logs name a run by `executionId`; it opens the run's own page here.
+    const { executionId } = query
+    if (typeof executionId === 'string' && executionId) {
+      const search = { get: (key: string) => (typeof query[key] === 'string' ? query[key] : null) }
+      redirect(
+        withRunListView(
+          platformHref(
+            workspacePath(workspaceId, `logs/${encodeURIComponent(executionId)}`),
+            search
+          ),
+          query
+        )
+      )
+    }
+    const { LiveRuns } = await import(
+      '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/live-runs/live-runs'
+    )
+    return <LiveRuns workspaceId={workspaceId} />
   }
   const data = await loadWorkspaceRuns(readScenario(query.state), workspaceId)
   if (!data) {

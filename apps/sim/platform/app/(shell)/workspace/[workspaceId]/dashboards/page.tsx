@@ -8,6 +8,9 @@ import { readScenario } from '@/platform/lib/navigation'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
+/** The mode is per-request; a build with no API origin must not freeze the answer. */
+export const dynamic = 'force-dynamic'
+
 export default async function Page({
   params,
   searchParams,
@@ -15,8 +18,10 @@ export default async function Page({
   const [{ workspaceId }, query] = await Promise.all([params, searchParams])
   const mode = resolvePlatformMode()
   if (mode === 'live') {
-    const { redirectWorkspaceTabToLegacy } = await import('@/platform/lib/data/workspace-directory')
-    redirectWorkspaceTabToLegacy(workspaceId, 'dashboards', undefined, query)
+    const { LiveDashboard } = await import(
+      '@/platform/app/(shell)/workspace/[workspaceId]/dashboards/_components/live-dashboard/live-dashboard'
+    )
+    return <LiveDashboard workspaceId={workspaceId} />
   }
   const data = await loadWorkspaceDashboard(readScenario(query.state), workspaceId)
   if (!data) {

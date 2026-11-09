@@ -1,22 +1,22 @@
 'use client'
 
+import type { ComponentProps } from 'react'
 import { Avatar } from '@sim/emcn/avatar'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
-import { ListEnd } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/list-end/list-end'
+import {
+  ListEnd,
+  type ListEndProps,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/list-end/list-end'
 import { UpdatedStatus } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/updated-status/updated-status'
 import {
   WorkspaceEmpty,
-  WorkspacePage,
+  WorkspaceTabPage,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
-import type {
-  ChangelogData,
-  ChangelogEntry,
-  WorkspaceRead,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
+import type { WorkspaceRead } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import {
   useRevealedCount,
   useViewerTimeZone,
@@ -35,6 +35,7 @@ import {
   formatCalendarDate,
   formatClockTime,
 } from '@/platform/shared/time'
+import type { ChangelogData, ChangelogEntry } from '@/platform/shared/workspace-records'
 
 const PAGE_SIZE = 30
 
@@ -59,18 +60,26 @@ interface ChangelogFeedProps {
   read?: WorkspaceRead
   /** The latest history; the page refreshes itself, so `updatedAt` moves on its own. */
   data: ChangelogData
+  /** What an empty history says, and where it sends the reader. */
+  empty: ComponentProps<typeof WorkspaceEmpty>
+  /** Older entries the server has yet to send, newest first; absent when `data` holds them all. */
+  older?: ListEndProps
 }
 
 /**
  * What shipped in the workspace, newest first and grouped by day. Only applied work appears; each
- * entry links to its details and to the issue it came from.
+ * entry links to its details and, when it came from one, to its issue.
  */
-export function ChangelogFeed({ data, read }: ChangelogFeedProps) {
+export function ChangelogFeed({ data, read, empty, older }: ChangelogFeedProps) {
   const search = useSearchParams()
   const timeZone = useViewerTimeZone()
   const [view, setView] = useQueryStates(changelogParams, { history: 'replace', shallow: true })
   const contributors = [
-    ...new Map(data.entries.map((entry) => [entry.contributor.id, entry.contributor])).values(),
+    ...new Map(
+      data.entries.flatMap((entry) =>
+        entry.contributor ? [[entry.contributor.id, entry.contributor] as const] : []
+      )
+    ).values(),
   ].sort((left, right) => left.name.localeCompare(right.name))
   // A contributor no longer in the history, from an old link, reads as everyone.
   const contributor = contributors.some((person) => person.id === view.contributor)
@@ -80,7 +89,7 @@ export function ChangelogFeed({ data, read }: ChangelogFeedProps) {
   const matches = data.entries
     .filter(
       (entry) =>
-        entry.appliedAt >= since && (contributor === 'all' || entry.contributor.id === contributor)
+        entry.appliedAt >= since && (contributor === 'all' || entry.contributor?.id === contributor)
     )
     .sort((left, right) => right.appliedAt - left.appliedAt)
   const [revealed, revealMore] = useRevealedCount(
@@ -100,11 +109,14 @@ export function ChangelogFeed({ data, read }: ChangelogFeedProps) {
   const base = workspacePath(data.workspace.id, 'changelog')
   const detailHref = (id: string) =>
     serializeChangelog(platformHref(`${base}/${encodeURIComponent(id)}`, search), view)
+  // Entries arrive newest first, so once the oldest read precedes the period, none older can match.
+  const oldest = data.entries.at(-1)
+  const olderMatch = Boolean(older?.hasMore && oldest && oldest.appliedAt >= since)
   const issueHref = (id: string) =>
     platformHref(workspacePath(data.workspace.id, `issues/${encodeURIComponent(id)}`), search)
 
   return (
-    <WorkspacePage
+    <WorkspaceTabPage
       read={read}
       workspace={data.workspace}
       current='changelog'
@@ -123,17 +135,19 @@ export function ChangelogFeed({ data, read }: ChangelogFeedProps) {
                     })
                   }
                 />
-                <ChoiceMenu
-                  label='Contributor'
-                  options={[
-                    { value: 'all', label: 'All contributors' },
-                    ...contributors.map((person) => ({ value: person.id, label: person.name })),
-                  ]}
-                  value={contributor}
-                  onValueChange={(contributor) =>
-                    void setView({ contributor: contributor === 'all' ? null : contributor })
-                  }
-                />
+                {contributors.length > 0 && (
+                  <ChoiceMenu
+                    label='Contributor'
+                    options={[
+                      { value: 'all', label: 'All contributors' },
+                      ...contributors.map((person) => ({ value: person.id, label: person.name })),
+                    ]}
+                    value={contributor}
+                    onValueChange={(contributor) =>
+                      void setView({ contributor: contributor === 'all' ? null : contributor })
+                    }
+                  />
+                )}
               </>
             }
           >
@@ -143,15 +157,8 @@ export function ChangelogFeed({ data, read }: ChangelogFeedProps) {
       }
     >
       {!data.entries.length ? (
-        <WorkspaceEmpty
-          title='No changes yet'
-          description='Approved issues appear here once their changes are applied.'
-          action={{
-            label: 'View issues',
-            href: platformHref(workspacePath(data.workspace.id, 'issues'), search),
-          }}
-        />
-      ) : !matches.length ? (
+        <WorkspaceEmpty title={empty.title} description={empty.description} action={empty.action} />
+      ) : !matches.length && !olderMatch ? (
         <WorkspaceEmpty
           title='No changes in this view'
           description='Try another period or contributor.'
@@ -182,28 +189,44 @@ export function ChangelogFeed({ data, read }: ChangelogFeedProps) {
                     <p className={styles.description} data-type='T050'>
                       {entry.description}
                     </p>
-                    <div className={styles.attribution} data-type='T052'>
-                      <span className={styles.person}>
-                        <Avatar
-                          name={entry.contributor.name}
-                          src={entry.contributor.src}
-                          size='inline'
-                          decorative
-                        />
-                        {entry.contributor.name}
-                      </span>
-                      <Link href={issueHref(entry.issueId)} className={styles.issue}>
-                        {entry.issueId}
-                      </Link>
-                    </div>
+                    {(entry.contributor || entry.issueId || entry.version) && (
+                      <div className={styles.attribution} data-type='T052'>
+                        {entry.contributor && (
+                          <span className={styles.person}>
+                            <Avatar
+                              name={entry.contributor.name}
+                              src={entry.contributor.src}
+                              size='inline'
+                              decorative
+                            />
+                            {entry.contributor.name}
+                          </span>
+                        )}
+                        {entry.version && <span>{`v${entry.version}`}</span>}
+                        {entry.issueId && (
+                          <Link href={issueHref(entry.issueId)} className={styles.issue}>
+                            {entry.issueId}
+                          </Link>
+                        )}
+                      </div>
+                    )}
                   </li>
                 ))}
               </ol>
             </section>
           ))}
-          <ListEnd hasMore={matches.length > revealed} onLoadMore={revealMore} />
+          {matches.length > revealed || !older ? (
+            <ListEnd hasMore={matches.length > revealed} onLoadMore={revealMore} />
+          ) : (
+            <ListEnd
+              hasMore={olderMatch}
+              onLoadMore={older.onLoadMore}
+              loading={older.loading}
+              error={older.error}
+            />
+          )}
         </div>
       )}
-    </WorkspacePage>
+    </WorkspaceTabPage>
   )
 }

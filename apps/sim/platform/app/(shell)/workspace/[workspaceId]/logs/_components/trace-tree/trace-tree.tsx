@@ -5,8 +5,8 @@ import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import { Icon } from '@sim/emcn/icon'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { formatDuration } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/format'
-import type { TraceSpan } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/trace-tree/trace-tree.module.css'
+import type { TraceSpan } from '@/platform/shared/workspace-records'
 
 const KIND_ICON: Record<TraceSpan['kind'], IconName> = {
   agent: 'I128',
