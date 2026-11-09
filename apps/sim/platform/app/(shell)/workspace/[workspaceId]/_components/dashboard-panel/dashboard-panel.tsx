@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { MetricGroup } from '@sim/emcn/data-display'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/dashboard-panel/dashboard-panel.module.css'
 import { ChartCanvas } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/chart-canvas'
 import { DataTable } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/file-preview/data-table'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/dashboard-embed.module.css'
 import {
   bindTimeSeriesInteractions,
   type ChartAnnotations,
@@ -28,6 +28,30 @@ import {
 import { buildChartRenderOption, horizontalBarChartHeight } from '@/platform/lib/data/files/preview'
 
 const CHART_HEIGHT = 240
+
+/** A dashboard's panels and rows, top to bottom. */
+export function DashboardStack({ children }: { children: ReactNode }) {
+  return <div className={styles.rows}>{children}</div>
+}
+
+interface DashboardRowProps {
+  cells: readonly { key: string; flex: number; content: ReactNode }[]
+  /** A row of stats only, which packs its cells closer. */
+  metrics: boolean
+}
+
+/** Panels side by side, sharing the row by their `flex` weights and wrapping when narrow. */
+export function DashboardRow({ cells, metrics }: DashboardRowProps) {
+  return (
+    <div className={styles.row} data-metrics={metrics || undefined}>
+      {cells.map((cell) => (
+        <div key={cell.key} className={styles.cell} data-flex={cell.flex}>
+          {cell.content}
+        </div>
+      ))}
+    </div>
+  )
+}
 
 interface TimeSeriesPanelProps {
   label: string
