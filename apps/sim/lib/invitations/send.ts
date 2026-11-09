@@ -19,6 +19,7 @@ import {
   renderWorkspaceAddedEmail,
   renderWorkspaceInvitationEmail,
 } from '@/components/emails'
+import { payerOrganizationIdSql } from '@/lib/billing/core/payer-organization'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
@@ -114,7 +115,8 @@ function isPendingInvitationConflict(error: unknown): boolean {
 /**
  * The organization an invitation is stamped with. Workspace invitations derive
  * it from the granted workspaces' live organization so a workspace that moved
- * since the inviter loaded the page is stamped with where it actually lives.
+ * since the inviter loaded the page is stamped with where it actually lives. A
+ * workspace in a personal organization stamps none, as a personal workspace did.
  */
 async function resolveInvitationOrganizationId(
   executor: DbOrTx,
@@ -124,7 +126,7 @@ async function resolveInvitationOrganizationId(
   if (input.kind !== 'workspace' || workspaceIds.length === 0) return input.organizationId
 
   const currentScopes = await executor
-    .select({ organizationId: workspace.organizationId })
+    .select({ organizationId: payerOrganizationIdSql(workspace.organizationId) })
     .from(workspace)
     .where(inArray(workspace.id, workspaceIds))
   const uniqueScopes = [...new Set(currentScopes.map((row) => row.organizationId))]

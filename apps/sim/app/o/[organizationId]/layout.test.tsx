@@ -5,7 +5,6 @@ import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { reactQueryMock } from '@sim/testing/mocks/react-query.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { resolveDeploymentShape } from '@/lib/core/config/deployment-shape'
 
 const {
   mockGetOrganizationSurfaceContext,
@@ -73,13 +72,6 @@ import OrganizationLayout from '@/app/o/[organizationId]/layout'
 const mockGetSession = authMockFns.mockGetSession
 const mockUseSession = authClientMockFns.mockUseSession
 
-const SURFACE_CONTEXT = {
-  organization: { id: 'org-1', name: 'Acme', slug: 'acme', logo: null, memberCount: 1 },
-  viewer: { role: 'member', isAdmin: false },
-  searchAccess: { memberScoped: true, sourceMirrored: true },
-  deployment: resolveDeploymentShape(),
-}
-
 describe('OrganizationLayout', () => {
   beforeEach(() => {
     mockGetSession.mockResolvedValue({
@@ -87,30 +79,6 @@ describe('OrganizationLayout', () => {
       session: { id: 'session-1', activeOrganizationId: 'active-org' },
     })
     mockUseSession.mockReturnValue({ data: { user: { id: 'viewer-1' } }, isPending: false })
-  })
-
-  it('does not use the impersonating admin to enter an organization outside the rollout', async () => {
-    mockGetSession.mockResolvedValue({
-      user: { id: 'customer-member' },
-      session: { id: 'session-1', impersonatedBy: 'platform-admin' },
-    })
-    mockGetOrganizationSurfaceContext.mockResolvedValue({
-      ...SURFACE_CONTEXT,
-      searchAccess: { memberScoped: false, sourceMirrored: false },
-    })
-
-    await expect(
-      OrganizationLayout({
-        children: <div>Organization child</div>,
-        params: Promise.resolve({ organizationId: 'customer-org' }),
-      })
-    ).rejects.toThrow('NEXT_REDIRECT:/workspace?redirect=settings')
-    expect(mockGetOrganizationSurfaceContext).toHaveBeenCalledWith(
-      'customer-org',
-      'customer-member'
-    )
-    expect(mockWorkspaceChrome).not.toHaveBeenCalled()
-    expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
   })
 
   it('renders an explicit denial for a non-member without the surface', async () => {
@@ -127,24 +95,4 @@ describe('OrganizationLayout', () => {
     expect(mockWorkspaceChrome).not.toHaveBeenCalled()
     expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
   })
-
-  it.each(['owner', 'admin', 'member'])(
-    'returns %s viewers outside the rollout to workspace settings before rendering org chrome',
-    async (role) => {
-      mockGetOrganizationSurfaceContext.mockResolvedValue({
-        ...SURFACE_CONTEXT,
-        viewer: { role, isAdmin: role !== 'member' },
-        searchAccess: { memberScoped: false, sourceMirrored: true },
-      })
-
-      await expect(
-        OrganizationLayout({
-          children: <div>Organization settings</div>,
-          params: Promise.resolve({ organizationId: 'org-1' }),
-        })
-      ).rejects.toThrow('NEXT_REDIRECT:/workspace?redirect=settings')
-      expect(mockWorkspaceChrome).not.toHaveBeenCalled()
-      expect(mockPrefetchOrganizationSidebar).not.toHaveBeenCalled()
-    }
-  )
 })

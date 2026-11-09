@@ -5,6 +5,7 @@ import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, count, eq, isNull } from 'drizzle-orm'
 import type { OrganizationRole } from '@/lib/api/contracts/primitives'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
+import { payerOrganizationIdSql } from '@/lib/billing/core/payer-organization'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
   acquireOrganizationUserMutationLocks,
@@ -251,7 +252,7 @@ export async function lockWorkspaceCreationContext(
   }
 
   let billedAccountUserId = userId
-  if (organizationId) {
+  if (organizationId && currentMembership?.kind === 'team') {
     if (isBillingEnabled) {
       if (!currentMembership || !organizationWorkspaceCreationRoleAllowed(currentMembership.role)) {
         throw new WorkspaceCreationContextChangedError()
@@ -473,9 +474,16 @@ export async function getWorkspaceCreationPolicy({
   pinOrganization = false,
 }: GetWorkspaceCreationPolicyParams): Promise<WorkspaceCreationPolicy> {
   const membership = await getUserOrganization(userId)
-  const organizationId = pinOrganization
+  /**
+   * A personal organization is the personal regime, not an organization one: its workspaces are
+   * capped and billed exactly as personal workspaces, and land in it.
+   */
+  const personalOrganizationId = membership?.kind === 'personal' ? membership.organizationId : null
+  const requestedOrganizationId = pinOrganization
     ? (activeOrganizationId ?? null)
     : (activeOrganizationId ?? membership?.organizationId ?? null)
+  const organizationId =
+    requestedOrganizationId === personalOrganizationId ? null : requestedOrganizationId
   const orgRole =
     organizationId == null
       ? undefined
@@ -521,7 +529,7 @@ export async function getWorkspaceCreationPolicy({
         canCreate: false,
         workspaceMode:
           organizationId === null ? WORKSPACE_MODE.PERSONAL : WORKSPACE_MODE.ORGANIZATION,
-        organizationId,
+        organizationId: organizationId ?? personalOrganizationId,
         billedAccountUserId:
           organizationId === null
             ? userId
@@ -538,7 +546,7 @@ export async function getWorkspaceCreationPolicy({
     }
   }
 
-  if (activeOrganizationId && !orgRole) {
+  if (activeOrganizationId && organizationId && !orgRole) {
     const billedAccountUserId = await requireOrganizationOwnerId(activeOrganizationId)
 
     return {
@@ -591,7 +599,7 @@ export async function getWorkspaceCreationPolicy({
     return {
       canCreate: true,
       workspaceMode: WORKSPACE_MODE.PERSONAL,
-      organizationId: null,
+      organizationId: personalOrganizationId,
       billedAccountUserId: userId,
       maxWorkspaces: null,
       currentWorkspaceCount,
@@ -687,7 +695,7 @@ export async function getWorkspaceCreationPolicy({
     return {
       canCreate: false,
       workspaceMode: WORKSPACE_MODE.PERSONAL,
-      organizationId: null,
+      organizationId: personalOrganizationId,
       billedAccountUserId: userId,
       maxWorkspaces,
       currentWorkspaceCount,
@@ -701,7 +709,7 @@ export async function getWorkspaceCreationPolicy({
   return {
     canCreate: true,
     workspaceMode: WORKSPACE_MODE.PERSONAL,
-    organizationId: null,
+    organizationId: personalOrganizationId,
     billedAccountUserId: userId,
     maxWorkspaces,
     currentWorkspaceCount,
@@ -712,11 +720,14 @@ export async function getWorkspaceCreationPolicy({
   }
 }
 
+/** Personal workspaces the user owns: in no organization, or in their personal organization. */
 async function countNonOrganizationOwnedWorkspaces(userId: string): Promise<number> {
   const [result] = await db
     .select({ value: count() })
     .from(workspace)
-    .where(and(eq(workspace.ownerId, userId), isNull(workspace.organizationId)))
+    .where(
+      and(eq(workspace.ownerId, userId), isNull(payerOrganizationIdSql(workspace.organizationId)))
+    )
 
   return result?.value ?? 0
 }

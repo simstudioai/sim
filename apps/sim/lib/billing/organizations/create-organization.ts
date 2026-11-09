@@ -4,6 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, ne } from 'drizzle-orm'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import type { DbTransaction } from '@/lib/db/types'
+import { dissolvePersonalOrganizationTx } from '@/lib/organizations/dissolve-personal'
 
 const ORGANIZATION_SLUG_REGEX = /^[a-z0-9-_]+$/
 
@@ -70,7 +71,8 @@ export async function createOrganizationWithOwner(
 }
 
 /**
- * Transaction-enlisted organization creation.
+ * Transaction-enlisted team organization creation. An owner who has a personal organization
+ * brings it along: it dissolves into the new team, its workspaces with it.
  *
  * `organization.slug` has no unique constraint, so the slug check here is only
  * as strong as the transaction it runs in. A caller that needs the check and
@@ -109,6 +111,11 @@ export async function createOrganizationWithOwnerTx(
     updatedAt: now,
   })
 
+  await dissolvePersonalOrganizationTx(tx, {
+    userId: ownerUserId,
+    targetOrganizationId: organizationId,
+    targetBilledAccountUserId: ownerUserId,
+  })
   await tx.insert(member).values({
     id: memberId,
     userId: ownerUserId,

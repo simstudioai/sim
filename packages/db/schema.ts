@@ -1868,6 +1868,7 @@ export interface SessionPolicySettings {
  * `team`: every other organization, billed through its own subscription.
  */
 export const organizationKindEnum = pgEnum('organization_kind', ['personal', 'team'])
+export type OrganizationKind = (typeof organizationKindEnum.enumValues)[number]
 
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),

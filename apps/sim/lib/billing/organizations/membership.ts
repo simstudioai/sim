@@ -11,6 +11,7 @@ import {
   credential,
   invitation,
   member,
+  type OrganizationKind,
   organization,
   permissionGroupMember,
   permissions,
@@ -63,6 +64,7 @@ import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
+import { dissolvePersonalOrganizationTx } from '@/lib/organizations/dissolve-personal'
 import { requireMemberManagementAuthority } from '@/lib/organizations/members/authority'
 import {
   revokePersonalApiKeysTx,
@@ -683,8 +685,9 @@ export async function ensureUserInOrganizationTx(
   await acquireOrgMembershipLock(tx, userId, organizationId)
 
   const existingMemberships = await tx
-    .select({ id: member.id, organizationId: member.organizationId })
+    .select({ id: member.id, organizationId: member.organizationId, kind: organization.kind })
     .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(eq(member.userId, userId))
 
   const sameOrganization = existingMemberships.find(
@@ -698,11 +701,12 @@ export async function ensureUserInOrganizationTx(
       billingActions: emptyBillingActions,
     }
   }
-  if (existingMemberships.length > 0) {
+  const teamMemberships = existingMemberships.filter((membership) => membership.kind === 'team')
+  if (teamMemberships.length > 0) {
     return {
       success: false,
       alreadyMember: false,
-      existingOrgId: existingMemberships[0].organizationId,
+      existingOrgId: teamMemberships[0].organizationId,
       failureCode: 'already-in-other-organization',
       error:
         'User is already a member of another organization. Users can only belong to one organization at a time.',
@@ -789,6 +793,17 @@ export async function ensureUserInOrganizationTx(
     }
   }
 
+  if (existingMemberships.length > 0) {
+    const targetOwnerId =
+      role === 'owner' ? userId : await getOrganizationOwnerUserIdTx(tx, organizationId)
+    if (!targetOwnerId) throw new Error(`Organization ${organizationId} has no owner membership`)
+    await dissolvePersonalOrganizationTx(tx, {
+      userId,
+      targetOrganizationId: organizationId,
+      targetBilledAccountUserId: targetOwnerId,
+    })
+  }
+
   const memberId = generateId()
   await tx.insert(member).values({
     id: memberId,
@@ -826,6 +841,18 @@ export async function ensureUserInOrganizationTx(
     alreadyMember: false,
     billingActions,
   }
+}
+
+async function getOrganizationOwnerUserIdTx(
+  tx: DbTransaction,
+  organizationId: string
+): Promise<string | null> {
+  const [owner] = await tx
+    .select({ userId: member.userId })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
+    .limit(1)
+  return owner?.userId ?? null
 }
 
 interface PaidOrgJoinBillingActions {
@@ -2130,14 +2157,21 @@ export async function isSoleOwnerOfPaidOrganization(userId: string): Promise<{
 export async function getUserOrganization(
   userId: string,
   executor: DbOrTx = db
-): Promise<{ organizationId: string; role: string; memberId: string } | null> {
+): Promise<{
+  organizationId: string
+  role: string
+  memberId: string
+  kind: OrganizationKind
+} | null> {
   const [memberRecord] = await executor
     .select({
       organizationId: member.organizationId,
       role: member.role,
       memberId: member.id,
+      kind: organization.kind,
     })
     .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(eq(member.userId, userId))
     .limit(1)
 
@@ -2161,7 +2195,7 @@ export async function ensureUserInOrganization(
     }
   }
 
-  if (existingMembership) {
+  if (existingMembership?.kind === 'team') {
     return {
       success: false,
       alreadyMember: false,
@@ -2232,24 +2266,20 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
       }
     } else {
       const existingMemberships = await db
-        .select({ organizationId: member.organizationId })
+        .select({ organizationId: member.organizationId, kind: organization.kind })
         .from(member)
+        .innerJoin(organization, eq(organization.id, member.organizationId))
         .where(eq(member.userId, userId))
 
-      if (existingMemberships.length > 0) {
-        const isAlreadyMemberOfThisOrg = existingMemberships.some(
-          (m) => m.organizationId === organizationId
-        )
-
-        if (isAlreadyMemberOfThisOrg) {
-          return {
-            success: false,
-            error: 'User is already a member of this organization',
-            failureCode: 'already-member',
-            billingActions,
-          }
+      if (existingMemberships.some((m) => m.organizationId === organizationId)) {
+        return {
+          success: false,
+          error: 'User is already a member of this organization',
+          failureCode: 'already-member',
+          billingActions,
         }
-
+      }
+      if (existingMemberships.some((m) => m.kind === 'team')) {
         return {
           success: false,
           error:
@@ -2329,29 +2359,26 @@ async function validateMembershipAddition(
   }
 
   const existingMemberships = await db
-    .select({ organizationId: member.organizationId })
+    .select({ organizationId: member.organizationId, kind: organization.kind })
     .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(eq(member.userId, userId))
 
-  if (existingMemberships.length > 0) {
-    const isAlreadyMemberOfThisOrg = existingMemberships.some(
-      (m) => m.organizationId === organizationId
-    )
-
-    if (isAlreadyMemberOfThisOrg) {
-      return {
-        canAdd: false,
-        reason: 'User is already a member of this organization',
-        failureCode: 'already-member',
-      }
+  if (existingMemberships.some((m) => m.organizationId === organizationId)) {
+    return {
+      canAdd: false,
+      reason: 'User is already a member of this organization',
+      failureCode: 'already-member',
     }
-
+  }
+  const teamMembership = existingMemberships.find((m) => m.kind === 'team')
+  if (teamMembership) {
     return {
       canAdd: false,
       reason:
         'User is already a member of another organization. Users can only belong to one organization at a time.',
       failureCode: 'already-in-other-organization',
-      existingOrgId: existingMemberships[0].organizationId,
+      existingOrgId: teamMembership.organizationId,
     }
   }
 
