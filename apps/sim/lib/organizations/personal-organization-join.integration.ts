@@ -151,7 +151,7 @@ describe('joining a team from a personal organization', () => {
       .select({ organizationId: knowledgeExternalDirectory.organizationId })
       .from(knowledgeExternalDirectory)
       .where(inArray(knowledgeExternalDirectory.organizationId, [personalId, teamId]))
-    expect(directories).toEqual([{ organizationId: teamId }])
+    expect(directories).toEqual([])
   })
 })
 

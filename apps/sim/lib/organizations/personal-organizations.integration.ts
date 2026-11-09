@@ -410,7 +410,7 @@ describe('billing in a personal organization', () => {
 })
 
 describe('joining another organization', () => {
-  it('returns personal workspaces to personal and moves organization-level content, losing nothing', async () => {
+  it('returns personal workspaces to personal, moves private organization content and drops shared Knowledge files', async () => {
     const teamOwnerId = await createUser()
     const joinerId = await createUser()
     const { organizationId: teamId } = await createOrganizationWithOwner({
@@ -449,7 +449,7 @@ describe('joining another organization', () => {
     expect(await userStorage(joinerId)).toBe(2048)
     expect(await organizationContentOwners(content)).toEqual({
       chat: { organizationId: teamId, userId: joinerId },
-      file: { organizationId: teamId, userId: joinerId },
+      file: undefined,
       memorySpace: { organizationId: teamId, userId: joinerId },
     })
   })
@@ -659,8 +659,8 @@ describe('deleting an account', () => {
   })
 })
 
-describe('joining another organization, refused cleanly', () => {
-  it('refuses with a conflict when moved content collides with the target, changing nothing', async () => {
+describe('joining another organization over colliding content', () => {
+  it('admits an SSO or invitation join whose personal go link shares a name with the team’s, keeping the team’s', async () => {
     const teamOwnerId = await createUser()
     const joinerId = await createUser()
     const { organizationId: teamId } = await createOrganizationWithOwner({
@@ -670,35 +670,37 @@ describe('joining another organization, refused cleanly', () => {
     })
     const provisioned = await provisionPersonalOrganization(joinerId)
     if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
-    for (const [organizationId, createdBy] of [
-      [teamId, teamOwnerId],
-      [provisioned.organizationId, joinerId],
+    const teamLinkId = generateId()
+    for (const [id, organizationId, createdBy, url] of [
+      [teamLinkId, teamId, teamOwnerId, 'https://example.com/team-docs'],
+      [generateId(), provisioned.organizationId, joinerId, 'https://example.com/private-docs'],
     ]) {
       await db.insert(simLink).values({
-        id: generateId(),
+        id,
         organizationId,
         name: 'docs',
         normalizedName: 'docs',
-        url: 'https://example.com/docs',
+        url,
         createdBy,
       })
     }
 
-    await expect(
-      db.transaction((tx) =>
-        ensureUserInOrganizationTx(tx, {
-          userId: joinerId,
-          organizationId: teamId,
-          role: 'member',
-          skipBillingLogic: true,
-          skipSeatValidation: true,
-        })
-      )
-    ).rejects.toMatchObject({ code: 'conflict' })
-    expect(await membershipOf(joinerId)).toMatchObject({
-      organizationId: provisioned.organizationId,
-      kind: 'personal',
-    })
+    await db.transaction((tx) =>
+      ensureUserInOrganizationTx(tx, {
+        userId: joinerId,
+        organizationId: teamId,
+        role: 'member',
+        skipBillingLogic: true,
+        skipSeatValidation: true,
+      })
+    )
+
+    expect(await membershipOf(joinerId)).toMatchObject({ organizationId: teamId, kind: 'team' })
+    const links = await db
+      .select({ id: simLink.id, url: simLink.url })
+      .from(simLink)
+      .where(inArray(simLink.organizationId, [teamId, provisioned.organizationId]))
+    expect(links).toEqual([{ id: teamLinkId, url: 'https://example.com/team-docs' }])
   })
 
   it('never lets anyone join a personal organization', async () => {
