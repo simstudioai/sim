@@ -84,6 +84,7 @@ import {
 } from '@/lib/sim-search/live/reference'
 import { queryRelevance } from '@/lib/sim-search/live/text-match'
 import type { LiveAccount, NativeDocument } from '@/lib/sim-search/live/types'
+import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/shell-organization'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -424,19 +425,25 @@ function compareAccounts(left: LiveAccount, right: LiveAccount): number {
   )
 }
 
+/** The organization whose Integrations page connects accounts for this search's owner. */
+async function integrationsOrganizationId(
+  owner: ResourceOwner,
+  userId: string
+): Promise<string | null> {
+  if (owner.organizationId) return owner.organizationId
+  return owner.workspaceId ? resolveWorkspaceShellOrganizationId(owner.workspaceId, userId) : null
+}
+
 /**
  * Why a plain search that reached no account returned nothing, and where the caller connects one;
  * an empty result would otherwise read as a search that found nothing.
  */
 function nothingSearchedGuidance(
-  owner: ResourceOwner,
+  organizationId: string,
   source: string | undefined,
   hasOtherAccounts: boolean
 ): string {
-  const path = owner.organizationId
-    ? organizationRoutes(owner.organizationId).integrations
-    : `/workspace/${owner.workspaceId}/integrations`
-  const connect = new URL(path, getBaseUrl()).href
+  const connect = new URL(organizationRoutes(organizationId).integrations, getBaseUrl()).href
   return source && hasOtherAccounts
     ? `Nothing was searched: you have no connected ${source} account here. Connect one at ${connect}, or search without the source filter.`
     : `Nothing was searched: you have no connected sources here. Connect your accounts at ${connect}, then search again.`
@@ -908,9 +915,12 @@ const liveKnowledgeSearch = defineAuthorizedKnowledgeUseCase({
       }
     })
     /** Live coverage guides the providers this call searched or tried to search. */
+    const connectOrganizationId = nothingSearched
+      ? await integrationsOrganizationId(input, userId)
+      : null
     const guidance = [
-      ...(nothingSearched
-        ? [nothingSearchedGuidance(input, filters?.source, allAccounts.length > 0)]
+      ...(connectOrganizationId
+        ? [nothingSearchedGuidance(connectOrganizationId, filters?.source, allAccounts.length > 0)]
         : []),
       liveSearchGuidance(
         accounts.filter((account) => account.status !== 'reconnect').map(({ provider }) => provider)

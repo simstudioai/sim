@@ -21,7 +21,6 @@ on:
       - 'apps/sim/platform/lib/data/chat-panel.ts'
       - 'apps/sim/lib/browser-agent/panel-occlusion.ts'
       - 'apps/sim/platform/styles/**'
-      - 'apps/sim/scripts/fixtures/chat-panel.tsx'
       - 'apps/sim/stores/chat-panel/**'
       - 'apps/sim/stores/constants.ts'
       - 'apps/sim/lib/browser-agent/transport.ts'

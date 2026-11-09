@@ -30,4 +30,8 @@ describe('newChatRoute', () => {
   it('opens Home in the organization the user was last in', () => {
     expect(newChatRoute('/o/org-1/people')).toBe('/o/org-1/home')
   })
+
+  it("opens the app entry from a workspace route, never the workspace's legacy Home", () => {
+    expect(newChatRoute('/workspace/ws-1/workflows')).toBe('/home')
+  })
 })

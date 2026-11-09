@@ -150,7 +150,17 @@ export type PlatformTurn =
       endsWithInteraction?: boolean
       /** A persisted id, so the turn can be forked from. */
       forkable?: boolean
+      /** The documents its answer cites, once each, in first-cited order. */
+      sources?: readonly ChatSource[]
     }
+
+/** A document an answer cites. */
+export interface ChatSource {
+  url: string
+  title: string
+  /** The site or product it lives in, when known. */
+  site?: string
+}
 
 type ChatRuntimeStatus = 'idle' | 'loading' | 'sending' | 'reconnecting'
 
@@ -166,6 +176,8 @@ export interface PlatformResource {
   active?: boolean
   /** The retrieval a Search tab holds; runs under the current reader's permissions. */
   search?: SearchResource
+  /** What a Sources tab lists: the documents one answer cited. */
+  sources?: readonly ChatSource[]
 }
 
 /** Cross-turn tool-permission progress, so only one card offers the bulk action. */
@@ -259,6 +271,8 @@ export interface ChatRuntime {
   }) => Promise<void>
   fork?: (turnId: string) => Promise<void>
   openResource?: (ref: { type: string; id: string; title: string; workspaceId?: string }) => void
+  /** Opens every source an answer cited in the panel. */
+  viewSources?: (turnId: string, requestId?: string) => void
   /** Returns the terminal to Sim after a handoff. Absent outside the desktop host. */
   finishTerminalHandoff?: (terminalId: string) => void
 }

@@ -1,6 +1,5 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
-import { OrganizationSources } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/organization-sources'
 import { SourcesView } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/sources-view'
 import { loadSourceSettings } from '@/platform/fixtures'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
@@ -14,21 +13,8 @@ export default async function IntegrationsSection({
   if (!organization.viewer.isAdmin) notFound()
   const scenario = readScenario(query.state)
   const inventory = await loadSourceSettings(scenario)
-  if (!inventory) {
-    // The provider, source and secrets pages have no live port yet.
-    if (subpath.length) notFound()
-    const manageHref = surfaceHref(organization, '/settings/integrations')
-    const { readSourceSettings } = await import('@/platform/lib/data/source-settings')
-    const data = await readSourceSettings(organization.organization.id)
-    return (
-      <OrganizationSources
-        sources={data.sources}
-        apps={data.apps}
-        secret={data.secret}
-        manageHref={manageHref}
-      />
-    )
-  }
+  if (!inventory)
+    return <LiveIntegrationsSection organization={organization} subpath={subpath} query={query} />
   if (
     subpath[0] === 'providers' &&
     !inventory.sources.some(
@@ -37,4 +23,52 @@ export default async function IntegrationsSection({
   )
     notFound()
   return <SourcesView initial={inventory} subpath={subpath} />
+}
+
+/**
+ * Sources, a provider's connections, one connection and the organization's Generic Secrets, on live
+ * data. Loaded on demand: the live readers import the database, which fixture previews run without.
+ */
+async function LiveIntegrationsSection({
+  organization,
+  subpath,
+  query,
+}: Omit<SettingsSectionProps, 'fixture'>) {
+  const sourcesHref = surfaceHref(organization, '/settings/integrations')
+  const [kind, id] = subpath
+  if (kind === 'secrets') {
+    const { readGenericSecretSourceMode } = await import(
+      '@/platform/lib/data/generic-secrets-source'
+    )
+    if ((await readGenericSecretSourceMode(organization.organization.id)) !== 'organization')
+      redirect(sourcesHref)
+    const { SecretsEditor } = await import(
+      '@/app/(product)/o/[organizationId]/_components/secrets-editor/secrets-editor'
+    )
+    return <SecretsEditor organizationId={organization.organization.id} mode='organization' />
+  }
+  if (kind === 'providers') {
+    const { resolveProviderRoute } = await import(
+      '@/platform/lib/data/search-sources/provider-route'
+    )
+    const route = resolveProviderRoute(id, query)
+    if (route.kind === 'not-found') notFound()
+    if (route.kind === 'sources') redirect(sourcesHref)
+    if (route.kind === 'people')
+      redirect(`${surfaceHref(organization, '/settings/connected-accounts')}?tab=people`)
+    const { ProviderDetail } = await import(
+      '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/provider-detail'
+    )
+    return <ProviderDetail connectorType={id} />
+  }
+  if (kind === 'sources') {
+    const { SourceDetail } = await import(
+      '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/source-detail'
+    )
+    return <SourceDetail connectorId={id} />
+  }
+  const { LiveSources } = await import(
+    '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/live-sources'
+  )
+  return <LiveSources />
 }

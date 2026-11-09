@@ -68,7 +68,7 @@ function LiveConversation({
     chatId: chat.resolvedChatId,
     onPlanChange: destination === 'agent' ? setPlanning : undefined,
   })
-  const resources = usePanelResources({ chat, panel, controller })
+  const resources = usePanelResources({ chat, turns: runtime.turns, panel, controller })
   return (
     <ChatCardsProvider value={CARDS}>
       <SearchTabProvider value={LiveSearchTab}>

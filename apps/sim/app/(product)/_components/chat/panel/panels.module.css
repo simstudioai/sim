@@ -171,3 +171,11 @@
     display: none;
   }
 }
+.sources {
+  overflow-y: auto;
+  padding: var(--spacing-16) var(--spacing-14);
+}
+.sourceList {
+  display: grid;
+  gap: var(--ui-list-gap);
+}

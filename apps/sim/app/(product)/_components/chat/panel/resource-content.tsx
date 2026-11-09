@@ -5,6 +5,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import Link from 'next/link'
 import type { PlatformResource } from '@/app/(product)/_components/chat/model'
 import { BrowserSession } from '@/app/(product)/_components/chat/panel/browser-session/browser-session'
+import { CitedSources } from '@/app/(product)/_components/chat/panel/cited-sources'
 import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
 import { SearchResultsPanel } from '@/app/(product)/_components/search/search-results-host'
 
@@ -21,6 +22,7 @@ export function ResourceContent({ resource, visible, browserScopeId }: ResourceC
     return <SearchResultsPanel resource={resource} />
   if (resource.type === 'browser')
     return <BrowserSession scopeId={browserScopeId} visible={visible} />
+  if (resource.type === 'sources') return <CitedSources sources={resource.sources ?? []} />
   return (
     <div className={styles.document}>
       <EmptyState

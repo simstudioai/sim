@@ -27,6 +27,25 @@ export function StatusTag({ label, intent = 'neutral', live, leading }: StatusTa
   )
 }
 
+interface StatusTextProps {
+  label: string
+  intent?: StatusIntent
+  /** Announce changes to this state, for a status that updates while it is on screen. */
+  live?: boolean
+}
+
+/**
+ * A state inside a table cell, list row or grid, as text in its semantic ink with no badge or glyph,
+ * as Paper's run rows show a run's status. A settled state reads in secondary ink.
+ */
+export function StatusText({ label, intent = 'neutral', live }: StatusTextProps) {
+  return (
+    <span className={styles.text} data-intent={intent} role={live ? 'status' : undefined}>
+      {label}
+    </span>
+  )
+}
+
 /** Work in progress beside its own label, so the motion needs no announcement of its own. */
 export function Spinner() {
   return <span className={styles.spinner} aria-hidden='true' />

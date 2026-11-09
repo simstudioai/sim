@@ -256,7 +256,7 @@ export function useOrganizationConversation({
         destination.location.replace(
           isWorkspaceResourceKind(kind)
             ? workspaceResourcePath(ref.workspaceId, kind, resource.id)
-            : `/workspace/${encodeURIComponent(ref.workspaceId)}/home?resource=${encodeURIComponent(resource.id)}`
+            : `${organizationRoutes(organization.id).home}?${new URLSearchParams({ resource: resource.id })}`
         )
       } else addResource({ ...resource, workspaceId: ref.workspaceId })
     } catch {

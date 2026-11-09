@@ -44,17 +44,13 @@ function organizationIdFromRoute(lastRoute: string | undefined): string | null {
 }
 
 /**
- * Route for "New Chat": the Home of the organization the user was last in. A workspace route names
- * no organization, so its legacy Home URL lets the web app redirect to the workspace's
- * organization. Anything else opens the app entry.
+ * Route for "New Chat": the Home of the organization the user was last in. Anything else, a
+ * workspace route included, opens the app entry, which lands in the user's own organization:
+ * every workspace they open renders there.
  */
 export function newChatRoute(lastRoute: string | undefined): string {
   const organizationId = organizationIdFromRoute(lastRoute)
-  if (organizationId) {
-    return `/o/${organizationId}/home`
-  }
-  const workspaceId = workspaceIdFromRoute(lastRoute)
-  return workspaceId ? `/workspace/${workspaceId}/home` : APP_ENTRY_ROUTE
+  return organizationId ? `/o/${organizationId}/home` : APP_ENTRY_ROUTE
 }
 
 /**

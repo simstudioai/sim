@@ -627,7 +627,6 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
       <WorkspaceEmpty
         title='No documents yet'
         description='Upload documents or connect a source to fill this knowledge base.'
-        action={canEdit ? { label: 'New documents', onClick: () => setUploading(true) } : undefined}
       />
     ) : (
       <WorkspaceEmpty
@@ -721,7 +720,6 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
                   onRetry={() => void connectorsQuery.refetch()}
                   canEdit={canEdit}
                   onOpen={setOpenConnectorId}
-                  onNew={() => void setAddConnector('', { history: 'replace', scroll: false })}
                 />
               )}
             </div>

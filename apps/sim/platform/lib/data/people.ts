@@ -41,10 +41,19 @@ function useSettledTerm(term: string): string {
   return useDebounce(term.trim(), SEARCH_DEBOUNCE_MS)
 }
 
+function pickerEmptyMessage(scope: PeoplePickerScope | undefined, term: string): string {
+  return scope === 'roots' && !term.trim()
+    ? 'No top-level teams with reporting lines yet'
+    : 'No matching people'
+}
+
 export function usePeoplePicker(
   organizationId: string,
   scope?: PeoplePickerScope,
   excludeMemberId?: string
 ) {
-  return useSharedPeoplePicker(organizationId, scope, excludeMemberId, { useSettledTerm })
+  return useSharedPeoplePicker(organizationId, scope, excludeMemberId, {
+    useSettledTerm,
+    emptyMessage: pickerEmptyMessage,
+  })
 }

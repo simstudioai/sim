@@ -55,8 +55,6 @@ export const sql = postgres(databaseUrl.toString(), { max: 2 })
 /** Every route of the suite's organization, from the one builder the product's links use. */
 export const org = organizationRoutes(ORGANIZATION_ID)
 export const url = (path: string) => `${origin}${path}`
-/** A path under the organization root that has no route builder, such as `/access-requests`. */
-export const orgUrl = (path: string) => url(`${org.root}${path}`)
 
 export type Persona = (typeof EVERYONE)[number]
 type Status = 'passed' | 'failed' | 'skipped'

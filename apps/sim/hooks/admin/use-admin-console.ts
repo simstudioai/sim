@@ -21,7 +21,7 @@ import {
 } from '@/hooks/queries/admin-users'
 import { useBenchmarkAvailability } from '@/hooks/queries/benchmarks'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
-import { useImportWorkflow } from '@/hooks/queries/workflows'
+import { useImportWorkflow } from '@/hooks/queries/workflow-import'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 import { clearUserData } from '@/stores'
 

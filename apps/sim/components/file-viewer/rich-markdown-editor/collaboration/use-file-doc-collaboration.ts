@@ -1,12 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { FILE_DOC_EVENTS, type FileDocPresence } from '@sim/realtime-protocol/file-doc'
 import { type QueryFilters, useQueryClient } from '@tanstack/react-query'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
 import { FileDocProvider } from '@/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider'
-import { useReportFileDocOthers } from '@/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { useSocket } from '@/components/workspace-providers/socket-provider'
 import { getUserColor } from '@/lib/workspaces/colors'
 import { workspaceFileMetadataFilter } from '@/hooks/queries/utils/workspace-file-cache'
@@ -29,8 +27,7 @@ export interface FileDocCollaboration {
   /**
    * The local caret identity published to awareness: `name`/`color` for CollaborationCaret,
    * and `clientId` so the caret activity extension can tag each caret node (see
-   * caret-presence.ts). The avatar roster does NOT come from here — it's server-authenticated
-   * (see the PRESENCE subscription below) so a peer can't spoof identity via awareness.
+   * caret-presence.ts).
    */
   user: { name: string; color: string; clientId: number | undefined }
 }
@@ -136,47 +133,6 @@ export function useFileDocCollaboration({
       setProvider(null)
     }
   }, [enabled, socket, fileId, workspaceId, userId, queryClient])
-
-  const reportOthers = useReportFileDocOthers()
-  const reportOthersRef = useRef(reportOthers)
-  reportOthersRef.current = reportOthers
-
-  // "Who's in this file" roster (the useOthers side of the pattern). The server broadcasts a
-  // roster of SERVER-AUTHENTICATED identities (see FILE_DOC_EVENTS.PRESENCE) — trusted,
-  // unlike the client-set awareness `user` field a peer could spoof. Publish it (minus self)
-  // to the room context for the file-detail avatar stack; cleared on unmount so a file switch
-  // never shows the previous file's occupants.
-  useEffect(() => {
-    if (!enabled || !socket) return
-    const handlePresence = (data: FileDocPresence) => {
-      if (data.fileId !== fileId) return
-      // Exclude only our OWN socket (this session), NOT every session that shares our userId —
-      // so a second tab of the same account still counts as present, matching the canvas avatars
-      // (avatars.tsx filters by socketId). Then dedupe per user for the display stack, so
-      // multiple tabs of one person collapse to a single avatar.
-      const byUser = new Map<
-        string,
-        { userId: string; userName: string; avatarUrl: string | null }
-      >()
-      for (const peer of data.users) {
-        if (peer.socketId === socket.id || byUser.has(peer.userId)) continue
-        byUser.set(peer.userId, {
-          userId: peer.userId,
-          userName: peer.userName,
-          avatarUrl: peer.avatarUrl,
-        })
-      }
-      reportOthersRef.current([...byUser.values()])
-    }
-    const handleDisconnect = () => reportOthersRef.current([])
-    socket.on(FILE_DOC_EVENTS.PRESENCE, handlePresence)
-    socket.on('disconnect', handleDisconnect)
-    return () => {
-      socket.off(FILE_DOC_EVENTS.PRESENCE, handlePresence)
-      socket.off('disconnect', handleDisconnect)
-      reportOthersRef.current([])
-    }
-  }, [enabled, socket, fileId])
 
   // The client id rides in the awareness `user` payload so the caret `render` (which only
   // receives `user`) can tag each caret node for the activity-driven name label (see

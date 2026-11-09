@@ -35,7 +35,13 @@ export function UsageCredits({
       {overview.failed ? (
         <FailureNotice message='Couldn’t load credits.' onRetry={overview.retry} />
       ) : !chart.loaded ? null : (
-        <BarChart title='Credits' bars={chart.bars} series={chart.series} hideEmptySeries />
+        <BarChart
+          title='Credits'
+          bars={chart.bars}
+          series={chart.series}
+          seriesTotals={chart.seriesTotals}
+          hideEmptySeries
+        />
       )}
     </section>
   )

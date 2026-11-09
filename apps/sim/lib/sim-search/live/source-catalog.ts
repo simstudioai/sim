@@ -1,11 +1,15 @@
 import { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
-import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
+import {
+  getManagedMcpConnector,
+  type ManagedMcpConnectorId,
+} from '@/lib/credential-groups/managed-mcp-connectors'
 import {
   findCredentialGroupProviderFromProviderId,
   isCredentialGroupStandardOAuthProvider,
 } from '@/lib/credential-groups/providers'
 import { isPersonalOrganizationServiceAccount } from '@/lib/credentials/service-account-provider-ids'
 import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
+import { getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
 import {
   isManagedSearchMcpProvider,
   type ManagedSearchMcpProvider,
@@ -66,4 +70,39 @@ export function liveSearchSavedMemberProvider(type: string): string | null {
   if (!provider) return null
   const definition = LIVE_SEARCH_PROVIDER_CATALOG[provider]
   return definition.credentialProviderIds.find(isPersonalOrganizationServiceAccount) ?? null
+}
+
+export function getLiveSearchAccessAvailability(
+  type: LiveSearchProviderId,
+  integrationAvailability: Parameters<typeof getConnectorAccessAvailability>[1],
+  context: Parameters<typeof getConnectorAccessAvailability>[2] & {
+    availableMcpConnectors?: readonly ManagedMcpConnectorId[]
+  }
+) {
+  const meta = CONNECTOR_META_REGISTRY[type]
+  const saved = liveSearchSavedMemberProvider(type)
+  const deployment = integrationAvailability.get(type)
+  if (saved)
+    return {
+      admin: false,
+      members:
+        context.isIntegrationAvailabilityReady &&
+        context.memberAccessAvailable &&
+        deployment?.state !== 'unavailable' &&
+        deployment?.state !== 'misconfigured',
+    }
+  const access = meta
+    ? getConnectorAccessAvailability(meta, integrationAvailability, context)
+    : { admin: false, members: false }
+  return {
+    admin: access.admin && supportsLiveSearchMode(type, 'service_account'),
+    members:
+      supportsLiveSearchMode(type, 'member') &&
+      (liveSearchMcpConnector(type)
+        ? context.isIntegrationAvailabilityReady &&
+          context.memberAccessAvailable &&
+          ((type !== 'hubspot' && type !== 'zoom') ||
+            context.availableMcpConnectors?.includes(type) === true)
+        : access.members),
+  }
 }
