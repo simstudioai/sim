@@ -49,8 +49,8 @@
  * ## Deployment-shape flags in client code
  *
  * Client code — `stores/`, `hooks/`, `blocks/`, and any `'use client'` module or hook
- * under the product (`app/(product)`), site (`app/(site)`), Platform data and shared code
- * (`platform/lib`, `platform/shared`), or legacy settings (`components/settings`, `ee`) — must not import the
+ * anywhere under `app/` but `app/api`, in Platform data and shared code (`platform/lib`,
+ * `platform/shared`), or in legacy settings (`components/settings`, `ee`) — must not import the
  * deployment-shape flags from `env-flags`; it reads them through
  * `@/lib/core/config/deployment-shape`. The flag list is that module's own `env-flags`
  * import, so it cannot drift. A namespace import (`* as flags`) is refused outright: its reads
@@ -65,7 +65,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 
-const ROOT = path.resolve(import.meta.dir, '..')
+const ROOT = path.resolve(import.meta.dirname, '..')
 
 /** A lone directive statement, e.g. `'use server'` or `"use client";`. */
 const DIRECTIVE_STATEMENT = /^(['"])(use [a-z-]+)\1\s*;?$/
@@ -108,11 +108,29 @@ function isServerSurface(rel: string): boolean {
 const ENV_FLAGS_MODULE = path.join(APP_DIR, 'lib/core/config/env-flags.ts')
 const DEPLOYMENT_SHAPE_MODULE = path.join(APP_DIR, 'lib/core/config/deployment-shape.ts')
 
+/**
+ * Client modules that read a deployment-shape flag from env-flags since before the rule covered all
+ * of `app/`, as `file:flag`. Shrink-only: move one to `useDeploymentShape()` and delete its entry;
+ * an entry that no longer matches fails, so the list cannot hide a new read.
+ */
+const DEPLOYMENT_SHAPE_BASELINE: ReadonlySet<string> = new Set([
+  'app/(auth)/components/sso-login-button.tsx:isSsoEnabled',
+  'app/(auth)/login/login-form.tsx:isSsoEnabled',
+  'app/(auth)/signup/signup-form.tsx:isSsoEnabled',
+  'app/(landing)/components/auth-modal/auth-modal.tsx:isSsoEnabled',
+])
+
+/** Splits found `file:flag` reads into those the baseline does not hold and its stale entries. */
+export function ratchetDeploymentShape(found: readonly string[], baseline: ReadonlySet<string>) {
+  return {
+    fresh: found.filter((read) => !baseline.has(read)),
+    stale: [...baseline].filter((read) => !found.includes(read)),
+  }
+}
+
 /** Surfaces whose shell seeds the server-resolved deployment shape (paths relative to apps/sim). */
-function isDeploymentShapeSurface(rel: string): boolean {
-  return /^(?:app\/\((?:product|site)\)|platform\/(?:lib|shared)|components\/settings|ee)\//.test(
-    rel
-  )
+export function isDeploymentShapeSurface(rel: string): boolean {
+  return /^(?:app\/(?!api\/)|(?:platform\/(?:lib|shared)|components\/settings|ee)\/)/.test(rel)
 }
 
 /**
@@ -382,24 +400,40 @@ async function main() {
     }
   }
 
-  if (shapeViolations.length === 0) {
+  const { fresh, stale } = ratchetDeploymentShape(
+    shapeViolations.flatMap((v) => v.flags.map((flag) => `${v.file}:${flag}`)),
+    DEPLOYMENT_SHAPE_BASELINE
+  )
+  const freshViolations = shapeViolations.filter((v) =>
+    v.flags.some((flag) => fresh.includes(`${v.file}:${flag}`))
+  )
+  if (freshViolations.length === 0 && stale.length === 0) {
     console.log('✓ No client code reads deployment-shape flags from env-flags.')
-  } else {
+  }
+  if (freshViolations.length > 0) {
     failed = true
     console.error(
-      `\n✗ ${shapeViolations.length} client module(s) read deployment-shape flags from env-flags.\n` +
+      `\n✗ ${freshViolations.length} client module(s) read deployment-shape flags from env-flags.\n` +
         `  Read them via useDeploymentShape() (components) or getDeploymentShape() (helpers) from @/lib/core/config/deployment-shape;\n` +
         `  import any other env-flags export by name, never as a namespace.\n`
     )
-    for (const v of shapeViolations) {
+    for (const v of freshViolations) {
       console.error(`  ${v.file}:${v.line}  imports ${v.flags.join(', ')} from '${v.specifier}'`)
     }
+  }
+  if (stale.length > 0) {
+    failed = true
+    console.error(
+      `\n✗ DEPLOYMENT_SHAPE_BASELINE holds reads that are gone; delete them:\n${stale.map((read) => `  ${read}`).join('\n')}`
+    )
   }
 
   if (failed && checkMode) process.exit(1)
 }
 
-main().catch((error) => {
-  console.error(error)
-  process.exit(1)
-})
+if (import.meta.main) {
+  main().catch((error) => {
+    console.error(error)
+    process.exit(1)
+  })
+}

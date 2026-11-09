@@ -23,8 +23,8 @@
  *     - `packages/db/script-migrations/NNNN_name.ts`, which mirror the numbered SQL migrations.
  * - `redundant-suffix`: a file inside a `utils/` or `helpers/` folder must not repeat the folder's
  *   role in its own name (`utils/date-utils.ts` → `utils/date.ts`).
- * - `stutter`: inside `apps/sim/{lib,executor,providers,stores,hooks,serializer}` and
- *   `packages/<name>/src`, a file must not start with its parent folder's name (singular or plural)
+ * - `stutter`: inside `apps/sim/{lib,executor,providers,stores,hooks,serializer}`,
+ *   `apps/sim/platform/{lib,shared}` and `packages/<name>/src`, a file must not start with its parent folder's name (singular or plural)
  *   followed by `-`: the folder already says it (`lib/logs/log-views.ts` → `lib/logs/views.ts`,
  *   `executor/handlers/agent/agent-handler.ts` → `agent/handler.ts`). The documented component
  *   convention `feature/feature.tsx` is an exact match, not a prefix, so it is unaffected.
@@ -68,7 +68,7 @@ const ROLE_FOLDERS: Record<string, string[]> = {
 }
 const STUTTER_ROOTS = [
   /^apps\/sim\/(?:lib|executor|providers|stores|hooks|serializer)\//,
-  /^apps\/sim\/platform\/lib\//,
+  /^apps\/sim\/platform\/(?:lib|shared)\//,
   /^packages\/[^/]+\/src\//,
 ]
 
