@@ -200,7 +200,12 @@ export const LogList = memo(function LogList({
   const setList = useCallback(
     (element: HTMLDivElement | null) => {
       setViewport(element)
-      return measureEdges(element)
+      const stopMeasuring = measureEdges(element)
+      // A returned cleanup replaces React's null call, so it also lets go of the element.
+      return () => {
+        stopMeasuring?.()
+        setViewport(null)
+      }
     },
     [measureEdges]
   )
