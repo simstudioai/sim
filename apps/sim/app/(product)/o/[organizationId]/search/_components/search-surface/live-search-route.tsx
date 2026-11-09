@@ -5,10 +5,16 @@ import { SearchSurface } from '@/app/(product)/o/[organizationId]/search/_compon
 import { readChatMode } from '@/platform/lib/data/chat-gate'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { prefetchSearch } from '@/platform/lib/data/prefetch-search'
+import { readPinnedSearchHref } from '@/platform/lib/data/search-pin'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
+interface LiveSearchRouteProps {
+  chatId?: string
+  searchParams?: Record<string, string | string[] | undefined>
+}
+
 /** The legacy Search and Assistant chat pages' gates, in their order. */
-export async function LiveSearchRoute({ chatId }: { chatId?: string }) {
+export async function LiveSearchRoute({ chatId, searchParams = {} }: LiveSearchRouteProps) {
   const surface = await readOrganizationSurface()
   if (surface.status !== 'ok') return null
   const { organization } = surface
@@ -20,6 +26,8 @@ export async function LiveSearchRoute({ chatId }: { chatId?: string }) {
     if (mode !== 'assistant') redirect(surfaceHref(organization, `/chat/${chatId}`))
     return <SearchSurface chatId={chatId} />
   }
+  const pinned = await readPinnedSearchHref(organization, searchParams)
+  if (pinned) redirect(pinned)
   return (
     <HydrationBoundary state={await prefetchSearch(organization)}>
       <SearchSurface />

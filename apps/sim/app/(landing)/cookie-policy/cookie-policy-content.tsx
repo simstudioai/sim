@@ -165,6 +165,12 @@ export const COOKIE_POLICY_CONFIG: LegalPageConfig = {
             '1 year',
           ],
           [
+            'search_mode_<organization>',
+            'Sim',
+            'Remembers whether you last used Search or Assistant in an organization, so Search opens where you left it.',
+            '1 year',
+          ],
+          [
             '__cf_bm',
             'Cloudflare',
             'Bot-management check on requests to providers we load, such as X.',

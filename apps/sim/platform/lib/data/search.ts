@@ -7,7 +7,6 @@ import { useQueryStates } from 'nuqs'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/client'
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
-import { BrowserStorage } from '@/lib/core/utils/browser-storage'
 import { groupResultsByDocument, toSource } from '@/lib/knowledge/search/results'
 import {
   searchFilterParsers,
@@ -19,6 +18,10 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   organizationSearchParsers,
   organizationSearchUrlKeys,
+  readRememberedSearchMode,
+  rememberedSearchModeCookie,
+  searchModeCookieName,
+  searchModeInUrl,
 } from '@/lib/organizations/search-params'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import type { PlatformResource } from '@/app/(product)/_components/chat/model'
@@ -40,7 +43,6 @@ type SearchSourceRow = SearchResultsData['rows'][number]
 const NO_FILTERS: WorkspaceSearchFilters = {}
 /** A tab without a retrieval address runs nothing: an empty query never enables the read. */
 const NO_SCOPE: ResourceScope = { kind: 'organization', organizationId: '' }
-const SEARCH_MODE_STORAGE = 'organization-search-mode'
 
 interface SearchReadOptions {
   scope: ResourceScope
@@ -130,6 +132,14 @@ function searchDraftKeys(userId: string, organizationId: string) {
   }
 }
 
+function readSearchModeCookie(organizationId: string) {
+  const prefix = `${searchModeCookieName(organizationId)}=`
+  return document.cookie
+    .split('; ')
+    .find((entry) => entry.startsWith(prefix))
+    ?.slice(prefix.length)
+}
+
 /** Everything the Search route reads: the URL, the query, the viewer's history and the mode. */
 export function useSearchSurface(chatId: string | undefined) {
   const organization = useOrganization()
@@ -147,25 +157,22 @@ export function useSearchSurface(chatId: string | undefined) {
     organizationSearchUrlKeys
   )
   const { q: query, mode: urlMode, source, updated, from, to } = params
-  const storageKey = `${SEARCH_MODE_STORAGE}:${userId}:${organizationId}`
-  const remembered = useMemo(
-    () => (userId ? BrowserStorage.getItem<'search' | 'assistant' | null>(storageKey, null) : null),
-    [userId, storageKey]
-  )
-  const hasSearchParams = Boolean(query || source || updated !== 'any')
-  const routeMode = urlMode ?? (hasConversation ? 'assistant' : hasSearchParams ? 'search' : null)
+  // Empty until hydrated (`useSession`), so server markup and hydration never read the cookie.
+  const remembered = userId
+    ? readRememberedSearchMode(readSearchModeCookie(organizationId), userId)
+    : null
+  const routeMode =
+    !urlMode && hasConversation
+      ? 'assistant'
+      : searchModeInUrl({ mode: urlMode, q: query, source, updated })
   const mode: 'search' | 'assistant' = !assistantAvailable
     ? 'search'
     : (routeMode ?? remembered ?? 'search')
+  // The server pins a bare URL to this mode (`pinnedSearchHref`); the client never writes it.
   useEffect(() => {
-    if (!assistantAvailable || !userId) return
-    if (routeMode) {
-      BrowserStorage.setItem(storageKey, routeMode)
-      return
-    }
-    // Pin the mode to this history entry so Back survives a later preference change.
-    void setParams({ mode: remembered === 'assistant' ? 'assistant' : 'search' })
-  }, [assistantAvailable, userId, routeMode, remembered, storageKey, setParams])
+    if (!assistantAvailable || !userId || !routeMode) return
+    document.cookie = rememberedSearchModeCookie(organizationId, userId, routeMode)
+  }, [assistantAvailable, userId, routeMode, organizationId])
   const [assistantStarted, setAssistantStarted] = useState(mode === 'assistant')
   if (mode === 'assistant' && !assistantStarted) setAssistantStarted(true)
   const setMode = (next: string) => {

@@ -184,6 +184,28 @@ describe('Summarize on a search result', () => {
   })
 })
 
+describe('the mode on a bare Search URL', () => {
+  beforeEach(() => {
+    mocks.params = { q: '', mode: null, source: null, updated: 'any', from: null, to: null }
+    document.cookie = 'search_mode_org-1=; path=/; max-age=0'
+  })
+
+  // A client URL write is a history update, and Next drops any navigation pending when one lands.
+  it('is never written to the URL from the client', () => {
+    document.cookie = 'search_mode_org-1=viewer:assistant; path=/'
+    const { result, rerender } = renderHook(() => useSearchSurface(undefined), undefined)
+    rerender()
+    expect(mocks.params.mode).toBeNull()
+    expect(result.current.mode).toBe('assistant')
+  })
+
+  it('is remembered for the server once the URL names one', () => {
+    mocks.params.mode = 'assistant'
+    renderHook(() => useSearchSurface(undefined), undefined)
+    expect(document.cookie).toContain('search_mode_org-1=viewer:assistant')
+  })
+})
+
 describe('sending a summary into the conversation', () => {
   const first: SummaryRequest = { id: 'a', message: 'one', assistantSearch: { documentIds: ['1'] } }
   const second: SummaryRequest = {
