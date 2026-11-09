@@ -18,7 +18,11 @@ import { IntegrationIdea } from '@/app/(product)/o/[organizationId]/integrations
 import { ProviderHeading } from '@/app/(product)/o/[organizationId]/integrations/_components/provider-heading/provider-heading'
 import { WorkspaceCredentialDetails } from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-credential-details/workspace-credential-details'
 import { PersonalTokenModal } from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-integration-details/personal-token-modal'
-import { hasServiceAccountForm, type ResourceScope } from '@/platform/lib/data/credentials'
+import {
+  hasServiceAccountForm,
+  type ResourceScope,
+  useDataverseReconnect,
+} from '@/platform/lib/data/credentials'
 import {
   appCredentials,
   type WorkspaceAppConnection,
@@ -106,6 +110,7 @@ export function WorkspaceIntegrationDetails({
   const reconnecting = connected.find((credential) => credential.id === reconnectingId)
   const disconnecting = connected.find((credential) => credential.id === disconnectingId)
   const replacingToken = connected.find((credential) => credential.id === replacingTokenId)
+  const dataverse = useDataverseReconnect(selected)
   const methods = app.connections.filter(
     (connection) =>
       connection.kind === 'oauth' ||
@@ -193,12 +198,16 @@ export function WorkspaceIntegrationDetails({
                 variant='quiet'
                 size='compact'
                 disabled={
-                  pending || (selected.type !== 'personal_token' && !oauthFor(selected.providerId))
+                  pending ||
+                  dataverse.pending ||
+                  Boolean(dataverse.blockedReason) ||
+                  (selected.type !== 'personal_token' && !oauthFor(selected.providerId))
                 }
                 disabledReason={
-                  selected.type === 'personal_token' || oauthFor(selected.providerId)
+                  dataverse.blockedReason ??
+                  (selected.type === 'personal_token' || oauthFor(selected.providerId)
                     ? undefined
-                    : `Disconnect this account and connect ${app.name} again to replace it`
+                    : `Disconnect this account and connect ${app.name} again to replace it`)
                 }
                 onClick={() =>
                   selected.type === 'personal_token'
@@ -308,6 +317,8 @@ export function WorkspaceIntegrationDetails({
             credentialId: reconnecting.id,
             displayName: reconnecting.displayName,
           }}
+          requireDataverseEnvironment={Boolean(dataverse.environmentUrl)}
+          dataverseEnvironmentUrl={dataverse.environmentUrl}
           returnTo={{ origin: 'integrations' }}
           docsUrl={app.docsUrl}
         />

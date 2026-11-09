@@ -13,6 +13,7 @@ export {
 export { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 export { useCredentialDetailForm } from '@/platform/lib/data/secrets/use-credential-detail-form'
 export { useAtlassianServiceAccount } from './atlassian-service-account'
+export { useDataverseReconnect } from './dataverse-reconnect'
 export { checkEnvVarTrigger, useEnvVarSuggestions } from './env-var-suggestions'
 export { useGoogleServiceAccount } from './google-service-account'
 export { useOciApiKey } from './oci-api-key'
