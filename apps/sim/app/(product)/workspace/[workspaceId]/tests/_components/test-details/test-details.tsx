@@ -6,7 +6,7 @@ import { DataTable, MetricGroup } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { InlineNotice, StatusText } from '@sim/emcn/status'
-import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
@@ -16,6 +16,7 @@ import {
   DetailSection,
   DetailSplit,
 } from '@/app/(product)/workspace/[workspaceId]/_components/detail-split/detail-split'
+import type { PreviewMode } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/types'
 import { useMinuteClock } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/rename-dialog'
 import { formatDuration } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/format'
 import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
@@ -32,6 +33,7 @@ import {
   type WorkflowTestDetail,
 } from '@/platform/lib/data/workflow-tests'
 import { platformHref } from '@/platform/lib/navigation'
+import { TEST_RETURN_PARAM } from '@/platform/shared/test-return'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 type RunDetail = NonNullable<WorkflowTestDetail['latestRun']>
@@ -40,6 +42,29 @@ type CaseResult = NonNullable<RunDetail['report']>['tests'][number]
 
 /** How often a running clock advances. */
 const ELAPSED_TICK_MS = 1000
+
+const TestSource = dynamic(
+  () =>
+    import(
+      '@/app/(product)/workspace/[workspaceId]/tests/_components/test-source/test-source'
+    ).then((module) => module.TestSource),
+  { ssr: false }
+)
+
+/**
+ * The layout one press of the layout action moves to, as legacy's test page cycled: results, then
+ * the source alone, then the source beside the results, then back to the results.
+ */
+function nextLayoutAction(layout: PreviewMode, canEdit: boolean) {
+  if (layout === 'editor') return { label: 'Split', icon: 'I038' as const, next: 'split' as const }
+  if (layout === 'split')
+    return { label: 'Preview', icon: 'eye' as const, next: 'preview' as const }
+  return {
+    label: canEdit ? 'Edit' : 'View source',
+    icon: 'I036' as const,
+    next: 'editor' as const,
+  }
+}
 
 /** A case's name under its file's one top-level describe. */
 function caseName(path: readonly string[]) {
@@ -93,6 +118,32 @@ function freshness(
   }
 }
 
+/**
+ * The workflow frozen as the run executed it, returning here: a deployed version as deployed, a
+ * draft as the run snapshot recorded it. A deleted workflow, or a draft run with no recorded
+ * execution, has nothing to open.
+ */
+function frozenWorkflowHref(
+  workspaceId: string,
+  testName: string,
+  workflow: RunDetail['ranAgainst'][number],
+  search: Parameters<typeof platformHref>[1]
+) {
+  if (workflow.name === null) return undefined
+  const path = workflow.draft
+    ? workflow.executionId === null
+      ? null
+      : `workflows/runs/${encodeURIComponent(workflow.executionId)}`
+    : workflow.version === null
+      ? null
+      : `workflows/${encodeURIComponent(workflow.workflowId)}/versions/${workflow.version}`
+  if (path === null) return undefined
+  return platformHref(
+    `${workspacePath(workspaceId, path)}?${TEST_RETURN_PARAM}=${encodeURIComponent(testName)}`,
+    search
+  )
+}
+
 /** The time since a run started, advancing while it goes. */
 function useElapsed(startedAt: string | null) {
   const [now, setNow] = useState(() => Date.now())
@@ -112,7 +163,10 @@ interface TestDetailsProps {
 /**
  * One test's results in one run, the latest unless the run menu chose another: totals, freshness,
  * every case and the workflows it ran against. A running latest run shows live. Run runs it again
- * against the deployed workflows; the test's source opens in Files, which edits it.
+ * against the deployed workflows. The layout action cycles the results, the test's source alone in
+ * the Files editor, and the source beside the results; the layout lasts while the page is open, and
+ * Run waits while the open source holds unsaved edits. A workflow it ran against opens frozen at
+ * that version.
  */
 export function TestDetails({ workspaceId, name }: TestDetailsProps) {
   const searchParams = useSearchParams()
@@ -130,6 +184,9 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
   const run = viewedRunId ? (chosen.data ?? null) : (detail?.latestRun ?? null)
   const running = run?.status === 'running'
   const elapsed = useElapsed(running && run ? run.startedAt : null)
+  const [layout, setLayout] = useState<PreviewMode>('preview')
+  const [sourceDirty, setSourceDirty] = useState(false)
+  const unsaved = layout !== 'preview' && sourceDirty
 
   const back = {
     href: platformHref(workspacePath(workspaceId, 'tests'), searchParams),
@@ -148,7 +205,7 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
 
   if (!detail)
     return (
-      <DetailSplit back={back} label={`${name} results`} railLabel='Test facts' read={read}>
+      <DetailSplit back={back} label={`${name} results`} railLabel='Test source' read={read}>
         {null}
       </DetailSplit>
     )
@@ -189,10 +246,11 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
     hasResults ? cases.filter((testCase) => testCase.state === state).length.toLocaleString() : '—'
   const durationMs = run?.report?.tests.reduce((total, result) => total + result.durationMs, 0)
   const notice = freshness(run, now)
+  const layoutAction = nextLayoutAction(layout, canEdit)
 
   const actions = (
     <>
-      {runOptions.length > 0 && (
+      {layout !== 'editor' && runOptions.length > 0 && (
         <ChoiceMenu
           label='Run shown'
           options={runOptions}
@@ -205,23 +263,20 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
       <Button
         variant='quiet'
         size='compact'
-        icon='I036'
-        render={
-          <Link
-            href={platformHref(
-              `${workspacePath(workspaceId, 'files')}/${encodeURIComponent(detail.test.fileId)}`,
-              searchParams
-            )}
-          />
-        }
+        icon={layoutAction.icon}
+        onClick={() => {
+          setLayout(layoutAction.next)
+          setSourceDirty(false)
+        }}
       >
-        {canEdit ? 'Edit' : 'View source'}
+        {layoutAction.label}
       </Button>
       <Button
         variant='secondary'
         size='compact'
         icon='play'
-        disabled={!canEdit || busy}
+        disabled={!canEdit || busy || unsaved}
+        disabledReason={unsaved && !busy ? 'The test has unsaved changes.' : undefined}
         onClick={() =>
           runTests.mutate(
             { version: 'deployed', names: [name] },
@@ -229,23 +284,62 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
           )
         }
       >
-        {busy ? 'Running…' : 'Run'}
+        {busy ? 'Running…' : unsaved ? 'Unsaved' : 'Run'}
       </Button>
     </>
   )
+
+  const heading = (
+    <DirectoryHeading
+      title={detail.test.title}
+      description={detail.test.description ?? undefined}
+    />
+  )
+
+  if (layout === 'editor')
+    return (
+      <DetailSplit
+        back={back}
+        actions={actions}
+        label={`${detail.test.title} source`}
+        railLabel='Test source'
+        read={read}
+        content='editor'
+      >
+        {heading}
+        <TestSource
+          workspaceId={workspaceId}
+          name={name}
+          fileId={detail.test.fileId}
+          canEdit={canEdit}
+          placement='page'
+          onDirtyChange={setSourceDirty}
+        />
+      </DetailSplit>
+    )
 
   return (
     <DetailSplit
       back={back}
       actions={actions}
       label={`${detail.test.title} results`}
-      railLabel='Test facts'
+      rail={
+        layout === 'split' && (
+          <TestSource
+            workspaceId={workspaceId}
+            name={name}
+            fileId={detail.test.fileId}
+            canEdit={canEdit}
+            placement='rail'
+            onDirtyChange={setSourceDirty}
+          />
+        )
+      }
+      railKind='inspector'
+      railLabel='Test source'
       read={read}
     >
-      <DirectoryHeading
-        title={detail.test.title}
-        description={detail.test.description ?? undefined}
-      />
+      {heading}
       <MetricGroup
         metrics={[
           { label: 'Passing', value: count('pass') },
@@ -312,13 +406,7 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
               cells: {
                 state: workflow.stale ? <StatusText label='Out of date' intent='warning' /> : null,
               },
-              href:
-                workflow.name === null
-                  ? undefined
-                  : platformHref(
-                      `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(workflow.workflowId)}`,
-                      searchParams
-                    ),
+              href: frozenWorkflowHref(workspaceId, name, workflow, searchParams),
             }))}
           />
         </DetailSection>

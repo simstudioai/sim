@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useSession } from '@/lib/auth/client'
-import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import {
   ADD_CONNECTOR_SEARCH_PARAM,
   clearOAuthReturnContext,
@@ -96,7 +96,11 @@ interface OAuthScopeRow {
 /** What opens the connect flow: the account to connect or restore, and where to come back. */
 export interface OAuthConnectOptions {
   mode: 'connect' | 'reauthorize'
-  workspaceId: string
+  /**
+   * The workspace or organization that owns the credential. A workflow return needs a workspace;
+   * an organization's connections return to its Search source setup or to Integrations.
+   */
+  scope: ResourceScope
   /** The credential's provider id: the declared one to connect, the issuing one to reauthorize. */
   providerId: string
   /** Resolves the service's name with `serviceId` when `serviceName` is not given. */
@@ -130,7 +134,7 @@ export interface OAuthConnectOptions {
 export function useOAuthConnect({
   open,
   mode,
-  workspaceId,
+  scope,
   providerId: declaredProviderId,
   provider,
   serviceId,
@@ -189,8 +193,8 @@ export function useOAuthConnect({
   }
 
   const { data: credentials = [], isPending: credentialsLoading } = useScopedCredentials({
-    workspaceId,
-    enabled: Boolean(workspaceId) && open,
+    ...resourceScopeFields(scope),
+    enabled: open,
   })
   const createDraft = useCreateCredentialDraft()
   const connectOAuthService = useConnectOAuthService()
@@ -347,7 +351,7 @@ export function useOAuthConnect({
           updatedAt: credential.updatedAt,
         })),
       }
-      const scopeFields = resourceScopeFields(resourceScopeFromOwner({ workspaceId }))
+      const scopeFields = resourceScopeFields(scope)
       let draftId: string | undefined
       let addConnectorType: string | undefined
 
@@ -370,8 +374,13 @@ export function useOAuthConnect({
         if (returnTo?.origin === 'kb-connectors') {
           addConnectorType = returnTo.connectorId ? undefined : returnTo.connectorType
           context = { ...base, ...returnTo }
-        } else if (returnTo?.origin === 'workflow') {
-          context = { ...base, ...returnTo, workspaceId, organizationId: undefined }
+        } else if (returnTo?.origin === 'workflow' && scope.kind === 'workspace') {
+          context = {
+            ...base,
+            ...returnTo,
+            workspaceId: scope.workspaceId,
+            organizationId: undefined,
+          }
         } else {
           context = { ...base, origin: 'integrations' }
         }

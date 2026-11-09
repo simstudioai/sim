@@ -6,6 +6,7 @@ import { SecretField } from '@sim/emcn/field/value-fields'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { ServiceAccountModal } from '@/app/(product)/_components/service-account-modal/service-account-modal'
 import { ActionRow, Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { ConnectorAccess } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/connector-access'
 import { ConnectorConfigFields } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/connector-config-fields'
@@ -104,6 +105,7 @@ export function ConnectorSettingsFields({
     isGitHubInstallationSource,
     isOptionalSetupField,
     requiresServiceAccount,
+    serviceAccount,
     syncsPerMember,
   } = fields
   return (
@@ -263,12 +265,29 @@ export function ConnectorSettingsFields({
           onValueChange={(value) => {
             if (value) onWorkspaceCredentialChange(value)
           }}
+          createLabel={serviceAccount?.label}
+          onCreate={serviceAccount ? () => fields.setShowServiceAccountModal(true) : undefined}
           disabled={isSaving || credentialsLoading}
           hint={
             !requiresServiceAccount && !credentialsLoading && credentialOptions.length === 0
               ? `Connect a ${connectorConfig.name} account in Integrations, then return here to select it.`
               : undefined
           }
+        />
+      )}
+      {fields.showServiceAccountModal && serviceAccount && (
+        <ServiceAccountModal
+          open
+          onOpenChange={fields.setShowServiceAccountModal}
+          scope={scope}
+          serviceAccountProviderId={serviceAccount.serviceAccountProviderId}
+          serviceName={serviceAccount.serviceName}
+          atlassianProduct={serviceAccount.atlassianProduct}
+          atlassianSetupGuideUrl={serviceAccount.atlassianSetupGuideUrl}
+          onCreated={(credentialId) => {
+            onWorkspaceCredentialChange(credentialId)
+            fields.setShowServiceAccountModal(false)
+          }}
         />
       )}
       {connectorConfig &&

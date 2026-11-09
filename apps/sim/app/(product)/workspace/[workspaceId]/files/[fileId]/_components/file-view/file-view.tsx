@@ -15,21 +15,21 @@ import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import {
-  LiveWorkspacePage,
-  WorkspaceEmpty,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
-import {
   FileDocAvatars,
   FileDocRoomProvider,
-} from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/collaboration/file-doc-room'
+} from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/collaboration/file-doc-room'
 import {
   FileViewer,
   isCsvStreamOnly,
   isMarkdownFile,
   isPreviewable,
   isTextEditable,
-} from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/file-viewer'
-import type { PreviewMode } from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/types'
+} from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/file-viewer'
+import type { PreviewMode } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/types'
+import {
+  LiveWorkspacePage,
+  WorkspaceEmpty,
+} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
 import { ShareModal } from '@/app/(product)/workspace/[workspaceId]/files/_components/share-modal/share-modal'
 import {
   type FileDownloadSource,

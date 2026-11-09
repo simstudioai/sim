@@ -5,12 +5,14 @@ import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
 import { withRunListView } from '@/platform/lib/workspace-views'
+import { readTestReturn } from '@/platform/shared/test-return'
 
 export const metadata: Metadata = { title: 'Run snapshot' }
 
 /**
  * A run's frozen workflow. It lives in the Workflows tab, the one place the block registry the
- * canvas draws with may load, and returns to the run it came from.
+ * canvas draws with may load, and returns to the run it came from, or to the test whose draft run
+ * opened it.
  */
 export default async function Page({
   params,
@@ -26,17 +28,31 @@ export default async function Page({
   ])
   const search = { get: (key: string) => (typeof query[key] === 'string' ? query[key] : null) }
   const runId = decodeURIComponent(executionId)
+  const test = readTestReturn(query)
   return (
     <RunSnapshot
       workspaceId={workspaceId}
       executionId={runId}
-      back={{
-        href: withRunListView(
-          platformHref(workspacePath(workspaceId, `logs/${encodeURIComponent(runId)}`), search),
-          query
-        ),
-        label: `Run ${runId.slice(0, 8)}`,
-      }}
+      back={
+        test
+          ? {
+              href: platformHref(
+                workspacePath(workspaceId, `tests/${encodeURIComponent(test)}`),
+                search
+              ),
+              label: test,
+            }
+          : {
+              href: withRunListView(
+                platformHref(
+                  workspacePath(workspaceId, `logs/${encodeURIComponent(runId)}`),
+                  search
+                ),
+                query
+              ),
+              label: `Run ${runId.slice(0, 8)}`,
+            }
+      }
     />
   )
 }

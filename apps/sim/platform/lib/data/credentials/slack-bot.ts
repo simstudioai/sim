@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   buildSlackAppCreationUrl,
@@ -76,7 +76,8 @@ function getAgentDescriptionError(description: string): string | null {
 
 interface UseSlackBotFormOptions {
   open: boolean
-  workspaceId: string
+  /** The workspace or organization that owns the new credential. */
+  scope: ResourceScope
   onCreated: (credentialId: string) => void
 }
 
@@ -88,7 +89,7 @@ interface UseSlackBotFormOptions {
  * `submit` resolves once the credential exists and `onCreated` has it, or rejects with a readable
  * message and keeps the draft.
  */
-export function useSlackBotForm({ open, workspaceId, onCreated }: UseSlackBotFormOptions) {
+export function useSlackBotForm({ open, scope, onCreated }: UseSlackBotFormOptions) {
   const [credentialId, setCredentialId] = useState(generateId)
   const [appName, setAppName] = useState('')
   const [appDescription, setAppDescription] = useState('')
@@ -174,7 +175,7 @@ export function useSlackBotForm({ open, workspaceId, onCreated }: UseSlackBotFor
   const submit = async () => {
     try {
       await createCredential.mutateAsync({
-        ...resourceScopeFields(resourceScopeFromOwner({ workspaceId })),
+        ...resourceScopeFields(scope),
         type: 'service_account',
         providerId: SLACK_CUSTOM_BOT_PROVIDER_ID,
         id: credentialId,

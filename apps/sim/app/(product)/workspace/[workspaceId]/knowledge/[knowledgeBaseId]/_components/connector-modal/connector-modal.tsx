@@ -10,7 +10,7 @@ import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
-import { ServiceAccountModal } from '@/app/(product)/workspace/[workspaceId]/_components/service-account-modal/service-account-modal'
+import { ServiceAccountModal } from '@/app/(product)/_components/service-account-modal/service-account-modal'
 import {
   ConnectorAccessField,
   ContentCredentialField,
@@ -469,7 +469,7 @@ function ConnectorDialog({
         <ServiceAccountModal
           open
           onOpenChange={setAddingServiceAccount}
-          workspaceId={workspaceId}
+          scope={{ kind: 'workspace', workspaceId }}
           serviceAccountProviderId={form.serviceAccount.serviceAccountProviderId}
           serviceName={form.serviceAccount.serviceName}
           atlassianProduct={form.serviceAccount.atlassianProduct}

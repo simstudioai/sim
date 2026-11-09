@@ -5,8 +5,8 @@ import { Button } from '@sim/emcn/button'
 import Link from 'next/link'
 import { notFound, useSearchParams } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
+import { AccessBoundary } from '@/app/(product)/workspace/[workspaceId]/_components/access-required/access-boundary'
 import { DetailSplit } from '@/app/(product)/workspace/[workspaceId]/_components/detail-split/detail-split'
-import { ChangelogAccess } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-access/changelog-access'
 import { ChangelogDetails } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-details/changelog-details'
 import { ReleaseEdit } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/release-edit/release-edit'
 import { ReleaseNotes } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/release-notes/release-notes'
@@ -26,9 +26,9 @@ interface LiveReleaseProps {
  */
 export function LiveRelease({ workspaceId, releaseId, back }: LiveReleaseProps) {
   return (
-    <ChangelogAccess workspaceId={workspaceId}>
+    <AccessBoundary workspaceId={workspaceId} gate='hideFilesTab' current='changelog'>
       <Release workspaceId={workspaceId} releaseId={releaseId} back={back} />
-    </ChangelogAccess>
+    </AccessBoundary>
   )
 }
 

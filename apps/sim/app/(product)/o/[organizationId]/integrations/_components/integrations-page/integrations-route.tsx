@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { useSearchParams } from 'next/navigation'
+import { SavedAccountModal } from '@/app/(product)/_components/service-account-modal/saved-account-modal'
 import { IntegrationDetails } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-details/integration-details'
 import { IntegrationList } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-list/integration-list'
 import {
@@ -122,45 +123,54 @@ export function IntegrationsRoute({
     )
 
   return (
-    <IntegrationsPage back={back}>
-      {inventoryFailure ??
-        (inventory.data && (
-          <>
-            {readFailures}
-            {integration ? (
-              <IntegrationDetails
-                key={integration.id}
-                integration={integration}
-                accountId={account}
-                integrationHref={integrationHref(integration.id)}
-                accountHref={(credentialId) =>
-                  serialize(integrationCenterHref(pathOf(integration.id), params), {
-                    q: search,
-                    account: credentialId,
-                  })
-                }
-                pending={actions.pending}
-                onConnect={() => {
-                  if (integration.connectionTarget) actions.connect(integration.connectionTarget)
-                }}
-                onReconnect={actions.reconnect}
-                onDisconnect={async (credentialId) => {
-                  await actions.disconnect(credentialId)
-                  if (account === credentialId) clearAccount()
-                }}
-                renderToolPermissions={(credentialId) => (
-                  <ToolPermissionsPanel
-                    key={credentialId}
-                    organizationId={organizationId}
-                    credentialId={credentialId}
-                  />
-                )}
-              />
-            ) : (
-              !policies.error && unavailable(policies.isPending)
-            )}
-          </>
-        ))}
-    </IntegrationsPage>
+    <>
+      <IntegrationsPage back={back}>
+        {inventoryFailure ??
+          (inventory.data && (
+            <>
+              {readFailures}
+              {integration ? (
+                <IntegrationDetails
+                  key={integration.id}
+                  integration={integration}
+                  accountId={account}
+                  integrationHref={integrationHref(integration.id)}
+                  accountHref={(credentialId) =>
+                    serialize(integrationCenterHref(pathOf(integration.id), params), {
+                      q: search,
+                      account: credentialId,
+                    })
+                  }
+                  pending={actions.pending}
+                  onConnect={() => {
+                    if (integration.connectionTarget) actions.connect(integration.connectionTarget)
+                  }}
+                  onReconnect={actions.reconnect}
+                  onDisconnect={async (credentialId) => {
+                    await actions.disconnect(credentialId)
+                    if (account === credentialId) clearAccount()
+                  }}
+                  renderToolPermissions={(credentialId) => (
+                    <ToolPermissionsPanel
+                      key={credentialId}
+                      organizationId={organizationId}
+                      credentialId={credentialId}
+                    />
+                  )}
+                />
+              ) : (
+                !policies.error && unavailable(policies.isPending)
+              )}
+            </>
+          ))}
+      </IntegrationsPage>
+      {actions.savedConnection && (
+        <SavedAccountModal
+          organizationId={organizationId}
+          connection={actions.savedConnection}
+          onClose={actions.closeSavedConnection}
+        />
+      )}
+    </>
   )
 }

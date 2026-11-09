@@ -9,16 +9,16 @@ import {
   useState,
 } from 'react'
 import { StatusTag } from '@sim/emcn/status'
-import { CodeField } from '@/app/(product)/workspace/[workspaceId]/_components/code-field/code-field'
-import styles from '@/app/(product)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-editor.module.css'
-import { highlightCustomToolCode } from '@/app/(product)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-highlight'
-import { EnvVarDropdown } from '@/app/(product)/workspace/[workspaceId]/_components/env-var-dropdown/env-var-dropdown'
+import { EnvVarDropdown } from '@/app/(product)/_components/env-var-dropdown/env-var-dropdown'
 import {
   FieldPopover,
   FieldPopoverHeading,
   FieldPopoverRow,
   useActiveRowIntoView,
-} from '@/app/(product)/workspace/[workspaceId]/_components/field-popover/field-popover'
+} from '@/app/(product)/_components/field-popover/field-popover'
+import { CodeField } from '@/app/(product)/workspace/[workspaceId]/_components/code-field/code-field'
+import styles from '@/app/(product)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-editor.module.css'
+import { highlightCustomToolCode } from '@/app/(product)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-highlight'
 import { checkTagTrigger } from '@/platform/lib/data/workflow-editor'
 import {
   CODE_PLACEHOLDER,

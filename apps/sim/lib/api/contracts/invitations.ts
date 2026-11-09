@@ -155,6 +155,8 @@ export const invitationJoinOutcomeSchema = z.enum([
   'blocked',
 ])
 
+export type InvitationJoinOutcome = z.output<typeof invitationJoinOutcomeSchema>
+
 export const invitationActionBodySchema = z.object({
   token: z.string().min(1).optional(),
   /**
@@ -290,6 +292,17 @@ export const myInvitationSchema = invitationDetailsSchema.extend({
 })
 
 export type MyInvitation = z.output<typeof myInvitationSchema>
+
+export const listMyInvitationsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/invitations',
+  response: {
+    mode: 'json',
+    schema: z.object({
+      invitations: z.array(myInvitationSchema),
+    }),
+  },
+})
 
 export const acceptInvitationContract = defineRouteContract({
   method: 'POST',

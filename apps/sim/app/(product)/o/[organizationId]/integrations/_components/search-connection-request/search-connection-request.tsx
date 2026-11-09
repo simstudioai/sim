@@ -3,6 +3,7 @@
 import { Button } from '@sim/emcn/button'
 import { FailureNotice } from '@sim/emcn/status'
 import { ConnectionPrompt } from '@sim/emcn-platform/connection-prompt'
+import { SavedAccountModal } from '@/app/(product)/_components/service-account-modal/saved-account-modal'
 import type { SearchConnectionTarget } from '@/platform/lib/data/chat-types'
 import { useSearchConnectionRequest } from '@/platform/lib/data/integration-handoff'
 
@@ -13,8 +14,8 @@ interface SearchConnectionRequestProps {
 }
 
 /**
- * A connection a chat or link asked for, offered ahead of the inventory. A saved-account target has
- * no connect action here: its credential form is not on the Platform yet.
+ * A connection a chat or link asked for, offered ahead of the inventory. A saved-account target
+ * connects through the member's own key or app credentials instead of a provider sign-in.
  */
 export function SearchConnectionRequest({
   organizationId,
@@ -25,10 +26,18 @@ export function SearchConnectionRequest({
   const { action, label, disabled } = connection
   return (
     <>
+      {connection.savedConnection && (
+        <SavedAccountModal
+          organizationId={organizationId}
+          connection={connection.savedConnection}
+          onClose={connection.closeSavedConnection}
+          onCreated={connection.completeSavedConnection}
+        />
+      )}
       <ConnectionPrompt
         title={label}
         options={
-          connection.connected || target.savedProviderId
+          connection.connected
             ? []
             : [
                 {

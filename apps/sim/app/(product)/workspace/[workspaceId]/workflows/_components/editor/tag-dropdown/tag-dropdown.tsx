@@ -7,7 +7,7 @@ import {
   FieldPopoverHeading,
   FieldPopoverRow,
   useActiveRowIntoView,
-} from '@/app/(product)/workspace/[workspaceId]/_components/field-popover/field-popover'
+} from '@/app/(product)/_components/field-popover/field-popover'
 import { BlockTile } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/block-tile/block-tile'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/tag-dropdown/tag-dropdown.module.css'
 import {

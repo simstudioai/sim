@@ -14,9 +14,9 @@ import {
   useState,
 } from 'react'
 import { CopyButton } from '@sim/emcn/button/copy-button'
+import { EnvVarDropdown } from '@/app/(product)/_components/env-var-dropdown/env-var-dropdown'
 import { CodeField } from '@/app/(product)/workspace/[workspaceId]/_components/code-field/code-field'
 import type { CodeFieldLanguage } from '@/app/(product)/workspace/[workspaceId]/_components/code-field/highlight'
-import { EnvVarDropdown } from '@/app/(product)/workspace/[workspaceId]/_components/env-var-dropdown/env-var-dropdown'
 import { useActiveSearchTarget } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/code/code.module.css'
 import {

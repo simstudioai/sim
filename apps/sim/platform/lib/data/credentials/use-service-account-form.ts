@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
-import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import {
   AUTH_METHOD_FIELD_ID,
   type ClientCredentialAccountDescriptor,
@@ -128,9 +129,19 @@ function clientCredentialMessage(
 }
 
 interface UseServiceAccountFormOptions {
-  workspaceId: string
+  /** The workspace or organization that owns the new credential. */
+  scope: ResourceScope
   serviceAccountProviderId: string
   onCreated: (credentialId: string) => void
+  /**
+   * Saves the entered fields through another operation instead of creating a scoped credential, as
+   * a member's saved Search account does, and resolves to the saved credential's id.
+   */
+  submitCredentials?: (fields: Record<string, string>) => Promise<string>
+  /** Whether that operation is still saving. */
+  submitPending?: boolean
+  /** The name an account being replaced already has, which the form starts with. */
+  initialDisplayName?: string
 }
 
 /**
@@ -140,9 +151,12 @@ interface UseServiceAccountFormOptions {
  * or rejects with the provider's verification failure in readable terms.
  */
 export function useServiceAccountForm({
-  workspaceId,
+  scope,
   serviceAccountProviderId,
   onCreated,
+  submitCredentials,
+  submitPending = false,
+  initialDisplayName = '',
 }: UseServiceAccountFormOptions) {
   const tokenDescriptor = getTokenServiceAccountDescriptor(serviceAccountProviderId)
   const clientDescriptor = tokenDescriptor
@@ -150,7 +164,7 @@ export function useServiceAccountForm({
     : getClientCredentialAccountDescriptor(serviceAccountProviderId)
   const descriptor = tokenDescriptor ?? clientDescriptor
   const [values, setValues] = useState<Record<string, string>>({})
-  const [displayName, setDisplayName] = useState('')
+  const [displayName, setDisplayName] = useState(initialDisplayName)
   const [description, setDescription] = useState('')
   const createCredential = useCreateScopedCredential()
 
@@ -215,13 +229,25 @@ export function useServiceAccountForm({
   const missingRequired = fields.some(
     (field) => field.required && !field.value.trim() && field.id !== AUTH_METHOD_FIELD_ID
   )
-  const isPending = createCredential.isPending
+  const isPending = createCredential.isPending || submitPending
 
   const submit = async () => {
     if (!descriptor || missingRequired) return false
+    if (submitCredentials) {
+      const fields: Record<string, string> = { ...secretFields }
+      if (displayName.trim()) fields.displayName = displayName.trim()
+      if (description.trim()) fields.description = description.trim()
+      try {
+        onCreated(await submitCredentials(fields))
+        return undefined
+      } catch (error) {
+        logger.error(`Failed to save ${descriptor.serviceLabel} credential`, error)
+        throw new Error(getErrorMessage(error, CLIENT_CREDENTIAL_FALLBACK))
+      }
+    }
     try {
       const created = await createCredential.mutateAsync({
-        ...resourceScopeFields(resourceScopeFromOwner({ workspaceId })),
+        ...resourceScopeFields(scope),
         type: 'service_account',
         providerId: descriptor.providerId,
         ...secretFields,

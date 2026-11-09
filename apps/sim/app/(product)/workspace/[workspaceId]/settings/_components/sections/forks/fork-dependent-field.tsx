@@ -5,7 +5,7 @@ import { Button } from '@sim/emcn/button'
 import { Input, TextArea } from '@sim/emcn/field/inputs'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
-import { EnvVarDropdown } from '@/app/(product)/workspace/[workspaceId]/_components/env-var-dropdown/env-var-dropdown'
+import { EnvVarDropdown } from '@/app/(product)/_components/env-var-dropdown/env-var-dropdown'
 import { checkEnvVarTrigger } from '@/platform/lib/data/credentials'
 import {
   applyDependentRepick,

@@ -52,6 +52,24 @@
   padding-block-end: var(--ui-page-inset-block);
 }
 /*
+ * An embedded editor keeps the working area at every width: the column stops scrolling and its
+ * content stretches to the bottom, where the editor's own inset ends it.
+ */
+.reading[data-content="editor"] {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  overflow: hidden;
+}
+.content[data-content="editor"] {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  padding-block-end: 0;
+}
+/*
  * The boundary spans the rail's content, extending the same inset above and below it; the rail
  * rises by that inset so its first line stays level with the record's heading. The rail scrolls, so
  * it clips: it reaches one row inset past the column's text edge and pads that inset back, keeping

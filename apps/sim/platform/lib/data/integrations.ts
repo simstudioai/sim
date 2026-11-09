@@ -1,5 +1,5 @@
+import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { organizationRoutes } from '@/lib/navigation/paths'
@@ -25,13 +25,12 @@ import { useRemovePersonalSearchCredential } from '@/hooks/queries/personal-sear
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
+import type { SavedSearchConnection } from '@/platform/lib/data/integration-handoff'
 import {
   toGenericSecrets,
   toOrganizationIntegrations,
   toToolPermissions,
 } from '@/platform/lib/data/integrations-model'
-import { useOrganization } from '@/platform/lib/data/organization'
-import { surfaceHref } from '@/platform/lib/data/organization-model'
 import type { OrganizationIntegration, ToolPermissionChange } from '@/platform/shared/integrations'
 
 const ACTION_NOTICE_ID = 'integrations-action'
@@ -58,16 +57,13 @@ export function useMemberIntegrations(organizationId: string) {
   }
 }
 
-/** A saved provider's id is its integration's URL segment plus this. */
-const SAVED_PROVIDER_SUFFIX = /-service-account$/
-
 /**
- * The product has no dialog for an account the member saves by hand, so connecting one happens on
- * the provider page.
+ * Connects, reconnects and disconnects the member's own accounts. An account the member saves by
+ * hand opens `savedConnection` in place instead, as the legacy saved-credential dialog did, for the
+ * surface to render with `SavedAccountModal`.
  */
 export function useIntegrationActions(organizationId: string) {
-  const organization = useOrganization()
-  const router = useRouter()
+  const [savedConnection, setSavedConnection] = useState<SavedSearchConnection | null>(null)
   const savedAccounts = useOrganizationAccounts(organizationId).data?.viewerSavedAccounts ?? []
   const removeSaved = useRemovePersonalSearchCredential()
   const connect = useConnectOrganizationAccount()
@@ -75,23 +71,23 @@ export function useIntegrationActions(organizationId: string) {
   const disconnect = useDisconnectPersonalOrganizationAccount()
   const onError = reportActionFailure
   const connecting = connect.isPending || reconnect.isPending
-  const openSavedConnection = (providerId: string) =>
-    router.push(
-      surfaceHref(
-        organization,
-        `/integrations/${encodeURIComponent(providerId.replace(SAVED_PROVIDER_SUFFIX, ''))}`
-      )
-    )
   return {
     connecting,
     pending: connecting || disconnect.isPending || removeSaved.isPending,
+    savedConnection,
+    closeSavedConnection: () => setSavedConnection(null),
     connect: (target: NonNullable<OrganizationIntegration['connectionTarget']>) => {
-      if ('savedProviderId' in target) openSavedConnection(target.savedProviderId)
+      if ('savedProviderId' in target) setSavedConnection({ providerId: target.savedProviderId })
       else connect.mutate({ organizationId, ...target }, { onError })
     },
     reconnect: (credentialId: string) => {
       const saved = savedAccounts.find((account) => account.credentialId === credentialId)
-      if (saved) openSavedConnection(saved.providerId)
+      if (saved)
+        setSavedConnection({
+          providerId: saved.providerId,
+          credentialId,
+          displayName: saved.displayName,
+        })
       else reconnect.mutate(credentialId, { onError })
     },
     disconnect: async (credentialId: string) => {

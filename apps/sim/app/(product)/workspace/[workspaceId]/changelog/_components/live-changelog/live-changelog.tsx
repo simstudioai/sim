@@ -1,6 +1,6 @@
 'use client'
 
-import { ChangelogAccess } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-access/changelog-access'
+import { AccessBoundary } from '@/app/(product)/workspace/[workspaceId]/_components/access-required/access-boundary'
 import { ChangelogFeed } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-feed/changelog-feed'
 import { useLiveChangelog } from '@/platform/lib/data/changelog'
 
@@ -19,11 +19,14 @@ function Releases({ workspaceId }: { workspaceId: string }) {
   )
 }
 
-/** The workspace's releases, behind the same Files access legacy's changelog requires. */
+/**
+ * The workspace's releases, behind the same Files access legacy's changelog requires: release notes
+ * are workspace files, so a permission group that hides Files closes the changelog too.
+ */
 export function LiveChangelog({ workspaceId }: { workspaceId: string }) {
   return (
-    <ChangelogAccess workspaceId={workspaceId}>
+    <AccessBoundary workspaceId={workspaceId} gate='hideFilesTab' current='changelog'>
       <Releases workspaceId={workspaceId} />
-    </ChangelogAccess>
+    </AccessBoundary>
   )
 }

@@ -31,6 +31,8 @@ function useSessionState() {
   const lastLeft = useRef<string | null>(null)
   /** Where Back, Forward or a record's Back link is returning, until that page restores its position. */
   const historyTarget = useRef<string | null>(null)
+  /** The record a list scrolls to when the reader returns, after stepping records in its details. */
+  const reveal = useRef<RevealTarget | null>(null)
   useEffect(() => {
     const onHistoryStep = () => {
       historyTarget.current = window.location.pathname
@@ -44,10 +46,19 @@ function useSessionState() {
     openGroups: openGroups.current,
     lastLeft,
     historyTarget,
+    reveal,
     decisions,
     setDecisions,
     revealed: revealed.current,
   }
+}
+
+interface RevealTarget {
+  /** The list's path. */
+  list: string
+  recordId: string
+  /** The record's row, once the returning list renders it. */
+  row: HTMLElement | null
 }
 
 const Session = createContext<ReturnType<typeof useSessionState> | null>(null)
@@ -153,12 +164,14 @@ export function useOpenGroups(key: string) {
  * Back, Forward or a record's Back link returns to it. A new visit starts at the top.
  */
 export function useScrollMemory<T extends HTMLElement>() {
-  const { scrolled, historyTarget, lastLeft } = useSession()
+  const { scrolled, historyTarget, lastLeft, reveal } = useSession()
   const node = useRef<T>(null)
   useLayoutEffect(() => {
     const path = window.location.pathname
     const viewport = node.current?.closest<HTMLElement>('[data-scroll-axis="vertical"]')
     if (!viewport) return
+    const target = reveal.current?.list === path ? reveal.current : null
+    if (target) reveal.current = null
     // The router renders a Back or Forward inside the popstate dispatch, before later listeners run.
     const traversal = window.event?.type === 'popstate'
     if (historyTarget.current === path || traversal) {
@@ -169,6 +182,7 @@ export function useScrollMemory<T extends HTMLElement>() {
       // After the router's own scroll into view for a link, and before the first paint.
       requestAnimationFrame(() => {
         viewport.scrollTop = top
+        target?.row?.scrollIntoView({ block: 'nearest' })
       })
     } else {
       scrolled.set(path, 0)
@@ -180,8 +194,37 @@ export function useScrollMemory<T extends HTMLElement>() {
       viewport.removeEventListener('scroll', record)
       lastLeft.current = path
     }
-  }, [historyTarget, lastLeft, scrolled])
+  }, [historyTarget, lastLeft, reveal, scrolled])
   return node
+}
+
+/**
+ * For a record's details that step to other records in place: names the record the list reveals,
+ * scrolled to the nearest edge, when the reader returns to it, as legacy's list followed its
+ * selection while ArrowUp and ArrowDown stepped runs.
+ */
+export function useRevealOnReturn() {
+  const { reveal } = useSession()
+  return useCallback(
+    (recordId: string) => {
+      const path = window.location.pathname
+      reveal.current = { list: path.slice(0, path.lastIndexOf('/')), recordId, row: null }
+    },
+    [reveal]
+  )
+}
+
+/** A list row's ref: the row a returning list reveals, when it is the record last stepped to. */
+export function useRevealRow(recordId: string) {
+  const { reveal } = useSession()
+  return useCallback(
+    (row: HTMLElement | null) => {
+      const target = reveal.current
+      if (target?.recordId === recordId && target.list === window.location.pathname)
+        reveal.current = { ...target, row }
+    },
+    [reveal, recordId]
+  )
 }
 
 /** A record's Back link: the list it came from restores its reading position, as Back does. */

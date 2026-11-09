@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { TextField } from '@sim/emcn/field'
@@ -11,8 +11,6 @@ import { Modal } from '@sim/emcn/modal'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
 import { parseAsString, useQueryState } from 'nuqs'
 import {
   ActionRow,
@@ -28,13 +26,12 @@ import type {
   CredentialGroupActions,
   DatabricksDraft,
 } from '@/platform/lib/data/credential-group-actions'
-import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { platformHref } from '@/platform/lib/navigation'
-import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface GroupProvidersProps {
   data: CredentialGroupsData
   actions: CredentialGroupActions
+  /** The Slack setup dialog for the chosen provider: live member access, or the fixture's example. */
+  renderSlackSetup: (provider: CredentialProvider, onClose: () => void) => ReactNode
 }
 
 interface DatabricksFormProps {
@@ -110,16 +107,11 @@ function DatabricksForm({ configuration, onSave, onClose }: DatabricksFormProps)
   )
 }
 
-export function GroupProviders({ data, actions }: GroupProvidersProps) {
+export function GroupProviders({ data, actions, renderSlackSetup }: GroupProvidersProps) {
   const [search, setSearch] = useQueryState(
     'credential-group-provider',
     parseAsString.withDefault('')
   )
-  const params = useSearchParams()
-  const scope = useSurfaceScope()
-  const [team, setTeam] = useState<string | null>(null)
-  const slackTeams = data.slackTeams ?? []
-  const selectedTeam = team ?? (slackTeams.length === 1 ? slackTeams[0] : null)
   const [catalog, setCatalog] = useState(false)
   const [choice, setChoice] = useState<string | null>(null)
   const [configuration, setConfiguration] = useState<CredentialProvider>()
@@ -230,59 +222,8 @@ export function GroupProviders({ data, actions }: GroupProvidersProps) {
           onValueChange={setChoice}
         />
       </Modal>
-      {configuration?.provider === 'slack' && (
-        <Modal
-          open
-          onOpenChange={(open) => {
-            if (!open) setConfiguration(undefined)
-          }}
-          title='Set up Slack app'
-          confirmLabel={
-            !slackTeams.length || data.configured.includes(configuration.key)
-              ? 'Done'
-              : 'Verify and add'
-          }
-          confirmDisabled={slackTeams.length > 1 && !selectedTeam}
-          onConfirm={() => {
-            if (selectedTeam) return add(configuration)
-          }}
-        >
-          <FieldStack>
-            {slackTeams.length > 1 ? (
-              <SearchableSelect
-                label='Sim Search app'
-                searchLabel='Search Slack workspaces'
-                placeholder='Select the Slack workspace'
-                options={slackTeams}
-                value={selectedTeam}
-                onValueChange={setTeam}
-              />
-            ) : (
-              <SettingsRow
-                label='Sim Search app'
-                description={
-                  selectedTeam
-                    ? `Installed in ${selectedTeam}`
-                    : 'Install Sim Search in your Slack workspace to connect member accounts.'
-                }
-              />
-            )}
-            {selectedTeam && (
-              <SettingsRow
-                label='Member accounts'
-                description='Verify member permissions. Members will need to reconnect if their app or permissions change.'
-              />
-            )}
-            <Button
-              render={
-                <Link href={platformHref(surfaceHref(scope, '/settings/search-slack'), params)} />
-              }
-            >
-              {selectedTeam ? 'Manage Sim Search app' : 'Install Sim Search'}
-            </Button>
-          </FieldStack>
-        </Modal>
-      )}
+      {configuration?.provider === 'slack' &&
+        renderSlackSetup(configuration, () => setConfiguration(undefined))}
       {configuration?.provider === 'databricks' && (
         <DatabricksForm
           configuration={data.databricks}

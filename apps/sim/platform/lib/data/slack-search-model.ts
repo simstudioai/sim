@@ -55,3 +55,34 @@ export interface SlackSetupFlow {
   installShared: () => Promise<boolean> | boolean
   connect: (fields: SlackAppFields) => Promise<void>
 }
+
+/**
+ * Whether the shared Sim Search app should replace `bot`: a custom app in a Slack workspace the
+ * shared app is not yet installed in, once the shared app is offered.
+ */
+export function needsSharedInstall(list: SlackSearchList, bot: SlackSearchInstallationView) {
+  return (
+    list.sharedAppAvailable &&
+    bot.appKind === 'custom' &&
+    !list.installations.some((row) => row.appKind === 'shared' && row.teamId === bot.teamId)
+  )
+}
+
+/**
+ * The setup that installs Sim Search, or reconnects `bot`, with a custom app's saved name, as Slack
+ * Settings and Credential Groups open it.
+ */
+export function slackSetupFor(
+  list: SlackSearchList,
+  bot?: SlackSearchInstallationView
+): { target: SetupTarget; botName?: string } {
+  if (!bot) return { target: { mode: list.sharedAppAvailable ? 'shared' : 'custom' } }
+  const sharedInstall = needsSharedInstall(list, bot)
+  return {
+    target: { mode: sharedInstall ? 'shared' : bot.appKind, previous: bot },
+    botName:
+      bot.appKind === 'custom' && !sharedInstall
+        ? list.bots.find((entry) => entry.id === bot.credentialId)?.displayName
+        : undefined,
+  }
+}

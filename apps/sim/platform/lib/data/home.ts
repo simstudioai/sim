@@ -50,6 +50,7 @@ import {
   toRecentItems,
   toTaskPoints,
 } from '@/platform/lib/data/home-model'
+import type { SavedSearchConnection } from '@/platform/lib/data/integration-handoff'
 import { useIntegrationActions } from '@/platform/lib/data/integrations'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
@@ -125,13 +126,31 @@ function useHomeIntegrations(organization: PlatformOrganization) {
   }
 }
 
-function useConnectionActions(organizationId: string): Omit<HomeWidgetActions, 'retry'> {
-  const { connecting, connect, reconnect, disconnect } = useIntegrationActions(organizationId)
+/** An account the viewer saves by hand, opened in place for Home to render with `SavedAccountModal`. */
+interface HomeSavedConnection {
+  organizationId: string
+  connection: SavedSearchConnection
+  close: () => void
+}
+
+function useConnectionActions(organizationId: string): {
+  actions: Omit<HomeWidgetActions, 'retry'>
+  savedConnection: HomeSavedConnection | null
+} {
+  const { connecting, connect, reconnect, disconnect, savedConnection, closeSavedConnection } =
+    useIntegrationActions(organizationId)
   return {
-    connect: connecting ? undefined : (optionId) => connect({ optionId }),
-    reconnect: connecting ? undefined : reconnect,
-    disconnect: async (credentialId) => {
-      await disconnect(credentialId)
+    actions: {
+      connect: connecting ? undefined : (optionId) => connect({ optionId }),
+      reconnect: connecting ? undefined : reconnect,
+      disconnect: async (credentialId) => {
+        await disconnect(credentialId)
+      },
+    },
+    savedConnection: savedConnection && {
+      organizationId,
+      connection: savedConnection,
+      close: closeSavedConnection,
     },
   }
 }
@@ -399,7 +418,7 @@ function firstNameOf(user: { name?: string | null; email?: string | null } | nul
 export function useLiveHome(
   assistant: boolean,
   hiddenWidgets: readonly HomeWidget[]
-): { view: HomeView; actions: HomeActions } {
+): { view: HomeView; actions: HomeActions; savedConnection: HomeSavedConnection | null } {
   const organization = useOrganization()
   const { data: session } = useSession()
   const organizationId = organization.organization.id
@@ -412,7 +431,7 @@ export function useLiveHome(
   const integrations = useHomeIntegrations(organization)
   const connectionFor = (sources: typeof HOME_EMAIL_SOURCES) =>
     toHomeConnection({ ...integrations, sources })
-  const connectionActions = useConnectionActions(organizationId)
+  const { actions: connectionActions, savedConnection } = useConnectionActions(organizationId)
   const email = useHomeEmail(
     organizationId,
     connectionFor(HOME_EMAIL_SOURCES),
@@ -481,5 +500,6 @@ export function useLiveHome(
       retryRecents: recents.retry,
       removeRecent: recents.remove,
     },
+    savedConnection,
   }
 }

@@ -2,6 +2,7 @@
 
 import { CredentialGroups } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/credential-groups'
 import type { CredentialGroupsData } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
+import { SlackMemberSetup } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/slack-member-setup'
 import {
   type CredentialGroupManagement,
   useDatabricksConfiguration,
@@ -22,5 +23,21 @@ export function LiveCredentialGroups({
 }: LiveCredentialGroupsProps) {
   const actions = useLiveCredentialGroupActions(organizationId, management)
   const databricks = useDatabricksConfiguration(organizationId, management.databricksConfigured)
-  return <CredentialGroups data={{ ...data, databricks }} actions={actions} shallow={false} />
+  const { groupId } = management
+  return (
+    <CredentialGroups
+      data={{ ...data, databricks }}
+      actions={actions}
+      shallow={false}
+      renderSlackSetup={(_provider, onClose) =>
+        groupId && (
+          <SlackMemberSetup
+            organizationId={organizationId}
+            credentialGroupId={groupId}
+            onClose={onClose}
+          />
+        )
+      }
+    />
+  )
 }

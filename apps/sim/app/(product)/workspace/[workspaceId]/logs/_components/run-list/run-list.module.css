@@ -43,6 +43,8 @@
 .row {
   position: relative;
   min-block-size: var(--spacing-40);
+  /* A row revealed on return clears the scroller's edge fade. */
+  scroll-margin-block: var(--spacing-overflow-fade);
   padding-block: var(--spacing-8);
   border-radius: var(--radius-item);
   color: var(--ui-ink);

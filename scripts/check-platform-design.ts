@@ -482,6 +482,7 @@ const seamHelpers = new Set([
   'lib/desktop',
   'lib/desktop/appearance',
   'lib/desktop/chat-scope',
+  'lib/desktop/source-connect',
   'lib/posthog/client',
   'lib/knowledge/constants',
   'lib/knowledge/connectors/access-fields',

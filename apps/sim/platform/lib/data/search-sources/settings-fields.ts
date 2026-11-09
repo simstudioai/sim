@@ -21,6 +21,7 @@ import type {
 import { useOAuthCredentials } from '@/hooks/queries/oauth/credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
+import { connectorServiceAccount } from '@/platform/lib/data/knowledge/connectors/service-account'
 
 export const CONNECTOR_SWITCH_NOTICE: Record<ConnectorAccessMode, string> = {
   workspace: 'Every workspace member can read every synced document once the next sync completes.',
@@ -103,6 +104,17 @@ export function useConnectorSettingsFields({
     connectorConfig &&
       !isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
   )
+  /** An admin adds the service account the connection syncs as in place, as on its setup page. */
+  const serviceAccount =
+    canAdmin && allowAdmin
+      ? connectorServiceAccount({
+          connectorConfig,
+          providerId,
+          offered: isSearchIndex || requiresServiceAccount,
+          docsUrl: isSearchIndex ? connectorConfig?.searchDocsUrl : undefined,
+        })
+      : null
+  const [showServiceAccountModal, setShowServiceAccountModal] = useState(false)
   const githubSetup = useGitHubInstallationSetup({
     organizationId:
       isGitHubInstallationSource && canAdmin && scope.kind === 'organization'
@@ -189,9 +201,12 @@ export function useConnectorSettingsFields({
     rawCredentials,
     refetchCredentials,
     requiresServiceAccount,
+    serviceAccount,
     setBrowseCredentialId,
     setShowMoreOptions,
+    setShowServiceAccountModal,
     showMoreOptions,
+    showServiceAccountModal,
     syncsPerMember,
   }
 }

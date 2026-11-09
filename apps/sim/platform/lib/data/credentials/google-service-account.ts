@@ -3,7 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { serviceAccountJsonSchema } from '@/lib/api/contracts/credentials'
-import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth'
 import { useCreateScopedCredential } from '@/hooks/queries/scoped-credentials'
 
@@ -50,7 +50,8 @@ function withKey(
 
 interface UseGoogleServiceAccountOptions {
   open: boolean
-  workspaceId: string
+  /** The workspace or organization that owns the new credential. */
+  scope: ResourceScope
   onCreated: (credentialId: string) => void
 }
 
@@ -62,7 +63,7 @@ interface UseGoogleServiceAccountOptions {
  */
 export function useGoogleServiceAccount({
   open,
-  workspaceId,
+  scope,
   onCreated,
 }: UseGoogleServiceAccountOptions) {
   const [draft, setDraft] = useState(EMPTY_DRAFT)
@@ -101,7 +102,7 @@ export function useGoogleServiceAccount({
     if (!validation.success) throw new Error(validation.error.issues[0]?.message ?? 'Invalid JSON')
     try {
       const created = await createCredential.mutateAsync({
-        ...resourceScopeFields(resourceScopeFromOwner({ workspaceId })),
+        ...resourceScopeFields(scope),
         type: 'service_account',
         providerId: GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
         displayName: draft.displayName.trim() || undefined,

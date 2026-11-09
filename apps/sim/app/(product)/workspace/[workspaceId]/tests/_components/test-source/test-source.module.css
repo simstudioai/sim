@@ -1,0 +1,25 @@
+/* The source fills the rail's width at the run snapshot canvas's fixed working height. */
+.source {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--ui-widget-content-gap);
+  min-inline-size: 0;
+}
+.editor {
+  display: flex;
+  flex-direction: column;
+  block-size: calc(2 * var(--spacing-320));
+  min-inline-size: 0;
+}
+/* Alone, the editor takes the page's working area down to the viewer's own bottom inset. */
+.source[data-placement="page"] {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+}
+.source[data-placement="page"] .editor {
+  flex: 1;
+  block-size: auto;
+  min-block-size: 0;
+}
