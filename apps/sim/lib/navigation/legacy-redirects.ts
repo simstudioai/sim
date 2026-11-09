@@ -72,7 +72,8 @@ function workspaceSettings(workspaceId: string, section: string): string {
 
 /**
  * Legacy workspace Settings URLs whose page moved: sections that became organization Settings, the
- * old API keys key, and access requests. Sections that stay with the workspace keep their URL and
+ * old API keys key, access requests, and the Integrations and Skills sections, which became the
+ * organization's Integrations page scoped to the workspace. Sections that stay with the workspace keep their URL and
  * need no redirect. A legacy path listed nowhere here has no destination and answers not found.
  */
 const SETTINGS_REDIRECTS: readonly SettingsRedirect[] = [
@@ -97,6 +98,15 @@ const SETTINGS_REDIRECTS: readonly SettingsRedirect[] = [
     legacy: 'access-requests',
     target: ({ workspaceId }, query) =>
       withQuery(workspaceSettings(workspaceId, 'requests'), query),
+  },
+  {
+    legacy: 'settings/integrations',
+    target: ({ organizationId, workspaceId }, query) =>
+      withQuery(organizationRoutes(organizationId).integrations, inWorkspace(query, workspaceId)),
+  },
+  {
+    legacy: 'settings/skills',
+    target: ({ organizationId, workspaceId }) => skillsUrl(organizationId, workspaceId, null),
   },
 ]
 
