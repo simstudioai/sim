@@ -29,7 +29,7 @@ const maskedTypes = new Set<string>(PASSWORD_MASKED_SUBBLOCK_TYPES)
 const SUB_BLOCK_COMPONENTS_DIR = join(
   import.meta.dirname,
   '..',
-  'app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components'
+  'components/workflow-editor/components/panel/components/editor/components/sub-block/components'
 )
 
 /**

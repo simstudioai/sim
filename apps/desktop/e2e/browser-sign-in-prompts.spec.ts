@@ -68,7 +68,7 @@ test('sign-in and app-launch prompts wait for the user on the page that asked', 
   }
   const browserComponents = join(
     SIM_DIR,
-    'app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session'
+    'components/mothership-chat/mothership-view/components/resource-content/components/browser-session'
   )
   const bundle = await build({
     stdin: {
