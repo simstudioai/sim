@@ -16,6 +16,7 @@ import {
 import { ResourcePanels } from '@/app/(product)/_components/chat/panel/resource-panels'
 import { LiveSearchTab } from '@/app/(product)/_components/search/live-search-tab'
 import { SearchTabProvider } from '@/app/(product)/_components/search/search-results-host'
+import { useHydrated } from '@/hooks/use-hydrated'
 import { useLiveChatRuntime } from '@/platform/lib/data/chat'
 import { useLiveComposer } from '@/platform/lib/data/chat-composer'
 import { usePanelResources } from '@/platform/lib/data/chat-panel'
@@ -90,8 +91,10 @@ function LiveConversation({
 }
 
 /**
- * The live conversation surface. It waits for the viewer's session, then remounts per viewer,
- * organization, chat and mode, which is how the hook starts each chat clean.
+ * The live conversation surface. It waits for hydration and the viewer's session, then remounts per
+ * viewer, organization, chat and mode, which is how the hook starts each chat clean. The session is
+ * read only in the browser, so the server renders nothing here; hydration must too, or a session that
+ * settles before a late route boundary hydrates mounts the conversation over empty server markup.
  */
 export function LiveChat({
   chatId,
@@ -104,8 +107,9 @@ export function LiveChat({
 }: LiveChatProps) {
   const { organization } = useOrganization()
   const userId = useViewerId()
+  const hydrated = useHydrated()
   const restored = useChatRestore(chatId, destination)
-  if (restored || !userId) return null
+  if (restored || !hydrated || !userId) return null
   return (
     <LiveConversation
       key={`${userId}:${organization.id}:${chatId ?? 'new'}:${destination}`}
