@@ -3,13 +3,16 @@
 import { useState } from 'react'
 import { FieldFrame, TextAreaField, TextField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
-import { useCreateWorkflowMcpServer } from '@/platform/lib/data/workflow-deploy'
+import { useCreateWorkflowMcpServer } from '@/platform/lib/data/mcp'
 
 interface CreateMcpServerModalProps {
   workspaceId: string
   /** Only an admin may make a server public. */
   canChangeVisibility: boolean
+  /** Deployed workflows the new server can start with; absent hides the choice. */
+  workflowOptions?: readonly { value: string; label: string }[]
   onClose: () => void
 }
 
@@ -17,12 +20,14 @@ interface CreateMcpServerModalProps {
 export function CreateMcpServerModal({
   workspaceId,
   canChangeVisibility,
+  workflowOptions,
   onClose,
 }: CreateMcpServerModalProps) {
   const createServer = useCreateWorkflowMcpServer()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [isPublic, setIsPublic] = useState(false)
+  const [workflowIds, setWorkflowIds] = useState<string[]>([])
   return (
     <Modal
       open
@@ -38,6 +43,7 @@ export function CreateMcpServerModal({
           name: name.trim(),
           description: description.trim() || undefined,
           isPublic,
+          workflowIds: workflowIds.length > 0 ? workflowIds : undefined,
         })
       }}
     >
@@ -56,6 +62,16 @@ export function CreateMcpServerModal({
         onChange={setDescription}
         optional
       />
+      {workflowOptions && (
+        <MultiSelect
+          label='Workflows'
+          options={workflowOptions}
+          value={workflowIds}
+          onValueChange={setWorkflowIds}
+          placeholder='Select workflows...'
+          searchLabel='Search workflows'
+        />
+      )}
       <FieldFrame label='Access' hint={isPublic ? 'No authentication required' : undefined}>
         <SegmentedControl
           label='Server access'

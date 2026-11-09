@@ -1,14 +1,41 @@
 'use client'
 
-import { type ChangeEvent, type KeyboardEvent, useRef, useState } from 'react'
+import { type ChangeEvent, type KeyboardEvent, type ReactNode, useRef, useState } from 'react'
 import { EnvVarDropdown } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/env-var-dropdown/env-var-dropdown'
-import { formatDisplayText } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/formatted-text'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/mcp-server-form/mcp-server-form.module.css'
-import { checkEnvVarTrigger } from '@/platform/lib/data/workflow-editor/mcp'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/mcp-server-form/mcp-server-form.module.css'
+import { checkEnvVarTrigger } from '@/platform/lib/data/credentials'
 
 interface SecretPicker {
   searchTerm: string
   cursor: number
+}
+
+const SECRET_REFERENCE = /\{\{[^{}]+\}\}/g
+
+/**
+ * The typed text with each `{{NAME}}` that names an existing secret highlighted. A server's URL and
+ * headers resolve secrets only, never block references, so nothing else is marked.
+ */
+function highlightSecretReferences(text: string, availableEnvVars?: Set<string>): ReactNode[] {
+  const nodes: ReactNode[] = []
+  let lastIndex = 0
+  for (const match of text.matchAll(SECRET_REFERENCE)) {
+    const index = match.index
+    if (index > lastIndex) nodes.push(text.slice(lastIndex, index))
+    const name = match[0].slice(2, -2).trim()
+    nodes.push(
+      !availableEnvVars || availableEnvVars.has(name) ? (
+        <span key={index} className={styles.reference}>
+          {match[0]}
+        </span>
+      ) : (
+        match[0]
+      )
+    )
+    lastIndex = index + match[0].length
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex))
+  return nodes
 }
 
 interface EnvVarInputProps {
@@ -111,7 +138,7 @@ export function EnvVarInput({
       />
       <span ref={overlayRef} className={styles.envOverlay} data-type='T043' aria-hidden='true'>
         <span className={styles.envOverlayText}>
-          {formatDisplayText(value, { availableEnvVars })}
+          {highlightSecretReferences(value, availableEnvVars)}
         </span>
       </span>
       {picker && (

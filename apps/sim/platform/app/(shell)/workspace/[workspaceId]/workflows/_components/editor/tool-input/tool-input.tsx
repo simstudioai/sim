@@ -6,16 +6,16 @@ import { ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { useSearchParams } from 'next/navigation'
 import {
+  type McpServerFormConfig,
+  McpServerFormModal,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/mcp-server-form/mcp-server-form'
+import {
   ActiveSearchTargetProvider,
   useActiveSearchTarget,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import { formatDisplayText } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/formatted-text'
 import { getActiveWorkflowSearchHighlight } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
 import { McpOperationPolicyEditor } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/mcp-operation-policy/mcp-operation-policy'
-import {
-  type McpServerFormConfig,
-  McpServerFormModal,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/mcp-server-form/mcp-server-form'
 import type { CanonicalToggle } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/sub-block/sub-block'
 import {
   CustomToolModal,

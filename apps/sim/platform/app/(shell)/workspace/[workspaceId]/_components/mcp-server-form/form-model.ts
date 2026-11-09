@@ -1,4 +1,4 @@
-import type { McpServerTestResult } from '@/platform/lib/data/workflow-editor/mcp'
+import type { McpServerTestResult } from '@/platform/lib/data/mcp'
 
 /** One header row of the form; the last row is always an empty one waiting for input. */
 export interface HeaderEntry {

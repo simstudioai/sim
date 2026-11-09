@@ -9,7 +9,7 @@ import { Modal } from '@sim/emcn/modal'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import { EnvVarInput } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/mcp-server-form/env-var-input'
+import { EnvVarInput } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/mcp-server-form/env-var-input'
 import {
   getTestButtonLabel,
   type HeaderEntry,
@@ -17,13 +17,9 @@ import {
   isDomainAllowed,
   parseJsonConfig,
   updateHeadersArray,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/mcp-server-form/form-model'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/mcp-server-form/mcp-server-form.module.css'
-import {
-  type McpAuthType,
-  type McpTransport,
-  useMcpServerTest,
-} from '@/platform/lib/data/workflow-editor/mcp'
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/mcp-server-form/form-model'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/mcp-server-form/mcp-server-form.module.css'
+import { type McpAuthType, type McpTransport, useMcpServerTest } from '@/platform/lib/data/mcp'
 
 const DEFAULT_TIMEOUT_MS = 30000
 const DOMAIN_BLOCKED_MESSAGE = 'Domain not permitted by server policy'

@@ -7,8 +7,7 @@ import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { getErrorMessage } from '@sim/utils/errors'
-import { type CreatedApiKey, useCreateApiKey } from '@/platform/lib/data/workflow-deploy'
-import { createLogger } from '@/platform/lib/data/workflows'
+import { type CreatedApiKey, createLogger, useCreateApiKey } from '@/platform/lib/data/api-keys'
 
 const logger = createLogger('CreateApiKeyModal')
 
@@ -20,11 +19,13 @@ interface CreateApiKeyModalProps {
   allowPersonalApiKeys: boolean
   canManageWorkspaceKeys: boolean
   defaultKeyType: KeyType
+  /** Where the key was created, for the audit record: the deploy dialog unless a Settings page says so. */
+  source?: 'settings' | 'deploy_modal'
   onClose: () => void
 }
 
 /**
- * A new personal or workspace API key from the deploy dialog. The key is shown once, masked until
+ * A new personal or workspace API key. The key is shown once, masked until
  * revealed, with a copy action; it cannot be read again after the dialog closes.
  */
 export function CreateApiKeyModal({
@@ -33,6 +34,7 @@ export function CreateApiKeyModal({
   allowPersonalApiKeys,
   canManageWorkspaceKeys,
   defaultKeyType,
+  source = 'deploy_modal',
   onClose,
 }: CreateApiKeyModalProps) {
   const createApiKey = useCreateApiKey()
@@ -52,8 +54,8 @@ export function CreateApiKeyModal({
     try {
       const data = await createApiKey.mutateAsync(
         keyType === 'workspace'
-          ? { workspaceId, name: trimmed, keyType, source: 'deploy_modal' }
-          : { keyType: 'personal', name: trimmed, source: 'deploy_modal' }
+          ? { workspaceId, name: trimmed, keyType, source }
+          : { keyType: 'personal', name: trimmed, source }
       )
       setCreated(data.key)
       return false
