@@ -35,8 +35,7 @@
     "#platform/components/workspace-list/workspace-list": "./src/components/workspace-list/workspace-list.tsx",
     "#platform/components/workspace-list/workspace-list.module.css": "./src/components/workspace-list/workspace-list.module.css",
     "#platform/styles.d": "./src/styles.d.ts",
-    "#platform/styles/platform.css": "./src/styles/platform.css",
-    "#platform/styles/system-appearance.cjs": "./src/styles/system-appearance.cjs"
+    "#platform/styles/platform.css": "./src/styles/platform.css"
   },
   "exports": {
     "./catalog/component-recipe": "./src/catalog/component-recipe.tsx",
@@ -54,7 +53,6 @@
     "./recent-items": "./src/components/recent-items/recent-items.tsx",
     "./styles/host-bridge.module.css": "./src/styles/host-bridge.module.css",
     "./styles/platform.css": "./src/styles/platform.css",
-    "./styles/system-appearance.cjs": "./src/styles/system-appearance.cjs",
     "./surface/platform-surface": "./src/components/surface/platform-surface.tsx",
     "./workspace-fields": "./src/components/workspace-fields/workspace-fields.tsx",
     "./workspace-list": "./src/components/workspace-list/workspace-list.tsx"
