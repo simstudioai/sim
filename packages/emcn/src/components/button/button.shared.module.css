@@ -141,15 +141,31 @@
     inline-size: var(--spacing-app-touch-target);
     block-size: var(--spacing-app-touch-target);
   }
+  /* A filled control keeps its drawn size; only its target grows. */
+  .iconButton[data-size="small"][data-solid] {
+    position: relative;
+  }
+  .iconButton[data-size="small"][data-solid]::after {
+    content: "";
+    position: absolute;
+    inset: calc((var(--spacing-app-control-sm) - var(--spacing-app-touch-target)) / 2);
+  }
+}
+
+@media (pointer: coarse) and (max-width: 48rem) {
   /*
-   * A filled control keeps its drawn size while its box grows to the touch target, as the legacy
-   * composer's send button did: the fill moves to a centered layer behind the glyph.
+   * On a phone, a filled control keeps its drawn size while its box grows to the touch target, as
+   * the legacy composer's send and stop buttons did: the fill moves to a centered layer behind the
+   * glyph. Elsewhere only its target grows.
    */
   .iconButton[data-size="small"][data-solid] {
     position: relative;
     isolation: isolate;
     inline-size: var(--spacing-app-touch-target);
     block-size: var(--spacing-app-touch-target);
+  }
+  .iconButton[data-size="small"][data-solid]::after {
+    inset: 0;
   }
   .iconButton[data-size="small"][data-solid],
   .iconButton[data-size="small"][data-solid]:is(:enabled, a[href]):not(
