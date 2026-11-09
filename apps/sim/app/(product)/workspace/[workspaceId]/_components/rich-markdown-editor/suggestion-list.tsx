@@ -1,7 +1,7 @@
 'use client'
 
 import { type ComponentProps, useEffect, useId, useMemo } from 'react'
-import { ComposerSuggestions } from '@sim/emcn-platform/composer-input/suggestions'
+import { ComposerSuggestions } from '@sim/emcn/menu/suggestions'
 import type { Editor } from '@tiptap/core'
 
 type SuggestionsProps = ComponentProps<typeof ComposerSuggestions>

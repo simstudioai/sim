@@ -2,10 +2,10 @@
 
 import { type ComponentProps, Fragment, type RefObject, useEffect, useRef } from 'react'
 import { Popover } from '@base-ui/react/popover'
-import { Icon, type IconName } from '@sim/emcn/icon'
-import popup from '@sim/emcn/menu/popup.shared.module.css'
-import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
-import styles from '#platform/components/composer-input/suggestions.module.css'
+import { Icon, type IconName } from '#emcn/components/icon/icon'
+import popup from '#emcn/components/menu/popup.shared.module.css'
+import styles from '#emcn/components/menu/suggestions.module.css'
+import { useScrollEdges } from '#emcn/components/scroll-area/use-scroll-edges'
 
 interface SuggestionItem {
   name: string
@@ -56,7 +56,7 @@ export function ComposerSuggestions({
   useEffect(() => {
     list.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
   }, [active, current])
-  const container = input.current?.closest<HTMLElement>('dialog, [data-platform-ui]')
+  const container = input.current?.closest<HTMLElement>('dialog, [data-emcn]')
   if (!container) return null
   return (
     <Popover.Root
