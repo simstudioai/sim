@@ -53,7 +53,9 @@
 }
 /*
  * The boundary spans the rail's content, extending the same inset above and below it; the rail
- * rises by that inset so its first line stays level with the record's heading.
+ * rises by that inset so its first line stays level with the record's heading. The rail scrolls, so
+ * it clips: it reaches one row inset past the column's text edge and pads that inset back, keeping
+ * its text on the edge with room for hover surfaces and actions that overhang it.
  */
 .rail {
   box-sizing: border-box;
@@ -63,20 +65,21 @@
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--ui-product-section-gap);
-  inline-size: calc(var(--spacing-224) + var(--spacing-56));
+  inline-size: calc(var(--spacing-224) + var(--spacing-56) + var(--ui-row-inset));
   max-block-size: calc(100% + var(--spacing-8));
   margin-block-start: calc(-1 * var(--spacing-8));
+  margin-inline-end: calc(-1 * var(--ui-row-inset));
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-block: var(--spacing-8);
-  padding-inline-start: var(--spacing-24);
+  padding-inline: var(--spacing-24) var(--ui-row-inset);
   border-inline-start: var(--spacing-stroke-default) solid var(--ui-divider);
 }
 .rail[data-kind="inspector"] {
-  inline-size: 40%;
-  min-inline-size: var(--spacing-320);
-  max-inline-size: var(--container-440);
+  inline-size: calc(40% + var(--ui-row-inset));
+  min-inline-size: calc(var(--spacing-320) + var(--ui-row-inset));
+  max-inline-size: calc(var(--container-440) + var(--ui-row-inset));
 }
 .section {
   display: grid;
@@ -115,9 +118,10 @@
     min-inline-size: 0;
     max-block-size: none;
     margin-block-start: 0;
+    margin-inline-end: 0;
     overflow: visible;
     padding-block: 0;
-    padding-inline-start: 0;
+    padding-inline: 0;
     border-inline-start: none;
   }
   .rail[data-kind="inspector"] {

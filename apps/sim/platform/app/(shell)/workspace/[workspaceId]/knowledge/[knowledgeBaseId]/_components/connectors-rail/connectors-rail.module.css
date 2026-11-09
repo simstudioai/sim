@@ -1,6 +1,9 @@
 /*
  * DetailSplit's facts rail: a 280px lane whose hairline boundary spans only its content, extending
  * the same inset above and below it, and rising by that inset so its heading sits level with the list.
+ * The rail scrolls, so it clips: it reaches one row inset past the column's text edge and pads that
+ * inset back, which keeps its text on the edge and leaves room for the hover surfaces and the New
+ * action that overhang it.
  */
 .rail {
   box-sizing: border-box;
@@ -10,14 +13,15 @@
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--ui-content-gap);
-  inline-size: calc(var(--spacing-224) + var(--spacing-56));
+  inline-size: calc(var(--spacing-224) + var(--spacing-56) + var(--ui-row-inset));
   max-block-size: calc(100% + var(--spacing-8));
   margin-block-start: calc(-1 * var(--spacing-8));
+  margin-inline-end: calc(-1 * var(--ui-row-inset));
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-block: var(--spacing-8);
-  padding-inline-start: var(--spacing-24);
+  padding-inline: var(--spacing-24) var(--ui-row-inset);
   border-inline-start: var(--spacing-stroke-default) solid var(--ui-divider);
 }
 .heading {
@@ -111,9 +115,10 @@
     inline-size: auto;
     max-block-size: none;
     margin-block-start: 0;
+    margin-inline-end: 0;
     overflow: visible;
     padding-block: 0;
-    padding-inline-start: 0;
+    padding-inline: 0;
     border-inline-start: none;
   }
 }
