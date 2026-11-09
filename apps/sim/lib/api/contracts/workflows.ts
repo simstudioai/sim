@@ -234,7 +234,7 @@ export const workflowIdParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
 })
 
-export const workflowListQuerySchema = z.object({
+const workflowListQuerySchema = z.object({
   workspaceId: z.string().min(1),
   scope: workflowScopeSchema.default('active'),
 })

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
-import { useQueries } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useFileAttachments } from '@/components/workflow-editor/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { useSession } from '@/lib/auth/client'
@@ -36,7 +35,6 @@ import type {
   ChatAttachment,
   ComposerController,
   ComposerDraft,
-  ComposerReferences,
   ComposerSettings,
 } from '@/app/(product)/_components/composer/model'
 import type {
@@ -47,12 +45,9 @@ import {
   useMothershipChatHistory,
   useSetMothershipChatEffort,
 } from '@/hooks/queries/mothership-chats'
-import { getSkillsQueryOptions } from '@/hooks/queries/skills'
-import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
-import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { draftToSend } from '@/platform/lib/data/chat-draft'
-import { useWorkspaceReferences } from '@/platform/lib/data/chat-references'
+import { useMentionInventory } from '@/platform/lib/data/chat-mentions'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useStartSearch } from '@/platform/lib/data/search-start'
@@ -218,11 +213,8 @@ export function useLiveComposer({
   const [pickerOpened, setPickerOpened] = useState(false)
   const inventoryEnabled = !assistant && pickerOpened
   const [referenceSearch, setReferenceSearch] = useState('')
-  const inventory = useOrganizationInventory(inventoryEnabled, organization.id)
-  const { skills, skillsLoading } = inventory
-  const resources = useWorkspaceReferences(inventory.workspaces, referenceSearch)
-  const references = [...inventory.references, ...resources.references]
-  const referencesLoading = inventory.referencesLoading || resources.loading
+  const mentions = useMentionInventory(inventoryEnabled, organization.id, referenceSearch)
+  const { references, referencesLoading, skills, skillsLoading } = mentions
   const files = useFileAttachments({
     userId,
     organizationId: organization.id,
@@ -414,7 +406,9 @@ export function useLiveComposer({
     skills,
     onPickerOpen: () => setPickerOpened(true),
     onReferenceSearch: setReferenceSearch,
-    readers: resources.readers,
+    browse: mentions.browse,
+    onBrowseWorkspace: mentions.onBrowseWorkspace,
+    onBrowseSearch: mentions.onBrowseSearch,
     settings,
     accept: assistant ? ASSISTANT_ACCEPT : undefined,
     voice: voice.isSupported
@@ -427,83 +421,6 @@ export function useLiveComposer({
       onDragLeave: files.handleDragLeave,
       onDrop: files.handleDrop,
     },
-  }
-}
-
-/**
- * What the viewer can reference from this organization. Each row carries its owning workspace;
- * each picker stays pending until every workspace has supplied its part of that list.
- */
-function useOrganizationInventory(enabled: boolean, organizationId: string) {
-  const workspaceQuery = useWorkspacesQuery(enabled)
-  const owned =
-    enabled && !workspaceQuery.isPlaceholderData
-      ? (workspaceQuery.data ?? []).filter(
-          (workspace) => workspace.organizationId === organizationId
-        )
-      : []
-  const workflows = useQueries({
-    queries: owned.map((workspace) => getWorkflowListQueryOptions(workspace.id)),
-  })
-  const skillQueries = useQueries({
-    queries: owned.map((workspace) => getSkillsQueryOptions(workspace.id)),
-  })
-  const references: ComposerReferences = [
-    {
-      group: 'Workspaces',
-      items: owned.map(({ id, name }) => ({
-        id,
-        name,
-        workspaceId: id,
-        context: { kind: 'workspace', workspaceId: id, label: name },
-      })),
-    },
-    {
-      group: 'Workflows',
-      items: owned.flatMap((workspace, index) =>
-        (workflows[index]?.data ?? []).map((workflow) => ({
-          id: `${workspace.id}:${workflow.id}`,
-          name: workflow.name,
-          workspaceId: workspace.id,
-          workspaceName: workspace.name,
-          context: {
-            kind: 'workflow',
-            workflowId: workflow.id,
-            label: workflow.name,
-            workspaceId: workspace.id,
-          } satisfies ChatContext,
-        }))
-      ),
-    },
-  ]
-  const skills: NonNullable<ComposerController['skills']>[number][] = []
-  const builtins = new Set<string>()
-  for (const [index, workspace] of owned.entries()) {
-    const query = skillQueries[index]
-    if (query?.isPlaceholderData) continue
-    for (const skill of query?.data ?? []) {
-      if (skill.readOnly && builtins.has(skill.id)) continue
-      if (skill.readOnly) builtins.add(skill.id)
-      const workspaceId = skill.readOnly ? undefined : workspace.id
-      skills.push({
-        id: workspaceId ? `${workspaceId}:${skill.id}` : skill.id,
-        name: skill.name,
-        detail: skill.description,
-        workspaceId,
-        workspaceName: workspaceId ? workspace.name : undefined,
-        context: { kind: 'skill', skillId: skill.id, label: skill.name, workspaceId },
-      })
-    }
-  }
-  const loadingWorkspaces =
-    enabled && (workspaceQuery.isPending || workspaceQuery.isPlaceholderData)
-  return {
-    workspaces: owned,
-    references,
-    skills,
-    referencesLoading: loadingWorkspaces || workflows.some((query) => query.isPending),
-    skillsLoading:
-      loadingWorkspaces || skillQueries.some((query) => query.isPending || query.isPlaceholderData),
   }
 }
 

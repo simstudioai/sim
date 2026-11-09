@@ -76,6 +76,7 @@ function useMemoryComposer({
   return {
     draft,
     references,
+    browse: references,
     skills,
     tools: desktop ? tools : undefined,
     referencesDisabled: requestMode === 'assistant',

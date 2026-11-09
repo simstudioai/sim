@@ -64,7 +64,6 @@ export function MessageComposer({
       onDragLeave={drop?.onDragLeave}
       onDrop={drop?.onDrop}
     >
-      {composer.readers}
       <MessageAttachments items={refs.attachments} onRemove={composer.removeAttachment} />
       <ComposerInput
         density={compact ? 'compact' : 'standard'}
@@ -120,6 +119,8 @@ export function MessageComposer({
             onOpenChange={(open) => {
               if (open) composer.onPickerOpen?.()
             }}
+            onWorkspaceOpen={composer.onBrowseWorkspace}
+            onSearchChange={composer.onBrowseSearch}
             onUploadFiles={() => picker.current?.click()}
             onUploadFolder={() => folder.current?.click()}
           />

@@ -46,7 +46,13 @@ export type MenuAction = {
   detail?: string
   separatorBefore?: boolean
 } & (
-  | { children: readonly [MenuAction, ...MenuAction[]]; onSelect?: never; trailingIcon?: never }
+  | {
+      children: readonly [MenuAction, ...MenuAction[]]
+      /** Called as the submenu opens, so a caller can read what it lists on demand. */
+      onOpen?: () => void
+      onSelect?: never
+      trailingIcon?: never
+    }
   | {
       children?: never
       onSelect?: () => void
@@ -129,7 +135,12 @@ function actionRows(actions: readonly MenuAction[]): ReactNode {
         </div>
       )}
       {action.children ? (
-        <SubmenuItem label={action.label} icon={action.icon} detail={action.detail}>
+        <SubmenuItem
+          label={action.label}
+          icon={action.icon}
+          detail={action.detail}
+          onOpen={action.onOpen}
+        >
           {actionRows(action.children)}
         </SubmenuItem>
       ) : (
@@ -428,12 +439,18 @@ interface SubmenuItemProps {
   label: string
   icon?: IconName
   children: ReactNode
+  /** Called as the submenu opens. */
+  onOpen?: () => void
 }
 
-export function SubmenuItem({ label, icon, children, detail }: SubmenuItemProps) {
+export function SubmenuItem({ label, icon, children, detail, onOpen }: SubmenuItemProps) {
   const { trigger, container } = usePopoverContainer()
   return (
-    <Menu.SubmenuRoot>
+    <Menu.SubmenuRoot
+      onOpenChange={(open) => {
+        if (open) onOpen?.()
+      }}
+    >
       <Menu.SubmenuTrigger
         ref={trigger}
         render={<button type='button' />}

@@ -10,7 +10,7 @@
       "gateways": {}
     },
     "app/(product)/layout.tsx": {
-      "modules": 2503,
+      "modules": 2458,
       "gateways": {
         "apps/sim/app/(product)/_components/product-shell.tsx": 2458,
         "apps/sim/app/(product)/_components/live-shell/live-shell.tsx": 2169,

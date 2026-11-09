@@ -51,7 +51,7 @@ export interface WorkspaceAccess {
  * @param workspaceId - The workspace ID to check
  * @returns True if the workspace exists, false otherwise
  */
-export async function workspaceExists(
+async function workspaceExists(
   workspaceId: string,
   options?: { includeArchived?: boolean }
 ): Promise<boolean> {

@@ -12,6 +12,10 @@ interface ComposerResourceMenuProps {
   items: readonly ComposerOption[]
   onSelect: (item: ComposerOption) => void
   onOpenChange: (open: boolean) => void
+  /** A workspace opened in the menu, whose families the host reads on demand. */
+  onWorkspaceOpen?: (workspaceId: string) => void
+  /** The menu's search as typed, which the host answers. */
+  onSearchChange?: (query: string) => void
   onUploadFiles: () => void
   onUploadFolder: () => void
 }
@@ -71,7 +75,11 @@ function familyRows(items: readonly ComposerOption[], select: SelectResource): M
   })
 }
 
-function browseRows(items: readonly ComposerOption[], select: SelectResource): MenuAction[] {
+function browseRows(
+  items: readonly ComposerOption[],
+  select: SelectResource,
+  openWorkspace: ComposerResourceMenuProps['onWorkspaceOpen']
+): MenuAction[] {
   const workspaces = items.filter((item) => item.group === 'Workspaces')
   const workspaceIds = new Set(workspaces.map((item) => item.id))
   const byWorkspace = groupItems(
@@ -84,6 +92,7 @@ function browseRows(items: readonly ComposerOption[], select: SelectResource): M
       id: workspace.id,
       label: workspace.name,
       icon: workspace.icon,
+      onOpen: openWorkspace && (() => openWorkspace(workspace.id)),
       children: [
         selection(workspace, select),
         ...familyRows(byWorkspace.get(workspace.id) ?? [], select),
@@ -114,6 +123,8 @@ export function ComposerResourceMenu({
   items,
   onSelect,
   onOpenChange,
+  onWorkspaceOpen,
+  onSearchChange,
   onUploadFiles,
   onUploadFolder,
 }: ComposerResourceMenuProps) {
@@ -127,7 +138,7 @@ export function ComposerResourceMenu({
       : [
           { id: 'upload', label: 'Upload files', icon: 'I117', onSelect: onUploadFiles },
           { id: 'upload-folder', label: 'Upload folder', icon: 'I100', onSelect: onUploadFolder },
-          ...browseRows(items, onSelect).map((action, index) => ({
+          ...browseRows(items, onSelect, onWorkspaceOpen).map((action, index) => ({
             ...action,
             separatorBefore: index === 0,
           })),
@@ -138,7 +149,14 @@ export function ComposerResourceMenu({
       label='Add attachment'
       icon='I074'
       actions={actions}
-      search={{ label: 'Search resources', value: search, onValueChange: setSearch }}
+      search={{
+        label: 'Search resources',
+        value: search,
+        onValueChange: (value) => {
+          setSearch(value)
+          onSearchChange?.(value)
+        },
+      }}
       open={open}
       onOpenChange={(next) => {
         setOpen(next)

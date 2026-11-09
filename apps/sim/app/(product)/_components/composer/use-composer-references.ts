@@ -29,6 +29,10 @@ export function useComposerReferences(composer: ComposerController) {
     () => referenceOptions({ references, tools, skills }),
     [references, tools, skills]
   )
+  const browseOptions = useMemo(
+    () => referenceOptions({ references: composer.browse, tools }),
+    [composer.browse, tools]
+  )
   const selected = useMemo(() => selectedOptions(attachments, options), [attachments, options])
   const picked = selected.map(({ item }) => item)
   const matches = matchReferences(text, picked, options)
@@ -172,7 +176,9 @@ export function useComposerReferences(composer: ComposerController) {
     onKeyDown,
     browse: composer.referencesDisabled
       ? []
-      : options.filter((item) => prefixFor(item.group) === '@' && item.group !== 'Integrations'),
+      : browseOptions.filter(
+          (item) => prefixFor(item.group) === '@' && item.group !== 'Integrations'
+        ),
     attachments: attachments.filter((attachment) => !attachedIds.has(attachment.id)),
     selectRow: (index: number) => {
       if (rows[index]) choose(rows[index], true)

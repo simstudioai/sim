@@ -1,4 +1,4 @@
-import type { DragEvent, ReactNode } from 'react'
+import type { DragEvent } from 'react'
 import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import type { ChatContext, FileAttachmentForApi } from '@/platform/lib/data/chat-types'
 
@@ -69,7 +69,7 @@ export interface ComposerReference {
   matchedQuery?: string
 }
 
-export type ComposerReferences = {
+type ComposerReferences = {
   group: string
   items: ComposerReference[]
 }[]
@@ -132,10 +132,14 @@ export interface ComposerController extends ComposerInventory {
   skillsLoading?: boolean
   /** Tells the host a picker opened, which is when it reads the inventories behind them. */
   onPickerOpen?: () => void
-  /** What follows an `@` as it is typed, which the host searches files by. */
+  /** What follows an `@` as it is typed, which the host searches by. */
   onReferenceSearch?: (query: string) => void
-  /** Renderless readers the inventory needs mounted while the composer is. */
-  readers?: ReactNode
+  /** What the resource menu lists: workspaces, each opened workspace's families, or its search's matches. */
+  browse: ComposerReferences
+  /** A workspace opened in the resource menu, whose families the host then reads. */
+  onBrowseWorkspace?: (workspaceId: string) => void
+  /** The resource menu's search, which the host answers. */
+  onBrowseSearch?: (query: string) => void
   settings?: ComposerSettings
   drop?: ComposerDropHandlers
   voice?: ComposerVoice
