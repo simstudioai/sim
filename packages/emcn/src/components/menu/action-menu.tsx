@@ -47,7 +47,8 @@ export type MenuAction = {
   separatorBefore?: boolean
 } & (
   | {
-      children: readonly [MenuAction, ...MenuAction[]]
+      /** Empty while its rows are still being read: the submenu then opens no panel. */
+      children: readonly MenuAction[]
       /** Called as the submenu opens, so a caller can read what it lists on demand. */
       onOpen?: () => void
       onSelect?: never
@@ -143,7 +144,7 @@ function actionRows(actions: readonly MenuAction[]): ReactNode {
           detail={action.detail}
           onOpen={action.onOpen}
         >
-          {actionRows(action.children)}
+          {action.children.length > 0 ? actionRows(action.children) : null}
         </SubmenuItem>
       ) : (
         <MenuItem
@@ -473,9 +474,11 @@ export function SubmenuItem({ label, icon, children, detail, onOpen }: SubmenuIt
           <Icon name='I032' />
         </span>
       </Menu.SubmenuTrigger>
-      <ActionMenuPopup label={label} container={container} submenu>
-        {children}
-      </ActionMenuPopup>
+      {children != null && (
+        <ActionMenuPopup label={label} container={container} submenu>
+          {children}
+        </ActionMenuPopup>
+      )}
     </Menu.SubmenuRoot>
   )
 }
