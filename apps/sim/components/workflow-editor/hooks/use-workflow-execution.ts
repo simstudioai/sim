@@ -200,15 +200,6 @@ export class WorkflowAttachmentUploadError extends Error {
   }
 }
 
-export function isChatWorkflowRunResult(value: unknown): value is ChatWorkflowRunResult {
-  return (
-    isRecordLike(value) &&
-    value.success === true &&
-    value.stream instanceof ReadableStream &&
-    Array.isArray(value.uploadedAttachments)
-  )
-}
-
 /**
  * Builds the manual-run workflow input from a trigger's inputFormat subblock.
  * Named fields are coerced by type; file-typed fields are excluded as named

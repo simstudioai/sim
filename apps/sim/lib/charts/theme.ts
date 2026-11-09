@@ -1,6 +1,5 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
-import type { ChartTonePalette } from '@/lib/charts/annotations'
-import { CHART_BAR_MAX_WIDTH, mapTooltipEntries } from '@/lib/charts/option'
+import { mapTooltipEntries } from '@/lib/charts/option'
 import { formatChartValue } from '@/lib/charts/summary'
 
 function encodedTooltipValue(entry: Record<string, unknown>, dimension: 'x' | 'y' | 'value') {
@@ -96,95 +95,4 @@ export function applyChartTooltipDefaults(option: Record<string, unknown>) {
     }))
   }
   return option
-}
-
-/** Colours for highlights and thresholds; neutral matches the axis labels. */
-export function readChartTonePalette(element: HTMLElement): ChartTonePalette {
-  const styles = getComputedStyle(element)
-  const token = (name: string) => {
-    const value = styles.getPropertyValue(name).trim()
-    if (!value) throw new Error(`Missing chart theme token ${name}`)
-    return value
-  }
-  return {
-    tones: {
-      neutral: token('--text-tertiary'),
-      error: token('--text-error'),
-      info: token('--brand-blue'),
-    },
-  }
-}
-
-/** Canvas cannot resolve CSS variables; read the same tokens as EMCN at its own container. */
-export function readEmcnChartTheme(element: HTMLElement): Record<string, unknown> {
-  const styles = getComputedStyle(element)
-  const token = (name: string) => {
-    const value = styles.getPropertyValue(name).trim()
-    if (!value) throw new Error(`Missing chart theme token ${name}`)
-    return value
-  }
-  const text = token('--text-body')
-  const muted = token('--text-tertiary')
-  const border = token('--border')
-  const fontFamily = styles.fontFamily
-  const axis = {
-    axisLine: { show: false, lineStyle: { color: border } },
-    axisTick: { show: false },
-    axisLabel: { color: muted, fontFamily, fontSize: 13, margin: 12, hideOverlap: true },
-    nameTextStyle: { color: muted, fontFamily, fontSize: 13 },
-    splitLine: { lineStyle: { color: border, width: 0.5, type: 'solid' } },
-    splitNumber: 4,
-  }
-  return {
-    color: [text, token('--text-subtle'), token('--surface-7'), token('--text-icon')],
-    backgroundColor: 'transparent',
-    axisPointer: { shadowStyle: { color: text, opacity: 0.06 } },
-    animationDuration: 0,
-    textStyle: { fontFamily, fontSize: 13, color: text },
-    title: {
-      textStyle: { fontFamily, fontSize: 13, fontWeight: 'normal', color: text },
-    },
-    legend: {
-      textStyle: { color: muted, fontFamily, fontSize: 13 },
-      itemWidth: 8,
-      itemHeight: 8,
-      itemGap: 16,
-    },
-    tooltip: {
-      renderMode: 'richText',
-      confine: true,
-      backgroundColor: token('--surface-1'),
-      borderColor: border,
-      borderWidth: 1,
-      padding: [6, 12],
-      borderRadius: 6,
-      shadowBlur: 0,
-      shadowOffsetX: 0,
-      shadowOffsetY: 0,
-      textStyle: { fontFamily, color: text, fontSize: 13, fontWeight: 'normal', lineHeight: 20 },
-    },
-    categoryAxis: { ...axis, splitLine: { show: false } },
-    valueAxis: axis,
-    timeAxis: { ...axis, splitLine: { show: false } },
-    logAxis: axis,
-    line: { symbolSize: 4, lineStyle: { width: 1.5 }, showSymbol: false },
-    bar: {
-      barMaxWidth: CHART_BAR_MAX_WIDTH,
-      label: { fontFamily, fontSize: 13, color: text },
-      itemStyle: { borderRadius: 2 },
-    },
-    pie: {
-      label: {
-        fontFamily,
-        fontSize: 13,
-        lineHeight: 18,
-        color: text,
-        alignTo: 'edge',
-        edgeDistance: 8,
-        overflow: 'break',
-      },
-      labelLine: { length: 12, length2: 8 },
-      itemStyle: { borderColor: token('--bg'), borderWidth: 2 },
-    },
-  }
 }

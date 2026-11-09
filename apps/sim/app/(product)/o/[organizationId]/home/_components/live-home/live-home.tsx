@@ -3,12 +3,7 @@
 import { SavedAccountModal } from '@/app/(product)/_components/service-account-modal/saved-account-modal'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
 import { ZoneHomeDashboard } from '@/app/(product)/o/[organizationId]/home/_components/home-dashboard/zone-home-dashboard'
-import {
-  type HiddenHomeWidgets,
-  useHiddenHomeWidgets,
-  useHomeHydrated,
-  useLiveHome,
-} from '@/platform/lib/data/home'
+import { type HiddenHomeWidgets, useHiddenHomeWidgets, useLiveHome } from '@/platform/lib/data/home'
 
 function HydratedHome({ widgets }: { widgets: HiddenHomeWidgets }) {
   const preferences = useInterfacePreferences()
@@ -42,7 +37,6 @@ function HydratedHome({ widgets }: { widgets: HiddenHomeWidgets }) {
  * reads. A client navigation already has both and renders it at once.
  */
 export function LiveHome() {
-  const hydrated = useHomeHydrated()
   const widgets = useHiddenHomeWidgets()
-  return hydrated && widgets ? <HydratedHome widgets={widgets} /> : null
+  return widgets ? <HydratedHome widgets={widgets} /> : null
 }

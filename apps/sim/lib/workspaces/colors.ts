@@ -1,5 +1,3 @@
-import { hexToRgb } from '@/lib/colors'
-
 /**
  * Shared identity palette for cursors, avatars, and collaborator selections.
  * Colour values live in globals.css; keep the order stable for user ID hashing.
@@ -13,8 +11,6 @@ export const USER_COLORS = [
   'var(--color-amber-300)',
 ] as const
 
-const HEX_COLOR_REGEX = /^#(?:[0-9a-fA-F]{3}){1,2}$/
-
 function hashIdentifier(identifier: string | number): number {
   if (typeof identifier === 'number' && Number.isFinite(identifier)) {
     return Math.abs(Math.trunc(identifier))
@@ -25,19 +21,6 @@ function hashIdentifier(identifier: string | number): number {
   }
 
   return 0
-}
-
-export function withAlpha(color: string, alpha: number): string {
-  const opacity = Math.min(Math.max(alpha, 0), 1)
-  if (color.startsWith('var(')) {
-    return `color-mix(in srgb, ${color} ${opacity * 100}%, transparent)`
-  }
-  if (!HEX_COLOR_REGEX.test(color)) {
-    return color
-  }
-
-  const { r, g, b } = hexToRgb(color)
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`
 }
 
 /**

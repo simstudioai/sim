@@ -15,7 +15,7 @@ Most rules here are enforced by a `check:*` audit or biome. When one fails, its 
 
 ## Architecture
 
-- **Layout**: `apps/sim` is the Next.js app (UI, API routes, executor; use cases live in `lib/<domain>/application`), `apps/realtime` the collaborative Socket.IO server, `apps/desktop` an Electron shell around the hosted web app, `apps/docs` the docs site, and `apps/pii` a Python service outside the JS/turbo build. Shared code is in `packages/*` (`@sim/*`).
+- **Layout**: `apps/sim` is the Next.js app (UI, API routes, executor; use cases live in `lib/<domain>/application`); its product UI is the route group `apps/sim/app/(product)/`, which reads server data through the seam in `apps/sim/platform/lib/data`. `apps/realtime` the collaborative Socket.IO server, `apps/desktop` an Electron shell around the hosted web app, `apps/docs` the docs site, and `apps/pii` a Python service outside the JS/turbo build. Shared code is in `packages/*` (`@sim/*`).
 - **Package boundaries**: `apps/* → packages/*` only; packages never import from `apps/*`. `apps/realtime` (a Bun Socket.IO server) avoids Next.js, React, the block/tool registry, provider SDKs, and the executor, and calls `apps/sim` only over internal HTTP with `INTERNAL_API_SECRET` (`check:boundaries`, `check:realtime-prune`). Both apps share Better Auth sessions through `@sim/db` and the same `BETTER_AUTH_SECRET`.
 - `'use client'` boundary, app/worker env split, and feature folder layout: `.claude/rules/sim-architecture.md`.
 
@@ -35,7 +35,7 @@ Most rules here are enforced by a `check:*` audit or biome. When one fails, its 
 - **Utils**: check `lib/` and the `@sim/utils/<module>` helpers before writing a helper. Inline a helper with one consumer; create `utils.ts` (in `lib/` or `feature/utils/`) only when 2+ files share it.
 - **Caching**: `lru-cache` with a `max` ceiling, never a hand-rolled TTL `Map`; cache the gate, never the credential (`.claude/rules/sim-caching.md`).
 - **State ownership**: React Query owns server data (never `useState` + `fetch`); shareable view-state (tabs, filters, search, pagination, selected id) lives in the URL via `nuqs`; Zustand owns global client state; `useState` owns UI-only state. Hooks, queries, stores, URL state, components, lists and menus, and render performance each have a rule file in `.claude/rules/`.
-- **UI**: existing routes use Tailwind and the `@sim/emcn-legacy` chip family (`.claude/rules/sim-styling.md`). Modern Auth, Docs and Platform import `@sim/emcn/<family>` and their surface package's families (`@sim/emcn-auth/<family>`, `@sim/emcn-docs/<family>`, `@sim/emcn-platform/<family>`) under `packages/emcn/AGENTS.md`; the isolated Platform in `apps/sim/platform/` also follows its design contract (`apps/sim/platform/AGENTS.md`, the `implement-platform` skill). Product copy `.claude/rules/sim-ui-copy.md`; marketing copy `.claude/rules/constitution.md`.
+- **UI**: existing routes use Tailwind and the `@sim/emcn-legacy` chip family (`.claude/rules/sim-styling.md`). Modern Auth, Docs and Platform import `@sim/emcn/<family>` and their surface package's families (`@sim/emcn-auth/<family>`, `@sim/emcn-docs/<family>`, `@sim/emcn-platform/<family>`) under `packages/emcn/AGENTS.md`; the product routes in `apps/sim/app/(product)/` and their Platform project in `apps/sim/platform/` also follow its design contract (`apps/sim/platform/AGENTS.md`, the `implement-platform` skill). Product copy `.claude/rules/sim-ui-copy.md`; marketing copy `.claude/rules/constitution.md`.
 
 ## API Contracts and Routes
 
@@ -60,7 +60,7 @@ Build order **Tools** → **Block** → **Icon** → optional **Trigger**, from 
 
 - **Tool IDs are `snake_case`** (`service_action`), registered in `tools/registry.ts`; blocks register alphabetically in `blocks/registry-maps.ts`.
 - **Type coercions go in `tools.config.params`** (runs at execution), never `tools.config.tool` (runs at serialization, where `Number()` destroys `<Block.output>` references).
-- A surface listing integrations to a viewer reads `useIntegrationAccess`, never a raw catalog (`check:integration-access`).
+- A surface listing integrations to a viewer reads `useIntegrationAccess` (legacy) or `resolveIntegrationAccess` through `platform/lib/data` (product), never a raw catalog (`check:integration-access`).
 - Table column types are registry entries in `apps/sim/lib/table/column-types/`; never add a per-type `case` elsewhere except the one documented import-path switch (`coerceValue` in `lib/table/import.ts`), which every new type extends: a missed arm fails silently. Use `/add-column-type`.
 
 ## How your work is checked

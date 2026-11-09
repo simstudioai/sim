@@ -9,6 +9,7 @@ Applies to `apps/sim/**` on top of the root [AGENTS.md](/AGENTS.md), which holds
 - `'use client'` server boundary, app/worker runtime env, feature folder layout: `sim-architecture.md`
 - Components, hooks, stores, imports: `sim-components.md`, `sim-hooks.md`, `sim-stores.md`, `sim-imports.md`
 - Styling and emcn chrome, UI copy, settings pages: `sim-styling.md`, `sim-ui-copy.md`, `sim-settings-pages.md` (account and self-hosted settings), `sim-platform-views.md` (Platform organization and workspace views)
+- Product routes and their Platform project (`app/(product)/**`, `platform/**`): `platform-design.md`; EMCN components: `emcn-components.md` (modern `packages/emcn*`), `emcn-legacy-components.md` (`packages/emcn-legacy`)
 - URL state, list and menu order, caching: `sim-url-state.md`, `sim-list-ordering.md`, `sim-caching.md`
 - Tools, blocks, triggers: `sim-integrations.md`; isolated-vm sandbox worker: `sim-sandbox.md`
 - Anything that returns stored file, run-file, knowledge or table content to Chat: `sim-content-delivery.md`

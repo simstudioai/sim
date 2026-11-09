@@ -6,6 +6,7 @@ paths:
   - "**/*.integration.ts"
   - "**/e2e/**"
   - "apps/sim/scripts/test-*-e2e.ts"
+  - "apps/sim/platform/checks/**"
 ---
 
 # Testing

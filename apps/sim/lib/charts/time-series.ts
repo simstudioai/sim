@@ -1,6 +1,5 @@
 import { isRecordLike, toRecord } from '@sim/utils/object'
 import type { EChartsType } from 'echarts'
-import type { EChartsController } from '@/components/charts/echarts-view'
 import { formatChartValue, observeChartSummary, summarizeChart } from '@/lib/charts/summary'
 import {
   type DashboardTimeRange,
@@ -63,6 +62,13 @@ export function readTimeSeriesTooltip(
     })
   })
   return { time, values }
+}
+
+/** What a chart's owner calls around each option it applies, and when the chart goes away. */
+interface EChartsController {
+  prepareOption: (option: Record<string, unknown>) => Record<string, unknown>
+  afterUpdate: () => void
+  dispose: () => void
 }
 
 /** Trusted event handlers wrap sanitized ECharts options; documents never contain executable code. */

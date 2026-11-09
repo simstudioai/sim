@@ -73,6 +73,20 @@ const { getAccess } = useAccess(workspaceId)`
     expect(check({ 'app/a.tsx': namespaced, 'app/b.tsx': renamed })).toEqual([])
   })
 
+  it('flags a dynamically imported catalog read without a gate', () => {
+    const source = `const { integrationCatalog } = await import('@/platform/lib/integrations/catalog.generated')`
+    expect(check({ 'platform/lib/data/apps.ts': source })).toEqual([
+      expect.objectContaining({ path: 'platform/lib/data/apps.ts', names: ['integrationCatalog'] }),
+    ])
+  })
+
+  it('accepts a server read that judges each entry with resolveIntegrationAccess', () => {
+    const source = `import { resolveIntegrationAccess } from '@/lib/integrations/access'
+const { integrationCatalog } = await import('@/platform/lib/integrations/catalog.generated')
+integrationCatalog.filter((entry) => resolveIntegrationAccess(entry.type, policy))`
+    expect(check({ 'platform/lib/data/apps.ts': source })).toEqual([])
+  })
+
   it('accepts a raw catalog read alongside the access gate', () => {
     const source = `${GATE}\nimport { INTEGRATIONS } from '@/lib/integrations'`
     expect(check({ 'app/catalog.tsx': source })).toEqual([])

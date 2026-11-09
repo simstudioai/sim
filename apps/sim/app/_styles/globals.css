@@ -263,25 +263,6 @@
   }
 }
 
-@keyframes dash-animation {
-  from {
-    stroke-dashoffset: 0;
-  }
-  to {
-    stroke-dashoffset: -24;
-  }
-}
-
-@keyframes placeholder-pulse {
-  0%,
-  100% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 0.8;
-  }
-}
-
 @keyframes ring-pulse {
   0%,
   100% {
@@ -413,7 +394,7 @@
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
   /**
-   * Distance between `.workspace-content-shell` and the viewport edge
+   * Distance between the workspace content pane and the viewport edge
    * (CONTENT_WINDOW_GAP). The shell sits flush, so this is zero; it stays
    * published because surfaces portalled to `<body>` — the toast stack — and
    * the panel and terminal geometry all read it rather than assuming a value.
@@ -529,42 +510,8 @@ html[data-sim-desktop-title-bar="inset"] {
   background: inherit;
 }
 
-.desktop-workspace-window-drag-region {
-  position: absolute;
-  inset: 0 0 auto;
-  display: none;
-}
-
-html[data-sim-desktop-title-bar="inset"] .desktop-workspace-window-drag-region {
-  display: block;
-}
-
-html[data-sim-desktop-title-bar="inset"]
-  .desktop-workspace-window-frame
-  :is(
-    a,
-    button,
-    input,
-    select,
-    textarea,
-    [contenteditable="true"],
-    [role="button"],
-    [role="link"],
-    [role="menuitem"],
-    [role="tab"]
-  ) {
-  -webkit-app-region: no-drag;
-}
-
 .workspace-root {
   letter-spacing: 0.02em;
-}
-
-/* The pane owns the lane whenever the sidebar is not there to own it: collapsed to
-   zero width, or slid away for a fullscreen route. */
-.workspace-content-shell[data-sidebar-collapsed],
-.workspace-content-shell[data-content-fullscreen] {
-  --workspace-content-title-bar-inset: var(--desktop-title-bar-height);
 }
 
 .workspace-root code,
@@ -573,10 +520,6 @@ html[data-sim-desktop-title-bar="inset"]
 .workspace-root pre,
 .workspace-root .font-mono {
   letter-spacing: normal;
-}
-
-.sidebar-container {
-  width: var(--sidebar-width);
 }
 
 /**
@@ -611,39 +554,12 @@ html[data-sim-desktop-title-bar="inset"]
   flex-shrink: 1;
 }
 
-.sidebar-container span,
-.sidebar-container .text-small {
-  white-space: nowrap;
-}
-
-.sidebar-container[data-collapsed] span,
-.sidebar-container[data-collapsed] .text-small {
-  opacity: 0;
-}
-
-.sidebar-container[data-collapsed] .sidebar-collapse-hide {
-  opacity: 0;
-}
-
 .panel-container {
   width: var(--panel-width);
 }
 
 .terminal-container {
   height: var(--terminal-height);
-}
-
-/**
- * Landing loop animation styles (keyframes defined in the `@keyframes` blocks above)
- */
-.landing-loop-animated-dash {
-  animation: dash-animation 1.5s linear infinite;
-  will-change: stroke-dashoffset;
-  transform: translateZ(0);
-}
-
-.react-flow__node-landingLoop svg rect.landing-loop-animated-dash {
-  animation: dash-animation 1.5s linear infinite !important;
 }
 
 /**
@@ -1104,45 +1020,6 @@ html[data-sim-desktop-title-bar="inset"]
   .dark * {
     scrollbar-color: var(--scrollbar-thumb-color) transparent;
   }
-
-  .copilot-scrollable {
-    scrollbar-gutter: stable;
-  }
-}
-
-/**
- * Panel tab styles
- */
-.panel-tab-base {
-  color: var(--base-muted-foreground);
-}
-
-.panel-tab-active {
-  background-color: var(--surface-5);
-  color: var(--text-primary);
-  border-color: var(--border-muted);
-}
-
-.dark .panel-tab-active {
-  background-color: var(--surface-1);
-  color: var(--white);
-  border-color: var(--border-muted);
-}
-
-.panel-tab-inactive:hover {
-  background-color: var(--surface-5);
-  color: var(--text-primary);
-}
-
-/**
- * Subblock divider visibility
- * Hides dividers when adjacent subblocks render empty content (e.g., schedule-info without data).
- * Uses CSS :has() to detect empty .subblock-content elements and hide associated dividers.
- * Selectors ordered by ascending specificity: (0,4,0) then (0,5,0)
- */
-.subblock-row:has(> .subblock-content:empty) > .subblock-divider,
-.subblock-row:has(+ .subblock-row > .subblock-content:empty) > .subblock-divider {
-  display: none;
 }
 
 /**
@@ -1236,15 +1113,6 @@ input[type="search"]::-ms-clear {
  * Animation keyframes are defined in the `@keyframes` blocks above
  */
 @layer utilities {
-  .scrollbar-none {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;
-  }
-
   .scrollbar-hide {
     -webkit-scrollbar: none;
     -webkit-scrollbar-width: none;
@@ -1272,24 +1140,8 @@ input[type="search"]::-ms-clear {
     background: transparent;
   }
 
-  .gradient-text {
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
   .bg-input-background {
     background-color: hsl(var(--input-background));
-  }
-
-  .transition-ring {
-    transition-property: box-shadow, transform;
-    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-    transition-duration: 300ms;
-  }
-
-  .loading-placeholder::placeholder {
-    animation: placeholder-pulse 1.5s ease-in-out infinite;
   }
 
   /**
@@ -1453,54 +1305,6 @@ input[type="search"]::-ms-clear {
   }
 }
 
-/* WandPromptBar status indicator */
-@keyframes smoke-pulse {
-  0%,
-  100% {
-    transform: scale(0.8);
-    opacity: 0.4;
-  }
-  50% {
-    transform: scale(1.1);
-    opacity: 0.8;
-  }
-}
-
-.status-indicator {
-  position: relative;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  overflow: hidden;
-  background-color: hsl(var(--muted-foreground) / 0.5);
-  transition: background-color 0.3s ease;
-}
-
-.status-indicator.streaming {
-  background-color: transparent;
-}
-
-.status-indicator.streaming::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    hsl(var(--primary) / 0.9) 0%,
-    hsl(var(--primary) / 0.4) 60%,
-    transparent 80%
-  );
-  animation: smoke-pulse 1.8s ease-in-out infinite;
-  opacity: 0.9;
-}
-
-.dark .status-indicator.streaming::before {
-  background: #6b7280;
-  opacity: 0.9;
-  animation: smoke-pulse 1.8s ease-in-out infinite;
-}
-
 /* MessageContainer loading dot */
 @keyframes growShrink {
   0%,
@@ -1514,13 +1318,6 @@ input[type="search"]::-ms-clear {
 
 .loading-dot {
   animation: growShrink 1.5s infinite ease-in-out;
-}
-
-/* Subflow node drag-over styles */
-.loop-node-drag-over,
-.parallel-node-drag-over {
-  box-shadow: 0 0 0 1.75px var(--brand-secondary) !important;
-  border-radius: 8px !important;
 }
 
 /* React Flow v12 no longer emits data-parent-node-id; the app stamps

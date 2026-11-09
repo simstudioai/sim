@@ -22,7 +22,7 @@ Before writing a list of items, find where the user sees those same items *first
 
 Left-to-right becomes top-to-bottom. A toolbar reading `Filter · Sort · Export · Delete` becomes a menu reading Filter, Sort, Export, Delete — never alphabetized, never grouped by implementation, never "destructive last" unless the toolbar already puts it last.
 
-Resource menus (`+` attach, `@` mention, resource-tab `+`) do not mirror the sidebar. Their order is a product decision encoded in `RESOURCE_MENU_ORDER` (see below), and every resource menu shares it.
+Resource menus (`+` attach, `@` mention, resource-tab `+`) do not mirror the sidebar. Their order is a product decision encoded once per app, and every resource menu in that app shares it: the product's composer `ResourceMenu` (`app/(product)/_components/composer/resource-menu.tsx`) groups families in `MENTION_FAMILIES` order (`lib/api/contracts/organization-mentions.ts`), and the legacy mothership chat menus use `RESOURCE_MENU_ORDER` (see below).
 
 Platform-only entries (desktop **Browser** and **Terminal**) trail the shared set rather than interleaving, so the common prefix is identical on every platform.
 
@@ -113,7 +113,7 @@ export function byResourceMenuOrder<T extends { type: MothershipResourceType }>(
 }
 ```
 
-Canonical instance: `components/mothership-chat/mothership-view/components/resource-registry/resource-registry.tsx`, consumed by `useAvailableResources` and `ResourceMenuSections`.
+Legacy canonical instance: `components/mothership-chat/mothership-view/components/resource-registry/resource-registry.tsx`, consumed by `useAvailableResources` and `ResourceMenuSections`. The product's equivalent is `MENTION_FAMILIES`, the order the mention route returns families in and the composer's `ResourceMenu` renders them.
 
 ## Render kinds in one pass, not one phase per kind
 

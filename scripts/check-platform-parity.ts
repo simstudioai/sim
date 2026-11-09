@@ -3,7 +3,9 @@
  * Keeps the Platform's parity ledger honest. `apps/sim/platform/docs/org-parity.md` is what the
  * organization rollout is judged on, so a row marked Done has to point at something that exists: a
  * live spec's test by its quoted title, or an integration or unit test file. Anything built on live
- * data without such a check is `Unverified`, and says why.
+ * data without such a check is `Unverified`, and says why. Each (Domain, Capability) pair appears once;
+ * a table without a Domain column takes its section heading as the domain, in a namespace of its own,
+ * so a section may point back at a Domain row it shares a name with.
  *
  * With `--report <playwright.json>` (repeatable) it also reads what that run did: a row whose
  * proving test failed or was skipped is not Done, whatever the ledger says. The two live jobs build
@@ -58,11 +60,14 @@ function isLiveSpec(file: string): boolean {
 
 export function auditLedger({ ledger, testFiles, liveTitles, run, job }: LedgerInputs): string[] {
   const findings: string[] = []
+  const firstRowAt = new Map<string, number>()
   let columns: number | null = null
+  let heading = ''
   ledger.split('\n').forEach((line, index) => {
     const at = `org-parity.md:${index + 1}`
     if (!line.startsWith('|')) {
       columns = null
+      if (line.startsWith('#')) heading = line.replace(/^#+\s*/, '').trim()
       return
     }
     const row = cells(line)
@@ -79,6 +84,11 @@ export function auditLedger({ ledger, testFiles, liveTitles, run, job }: LedgerI
     const [capability = '', , status = '', proof = ''] = row.slice(-4)
     if (!STATUSES.has(status)) findings.push(`${at}: unknown status "${status}"`)
     if (!capability) findings.push(`${at}: empty capability`)
+    const domain = columns === 5 ? (row[0] ?? '') : `the ${heading} section`
+    const key = `${columns}|${domain}|${capability}`.toLowerCase()
+    const firstAt = firstRowAt.get(key)
+    if (firstAt === undefined) firstRowAt.set(key, index + 1)
+    else findings.push(`${at}: "${capability}" in ${domain} repeats the row at line ${firstAt}`)
     if (!proof) findings.push(`${at}: "${capability}" gives no proof or reason`)
 
     const files = [...proof.matchAll(FILE_PROOF)].map(([file]) => file)

@@ -101,8 +101,6 @@ export const SCROLLER_CLASSES = cn(
   '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 )
 
-export const SPEECH_RECOGNITION_LANG = 'en-US'
-
 /**
  * Maps a {@link MothershipResource} (resource-picker domain) to a
  * {@link ChatContext} (chat-input domain). Keyed by `MothershipResourceType`
