@@ -445,6 +445,7 @@ const seamHelpers = new Set([
   'hooks/use-credential-refresh-triggers',
   'hooks/use-computer-use-status',
   'hooks/use-desktop-preference-mutation',
+  'hooks/use-desktop-update-gate',
   'hooks/use-desktop-update-state',
   'hooks/use-file-content-source',
   'hooks/use-inline-rename',

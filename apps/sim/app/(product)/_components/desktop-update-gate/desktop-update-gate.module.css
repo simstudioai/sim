@@ -1,0 +1,17 @@
+.gate {
+  position: fixed;
+  z-index: 4;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-24);
+  background: var(--ui-canvas);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ui-content-gap);
+}
