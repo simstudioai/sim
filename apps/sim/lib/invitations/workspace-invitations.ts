@@ -577,7 +577,7 @@ export async function createWorkspaceInvitation({
   }
 
   const observedMembership = existingUser ? await getUserOrganization(existingUser.id) : null
-  /** A personal organization dissolves on joining, so its member counts as belonging nowhere. */
+  /** A personal organization is retired on joining, so its member counts as belonging nowhere. */
   const existingMembership = observedMembership?.kind === 'team' ? observedMembership : null
   let existingOrganizationRole = existingMembership?.role
   let organizationRoleUpdated = false

@@ -4,7 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, ne } from 'drizzle-orm'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import type { DbTransaction } from '@/lib/db/types'
-import { dissolvePersonalOrganizationTx } from '@/lib/organizations/dissolve-personal'
+import { convertPersonalOrganizationToTeamTx } from '@/lib/organizations/personal'
 
 const ORGANIZATION_SLUG_REGEX = /^[a-z0-9-_]+$/
 
@@ -72,7 +72,9 @@ export async function createOrganizationWithOwner(
 
 /**
  * Transaction-enlisted team organization creation. An owner who has a personal organization
- * brings it along: it dissolves into the new team, its workspaces with it.
+ * starts the team from it: it becomes the team in place, keeping its id and organization-level
+ * content, and its workspaces return to the organization-less personal state for the caller's
+ * usual attach, exactly as an owner's personal workspaces were before personal organizations.
  *
  * `organization.slug` has no unique constraint, so the slug check here is only
  * as strong as the transaction it runs in. A caller that needs the check and
@@ -102,6 +104,16 @@ export async function createOrganizationWithOwnerTx(
     throw new OrganizationSlugTakenError(slug)
   }
 
+  const converted = await convertPersonalOrganizationToTeamTx(tx, {
+    userId: ownerUserId,
+    name,
+    slug,
+    metadata,
+  })
+  if (converted) {
+    return { organizationId: converted.organizationId, memberId: converted.memberId }
+  }
+
   await tx.insert(organization).values({
     id: organizationId,
     name,
@@ -109,12 +121,6 @@ export async function createOrganizationWithOwnerTx(
     metadata,
     createdAt: now,
     updatedAt: now,
-  })
-
-  await dissolvePersonalOrganizationTx(tx, {
-    userId: ownerUserId,
-    targetOrganizationId: organizationId,
-    targetBilledAccountUserId: ownerUserId,
   })
   await tx.insert(member).values({
     id: memberId,

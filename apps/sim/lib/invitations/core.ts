@@ -282,8 +282,8 @@ export function isInvitationExpired(inv: Pick<InvitationWithGrants, 'expiresAt'>
 }
 
 /**
- * A personal organization is no obstacle to joining: it dissolves into the organization the
- * invitee joins, so every join and externality decision treats its member as belonging nowhere.
+ * A personal organization is no obstacle to joining: it is retired as the invitee joins, so every
+ * join and externality decision treats its member as belonging nowhere, as before it existed.
  */
 function teamMembershipOnly<T extends { kind: OrganizationKind }>(membership: T | null): T | null {
   return membership?.kind === 'team' ? membership : null

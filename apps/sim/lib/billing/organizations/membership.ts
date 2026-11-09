@@ -64,12 +64,15 @@ import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/repository'
 import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
-import { dissolvePersonalOrganizationTx } from '@/lib/organizations/dissolve-personal'
 import { requireMemberManagementAuthority } from '@/lib/organizations/members/authority'
 import {
   revokePersonalApiKeysTx,
   revokeUserSessionsTx,
 } from '@/lib/organizations/members/revocation'
+import {
+  createPersonalOrganizationTx,
+  retirePersonalOrganizationTx,
+} from '@/lib/organizations/personal'
 import { reassignOrganizationProjects } from '@/lib/projects/membership'
 import {
   handoffProjectsForOrganizationDepartureTx,
@@ -794,14 +797,7 @@ export async function ensureUserInOrganizationTx(
   }
 
   if (existingMemberships.length > 0) {
-    const targetOwnerId =
-      role === 'owner' ? userId : await getOrganizationOwnerUserIdTx(tx, organizationId)
-    if (!targetOwnerId) throw new Error(`Organization ${organizationId} has no owner membership`)
-    await dissolvePersonalOrganizationTx(tx, {
-      userId,
-      targetOrganizationId: organizationId,
-      targetBilledAccountUserId: targetOwnerId,
-    })
+    await retirePersonalOrganizationTx(tx, { userId, targetOrganizationId: organizationId })
   }
 
   const memberId = generateId()
@@ -841,18 +837,6 @@ export async function ensureUserInOrganizationTx(
     alreadyMember: false,
     billingActions,
   }
-}
-
-async function getOrganizationOwnerUserIdTx(
-  tx: DbTransaction,
-  organizationId: string
-): Promise<string | null> {
-  const [owner] = await tx
-    .select({ userId: member.userId })
-    .from(member)
-    .where(and(eq(member.organizationId, organizationId), eq(member.role, 'owner')))
-    .limit(1)
-  return owner?.userId ?? null
 }
 
 interface PaidOrgJoinBillingActions {
@@ -1450,6 +1434,8 @@ export async function removeUserFromOrganization(
           )
         }
         await enqueueMemoryCleanup(tx, [{ kind: 'organization_member', organizationId, userId }])
+        /** Nobody is left without an organization: the person leaves into their own. */
+        await createPersonalOrganizationTx(tx, userId)
 
         if (!skipBillingLogic) {
           await enqueueOutboxEvent(tx, MEMBER_BILLING_RECONCILIATION_EVENT_TYPE, {

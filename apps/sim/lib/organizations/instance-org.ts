@@ -222,7 +222,7 @@ export async function ensureInstanceOrganization(
        * The owner must not already belong to another team — a user can hold
        * only one membership, so provisioning would fail on the member insert.
        * Surface it as a configuration problem instead. A personal organization
-       * is no obstacle: it dissolves into the instance organization.
+       * is no obstacle: it becomes the instance organization in place.
        */
       const [ownerMembership] = await tx
         .select({ organizationId: member.organizationId })

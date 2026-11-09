@@ -99,7 +99,7 @@ import {
   createWorkspaceInvitation,
   prepareWorkspaceInvitationContext,
 } from '@/lib/invitations/workspace-invitations'
-import { dissolvePersonalOrganizationTx } from '@/lib/organizations/dissolve-personal'
+import { convertPersonalOrganizationToTeamTx } from '@/lib/organizations/personal'
 import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
 import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
@@ -1587,17 +1587,20 @@ export async function issueEnterpriseProvisioning(
   // Discover the lock scope without holding a transaction connection or row
   // lock. The transaction below re-reads all membership state after taking
   // the canonical organization → user-billing-identity lock order.
-  // A personal organization is not the owner's organization here: it dissolves into the new one.
-  const [membershipSnapshot] = await db
-    .select({ role: member.role, organizationId: member.organizationId })
+  // A personal organization becomes the Enterprise organization in place, keeping its id.
+  const [ownerSnapshot] = await db
+    .select({ role: member.role, organizationId: member.organizationId, kind: organization.kind })
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
-    .where(and(eq(member.userId, input.ownerUserId), eq(organization.kind, 'team')))
+    .where(eq(member.userId, input.ownerUserId))
     .limit(1)
+  const membershipSnapshot = ownerSnapshot?.kind === 'team' ? ownerSnapshot : undefined
+  const personalOrganizationSnapshot =
+    ownerSnapshot?.kind === 'personal' ? ownerSnapshot.organizationId : null
 
   const result = await db.transaction(async (tx) => {
     let organizationId: string
-    let organizationToCreate: { id: string; name: string } | null = null
+    let organizationToCreate: { id: string; name: string; convert: boolean } | null = null
     if (membershipSnapshot) {
       if (membershipSnapshot.role !== 'owner') {
         throw new EnterpriseProvisioningError(
@@ -1619,14 +1622,16 @@ export async function issueEnterpriseProvisioning(
         throw new EnterpriseProvisioningError('The selected user no longer owns this organization')
       }
     } else {
+      if (personalOrganizationSnapshot) {
+        await acquireOrganizationMutationLock(tx, personalOrganizationSnapshot)
+      }
       await acquireUserBillingIdentityLock(tx, input.ownerUserId)
       const [currentMembership] = await tx
         .select({ organizationId: member.organizationId })
         .from(member)
-        .innerJoin(organization, eq(organization.id, member.organizationId))
-        .where(and(eq(member.userId, input.ownerUserId), eq(organization.kind, 'team')))
+        .where(eq(member.userId, input.ownerUserId))
         .limit(1)
-      if (currentMembership) {
+      if ((currentMembership?.organizationId ?? null) !== personalOrganizationSnapshot) {
         throw new EnterpriseProvisioningError(
           'The selected user joined an organization while issuance was starting; retry the request'
         )
@@ -1636,8 +1641,12 @@ export async function issueEnterpriseProvisioning(
           'Organization name is required when the owner has no organization'
         )
       }
-      organizationId = `org_${generateId()}`
-      organizationToCreate = { id: organizationId, name: input.organizationName }
+      organizationId = personalOrganizationSnapshot ?? `org_${generateId()}`
+      organizationToCreate = {
+        id: organizationId,
+        name: input.organizationName,
+        convert: personalOrganizationSnapshot !== null,
+      }
     }
 
     const [owner] = await tx
@@ -1647,13 +1656,19 @@ export async function issueEnterpriseProvisioning(
       .limit(1)
     if (!owner) throw new EnterpriseProvisioningError('Owner user not found')
 
-    if (organizationToCreate) {
-      /** Checked before the owner's personal organization, which holds them, dissolves below. */
-      await assertEnterpriseWorkspaceSelection({
-        executor: tx,
-        ownerUserId: input.ownerUserId,
-        workspaceIds,
+    if (organizationToCreate?.convert) {
+      /**
+       * Its workspaces return to the organization-less personal state; issuance attaches the
+       * selected ones exactly as it attaches an owner's personal workspaces, and the rest stay
+       * personal.
+       */
+      await convertPersonalOrganizationToTeamTx(tx, {
+        userId: input.ownerUserId,
+        name: organizationToCreate.name,
+        slug: slugifyOrganizationName(organizationToCreate.name, organizationToCreate.id),
+        metadata: {},
       })
+    } else if (organizationToCreate) {
       const now = new Date()
       await tx.insert(organization).values({
         id: organizationToCreate.id,
@@ -1661,11 +1676,6 @@ export async function issueEnterpriseProvisioning(
         slug: slugifyOrganizationName(organizationToCreate.name, organizationToCreate.id),
         createdAt: now,
         updatedAt: now,
-      })
-      await dissolvePersonalOrganizationTx(tx, {
-        userId: input.ownerUserId,
-        targetOrganizationId: organizationToCreate.id,
-        targetBilledAccountUserId: input.ownerUserId,
       })
       await tx.insert(member).values({
         id: generateId(),
@@ -1716,13 +1726,11 @@ export async function issueEnterpriseProvisioning(
       invitationEmails: invitationSpecs.map((invite) => invite.email),
     })
 
-    if (!organizationToCreate) {
-      await assertEnterpriseWorkspaceSelection({
-        executor: tx,
-        ownerUserId: input.ownerUserId,
-        workspaceIds,
-      })
-    }
+    await assertEnterpriseWorkspaceSelection({
+      executor: tx,
+      ownerUserId: input.ownerUserId,
+      workspaceIds,
+    })
     const seatRequirement = await getEnterpriseIssuanceSeatRequirement({
       executor: tx,
       organizationId,

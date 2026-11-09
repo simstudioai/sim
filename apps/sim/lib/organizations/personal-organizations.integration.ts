@@ -1,11 +1,14 @@
 /**
- * Personal organizations against real PostgreSQL: the backfill/signup provisioning is idempotent
- * and resumable and leaves billing where it was, and joining a team dissolves the personal
- * organization into it instead of refusing the join.
+ * Personal organizations against real PostgreSQL: provisioning is idempotent and resumable and
+ * leaves billing where it was; joining another organization retires the personal organization
+ * without losing anything; starting a team converts it in place; its organization-level activity
+ * bills its owner; and leaving a team never leaves a person without an organization.
  */
 import { db } from '@sim/db'
 import {
+  copilotChats,
   member,
+  mothershipMemorySpaces,
   organization,
   permissions,
   project,
@@ -16,11 +19,19 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
-import { resolveWorkspaceBillingPayer } from '@/lib/billing/core/attribution'
+import {
+  assertBillingAttributionSnapshot,
+  resolveOrganizationBillingAttribution,
+  resolveWorkspaceBillingPayer,
+} from '@/lib/billing/core/attribution'
+import { ensureOrganizationForTeamSubscription } from '@/lib/billing/organization'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
-import { addUserToOrganization } from '@/lib/billing/organizations/membership'
+import {
+  addUserToOrganization,
+  removeUserFromOrganization,
+} from '@/lib/billing/organizations/membership'
 import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
 import { provisionPersonalOrganization } from '@/lib/organizations/provision-personal'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
@@ -115,6 +126,61 @@ async function userStorage(userId: string): Promise<number> {
     .from(userStats)
     .where(eq(userStats.userId, userId))
   return row.bytes
+}
+
+async function organizationExists(organizationId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+  return row !== undefined
+}
+
+/** An organization-level chat, knowledge file and memory space, as the organization view creates them. */
+async function createOrganizationContent(ownerId: string, organizationId: string) {
+  const [chat] = await db
+    .insert(copilotChats)
+    .values({ userId: ownerId, organizationId, title: 'Organization chat' })
+    .returning({ id: copilotChats.id })
+  const fileId = generateId()
+  await db.insert(workspaceFiles).values({
+    id: fileId,
+    key: `personal-org-test/${generateId()}`,
+    userId: ownerId,
+    organizationId,
+    context: 'knowledge-base',
+    originalName: 'notes.txt',
+    contentType: 'text/plain',
+    sizeBytes: 12,
+  })
+  const memorySpaceId = generateId()
+  await db
+    .insert(mothershipMemorySpaces)
+    .values({ id: memorySpaceId, userId: ownerId, organizationId, name: 'Research' })
+  return { chatId: chat.id, fileId, memorySpaceId }
+}
+
+async function organizationContentOwners(content: {
+  chatId: string
+  fileId: string
+  memorySpaceId: string
+}) {
+  const [chat] = await db
+    .select({ organizationId: copilotChats.organizationId, userId: copilotChats.userId })
+    .from(copilotChats)
+    .where(eq(copilotChats.id, content.chatId))
+  const [file] = await db
+    .select({ organizationId: workspaceFiles.organizationId, userId: workspaceFiles.userId })
+    .from(workspaceFiles)
+    .where(eq(workspaceFiles.id, content.fileId))
+  const [memorySpace] = await db
+    .select({
+      organizationId: mothershipMemorySpaces.organizationId,
+      userId: mothershipMemorySpaces.userId,
+    })
+    .from(mothershipMemorySpaces)
+    .where(eq(mothershipMemorySpaces.id, content.memorySpaceId))
+  return { chat, file, memorySpace }
 }
 
 afterAll(async () => {
@@ -286,8 +352,8 @@ describe('billing in a personal organization', () => {
   })
 })
 
-describe('joining a team', () => {
-  it('dissolves the personal organization into the team, moving its workspaces and storage', async () => {
+describe('joining another organization', () => {
+  it('returns personal workspaces to personal and moves organization-level content, losing nothing', async () => {
     const teamOwnerId = await createUser()
     const joinerId = await createUser()
     const { organizationId: teamId } = await createOrganizationWithOwner({
@@ -299,6 +365,7 @@ describe('joining a team', () => {
     await storeFile(joinerId, joinerWorkspace, 2048)
     const provisioned = await provisionPersonalOrganization(joinerId)
     if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
+    const content = await createOrganizationContent(joinerId, provisioned.organizationId)
 
     const joined = await addUserToOrganization({
       userId: joinerId,
@@ -314,35 +381,20 @@ describe('joining a team', () => {
       role: 'member',
       kind: 'team',
     })
-    const [personal] = await db
-      .select({ id: organization.id })
-      .from(organization)
-      .where(eq(organization.id, provisioned.organizationId))
-    expect(personal).toBeUndefined()
+    expect(await organizationExists(provisioned.organizationId)).toBe(false)
     expect(await workspaceRow(joinerWorkspace)).toMatchObject({
-      organizationId: teamId,
-      projectOrganizationId: teamId,
-      workspaceMode: 'organization',
-      billedAccountUserId: teamOwnerId,
+      organizationId: null,
+      projectOrganizationId: null,
+      workspaceMode: 'personal',
+      billedAccountUserId: joinerId,
       storageUsedBytes: 2048,
     })
-    const [team] = await db
-      .select({ storageUsedBytes: organization.storageUsedBytes })
-      .from(organization)
-      .where(eq(organization.id, teamId))
-    expect(team.storageUsedBytes).toBe(2048)
-    expect(await userStorage(joinerId)).toBe(0)
-    const [ownerGrant] = await db
-      .select({ permissionType: permissions.permissionType })
-      .from(permissions)
-      .where(
-        and(
-          eq(permissions.userId, teamOwnerId),
-          eq(permissions.entityType, 'workspace'),
-          eq(permissions.entityId, joinerWorkspace)
-        )
-      )
-    expect(ownerGrant?.permissionType).toBe('admin')
+    expect(await userStorage(joinerId)).toBe(2048)
+    expect(await organizationContentOwners(content)).toEqual({
+      chat: { organizationId: teamId, userId: joinerId },
+      file: { organizationId: teamId, userId: joinerId },
+      memorySpace: { organizationId: teamId, userId: joinerId },
+    })
   })
 
   it('still refuses someone who already belongs to another team', async () => {
@@ -371,5 +423,154 @@ describe('joining a team', () => {
       success: false,
       failureCode: 'already-in-other-organization',
     })
+  })
+})
+
+describe('starting a team from a personal organization', () => {
+  it('converts the personal organization in place and seats collaborators as today', async () => {
+    const ownerId = await createUser()
+    const collaboratorId = await createUser()
+    const ownerWorkspace = await createLegacyPersonalWorkspace(ownerId, 'Owner workspace')
+    await storeFile(ownerId, ownerWorkspace, 1000)
+    const collaboratorWorkspace = await createLegacyPersonalWorkspace(collaboratorId, 'Own work')
+    const now = new Date()
+    await db.insert(permissions).values({
+      id: generateId(),
+      userId: collaboratorId,
+      entityType: 'workspace',
+      entityId: ownerWorkspace,
+      permissionType: 'write',
+      createdAt: now,
+      updatedAt: now,
+    })
+    const ownerPersonal = await provisionPersonalOrganization(ownerId)
+    const collaboratorPersonal = await provisionPersonalOrganization(collaboratorId)
+    if (ownerPersonal.status !== 'provisioned' || collaboratorPersonal.status !== 'provisioned') {
+      throw new Error('expected provisioning')
+    }
+    const ownerContent = await createOrganizationContent(ownerId, ownerPersonal.organizationId)
+    const collaboratorContent = await createOrganizationContent(
+      collaboratorId,
+      collaboratorPersonal.organizationId
+    )
+    const teamSubscriptionId = generateId()
+    await db.insert(subscription).values({
+      id: teamSubscriptionId,
+      plan: 'team',
+      referenceId: ownerId,
+      status: 'active',
+      seats: 5,
+    })
+
+    const upgraded = await ensureOrganizationForTeamSubscription({
+      id: teamSubscriptionId,
+      plan: 'team',
+      referenceId: ownerId,
+      status: 'active',
+      seats: 5,
+    })
+
+    const teamId = ownerPersonal.organizationId
+    expect(upgraded.referenceId).toBe(teamId)
+    expect(await membershipOf(ownerId)).toEqual({
+      organizationId: teamId,
+      role: 'owner',
+      kind: 'team',
+    })
+    expect(await organizationContentOwners(ownerContent)).toEqual({
+      chat: { organizationId: teamId, userId: ownerId },
+      file: { organizationId: teamId, userId: ownerId },
+      memorySpace: { organizationId: teamId, userId: ownerId },
+    })
+    expect(await workspaceRow(ownerWorkspace)).toMatchObject({
+      organizationId: teamId,
+      projectOrganizationId: teamId,
+      workspaceMode: 'organization',
+      billedAccountUserId: ownerId,
+      storageUsedBytes: 1000,
+    })
+    const [team] = await db
+      .select({ storageUsedBytes: organization.storageUsedBytes })
+      .from(organization)
+      .where(eq(organization.id, teamId))
+    expect(team.storageUsedBytes).toBe(1000)
+    expect(await userStorage(ownerId)).toBe(0)
+
+    expect(await membershipOf(collaboratorId)).toEqual({
+      organizationId: teamId,
+      role: 'member',
+      kind: 'team',
+    })
+    expect(await organizationExists(collaboratorPersonal.organizationId)).toBe(false)
+    expect(await workspaceRow(collaboratorWorkspace)).toMatchObject({
+      organizationId: null,
+      workspaceMode: 'personal',
+      billedAccountUserId: collaboratorId,
+    })
+    expect((await organizationContentOwners(collaboratorContent)).chat).toEqual({
+      organizationId: teamId,
+      userId: collaboratorId,
+    })
+  })
+})
+
+describe('organization-level activity in a personal organization', () => {
+  it('bills the owner from their own plan, as personal workspace activity does', async () => {
+    const ownerId = await createUser()
+    const provisioned = await provisionPersonalOrganization(ownerId)
+    if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
+    const proId = generateId()
+    await db.insert(subscription).values({
+      id: proId,
+      plan: 'pro',
+      referenceId: ownerId,
+      status: 'active',
+    })
+
+    const attribution = await resolveOrganizationBillingAttribution({
+      actorUserId: ownerId,
+      organizationId: provisioned.organizationId,
+    })
+
+    expect(attribution).toMatchObject({
+      workspaceId: null,
+      organizationId: null,
+      billedAccountUserId: ownerId,
+      billingEntity: { type: 'user', id: ownerId },
+    })
+    expect(attribution.payerSubscription?.id).toBe(proId)
+    expect(assertBillingAttributionSnapshot(JSON.parse(JSON.stringify(attribution)))).toEqual(
+      attribution
+    )
+  })
+})
+
+describe('leaving a team', () => {
+  it('gives the person their personal organization in the removal transaction', async () => {
+    const teamOwnerId = await createUser()
+    const leaverId = await createUser()
+    const { organizationId: teamId } = await createOrganizationWithOwner({
+      ownerUserId: teamOwnerId,
+      name: 'Left Team',
+      slug: `left-${generateId()}`.toLowerCase(),
+    })
+    const joined = await addUserToOrganization({
+      userId: leaverId,
+      organizationId: teamId,
+      role: 'member',
+      skipBillingLogic: true,
+      skipSeatValidation: true,
+    })
+    if (!joined.success || !joined.memberId) throw new Error('expected the join to succeed')
+
+    const removed = await removeUserFromOrganization({
+      userId: leaverId,
+      organizationId: teamId,
+      memberId: joined.memberId,
+      skipBillingLogic: true,
+    })
+
+    expect(removed).toMatchObject({ success: true })
+    expect((await membershipOf(leaverId))?.kind).toBe('personal')
   })
 })
