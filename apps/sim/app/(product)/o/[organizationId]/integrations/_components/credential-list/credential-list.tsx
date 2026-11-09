@@ -5,17 +5,31 @@ import styles from '@/app/(product)/o/[organizationId]/integrations/_components/
 import { credentialDescription } from '@/platform/lib/integrations/credential-display'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 
-interface CredentialListProps {
+type CredentialListProps = {
   /**
    * The app whose page lists these credentials. Every row wears its mark, even a shared Google
    * credential first linked to another app.
    */
   providerId: string
   credentials: readonly IntegrationCredential[]
-  onOpen: (credential: IntegrationCredential) => void
-}
+  /** Why the viewer cannot connect a credential, read beneath an empty list. */
+  emptyNotice?: string
+} & (
+  | {
+      /** Each row's own address, so a live row is a link as legacy's was. */
+      credentialHref: (credential: IntegrationCredential) => string
+      onOpen?: never
+    }
+  | { credentialHref?: never; onOpen: (credential: IntegrationCredential) => void }
+)
 
-export function CredentialList({ providerId, credentials, onOpen }: CredentialListProps) {
+export function CredentialList({
+  providerId,
+  credentials,
+  emptyNotice,
+  credentialHref,
+  onOpen,
+}: CredentialListProps) {
   return (
     <section className={styles.section} aria-label='Connected credentials'>
       <h2 data-type='T093'>
@@ -23,20 +37,37 @@ export function CredentialList({ providerId, credentials, onOpen }: CredentialLi
       </h2>
       {credentials.length > 0 ? (
         <ul className={styles.list}>
-          {credentials.map((credential) => (
-            <ActivityRow
-              key={credential.id}
-              leading={<BrandMark providerId={providerId} />}
-              title={credential.displayName}
-              detail={credentialDescription(credential)}
-              onOpen={() => onOpen(credential)}
-            />
-          ))}
+          {credentials.map((credential) =>
+            credentialHref ? (
+              <ActivityRow
+                key={credential.id}
+                leading={<BrandMark providerId={providerId} />}
+                title={credential.displayName}
+                detail={credentialDescription(credential)}
+                href={credentialHref(credential)}
+              />
+            ) : (
+              <ActivityRow
+                key={credential.id}
+                leading={<BrandMark providerId={providerId} />}
+                title={credential.displayName}
+                detail={credentialDescription(credential)}
+                onOpen={() => onOpen(credential)}
+              />
+            )
+          )}
         </ul>
       ) : (
-        <p className={styles.empty} data-type='T060'>
-          No connected credentials
-        </p>
+        <>
+          <p className={styles.empty} data-type='T060'>
+            No connected credentials
+          </p>
+          {emptyNotice && (
+            <p className={styles.empty} data-type='T060'>
+              {emptyNotice}
+            </p>
+          )}
+        </>
       )}
     </section>
   )

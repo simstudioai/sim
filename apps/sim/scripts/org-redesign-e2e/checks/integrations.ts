@@ -35,9 +35,13 @@ const backToIntegrations = (page: Page) =>
     .getByRole('navigation', { name: 'Integrations navigation' })
     .getByRole('link', { name: 'Integrations', exact: true })
 
-/** Connect opens a review of the access it asks for, and Continue leaves for the provider. */
+/**
+ * Connect lists the member's personal account beside the chosen workspace's methods; the personal
+ * account opens a review of the access it asks for, and Continue leaves for the provider.
+ */
 async function startConnect(page: Page, name: string) {
   await page.getByRole('button', { name: 'Connect integration', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Personal account', exact: true }).click()
   const review = dialog(page, `Connect ${name}`)
   await review.getByRole('button', { name: 'Continue', exact: true }).click()
 }
@@ -165,7 +169,7 @@ export async function integrationChecks() {
         await expect(gmail).toContainText('1 connected credential')
         await gmail.click()
         await expect(page.getByRole('heading', { level: 1, name: 'Gmail' })).toBeVisible()
-        const credential = page.getByRole('region', { name: 'Connected credential', exact: true })
+        const credential = page.getByRole('region', { name: 'Connected credentials', exact: true })
         await expect(credential.getByText(CONNECTED.email).first()).toBeVisible()
         await credential.getByRole('link', { name: new RegExp(`^${CONNECTED.email}`) }).click()
         await expect(page).toHaveURL(
@@ -173,9 +177,9 @@ export async function integrationChecks() {
         )
         await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
         await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
-        const modal = dialog(page, 'Disconnect Gmail')
+        const modal = dialog(page, `Disconnect ${CONNECTED.email}?`)
         await expect(
-          modal.getByText(/Workflows using this account will also lose access/)
+          modal.getByText('People and workflows using this credential will lose access.')
         ).toBeVisible()
         await modal.getByRole('button', { name: 'Cancel', exact: true }).click()
         await expect(modal).toHaveCount(0)
@@ -226,7 +230,7 @@ export async function integrationChecks() {
             await expect(page.getByRole('heading', { level: 1, name: second })).toBeVisible()
             await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
             await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
-            const modal = dialog(page, 'Disconnect Gmail')
+            const modal = dialog(page, `Disconnect ${second}?`)
             await expect(modal).toContainText(second)
             await expect(modal).not.toContainText(CONNECTED.email)
             await modal.getByRole('button', { name: 'Cancel', exact: true }).click()
@@ -328,7 +332,7 @@ export async function integrationChecks() {
       await withSession(CONNECTED, async ({ page }) => {
         await page.goto(url(org.integration('gmail')))
         await page
-          .getByRole('region', { name: 'Connected credential', exact: true })
+          .getByRole('region', { name: 'Connected credentials', exact: true })
           .getByRole('link', { name: new RegExp(`^${CONNECTED.email}`) })
           .click()
         await page
@@ -396,10 +400,11 @@ export async function integrationChecks() {
     await sql`update organization_secret_source set mode = 'organization' where organization_id = ${ORGANIZATION_ID}`
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(url(`${org.integrations}?tab=credentials&q=secret`))
+      // The chosen workspace's own Secrets lists under Shared too; this is the organization's.
       const row = page
         .getByRole('region', { name: 'Shared', exact: true })
         .getByRole('link')
-        .filter({ hasText: /Secrets/ })
+        .filter({ hasText: /Generic Secrets/ })
       await expect(row).toBeVisible()
       await row.click()
       await expect(page).toHaveURL(

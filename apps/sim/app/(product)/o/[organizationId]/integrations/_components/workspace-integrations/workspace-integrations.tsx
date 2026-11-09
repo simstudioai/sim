@@ -1,7 +1,7 @@
 'use client'
 
 import { EmptyState } from '@sim/emcn/empty-state'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { IntegrationCenter } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-center/integration-center'
 import {
   IntegrationsHeading,
@@ -38,7 +38,6 @@ export function WorkspaceIntegrations({
   detail,
 }: WorkspaceIntegrationsProps) {
   const params = useSearchParams()
-  const router = useRouter()
   const directory = useWorkspaceDirectory(organizationId, { workspaces, workspaceId, apps })
   const { workspace, view, connections } = directory
   const indexHref = directory.keep(
@@ -66,9 +65,7 @@ export function WorkspaceIntegrations({
             credentials={directory.credentials}
             accountId={view.account}
             integrationHref={integrationHref}
-            onOpen={(account) =>
-              router.push(view.serialize(integrationHref, { account }), { scroll: false })
-            }
+            accountHref={(account) => view.serialize(integrationHref, { account })}
             pending={connections.pending}
             onDisconnect={async (credentialId) => {
               await connections.disconnect(credentialId)

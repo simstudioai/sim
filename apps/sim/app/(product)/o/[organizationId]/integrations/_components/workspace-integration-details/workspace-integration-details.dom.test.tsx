@@ -145,7 +145,7 @@ async function open(credentials: AppWorkspaceCredential[]) {
             credentials={credentials}
             accountId='cred-1'
             integrationHref='/o/org/integrations/gmail'
-            onOpen={() => undefined}
+            accountHref={(account) => `/o/org/integrations/gmail?account=${account}`}
             pending={false}
             onDisconnect={async () => undefined}
             onLeave={() => undefined}

@@ -35,10 +35,16 @@ interface LiveIntegrationDetailsProps {
   /** The credential the URL opens. */
   accountId: string | null
   integrationHref: string
-  onOpen: (credential: IntegrationCredential) => void
+  /** A credential's own page, which its row links to. */
+  credentialHref: (credential: IntegrationCredential) => string
   methods: readonly ConnectMethod[]
-  /** Why nothing can be connected, when no method can. */
-  unavailableReason: string
+  /**
+   * Why nothing can be connected, on a disabled Connect when no method can. Absent, as for an app
+   * the organization manages, no Connect shows.
+   */
+  unavailableReason?: string
+  /** Why the viewer cannot connect their own credential, beneath an empty list. */
+  emptyNotice?: string
   pending: boolean
   /** The open credential's page; `disconnect` asks before removing it. */
   renderCredential: (credential: IntegrationCredential, disconnect: () => void) => ReactNode
@@ -57,9 +63,10 @@ export function LiveIntegrationDetails({
   credentials,
   accountId,
   integrationHref,
-  onOpen,
+  credentialHref,
   methods,
   unavailableReason,
+  emptyNotice,
   pending,
   renderCredential,
   onDisconnect,
@@ -144,13 +151,20 @@ export function LiveIntegrationDetails({
             }))}
           />
         ) : (
-          <Button size='compact' icon='I074' disabled disabledReason={unavailableReason}>
-            Connect integration
-          </Button>
+          unavailableReason && (
+            <Button size='compact' icon='I074' disabled disabledReason={unavailableReason}>
+              Connect integration
+            </Button>
+          )
         )}
       </ControlBar>
       {credentials && (
-        <CredentialList providerId={app.providerId} credentials={credentials} onOpen={onOpen} />
+        <CredentialList
+          providerId={app.providerId}
+          credentials={credentials}
+          credentialHref={credentialHref}
+          emptyNotice={emptyNotice}
+        />
       )}
       {capabilities}
     </>

@@ -23,7 +23,8 @@ interface IntegrationDetailsProps {
   integration: OrganizationIntegration
   accountId: string | null
   integrationHref: string
-  onOpen: (credentialId: string) => void
+  /** A credential's own page on this app. */
+  accountHref: (credentialId: string) => string
   pending: boolean
   onConnect: () => void
   onReconnect: (accountId: string) => void
@@ -50,7 +51,7 @@ export function IntegrationDetails({
   integration,
   accountId,
   integrationHref,
-  onOpen,
+  accountHref,
   pending,
   onConnect,
   onReconnect,
@@ -147,9 +148,10 @@ export function IntegrationDetails({
         credentials={credentials}
         accountId={accountId}
         integrationHref={integrationHref}
-        onOpen={(credential) => onOpen(credential.id)}
+        credentialHref={(credential) => accountHref(credential.id)}
         methods={[...memberMethods, ...workspaceMethods]}
-        unavailableReason={reason}
+        unavailableReason={connectionTarget ? reason : undefined}
+        emptyNotice={isConnectable(integration) ? undefined : reason}
         pending={pending}
         renderCredential={(credential, disconnect) =>
           accountById.has(credential.id)

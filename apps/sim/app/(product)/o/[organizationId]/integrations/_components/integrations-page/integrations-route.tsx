@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { SavedAccountModal } from '@/app/(product)/_components/service-account-modal/saved-account-modal'
 import { IntegrationDetails } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-details/integration-details'
 import { IntegrationList } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-list/integration-list'
@@ -55,7 +55,6 @@ export function IntegrationsRoute({
   workspaceDetail,
 }: IntegrationsRouteProps) {
   const params = useSearchParams()
-  const router = useRouter()
   const { integrations, genericSecrets, inventory, policies, secrets } =
     useMemberIntegrations(organizationId)
   const actions = useIntegrationActions(organizationId)
@@ -74,8 +73,8 @@ export function IntegrationsRoute({
   const memberSecretsHref = directory.keep(
     serialize(integrationCenterHref(defaults.memberSecrets, params), { q: search })
   )
-  const openAccount = (id: string) => (credentialId: string) =>
-    router.push(serialize(integrationHref(id), { account: credentialId }), { scroll: false })
+  const accountHref = (id: string) => (credentialId: string) =>
+    serialize(integrationHref(id), { account: credentialId })
 
   const inventoryFailure = inventory.error ? (
     <QueryFailure message='Could not load your connections' query={inventory} />
@@ -168,7 +167,7 @@ export function IntegrationsRoute({
                   integration={integration}
                   accountId={account}
                   integrationHref={integrationHref(integration.id)}
-                  onOpen={openAccount(integration.id)}
+                  accountHref={accountHref(integration.id)}
                   pending={actions.pending || connections.pending}
                   onConnect={() => {
                     if (integration.connectionTarget) actions.connect(integration.connectionTarget)
@@ -199,7 +198,7 @@ export function IntegrationsRoute({
                   credentials={directory.credentials}
                   accountId={account}
                   integrationHref={integrationHref(workspaceDetail.id)}
-                  onOpen={openAccount(workspaceDetail.id)}
+                  accountHref={accountHref(workspaceDetail.id)}
                   pending={connections.pending}
                   onDisconnect={disconnect}
                   onLeave={clearAccount}

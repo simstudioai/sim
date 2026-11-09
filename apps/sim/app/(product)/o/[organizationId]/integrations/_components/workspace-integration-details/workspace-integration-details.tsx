@@ -58,7 +58,8 @@ interface WorkspaceIntegrationDetailsProps {
   credentials: readonly AppWorkspaceCredential[] | undefined
   accountId: string | null
   integrationHref: string
-  onOpen: (credentialId: string) => void
+  /** A credential's own page on this app. */
+  accountHref: (credentialId: string) => string
   pending: boolean
   onDisconnect: (credentialId: string) => Promise<unknown>
   /** Back to the app once the viewer leaves the open credential. */
@@ -77,7 +78,7 @@ export function WorkspaceIntegrationDetails({
   credentials,
   accountId,
   integrationHref,
-  onOpen,
+  accountHref,
   pending,
   onDisconnect,
   onLeave,
@@ -90,7 +91,7 @@ export function WorkspaceIntegrationDetails({
         credentials={workspaceApp.credentials}
         accountId={accountId}
         integrationHref={integrationHref}
-        onOpen={(credential) => onOpen(credential.id)}
+        credentialHref={(credential) => accountHref(credential.id)}
         methods={workspaceApp.methods}
         unavailableReason={workspaceApp.unavailableReason}
         pending={pending}

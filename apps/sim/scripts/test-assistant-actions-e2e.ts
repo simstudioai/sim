@@ -611,7 +611,10 @@ try {
     await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
     await capture('integration-account-actions')
     await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
-    const confirmation = page.getByRole('dialog', { name: 'Disconnect Salesforce', exact: true })
+    const confirmation = page.getByRole('dialog', {
+      name: 'Disconnect taylor@acme.example?',
+      exact: true,
+    })
     await expect(confirmation).toBeVisible()
     await capture('integration-disconnect-confirmation')
     await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click()
@@ -704,7 +707,10 @@ try {
       await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeVisible()
       await capture('integration-selected-account-actions')
       await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
-      const confirmation = page.getByRole('dialog', { name: 'Disconnect Jira', exact: true })
+      const confirmation = page.getByRole('dialog', {
+        name: 'Disconnect launch-team@acme.example?',
+        exact: true,
+      })
       await expect(confirmation).toContainText('launch-team@acme.example')
       await expect(confirmation).not.toContainText('taylor@acme.example')
       await capture('integration-selected-account-disconnect')
@@ -759,8 +765,8 @@ try {
       await expect(page).toHaveURL((url) => url.pathname === routes.integration('coda'))
       const detailUrl = page.url()
       const noCredentials = page
-        .getByRole('main')
-        .getByRole('heading', { name: 'No connected credentials', exact: true })
+        .getByRole('region', { name: 'Connected credentials', exact: true })
+        .getByText('No connected credentials', { exact: true })
       await expect(connectIntegration).toBeEnabled()
       await expect(noCredentials).toBeVisible()
       await expect(page.getByText('meetings@acme.example', { exact: true })).toHaveCount(0)
@@ -813,7 +819,9 @@ try {
         await expect(
           page.getByRole('main').getByText('Connections unavailable', { exact: true })
         ).toBeVisible()
-        await expect(page.getByRole('region', { name: /^Connected credentials?$/ })).toHaveCount(0)
+        await expect(
+          page.getByRole('region', { name: 'Connected credentials', exact: true }).getByRole('link')
+        ).toHaveCount(0)
         // With no connectable option left the page offers no connection at all.
         await expect(connectIntegration).toHaveCount(0)
         await capture('integration-disabled-app-empty')

@@ -102,17 +102,21 @@ export const GRANTS = {
   },
 } as const
 
-const workspaceId = (slug: string) => `org-redesign-workspace-${slug}`
+/**
+ * A workspace ID is a UUID, as the app mints them and its contracts require. The last digit keeps
+ * the workspaces in the order of their names' former slugs.
+ */
+const workspaceId = (order: number) => `0f0e0d0c-0b0a-4000-8000-00000000000${order}`
 
 /** More than one page of the rail's list, so its paging is on for an admin. */
 export const WORKSPACES = [
-  { id: workspaceId('operations'), name: 'Operations' },
-  { id: workspaceId('marketing'), name: 'Marketing' },
-  { id: workspaceId('service'), name: 'Service Desk' },
-  { id: workspaceId('parts'), name: 'Parts Catalog' },
-  { id: workspaceId('finance'), name: 'Finance' },
-  { id: workspaceId('fleet'), name: 'Fleet' },
-  { id: workspaceId('training'), name: 'Training' },
+  { id: workspaceId(4), name: 'Operations' },
+  { id: workspaceId(3), name: 'Marketing' },
+  { id: workspaceId(6), name: 'Service Desk' },
+  { id: workspaceId(5), name: 'Parts Catalog' },
+  { id: workspaceId(1), name: 'Finance' },
+  { id: workspaceId(2), name: 'Fleet' },
+  { id: workspaceId(7), name: 'Training' },
 ] as const
 export const MEMBER_ADMIN_WORKSPACE = WORKSPACES[0]
 export const MEMBER_WRITE_WORKSPACE = WORKSPACES[1]
