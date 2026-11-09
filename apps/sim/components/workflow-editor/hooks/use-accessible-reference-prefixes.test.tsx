@@ -5,10 +5,6 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useAccessibleReferencePrefixes } from '@/components/workflow-editor/hooks/use-accessible-reference-prefixes'
-import {
-  type WorkflowReferenceScope,
-  WorkflowReferenceScopeProvider,
-} from '@/components/workflow-editor/hooks/workflow-reference-scope'
 import { normalizeName } from '@/executor/constants'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
@@ -36,7 +32,7 @@ interface Harness {
   unmount: () => void
 }
 
-function renderPrefixes(blockId: string | undefined, scope?: WorkflowReferenceScope): Harness {
+function renderPrefixes(blockId: string | undefined): Harness {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   const container = document.createElement('div')
   const root: Root = createRoot(container)
@@ -50,15 +46,7 @@ function renderPrefixes(blockId: string | undefined, scope?: WorkflowReferenceSc
   }
 
   act(() => {
-    root.render(
-      scope ? (
-        <WorkflowReferenceScopeProvider scope={scope}>
-          <Probe />
-        </WorkflowReferenceScopeProvider>
-      ) : (
-        <Probe />
-      )
-    )
+    root.render(<Probe />)
   })
 
   return {

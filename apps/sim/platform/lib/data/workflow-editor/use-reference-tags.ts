@@ -209,8 +209,6 @@ export function useReferenceTags({
   inputValueRef.current = inputValue
   cursorPositionRef.current = cursorPosition
 
-  // The workflow being referenced — the editor's own on the canvas, a supplied one on a
-  // surface configuring a block that lives in another workflow (see `WorkflowReferenceScope`).
   const {
     blocks,
     edges,
