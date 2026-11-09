@@ -2,9 +2,11 @@ import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { resetEnvMock, setEnv } from '@sim/testing/mocks/env.mock'
 import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server'
 import { NextRequest } from 'next/server'
-import { afterAll, afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 import { SHELL_SCOPE_HEADER } from '@/lib/navigation/shell-scope'
 import { config, proxy, resolveApiCorsPolicy } from '@/proxy'
+
+vi.mock('server-only', () => ({}))
 
 setEnv({
   NEXT_PUBLIC_APP_URL: 'https://app.sim.test',
@@ -307,6 +309,37 @@ describe('signed-in login with an OAuth authorize callback', () => {
       signedInLogin('/api/auth/oauth2/authorize?providerId=google-email&workspaceId=workspace-1')
     )
     expect(response.headers.get('location')).toBe('https://app.sim.test/home')
+  })
+})
+
+describe('signed-out product visit', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  const signedOutVisit = (pathname: string) =>
+    proxy(new NextRequest(`https://app.sim.test${pathname}`))
+
+  it('goes to sign-in and back to the page it asked for', async () => {
+    const response = await signedOutVisit('/o/sim/integrations/gmail?state=full')
+    expect(response.headers.get('location')).toBe(
+      'https://app.sim.test/login?callbackUrl=%2Fo%2Fsim%2Fintegrations%2Fgmail%3Fstate%3Dfull'
+    )
+  })
+
+  it('opens example data on the fixture development server, which has no sign-in', async () => {
+    vi.stubEnv('NODE_ENV', 'development')
+    vi.stubEnv('SIM_PLATFORM_FIXTURES', '1')
+    const response = await signedOutVisit('/o/sim/integrations/gmail?state=full')
+    expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.get(`x-middleware-request-${SHELL_SCOPE_HEADER}`)).toBe('org:sim')
+  })
+
+  it('still sends a production build with the fixture switch on to sign-in', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('SIM_PLATFORM_FIXTURES', '1')
+    const response = await signedOutVisit('/o/sim/home')
+    expect(response.headers.get('location')).toContain('/login?callbackUrl=')
   })
 })
 

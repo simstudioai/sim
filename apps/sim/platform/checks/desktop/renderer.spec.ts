@@ -1,9 +1,25 @@
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { _electron, expect, test } from '@playwright/test'
+import { _electron, expect, type Page, type TestInfo, test } from '@playwright/test'
 import { checkCredentialFields } from '@/platform/checks/field-checks'
 import { desktopOrigin, fixtureUrl } from '@/platform/checks/routes'
+
+/**
+ * Attaches what the window showed when a step failed. Playwright's automatic failure screenshot
+ * and page snapshot cover only its own browser pages, never an Electron window, and
+ * `testInfo.status` still reads as passing inside the test body, so this runs from the catch.
+ */
+async function attachPageState(page: Page, testInfo: TestInfo) {
+  await testInfo.attach('url', { body: page.url(), contentType: 'text/plain' })
+  const screenshot = await page.screenshot().catch(() => null)
+  if (screenshot) await testInfo.attach('failure', { body: screenshot, contentType: 'image/png' })
+  const text = await page
+    .locator('body')
+    .innerText({ timeout: 5_000 })
+    .catch((error: unknown) => `The body text could not be read: ${String(error)}`)
+  await testInfo.attach('body-text', { body: text, contentType: 'text/plain' })
+}
 
 test('the actual desktop renderer shares product routes, reserves native chrome and preserves panel tabs', async () => {
   const testInfo = test.info()
@@ -88,9 +104,10 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
     await expect(page.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'fullscreen')
     await panel.getByRole('tab', { name: 'Terminal' }).click()
     await expect(panel.getByRole('region', { name: 'Terminal history' })).toBeVisible()
+  } catch (error) {
+    await attachPageState(page, testInfo)
+    throw error
   } finally {
-    if (testInfo.status !== testInfo.expectedStatus)
-      await page.screenshot({ path: testInfo.outputPath('failure.png') }).catch(() => {})
     await app.close()
     await rm(profile, { recursive: true, force: true })
   }
