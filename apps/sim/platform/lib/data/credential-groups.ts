@@ -9,15 +9,20 @@ import { getOrganizationAccountWorkspaceAccess } from '@/lib/credential-groups/a
 import { listOrganizationAccountPeople } from '@/lib/credential-groups/application/organization-account-management'
 import { getOrganizationAccountsSettings } from '@/lib/credential-groups/application/organization-accounts'
 import type { CredentialGroupsData } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
+import type { CredentialGroupManagement } from '@/platform/lib/data/credential-group-actions'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
 import { credentialGroupCatalog } from '@/platform/lib/integrations/metadata.generated'
 
-/** Fetch only the active view. The organization contract decides which integrations are available. */
+/**
+ * Fetch only the active view. The organization contract decides which integrations are available.
+ * `management` carries what the live edits send back: the group, its saved options (by id, so the
+ * server keeps their scopes) and the workspace access revision.
+ */
 export async function readCredentialGroups(
   id: string,
   tab: string,
   query: Record<string, string | string[] | undefined>
-): Promise<CredentialGroupsData> {
+): Promise<{ data: CredentialGroupsData; management: CredentialGroupManagement }> {
   const { principal } = await requireSessionViewer()
   const input = { organizationId: id }
   const settings = await asRouteResponse(
@@ -60,7 +65,25 @@ export async function readCredentialGroups(
           })
         )
       : null
-  return {
+  const management: CredentialGroupManagement = {
+    groupId: group?.id ?? null,
+    options:
+      group?.options.map((option) => {
+        const common = { id: option.id, label: option.label, required: option.required }
+        return option.provider === 'slack'
+          ? {
+              ...common,
+              provider: 'slack' as const,
+              slackBotCredentialId: option.slackBotCredentialId,
+            }
+          : { ...common, provider: option.provider }
+      }) ?? [],
+    accessRevision: access?.revision ?? 0,
+    databricksConfigured: Boolean(
+      group?.mcpServers.some((server) => server.managedConnectorId === 'databricks')
+    ),
+  }
+  const data: CredentialGroupsData = {
     canManage: settings.canManage,
     setup: Boolean(group),
     catalog,
@@ -81,6 +104,7 @@ export async function readCredentialGroups(
     nextCursor: people?.nextCursor,
     people:
       people?.enrollments.map((person) => ({
+        id: person.id,
         email: person.email,
         revoked: person.status === 'revoked',
         accounts: [
@@ -96,4 +120,5 @@ export async function readCredentialGroups(
         ],
       })) ?? [],
   }
+  return { data, management }
 }

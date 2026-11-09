@@ -1,80 +1,40 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { FailureNotice, StatusTag } from '@sim/emcn/status'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { ActionRow } from '@/app/(product)/_components/settings-parts/settings-parts'
-import {
-  type ManifestView,
-  type SetupTarget,
-  SlackSetupDialog,
-} from '@/app/(product)/o/[organizationId]/settings/_components/sections/search-slack/slack-setup-dialog'
-import { useSettingsFixtureDraft } from '@/platform/lib/data/settings-providers'
-import type {
-  SlackSearchInstallationView,
-  SlackSearchList,
-} from '@/platform/lib/data/settings-slack'
+import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
+import { ActionRow, Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
+import type { SlackSearchInstallationView } from '@/platform/lib/data/settings-slack'
+import type { SetupTarget, SlackSearchConsole } from '@/platform/lib/data/slack-search-model'
 
 interface SlackConnectionsProps {
-  initial: SlackSearchList | null
-  prospective?: SlackSearchInstallationView
-  manageHref: string
-  manifest: ManifestView
-  botManifests: Record<string, ManifestView>
+  connections: SlackSearchConsole
+  /** The setup dialog for a target, with the bot's saved name when reconnecting a custom app. */
+  renderSetup: (target: SetupTarget, botName: string | undefined, close: () => void) => ReactNode
 }
 
 function botName(bot: SlackSearchInstallationView) {
   return bot.appKind === 'shared' ? 'Sim Search' : 'Sim Search (custom bot)'
 }
 
-export function SlackConnections({
-  initial,
-  prospective,
-  manageHref,
-  manifest,
-  botManifests,
-}: SlackConnectionsProps) {
-  const router = useRouter()
-  const { data: rows, update } = useSettingsFixtureDraft(
-    'search-slack',
-    initial?.installations ?? []
-  )
-  const [setup, setSetup] = useState<SetupTarget>()
+export function SlackConnections({ connections, renderSetup }: SlackConnectionsProps) {
+  const { list, busy, canSetUp } = connections
+  const [setup, setSetup] = useState<{ target: SetupTarget; botName?: string }>()
   const [removing, setRemoving] = useState<SlackSearchInstallationView>()
+  const rows = list?.installations ?? []
   const sharedTeams = new Set(
     rows.filter((row) => row.appKind === 'shared').map((row) => row.teamId)
   )
-  const shared = initial?.sharedAppAvailable === true
-  function connect() {
-    if (!setup || !prospective) return
-    const source = setup.previous ?? prospective
-    const next = {
-      ...source,
-      appKind: setup.mode,
-      enabled: true,
-      needsValidation: false,
-      lastOutcome: null,
-    }
-    update((current) =>
-      setup.previous
-        ? current.map((row) => (row.id === source.id ? next : row))
-        : [...current, next]
-    )
-  }
+  const shared = list?.sharedAppAvailable === true
   return (
     <SettingsSection title='Connection'>
-      {initial === null ? (
-        <FailureNotice
-          message='Could not load Slack connections'
-          onRetry={() => router.refresh()}
-        />
-      ) : rows.length === 0 ? (
+      {list === null ? (
+        <FailureNotice message='Could not load Slack connections' onRetry={connections.retry} />
+      ) : list === undefined ? null : rows.length === 0 ? (
         <SettingsRow
           leading={<Icon providerId='slack' />}
           label='Slack'
@@ -83,12 +43,8 @@ export function SlackConnections({
           <Button
             size='compact'
             variant='primary'
-            render={
-              prospective ? undefined : <Link href={manageHref}>Manage Slack connection</Link>
-            }
-            onClick={
-              prospective ? () => setSetup({ mode: shared ? 'shared' : 'custom' }) : undefined
-            }
+            disabled={!canSetUp}
+            onClick={() => setSetup({ target: { mode: shared ? 'shared' : 'custom' } })}
           >
             {shared ? 'Install Sim Search' : 'Set up'}
           </Button>
@@ -133,59 +89,51 @@ export function SlackConnections({
                 >
                   Open in Slack
                 </Button>
-                {prospective ? (
-                  <ActionMenu
-                    icon='I108'
-                    label={`${botName(bot)} actions`}
-                    tooltip={false}
-                    actions={[
-                      {
-                        id: 'connect',
-                        label: needsInstall ? 'Install Sim Search' : 'Reconnect',
-                        onSelect: () =>
-                          setSetup({ mode: needsInstall ? 'shared' : bot.appKind, previous: bot }),
-                      },
-                      {
-                        id: 'toggle',
-                        label: bot.enabled ? 'Disable' : 'Enable',
-                        disabled: !bot.enabled && bot.needsValidation,
-                        onSelect: () =>
-                          update((current) =>
-                            current.map((row) =>
-                              row.id === bot.id ? { ...row, enabled: !row.enabled } : row
-                            )
-                          ),
-                      },
-                      {
-                        id: 'remove',
-                        label: 'Remove from Search',
-                        destructive: true,
-                        separatorBefore: true,
-                        onSelect: () => setRemoving(bot),
-                      },
-                    ]}
-                  />
-                ) : (
-                  <Button
-                    size='compact'
-                    render={<Link href={manageHref}>Manage Slack connection</Link>}
-                  >
-                    Manage
-                  </Button>
-                )}
+                <ActionMenu
+                  icon='I108'
+                  label={`${botName(bot)} actions`}
+                  tooltip={false}
+                  actions={[
+                    {
+                      id: 'connect',
+                      label: needsInstall ? 'Install Sim Search' : 'Reconnect',
+                      disabled: busy || !canSetUp,
+                      onSelect: () =>
+                        setSetup({
+                          target: { mode: needsInstall ? 'shared' : bot.appKind, previous: bot },
+                          botName:
+                            bot.appKind === 'custom' && !needsInstall
+                              ? list?.bots.find((entry) => entry.id === bot.credentialId)
+                                  ?.displayName
+                              : undefined,
+                        }),
+                    },
+                    {
+                      id: 'toggle',
+                      label: bot.enabled ? 'Disable' : 'Enable',
+                      disabled: busy || (!bot.enabled && bot.needsValidation),
+                      onSelect: () => connections.toggle(bot),
+                    },
+                    {
+                      id: 'remove',
+                      label: 'Remove from Search',
+                      destructive: true,
+                      separatorBefore: true,
+                      disabled: busy,
+                      onSelect: () => setRemoving(bot),
+                    },
+                  ]}
+                />
               </ActionRow>
             </SettingsRow>
           )
         })
       )}
-      {setup && (
-        <SlackSetupDialog
-          target={setup}
-          manifest={(setup.previous && botManifests[setup.previous.credentialId]) || manifest}
-          onClose={() => setSetup(undefined)}
-          onConnect={connect}
-        />
+      {connections.updateError && (
+        <InlineNotice intent='danger' message={connections.updateError} />
       )}
+      {connections.updating && <Muted>Updating the Slack connection</Muted>}
+      {setup && renderSetup(setup.target, setup.botName, () => setSetup(undefined))}
       {removing && (
         <Modal
           open
@@ -197,7 +145,7 @@ export function SlackConnections({
           title='Remove Slack Search'
           description={`Remove ${botName(removing)} from Slack Search? Pending replies will be cancelled.`}
           confirmLabel='Remove'
-          onConfirm={() => update((current) => current.filter((row) => row.id !== removing.id))}
+          onConfirm={() => connections.remove(removing)}
         />
       )}
     </SettingsSection>

@@ -9,6 +9,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
+import type { ContractBodyInput } from '@/lib/api/contracts'
 import {
   type ConnectorData,
   type ConnectorDetailData,
@@ -38,6 +39,7 @@ import type {
 } from '@/lib/api/contracts/knowledge/connectors'
 import {
   type ConnectorDocumentsQuery,
+  prepareSearchSourceContract,
   readSearchIndexContract,
   type SearchConnectionOAuthQuery,
   type SearchSourcePage,
@@ -45,6 +47,7 @@ import {
 import {
   type ResourceScope,
   resourceScopeFields,
+  resourceScopeFromOwner,
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
 import { connectCredentialGroupInPopup } from '@/lib/credential-groups/oauth-popup'
@@ -868,5 +871,24 @@ export function useRestoreConnectorDocument() {
     mutationFn: restoreConnectorDocuments,
     onSettled: (_data, _error, variables) =>
       invalidateConnectorDocumentChange(queryClient, variables),
+  })
+}
+
+export function usePrepareSearchSource() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: ContractBodyInput<typeof prepareSearchSourceContract>) =>
+      (await requestJson(prepareSearchSourceContract, { body })).data,
+    onSuccess: (_data, body) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: knowledgeKeys.lists() }),
+        queryClient.invalidateQueries({
+          queryKey: searchIndexKeys.detail(resourceScopeFromOwner(body)),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: searchSourceKeys.list(resourceScopeFromOwner(body)),
+        }),
+        invalidateConnectorAccounts(queryClient),
+      ]),
   })
 }

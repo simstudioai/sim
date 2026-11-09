@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import type { ProductPageProps } from '@/platform/lib/route-props'
 
-export const metadata: Metadata = { title: 'Integrations' }
+/** A Slack onboarding token rides in the query, so it never leaves in a Referer. */
+export const metadata: Metadata = { title: 'Integrations', referrer: 'no-referrer' }
 
 export default async function Page({ searchParams }: ProductPageProps<{ organizationId: string }>) {
   // Loaded only behind its mode, so a fixture server never evaluates the data seam.
@@ -10,7 +11,7 @@ export default async function Page({ searchParams }: ProductPageProps<{ organiza
     const { LiveIntegrationsRoute } = await import(
       '@/app/(product)/o/[organizationId]/integrations/_components/integrations-page/live-integrations-route'
     )
-    return <LiveIntegrationsRoute />
+    return <LiveIntegrationsRoute searchParams={await searchParams} />
   }
   const { IntegrationsRoute } = await import(
     '@/app/(product)/o/[organizationId]/integrations/_components/fixtures/integrations-page/integrations-route'

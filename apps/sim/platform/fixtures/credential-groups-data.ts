@@ -37,10 +37,16 @@ export function credentialGroupsData(scenario: Scenario): CredentialGroupsData {
       scenario === 'empty'
         ? []
         : [
-            { email: 'emir@example.com', revoked: false, accounts: ['Gmail', 'Fireflies'] },
-            { email: 'jo@example.test', revoked: false, accounts: [] },
+            {
+              id: 'emir',
+              email: 'emir@example.com',
+              revoked: false,
+              accounts: ['Gmail', 'Fireflies'],
+            },
+            { id: 'jo', email: 'jo@example.test', revoked: false, accounts: [] },
             ...(scenario === 'stress'
               ? Array.from({ length: 64 }, (_, i) => ({
+                  id: `operations-member-${i + 1}`,
                   email: `operations.member.${i + 1}@example.test`,
                   revoked: false,
                   accounts: [],

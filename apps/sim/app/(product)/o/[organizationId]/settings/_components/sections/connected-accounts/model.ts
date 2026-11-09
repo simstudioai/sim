@@ -1,13 +1,10 @@
+import type { WorkspaceGrant } from '@/platform/lib/data/credential-group-actions'
+
 export interface CredentialProvider {
   key: string
   provider: string
   name: string
   method: 'oauth' | 'mcp'
-}
-
-export interface WorkspaceGrant {
-  workspaceId: string
-  types: 'all' | string[]
 }
 
 export interface DatabricksConfiguration {
@@ -24,7 +21,7 @@ export interface CredentialGroupsData {
   canManage: boolean
   catalog: CredentialProvider[]
   configured: string[]
-  people: { email: string; revoked: boolean; accounts: string[] }[]
+  people: { id: string; email: string; revoked: boolean; accounts: string[] }[]
   nextCursor?: string | null
   workspaces: { id: string; name: string }[]
   grants: WorkspaceGrant[]

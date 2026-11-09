@@ -38,6 +38,7 @@ export const configureSlackSearchBodySchema = z.object({
   credentialId: z.string().min(1).max(200),
   enabled: z.boolean(),
 })
+export type ConfigureSlackSearchBody = z.input<typeof configureSlackSearchBodySchema>
 export const configureSlackSearchContract = defineRouteContract({
   method: 'POST',
   path: '/api/knowledge/slack',
@@ -103,6 +104,7 @@ export const connectCustomSlackSearchBodySchema = startSlackSearchOAuthBodySchem
       .max(2000)
       .startsWith('xoxb-', 'Use a Bot User OAuth Token (xoxb-) with token rotation disabled.'),
   })
+export type ConnectCustomSlackSearchBody = z.input<typeof connectCustomSlackSearchBodySchema>
 export const connectCustomSlackSearchContract = defineRouteContract({
   method: 'POST',
   path: '/api/knowledge/slack/setup/connect',
@@ -123,7 +125,8 @@ export const slackSearchOAuthCallbackContract = defineRouteContract({
   response: { mode: 'redirect' },
 })
 
-const slackSearchOnboardingInputSchema = z.object({ token: z.string().uuid() })
+export const slackSearchOnboardingInputSchema = z.object({ token: z.string().uuid() })
+export type SlackSearchOnboardingInput = z.input<typeof slackSearchOnboardingInputSchema>
 export const slackSearchOnboardingViewSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('wrong_account') }),
   z.object({ status: z.literal('verify_email') }),
