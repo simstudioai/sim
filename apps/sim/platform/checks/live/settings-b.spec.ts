@@ -9,13 +9,15 @@ function openSection(page: Page, section: string) {
 
 test.describe('governance settings', () => {
   test('audit logs fail closed on a workspace that is not the organization’s', async ({ page }) => {
-    await openSection(page, 'audit-logs')
-    const orgWideRead = page.waitForRequest(
-      (request) =>
-        request.url().includes('/api/audit-logs?') && !request.url().includes('workspaceId')
+    const orgWideRead = page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/audit-logs?') && !response.url().includes('workspaceId')
     )
-    await page.goto(liveRoute('/settings/audit-logs'))
+    await openSection(page, 'audit-logs')
     await orgWideRead
+    // The section reads once it hydrates, after `load`, and a page keeps running until the next
+    // navigation commits: its feed answers first, or its read is counted against the scoped page.
+    await expect(page.getByRole('button', { name: 'Export' })).toBeEnabled()
 
     const reads: string[] = []
     page.on('request', (request) => {
