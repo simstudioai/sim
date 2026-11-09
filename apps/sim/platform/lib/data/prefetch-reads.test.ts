@@ -13,6 +13,7 @@ import { getSession } from '@/lib/auth'
 import { searchIntegrationsQueryOptions } from '@/hooks/queries/search-integrations'
 import { simLinksQueryOptions } from '@/hooks/queries/sim-links'
 import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
+import { organizationSecretKeys } from '@/hooks/queries/utils/organization-secret-keys'
 import { searchHistoryKeys } from '@/hooks/queries/utils/search-history-keys'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   workspaces: vi.fn(),
   profile: vi.fn(),
   settings: vi.fn(),
+  secretSource: vi.fn(),
 }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/lib/credential-groups/application/organization-accounts', () => ({
@@ -37,6 +39,9 @@ vi.mock('@/lib/knowledge/application/search-history', () => ({
 }))
 vi.mock('@/lib/sim-links/application/use-cases', () => ({
   listSimLinks: { execute: mocks.links },
+}))
+vi.mock('@/lib/organization-secrets/application/use-cases', () => ({
+  readOrganizationSecretSource: { execute: mocks.secretSource },
 }))
 vi.mock('@/lib/workspaces/list', () => ({ listWorkspacesForViewer: mocks.workspaces }))
 vi.mock('@/lib/users/application/read-current-user', () => ({
@@ -90,6 +95,7 @@ const LINK = {
 const ACCOUNTS_KEY = [...organizationAccountsKeys.detail('org-1')]
 const INTEGRATIONS_KEY = [...searchIntegrationsQueryOptions('org-1').queryKey]
 const HISTORY_KEY = [...searchHistoryKeys.list('org-1', 'viewer')]
+const SECRET_SOURCE_KEY = [...organizationSecretKeys.source('org-1')]
 
 const seeded = (state: DehydratedState) => state.queries.map(({ queryKey }) => queryKey)
 
@@ -104,6 +110,7 @@ beforeEach(() => {
   mocks.integrations.mockResolvedValue([])
   mocks.history.mockResolvedValue({ sources: [], queries: [] })
   mocks.links.mockResolvedValue({ links: [LINK], nextCursor: 'next' })
+  mocks.secretSource.mockResolvedValue({ source: null })
 })
 
 describe('seeding under the keys the hooks read', () => {
@@ -123,6 +130,13 @@ describe('seeding under the keys the hooks read', () => {
       ({ queryKey }) => JSON.stringify(queryKey) === JSON.stringify(INTEGRATIONS_KEY)
     )
     expect(policies?.state.data).toEqual([])
+  })
+
+  it('seeds Integrations with the Generic Secrets source the list reads', async () => {
+    const keys = seeded(await prefetchIntegrations(organization()))
+    expect(keys).toEqual(
+      expect.arrayContaining([ACCOUNTS_KEY, INTEGRATIONS_KEY, SECRET_SOURCE_KEY])
+    )
   })
 })
 
@@ -145,10 +159,10 @@ describe('Links', () => {
 })
 
 describe('a viewer the route would refuse', () => {
-  it('reads nothing without member-scoped Search', async () => {
+  it('reads no inventory or history without member-scoped Search', async () => {
     expect(seeded(await prefetchHome(organization(false)))).toEqual([])
     expect(seeded(await prefetchSearch(organization(false)))).toEqual([])
-    expect(seeded(await prefetchIntegrations(organization(false)))).toEqual([])
+    expect(seeded(await prefetchIntegrations(organization(false)))).toEqual([SECRET_SOURCE_KEY])
     expect(mocks.accounts).not.toHaveBeenCalled()
     expect(mocks.history).not.toHaveBeenCalled()
   })
