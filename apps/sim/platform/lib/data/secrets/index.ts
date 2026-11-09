@@ -15,7 +15,6 @@ export type {
   SecretUsageEntryPayload,
   SecretUsageScope,
 } from '@/lib/api/contracts'
-export { useSession } from '@/lib/auth/client'
 export { BLOCK_NAMES } from '@/lib/block-metadata/names.generated'
 export { setRecordValue } from '@/lib/core/utils/records'
 export {
@@ -26,17 +25,11 @@ export {
 } from '@/lib/credentials/client-state'
 export { customToolIdParam, mcpServerIdParam } from '@/lib/settings/search-params'
 export { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
-export { partitionSettledFailures, resolveAddEmail } from '@/lib/workspaces/sharing'
 export {
-  useLeaveCredential,
-  useRemoveWorkspaceCredentialMember,
   useSecretReferences,
   useSecretUsage,
-  useUpsertWorkspaceCredentialMember,
   useWorkspaceCredential,
-  useWorkspaceCredentialMembers,
 } from '@/hooks/queries/credentials'
-export { useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
 export { useSettingsSearch } from '@/hooks/use-settings-search'
 export { useCredentialDetailForm } from './use-credential-detail-form'
 export { useSecretValue } from './use-secret-value'
