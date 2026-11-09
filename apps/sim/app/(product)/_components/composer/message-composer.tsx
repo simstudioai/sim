@@ -10,7 +10,7 @@ import { ComposerInput } from '@sim/emcn-platform/composer-input'
 import styles from '@/app/(product)/_components/composer/composer.module.css'
 import { MessageAttachments } from '@/app/(product)/_components/composer/message-attachments'
 import type { ComposerController } from '@/app/(product)/_components/composer/model'
-import { ComposerResourceMenu } from '@/app/(product)/_components/composer/resource-menu'
+import { ResourceMenu } from '@/app/(product)/_components/composer/resource-menu'
 import { useComposerReferences } from '@/app/(product)/_components/composer/use-composer-references'
 import {
   type PromptHistoryEntry,
@@ -113,7 +113,8 @@ export function MessageComposer({
       )}
       <div className={styles.toolbar} data-type='T060'>
         <div className={styles.actions}>
-          <ComposerResourceMenu
+          <ResourceMenu
+            label='Add attachment'
             items={refs.browse}
             onSelect={refs.selectResource}
             onOpenChange={(open) => {

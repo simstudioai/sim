@@ -124,7 +124,8 @@ const FAMILY_BY_GROUP = new Map(
   Object.entries(GROUPS).map(([family, group]) => [group, family as MentionFamily])
 )
 
-function grouped(rows: readonly MentionRow[] | undefined) {
+/** Mention rows as the pickers list them, in groups by family. */
+export function grouped(rows: readonly MentionRow[] | undefined) {
   const groups = new Map<string, MentionReference[]>()
   for (const row of rows ?? []) {
     const group = GROUPS[row.family]
@@ -137,29 +138,16 @@ function grouped(rows: readonly MentionRow[] | undefined) {
 }
 
 /**
- * What the composer can mention across the viewer's workspaces in this organization, from one
- * server read per question: the `@` query's matches (the most recent rows when empty), every
- * skill for `/`, and the resource menu's workspaces, each opened workspace's families, or the
- * menu's own search. Nothing is read until a picker first opens.
+ * The resource menu's reads: the organization's workspaces, each workspace opened in the menu with
+ * its families' first pages, a family's later pages as the menu asks for them, and the menu's own
+ * search, which the server answers. Nothing is read while `enabled` is false.
  */
-export function useMentionInventory(enabled: boolean, organizationId: string, search: string) {
-  const query = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS).trim()
+export function useMentionBrowse(enabled: boolean, organizationId: string) {
   const [browseSearch, setBrowseSearch] = useState('')
   const browseQuery = useSearchFilterValue(browseSearch, SEARCH_DEBOUNCE_MS).trim()
   const [openedWorkspaces, setOpenedWorkspaces] = useState<readonly string[]>([])
   /** Each browsed family's later pages, by `workspaceId:family`, as the cursors that read them. */
   const [laterPages, setLaterPages] = useState<Readonly<Record<string, readonly string[]>>>({})
-  useMentionsFollowMutations()
-  const suggestions = useOrganizationMentions(
-    organizationId,
-    { query, limit: MENTION_SUGGESTION_LIMIT },
-    { enabled }
-  )
-  const skills = useOrganizationMentions(
-    organizationId,
-    { query: '', family: 'skills', limit: MENTION_BROWSE_LIMIT },
-    { enabled }
-  )
   const workspaces = useOrganizationMentions(
     organizationId,
     { query: '', family: 'workspaces', limit: MENTION_BROWSE_LIMIT },
@@ -208,18 +196,15 @@ export function useMentionInventory(enabled: boolean, organizationId: string, se
     return opened?.data?.families?.find((entry) => entry.family === family)?.nextCursor
   }
   return {
-    references: grouped(suggestions.data?.rows),
-    referencesLoading:
-      enabled && (suggestions.isPending || search.trim() !== query || suggestions.isFetching),
-    skills: grouped(skills.data?.rows).flatMap(({ items }) => items),
-    skillsLoading: enabled && skills.isPending,
-    browse: browseSearch.trim()
-      ? grouped(browseMatches.data?.rows)
-      : grouped([
+    /** Whether the rows are the search's matches rather than the browsed tree. */
+    searching: Boolean(browseSearch.trim()),
+    rows: browseSearch.trim()
+      ? (browseMatches.data?.rows ?? [])
+      : [
           ...(workspaces.data?.rows ?? []),
           ...browsed.flatMap((read) => read.data?.rows ?? []),
           ...pages.flatMap((read) => read.data?.rows ?? []),
-        ]),
+        ],
     browseMore: (workspaceId: string, group: string) => {
       const family = FAMILY_BY_GROUP.get(group)
       const cursor = family && nextCursor(workspaceId, family)
@@ -237,5 +222,43 @@ export function useMentionInventory(enabled: boolean, organizationId: string, se
         current.includes(workspaceId) ? current : [...current, workspaceId]
       ),
     onBrowseSearch: setBrowseSearch,
+    workspaceLoaded: (workspaceId: string) =>
+      Boolean(browsed[openedWorkspaces.indexOf(workspaceId)]?.data),
+  }
+}
+
+/**
+ * What the composer can mention across the viewer's workspaces in this organization, from one
+ * server read per question: the `@` query's matches (the most recent rows when empty), every
+ * skill for `/`, and the resource menu's workspaces, each opened workspace's families, or the
+ * menu's own search. Nothing is read until a picker first opens.
+ */
+export function useMentionInventory(enabled: boolean, organizationId: string, search: string) {
+  const query = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS).trim()
+  useMentionsFollowMutations()
+  const suggestions = useOrganizationMentions(
+    organizationId,
+    { query, limit: MENTION_SUGGESTION_LIMIT },
+    { enabled }
+  )
+  const skills = useOrganizationMentions(
+    organizationId,
+    { query: '', family: 'skills', limit: MENTION_BROWSE_LIMIT },
+    { enabled }
+  )
+  const { rows, browseMore, onBrowseWorkspace, onBrowseSearch } = useMentionBrowse(
+    enabled,
+    organizationId
+  )
+  return {
+    references: grouped(suggestions.data?.rows),
+    referencesLoading:
+      enabled && (suggestions.isPending || search.trim() !== query || suggestions.isFetching),
+    skills: grouped(skills.data?.rows).flatMap(({ items }) => items),
+    skillsLoading: enabled && skills.isPending,
+    browse: grouped(rows),
+    browseMore,
+    onBrowseWorkspace,
+    onBrowseSearch,
   }
 }

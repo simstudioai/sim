@@ -22,7 +22,7 @@ import {
   isPreviewable,
   isTextEditable,
 } from '@/components/file-viewer/file-viewer'
-import type { PreviewMode } from '@/components/file-viewer/types'
+import type { FileStreamProps, PreviewMode } from '@/components/file-viewer/types'
 import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
@@ -56,6 +56,8 @@ import { folderChain } from '@/platform/lib/folder-chain'
 interface FileViewProps {
   workspaceId: string
   fileId: string
+  /** What an agent is writing into the file, when a chat panel tab shows it mid-write. */
+  stream?: FileStreamProps
 }
 
 /** The Files list, opened at a folder. */
@@ -116,7 +118,7 @@ function RenameFileModal({ file, workspaceId, onClose }: RenameFileModalProps) {
  * location trail, which also carries the file's commands; the mode toggle and page actions end
  * the control bar.
  */
-export function FileView({ workspaceId, fileId }: FileViewProps) {
+export function FileView({ workspaceId, fileId, stream }: FileViewProps) {
   const router = useRouter()
   const embedded = useEmbeddedWorkspacePage()
   const access = useFileAccess(workspaceId)
@@ -359,6 +361,12 @@ export function FileView({ workspaceId, fileId }: FileViewProps) {
             collaborative
             onDeriveTitleFromHeading={deriveTitle}
             enableFind
+            streamingContent={stream?.streamingContent}
+            isAgentEditing={stream?.isAgentEditing}
+            streamIsIncremental={stream?.streamIsIncremental}
+            streamOperation={stream?.streamOperation}
+            disableStreamingAutoScroll={stream?.disableStreamingAutoScroll}
+            previewContextKey={stream?.previewContextKey}
           />
         )}
       </LiveWorkspacePage>

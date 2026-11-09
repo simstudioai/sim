@@ -137,7 +137,7 @@ export function ChatPanels({ children, data, workspaces }: ChatPanelsProps) {
             expanded={expanded}
             onSelect={setCurrent}
             onRemove={remove}
-            onAdd={add}
+            add={<IconButton icon='I074' label='New panel tab' onClick={add} />}
             onExpand={() => setExpanded((value) => !value)}
             onHide={hide}
           />

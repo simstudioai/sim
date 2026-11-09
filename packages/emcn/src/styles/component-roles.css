@@ -340,6 +340,7 @@
 [data-emcn] {
   --ui-motion-color: var(--emcn-motion-color);
   --ui-motion-position: var(--ui-motion-color);
+  --ui-motion-count: var(--emcn-motion-count);
   --ui-control-radius: var(--radius-control);
   --ui-stack-gap: var(--spacing-2);
   --ui-content-gap: var(--spacing-12);
@@ -400,6 +401,7 @@
 @media (prefers-reduced-motion: reduce) {
   [data-emcn] {
     --ui-motion-color: 0ms;
+    --ui-motion-count: 0ms;
   }
 }
 

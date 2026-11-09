@@ -7,6 +7,17 @@ import type { ChatContext } from '@/stores/panel'
 /** How a text file shows: its source, its source beside its preview, or its preview alone. */
 export type PreviewMode = 'editor' | 'split' | 'preview'
 
+/** What an agent writing into a file hands its viewer while the write runs. */
+export type FileStreamProps = Pick<
+  FileEditingProps,
+  | 'streamingContent'
+  | 'isAgentEditing'
+  | 'streamIsIncremental'
+  | 'streamOperation'
+  | 'disableStreamingAutoScroll'
+  | 'previewContextKey'
+>
+
 /** What an editable view of a file reports to, and takes commands from, the page around it. */
 export interface FileEditingProps {
   file: WorkspaceFileRecord

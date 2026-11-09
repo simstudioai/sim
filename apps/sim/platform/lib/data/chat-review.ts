@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
+import { omit } from '@sim/utils/object'
 import {
   assistantActionFieldPresentation,
   assistantActionPresentation,
@@ -70,12 +71,46 @@ function presentReceipt(receipt: ReceiptRow): AssistantReceipt {
     warning: receipt.warning ?? undefined,
     account: receipt.account?.displayName,
     fields: receipt.detailsAvailable
-      ? receipt.fields.filter((field) => field.value !== '').map(presentField)
+      ? presentFields(receipt, (field) => field.value !== '')
       : undefined,
   }
 }
 
-function presentField(field: ReviewedField): AssistantReviewField {
+type PresentedAction = Parameters<typeof assistantActionPresentation>[0]
+
+/**
+ * An action's fields as the review shows them, in legacy's preview order: the targets it acts on,
+ * its readable content with the first text field prominent, then its secondary details.
+ */
+function presentFields(
+  action: PresentedAction,
+  include: (field: ReviewedField) => boolean
+): AssistantReviewField[] {
+  const { targets, primary, details } = assistantActionPresentation(action)
+  const lead = primary[0]
+  const placed = [
+    ...targets.map((field) => ({ field, role: 'target' as const })),
+    ...primary.map((field) => ({ field, role: 'primary' as const })),
+    ...details.map((field) => ({ field, role: 'detail' as const })),
+  ]
+  const position = new Map(placed.map((entry, index) => [entry.field.name, { ...entry, index }]))
+  return action.fields
+    .filter(include)
+    .map((field) => {
+      const place = position.get(field.name)
+      const role: AssistantReviewField['role'] = place?.role ?? (field.target ? 'target' : 'detail')
+      return {
+        ...presentField(field),
+        role,
+        prominent: field === lead && field.format === 'text',
+        index: place?.index ?? placed.length,
+      }
+    })
+    .sort((left, right) => left.index - right.index)
+    .map((field) => omit(field, ['index']))
+}
+
+function presentField(field: ReviewedField): Omit<AssistantReviewField, 'role' | 'prominent'> {
   const display = assistantActionFieldPresentation(field)
   let value = display.value
   if (field.format === 'json') {
@@ -166,7 +201,7 @@ export function useAssistantReview({
         account: action.account
           ? { name: action.account.displayName, active: action.account.active }
           : undefined,
-        fields: action.fields.filter((field) => field.value || field.editable).map(presentField),
+        fields: presentFields(action, (field) => Boolean(field.value) || field.editable),
       })),
       decide: async (ids, decision, edits) => {
         setPending(true)

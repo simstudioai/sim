@@ -8,7 +8,9 @@ import {
   referenceKey,
 } from '@/app/(product)/_components/composer/reference-options'
 
-interface ComposerResourceMenuProps {
+interface ResourceMenuProps {
+  /** The trigger's accessible name and tooltip. */
+  label: string
   items: readonly ComposerOption[]
   onSelect: (item: ComposerOption) => void
   onOpenChange: (open: boolean) => void
@@ -18,11 +20,16 @@ interface ComposerResourceMenuProps {
   onSearchChange?: (query: string) => void
   /** Loads the next page of a workspace's family, when it has one. */
   moreFor?: (workspaceId: string, group: string) => (() => void) | undefined
-  onUploadFiles: () => void
-  onUploadFolder: () => void
+  /** Upload rows head the menu when given, as the composer's attachment menu has. */
+  onUploadFiles?: () => void
+  onUploadFolder?: () => void
+  /** Whether a workspace itself is a pick, first in its submenu; the chat panel opens none. */
+  selectWorkspaces?: boolean
+  /** Whether an opened workspace's families have arrived, so an empty submenu says it has none. */
+  workspaceLoaded?: (workspaceId: string) => boolean
 }
 
-type SelectResource = ComposerResourceMenuProps['onSelect']
+type SelectResource = ResourceMenuProps['onSelect']
 
 function groupItems<Key>(
   items: readonly ComposerOption[],
@@ -88,8 +95,10 @@ function familyRows(
 function browseRows(
   items: readonly ComposerOption[],
   select: SelectResource,
-  openWorkspace: ComposerResourceMenuProps['onWorkspaceOpen'],
-  moreFor: ComposerResourceMenuProps['moreFor']
+  openWorkspace: ResourceMenuProps['onWorkspaceOpen'],
+  moreFor: ResourceMenuProps['moreFor'],
+  selectWorkspaces: boolean,
+  workspaceLoaded: ResourceMenuProps['workspaceLoaded']
 ): MenuAction[] {
   const workspaces = items.filter((item) => item.group === 'Workspaces')
   const workspaceIds = new Set(workspaces.map((item) => item.id))
@@ -98,22 +107,29 @@ function browseRows(
     (item) =>
       item.workspaceId && workspaceIds.has(item.workspaceId) ? item.workspaceId : undefined
   )
-  const workspaceRows = workspaces.map(
-    (workspace): MenuAction => ({
+  const workspaceRows = workspaces.map((workspace): MenuAction => {
+    const families = familyRows(
+      byWorkspace.get(workspace.id) ?? [],
+      select,
+      moreFor && ((group) => moreFor(workspace.id, group))
+    )
+    const placeholder: MenuAction = {
+      id: `${workspace.id}:empty`,
+      label: workspaceLoaded?.(workspace.id) ? 'No resources' : 'Loading…',
+      disabled: true,
+    }
+    const [first, ...rest] = [
+      ...(selectWorkspaces ? [selection(workspace, select)] : []),
+      ...families,
+    ]
+    return {
       id: workspace.id,
       label: workspace.name,
       icon: workspace.icon,
       onOpen: openWorkspace && (() => openWorkspace(workspace.id)),
-      children: [
-        selection(workspace, select),
-        ...familyRows(
-          byWorkspace.get(workspace.id) ?? [],
-          select,
-          moreFor && ((group) => moreFor(workspace.id, group))
-        ),
-      ],
-    })
-  )
+      children: first ? [first, ...rest] : [placeholder],
+    }
+  })
   return [...workspaceRows, ...familyRows(byWorkspace.get(undefined) ?? [], select)]
 }
 
@@ -134,7 +150,8 @@ function searchRows(
   }))
 }
 
-export function ComposerResourceMenu({
+export function ResourceMenu({
+  label,
   items,
   onSelect,
   onOpenChange,
@@ -143,7 +160,9 @@ export function ComposerResourceMenu({
   moreFor,
   onUploadFiles,
   onUploadFolder,
-}: ComposerResourceMenuProps) {
+  selectWorkspaces = true,
+  workspaceLoaded,
+}: ResourceMenuProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const query = search.trim().toLowerCase()
@@ -152,17 +171,42 @@ export function ComposerResourceMenu({
     actions = query
       ? searchRows(items, query, onSelect)
       : [
-          { id: 'upload', label: 'Upload files', icon: 'I117', onSelect: onUploadFiles },
-          { id: 'upload-folder', label: 'Upload folder', icon: 'I100', onSelect: onUploadFolder },
-          ...browseRows(items, onSelect, onWorkspaceOpen, moreFor).map((action, index) => ({
+          ...(onUploadFiles
+            ? [
+                {
+                  id: 'upload',
+                  label: 'Upload files',
+                  icon: 'I117' as const,
+                  onSelect: onUploadFiles,
+                },
+              ]
+            : []),
+          ...(onUploadFolder
+            ? [
+                {
+                  id: 'upload-folder',
+                  label: 'Upload folder',
+                  icon: 'I100' as const,
+                  onSelect: onUploadFolder,
+                },
+              ]
+            : []),
+          ...browseRows(
+            items,
+            onSelect,
+            onWorkspaceOpen,
+            moreFor,
+            selectWorkspaces,
+            workspaceLoaded
+          ).map((action, index) => ({
             ...action,
-            separatorBefore: index === 0,
+            separatorBefore: index === 0 && Boolean(onUploadFiles || onUploadFolder),
           })),
         ]
   }
   return (
     <ActionMenu
-      label='Add attachment'
+      label={label}
       icon='I074'
       actions={actions}
       search={{

@@ -17,8 +17,8 @@ interface PanelTabsProps {
   onReorder?: (id: string, index: number) => void
   /** The current tab's own commands, before the panel's. */
   actions?: ReactNode
-  /** Absent when this surface has nothing to open a new tab with. */
-  onAdd?: () => void
+  /** What opens a new tab, after the strip; absent when this surface has nothing to open one with. */
+  add?: ReactNode
   onExpand: () => void
   onHide: () => void
 }
@@ -31,7 +31,7 @@ export function PanelTabs({
   onRemove,
   onReorder,
   actions,
-  onAdd,
+  add,
   onExpand,
   onHide,
 }: PanelTabsProps) {
@@ -51,7 +51,7 @@ export function PanelTabs({
           <span className={styles.title} data-type='T046'>
             {active && <OverflowText text={active.label}>{active.label}</OverflowText>}
           </span>
-          {onAdd && <IconButton icon='I074' label='New panel tab' onClick={onAdd} />}
+          {add}
           <div className={styles.actions}>
             {actions}
             <div className={styles.expand}>
