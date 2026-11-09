@@ -17,7 +17,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
-import { Terminal } from '@xterm/xterm'
+import { type IBufferRange, Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import {
   loadDesktopTerminalAppearance,
@@ -27,6 +27,8 @@ import {
   withSelectedProfile,
 } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
+import { addMothershipContexts } from '@/lib/mothership/events'
+import { onTerminalFocusRequest } from '@/lib/terminal/focus'
 import {
   clearTerminalScrollback,
   closeTerminal,
@@ -74,6 +76,18 @@ function attachWebglRenderer(terminal: Terminal): (() => void) | null {
     })
     return null
   }
+}
+
+/**
+ * xterm's selection as the rows a terminal chat chip names. xterm 6 exposes zero-based buffer
+ * coordinates with an exclusive end, so a selection ending at column zero stops on the row before.
+ */
+function selectionSnapshot(text: string, position: IBufferRange | undefined) {
+  if (!text || !position) return null
+  const startLine = position.start.y + 1
+  const endLine =
+    position.end.y > position.start.y && position.end.x === 0 ? position.end.y : position.end.y + 1
+  return { text, startLine, endLine: Math.max(startLine, endLine) }
 }
 
 /** Fits xterm to its host; bound so the addon keeps its receiver. */
@@ -131,6 +145,15 @@ export function useTerminalSession({ scopeId, visible }: { scopeId: string; visi
   const [profiles, setProfiles] = useState<TerminalThemeProfile[]>([])
   const [defaultZoom, setDefaultZoom] = useState<DesktopZoomPercent>(100)
   const [closing, setClosing] = useState<TerminalCloseRequest | null>(null)
+  const [focusRequest, setFocusRequest] = useState({ terminalId: '', nonce: 0 })
+  // A shell picked in the tab strip takes the keyboard once it is on screen.
+  useEffect(
+    () =>
+      onTerminalFocusRequest((terminalId) =>
+        setFocusRequest((current) => ({ terminalId, nonce: current.nonce + 1 }))
+      ),
+    []
+  )
   const tabsState = useCopilotTerminalStore(
     (state) => state.sessions[scopeId]?.tabs ?? EMPTY_TERMINAL_TABS
   )
@@ -209,6 +232,9 @@ export function useTerminalSession({ scopeId, visible }: { scopeId: string; visi
 
   return {
     panelRef,
+    /** The focus request for a shell, counted so a repeat pick focuses it again; 0 for none. */
+    focusRequestFor: (terminalId: string) =>
+      focusRequest.terminalId === terminalId ? focusRequest.nonce : 0,
     tabs: tabsState.tabs.map((tab) => tab.terminalId),
     activeTerminalId: tabsState.activeTerminalId,
     appearanceTheme,
@@ -261,6 +287,8 @@ interface TerminalViewOptions {
   onscreen: boolean
   appearanceTheme: TerminalAppearanceTheme
   defaultZoom: DesktopZoomPercent
+  /** A tab-strip pick asking this shell for the keyboard; 0 when none is pending. */
+  focusRequest: number
 }
 
 /**
@@ -275,6 +303,7 @@ export function useTerminalView({
   onscreen,
   appearanceTheme,
   defaultZoom,
+  focusRequest,
 }: TerminalViewOptions) {
   const [host, setHost] = useState<HTMLDivElement | null>(null)
   const colorMode = useSurfaceColorMode(host)
@@ -431,6 +460,12 @@ export function useTerminalView({
   useEffect(() => setZoom(defaultZoom), [defaultZoom])
 
   useEffect(() => {
+    if (!onscreen || focusRequest === 0) return
+    const frame = requestAnimationFrame(() => terminalRef.current?.focus())
+    return () => cancelAnimationFrame(frame)
+  }, [focusRequest, onscreen])
+
+  useEffect(() => {
     const terminal = terminalRef.current
     if (!terminal || !host) return
     terminal.options.fontSize = (TERMINAL_BASE_FONT_SIZE * zoom) / 100
@@ -467,18 +502,39 @@ export function useTerminalView({
     return () => disposeRenderer?.()
   }, [onscreen, host])
 
-  /** The text selected when the menu opened, since opening it moves focus away from xterm. */
-  const [selection, setSelection] = useState('')
+  /** The rows selected when the menu opened, since opening it moves focus away from xterm. */
+  const [selection, setSelection] = useState<ReturnType<typeof selectionSnapshot>>(null)
 
   return {
     hostRef: setHost,
     pasteLimit: PASTE_LIMITS.TERMINAL_BYTES,
     focus: () => terminalRef.current?.focus(),
-    captureSelection: () => setSelection(terminalRef.current?.getSelection() ?? ''),
-    hasSelection: selection.length > 0,
+    captureSelection: () =>
+      setSelection(
+        selectionSnapshot(
+          terminalRef.current?.getSelection() ?? '',
+          terminalRef.current?.getSelectionPosition()
+        )
+      ),
+    hasSelection: selection !== null,
     copy: () => {
-      if (selection) void navigator.clipboard.writeText(selection)
+      if (selection) void navigator.clipboard.writeText(selection.text)
     },
+    /** Attaches the selected rows to the chat's draft, as legacy's Add to chat did. */
+    addToChat: selection
+      ? () =>
+          addMothershipContexts([
+            {
+              kind: 'terminal_tab',
+              terminalId,
+              label:
+                selection.startLine === selection.endLine
+                  ? `Terminal (L${selection.startLine})`
+                  : `Terminal (L${selection.startLine}-${selection.endLine})`,
+              selection,
+            },
+          ])
+      : undefined,
     paste: () => {
       void (async () => {
         reportTerminalFocused(true, scopeId)

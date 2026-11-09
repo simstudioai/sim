@@ -96,6 +96,18 @@ export function BrowserSession({ scopeId, visible }: BrowserSessionProps) {
             autoComplete='off'
           />
         </form>
+        {browser.downloads && (
+          <IconButton
+            label={
+              browser.downloads.inProgress
+                ? `Downloads, ${browser.downloads.inProgress} in progress`
+                : 'Downloads'
+            }
+            icon='I049'
+            size='bar'
+            onClick={(event) => browser.downloads?.open(event.currentTarget)}
+          />
+        )}
         <IconButton
           label='Browser menu'
           icon='I108'

@@ -2,6 +2,8 @@
 
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
+import { requestTerminalFocus } from '@/lib/terminal/focus'
+import { terminalIdFromResourceId } from '@/lib/terminal/resource-id'
 import type {
   ChatSource,
   PlatformResource,
@@ -82,7 +84,12 @@ export function usePanelResources({
   return {
     resources,
     collapsed: controller.isResourceCollapsed,
-    onSelect: panel.selectResourceFromUser,
+    onSelect: (id, byPointer) => {
+      panel.selectResourceFromUser(id)
+      const resource = chat.resources.find((item) => item.id === id)
+      if (byPointer && resource?.type === 'terminal')
+        requestTerminalFocus(terminalIdFromResourceId(id))
+    },
     onRemove: (id) => {
       const resource = chat.resources.find((item) => item.id === id)
       if (resource) chat.removeResource(resource)

@@ -11,7 +11,12 @@ import type {
   BrowserSitePermissionRequest,
 } from '@sim/browser-protocol'
 import { isBrowserTheme } from '@sim/browser-protocol'
-import type { BrowserToolbarCommand, DesktopAppearanceTheme } from '@sim/desktop-bridge'
+import type {
+  BrowserAddToChatPayload,
+  BrowserDownloadInfo,
+  BrowserToolbarCommand,
+  DesktopAppearanceTheme,
+} from '@sim/desktop-bridge'
 import {
   type BrowserPanelSnapshotLayer,
   createBrowserPanelGeometryOcclusionLease,
@@ -22,7 +27,10 @@ import {
 } from '@/lib/browser-agent/panel-occlusion'
 import {
   findInBrowserPage,
+  loadBrowserDownloads,
+  onBrowserAddToChat,
   onBrowserAppearanceThemeChanged,
+  onBrowserDownloadsState,
   onBrowserFindClose,
   onBrowserFindOpen,
   onBrowserFindResult,
@@ -32,6 +40,7 @@ import {
   reportBrowserTheme,
   sendBrowserPanelAction,
   setBrowserPanelOccluded,
+  showBrowserDownloadsMenu,
   showBrowserToolbarMenu,
   stopBrowserFind,
   supportsAtomicBrowserPanelOcclusion,
@@ -41,6 +50,7 @@ import {
   resolveDesktopAppearanceTheme,
 } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
+import { addMothershipContexts } from '@/lib/mothership/events'
 import {
   type BrowserPageIssueCopy,
   browserPageIssueCopy,
@@ -49,6 +59,16 @@ import {
 import { useSurfaceTheme } from '@/platform/lib/data/surface-theme'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { MOTHERSHIP_WIDTH } from '@/stores/constants'
+
+/** The page selection the shell hands over from its Add to chat menu, as a chat context. */
+function browserSelectionContext({ text, tabId, url, title }: BrowserAddToChatPayload) {
+  return {
+    kind: 'browser_tab' as const,
+    tabId,
+    label: 'Browser',
+    selection: { text, ...(url ? { url } : {}), ...(title ? { title } : {}) },
+  }
+}
 
 /** Keeps a click or keystroke aimed at the page from answering a prompt as it appears. */
 const ACTIVATION_DELAY_MS = 500
@@ -251,6 +271,28 @@ export function useBrowserPanel({ scopeId, visible, onSettings }: BrowserPanelOp
               ? '?browserImport=1'
               : ''
         )
+      }, scopeId),
+    [scopeId]
+  )
+
+  const [downloads, setDownloads] = useState<BrowserDownloadInfo[]>([])
+  useEffect(() => {
+    let active = true
+    setDownloads([])
+    void loadBrowserDownloads(scopeId).then((state) => {
+      if (active) setDownloads(state.downloads)
+    })
+    const unsubscribe = onBrowserDownloadsState((state) => setDownloads(state.downloads), scopeId)
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [scopeId])
+
+  useEffect(
+    () =>
+      onBrowserAddToChat((payload) => {
+        addMothershipContexts([browserSelectionContext(payload)])
       }, scopeId),
     [scopeId]
   )
@@ -511,6 +553,16 @@ export function useBrowserPanel({ scopeId, visible, onSettings }: BrowserPanelOp
     navigate: (raw: string) => {
       if (raw.trim()) sendBrowserPanelAction('navigate', { url: resolveUrlBarInput(raw) }, scopeId)
     },
+    /** This chat's recent downloads; the list itself is the shell's native menu, above the page. */
+    downloads: downloads.length
+      ? {
+          inProgress: downloads.filter((download) => download.state === 'progressing').length,
+          open: (anchor: HTMLElement) => {
+            const rect = anchor.getBoundingClientRect()
+            showBrowserDownloadsMenu({ x: rect.left, y: rect.bottom }, scopeId)
+          },
+        }
+      : null,
     /** Opens the shell's native toolbar menu, which draws above the page with no capture. */
     openMenu: (anchor: HTMLElement) => {
       const rect = anchor.getBoundingClientRect()

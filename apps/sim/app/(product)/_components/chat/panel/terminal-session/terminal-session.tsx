@@ -28,6 +28,7 @@ function TerminalView({ terminalId, scopeId, active, visible, session }: Termina
     onscreen: active && visible,
     appearanceTheme: session.appearanceTheme,
     defaultZoom: session.defaultZoom,
+    focusRequest: session.focusRequestFor(terminalId),
   })
   const [point, setPoint] = useState<{ x: number; y: number } | null>(null)
   const themeRow = (option: Session['themes'][number]) => ({
@@ -57,31 +58,57 @@ function TerminalView({ terminalId, scopeId, active, visible, session }: Termina
         point={point}
         onClose={() => setPoint(null)}
         actions={[
-          { id: 'copy', label: 'Copy', disabled: !view.hasSelection, onSelect: view.copy },
-          { id: 'paste', label: 'Paste', onSelect: view.paste },
-          { id: 'clear', label: 'Clear', onSelect: view.clear },
+          ...(view.addToChat
+            ? [
+                {
+                  id: 'add-to-chat',
+                  label: 'Add to chat',
+                  icon: 'I073' as const,
+                  onSelect: view.addToChat,
+                },
+              ]
+            : []),
           {
-            id: 'zoom',
-            label: 'Zoom',
-            separatorBefore: true,
-            children: [
-              { id: 'zoom-in', label: 'Zoom in', onSelect: () => view.zoom('in') },
-              { id: 'zoom-out', label: 'Zoom out', onSelect: () => view.zoom('out') },
-              { id: 'zoom-reset', label: 'Actual size', onSelect: () => view.zoom('reset') },
-            ],
+            id: 'copy',
+            label: 'Copy',
+            separatorBefore: Boolean(view.addToChat),
+            disabled: !view.hasSelection,
+            onSelect: view.copy,
           },
+          { id: 'paste', label: 'Paste', onSelect: view.paste },
+          { id: 'clear', label: 'Clear', shortcut: '⌘R', onSelect: view.clear },
           {
             id: 'theme',
             label: 'Theme',
             children: [themeRow(session.themes[0]), ...session.themes.slice(1).map(themeRow)],
           },
           {
+            id: 'zoom-in',
+            label: 'Zoom in',
+            shortcut: '⌘+',
+            separatorBefore: true,
+            onSelect: () => view.zoom('in'),
+          },
+          { id: 'zoom-out', label: 'Zoom out', shortcut: '⌘−', onSelect: () => view.zoom('out') },
+          {
+            id: 'zoom-reset',
+            label: 'Actual size',
+            shortcut: '⌘0',
+            onSelect: () => view.zoom('reset'),
+          },
+          {
             id: 'new',
-            label: 'New terminal',
+            label: 'New tab',
+            shortcut: '⌘T',
             separatorBefore: true,
             onSelect: session.newTerminal,
           },
-          { id: 'close', label: 'Close terminal', onSelect: () => session.close(terminalId) },
+          {
+            id: 'close',
+            label: 'Close terminal',
+            shortcut: '⌘W',
+            onSelect: () => session.close(terminalId),
+          },
           {
             id: 'settings',
             label: 'Terminal settings',
