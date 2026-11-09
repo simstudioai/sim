@@ -255,6 +255,38 @@ const FLOW_CANVASES: ReadonlySet<string> = new Set([
 ])
 const seamRoots = ['hooks/queries', 'lib/api']
 /**
+ * The application use cases and server helpers a server-only seam module runs in process, as the
+ * routes behind its contracts do, with the viewer's session principal. A server-only module never
+ * reaches a browser bundle, so `checkSeamClosure` does not walk from one; a module that is not
+ * server-only (or its test) may not name these.
+ */
+const serverSeamHelpers = new Set([
+  'lib/auth',
+  'lib/auth/session-response',
+  'lib/billing/application/organization-billing/get-organization-billing-summary',
+  'lib/core/application/organization-authorization',
+  'lib/core/utils/deadline',
+  'lib/credential-groups/application/organization-access',
+  'lib/credential-groups/application/organization-account-management',
+  'lib/credential-groups/application/organization-accounts',
+  'lib/knowledge/application/search-history',
+  'lib/knowledge/application/search-integrations',
+  'lib/knowledge/application/slack-search/installations',
+  'lib/mothership/chat/intent',
+  'lib/mothership/chat/lifecycle',
+  'lib/mothership/chat/organization-chats',
+  'lib/organization-secrets/application/use-cases',
+  'lib/organizations/application/member-roster',
+  'lib/organizations/application/surface',
+  'lib/settings/prefetch-current-user-settings',
+  'lib/sim-links/application/use-cases',
+  'lib/users/application/read-current-user',
+  'lib/workspaces/seed-workspace-list',
+])
+const isServerOnly = (file: string) => /^import 'server-only'$/m.test(read(file))
+/** A seam module that runs only on the server, or a test, which no bundle includes. */
+const runsOnServer = (file: string) => /\.test\.tsx?$/.test(file) || isServerOnly(file)
+/**
  * Named modules the seam needs. The chat hook's own pure modules are among them, so a name under
  * `@/app` or `@/components` is expected; `checkSeamClosure` proves none of them renders legacy UI.
  */
@@ -829,7 +861,7 @@ const seamClosureViews = new Set([
 /** Each pulls in a whole subsystem, which only the workflow editor's seam may bundle. */
 const seamClosureBanned = /^(?:blocks|tools|triggers)\/registry\.tsx?$/
 const seamPackages =
-  /^@sim\/(?:utils|logger|browser-extension-protocol|platform-authz\/predicates|realtime-protocol)(?:\/|$)/
+  /^@sim\/(?:utils|logger|browser-extension-protocol|platform-authz\/predicates|realtime-protocol|auth\/principal)(?:\/|$)/
 /**
  * The Workflows tab runs the legacy editor's logic unchanged (the user asked for the canvas exactly
  * as it is), so its seam folders are the one place the blocks and tools registry, the workflow
@@ -945,6 +977,7 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
     inSeam &&
     target !== null &&
     (seamHelpers.has(target) ||
+      (serverSeamHelpers.has(target) && runsOnServer(file)) ||
       seamRoots.some((root) => target === root || target.startsWith(`${root}/`)))
   // The zone and the organization views share only the EMCN packages and `platform/shared`: the zone
   // is a separate app, and what the views import from the host would ride into it.
@@ -1452,6 +1485,7 @@ function resolveSource(file: string, specifier: string): string | null {
  * modules at build time, so the walk stops at them the same way, and skips a workflow state module
  * where a bridged importer names it, as webpack does. The workflow seam is walked under its own
  * exception; every other seam must reach neither the block, tool or trigger registry nor legacy views.
+ * A server-only module is not walked from: it never reaches a browser bundle.
  */
 function checkSeamClosure() {
   if (!existsSync(path.join(app, dataSeam))) return
@@ -1471,7 +1505,7 @@ function checkSeamClosure() {
     existsSync(path.join(app, config)) &&
     /resolve\.alias\[['"]@sim\/emcn-legacy\$['"]\]\s*=\s*emcnShim/.test(read(config))
   const roots = [...files(dataSeam)].filter(
-    (file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file)
+    (file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file) && !isServerOnly(file)
   )
   walkSeam(
     roots.filter((file) => workflowSeam.test(file)),

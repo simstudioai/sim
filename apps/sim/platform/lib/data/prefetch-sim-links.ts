@@ -1,10 +1,16 @@
 import 'server-only'
 import { type DehydratedState, dehydrate } from '@tanstack/react-query'
 import { listSimLinksContract } from '@/lib/api/contracts/sim-links'
+import { presentSimLinkPage } from '@/lib/api/server/sim-link-presenters'
+import { listSimLinks } from '@/lib/sim-links/application/use-cases'
 import { loadSimLinksListView } from '@/lib/sim-links/search-params'
 import { makeQueryClient } from '@/hooks/queries/utils/query-client'
 import { SIM_LINKS_STALE_TIME, simLinkKeys } from '@/hooks/queries/utils/sim-link-keys'
-import { prefetchRequestJson } from '@/platform/lib/data/server-request'
+import {
+  asRouteResponse,
+  requireSessionViewer,
+  withinPrefetchBudget,
+} from '@/platform/lib/data/server-read'
 
 /** The first page of the list this URL asks for. Later pages load as the table scrolls. */
 export async function prefetchSimLinks(
@@ -18,9 +24,17 @@ export async function prefetchSimLinks(
     queryKey: simLinkKeys.list(organizationId, term, sort, dir),
     initialPageParam: undefined as string | undefined,
     queryFn: () =>
-      prefetchRequestJson(listSimLinksContract, {
-        params: { id: organizationId },
-        query: { search: term || undefined, sort, dir },
+      withinPrefetchBudget(async () => {
+        const { principal } = await requireSessionViewer()
+        return asRouteResponse(
+          listSimLinksContract,
+          presentSimLinkPage(
+            await listSimLinks.execute({
+              principal,
+              input: { organizationId, search: term || undefined, sort, dir },
+            })
+          )
+        )
       }),
     staleTime: SIM_LINKS_STALE_TIME,
   })
