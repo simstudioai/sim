@@ -38,6 +38,8 @@ const database = drizzle(connection, { schema })
 beforeAll(async () => {
   await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
   await connection.unsafe(`
+    CREATE TABLE organization (id text PRIMARY KEY, kind text NOT NULL DEFAULT 'team');
+    INSERT INTO organization (id) VALUES ('org');
     CREATE TABLE member (id text PRIMARY KEY, organization_id text, user_id text, role text DEFAULT 'member');
     CREATE TABLE workspace (id text PRIMARY KEY, organization_id text, archived_at timestamp);
     CREATE TABLE permissions (id text PRIMARY KEY, user_id text, entity_type text, entity_id text);
