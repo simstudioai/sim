@@ -67,9 +67,15 @@ export const runListParams = {
   sort: parseAsStringLiteral(RUN_SORTS).withDefault('newest'),
 }
 
+/** A run snapshot's drill path: the workflow blocks opened, outermost first, down to the child shown. */
+export const runSnapshotParams = {
+  child: parseAsIds,
+}
+
 export const serializeIssueList = createSerializer(issueListParams)
 export const serializeChangelog = createSerializer(changelogParams)
 export const serializeRunList = createSerializer(runListParams)
+export const serializeRunSnapshot = createSerializer(runSnapshotParams)
 
 const loadIssueList = createLoader(issueListParams)
 const loadChangelog = createLoader(changelogParams)

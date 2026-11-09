@@ -5,11 +5,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQuery } from '@tanstack/react-query'
 import type { inferParserType } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
-import type {
-  DashboardStatsResponse,
-  LogTraceSpan,
-  WorkflowLogDetail,
-  WorkflowLogSummary,
+import {
+  type DashboardStatsResponse,
+  type LogTraceSpan,
+  traceSpansSchema,
+  type WorkflowLogDetail,
+  type WorkflowLogSummary,
 } from '@/lib/api/contracts/logs'
 import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
 import {
@@ -673,14 +674,71 @@ interface SnapshotBlock {
   status: string
   output?: unknown
   step: TraceSpan
+  /** The child workflow a workflow block ran, frozen as this run ran it, to open in its place. */
+  child?: SnapshotWorkflow
+}
+
+/** A workflow as one run executed it: its frozen state and each block's run. */
+interface SnapshotWorkflow {
+  name: string
+  workflowState: WorkflowState
+  blocks: Map<string, SnapshotBlock>
 }
 
 function isPauseOutput(output: unknown) {
   return typeof output === 'object' && output !== null && '_pauseMetadata' in output
 }
 
+function isWorkflowState(value: unknown): value is WorkflowState {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'blocks' in value &&
+    typeof value.blocks === 'object' &&
+    value.blocks !== null
+  )
+}
+
+/**
+ * A workflow block's child run, as legacy's snapshot drills into it: the child's frozen state by the
+ * span's snapshot ID, and its block runs from the span's children (or, on logs stored before those,
+ * the `childTraceSpans` its output carried). The name is the child's own, then the one its output
+ * recorded.
+ */
+function childWorkflow(
+  span: LogTraceSpan,
+  origin: number,
+  childStates: Readonly<Record<string, unknown>>
+): SnapshotWorkflow | undefined {
+  const snapshotId =
+    'childWorkflowSnapshotId' in span && typeof span.childWorkflowSnapshotId === 'string'
+      ? span.childWorkflowSnapshotId
+      : undefined
+  const state = snapshotId ? childStates[snapshotId] : undefined
+  if (!isWorkflowState(state)) return undefined
+  const output = typeof span.output === 'object' && span.output !== null ? span.output : undefined
+  const stored =
+    output && 'childTraceSpans' in output
+      ? traceSpansSchema.safeParse(output.childTraceSpans)
+      : undefined
+  const spans = span.children?.length ? span.children : stored?.success ? stored.data : []
+  const recordedName =
+    output && 'childWorkflowName' in output && typeof output.childWorkflowName === 'string'
+      ? output.childWorkflowName
+      : undefined
+  return {
+    name: state.metadata?.name || recordedName || 'Child workflow',
+    workflowState: state,
+    blocks: snapshotBlocks(spans, origin, childStates),
+  }
+}
+
 /** Each block's first recorded span, in trace order, as legacy's snapshot maps blocks to runs. */
-function snapshotBlocks(spans: readonly LogTraceSpan[], origin: number) {
+function snapshotBlocks(
+  spans: readonly LogTraceSpan[],
+  origin: number,
+  childStates: Readonly<Record<string, unknown>>
+) {
   const blocks = new Map<string, SnapshotBlock>()
   const visit = (span: LogTraceSpan) => {
     if (span.blockId && !blocks.has(span.blockId))
@@ -688,6 +746,7 @@ function snapshotBlocks(spans: readonly LogTraceSpan[], origin: number) {
         status: isPauseOutput(span.output) ? 'pending' : (span.status ?? 'unknown'),
         output: span.output,
         step: toTraceSpan(span, origin),
+        child: childWorkflow(span, origin, childStates),
       })
     span.children?.forEach(visit)
   }
@@ -697,7 +756,7 @@ function snapshotBlocks(spans: readonly LogTraceSpan[], origin: number) {
 
 /**
  * A run's frozen workflow: the state it executed with, which blocks ran and how, and each block's
- * step. A run recorded before snapshots existed has no state to draw, which `migrated` says. A run
+ * step, with the child workflow a workflow block ran. A run recorded before snapshots existed has no state to draw, which `migrated` says. A run
  * without a snapshot reads as missing.
  */
 export function useRunSnapshot(workspaceId: string, executionId: string) {
@@ -718,6 +777,10 @@ export function useRunSnapshot(workspaceId: string, executionId: string) {
     run: log && toRunSummary(log),
     workflowState: migrated ? undefined : ((state ?? undefined) as WorkflowState | undefined),
     migrated,
-    blocks: snapshotBlocks(log?.executionData.traceSpans ?? [], startedAt),
+    blocks: snapshotBlocks(
+      log?.executionData.traceSpans ?? [],
+      startedAt,
+      snapshot.data?.childWorkflowSnapshots ?? {}
+    ),
   }
 }
