@@ -171,6 +171,12 @@ jobs:
           restore-keys: |
             platform-desktop-turbopack-${{ hashFiles('bun.lock') }}-
             platform-desktop-turbopack-
+      # The server's readiness swings from minutes to most of an hour on this runner; memory and swap
+      # samples beside the report show whether the spec is starved for memory.
+      - name: Sample memory and swap
+        run: |
+          mkdir -p "$RUNNER_TEMP/platform-desktop"
+          nohup bash -c 'while true; do echo "== $(date -u +%FT%TZ)"; sysctl -n vm.swapusage; memory_pressure -Q | tail -1; vm_stat | grep -E "Pages (free|active|wired|compressed)|Swapins|Swapouts"; ps -Ao rss=,comm= | sort -rn | head -5; sleep 30; done' > "$RUNNER_TEMP/platform-desktop/memory.log" 2>&1 &
       - run: bun run --cwd apps/sim test:platform:desktop
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=6144'
