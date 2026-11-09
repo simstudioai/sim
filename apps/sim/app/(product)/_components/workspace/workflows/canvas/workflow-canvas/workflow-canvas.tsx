@@ -13,6 +13,7 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn/lib/cn'
+import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { omit } from '@sim/utils/object'
 import {
@@ -370,11 +371,12 @@ const WorkflowContent = memo(function WorkflowContent({
 
   useOAuthReturnForWorkflow(workflowIdParam)
 
+  const workflowMap = useWorkflowMap(workspaceId)
   const {
     data: workflows = {},
     isLoading: isWorkflowMapLoading,
     isPlaceholderData: isWorkflowMapPlaceholderData,
-  } = useWorkflowMap(workspaceId)
+  } = workflowMap
   const { data: folders = {} } = useFolderMap(workspaceId)
   const updateWorkflowMutation = useUpdateWorkflow()
 
@@ -2608,8 +2610,25 @@ const WorkflowContent = memo(function WorkflowContent({
 
   const loadingWorkflowRef = useRef<string | null>(null)
   const currentWorkflowExists = !isWorkflowMapPlaceholderData && Boolean(workflows[workflowIdParam])
-  const workflowLoadError =
-    hydration.phase === 'error' && hydration.workflowId === workflowIdParam ? hydration.error : null
+  const workflowMapFailed = workflowMap.isError && workflowMap.data === undefined
+  const workflowMissing =
+    workflowMap.data !== undefined &&
+    !isWorkflowMapPlaceholderData &&
+    hydration.phase !== 'creating' &&
+    !currentWorkflowExists
+  /**
+   * A workflow gone from the workspace falls back to the list. The header deletes the open
+   * workflow optimistically before it navigates, so a not-found page would flash first.
+   */
+  useEffect(() => {
+    if (workflowMissing) router.replace(zoneHref(workspacePath(workspaceId, 'workflows')))
+  }, [workflowMissing, router, workspaceId])
+
+  const workflowLoadError = workflowMapFailed
+    ? getErrorMessage(workflowMap.error, 'Workflows could not be loaded.')
+    : hydration.phase === 'error' && hydration.workflowId === workflowIdParam
+      ? hydration.error
+      : null
 
   useEffect(() => {
     const currentId = workflowIdParam
@@ -2681,72 +2700,6 @@ const WorkflowContent = memo(function WorkflowContent({
   ])
 
   useWorkspaceEnvironment(workspaceId)
-
-  const workflowCount = useMemo(() => Object.keys(workflows).length, [workflows])
-
-  /** Handles navigation validation and redirects for invalid workflow IDs. */
-  useEffect(() => {
-    if (
-      isWorkflowMapLoading ||
-      isWorkflowMapPlaceholderData ||
-      !hydration.workspaceId ||
-      hydration.workspaceId !== workspaceId
-    ) {
-      return
-    }
-
-    if (hydration.phase === 'creating') {
-      return
-    }
-
-    if (workflowCount === 0) {
-      logger.info('No workflows found, redirecting to workspace root')
-      router.replace(zoneHref(workspacePath(workspaceId, 'workflows')))
-      return
-    }
-
-    if (!currentWorkflowExists) {
-      logger.info(`Workflow ${workflowIdParam} not found, redirecting to first available workflow`)
-
-      const workspaceWorkflows = Object.entries(workflows)
-        .filter(([, workflow]) => workflow.workspaceId === workspaceId)
-        .map(([id]) => id)
-
-      if (workspaceWorkflows.length > 0) {
-        router.replace(
-          zoneHref(
-            `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(workspaceWorkflows[0])}`
-          )
-        )
-      } else {
-        router.replace(zoneHref(workspacePath(workspaceId, 'workflows')))
-      }
-      return
-    }
-
-    const workflowData = workflows[workflowIdParam]
-    if (workflowData && workflowData.workspaceId !== workspaceId) {
-      logger.warn(
-        `Workflow ${workflowIdParam} belongs to workspace ${workflowData.workspaceId}, not ${workspaceId}`
-      )
-      router.replace(
-        zoneHref(
-          `${workspacePath(String(workflowData.workspaceId), 'workflows')}/${encodeURIComponent(workflowIdParam)}`
-        )
-      )
-    }
-  }, [
-    workflowIdParam,
-    isWorkflowMapLoading,
-    isWorkflowMapPlaceholderData,
-    currentWorkflowExists,
-    workflowCount,
-    hydration.phase,
-    hydration.workspaceId,
-    workspaceId,
-    router,
-    workflows,
-  ])
 
   const blockConfigCacheRef = useRef<Map<string, BlockConfig> | null>(null)
   const blockConfigCache = (blockConfigCacheRef.current ??= new Map())
@@ -4961,6 +4914,10 @@ const WorkflowContent = memo(function WorkflowContent({
                 title='Unable to load workflow'
                 message={workflowLoadError}
                 onReset={() => {
+                  if (workflowMapFailed) {
+                    void workflowMap.refetch()
+                    return
+                  }
                   setActiveWorkflow(workflowIdParam).catch((error) => {
                     logger.error(`Failed to retry workflow ${workflowIdParam}:`, error)
                   })

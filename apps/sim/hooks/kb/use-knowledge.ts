@@ -268,6 +268,7 @@ export function useDocumentChunks(
     isLoading: chunkQuery.isLoading,
     isFetching: chunkQuery.isFetching,
     error: chunkQuery.error ? getErrorMessage(chunkQuery.error) : null,
+    refetch: chunkQuery.refetch,
     currentPage,
     totalPages,
     hasNextPage,

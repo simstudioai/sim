@@ -46,11 +46,6 @@
   inset-block-start: 0;
   z-index: 10;
 }
-.notFound {
-  display: grid;
-  flex: 1;
-  place-items: center;
-}
 
 /* Cells: a hairline grid on the trailing and bottom edges, as in a spreadsheet. */
 .cell,

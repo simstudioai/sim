@@ -7,7 +7,7 @@ import { Button } from '@sim/emcn/button'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { notFound, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
@@ -47,6 +47,7 @@ import {
 import {
   LiveWorkspacePage,
   useEmbeddedWorkspacePage,
+  WorkspaceEmpty,
 } from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
 import { useFolderMap } from '@/platform/lib/data/folders'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
@@ -81,6 +82,7 @@ import {
   useRenameTable,
   useRunColumn,
   useTableEventStream,
+  useTableRecord,
   useTableRoom,
   useUpdateTableMetadata,
   useWorkspaceExportJobs,
@@ -178,6 +180,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
   const search = useSearchParams()
   const surfaceScope = useSurfaceScope()
   const embedded = useEmbeddedWorkspacePage()
+  const record = useTableRecord(workspaceId, tableId)
   const permissions = useWorkspaceUserPermissions(workspaceId)
   const canEdit = permissions.canEdit
   const canAdmin = permissions.canAdmin
@@ -817,12 +820,22 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
   const scope = selection.selectedRunScope
   const singleCell = selection.singleWorkflowCell
 
+  if (record.missing && !embedded) notFound()
+  if (record.missing)
+    return (
+      <WorkspaceEmpty
+        title='Table not found'
+        description='This table may have been deleted or moved.'
+      />
+    )
+
   return (
     <LiveWorkspacePage
       workspaceId={workspaceId}
       current='tables'
       layout='canvas'
       controls={controls}
+      read={record.read}
     >
       <div className={styles.workspace}>
         <div className={styles.main}>

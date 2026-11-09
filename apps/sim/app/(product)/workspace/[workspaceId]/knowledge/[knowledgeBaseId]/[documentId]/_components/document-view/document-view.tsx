@@ -11,7 +11,7 @@ import { Pagination } from '@sim/emcn/pagination'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice, StatusText } from '@sim/emcn/status'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { notFound, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { toast } from '@/lib/toast/sink'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
@@ -53,6 +53,7 @@ import {
   useDocument,
   useDocumentChunkSearchQuery,
   useDocumentChunks,
+  useDocumentRecord,
   useFolderMap,
   useKnowledgeAccess,
   useKnowledgeBase,
@@ -144,8 +145,8 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
 
   const base = useKnowledgeBase(knowledgeBaseId)
   const knowledgeBase = base.knowledgeBase
-  const documentRead = useDocument(knowledgeBaseId, documentId)
-  const document = documentRead.document
+  const document = useDocument(knowledgeBaseId, documentId).document
+  const record = useDocumentRecord(knowledgeBaseId, documentId)
   const folders = useFolderMap(workspaceId, 'knowledge_base').data
   const list = useDocumentChunks(
     knowledgeBaseId,
@@ -659,18 +660,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
     : []
 
   let content: ReactNode
-  if (documentRead.error && !document)
-    content = (
-      <WorkspaceEmpty
-        title='Document not found'
-        description='It may have been deleted or moved.'
-        action={{
-          label: 'Back to the knowledge base',
-          href: knowledgeBaseHref(workspaceId, knowledgeBaseId, search),
-        }}
-      />
-    )
-  else if (!document) content = null
+  if (!document) content = null
   else if (creating)
     content = (
       <ChunkEditor
@@ -708,6 +698,8 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
           <FailureNotice
             title={list.error ? 'Couldn’t load chunks' : 'Search failed'}
             message={chunkError}
+            retrying={list.error ? list.isFetching : searchQuery.isFetching}
+            onRetry={() => void (list.error ? list.refetch() : searchQuery.refetch())}
           />
         ) : (
           <ResourceTable
@@ -812,6 +804,8 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
       </div>
     )
 
+  if (record.missing) notFound()
+
   return (
     <>
       <LiveWorkspacePage
@@ -819,6 +813,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
         current='knowledge'
         layout='fill'
         controls={controls}
+        read={record.read}
       >
         {content}
       </LiveWorkspacePage>

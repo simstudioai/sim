@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ApiClientError } from '@/lib/api/client/errors'
 import { contractUrl, requestJson } from '@/lib/api/client/request'
 import {
   type BulkChunkOperationData,
@@ -126,18 +125,11 @@ async function fetchDocument(
   documentId: string,
   signal?: AbortSignal
 ): Promise<DocumentData> {
-  try {
-    const result = await requestJson(getKnowledgeDocumentContract, {
-      params: { id: knowledgeBaseId, documentId },
-      signal,
-    })
-    return result.data
-  } catch (error) {
-    if (error instanceof ApiClientError && error.status === 404) {
-      throw new Error('Document not found')
-    }
-    throw error
-  }
+  const result = await requestJson(getKnowledgeDocumentContract, {
+    params: { id: knowledgeBaseId, documentId },
+    signal,
+  })
+  return result.data
 }
 
 export interface KnowledgeDocumentsParams {

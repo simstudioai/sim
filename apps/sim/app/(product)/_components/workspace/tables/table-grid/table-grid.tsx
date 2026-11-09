@@ -14,7 +14,6 @@ import {
 } from 'react'
 import { Button } from '@sim/emcn/button'
 import { Checkbox } from '@sim/emcn/checkbox'
-import { EmptyState } from '@sim/emcn/empty-state'
 import { FindBar } from '@sim/emcn/find-bar'
 import { type MenuAction, PointActionMenu } from '@sim/emcn/menu/action-menu'
 import { getErrorMessage } from '@sim/utils/errors'
@@ -4767,17 +4766,6 @@ export function TableGrid({
       }
     : null
   const gridMenu = cellMenu ?? headerMenu
-
-  if (!isLoadingTable && !tableData) {
-    return (
-      <div className={styles.notFound}>
-        <EmptyState
-          title='Table not found'
-          description='This table may have been deleted or moved'
-        />
-      </div>
-    )
-  }
 
   const virtualItems = rowVirtualizer.getVirtualItems()
   // `start`/`end` include `scrollMargin` (the sticky header) but `getTotalSize()` nets it out, so

@@ -73,6 +73,7 @@ export { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 export { useUrlSort } from '@/hooks/use-url-sort'
 export { useKnowledgeAccess } from '@/platform/lib/data/knowledge/access'
 export { readChunkContent } from '@/platform/lib/data/knowledge/chunk-read'
+export { useDocumentRecord, useKnowledgeBaseRecord } from '@/platform/lib/data/knowledge/record'
 export {
   addConnectorParser,
   chunkListParsers,
