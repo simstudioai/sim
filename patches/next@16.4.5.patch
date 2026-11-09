@@ -34,6 +34,39 @@ index f2236f7ae222afcb8554267ed295ada59dceee6a..3be146fc8fa48196254d93a8a21c2cea
          if (name.toLowerCase() === 'set-cookie') {
              const middlewareValue = getRequestMeta(req, 'middlewareCookie');
              if (!middlewareValue || !Array.isArray(value) || !value.every((item, idx)=>item === middlewareValue[idx])) {
+diff --git a/dist/esm/server/send-response.js b/dist/esm/server/send-response.js
+index 080d60cb20a57b7e81411c12ed16e41e1fdbf621..4ee71ca70339473a26366d7ecee0ba6c0b64be92 100644
+--- a/dist/esm/server/send-response.js
++++ b/dist/esm/server/send-response.js
+@@ -10,6 +10,12 @@ const FORBIDDEN_HEADERS = [
+     'content-encoding',
+     'transfer-encoding'
+ ];
++// A body that declares no content coding was not transparently decoded, so its declared length
++// still frames it; only a decoded body's length and coding are stale.
++const IDENTITY_ENCODINGS = [
++    'identity',
++    'none'
++];
+ /**
+  * Sends the response on the underlying next response object.
+  *
+@@ -37,12 +43,14 @@ const FORBIDDEN_HEADERS = [
+             'proxy-authenticate',
+             'vary'
+         ];
++        const encoding = (_response_headers = response.headers) == null ? void 0 : _response_headers.get('content-encoding');
++        const bodyEncoded = typeof encoding === 'string' && !IDENTITY_ENCODINGS.includes(encoding.trim().toLowerCase());
+         (_response_headers = response.headers) == null ? void 0 : _response_headers.forEach((value, name)=>{
+             // `x-middleware-set-cookie` is an internal header not needed for the response
+             if (name.toLowerCase() === 'x-middleware-set-cookie') {
+                 return;
+             }
+-            if (FORBIDDEN_HEADERS.includes(name)) {
++            if (name === 'transfer-encoding' || bodyEncoded && FORBIDDEN_HEADERS.includes(name)) {
+                 return;
+             }
+             // The append handling is special cased for `set-cookie`.
 diff --git a/dist/server/lib/patch-set-header.js b/dist/server/lib/patch-set-header.js
 index 16cdc4703f3e9957a16c68c962cfaf5ee5d04561..a1c3c7061bc917284e01ed9947cd914818cfd708 100644
 --- a/dist/server/lib/patch-set-header.js
@@ -73,3 +106,36 @@ index 16cdc4703f3e9957a16c68c962cfaf5ee5d04561..a1c3c7061bc917284e01ed9947cd9148
          if (name.toLowerCase() === 'set-cookie') {
              const middlewareValue = (0, _requestmeta.getRequestMeta)(req, 'middlewareCookie');
              if (!middlewareValue || !Array.isArray(value) || !value.every((item, idx)=>item === middlewareValue[idx])) {
+diff --git a/dist/server/send-response.js b/dist/server/send-response.js
+index 6232e7a729e33f6550e83f8ff7ffe0581c891683..57dc52ecfc58b95e5b433932badd67c2b158450c 100644
+--- a/dist/server/send-response.js
++++ b/dist/server/send-response.js
+@@ -20,6 +20,12 @@ const FORBIDDEN_HEADERS = [
+     'content-encoding',
+     'transfer-encoding'
+ ];
++// A body that declares no content coding was not transparently decoded, so its declared length
++// still frames it; only a decoded body's length and coding are stale.
++const IDENTITY_ENCODINGS = [
++    'identity',
++    'none'
++];
+ async function sendResponse(req, res, response, waitUntil) {
+     if (// The type check here ensures that `req` is correctly typed, and the
+     // environment variable check provides dead code elimination.
+@@ -41,12 +47,14 @@ async function sendResponse(req, res, response, waitUntil) {
+             'proxy-authenticate',
+             'vary'
+         ];
++        const encoding = (_response_headers = response.headers) == null ? void 0 : _response_headers.get('content-encoding');
++        const bodyEncoded = typeof encoding === 'string' && !IDENTITY_ENCODINGS.includes(encoding.trim().toLowerCase());
+         (_response_headers = response.headers) == null ? void 0 : _response_headers.forEach((value, name)=>{
+             // `x-middleware-set-cookie` is an internal header not needed for the response
+             if (name.toLowerCase() === 'x-middleware-set-cookie') {
+                 return;
+             }
+-            if (FORBIDDEN_HEADERS.includes(name)) {
++            if (name === 'transfer-encoding' || bodyEncoded && FORBIDDEN_HEADERS.includes(name)) {
+                 return;
+             }
+             // The append handling is special cased for `set-cookie`.

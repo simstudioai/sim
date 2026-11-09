@@ -140,6 +140,34 @@ bun run --cwd apps/docs test:negotiation:e2e
 Remove the patch when upgrading to a release with equivalent Vary preservation,
 and retain the HTTP regression check.
 
+# Next.js route-handler response framing
+
+`next@16.4.5` (GHSA-pc58-hwjq-p385) drops `Content-Length`, `Content-Encoding`,
+and `Transfer-Encoding` from every Node route-handler response. The concern is a
+fetched upstream response returned unchanged: fetch decodes its body but keeps
+the original coding and length, so forwarding them frames a body that was never
+sent. Dropping the headers from every response also strips the declared length
+from file downloads, which then arrive chunked with no size, and the
+`Content-Encoding: none` marker that keeps streaming responses uncompressed.
+
+The same file's patch narrows that rule in `sendResponse`, in both the CommonJS
+and ESM builds. A response whose `Content-Encoding` names a real coding keeps
+upstream's behavior: its length and coding are dropped. A response with no coding,
+or with `identity`/`none`, was not decoded, so its `Content-Length` and coding are
+forwarded. `Transfer-Encoding` is never forwarded; Node frames the response
+itself. Route handlers, App Page rendering, and the edge runtime are otherwise
+unchanged.
+
+`test:headers:e2e` sends real responses through both builds of `sendResponse`
+over loopback HTTP. The unencoded, `identity`, and `none` checks fail against
+unpatched 16.4.5. The decoded-body and transfer-coding checks fail when their
+guards are removed; forwarding a decoded body's stale length leaves the client
+unable to parse the connection. The project-files E2E's large-download check
+asserts the declared length of a 100 MB file served through the running app.
+
+Remove this part of the patch when upstream forwards framing for undecoded
+route-handler bodies, and keep both regression checks.
+
 # Zod collection size bounds
 
 `zod@4.3.6` runs an array's `.max()`/`.length()` (and a set's or map's `.max()`/`.size()`)
