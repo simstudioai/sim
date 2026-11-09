@@ -11,7 +11,11 @@ import { getBrowserExtensionOrigins } from '@/lib/core/security/extension'
 import { isMarketingPath } from '@/lib/landing/routes'
 import { isAuthSurfacePath } from '@/lib/navigation/auth-surfaces'
 import { APP_ENTRY_PATH, isAppSurfacePath, isNoindexPath } from '@/lib/navigation/paths'
-import { SHELL_SCOPE_HEADER, shellScopeHeaderValue } from '@/lib/navigation/shell-scope'
+import {
+  SHELL_PATH_HEADER,
+  SHELL_SCOPE_HEADER,
+  shellScopeHeaderValue,
+} from '@/lib/navigation/shell-scope'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
@@ -437,6 +441,7 @@ export async function proxy(request: NextRequest) {
     requestHeaders.delete(SHELL_SCOPE_HEADER)
     const shellScope = shellScopeHeaderValue(url.pathname)
     if (shellScope) requestHeaders.set(SHELL_SCOPE_HEADER, shellScope)
+    requestHeaders.set(SHELL_PATH_HEADER, url.pathname)
     const response = NextResponse.next({ request: { headers: requestHeaders } })
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
     response.headers.set('X-Content-Type-Options', 'nosniff')

@@ -1,7 +1,11 @@
 import 'server-only'
 import { cache } from 'react'
 import { headers } from 'next/headers'
-import { parseShellScope, SHELL_SCOPE_HEADER } from '@/lib/navigation/shell-scope'
+import {
+  parseShellScope,
+  SHELL_PATH_HEADER,
+  SHELL_SCOPE_HEADER,
+} from '@/lib/navigation/shell-scope'
 import { resolveOrProvisionLandingOrganization } from '@/lib/organizations/provision-personal'
 import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/shell-organization'
 import { readSessionViewer } from '@/platform/lib/data/server-read'
@@ -52,3 +56,8 @@ export const readShellOrganizationId = cache(async (): Promise<string | undefine
     undefined
   )
 })
+
+/** The path this document request opens, as the proxy names it; `null` outside the proxy. */
+export async function readShellPath(): Promise<string | null> {
+  return (await headers()).get(SHELL_PATH_HEADER)
+}

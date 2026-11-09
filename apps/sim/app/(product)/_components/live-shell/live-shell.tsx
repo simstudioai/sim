@@ -9,6 +9,7 @@ import { ProductSession } from '@/app/(product)/_components/product-session'
 import { SessionState } from '@/app/(product)/_components/session-state/session-state'
 import { AccessDenied, SurfaceUnavailable } from '@/app/(product)/_components/shell-gate/shell-gate'
 import { LiveSourceLinks } from '@/app/(product)/_components/source-row/live-source-links'
+import { resolveEntryRedirect } from '@/platform/lib/data/landing'
 import {
   OUTSIDE_ORGANIZATION_HREF,
   resolveSurfaceRedirect,
@@ -16,6 +17,7 @@ import {
 import { prefetchShell } from '@/platform/lib/data/prefetch-shell'
 import { LiveProviders } from '@/platform/lib/data/providers'
 import { resolveSettingsNavigation } from '@/platform/lib/data/settings-navigation'
+import { readShellPath } from '@/platform/lib/data/shell-scope'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
 const LOGIN_PATH = '/login'
@@ -46,7 +48,9 @@ export async function LiveShell({
 
   const { organization } = surface
   const cookieStore = await cookies()
-  const surfaceRedirect = resolveSurfaceRedirect(organization)
+  const surfaceRedirect =
+    resolveSurfaceRedirect(organization) ??
+    resolveEntryRedirect(organization, await readShellPath())
   if (surfaceRedirect) redirect(surfaceRedirect)
 
   return (

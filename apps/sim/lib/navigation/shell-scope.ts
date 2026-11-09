@@ -6,6 +6,12 @@
  */
 export const SHELL_SCOPE_HEADER = 'x-sim-shell-scope'
 
+/**
+ * The path a document request opens, set by the proxy alongside the scope. The shell's gates read it
+ * to answer an entry page's redirect before anything streams, as the legacy layout's page did.
+ */
+export const SHELL_PATH_HEADER = 'x-sim-shell-path'
+
 export type ShellScope =
   | { kind: 'organization'; organizationId: string }
   | { kind: 'workspace'; workspaceId: string }
