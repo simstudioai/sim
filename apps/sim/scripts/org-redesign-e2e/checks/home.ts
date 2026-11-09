@@ -682,11 +682,17 @@ export async function homeChecks() {
       await page.goto(homeUrl)
       await composer(page).fill('/review this')
       await composer(page).press('Enter')
-      await expect(page.locator('[aria-busy="true"]').filter({ has: composer(page) })).toHaveCount(
-        1
-      )
+      // The composer frame carries these states itself, which a `has` filter (searched only inside
+      // each candidate) cannot see, so the selectors name the frame or an ancestor of it.
+      await expect(
+        page.locator(
+          '[aria-busy="true"]:has([data-elevation="composer"] textarea), [data-elevation="composer"][aria-busy="true"]:has(textarea)'
+        )
+      ).toHaveCount(1)
       await expect(composer(page)).toBeEditable()
-      await expect(page.locator('[inert]').filter({ has: composer(page) })).toHaveCount(0)
+      await expect(
+        page.locator('[inert]:has([data-elevation="composer"]), [data-elevation="composer"][inert]')
+      ).toHaveCount(0)
       await pageTurn(page)
       assert.deepEqual(sends, [], 'The message waits for the skill lists')
       skillsHeld.resolve()
