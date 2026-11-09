@@ -429,7 +429,9 @@ export async function proxy(request: NextRequest) {
 
   if (isAppSurfacePath(url.pathname)) {
     if (!hasActiveSession) {
-      return applyIndexingPolicy(request, NextResponse.redirect(new URL('/login', request.url)))
+      const login = new URL('/login', request.url)
+      login.searchParams.set('callbackUrl', `${url.pathname}${url.search}`)
+      return applyIndexingPolicy(request, NextResponse.redirect(login))
     }
     const requestHeaders = new Headers(request.headers)
     requestHeaders.delete(SHELL_SCOPE_HEADER)
