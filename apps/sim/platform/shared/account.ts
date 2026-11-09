@@ -167,7 +167,7 @@ export function useAccountDeletion(email: string, host: AccountDeletionHost) {
         throw new Error(getErrorMessage(error, 'Could not delete this account'))
       }
       await Promise.race([
-        Promise.allSettled([signOut()]).then(() => host.clearUserData()),
+        Promise.allSettled([signOut(), host.clearUserData()]),
         sleep(SIGN_OUT_TIMEOUT_MS),
       ])
       window.location.href = host.logoutHref
