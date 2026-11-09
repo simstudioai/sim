@@ -1600,14 +1600,39 @@ try {
           tracks: [] as MediaStreamTrack[],
           sockets: [] as WebSocket[],
           fetch: window.fetch,
-          observer: new MutationObserver(() => {
+          observer: new MutationObserver((mutations) => {
             const notices = document.querySelector('[aria-label="Notifications"]')?.textContent
             if (notices && log.at(-1) !== `notices ${notices}`) note(`notices ${notices}`)
+            for (const mutation of mutations) {
+              if (mutation.type !== 'attributes' || !(mutation.target instanceof Element)) continue
+              const label = mutation.target.getAttribute('aria-label')
+              if (label !== 'Voice input' && label !== 'Stop listening') continue
+              const name = mutation.attributeName ?? ''
+              note(`mic ${name}=${mutation.target.getAttribute(name)}`)
+            }
           }),
           log,
         }
         ;(window as VoiceCaptureWindow).__voiceCaptureProbe = probe
-        probe.observer.observe(document.body, { childList: true, subtree: true })
+        probe.observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeFilter: ['aria-label', 'aria-pressed'],
+        })
+        for (const type of ['pointerdown', 'mousedown', 'mouseup', 'click'] as const)
+          window.addEventListener(
+            type,
+            (event) => {
+              const target = event.target instanceof Element ? event.target : null
+              const button = target?.closest('button')
+              const voiceButtons = document.querySelectorAll('button[aria-label="Voice input"]')
+              note(
+                `${type} ${location.pathname} target=${target?.outerHTML.slice(0, 80) ?? 'none'} button=${button?.getAttribute('aria-label') ?? 'none'} inert=${Boolean(target?.closest('[inert]'))} voiceButtons=${voiceButtons.length} prevented=${event.defaultPrevented}`
+              )
+            },
+            true
+          )
         window.addEventListener('error', (event) => note(`error ${event.message}`))
         window.addEventListener('unhandledrejection', (event) =>
           note(`unhandledrejection ${String(event.reason)}`)
@@ -1685,6 +1710,13 @@ try {
         assert.equal(sessions.length, 0, 'Voice started before an explicit click')
         await screenshot('microphone-ready')
         await setMicrophonePermission('denied')
+        voiceDiagnostics.push({
+          event: 'pre-click',
+          frames: shell.frames().map((candidate) => candidate.url()),
+          micFrame: frame().url(),
+          voiceButtons: await mic.count(),
+          micPressed: await mic.getAttribute('aria-pressed'),
+        })
         await mic.click()
         const settings = frame().getByRole('button', { name: 'Open settings', exact: true })
         await expect(settings).toBeVisible()
