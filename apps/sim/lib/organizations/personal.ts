@@ -54,6 +54,21 @@ export async function getPersonalOrganizationId(
   return row?.organizationId ?? null
 }
 
+/**
+ * Row-locks a personal organization for the rest of the transaction. Every insert of a row that
+ * references it holds `FOR KEY SHARE` on it until commit, so this waits out writes already in
+ * flight (whose rows the caller then sees and moves) and parks new ones until the caller commits.
+ * Without it, a chat or run committed between moving content and deleting the organization would
+ * be cascade-deleted with it.
+ */
+async function lockPersonalOrganizationTx(tx: DbTransaction, organizationId: string) {
+  await tx
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+    .for('update')
+}
+
 /** A stable, valid, collision-free slug: users are unique, and so is their personal organization. */
 function personalOrganizationSlug(userId: string): string {
   return `personal-${userId.toLowerCase().replace(/[^a-z0-9-_]+/g, '-')}`
@@ -177,6 +192,7 @@ export async function convertPersonalOrganizationToTeamTx(
     .where(and(eq(member.userId, userId), eq(organization.kind, 'personal')))
     .limit(1)
   if (!personal) return null
+  await lockPersonalOrganizationTx(tx, personal.organizationId)
 
   const detachedWorkspaceIds = await detachPersonalOrganizationWorkspacesTx(
     tx,
@@ -394,6 +410,7 @@ export async function retirePersonalOrganizationTx(
   if (personalOrganizationId === targetOrganizationId) {
     throw new Error('A personal organization cannot be retired into itself')
   }
+  await lockPersonalOrganizationTx(tx, personalOrganizationId)
 
   const [publishedBlock] = await tx
     .select({ id: customBlock.id })

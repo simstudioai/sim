@@ -256,14 +256,14 @@ const serverSeamHelpers = new Set([
   'lib/organization-secrets/application/use-cases',
   'lib/organizations/application/member-roster',
   'lib/organizations/application/surface',
-  'lib/organizations/provision-personal',
+  'lib/organizations/application/viewer-organization',
   'lib/settings/prefetch-current-user-settings',
   'lib/sim-links/application/use-cases',
   'lib/users/application/read-current-user',
   'lib/workflows/application/read-workflow-definition',
+  'lib/workspaces/application/workspace-shell',
   'lib/workspaces/list',
   'lib/workspaces/seed-workspace-list',
-  'lib/workspaces/shell-organization',
   // A workspace's Integrations directory: the access policy its pickers apply, judged on the server
   // from the permission group, deployment availability and block visibility routes' own reads.
   'lib/core/config/block-visibility',

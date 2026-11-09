@@ -12,7 +12,7 @@ import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveRolledOutOrganizationId } from '@/lib/navigation/resolve-app-entry'
-import { ensureUserOrganization } from '@/lib/organizations/provision-personal'
+import { ensureViewerOrganization } from '@/lib/organizations/application/viewer-organization'
 import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { createWorkspace } from '@/lib/workspaces/create'
@@ -153,7 +153,10 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
     })
     /** A new workspace lands in the creator's organization, so they need one first. */
     if (creationPolicy.observedOrganizationId === null) {
-      await ensureUserOrganization(session.user.id)
+      await ensureViewerOrganization.execute({
+        principal: { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+        input: {},
+      })
       creationPolicy = await getWorkspaceCreationPolicy({
         userId: session.user.id,
         activeOrganizationId,

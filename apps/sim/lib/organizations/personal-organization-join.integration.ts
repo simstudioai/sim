@@ -10,6 +10,7 @@
  */
 import { db } from '@sim/db'
 import {
+  copilotChats,
   invitation,
   knowledgeExternalDirectory,
   member,
@@ -22,6 +23,7 @@ import {
   userStats,
 } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -150,6 +152,138 @@ describe('joining a team from a personal organization', () => {
       .from(knowledgeExternalDirectory)
       .where(inArray(knowledgeExternalDirectory.organizationId, [personalId, teamId]))
     expect(directories).toEqual([{ organizationId: teamId }])
+  })
+})
+
+/** Resolves once some backend sits waiting on a row lock, i.e. the racing statement is parked. */
+async function waitForLockWaiter(): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const [{ waiting }] = await db.execute<{ waiting: number }>(sql`
+      SELECT count(*)::int AS waiting FROM pg_stat_activity
+      WHERE datname = current_database() AND wait_event_type = 'Lock'
+    `)
+    if (waiting > 0) return
+    await sleep(25)
+  }
+  throw new Error('no statement ever waited on a lock')
+}
+
+describe('joining a team while the personal organization is still being written to', () => {
+  it('keeps a chat committed mid-join instead of cascading it away with the organization', async () => {
+    const joinerId = await createUser()
+    const teamId = await team(await createUser())
+    const personalId = await personalOrganizationOf(joinerId)
+    const chatId = generateId()
+
+    let commitChat: () => void = () => undefined
+    const chatHeld = new Promise<void>((resolve) => {
+      commitChat = resolve
+    })
+    let chatInserted: () => void = () => undefined
+    const inserted = new Promise<void>((resolve) => {
+      chatInserted = resolve
+    })
+    /** Another tab's chat insert: holds `FOR KEY SHARE` on the personal organization until commit. */
+    const otherTab = db.transaction(async (tx) => {
+      await tx
+        .insert(copilotChats)
+        .values({ id: chatId, userId: joinerId, organizationId: personalId })
+      chatInserted()
+      await chatHeld
+    })
+    await inserted
+
+    const join = addUserToOrganization({
+      userId: joinerId,
+      organizationId: teamId,
+      role: 'member',
+      skipBillingLogic: true,
+      skipSeatValidation: true,
+    })
+    await waitForLockWaiter()
+    commitChat()
+    await otherTab
+
+    expect(await join).toMatchObject({ success: true })
+    const chats = await db
+      .select({ organizationId: copilotChats.organizationId })
+      .from(copilotChats)
+      .where(eq(copilotChats.id, chatId))
+    expect(chats).toEqual([{ organizationId: teamId }])
+    const retired = await db
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.id, personalId))
+    expect(retired).toEqual([])
+  })
+
+  it('admits a user accepted by two teams at once to exactly one, moving everything once', async () => {
+    const joinerId = await createUser()
+    const firstTeamId = await team(await createUser())
+    const secondTeamId = await team(await createUser())
+    const personalId = await personalOrganizationOf(joinerId)
+    await db
+      .insert(copilotChats)
+      .values({ id: generateId(), userId: joinerId, organizationId: personalId })
+
+    const results = await Promise.all(
+      [firstTeamId, secondTeamId].map((organizationId) =>
+        addUserToOrganization({
+          userId: joinerId,
+          organizationId,
+          role: 'member',
+          skipBillingLogic: true,
+          skipSeatValidation: true,
+        })
+      )
+    )
+
+    expect(results.filter((result) => result.success)).toHaveLength(1)
+    const memberships = await db
+      .select({ organizationId: member.organizationId })
+      .from(member)
+      .where(eq(member.userId, joinerId))
+    expect(memberships).toHaveLength(1)
+    expect([firstTeamId, secondTeamId]).toContain(memberships[0].organizationId)
+    const chats = await db
+      .select({ organizationId: copilotChats.organizationId })
+      .from(copilotChats)
+      .where(eq(copilotChats.userId, joinerId))
+    expect(chats).toEqual([{ organizationId: memberships[0].organizationId }])
+    const personal = await db
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.id, personalId))
+    expect(personal).toEqual([])
+  })
+
+  it('leaves a user who joins a team during first-page provisioning in that team alone', async () => {
+    const joinerId = await createUser()
+    const teamId = await team(await createUser())
+
+    const [joined] = await Promise.all([
+      addUserToOrganization({
+        userId: joinerId,
+        organizationId: teamId,
+        role: 'member',
+        skipBillingLogic: true,
+        skipSeatValidation: true,
+      }),
+      createPersonalOrganization(joinerId),
+    ])
+
+    expect(joined).toMatchObject({ success: true })
+    const memberships = await db
+      .select({ organizationId: member.organizationId, kind: organization.kind })
+      .from(member)
+      .innerJoin(organization, eq(organization.id, member.organizationId))
+      .where(eq(member.userId, joinerId))
+    expect(memberships).toEqual([{ organizationId: teamId, kind: 'team' }])
+    const orphans = await db
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.slug, `personal-${joinerId.toLowerCase()}`))
+    expect(orphans).toEqual([])
   })
 })
 

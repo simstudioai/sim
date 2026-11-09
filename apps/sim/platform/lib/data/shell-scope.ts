@@ -2,34 +2,45 @@ import 'server-only'
 import { cache } from 'react'
 import { headers } from 'next/headers'
 import { parseShellScope, SHELL_SCOPE_HEADER } from '@/lib/navigation/shell-scope'
-import { resolveOrProvisionLandingOrganization } from '@/lib/organizations/provision-personal'
-import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/shell-organization'
+import { ensureViewerOrganization } from '@/lib/organizations/application/viewer-organization'
+import {
+  isWorkspaceShellRefusal,
+  readWorkspaceShell,
+} from '@/lib/workspaces/application/workspace-shell'
 import { readSessionViewer } from '@/platform/lib/data/server-read'
 
 /**
  * The organization the viewer's shell opens in when no URL names one: where they land, or, for an
  * account not yet in any organization (before the backfill reaches it, or after a failed signup
- * provisioning), the personal organization provisioned for them now. Provisioning creates the
- * organization and its owner membership only; their workspaces stay where they are.
+ * provisioning), the one `ensureViewerOrganization` provisions for them now. This is the shell's
+ * one deliberate provisioning point; it creates the organization and its owner membership only, and
+ * their workspaces stay where they are.
  */
-const readViewerLandingOrganizationId = cache(
-  async (userId: string): Promise<string | null> => resolveOrProvisionLandingOrganization(userId)
-)
+const readViewerLandingOrganizationId = cache(async (): Promise<string | null> => {
+  const viewer = await readSessionViewer()
+  if (!viewer) return null
+  return ensureViewerOrganization.execute({ principal: viewer.principal, input: {} })
+})
 
 /**
  * The organization whose shell a workspace the viewer can open renders in, or `null` when they
  * cannot (or are signed out): its own when they are a member of it, else their landing one
- * (`resolveWorkspaceShellOrganizationId`).
+ * (`readWorkspaceShell`), provisioned when they belong to none.
  */
 export const readWorkspaceShellOrganizationId = cache(
   async (workspaceId: string): Promise<string | null> => {
     const viewer = await readSessionViewer()
     if (!viewer) return null
-    return resolveWorkspaceShellOrganizationId(
-      workspaceId,
-      viewer.principal.userId,
-      readViewerLandingOrganizationId
-    )
+    try {
+      const shell = await readWorkspaceShell.execute({
+        principal: viewer.principal,
+        input: { workspaceId },
+      })
+      return shell.organizationId ?? (await readViewerLandingOrganizationId())
+    } catch (error) {
+      if (isWorkspaceShellRefusal(error)) return null
+      throw error
+    }
   }
 )
 
@@ -46,9 +57,5 @@ export const readShellOrganizationId = cache(async (): Promise<string | undefine
   if (!viewer) return undefined
   const workspaceOrganizationId =
     scope?.kind === 'workspace' ? await readWorkspaceShellOrganizationId(scope.workspaceId) : null
-  return (
-    workspaceOrganizationId ??
-    (await readViewerLandingOrganizationId(viewer.principal.userId)) ??
-    undefined
-  )
+  return workspaceOrganizationId ?? (await readViewerLandingOrganizationId()) ?? undefined
 })
