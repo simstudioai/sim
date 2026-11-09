@@ -1,6 +1,7 @@
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
 import { organizationName, signInAsAdmin } from '@/platform/checks/live/session'
 import { liveRoute } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 const settings = (path = '') => liveRoute(`/settings${path}`)
 

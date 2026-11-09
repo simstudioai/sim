@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 import {
   adminEmail,
   memberEmail,
@@ -8,6 +8,7 @@ import {
   signInThroughForm,
 } from '@/platform/checks/live/session'
 import { liveLoginPattern, liveRoute, liveRoutePattern } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 test('signing in through the zone lands on a shell showing the real organization', async ({
   page,

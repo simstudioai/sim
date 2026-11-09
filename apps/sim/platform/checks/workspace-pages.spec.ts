@@ -1,6 +1,6 @@
 import { expect, type Page } from '@playwright/test'
-import { test } from '@/platform/checks/fixture-test'
 import { fixtureUrl } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 

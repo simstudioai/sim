@@ -1,6 +1,7 @@
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
 import { signInAsAdmin } from '@/platform/checks/live/session'
 import { liveRoute, liveRoutePattern } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 /**
  * The image a self-hoster runs: on a hostname that is not Sim's, with billing and Enterprise off.

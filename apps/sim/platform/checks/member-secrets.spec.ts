@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
-import { test } from '@/platform/checks/fixture-test'
 import { fixtureUrl } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 test('the member secrets destination delivers only the credential names the viewer can inspect', async ({
   page,

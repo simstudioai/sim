@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
-import { test } from '@/platform/checks/fixture-test'
 import { fixtureUrl } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 test('a chat panel preserves its file, tabs and focus across resize, collapse and restore', async ({
   page,

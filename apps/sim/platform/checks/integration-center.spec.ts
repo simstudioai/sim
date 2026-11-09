@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
-import { test } from '@/platform/checks/fixture-test'
 import { fixtureUrl } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 test('credential scope hides personal secret sources from shared results and survives details', async ({
   page,

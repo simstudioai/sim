@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
-import { test } from '@/platform/checks/fixture-test'
 import { fixtureUrl } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 test('credential Back returns to its directory origin with filters intact', async ({ page }) => {
   await page.goto(fixtureUrl('/integrations?state=full&tab=credentials&q=Customer&order=desc'))

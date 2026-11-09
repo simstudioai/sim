@@ -1,7 +1,7 @@
 import { expect, type Locator } from '@playwright/test'
 import sharp from 'sharp'
-import { test } from '@/platform/checks/fixture-test'
 import { fixtureUrl } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 test('either half of a binary mode control switches the composer without breaking keyboard selection', async ({
   page,

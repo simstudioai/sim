@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 import {
   adminEmail,
   memberEmail,
@@ -8,6 +8,7 @@ import {
   signIn,
 } from '@/platform/checks/live/session'
 import { liveRoute } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 /**
  * Opens every route the way a member would, in both themes at desktop and narrow widths, and leaves

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
 import {
   adminEmail,
   memberEmail,
@@ -7,6 +7,7 @@ import {
   signInAsAdmin,
 } from '@/platform/checks/live/session'
 import { liveRoute, liveRoutePattern } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 test('the directory filters, pages and opens a profile that returns to the same view', async ({
   page,

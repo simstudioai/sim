@@ -1,7 +1,8 @@
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
 import { escapeRegExp } from '@sim/utils/string'
 import { signInAsAdmin } from '@/platform/checks/live/session'
 import { liveRoute } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 /** A seeded workspace (`scripts/platform-live-seed.ts`). */
 const WORKSPACE = '/workspace/platform-live-workspace-main'

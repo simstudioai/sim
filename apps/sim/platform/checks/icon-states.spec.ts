@@ -1,6 +1,6 @@
 import { expect, type Locator } from '@playwright/test'
-import { test } from '@/platform/checks/fixture-test'
 import { fixtureUrl } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 function paint(control: Locator) {
   return control.evaluate((element) => {

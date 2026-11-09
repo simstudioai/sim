@@ -1,6 +1,6 @@
 import { checkCredentialFields } from '@/platform/checks/field-checks'
-import { test } from '@/platform/checks/fixture-test'
 import { fixtureOrigin } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 for (const theme of ['light', 'dark']) {
   test(`${theme} credential fields retain stable hover, copy feedback and keyboard access`, async ({

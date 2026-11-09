@@ -1,6 +1,7 @@
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
 import { requireEnv, signInAsAdmin } from '@/platform/checks/live/session'
 import { liveRoute, liveRoutePattern } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 /** A model turn needs a reachable orchestrator, which not every environment running these has. */
 const orchestrator = process.env.PLATFORM_LIVE_ORCHESTRATOR === '1'

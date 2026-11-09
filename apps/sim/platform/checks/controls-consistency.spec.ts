@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
-import { test } from '@/platform/checks/fixture-test'
 import { fixtureUrl } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 for (const theme of ['light', 'dark']) {
   test(`disabled menu commands keep their paint and cannot remove protected access in ${theme}`, async ({

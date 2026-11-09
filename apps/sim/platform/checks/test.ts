@@ -41,8 +41,8 @@ function isHydrated() {
   return true
 }
 
-async function waitForHydration(page: Page) {
-  if (new URL(page.url()).origin !== new URL(fixtureOrigin).origin) return
+async function waitForHydration(page: Page, appOrigin: string) {
+  if (new URL(page.url()).origin !== appOrigin) return
   await page.waitForFunction(isHydrated, undefined, {
     polling: 100,
     timeout: HYDRATION_TIMEOUT_MS,
@@ -50,14 +50,16 @@ async function waitForHydration(page: Page) {
 }
 
 /**
- * The fixture checks' `test`. Its page waits, after every document load it is asked for
+ * The Platform checks' `test`, for the fixture and the live suites alike. Its page waits, after every document load it is asked for
  * (`goto`, `reload`, and a history step that loads a document), until the page has hydrated, so
  * a check's first click, key press or hover reaches React. A history step within the document
  * renders on the client and passes at once. Pages without JavaScript never hydrate and are not
  * waited on.
  */
 export const test = base.extend({
-  page: async ({ page, javaScriptEnabled }, use) => {
+  page: async ({ page, javaScriptEnabled, baseURL }, use) => {
+    // A page on the app under test: the suite's base URL, or the fixture server it starts.
+    const appOrigin = new URL(baseURL ?? fixtureOrigin).origin
     if (javaScriptEnabled) {
       const goto = page.goto.bind(page)
       const reload = page.reload.bind(page)
@@ -65,22 +67,22 @@ export const test = base.extend({
       const goForward = page.goForward.bind(page)
       page.goto = async (url, options) => {
         const response = await goto(url, options)
-        await waitForHydration(page)
+        await waitForHydration(page, appOrigin)
         return response
       }
       page.reload = async (options) => {
         const response = await reload(options)
-        await waitForHydration(page)
+        await waitForHydration(page, appOrigin)
         return response
       }
       page.goBack = async (options) => {
         const response = await goBack(options)
-        await waitForHydration(page)
+        await waitForHydration(page, appOrigin)
         return response
       }
       page.goForward = async (options) => {
         const response = await goForward(options)
-        await waitForHydration(page)
+        await waitForHydration(page, appOrigin)
         return response
       }
     }

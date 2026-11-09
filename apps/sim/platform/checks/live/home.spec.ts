@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 import {
   memberEmail,
   organizationId,
@@ -7,6 +7,7 @@ import {
   signInAsAdmin,
 } from '@/platform/checks/live/session'
 import { liveRoute, liveRoutePattern } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 test.describe('Home on real data', () => {
   test.beforeEach(async ({ page }) => {

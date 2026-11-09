@@ -1,6 +1,7 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 import { organizationId, signInAsAdmin } from '@/platform/checks/live/session'
 import { liveRoute } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 /** A seeded admin of an Enterprise organization, or a self-hosted deployment with these features on. */
 function openSection(page: Page, section: string) {

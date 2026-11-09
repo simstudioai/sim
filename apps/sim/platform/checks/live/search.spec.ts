@@ -1,6 +1,7 @@
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
 import { signInAsAdmin } from '@/platform/checks/live/session'
 import { liveRoute, liveRoutePattern } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 test('A query lands in the URL, searches under the viewer, and a filter narrows it', async ({
   page,

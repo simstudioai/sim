@@ -1,7 +1,8 @@
-import { expect, type Page, test } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 import { escapeRegExp } from '@sim/utils/string'
 import { adminEmail, requireEnv, signInAsAdmin } from '@/platform/checks/live/session'
 import { liveRoute } from '@/platform/checks/routes'
+import { test } from '@/platform/checks/test'
 
 /** What a member does day to day beyond each section's own spec, against the real API. */
 const chats = (page: Page) => page.getByRole('region', { name: 'Chats', exact: true })
