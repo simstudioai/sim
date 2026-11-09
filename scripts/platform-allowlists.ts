@@ -841,7 +841,164 @@ const workflowClosureViews: ReasonedAllowlist = granted(
   ]
 )
 
+/** Live-only product pages, which answer not found on a fixture build, and why each has no fixture. */
+const LIVE_ONLY_ROUTES: ReasonedAllowlist = {
+  [`${ORGANIZATION_ROUTES}integrations/accounts/[credentialId]/page.tsx`]:
+    "A connected account's detail exists only for a live credential",
+  [`${ORGANIZATION_ROUTES}people/[memberId]/page.tsx`]:
+    'People reads the live roster and has no example data',
+  [`${ORGANIZATION_ROUTES}people/page.tsx`]: 'People reads the live roster and has no example data',
+  [`${ORGANIZATION_ROUTES}search/chat/[id]/page.tsx`]:
+    'Search answers from live sources and has no example data',
+  [`${ORGANIZATION_ROUTES}search/page.tsx`]:
+    'Search answers from live sources and has no example data',
+  [`${ORGANIZATION_ROUTES}settings/billing/plans/page.tsx`]:
+    "Plans read the organization's live subscription",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/files/[fileId]/page.tsx`]:
+    "Files reads the workspace's live storage",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/files/page.tsx`]:
+    "Files reads the workspace's live storage",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/page.tsx`]:
+    "Knowledge reads the workspace's live knowledge bases",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/knowledge/[knowledgeBaseId]/page.tsx`]:
+    "Knowledge reads the workspace's live knowledge bases",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/knowledge/page.tsx`]:
+    "Knowledge reads the workspace's live knowledge bases",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/tables/[tableId]/page.tsx`]:
+    "Tables read the workspace's live rows",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/tables/page.tsx`]:
+    "Tables read the workspace's live rows",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/tests/[name]/page.tsx`]:
+    "Tests run the workspace's live workflows",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/tests/page.tsx`]:
+    "Tests run the workspace's live workflows",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/[workflowId]/page.tsx`]:
+    'The Workflows tab runs the legacy editor on live workflow state',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/[workflowId]/versions/[version]/page.tsx`]:
+    'The Workflows tab runs the legacy editor on live workflow state',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/page.tsx`]:
+    'The Workflows tab runs the legacy editor on live workflow state',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/runs/[executionId]/page.tsx`]:
+    'The Workflows tab runs the legacy editor on live workflow state',
+}
+/** Views that branch on fixture mode, which only pages, layouts, registries and fixtures may. */
+const FIXTURE_BRANCH_VIEWS: ReasonedAllowlist = {
+  [`${PRODUCT_ROUTES}_components/product-session.tsx`]:
+    'The product session holds the fixture or live data the shell renders',
+  [`${PRODUCT_ROUTES}_components/product-shell.tsx`]:
+    'The one product shell picks the fixture or live session around every page',
+  [`${ORGANIZATION_ROUTES}settings/_components/live-settings/live-settings-route.tsx`]:
+    "Predates the rule: the settings route guards only a fixture's local drafts on leave",
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/account/account-section.tsx`]:
+    'Predates the rule: account actions are disabled in the fixture preview',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/account/delete-account.tsx`]:
+    'Predates the rule: account deletion is disabled in the fixture preview',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/preferences/preferences-section.tsx`]:
+    'Predates the rule: fixture preferences read the theme from the URL',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/privacy/cookie-preferences.tsx`]:
+    'Predates the rule: fixture cookie categories render without a session',
+  'platform/lib/data/billing.ts':
+    'Predates the rule: the billing adapter hides the upgrade link on fixtures',
+  'platform/lib/data/members.ts':
+    'Predates the rule: the members adapter keeps fixture edits local',
+  'platform/lib/data/settings-providers.tsx':
+    'Predates the rule: the settings providers skip live reads on fixtures',
+  'platform/shared/preferences.ts':
+    'Predates the rule: the preferences model keeps fixture toggles local',
+}
+/** Live-reachable modules that import fixture code a normal build then evaluates. */
+const FIXTURE_IMPORTS_FROM_LIVE: ReasonedAllowlist = {
+  [`${ORGANIZATION_ROUTES}integrations/_components/credential-detail/credential-detail.tsx`]:
+    'Renders ToolPermissions, a live view kept in the fixtures folder; move it out of fixtures/',
+}
+/** Files that render a failed read's copy outside `FailureNotice`. */
+const FAILURE_COPY_OWNERS: ReasonedAllowlist = {
+  [`${PRODUCT_ROUTES}_components/sidebar/chats-section.tsx`]:
+    "The sidebar section's own failure row carries its Retry",
+  [`${PRODUCT_ROUTES}_components/sidebar/workspaces-section.tsx`]:
+    "The sidebar section's own failure row carries its Retry",
+  [`${PRODUCT_ROUTES}_components/workspace/files/file-view/file-view.tsx`]:
+    'Predates the rule: a file that failed to load fills the page with its empty state',
+  [`${PRODUCT_ROUTES}_components/workspace/tables/workflow-panel/workflow-panel.tsx`]:
+    'Predates the rule: the workflow panel names its failed read inline',
+  [`${PRODUCT_ROUTES}_components/workspace/workflows/canvas/workflow-canvas/workflow-canvas.tsx`]:
+    "The canvas keeps the legacy editor's error view unchanged",
+  [`${ORGANIZATION_ROUTES}people/_components/directory-sync/connect-modal.tsx`]:
+    'Predates the rule: the connect dialog names its failed read inline',
+  [`${ORGANIZATION_ROUTES}people/_components/import/import-modal.tsx`]:
+    'Predates the rule: the import dialog names its failed connection read inline',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/compare-versions/compare-versions.tsx`]:
+    'Predates the rule: the version compare names its failed read inline',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/workflow-block-preview/workflow-block-preview.tsx`]:
+    'Predates the rule: the block preview names its failed read inline',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/snapshot-block/snapshot-block.tsx`]:
+    'Predates the rule: the snapshot block names its failed read inline',
+  [`${PRODUCT_ROUTES}workspace/_components/workspace-entry/workspace-entry.tsx`]:
+    "Predates the rule: the workspace entry's gate names its failed read",
+}
+/** Files whose product copy still spells an ellipsis as three periods. */
+const ASCII_ELLIPSIS_COPY: ReasonedAllowlist = granted(
+  'Predates copy-ellipsis: replace each ... in its copy with …',
+  [
+    `${PRODUCT_ROUTES}_components/access-requests/my-requests.tsx`,
+    `${PRODUCT_ROUTES}_components/access-requests/review-requests.tsx`,
+    `${PRODUCT_ROUTES}_components/credential-members/credential-members.tsx`,
+    `${PRODUCT_ROUTES}_components/links-page/links-frame.tsx`,
+    `${PRODUCT_ROUTES}_components/sidebar/support-modal.tsx`,
+    `${PRODUCT_ROUTES}_components/workspace/access-required/access-required.tsx`,
+    `${PRODUCT_ROUTES}_components/workspace/workflows/canvas/connection-block-selector/connection-block-selector.tsx`,
+    `${PRODUCT_ROUTES}_components/workspace/workflows/canvas/workflow-block/block-view.tsx`,
+    `${PRODUCT_ROUTES}_components/workspace/workflows/search-replace/replacement-controls.tsx`,
+    `${ORGANIZATION_ROUTES}_components/secrets-editor/secrets-editor.tsx`,
+    `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/add-members-modal.tsx`,
+    `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/group-detail.tsx`,
+    `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/permission-rows.tsx`,
+    `${ORGANIZATION_ROUTES}settings/_components/sections/audit-logs/audit-logs-section.tsx`,
+    `${ORGANIZATION_ROUTES}settings/_components/sections/browser/passwords-view.tsx`,
+    `${ORGANIZATION_ROUTES}settings/_components/sections/data-drains/data-drains-section.tsx`,
+    `${ORGANIZATION_ROUTES}settings/_components/sections/data-retention/policy-detail.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/_components/create-mcp-server-modal/create-mcp-server-modal.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/_components/generate-prompt/generate-prompt.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/api-keys/api-keys-section.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/byok/byok-key-manager.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/byok/byok-section.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/custom-blocks/custom-blocks-section.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/custom-tools/custom-tools-section.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/forks/forks-section.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/inbox/inbox-task-list.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/mcp/mcp-section.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/recently-deleted/recently-deleted-section.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/sandboxes/sandboxes-section.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/secrets/secrets-editor.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/teammates/teammates-section.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/workflow-mcp-servers/server-modals.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/workflow-mcp-servers/workflow-mcp-servers-section.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/code/code.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/combobox/combobox.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/condition-input/route-description.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/credential-selector/credential-selector.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/dropdown/dropdown.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/knowledge-base-selector/knowledge-base-selector.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/long-input/long-input.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/messages-input/messages-input.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/short-input/short-input.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/sub-block/sub-block-label.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/table-selector/table-selector.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/tool-input/tool-picker.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/variables-input/variables-input.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/wand-prompt-bar/wand-prompt-bar.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/workflow-selector/workflow-selector.tsx`,
+    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/workspace-folder-selector/workspace-folder-selector.tsx`,
+  ]
+)
+
 export const PLATFORM_ALLOWLISTS = {
+  LIVE_ONLY_ROUTES,
+  FIXTURE_BRANCH_VIEWS,
+  FIXTURE_IMPORTS_FROM_LIVE,
+  FAILURE_COPY_OWNERS,
+  ASCII_ELLIPSIS_COPY,
   CODE_FIRST_VARIANTS,
   LOADING_COPY_OWNERS,
   FRAMES_OUTSIDE_SURFACE,

@@ -17,6 +17,14 @@ import {
   staleAllowlistFindings,
 } from './platform-allowlists'
 import { ORGANIZATION_ROUTES, PRODUCT_ROUTES } from './platform-product-routes'
+import {
+  classifyPage,
+  hasAsciiEllipsis,
+  inFixtureBranch,
+  isFixtureModeBranch,
+  isLoadingCopy,
+  isUnownedLoadFailure,
+} from './platform-source-rules'
 import { productUsage } from './platform-variant-usage'
 import { listRepoFiles } from './repo-files'
 
@@ -902,80 +910,84 @@ function checkSeamClosure() {
   }
 }
 
-/**
- * Copy that announces a pending read: `Loading`, its synonyms, `Please wait`, and a `Saving…` or
- * `Sending…` status. Any case.
- */
-const LOADING_COPY =
-  /^(?:(loading|checking|fetching|reading|refreshing|retrieving)\b|please wait\b|(saving|sending)\b.*…$)/i
-
-/**
- * The node a rendered string's value flows out through: past parentheses, conditional branches,
- * the right side of `??`/`||`/`&&`, and the template a head starts.
- */
-function valueRoot(node: ts.Node): ts.Node {
-  let top = ts.isTemplateHead(node) ? node.parent : node
-  while (
-    ts.isParenthesizedExpression(top.parent) ||
-    (ts.isConditionalExpression(top.parent) && top.parent.condition !== top) ||
-    (ts.isBinaryExpression(top.parent) &&
-      top.parent.right === top &&
-      [
-        ts.SyntaxKind.QuestionQuestionToken,
-        ts.SyntaxKind.BarBarToken,
-        ts.SyntaxKind.AmpersandAmpersandToken,
-      ].includes(top.parent.operatorToken.kind))
-  )
-    top = top.parent
-  return top
-}
-
-/** A string branch a Load action shows at rest, such as `Load more` or `Load all`. */
-const LOAD_ACTION = /^Load\b(?!ing)/
-
-/** The string leaves of the conditional chain under `root`. */
-function conditionalLeaves(root: ts.Node): string[] {
-  const leaves: string[] = []
-  const collect = (branch: ts.Node) => {
-    if (ts.isParenthesizedExpression(branch)) collect(branch.expression)
-    else if (ts.isConditionalExpression(branch)) {
-      collect(branch.whenTrue)
-      collect(branch.whenFalse)
-    } else if (ts.isStringLiteralLike(branch)) leaves.push(branch.text.trim())
+/** Runtime imports a normal build evaluates: every one outside a fixture build's branch. */
+function liveImports(file: string): string[] {
+  const source = ts.createSourceFile(file, read(file), ts.ScriptTarget.Latest, true)
+  const found: string[] = []
+  const visit = (node: ts.Node) => {
+    const specifier =
+      (ts.isImportDeclaration(node) && !isTypesOnly(node)) ||
+      (ts.isExportDeclaration(node) && !node.isTypeOnly)
+        ? node.moduleSpecifier
+        : ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword
+          ? node.arguments[0]
+          : undefined
+    if (specifier && ts.isStringLiteralLike(specifier) && !inFixtureBranch(node))
+      found.push(specifier.text)
+    ts.forEachChild(node, visit)
   }
-  collect(root)
-  return leaves
+  visit(source)
+  return found
 }
 
 /**
- * Rendered text (JSX text, a JSX attribute value, a returned string) that announces a pending read.
- * An action's pending label is feedback, not loading copy, so the rule passes one that ends in `…`
- * as a button's text or a `pendingLabel` or `confirmLabel` (`busy ? 'Saving…' : 'Save'`), and the
- * pending branch of a Load action (`busy ? 'Loading…' : 'Load more'`).
+ * Walks what a normal build evaluates from each product page and layout, skipping the branches a
+ * fixture build takes, and fails any edge into fixture code: example data must never ship live.
  */
-function isLoadingCopy(node: ts.Node): boolean {
-  const text =
-    ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isJsxText(node)
-      ? node.text.trim()
-      : ''
-  // A bare lowercase token such as a `'loading'` variant or status is a value, not copy.
-  if (!LOADING_COPY.test(text) || (!ts.isJsxText(node) && /^[a-z][\w-]*$/.test(text))) return false
-  const root = ts.isJsxText(node) ? node : valueRoot(node)
-  const host = ts.isJsxExpression(root.parent) ? root.parent.parent : root.parent
-  const attribute = ts.isJsxAttribute(host) ? host.name.getText() : undefined
-  const rendered =
-    ts.isJsxText(node) ||
-    ts.isJsxExpression(root.parent) ||
-    ts.isJsxAttribute(root.parent) ||
-    ts.isReturnStatement(root.parent) ||
-    (ts.isArrowFunction(root.parent) && root.parent.body === root)
-  if (!rendered || !text.endsWith('…')) return rendered
-  const buttonText =
-    ts.isJsxElement(host) &&
-    /(?:^|\.)(?:button|\w*Button)$/.test(host.openingElement.tagName.getText())
-  const loadAction =
-    /^loading\b/i.test(text) && conditionalLeaves(root).some((leaf) => LOAD_ACTION.test(leaf))
-  return !(attribute === 'pendingLabel' || attribute === 'confirmLabel' || buttonText || loadAction)
+function checkFixtureReach() {
+  const queue = files(PRODUCT_ROUTES).filter(isRouteEntry)
+  const visited = new Set(queue)
+  for (let file = queue.pop(); file; file = queue.pop()) {
+    for (const specifier of liveImports(file)) {
+      const target = resolveSource(file, specifier)
+      if (!target) continue
+      if (isFixturePath(target)) {
+        if (!grants('FIXTURE_IMPORTS_FROM_LIVE', file))
+          report(
+            'fixture-import-from-live',
+            file,
+            `A normal build evaluates this import of fixture code: ${specifier}; load it inside the fixture build's branch`
+          )
+        continue
+      }
+      if (visited.has(target) || !(inPlatformTree(target) || isSystem(target))) continue
+      visited.add(target)
+      queue.push(target)
+    }
+  }
+}
+
+/** The settings registries, which mount each server section the way a page mounts its view. */
+const SECTION_REGISTRIES = [
+  `${ORGANIZATION_ROUTES}settings/_components/section-registry.ts`,
+  `${ORGANIZATION_ROUTES}settings/_components/settings-section/settings-section.tsx`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/section-registry.ts`,
+  `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/workspace-settings-section/workspace-settings-section.tsx`,
+]
+const isFixturePath = (file: string) =>
+  file === 'platform/fixtures' ||
+  file.startsWith('platform/fixtures/') ||
+  file.includes('/fixtures/')
+const isRouteEntry = (file: string) => inRouteTree(file) && /\/(?:page|layout)\.tsx$/.test(file)
+/** Where a fixture-mode value may decide what renders: entries, registries, their sections, fixtures. */
+let fixtureBranchOwners: ReadonlySet<string> | undefined
+function ownsFixtureBranch(file: string) {
+  fixtureBranchOwners ??= new Set(
+    SECTION_REGISTRIES.filter((registry) => existsSync(path.join(app, registry))).flatMap(
+      (registry) => [
+        registry,
+        ...runtimeImports(registry).flatMap(
+          (specifier) => resolveSource(registry, specifier) ?? []
+        ),
+      ]
+    )
+  )
+  return (
+    isRouteEntry(file) ||
+    isFixturePath(file) ||
+    file === 'platform/lib/data/mode.ts' ||
+    fixtureBranchOwners.has(file)
+  )
 }
 
 function checkJs(file: string, content: string) {
@@ -1002,6 +1014,34 @@ function checkJs(file: string, content: string) {
     file === 'platform/shared/time.ts' ||
     file.startsWith('platform/checks/') ||
     /\.test\.[jt]sx?$/.test(file)
+  const authoredCopy = !file.startsWith('platform/checks/') && !/\.test\.[jt]sx?$/.test(file)
+  const reported = new Set<string>()
+  /** Reports `rule` once per file unless `allowlist` grants the file. */
+  const reportFileOnce = (
+    rule: string,
+    allowlist: AllowlistName,
+    node: ts.Node,
+    message: string
+  ) => {
+    if (reported.has(rule) || grants(allowlist, file)) return
+    reported.add(rule)
+    report(rule, location(node), message)
+  }
+  if (inRouteTree(file) && path.basename(file) === 'page.tsx') {
+    const kind = classifyPage(sf)
+    if (kind === 'unclassified')
+      report(
+        'live-only-route',
+        file,
+        'Classify this page: branch on the fixture build, gate it live-only, or only redirect'
+      )
+    else if (kind === 'live-only' && !grants('LIVE_ONLY_ROUTES', file))
+      report(
+        'live-only-route',
+        file,
+        'A live-only page answers not found on a fixture build; give it a fixture branch, or list it in LIVE_ONLY_ROUTES with the reason'
+      )
+  }
   const modules = new Map<string, string>()
   const primitives = new Set<string>()
   const location = (node: ts.Node) =>
@@ -1039,6 +1079,32 @@ function checkJs(file: string, content: string) {
         )
       }
     }
+    if (inPlatform && authoredCopy && isUnownedLoadFailure(node))
+      reportFileOnce(
+        'failure-owner',
+        'FAILURE_COPY_OWNERS',
+        node,
+        'Show a failed read through FailureNotice (or QueryFailure), which pairs it with Retry'
+      )
+    if (inPlatform && authoredCopy && hasAsciiEllipsis(node))
+      reportFileOnce(
+        'copy-ellipsis',
+        'ASCII_ELLIPSIS_COPY',
+        node,
+        'Write the ellipsis as … in product copy'
+      )
+    if (
+      inPlatformTree(file) &&
+      authoredCopy &&
+      !ownsFixtureBranch(file) &&
+      isFixtureModeBranch(node)
+    )
+      reportFileOnce(
+        'fixture-branch-in-view',
+        'FIXTURE_BRANCH_VIEWS',
+        node,
+        'Branch on the fixture build only in a page, layout, settings registry or fixture; keep views prop-driven'
+      )
     if (inPlatform && !ownsTimeLabels && isLoadingCopy(node)) {
       if (!grants('LOADING_COPY_OWNERS', file))
         report(
@@ -1324,6 +1390,7 @@ for (const [name, props] of Object.entries(variants)) {
   }
 }
 checkSeamClosure()
+checkFixtureReach()
 
 for (const finding of allowlistReasonFindings(allowlists))
   report('allowlist-reason', 'scripts/platform-allowlists.ts', finding)

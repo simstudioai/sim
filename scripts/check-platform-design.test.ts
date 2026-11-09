@@ -12,10 +12,16 @@ const APP = path.join(ROOT, 'apps/sim')
 const PRODUCT = '01M6A91A32GBA6GTN4HASVG0ER'
 const SHARED = '01M6ASMJ22TS7WG8Q3P5YTHWWD'
 
+/** Every product page branches on the fixture build (`live-only-route`), so fixture pages do too. */
+const withFixtureBranch = (file: string, content: string) =>
+  file.endsWith('/page.tsx') && !/SIM_PLATFORM_FIXTURES|resolvePlatformMode/.test(content)
+    ? `${content}\nif (process.env.SIM_PLATFORM_FIXTURES === '1') console.info('fixture')\n`
+    : content
+
 function write(file: string, content: string) {
   const absolute = path.join(APP, file)
   mkdirSync(path.dirname(absolute), { recursive: true })
-  writeFileSync(absolute, content)
+  writeFileSync(absolute, withFixtureBranch(file, content))
 }
 
 /** Grants `lists` the way `scripts/platform-allowlists.ts` does in the audited tree. */
@@ -578,7 +584,7 @@ function productFixture() {
   const put = (file: string, content: string) => {
     const absolute = path.join(root, 'apps/sim', file)
     mkdirSync(path.dirname(absolute), { recursive: true })
-    writeFileSync(absolute, content)
+    writeFileSync(absolute, withFixtureBranch(file, content))
   }
   symlinkSync(
     path.resolve(path.dirname(CHECK), '../node_modules'),
@@ -959,6 +965,45 @@ it('fails [prop-spread] for props passed through cloneElement or createElement',
     expect(result.status).toBe(1)
     expect(result.output).toContain(`${file}:2 [prop-spread]`)
     expect(result.output).toContain(`${file}:3 [prop-spread]`)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
+it('fails the route and copy rules: live-only-route, fixture-branch-in-view, fixture-import-from-live, failure-owner, copy-ellipsis', () => {
+  const { root, put, run } = productFixture()
+  const org = 'app/(product)/o/[organizationId]'
+  try {
+    put(
+      `${org}/people/page.tsx`,
+      `import { notFound } from 'next/navigation'
+      import { resolvePlatformMode } from '@/platform/lib/data/mode'
+      import { People } from '@/${org}/people/_components/people'
+      export default function Page() { if (resolvePlatformMode() !== 'live') notFound(); return <People /> }`
+    )
+    put('platform/lib/data/mode.ts', `export const resolvePlatformMode = () => 'live'\n`)
+    put(
+      `${org}/people/_components/people.tsx`,
+      `import { rows } from '@/${org}/people/_components/fixtures/rows'
+      export function People({ fixture }: { fixture?: boolean }) {
+        return <>
+          <p>{fixture ? 'Example' : rows.length}</p>
+          <p>Couldn't load people</p>
+          <input placeholder='Search people...' />
+        </>
+      }`
+    )
+    put(`${org}/people/_components/fixtures/rows.ts`, 'export const rows: string[] = []\n')
+    const result = run()
+    expect(result.status).toBe(1)
+    for (const finding of [
+      `${org}/people/page.tsx [live-only-route]`,
+      `${org}/people/_components/people.tsx:4 [fixture-branch-in-view]`,
+      `${org}/people/_components/people.tsx [fixture-import-from-live]`,
+      `${org}/people/_components/people.tsx:5 [failure-owner]`,
+      `${org}/people/_components/people.tsx:6 [copy-ellipsis]`,
+    ])
+      expect(result.output).toContain(finding)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
