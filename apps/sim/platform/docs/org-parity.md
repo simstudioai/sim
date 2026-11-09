@@ -306,7 +306,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Collapsed icon rail with flyouts | `organization-sidebar.tsx` | Hidden | Product decision: the Platform collapses to its opener control, with no rail |
 | Drag to resize | `useSidebarResize` | Hidden | Product decision: the Platform sidebar has one width |
 | Desktop hover peek | `useSidebarPeek` | Hidden | Product decision: follows the rail decision |
-| Mobile navigation drawer | `workspace-chrome.tsx` | Unverified | No live check yet. Existing `platform-shell.tsx` drawer; `checks/ts` |
+| Mobile navigation drawer | `workspace-chrome.tsx` | Unverified | No live check yet. Existing `platform-shell.tsx` drawer |
 | Phone viewport containment | `workspace-viewport.tsx` | Open | Shell owner: needs a device check, and none has been possible yet. The shell uses `100dvh` |
 | Desktop titlebar insets | `workspace-chrome.tsx` | Unverified | No live check yet. Existing `desktop-host.tsx` |
 | Desktop menu commands | `workspace-chrome.tsx` | Unverified | No live check yet. `useDesktopCommands` in `desktop-host.tsx` |
@@ -319,7 +319,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Active item highlighting | `organization-sidebar.tsx` | Unverified | No live check yet. Existing `sidebar.tsx` |
 | Settings rail replaces app rail | `organization-sidebar.tsx` | Unverified | No live check yet. Existing `sidebar.tsx` |
 | Settings nav per role and plan | `organization-settings-sidebar.tsx` | Unverified | No live check yet. Foundation: `settings-navigation/destinations.ts` |
-| Settings search: sections and the settings inside them, synonyms, admin and hosted entries gated, a result opens its tab and brings its row into view | `platform/shared/settings-search.ts` | Unverified | No live check yet. The pre-cutover Platform's index and matching, moved to `platform/shared/settings-search.ts` from the deleted `platform/embedded`, attached to each section the viewer may open by `resolveSettingsNavigation`; `?row=` is revealed and stripped by `settings-screen.tsx`. `scripts/org-redesign-e2e/checks/settings.ts` exercises it but has not run against this build |
+| Settings search: sections and the settings inside them, synonyms, admin and hosted entries gated, a result opens its tab and brings its row into view | `platform/shared/settings-search.ts` | Unverified | No live check yet. The pre-cutover Platform's index and matching, moved to `platform/shared/settings-search.ts`, attached to each section the viewer may open by `resolveSettingsNavigation`; `?row=` is revealed and stripped by `settings-screen.tsx`. `scripts/org-redesign-e2e/checks/settings.ts` exercises it but has not run against this build |
 | Leave settings, return to prior page | `settings-return.ts` | Unverified | No live check yet. `settingsReturn` in `lib/data/shell-actions.ts` |
 | Org chip with logo or initial | `organization-header.tsx` | Unverified | No live check yet. `organization-menu.tsx` |
 | Collapsed chip as expand control | `organization-header.tsx` | Hidden | Product decision: the opener control does this, with no rail to hold a chip |
