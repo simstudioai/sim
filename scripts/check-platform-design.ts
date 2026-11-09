@@ -467,6 +467,8 @@ const seamHelpers = new Set([
   'lib/permission-groups/block-successors.generated',
   'lib/resources',
   'lib/settings/section-availability',
+  'lib/settings/search-params',
+  'lib/execution/remote-sandbox/cli-tools',
   'lib/sim-search/connectors',
   'lib/sim-search/connection-labels',
   'lib/sim-search/constants',
