@@ -1,6 +1,7 @@
 'use client'
 
-import { type KeyboardEvent, useId, useMemo, useRef, useState } from 'react'
+import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { isCompactViewport } from '@sim/emcn/layout/use-compact-viewport'
 import type { ComposerController } from '@/app/(product)/_components/composer/model'
 import {
   type ComposerOption,
@@ -23,6 +24,29 @@ export function useComposerReferences(composer: ComposerController) {
   const [caret, setCaret] = useState<number | null>(null)
   const [dismissed, setDismissed] = useState<number | null>(null)
   const [highlight, setHighlight] = useState({ key: '', index: 0 })
+  const focusingOnLoad = useRef(false)
+
+  /**
+   * The field takes focus once it mounts, except on a phone, in a background window, or over a
+   * field the viewer is already typing in. Focus from load is not the viewer reaching for a
+   * picker, so it leaves the inventories unread.
+   */
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      if (isCompactViewport('navigation') || !document.hasFocus()) return
+      const active = document.activeElement
+      if (
+        active instanceof HTMLElement &&
+        (active.matches('input, textarea, select') || active.isContentEditable)
+      )
+        return
+      focusingOnLoad.current = true
+      editor.current?.focus({ preventScroll: true })
+      focusingOnLoad.current = false
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [])
+
   const { text, attachments } = composer.draft
   const { references, tools, skills } = composer
   const options = useMemo(
@@ -193,7 +217,7 @@ export function useComposerReferences(composer: ComposerController) {
     cursor: (start: number, end: number) => setCaret(start === end ? start : null),
     focus: () => {
       setFocused(true)
-      composer.onPickerOpen?.()
+      if (!focusingOnLoad.current) composer.onPickerOpen?.()
     },
     blur: () => setFocused(false),
   }
