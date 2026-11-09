@@ -64,6 +64,7 @@ function presentReceipt(receipt: ReceiptRow): AssistantReceipt {
   const lead = presentation.primary[0]
   return {
     id: receipt.toolCallId,
+    sequence: receipt.sequence ?? undefined,
     title: presentation.title,
     state: receipt.state,
     stateLabel: RECEIPT_LABELS[receipt.state],
@@ -197,6 +198,7 @@ export function useAssistantReview({
       retry: () => void refetch(),
       actions: actions.map((action) => ({
         id: action.toolCallId,
+        sequence: action.sequence ?? undefined,
         title: assistantActionPresentation(action).title,
         account: action.account
           ? { name: action.account.displayName, active: action.account.active }
@@ -260,8 +262,10 @@ interface TurnReceiptsOptions {
   active: boolean
   /** How many turns read receipts at once, which spaces out their polling. */
   mountedTurnCount: number
-  /** Tool calls of the turn whose receipts are read by id when no page covers them. */
+  /** The turn's transcript tool calls whose receipts are read by id when no page covers them. */
   candidateIds: readonly string[]
+  /** Actions still waiting for review: read by id too, but shown as review cards. */
+  pendingIds: ReadonlySet<string>
 }
 
 /**
@@ -275,6 +279,7 @@ export function useTurnReceipts({
   active,
   mountedTurnCount,
   candidateIds,
+  pendingIds,
 }: TurnReceiptsOptions) {
   const query = useAssistantActionTurnReceipts({
     organizationId,
@@ -293,7 +298,7 @@ export function useTurnReceipts({
     organizationId,
     chatId,
     streamId,
-    candidateIds,
+    candidateIds: [...candidateIds, ...pendingIds],
     coveredIds: covered,
     enabled: query.isSuccess || query.isError,
     pageCount: pages?.length ?? 1,
@@ -305,12 +310,25 @@ export function useTurnReceipts({
   }
   for (const receipt of paged) byId.set(receipt.toolCallId, receipt)
   const receipts: AssistantReceipt[] = [...byId.values()]
+    .filter((receipt) => !pendingIds.has(receipt.toolCallId))
     .sort(
       (left, right) =>
         (left.sequence ?? Number.MAX_SAFE_INTEGER) - (right.sequence ?? Number.MAX_SAFE_INTEGER)
     )
     .map(presentReceipt)
-  const missing = batches.filter(({ ids }) => ids.some((id) => !byId.has(id)))
+  // As legacy: a transcript call whose read failed reports it on its own, and the rest of the
+  // unread calls, neither in the transcript nor waiting for review, report together.
+  const represented = new Set(candidateIds)
+  const unavailable = batches.flatMap(({ ids, query: batch }) =>
+    batch.isError
+      ? ids
+          .filter((id) => represented.has(id) && !pendingIds.has(id) && !byId.has(id))
+          .map((id) => ({ id, retrying: batch.isFetching, retry: () => void batch.refetch() }))
+      : []
+  )
+  const missing = batches.filter(({ ids }) =>
+    ids.some((id) => !byId.has(id) && !represented.has(id) && !pendingIds.has(id))
+  )
   return {
     receipts,
     status: query.isError ? 'error' : query.isPending ? 'loading' : 'ready',
@@ -319,6 +337,8 @@ export function useTurnReceipts({
     more: query.hasNextPage,
     loadingMore: query.isFetchingNextPage,
     loadMore: () => void query.fetchNextPage(),
+    /** Transcript calls whose receipt could not be read, each retryable. */
+    unavailable,
     /** Batches still owing a receipt: read in flight, or failed and retryable. */
     recovery: missing.length
       ? {

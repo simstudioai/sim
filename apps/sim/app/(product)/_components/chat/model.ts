@@ -215,6 +215,8 @@ export interface AssistantReviewField {
 export interface AssistantReviewAction {
   /** The tool call that proposed it. */
   id: string
+  /** Its place among the turn's actions, which orders review cards among receipts. */
+  sequence?: number
   title: string
   account?: { name: string; active: boolean }
   fields: readonly AssistantReviewField[]
@@ -223,6 +225,8 @@ export interface AssistantReviewAction {
 /** What one reviewed action did, and the fields it ran with while they are still kept. */
 export interface AssistantReceipt {
   id: string
+  /** Its place among the turn's actions. */
+  sequence?: number
   title: string
   state: string
   stateLabel: string

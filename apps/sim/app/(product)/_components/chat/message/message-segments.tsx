@@ -1,6 +1,6 @@
 'use client'
 
-import type { ComponentType } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { createContext, useContext } from 'react'
 import { Button } from '@sim/emcn/button'
 import { InlineNotice } from '@sim/emcn/status'
@@ -34,10 +34,17 @@ export interface TurnReceiptsProps {
   /** The turn is still streaming, so its receipts poll. */
   active: boolean
   mountedTurnCount: number
-  /** The turn's tool calls whose receipts are read by id when no page covers them. */
+  /** The turn's transcript tool calls whose receipts are read by id when no page covers them. */
   candidateIds: readonly string[]
-  /** Actions still waiting for review, which show as review cards instead. */
-  pendingIds: ReadonlySet<string>
+  /** Review cards of the actions still waiting, placed among the receipts in turn order. */
+  pending: readonly PendingReviewCard[]
+}
+
+/** An action still waiting for review, shown as its review card where its receipt would be. */
+export interface PendingReviewCard {
+  id: string
+  sequence?: number
+  card: ReactNode
 }
 
 /** Cards that talk to a backend, supplied by the live chat. A fixture transcript carries none. */
