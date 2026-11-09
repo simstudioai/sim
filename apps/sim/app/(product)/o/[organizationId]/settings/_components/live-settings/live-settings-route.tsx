@@ -7,8 +7,8 @@ import {
 import { SettingsScreen } from '@/app/(product)/o/[organizationId]/settings/_components/settings-screen/settings-screen'
 import { OrganizationSettingsSection } from '@/app/(product)/o/[organizationId]/settings/_components/settings-section/settings-section'
 import { resolveLegacyRequestLink } from '@/platform/lib/data/legacy-request-link'
-import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
-import { resolveLiveSetting } from '@/platform/lib/data/settings-navigation'
+import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import { resolveLiveSetting, resolveSettingsAlias } from '@/platform/lib/data/settings-navigation'
 
 interface LiveSettingsRouteProps {
   organization: PlatformOrganization
@@ -25,30 +25,13 @@ export async function LiveSettingsRoute({
   fixture,
 }: LiveSettingsRouteProps) {
   const [key = 'general', ...subpath] = path
-  const aliases: Record<string, string> = {
-    preferences: 'general',
-    account: 'general',
-    'authorized-apps': 'general',
-    privacy: 'general',
-    notifications: 'general',
-    connections: 'connected-accounts',
-    organization: 'members',
-    team: 'members',
-    subscription: 'billing',
-    domains: 'sso',
-    sessions: 'security',
+  const params = new URLSearchParams()
+  for (const [name, value] of Object.entries(query)) {
+    for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value])
+      params.append(name, item)
   }
-  if (!subpath.length && Object.hasOwn(aliases, key)) {
-    const params = new URLSearchParams()
-    for (const [name, value] of Object.entries(query)) {
-      for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value])
-        params.append(name, item)
-    }
-    if (key === 'privacy' || key === 'authorized-apps') params.set('view', key)
-    redirect(
-      `${surfaceHref(organization, `/settings/${aliases[key]}`)}${params.size ? `?${params}` : ''}`
-    )
-  }
+  const alias = resolveSettingsAlias(organization, path, params)
+  if (alias) redirect(alias)
   const requestLink = !subpath.length && resolveLegacyRequestLink(organization, key, query)
   if (requestLink) {
     if (!resolveLiveSetting('requests', organization)) notFound()

@@ -443,7 +443,7 @@ export async function proxy(request: NextRequest) {
     requestHeaders.delete(SHELL_SCOPE_HEADER)
     const shellScope = shellScopeHeaderValue(url.pathname)
     if (shellScope) requestHeaders.set(SHELL_SCOPE_HEADER, shellScope)
-    requestHeaders.set(SHELL_PATH_HEADER, url.pathname)
+    requestHeaders.set(SHELL_PATH_HEADER, `${url.pathname}${url.search}`)
     const response = NextResponse.next({ request: { headers: requestHeaders } })
     response.headers.set('Content-Security-Policy', generateRuntimeCSP())
     response.headers.set('X-Content-Type-Options', 'nosniff')

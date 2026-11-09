@@ -17,7 +17,7 @@ import {
 import { prefetchShell } from '@/platform/lib/data/prefetch-shell'
 import { LiveProviders } from '@/platform/lib/data/providers'
 import { resolveSettingsNavigation } from '@/platform/lib/data/settings-navigation'
-import { readShellPath } from '@/platform/lib/data/shell-scope'
+import { readShellLocation } from '@/platform/lib/data/shell-scope'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
 const LOGIN_PATH = '/login'
@@ -50,7 +50,7 @@ export async function LiveShell({
   const cookieStore = await cookies()
   const surfaceRedirect =
     resolveSurfaceRedirect(organization) ??
-    resolveEntryRedirect(organization, await readShellPath())
+    resolveEntryRedirect(organization, await readShellLocation())
   if (surfaceRedirect) redirect(surfaceRedirect)
 
   return (

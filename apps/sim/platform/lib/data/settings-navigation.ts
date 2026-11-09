@@ -1,6 +1,10 @@
 import { organizationSupportsSettingsSection } from '@/lib/settings/section-availability'
 import type { SettingsNavGroup, SettingsNavItem } from '@/app/(product)/_components/model'
-import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import {
+  type PlatformOrganization,
+  type SurfaceScope,
+  surfaceHref,
+} from '@/platform/lib/data/organization-model'
 import { settingsSearchEntries } from '@/platform/shared/settings-search'
 
 /** The order and labels of the organization Settings sidebar; the surface owns visibility. */
@@ -127,6 +131,37 @@ export function resolveSettingsNavigation(organization: PlatformOrganization): S
         ...('desktop' in entry ? { desktop: entry.desktop } : {}),
       })),
   })).filter((group) => group.items.length > 0)
+}
+
+/** Legacy Settings sections that now live inside another section. */
+const SETTINGS_ALIASES: Record<string, string> = {
+  preferences: 'general',
+  account: 'general',
+  'authorized-apps': 'general',
+  privacy: 'general',
+  notifications: 'general',
+  connections: 'connected-accounts',
+  organization: 'members',
+  team: 'members',
+  subscription: 'billing',
+  domains: 'sso',
+  sessions: 'security',
+}
+
+/**
+ * Where a legacy Settings section's path now lands, with its query kept, or `null` when `path` is
+ * not an alias. Privacy and authorized apps open as views of General.
+ */
+export function resolveSettingsAlias(
+  scope: SurfaceScope,
+  [key = 'general', ...subpath]: readonly string[],
+  query: URLSearchParams
+): string | null {
+  if (subpath.length || !Object.hasOwn(SETTINGS_ALIASES, key)) return null
+  const params = new URLSearchParams(query)
+  if (key === 'privacy' || key === 'authorized-apps') params.set('view', key)
+  const path = surfaceHref(scope, `/settings/${SETTINGS_ALIASES[key]}`)
+  return params.size ? `${path}?${params}` : path
 }
 
 /** The section at `key` when this viewer may see it and this app renders it. */

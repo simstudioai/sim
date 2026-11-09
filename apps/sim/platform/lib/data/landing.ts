@@ -4,6 +4,7 @@ import {
   resolveHomeRedirect,
   surfaceHref,
 } from '@/platform/lib/data/organization-model'
+import { resolveSettingsAlias } from '@/platform/lib/data/settings-navigation'
 
 /**
  * Where an organization's bare URL sends a viewer: the legacy organization root's priority chain.
@@ -18,16 +19,32 @@ export function organizationLandingPath(organization: PlatformOrganization): str
   return navFlags.simLinks ? routes.simLinks : WORKSPACE_SETTINGS_PATH
 }
 
+/** The path and query a document request opens. */
+export interface ShellLocation {
+  pathname: string
+  query: URLSearchParams
+}
+
 /**
- * The redirect a document request for an organization's bare URL or its Home answers. The shell
- * applies it before anything streams, so the viewer gets one HTTP redirect instead of a painted page
- * that navigates again once loaded; the pages keep the same gates for client navigations.
+ * The redirect a document request for an organization's bare URL, its Home, or a Settings alias
+ * answers. The shell applies it before anything streams, so the viewer gets one HTTP redirect
+ * instead of a painted page that navigates again once loaded; the pages keep the same gates for
+ * client navigations.
  */
 export function resolveEntryRedirect(
   organization: PlatformOrganization,
-  pathname: string | null
+  location: ShellLocation | null
 ): string | null {
+  if (!location) return null
+  const { pathname, query } = location
   if (pathname === organization.routePrefix) return organizationLandingPath(organization)
   if (pathname === surfaceHref(organization, '/home')) return resolveHomeRedirect(organization)
+  const settingsPrefix = `${surfaceHref(organization, '/settings')}/`
+  if (pathname.startsWith(settingsPrefix))
+    return resolveSettingsAlias(
+      organization,
+      pathname.slice(settingsPrefix.length).split('/'),
+      query
+    )
   return null
 }
