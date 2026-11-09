@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
 import type { Page } from '@playwright/test'
 import { getErrorMessage } from '@sim/utils/errors'
-import { sleep } from '@sim/utils/helpers'
 import { truncate } from '@sim/utils/string'
 import { mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { SETTINGS_FOR_ADMIN, SETTINGS_FOR_ALL } from '@/scripts/org-redesign-e2e/checks/settings'
@@ -32,7 +31,7 @@ import {
   WALK_CONCURRENCY,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
-import { composer } from '@/scripts/org-redesign-e2e/locators'
+import { composer, pageTurn } from '@/scripts/org-redesign-e2e/locators'
 import { stubConnectedHome } from '@/scripts/org-redesign-e2e/stubs'
 
 const settingsRoutes = (sections: readonly string[]) =>
@@ -108,7 +107,7 @@ async function viewportHolding(page: Page, viewport: Viewport) {
       }))
   )
   await page.setViewportSize({ width: viewport.width, height: viewport.height + PANE_PROBE_PX })
-  await sleep(150)
+  await pageTurn(page)
   const overflow = await scrollers.evaluate((measured) =>
     measured
       .filter(({ element, clientHeight }) => element.clientHeight > clientHeight)
@@ -121,7 +120,7 @@ async function viewportHolding(page: Page, viewport: Viewport) {
 export async function fullPageScreenshot(page: Page, path: string, viewport: Viewport) {
   const height = await viewportHolding(page, viewport)
   await page.setViewportSize({ width: viewport.width, height })
-  await sleep(150)
+  await pageTurn(page)
   await page.screenshot({
     path,
     fullPage: true,

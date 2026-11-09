@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import type { Locator, Page } from '@playwright/test'
-import { sleep } from '@sim/utils/helpers'
 import { workspaceEntry } from '@/lib/navigation/paths'
 import {
   ADMIN,
@@ -45,6 +44,7 @@ import {
   openRowMenu,
   orgCard,
   orgChip,
+  pageTurn,
   railLink,
   railRegion,
   railRow,
@@ -173,7 +173,8 @@ export async function sidebarChecks() {
     'the sidebar stays mounted at one width moving to and from a workspace, with no frame between',
     async () => {
       const railWidths = (page: Page) => page.evaluate(() => window.railWidths ?? [])
-      await withSession(ADMIN, async ({ page }) => {
+      await withSession(ADMIN, async (session) => {
+        const { page } = session
         await page.addInitScript(() => {
           const seen = new Set<string>()
           const record = () => {
@@ -205,7 +206,9 @@ export async function sidebarChecks() {
         await expect(page).toHaveURL(url(org.home), { timeout: 45_000 })
         await expect(sidebar(page)).toBeVisible()
         assert(await inDocument(), 'The move back to /o reloaded the page')
-        await sleep(250)
+        // The recorder samples every frame, so one after Home has finished loading sees its layout.
+        await session.contentReady()
+        await pageTurn(page)
         const widths = await railWidths(page)
         assert.equal(widths.length, 1, `The sidebar changed width: ${widths.join(', ')}`)
       })

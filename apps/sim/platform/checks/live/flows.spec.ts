@@ -9,14 +9,12 @@ const chats = (page: Page) => page.getByRole('region', { name: 'Chats', exact: t
 const workspaces = (page: Page) => page.getByRole('region', { name: 'Workspaces', exact: true })
 
 /**
- * The shell attaches its shortcut listener when it hydrates, which can finish after `load`, so a
- * press that lands on the server-rendered page is lost. Presses until `landed` holds.
+ * Presses a shortcut once. The suite's `test` waits for hydration after every load, and the shell
+ * attaches its shortcut listener in an effect of that commit, which has run a frame later.
  */
-async function pressShortcut(page: Page, key: string, landed: () => Promise<void>) {
-  await expect(async () => {
-    await page.keyboard.press(key)
-    await landed()
-  }).toPass({ timeout: 15_000 })
+async function pressShortcut(page: Page, key: string) {
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => setTimeout(done))))
+  await page.keyboard.press(key)
 }
 
 test('a chat pins and marks unread, and both survive a reload', async ({ page }) => {
@@ -67,7 +65,8 @@ test('Mod+B collapses the sidebar, the choice survives a reload, and Expand rest
   // Home's composer takes focus as it mounts and Mod+B leaves a focused field alone, as legacy did.
   await expect(page.getByRole('textbox', { name: /Ask about your business/ })).toBeFocused()
   await page.locator('body').click({ position: { x: 700, y: 20 } })
-  await pressShortcut(page, 'ControlOrMeta+b', () => expect(sidebar).toBeHidden({ timeout: 1_000 }))
+  await pressShortcut(page, 'ControlOrMeta+b')
+  await expect(sidebar).toBeHidden()
   await page.reload()
   await expect(sidebar).toBeHidden()
   await page.getByRole('button', { name: 'Expand sidebar' }).click()
@@ -79,9 +78,8 @@ test('Mod+B collapses the sidebar, the choice survives a reload, and Expand rest
 test('Mod+K opens the palette, which finds a real workspace and a chat', async ({ page }) => {
   await signInAsAdmin(page, liveRoute('/home'))
   const palette = page.getByRole('dialog', { name: 'Search' })
-  await pressShortcut(page, 'ControlOrMeta+k', () =>
-    expect(palette).toBeVisible({ timeout: 1_000 })
-  )
+  await pressShortcut(page, 'ControlOrMeta+k')
+  await expect(palette).toBeVisible()
   const field = palette.getByRole('combobox', { name: 'Search the platform' })
   await field.fill('Operations')
   await expect(palette.getByText('Operations')).toBeVisible()

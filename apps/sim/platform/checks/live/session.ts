@@ -1,6 +1,7 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { expect, type Page } from '@playwright/test'
+import { type BrowserContext, expect, type Page } from '@playwright/test'
+import { waitUntilHydrated } from '@/platform/checks/test'
 
 export function requireEnv(name: string): string {
   const value = process.env[name]
@@ -18,72 +19,78 @@ export const adminEmail = () => requireEnv('PLATFORM_LIVE_EMAIL')
 export const memberEmail = () => requireEnv('PLATFORM_LIVE_MEMBER_EMAIL')
 export const organizationId = () => requireEnv('PLATFORM_LIVE_ORGANIZATION_ID')
 export const organizationName = () => requireEnv('PLATFORM_LIVE_ORGANIZATION_NAME')
-/** The owner of an organization no rollout targets, on a deployment that targets another. */
+/**
+ * One Playwright storage state per person, on disk: Playwright starts a new worker process after
+ * every failed test, and a person signs in through the form once per run however many specs act as
+ * them.
+ */
+const storageStatePath = (email: string) => path.join(reportDir, 'sessions', `${email}.json`)
 
-type Cookies = Awaited<ReturnType<ReturnType<Page['context']>['cookies']>>
-
-/** On disk, because Playwright starts a new worker process after every failed test. */
-const SESSIONS_FILE = path.join(reportDir, 'sessions.local.json')
-
-function readSessions(): Record<string, Cookies> {
+function readStorageState(
+  email: string
+): { cookies: Parameters<BrowserContext['addCookies']>[0] } | null {
   try {
-    return JSON.parse(readFileSync(SESSIONS_FILE, 'utf8'))
+    return JSON.parse(readFileSync(storageStatePath(email), 'utf8'))
   } catch {
-    return {}
+    return null
   }
 }
 
-const SIGN_IN_PATH = '/api/auth/sign-in/email'
-/**
- * Better Auth refuses a fourth sign-in from one client IP while each came within ten seconds of the
- * last. This suite is one client whoever it signs in as, and each phase of a job starts its sessions
- * over, so a refusal here is the limiter's and says nothing about the page under test. It waits out
- * the window; any other answer is left to the assertion after it.
- */
-const RATE_LIMIT_WINDOW_MS = 10_000
+const LOGIN_PATH = /^\/login\/?$/
+/** Gives each form sign-in its own client address, as the people a deployment serves have. */
+let signInAddress = 0
 
-/** Types the credentials into the login page `target` redirected to, as a person would. */
+/**
+ * Types the credentials into the login page `target` redirected to, as a person would, and waits
+ * for the page the sign-in lands on (`target`, from the login page's callback) to load and hydrate.
+ *
+ * Better Auth refuses a fourth sign-in from one client address within ten seconds, and this suite
+ * signs in more people than that from one machine, so each sign-in carries its own forwarded
+ * address, as `org-redesign-e2e` does for its sessions.
+ */
 export async function signInThroughForm(page: Page, email: string, target: string) {
   await page.goto(target)
   await expect(page).toHaveURL(/\/login(?:\?|$)/)
   await page.locator('#email').fill(email)
   await page.locator('#password').fill(requireEnv('PLATFORM_LIVE_PASSWORD'))
-  await expect(async () => {
+  signInAddress += 1
+  await page.setExtraHTTPHeaders({
+    'x-forwarded-for': `10.${process.pid % 250}.${Math.floor(signInAddress / 250)}.${signInAddress % 250}`,
+  })
+  try {
     const [response] = await Promise.all([
       page.waitForResponse(
         (candidate) =>
           candidate.request().method() === 'POST' &&
-          new URL(candidate.url()).pathname === SIGN_IN_PATH
+          new URL(candidate.url()).pathname === '/api/auth/sign-in/email'
       ),
       page.getByRole('button', { name: 'Sign in', exact: true }).click(),
     ])
-    expect(response.status(), 'refused by the sign-in rate limit').not.toBe(429)
-  }).toPass({ timeout: 45_000, intervals: [RATE_LIMIT_WINDOW_MS + 1_000] })
-  await expect(page).not.toHaveURL(/\/login(?:\?|$)/, { timeout: 30_000 })
+    expect(response.status(), 'the sign-in was refused').toBe(200)
+    await page.waitForURL((url) => !LOGIN_PATH.test(url.pathname), {
+      timeout: 30_000,
+      waitUntil: 'load',
+    })
+  } finally {
+    await page.setExtraHTTPHeaders({})
+  }
+  await waitUntilHydrated(page)
 }
 
 /**
- * Opens `target` as `email`. The first sign-in per person goes through the form, and later ones
- * restore its session: the sign-in rate limit allows far fewer than a suite this size needs.
+ * Opens `target` as `email`. The first sign-in per person goes through the form and lands on
+ * `target`; later ones restore its storage state.
  */
 export async function signIn(page: Page, email: string, target: string) {
-  const known = readSessions()[email]
+  const known = readStorageState(email)
   if (known) {
-    await page.context().addCookies(known)
+    await page.context().addCookies(known.cookies)
     await page.goto(target)
     return
   }
   await signInThroughForm(page, email, target)
-  // The login page's redirect to the deep link can abort a navigation started while it is still
-  // running.
-  await expect(async () => {
-    await page.goto(target)
-  }).toPass({ timeout: 30_000 })
-  mkdirSync(path.dirname(SESSIONS_FILE), { recursive: true })
-  writeFileSync(
-    SESSIONS_FILE,
-    JSON.stringify({ ...readSessions(), [email]: await page.context().cookies() })
-  )
+  mkdirSync(path.dirname(storageStatePath(email)), { recursive: true })
+  await page.context().storageState({ path: storageStatePath(email) })
 }
 
 export const signInAsAdmin = (page: Page, target: string) => signIn(page, adminEmail(), target)

@@ -792,7 +792,7 @@ async function run() {
         const mobileRow = mobile
           .getByRole('row')
           .filter({ has: mobile.getByRole('link', { name: /^Amara Cole/ }) })
-        await expect(mobileRow.getByText(/^Reports to /)).toBeVisible({ timeout: 120_000 })
+        await expect(mobileRow.getByText(/^Reports to /)).toBeVisible()
         await mobile.goto(peopleUrl(teamOrg), { waitUntil: 'domcontentloaded' })
         await mobile
           .getByRole('link', { name: 'View profile for Maya Chen' })

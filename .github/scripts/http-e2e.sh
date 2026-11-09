@@ -184,11 +184,12 @@ platform_live_environment() {
   export PLATFORM_LIVE_MEMBER_EMAIL=mia@platform-live.test
   export PLATFORM_LIVE_CONNECTED_EMAIL=cory@platform-live.test
   export PLATFORM_LIVE_ROLE_TARGET_EMAIL=rae@platform-live.test
-  export PLATFORM_LIVE_REMOVABLE_EMAIL=remy@platform-live.test
   export PLATFORM_LIVE_REFUSED_INVITE_EMAIL=otto@platform-live.test
   export PLATFORM_LIVE_OFF_ORGANIZATION_ID=platform-live-organization-off
   export PLATFORM_LIVE_OFF_EMAIL=odessa@platform-live.test
   export PLATFORM_LIVE_ORCHESTRATOR=1
+  # A check that removes a member seeds its own there, so the shared seed stays as it was.
+  export PLATFORM_LIVE_DATABASE_URL="$DATABASE_URL"
   bun --no-env-file scripts/platform-live-seed.ts
 }
 

@@ -688,14 +688,10 @@ async function exerciseViewport(
         await withDocumentNavigation(page, organization.integrations, () =>
           page.goto(workspacePath(workspaceId, 'skills'), { waitUntil: 'commit' })
         )
-        await expect
-          .poll(() => new URL(page.url()).pathname, { timeout: 120_000 })
-          .toBe(organization.integrations)
-        await expect(center.getByRole('button', { name: 'Create skill', exact: true })).toBeVisible(
-          {
-            timeout: 120_000,
-          }
-        )
+        await expect.poll(() => new URL(page.url()).pathname).toBe(organization.integrations)
+        await expect(
+          center.getByRole('button', { name: 'Create skill', exact: true })
+        ).toBeVisible()
         await expect(center.getByRole('button', { name: /^Workspace:/ })).toBeVisible()
         await visit(page, organization.integrations, center.getByRole('searchbox'))
         await expect(center.getByRole('link', { name: 'Skills', exact: true })).toBeVisible()
@@ -849,9 +845,8 @@ async function exerciseViewport(
             .getByRole('region', { name: 'Workspaces', exact: true })
             .getByRole('link', { name: workspaceName, exact: true })
             .tap()
-          await expect(page).toHaveURL(
-            (url) => isPathOrDescendant(url.pathname, workspaceEntry(workspaceId)),
-            { timeout: 120_000 }
+          await expect(page).toHaveURL((url) =>
+            isPathOrDescendant(url.pathname, workspaceEntry(workspaceId))
           )
           await expect(navigation).toBeHidden()
           await page
@@ -862,7 +857,7 @@ async function exerciseViewport(
             timeout: 120_000,
           })
           await expect(navigation).toBeHidden()
-          await expect(folderActions(page)).toBeVisible({ timeout: 120_000 })
+          await expect(folderActions(page)).toBeVisible()
           await expectNoOverflow(page)
           await expectDesktopPreference(context)
         }
@@ -932,14 +927,10 @@ async function exerciseViewport(
     }
     const openChatResources = async () => {
       await visit(page, organization.chat(chatId))
-      await expect(page.getByRole('button', { name: /^(Open|Close) chat panel$/ })).toBeVisible({
-        timeout: 120_000,
-      })
+      await expect(page.getByRole('button', { name: /^(Open|Close) chat panel$/ })).toBeVisible()
       const summary = page.getByText('Mobile project summary', { exact: false })
       await expect
-        .poll(async () => (await summary.isVisible()) || (await closeChatPanel.isVisible()), {
-          timeout: 120_000,
-        })
+        .poll(async () => (await summary.isVisible()) || (await closeChatPanel.isVisible()))
         .toBe(true)
       return summary
     }
@@ -974,7 +965,7 @@ async function exerciseViewport(
         if (await openChatPanel.isVisible()) await openChatPanel.click()
         await expectContained(page, chatPanel)
         const resource = chatPanel.getByRole('link', { name: 'Open Mobile E2E table', exact: true })
-        await expect(resource).toBeVisible({ timeout: 120_000 })
+        await expect(resource).toBeVisible()
         await expect(resource).toHaveAttribute('href', tablePath)
         await expectNoOverflow(page)
         if (
@@ -1243,12 +1234,11 @@ async function exerciseViewport(
         await visit(page, logsPath, runLink(page))
         await runLink(page).tap()
         await expect(page).toHaveURL(
-          (url) => url.pathname.startsWith(`${logsPath}/`) && url.pathname !== `${logsPath}/`,
-          { timeout: 120_000 }
+          (url) => url.pathname.startsWith(`${logsPath}/`) && url.pathname !== `${logsPath}/`
         )
         const trace = page.getByRole('region', { name: /^Run \S+ trace$/ })
         const step = page.getByRole('complementary', { name: 'Selected step', exact: true })
-        await expect(trace).toBeVisible({ timeout: 120_000 })
+        await expect(trace).toBeVisible()
         await expect(step.getByText('Mobile E2E complete', { exact: false })).toBeVisible({
           timeout: 120_000,
         })
@@ -1275,9 +1265,9 @@ async function exerciseViewport(
           .getByRole('navigation', { name: 'Logs navigation', exact: true })
           .getByRole('link', { name: 'Logs', exact: true })
           .tap()
-        await expect(page).toHaveURL((url) => url.pathname === logsPath, { timeout: 120_000 })
+        await expect(page).toHaveURL((url) => url.pathname === logsPath)
         await expect(trace).toHaveCount(0)
-        await expect(runLink(page)).toBeVisible({ timeout: 120_000 })
+        await expect(runLink(page)).toBeVisible()
       })
 
       await check(`${prefix}/standalone settings sections remain accessible`, page, async () => {
@@ -1374,9 +1364,7 @@ async function exerciseViewport(
             })
             const showAll = notifications.getByRole('button', { name: /^Notifications?\b/ })
             await expect
-              .poll(async () => (await notice.isVisible()) || (await showAll.isVisible()), {
-                timeout: 120_000,
-              })
+              .poll(async () => (await notice.isVisible()) || (await showAll.isVisible()))
               .toBe(true)
             // The tray minimizes a notice it has shown once nobody engages with it.
             if (!(await notice.isVisible())) await showAll.tap()
@@ -1388,8 +1376,7 @@ async function exerciseViewport(
               page.waitForResponse(
                 (response) =>
                   response.request().method() === 'PUT' &&
-                  new URL(response.url()).pathname === `/api/workflows/${workflowId}`,
-                { timeout: 120_000 }
+                  new URL(response.url()).pathname === `/api/workflows/${workflowId}`
               ),
               unlock.tap(),
             ])
