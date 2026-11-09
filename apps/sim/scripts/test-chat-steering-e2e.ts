@@ -20,8 +20,11 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike, toRecord } from '@sim/utils/object'
+import { escapeRegExp } from '@sim/utils/string'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
+import { organizationRoutes } from '@/lib/navigation/paths'
+import { CHAT_PLACEHOLDERS } from '@/app/(product)/_components/chat/conversation/model'
 
 /**
  * Proves chat steering across every real boundary: a real browser, the real Sim app, the real
@@ -31,8 +34,10 @@ import postgres from 'postgres'
  * ends. A recording proxy between Sim and the worker logs every worker call and SSE frame, and can
  * refuse a path to stand in for a worker that cannot be reached.
  *
- * Every check asserts on the browser DOM, the persisted `copilot_messages` rows, and the requests
- * the fake model received. `scripts/chat-steering-e2e.sh run` boots the stack and runs this.
+ * Each check starts on the organization's Home, whose Build composer hands the first message to a
+ * new organization chat, and drives that chat from then on. Every check asserts on the browser DOM,
+ * the persisted `copilot_messages` rows, and the requests the fake model received.
+ * `scripts/chat-steering-e2e.sh run` boots the stack and runs this.
  */
 const logger = createLogger('ChatSteeringE2E')
 const expect = playwrightExpect.configure({ timeout: 60_000 })
@@ -481,7 +486,7 @@ async function openSurface(): Promise<Surface> {
     if (call) call.failure = request.failure()?.errorText ?? 'unknown'
   })
   page.on('pageerror', (error) => surface.consoleErrors.push(error.message))
-  await page.goto(`${baseUrl.origin}/workspace/${workspaceId}/home`, {
+  await page.goto(`${baseUrl.origin}${organizationRoutes(organizationId).home}`, {
     waitUntil: 'domcontentloaded',
     timeout: 300_000,
   })
@@ -506,11 +511,16 @@ async function waitForComposer(page: Page) {
   )
 }
 
-const composer = (page: Page) => page.getByRole('textbox', { name: 'Message', exact: true })
-const stopButton = (page: Page) =>
-  page.getByRole('button', { name: 'Stop generation', exact: true })
+/** The composer is named by its placeholder, which changes as a chat starts, runs and settles. */
+const COMPOSER_NAME = new RegExp(
+  `^(${Object.values(CHAT_PLACEHOLDERS).map(escapeRegExp).join('|')})$`
+)
+const composer = (page: Page) => page.getByRole('textbox', { name: COMPOSER_NAME })
+const conversation = (page: Page) => page.getByRole('region', { name: 'Conversation', exact: true })
+const stopButton = (page: Page) => page.getByRole('button', { name: 'Stop response', exact: true })
 const sendButton = (page: Page) => page.getByRole('button', { name: 'Send message', exact: true })
-const notDelivered = (page: Page) => page.getByRole('status').filter({ hasText: 'Not delivered' })
+const notDelivered = (page: Page) =>
+  conversation(page).getByRole('status').filter({ hasText: 'Not delivered' })
 
 /** Every automatic attempt of a message, on its growing delay, has to run out first. */
 const NOT_DELIVERED_TIMEOUT_MS = 240_000
@@ -526,7 +536,7 @@ async function undeliveredSteer(surface: Surface, first: string, steer: string, 
   const chatId = await startTurn(surface, first, { text: before, gate })
   cutSteeringWorker()
   await send(page, steer)
-  await expect(page.getByText(steer, { exact: true })).toBeVisible({ timeout: 2_000 })
+  await expect(conversation(page).getByText(steer, { exact: true })).toBeVisible({ timeout: 2_000 })
   await expect
     .poll(() => surface.steerPosts.find((post) => post.body.content === steer)?.status)
     .toBeGreaterThanOrEqual(500)
@@ -560,7 +570,7 @@ async function startTurn(surface: Surface, text: string, step: ModelStep): Promi
   model.enqueue(step)
   await send(surface.page, text)
   await model.waitFor(text)
-  await expect(surface.page.getByText(step.text)).toBeVisible()
+  await expect(conversation(surface.page).getByText(step.text)).toBeVisible()
   if (step.gate) await expect(stopButton(surface.page)).toBeVisible()
   return waitForChatId(surface.page)
 }
@@ -665,7 +675,7 @@ async function serverAdmissions(chatId: string, messageId: string) {
 
 /** The message's bubble is on screen exactly once. */
 async function assertOneBubble(page: Page, text: string) {
-  await expect(page.getByText(text, { exact: true })).toHaveCount(1)
+  await expect(conversation(page).getByText(text, { exact: true })).toHaveCount(1)
 }
 
 /**
@@ -680,7 +690,7 @@ async function assertOrder(page: Page, texts: string[]) {
       async () => {
         positions = []
         for (const text of texts) {
-          const box = await page.getByText(text).first().boundingBox()
+          const box = await conversation(page).getByText(text).first().boundingBox()
           if (!box) return false
           positions.push(box.y)
         }
@@ -800,7 +810,9 @@ const scenarios: Scenario[] = [
       })
       model.enqueue({ text: after })
       await send(page, steer)
-      await expect(page.getByText(steer, { exact: true })).toBeVisible({ timeout: 2_000 })
+      await expect(conversation(page).getByText(steer, { exact: true })).toBeVisible({
+        timeout: 2_000,
+      })
       evidence.disposition = await workerDisposition(steer)
       assert.equal(evidence.disposition, 'queued')
       await expect.poll(async () => (await userRows(chatId, steer)).length).toBe(1)
@@ -808,7 +820,7 @@ const scenarios: Scenario[] = [
       gate.release()
       const next = await model.waitFor(steer)
       assert(next.lastMessage.includes(steer), 'The next request ends with the steer')
-      await expect(page.getByText(after)).toBeVisible()
+      await expect(conversation(page).getByText(after)).toBeVisible()
       await waitForIdle(page)
       await assertOrder(page, [first, before, steer, after])
       const surface = { page, turnPosts, steerPosts, consoleErrors: [] }
@@ -839,11 +851,13 @@ const scenarios: Scenario[] = [
       const chatId = await startTurn(surface, first, { text: final, gate })
       model.enqueue({ text: after })
       await send(page, steer)
-      await expect(page.getByText(steer, { exact: true })).toBeVisible({ timeout: 2_000 })
+      await expect(conversation(page).getByText(steer, { exact: true })).toBeVisible({
+        timeout: 2_000,
+      })
       assert.equal(await workerDisposition(steer), 'queued')
       gate.release()
       await model.waitFor(steer)
-      await expect(page.getByText(after)).toBeVisible()
+      await expect(conversation(page).getByText(after)).toBeVisible()
       await waitForIdle(page)
       await assertAppliedAsSteer(surface, chatId, steer)
       const streamId = String(surface.turnPosts[0]?.body.userMessageId)
@@ -885,7 +899,9 @@ const scenarios: Scenario[] = [
       })
       model.enqueue({ text: after })
       await send(page, steer)
-      await expect(page.getByText(steer, { exact: true })).toBeVisible({ timeout: 2_000 })
+      await expect(conversation(page).getByText(steer, { exact: true })).toBeVisible({
+        timeout: 2_000,
+      })
       await steerArrived.released
       gate.release()
       await expect.poll(async () => (await workerRuns(chatId))[0]?.status).toBe('complete')
@@ -894,7 +910,7 @@ const scenarios: Scenario[] = [
       evidence.disposition = await workerDisposition(steer)
       assert.equal(evidence.disposition, 'not_applied')
       await model.waitFor(steer)
-      await expect(page.getByText(after)).toBeVisible()
+      await expect(conversation(page).getByText(after)).toBeVisible()
       await waitForIdle(page)
       const row = await assertDeliveredAsTurn(surface, chatId, steer)
       const steerPost = surface.steerPosts.find((post) => post.body.content === steer)
@@ -927,7 +943,9 @@ const scenarios: Scenario[] = [
       const chatId = await startTurn(surface, first, { text: before, gate })
       const held = await model.waitFor(first)
       await send(page, steer)
-      await expect(page.getByText(steer, { exact: true })).toBeVisible({ timeout: 2_000 })
+      await expect(conversation(page).getByText(steer, { exact: true })).toBeVisible({
+        timeout: 2_000,
+      })
       assert.equal(await workerDisposition(steer), 'queued')
       model.enqueue({ text: after })
       await stopButton(page).click()
@@ -935,7 +953,7 @@ const scenarios: Scenario[] = [
         .poll(() => held.closedEarly, { message: 'Stop aborts the model step' })
         .toBe(true)
       await model.waitFor(steer)
-      await expect(page.getByText(after)).toBeVisible()
+      await expect(conversation(page).getByText(after)).toBeVisible()
       await waitForIdle(page)
       await assertDeliveredAsTurn(surface, chatId, steer)
       evidence.runs = (await workerRuns(chatId)).map((run) => run.status)
@@ -968,7 +986,9 @@ const scenarios: Scenario[] = [
       await send(page, steer)
       await steerArrived.released
       await send(page, follower)
-      await expect(page.getByText(follower, { exact: true })).toBeVisible({ timeout: 2_000 })
+      await expect(conversation(page).getByText(follower, { exact: true })).toBeVisible({
+        timeout: 2_000,
+      })
       const journal = await page.evaluate(() =>
         window.sessionStorage.getItem('mothership-outgoing:v1')
       )
@@ -1028,7 +1048,7 @@ const scenarios: Scenario[] = [
       gate.release()
       await model.waitFor(steer)
       mark('modelReceivedSteerMs')
-      await expect(page.getByText(after)).toBeVisible()
+      await expect(conversation(page).getByText(after)).toBeVisible()
       mark('afterTextVisibleMs')
       await waitForIdle(page)
       mark('idleMs')
@@ -1058,12 +1078,14 @@ const scenarios: Scenario[] = [
       await context.setOffline(true)
       model.enqueue({ text: reply })
       await send(page, message)
-      await expect(page.getByText(message, { exact: true })).toBeVisible({ timeout: 2_000 })
+      await expect(conversation(page).getByText(message, { exact: true })).toBeVisible({
+        timeout: 2_000,
+      })
       await sleep(5_000)
       assert.equal(model.containing(message).length, 0, 'Nothing reached the model offline')
       await context.setOffline(false)
       await model.waitFor(message)
-      await expect(page.getByText(reply)).toBeVisible()
+      await expect(conversation(page).getByText(reply)).toBeVisible()
       await waitForIdle(page)
       const row = await assertDeliveredAsTurn(surface, chatId, message)
       const attempts = surface.turnPosts.filter((post) => post.body.message === message)
@@ -1095,7 +1117,9 @@ const scenarios: Scenario[] = [
       const chatId = await startTurn(surface, first, { text: before, gate })
       await context.setOffline(true)
       await send(page, steer)
-      await expect(page.getByText(steer, { exact: true })).toBeVisible({ timeout: 2_000 })
+      await expect(conversation(page).getByText(steer, { exact: true })).toBeVisible({
+        timeout: 2_000,
+      })
       await sleep(3_000)
       assert.equal(proxy.steers(steer).length, 0, 'Nothing reached the worker offline')
       await context.setOffline(false)
@@ -1128,7 +1152,7 @@ const scenarios: Scenario[] = [
       model.enqueue({ text: held, gate })
       await send(page, message)
       await model.waitFor(message)
-      await expect(page.getByText(held)).toBeVisible()
+      await expect(conversation(page).getByText(held)).toBeVisible()
       await context.setOffline(true)
       await sleep(3_000)
       await context.setOffline(false)
@@ -1150,7 +1174,7 @@ const scenarios: Scenario[] = [
       assert.equal((await steerRowsFor(chatId, row.messageId)).length, 0, 'No steering row')
       await reload(page)
       await assertOneBubble(page, message)
-      await expect(page.getByRole('status').filter({ hasText: 'Not delivered' })).toHaveCount(0)
+      await expect(notDelivered(page)).toHaveCount(0)
     },
   },
   {
@@ -1179,7 +1203,9 @@ const scenarios: Scenario[] = [
         { text: after }
       )
       await send(page, steer)
-      await expect(page.getByText(steer, { exact: true })).toBeVisible({ timeout: 2_000 })
+      await expect(conversation(page).getByText(steer, { exact: true })).toBeVisible({
+        timeout: 2_000,
+      })
       assert.equal(await workerDisposition(steer), 'queued')
       const steerCall = proxy.steers(steer).at(-1)
       assert(
@@ -1192,7 +1218,7 @@ const scenarios: Scenario[] = [
       await model.waitFor(sentinel)
       const reading = model.containing(sentinel)[0]
       evidence.toolResult = reading?.lastMessage.slice(0, 400)
-      await expect(page.getByText(after)).toBeVisible()
+      await expect(conversation(page).getByText(after)).toBeVisible()
       await waitForIdle(page)
       await assertAppliedAsSteer(surface, chatId, steer)
       const [row] = await userRows(chatId, steer)
@@ -1203,7 +1229,11 @@ const scenarios: Scenario[] = [
       assert(Array.isArray(steerPost?.body.fileAttachments))
       await reload(page)
       await assertOneBubble(page, steer)
-      await expect(page.getByText(filename).first()).toBeVisible()
+      await expect(
+        conversation(page)
+          .getByRole('button', { name: `Preview ${filename}`, exact: true })
+          .first()
+      ).toBeVisible()
     },
   },
   {
@@ -1221,7 +1251,7 @@ const scenarios: Scenario[] = [
       await waitForIdle(page)
       model.enqueue({ text: 'S8-follow-up-reply' })
       await send(page, followUp)
-      await expect(page.getByText('S8-follow-up-reply')).toBeVisible()
+      await expect(conversation(page).getByText('S8-follow-up-reply')).toBeVisible()
       await waitForIdle(page)
       await attachFile(page, filename, `Notes: ${sentinel}\n`)
       model.enqueue(
@@ -1236,7 +1266,7 @@ const scenarios: Scenario[] = [
         { text: 'S8-file-reply' }
       )
       await send(page, withFile)
-      await expect(page.getByText('S8-file-reply')).toBeVisible()
+      await expect(conversation(page).getByText('S8-file-reply')).toBeVisible()
       await waitForIdle(page)
       await model.waitFor(sentinel)
       for (const text of [first, followUp, withFile]) await assertOneBubble(page, text)
@@ -1277,8 +1307,12 @@ const scenarios: Scenario[] = [
       model.enqueue({ text: after })
       await send(page, steerOne)
       await send(page, steerTwo)
-      await expect(page.getByText(steerOne, { exact: true })).toBeVisible({ timeout: 2_000 })
-      await expect(page.getByText(steerTwo, { exact: true })).toBeVisible({ timeout: 2_000 })
+      await expect(conversation(page).getByText(steerOne, { exact: true })).toBeVisible({
+        timeout: 2_000,
+      })
+      await expect(conversation(page).getByText(steerTwo, { exact: true })).toBeVisible({
+        timeout: 2_000,
+      })
       assert.equal(await workerDisposition(steerOne), 'queued')
       assert.equal(await workerDisposition(steerTwo), 'queued')
       gate.release()
@@ -1288,7 +1322,7 @@ const scenarios: Scenario[] = [
         next.prompt.indexOf(steerOne) < next.prompt.indexOf(steerTwo),
         'The model reads them in the order written'
       )
-      await expect(page.getByText(after)).toBeVisible()
+      await expect(conversation(page).getByText(after)).toBeVisible()
       await waitForIdle(page)
       const rowOne = await assertAppliedAsSteer(surface, chatId, steerOne)
       const rowTwo = await assertAppliedAsSteer(surface, chatId, steerTwo)
@@ -1325,7 +1359,7 @@ const scenarios: Scenario[] = [
         reachSteeringWorker()
         await notDelivered(page).getByRole('button', { name: 'Retry', exact: true }).click()
         await model.waitFor(steer)
-        await expect(page.getByText(reply)).toBeVisible()
+        await expect(conversation(page).getByText(reply)).toBeVisible()
         await waitForIdle(page)
         await expect(notDelivered(page)).toHaveCount(0)
         await assertDeliveredAsTurn(surface, chatId, steer)
@@ -1380,7 +1414,7 @@ const scenarios: Scenario[] = [
 
         await reload(page)
         await expect(stopButton(page)).toHaveCount(0)
-        await expect(page.getByText('S11-before')).toBeVisible()
+        await expect(conversation(page).getByText('S11-before')).toBeVisible()
         await expect(page.getByText(steer, { exact: true })).toHaveCount(0)
         await expect(notDelivered(page)).toHaveCount(0)
         assert.equal((await userRows(chatId, steer)).length, 0, 'Reload does not restore it')
@@ -1388,7 +1422,7 @@ const scenarios: Scenario[] = [
         model.enqueue({ text: reply })
         await send(page, later)
         await model.waitFor(later)
-        await expect(page.getByText(reply)).toBeVisible()
+        await expect(conversation(page).getByText(reply)).toBeVisible()
         await waitForIdle(page)
         await assertDeliveredAsTurn(surface, chatId, later)
         assert.equal(model.containing(steer).length, 0, 'The model never gets a dismissed message')
@@ -1420,7 +1454,7 @@ const scenarios: Scenario[] = [
         model.enqueue({ text: laterReply })
         await send(page, later)
         await model.waitFor(later)
-        await expect(page.getByText(laterReply)).toBeVisible()
+        await expect(conversation(page).getByText(laterReply)).toBeVisible()
         await waitForIdle(page)
         await assertDeliveredAsTurn(surface, chatId, later)
         assert.equal(model.containing(failed).length, 0, 'It does not go out with the later send')
@@ -1441,7 +1475,7 @@ const scenarios: Scenario[] = [
         reachSteeringWorker()
         await notDelivered(page).getByRole('button', { name: 'Retry', exact: true }).click()
         await model.waitFor(failed)
-        await expect(page.getByText(retryReply)).toBeVisible()
+        await expect(conversation(page).getByText(retryReply)).toBeVisible()
         await waitForIdle(page)
         await expect(notDelivered(page)).toHaveCount(0)
         await assertDeliveredAsTurn(surface, chatId, failed)
@@ -1474,13 +1508,15 @@ const scenarios: Scenario[] = [
         proxy.refuse(STEER_WORKER_PATH)
         model.enqueue({ text: after })
         await send(page, steer)
-        await expect(page.getByText(steer, { exact: true })).toBeVisible({ timeout: 2_000 })
+        await expect(conversation(page).getByText(steer, { exact: true })).toBeVisible({
+          timeout: 2_000,
+        })
         await expect
           .poll(() => surface.steerPosts.find((post) => post.body.content === steer)?.status)
           .toBeGreaterThanOrEqual(500)
         gate.release()
         await model.waitFor(steer)
-        await expect(page.getByText(after)).toBeVisible()
+        await expect(conversation(page).getByText(after)).toBeVisible()
         await waitForIdle(page)
         await expect(notDelivered(page)).toHaveCount(0)
         await assertDeliveredAsTurn(surface, chatId, steer)
@@ -1515,13 +1551,17 @@ const scenarios: Scenario[] = [
 ]
 
 async function attachFile(page: Page, filename: string, content: string) {
-  await page
-    .locator('input[type="file"][multiple][accept*="text/plain"][accept*="zip"]')
-    .setInputFiles({ name: filename, mimeType: 'text/plain', buffer: Buffer.from(content) })
-  /* Its remove button is disabled for as long as the file is uploading. */
-  await expect(page.getByRole('button', { name: `Remove ${filename}`, exact: true })).toBeEnabled({
-    timeout: 120_000,
+  const chooser = page.waitForEvent('filechooser')
+  await page.getByRole('button', { name: 'Attach file', exact: true }).click()
+  await (await chooser).setFiles({
+    name: filename,
+    mimeType: 'text/plain',
+    buffer: Buffer.from(content),
   })
+  /* Its tile describes it as uploading until the upload lands, and a draft holding it cannot send. */
+  const tile = page.getByRole('button', { name: `Preview ${filename}`, exact: true })
+  await expect(tile).toBeVisible()
+  await expect(tile).not.toHaveAttribute('aria-description', 'Uploading', { timeout: 120_000 })
 }
 
 async function seed() {
@@ -1554,7 +1594,9 @@ async function warmUp() {
   const surface = await openSurface()
   model.enqueue({ text: 'Warm-up reply.' })
   await send(surface.page, 'Warm-up message')
-  await expect(surface.page.getByText('Warm-up reply.')).toBeVisible({ timeout: 120_000 })
+  await expect(conversation(surface.page).getByText('Warm-up reply.')).toBeVisible({
+    timeout: 120_000,
+  })
   await waitForIdle(surface.page)
   const chatId = await waitForChatId(surface.page)
   await context.request.get(`${baseUrl.origin}/api/mothership/chats/${chatId}`, {
