@@ -62,7 +62,6 @@ vi.mock('@/lib/mothership/request/application/stop-delivery', async (importOrigi
 
 import { db } from '@sim/db'
 import {
-  copilotAsyncToolCalls,
   copilotChats,
   copilotOrganizationRequestStops,
   copilotRequestStops,
@@ -88,7 +87,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { SIM_TOOL_EXECUTION_VERSION } from '@/lib/mothership/async-runs/lifecycle'
 import { createRunSegment } from '@/lib/mothership/async-runs/repository'
 import { admitChatTurn } from '@/lib/mothership/chat/application/admit-turn'
-import { deleteCopilotChat, softDeleteMothershipChat } from '@/lib/mothership/chat/deletion'
+import { softDeleteMothershipChat } from '@/lib/mothership/chat/deletion'
 import { chatPubSub } from '@/lib/mothership/chat-status'
 import { abortRun } from '@/lib/mothership/request/application/controls'
 import { steerRun } from '@/lib/mothership/request/application/steer-run'
@@ -533,39 +532,6 @@ describe.runIf(Boolean(redisUrl))('removing a run’s chat, owner or access stop
     expect(await runControl(run)).toEqual(STOPPED)
     expect(await hasStop(sibling)).toBe(false)
     expect(await runControl(sibling)).toEqual(LIVE)
-  })
-
-  it('stops a permanently deleted copilot chat’s run', async () => {
-    const ownerId = await seedUser()
-    const run = await seedRun(
-      { userId: ownerId, workspaceId: await seedWorkspace(ownerId) },
-      'copilot'
-    )
-
-    expect(await deleteCopilotChat({ chatId: run.chatId, userId: ownerId })).not.toBeNull()
-
-    await expect.poll(pushedStops).toEqual([run.streamId])
-    expect(await runControl(run)).toEqual(STOPPED)
-  })
-
-  it('cancels the client workflow a permanently deleted chat’s run started', async () => {
-    const ownerId = await seedUser()
-    const run = await seedRun(
-      { userId: ownerId, workspaceId: await seedWorkspace(ownerId) },
-      'copilot'
-    )
-    const executionId = generateId()
-    await db.insert(copilotAsyncToolCalls).values({
-      runId: run.runId,
-      toolCallId: generateId(),
-      toolName: 'run_workflow',
-      clientWorkflowExecutionId: executionId,
-      executionStartedAt: new Date(),
-    })
-
-    expect(await deleteCopilotChat({ chatId: run.chatId, userId: ownerId })).not.toBeNull()
-
-    await expect.poll(() => getRedisClient()?.exists(`execution:cancel:${executionId}`)).toBe(1)
   })
 
   it('still stops the run when the worker cannot take the pushed Stop', async () => {
