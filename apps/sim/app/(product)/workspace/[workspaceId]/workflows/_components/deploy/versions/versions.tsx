@@ -1,19 +1,17 @@
 'use client'
 
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
-import { IconButton } from '@sim/emcn/button'
 import { DataTable } from '@sim/emcn/data-display'
 import { Input } from '@sim/emcn/field/inputs'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
-import { StatusTag } from '@sim/emcn/status'
-import { Tooltip } from '@sim/emcn/tooltip'
+import { useMinuteClock } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/rename-dialog'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/versions/versions.module.css'
 import {
   type DeploymentVersion,
   useUpdateDeploymentVersion,
 } from '@/platform/lib/data/workflow-deploy'
-import { formatTimestamp } from '@/platform/shared/time'
+import { formatRelativeTime } from '@/platform/shared/time'
 
 interface VersionsProps {
   workflowId: string | null
@@ -27,16 +25,16 @@ interface VersionsProps {
 
 /** The one state a row shows: live, or the latest attempt of a version that is not. */
 function versionState(version: DeploymentVersion) {
-  if (version.isActive) return { label: 'Live', intent: 'success' } as const
+  if (version.isActive) return 'Live'
   const operation = version.latestOperationStatus
-  if (operation === 'preparing' || operation === 'activating')
-    return { label: 'Pending', intent: 'warning' } as const
-  if (operation === 'failed') return { label: 'Failed', intent: 'danger' } as const
-  return null
+  if (operation === 'preparing' || operation === 'activating') return 'Pending'
+  if (operation === 'failed') return 'Failed'
+  return ''
 }
 
 const COLUMNS = [
   { key: 'version', label: 'Version', kind: 'text', primary: true },
+  { key: 'status', label: 'Status', kind: 'status', width: 'compact' },
   { key: 'deployedBy', label: 'Deployed by', kind: 'text', showFrom: 'compact' },
   { key: 'deployed', label: 'Deployed', kind: 'text' },
 ] as const
@@ -48,8 +46,7 @@ interface RenameState {
 
 /**
  * Every deployment of the workflow, newest first: its number, name and state, who deployed it and
- * when, with a description action and a menu to rename, describe, compare, promote it to live or load
- * it into the editor.
+ * when, with a menu to rename, describe, compare, promote it to live or load it into the editor.
  */
 export function Versions({
   workflowId,
@@ -62,6 +59,7 @@ export function Versions({
 }: VersionsProps) {
   const [rename, setRename] = useState<RenameState | null>(null)
   const renameMutation = useUpdateDeploymentVersion()
+  const now = useMinuteClock()
 
   const saveRename = () => {
     if (!rename || renameMutation.isPending) return
@@ -131,8 +129,9 @@ export function Versions({
       id: version.id,
       values: {
         version: version.name || `v${version.version}`,
+        status: state,
         deployedBy: version.deployedBy || 'Unknown',
-        deployed: formatTimestamp(Date.parse(version.createdAt)),
+        deployed: formatRelativeTime(Date.parse(version.createdAt), now),
       },
       cells: {
         version: (
@@ -150,29 +149,18 @@ export function Versions({
             ) : (
               version.name && <OverflowText text={version.name}>{version.name}</OverflowText>
             )}
-            {state && !renaming && <StatusTag label={state.label} intent={state.intent} />}
           </span>
         ),
       },
       action: (
-        <>
-          <Tooltip label={version.description || 'Add description'}>
-            <IconButton
-              label={version.description ? 'Edit description' : 'Add description'}
-              icon='I075'
-              size='compact'
-              onClick={() => onDescribe(version.version)}
-            />
-          </Tooltip>
-          <ActionMenu
-            label={`Actions for v${version.version}`}
-            icon='I108'
-            align='end'
-            triggerSize='compact'
-            disabled={isPromotingVersion}
-            actions={actions}
-          />
-        </>
+        <ActionMenu
+          label={`Actions for v${version.version}`}
+          icon='I108'
+          align='end'
+          triggerSize='compact'
+          disabled={isPromotingVersion}
+          actions={actions}
+        />
       ),
     }
   })

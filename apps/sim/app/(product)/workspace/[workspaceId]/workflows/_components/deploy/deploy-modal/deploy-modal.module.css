@@ -1,7 +1,6 @@
+/* A tab's content, spaced as the Integrations details tabs space theirs. */
 .pane {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-section-gap);
+  display: grid;
   min-inline-size: 0;
-  padding-block-start: var(--spacing-8);
+  gap: var(--ui-widget-content-gap);
 }

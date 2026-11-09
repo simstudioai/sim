@@ -5,6 +5,7 @@ import { IconButton } from '@sim/emcn/button'
 import { FileField } from '@sim/emcn/field/file-field'
 import { Modal } from '@sim/emcn/modal'
 import { OverflowText } from '@sim/emcn/overflow-text'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { Spinner, StatusTag } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
@@ -49,6 +50,7 @@ export function AddDocumentsModal({
   workspaceId,
   knowledgeBaseId,
 }: AddDocumentsModalProps) {
+  const filesEdges = useScrollEdges<HTMLUListElement>()
   const [files, setFiles] = useState<File[]>([])
   const [failed, setFailed] = useState<ReadonlySet<File>>(() => new Set())
   const [batch, setBatch] = useState<readonly File[]>([])
@@ -148,7 +150,7 @@ export function AddDocumentsModal({
         onFilesChange={add}
       />
       {files.length > 0 && (
-        <ul className={styles.files} aria-label='Selected files'>
+        <ul ref={filesEdges} className={styles.files} aria-label='Selected files'>
           {files.map((file) => {
             const index = batch.indexOf(file)
             const status = index >= 0 ? progress.fileStatuses?.[index] : undefined

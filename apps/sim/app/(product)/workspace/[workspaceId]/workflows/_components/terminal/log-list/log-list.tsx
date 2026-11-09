@@ -1,7 +1,8 @@
 'use client'
 
-import { type MouseEvent, memo, useEffect, useMemo, useRef, useState } from 'react'
+import { type MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@sim/emcn/icon'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { StatusTag } from '@sim/emcn/status'
 import { formatDuration } from '@sim/utils/formatting'
 import { useVirtualizer } from '@tanstack/react-virtual'
@@ -194,6 +195,14 @@ export const LogList = memo(function LogList({
   onContextMenu,
 }: LogListProps) {
   const [viewport, setViewport] = useState<HTMLDivElement | null>(null)
+  const measureEdges = useScrollEdges<HTMLDivElement>()
+  const setList = useCallback(
+    (element: HTMLDivElement | null) => {
+      setViewport(element)
+      return measureEdges(element)
+    },
+    [measureEdges]
+  )
   const rows = useMemo(
     () => flattenVisibleExecutionRows(executionGroups, expandedNodes),
     [executionGroups, expandedNodes]
@@ -223,7 +232,7 @@ export const LogList = memo(function LogList({
   const after = Math.max(0, virtualizer.getTotalSize() - (items.at(-1)?.end ?? 0) - ROW_GAP)
 
   return (
-    <div ref={setViewport} className={styles.list}>
+    <div ref={setList} className={styles.list}>
       <div className={styles.rows}>
         {before > 0 && <Spacer blockSize={before} />}
         {items.map((item) => {

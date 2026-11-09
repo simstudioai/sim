@@ -30,6 +30,16 @@
   background: var(--ui-scrim);
 }
 
+/* A tabbed dialog keeps its top edge, so a taller or shorter tab never moves the tabs under the pointer. */
+.modal:has(.modalBody [role="tablist"]) {
+  max-height: calc(100dvh - min(12dvh, var(--spacing-96)) - var(--spacing-16));
+  margin-block: min(12dvh, var(--spacing-96)) auto;
+}
+
+.modal:has(.modalBody [role="tablist"]) .modalLayout {
+  max-height: calc(100dvh - min(12dvh, var(--spacing-96)) - var(--spacing-16));
+}
+
 .modalLayout {
   max-height: calc(100dvh - var(--spacing-32));
   padding: var(--ui-dialog-inset);

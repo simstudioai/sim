@@ -6,6 +6,7 @@ import { Input } from '@sim/emcn/field/inputs'
 import { AnchoredPopover } from '@sim/emcn/menu/anchored-popover'
 import { DatePicker } from '@sim/emcn/picker/date-picker'
 import { Select } from '@sim/emcn/picker/select'
+import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { generateId } from '@sim/utils/id'
 import styles from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/tag-filter/tag-filter.module.css'
 import {
@@ -164,6 +165,7 @@ interface TagFilterProps {
  */
 export function TagFilter({ definitions, entries, onChange }: TagFilterProps) {
   const anchor = useRef<HTMLSpanElement>(null)
+  const rulesEdges = useScrollEdges<HTMLOListElement>()
   const [open, setOpen] = useState(false)
   const active = activeTagFilters(entries).length
   const shown = entries.length > 0 ? entries : [emptyEntry()]
@@ -213,7 +215,7 @@ export function TagFilter({ definitions, entries, onChange }: TagFilterProps) {
               </Button>
             )}
           </div>
-          <ol className={styles.rules}>
+          <ol ref={rulesEdges} className={styles.rules}>
             {shown.map((entry, index) => (
               <li key={entry.id} className={styles.rule}>
                 {index > 0 && (

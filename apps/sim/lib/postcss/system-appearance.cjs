@@ -21,7 +21,6 @@ const plugin = () => ({
     })
   },
 })
-
 plugin.postcss = true
 
 module.exports = plugin
