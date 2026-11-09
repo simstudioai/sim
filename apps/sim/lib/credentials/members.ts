@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { credential, credentialMember, member, permissions, user } from '@sim/db/schema'
+import type { PermissionType } from '@sim/platform-authz/workspace'
 import { generateId } from '@sim/utils/id'
 import { and, eq, exists, inArray, notInArray, or, sql } from 'drizzle-orm'
 import {
@@ -15,9 +16,12 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { isSharedCredentialType, requireOrdinaryCredentialType } from '@/lib/credentials/access'
 import type { CredentialAuthorizationContext } from '@/lib/credentials/application/authorized-credential-use-case'
 import type { CredentialRow } from '@/lib/credentials/queries'
+import type { DbTransaction } from '@/lib/db/types'
 import {
+  getEffectiveWorkspacePermission,
   getUserEntityPermissions,
   getUsersWithPermissions,
+  getWorkspaceWithOwner,
 } from '@/lib/workspaces/permissions/utils'
 
 export interface CredentialMemberView {
@@ -183,6 +187,43 @@ export async function listCredentialMembersPage(
   return { members: page.data, nextCursorKeys: page.nextCursorKeys }
 }
 
+/**
+ * Each person's effective role on the credential's workspace, read inside the caller's transaction
+ * after it locked the credential, so a person removed or demoted meanwhile is seen as they are now.
+ */
+async function readWorkspaceRolesTx(
+  tx: DbTransaction,
+  workspaceId: string,
+  userIds: Iterable<string>
+): Promise<Map<string, PermissionType | null>> {
+  const ws = await getWorkspaceWithOwner(workspaceId, { executor: tx })
+  const roles = new Map<string, PermissionType | null>()
+  for (const userId of userIds) {
+    roles.set(userId, ws ? await getEffectiveWorkspacePermission(userId, ws, tx) : null)
+  }
+  return roles
+}
+
+/** Refuses a grant to someone outside the workspace, or below admin to a workspace admin. */
+function assertGrantsAllowed(
+  grants: Iterable<readonly [string, 'admin' | 'member']>,
+  roles: ReadonlyMap<string, PermissionType | null>
+) {
+  for (const [userId, role] of grants) {
+    const workspaceRole = roles.get(userId) ?? null
+    if (workspaceRole === null)
+      throw new OrchestrationError(
+        'validation',
+        'Target user must belong to the credential workspace'
+      )
+    if (workspaceRole === 'admin' && role !== 'admin')
+      throw new OrchestrationError(
+        'validation',
+        'Workspace admins are automatically credential admins and cannot be demoted'
+      )
+  }
+}
+
 export interface UpsertCredentialMemberParams {
   credential: CredentialRow
   actorUserId: string
@@ -198,27 +239,10 @@ export interface UpsertCredentialMemberResult {
 export async function upsertCredentialMember(
   params: UpsertCredentialMemberParams
 ): Promise<UpsertCredentialMemberResult> {
-  if (!params.credential.workspaceId)
-    throw new OrchestrationError('not_found', 'Credential not found')
+  const workspaceId = params.credential.workspaceId
+  if (!workspaceId) throw new OrchestrationError('not_found', 'Credential not found')
   if (!isSharedCredentialType(params.credential.type)) {
     throw new OrchestrationError('validation', 'Personal credentials cannot be shared')
-  }
-  const targetWorkspacePermission = await getUserEntityPermissions(
-    params.targetUserId,
-    'workspace',
-    params.credential.workspaceId
-  )
-  if (targetWorkspacePermission === null) {
-    throw new OrchestrationError(
-      'validation',
-      'Target user must belong to the credential workspace'
-    )
-  }
-  if (targetWorkspacePermission === 'admin' && params.role !== 'admin') {
-    throw new OrchestrationError(
-      'validation',
-      'Workspace admins are automatically credential admins and cannot be demoted'
-    )
   }
 
   return db.transaction(async (tx) => {
@@ -229,6 +253,10 @@ export async function upsertCredentialMember(
       .limit(1)
       .for('update')
     if (!locked) throw new OrchestrationError('not_found', 'Credential not found')
+    assertGrantsAllowed(
+      [[params.targetUserId, params.role]],
+      await readWorkspaceRolesTx(tx, workspaceId, [params.targetUserId])
+    )
     const [existing] = await tx
       .select({ id: credentialMember.id, role: credentialMember.role })
       .from(credentialMember)
@@ -295,19 +323,6 @@ export async function setCredentialMembers(params: {
   if (desired.size !== params.members.length)
     throw new OrchestrationError('validation', 'Each person can be listed only once')
 
-  const listed = await db
-    .select({ userId: credentialMember.userId })
-    .from(credentialMember)
-    .where(eq(credentialMember.credentialId, params.credential.id))
-  const workspaceRoles = new Map(
-    await Promise.all(
-      [...new Set([...desired.keys(), ...listed.map((row) => row.userId)])].map(
-        async (userId) =>
-          [userId, await getUserEntityPermissions(userId, 'workspace', workspaceId)] as const
-      )
-    )
-  )
-
   return db.transaction(async (tx) => {
     const [locked] = await tx
       .select({ id: credential.id })
@@ -326,26 +341,17 @@ export async function setCredentialMembers(params: {
       .from(credentialMember)
       .where(eq(credentialMember.credentialId, locked.id))
       .for('update')
-    if (existing.some((row) => !workspaceRoles.has(row.userId)))
-      throw new OrchestrationError('conflict', 'Credential access changed. Try again.')
+    const workspaceRoles = await readWorkspaceRolesTx(
+      tx,
+      workspaceId,
+      new Set([...desired.keys(), ...existing.map((row) => row.userId)])
+    )
+    assertGrantsAllowed(desired, workspaceRoles)
     const current = new Map(existing.map((row) => [row.userId, row]))
     const retained = existing.filter((row) => row.status !== 'revoked')
     const unlisted = retained.filter((row) => !desired.has(row.userId))
     const inherited = unlisted.filter((row) => workspaceRoles.get(row.userId) === 'admin')
     const removed = unlisted.filter((row) => workspaceRoles.get(row.userId) !== 'admin')
-    for (const [userId, role] of desired) {
-      const workspaceRole = workspaceRoles.get(userId)
-      if (workspaceRole === null)
-        throw new OrchestrationError(
-          'validation',
-          'Target user must belong to the credential workspace'
-        )
-      if (workspaceRole === 'admin' && role !== 'admin')
-        throw new OrchestrationError(
-          'validation',
-          'Workspace admins are automatically credential admins and cannot be demoted'
-        )
-    }
     const isActiveAdmin = (row: (typeof existing)[number]) =>
       row.status === 'active' && row.role === 'admin'
     const keepsAdmin =
