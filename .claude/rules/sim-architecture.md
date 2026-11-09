@@ -41,13 +41,20 @@ alone — verify the env, then convert.
 
 ## Feature Organization
 
-Features live under `app/workspace/[workspaceId]/`:
+Product pages live in the `app/(product)/` route group: organization pages under
+`o/[organizationId]/`, workspace pages under `workspace/[workspaceId]/`. A route keeps its
+`page.tsx` thin and colocates each feature component with its CSS Module and private helpers:
 
 ```
-feature/
-├── components/          # Feature components
-├── hooks/               # Feature-scoped hooks
-├── utils/               # Feature-scoped utilities (2+ consumers)
-├── feature.tsx          # Main component
-└── page.tsx             # Next.js page entry
+<segment>/
+├── _components/
+│   └── <component>/
+│       ├── <component>.tsx         # Entry
+│       └── <component>.module.css  # Styles owned by this component
+└── page.tsx                        # Next.js page entry
 ```
+
+Parts shared by several routes go in the nearest common `_components/` (`app/(product)/_components/`
+for the shell and both surfaces). Data and logic live in `apps/sim/platform/lib/data`; the full
+contract is `apps/sim/platform/AGENTS.md`. Legacy features outside the product keep their
+`components/<feature>/` folders.

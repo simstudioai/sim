@@ -50,7 +50,7 @@ Follow `.claude/rules/constitution.md` exactly: Sim is "the open-source AI works
 
 ## Structure
 
-**Directory convention - mirror `app/workspace/[workspaceId]/<feature>`.** Every component lives in its own kebab-case folder holding `<name>.tsx` plus an `index.ts` barrel (relative re-export); a component's children nest under that folder's `components/` (each itself foldered, with its own `index.ts`). Non-component modules - `types.ts`, `constants.ts`, data files - sit at the relevant folder root. Never leave a bare `<name>.tsx` flat inside a `components/` directory.
+**Directory convention.** Every component lives in its own kebab-case folder holding `<name>.tsx` plus an `index.ts` barrel (relative re-export); a component's children nest under that folder's `components/` (each itself foldered, with its own `index.ts`). Non-component modules - `types.ts`, `constants.ts`, data files - sit at the relevant folder root. Never leave a bare `<name>.tsx` flat inside a `components/` directory.
 
 ```
 (landing)/

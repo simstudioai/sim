@@ -1,6 +1,6 @@
 ---
 description: "Shareable client view-state lives in the URL via nuqs"
-globs: ["apps/sim/app/**/*.tsx","apps/sim/app/workspace/**/*.ts","apps/sim/app/o/**/*.ts","apps/sim/ee/**","apps/sim/hooks/**","apps/sim/stores/**","apps/sim/lib/url-state/**","apps/sim/**/search-params.ts","apps/sim/**/*navigation.ts"]
+globs: ["apps/sim/app/**/*.tsx","apps/sim/app/(product)/**/*.ts","apps/sim/platform/lib/**/*.ts","apps/sim/ee/**","apps/sim/hooks/**","apps/sim/stores/**","apps/sim/lib/url-state/**","apps/sim/**/search-params.ts","apps/sim/**/*navigation.ts"]
 ---
 
 <!-- Generated from .claude/rules/sim-url-state.md by `bun run skills:sync`. Edit the source, not this file. -->
@@ -68,7 +68,7 @@ Conventions:
 ### Example — grouped filters (single source of truth)
 
 ```typescript
-// apps/sim/app/workspace/[workspaceId]/<feature>/search-params.ts
+// apps/sim/app/(product)/workspace/[workspaceId]/<feature>/search-params.ts
 import { parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
 const VIEW_MODES = ['list', 'grid'] as const
@@ -94,7 +94,7 @@ export const thingsUrlKeys = {
 'use client'
 
 import { useQueryStates } from 'nuqs'
-import { thingsParsers, thingsUrlKeys } from '@/app/workspace/[workspaceId]/<feature>/search-params'
+import { thingsParsers, thingsUrlKeys } from '@/app/(product)/workspace/[workspaceId]/<feature>/search-params'
 
 export function useThingFilters() {
   const [filters, setFilters] = useQueryStates(thingsParsers, thingsUrlKeys)
@@ -117,7 +117,7 @@ When a Server Component or loader must read a param, build a cache from the **sa
 ```typescript
 // in a server component / page.tsx
 import { createSearchParamsCache } from 'nuqs/server'
-import { thingsParsers } from '@/app/workspace/[workspaceId]/<feature>/search-params'
+import { thingsParsers } from '@/app/(product)/workspace/[workspaceId]/<feature>/search-params'
 
 const thingsCache = createSearchParamsCache(thingsParsers)
 
@@ -131,20 +131,22 @@ If a client param must be re-read server-side after a change, set `shallow: fals
 
 ## Suspense boundary
 
-`useQueryState`/`useQueryStates` read `useSearchParams` internally, so any client component using them must sit under a `<Suspense>` boundary (Next.js requirement). Wrap the page entry with a real-chrome fallback so a suspend never flashes a blank frame.
+`useQueryState`/`useQueryStates` read `useSearchParams` internally, so any client component using them must sit under a `<Suspense>` boundary (Next.js requirement).
 
-**Never `fallback={null}` on a page entry.** The route's co-located `loading.tsx` default export *is* the correct fallback — one skeleton serves both the route-level navigation transition (which Next renders automatically) and the in-page suspend (which this boundary renders). If the segment has no `loading.tsx`, add one; the route transition needs it anyway. Import it absolutely (`sim-imports.md`):
+**Platform product routes** (`app/(product)/**`) have no `loading.tsx` and paint nothing while loading: the shell's unkeyed `<Suspense fallback={null}>` around the page keeps the current page on screen through a client navigation, and a lazily loaded part sits in its own `<Suspense fallback={null}>` inside the page's chrome (`apps/sim/platform/AGENTS.md`, Phase 3 data seam).
+
+**Every other route**: wrap the page entry with a real-chrome fallback so a suspend never flashes a blank frame. Never `fallback={null}` on a page entry. The route's co-located `loading.tsx` default export, or the section's loading view, *is* the correct fallback — one skeleton serves both the route-level navigation transition (which Next renders automatically) and the in-page suspend (which this boundary renders). If the segment has no `loading.tsx`, add one; the route transition needs it anyway. Import it absolutely (`sim-imports.md`):
 
 ```typescript
-import { KnowledgeBase } from '@/components/knowledge/base/base'
-import KnowledgeBaseLoading from '@/app/workspace/[workspaceId]/knowledge/[id]/loading'
+import { CreditUsageLoading } from '@/components/settings/sections/credit-usage/credit-usage-loading'
+import { CreditUsageView } from '@/components/settings/sections/credit-usage/credit-usage-view'
 
-<Suspense fallback={<KnowledgeBaseLoading />}>
-  <KnowledgeBase id={id} knowledgeBaseName={kbName || 'Knowledge Base'} />
+<Suspense fallback={<CreditUsageLoading backHref={getAccountSettingsHref('billing')} />}>
+  <CreditUsageView />
 </Suspense>
 ```
 
-Reference: `apps/sim/app/workspace/[workspaceId]/knowledge/[id]/page.tsx`.
+Reference: `apps/sim/app/(site)/account/settings/billing/credit-usage/page.tsx`.
 
 The narrow exception is a continuity-focused peer switch that deliberately keeps the current
 view mounted and follows the full-route plus critical-data intent-prefetch rule in
@@ -249,11 +251,11 @@ Open the panel/modal only when the id **resolves to a loaded entity** — never 
 
 ## Read-then-strip deep links
 
-For an ephemeral deep-link that pre-opens a modal/drawer and should not linger in the URL (e.g. integrations `?connect=oauth`, knowledge `?addConnector=`), read the param, act on it once behind a `useRef` guard, then clear it: `setParam(null, { history: 'replace', scroll: false })`. See `apps/sim/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail.tsx`.
+For an ephemeral deep-link that pre-opens a modal/drawer and should not linger in the URL (e.g. the workflow editor's focus-block link), read the param, act on it once behind a `useRef` guard, then clear it: `setParam(null, { history: 'replace', scroll: false })`. See `apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/focus-block-deep-link/focus-block-deep-link.tsx`.
 
 ## Workflow editor carve-out — what must NOT go in the URL
 
-The workflow editor (`apps/sim/app/workspace/[workspaceId]/w/**`) is realtime/socket-synced via `socket-provider.tsx`. Its view-state is intentionally store-backed (Zustand), not URL-backed. Do **not** move the following into the URL:
+The workflow editor (`apps/sim/app/(product)/workspace/[workspaceId]/workflows/**`) is realtime/socket-synced via `components/workspace-providers/socket-provider.tsx`. Its view-state is intentionally store-backed (Zustand), not URL-backed. Do **not** move the following into the URL:
 
 - **Live cursor** and **broadcast live selection** (presence; emitted over the socket, throttled).
 - **Pan / zoom / viewport** (ReactFlow-owned, continuous, not persisted).

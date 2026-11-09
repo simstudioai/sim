@@ -1,8 +1,7 @@
 ---
 description: Settings page layout and SettingsPanel design-system compliance
 paths:
-  - "apps/sim/app/workspace/*/settings/**"
-  - "apps/sim/app/workspace/*/{integrations,skills,upgrade}/**"
+  - "apps/sim/app/(site)/{account,selfhost}/settings/**"
   - "apps/sim/components/{resource-tile,credential-detail}/**"
   - "apps/sim/components/{settings,permissions}/**"
   - "apps/sim/ee/**/components/**"
@@ -10,7 +9,11 @@ paths:
 
 # Settings Pages
 
-Workspace and organization `settings/[section]/layout.tsx` own page chrome via
+These rules cover the settings outside the Platform: the account and self-hosted settings
+(`app/(site)/account/settings/`, `app/(site)/selfhost/settings/`) and the `components/settings`,
+`components/permissions` and `ee/**/components` modules in this rule's paths. Platform Settings follow
+`sim-platform-views.md`. Each layout mounts `StandaloneSettingsShell`
+(`@/components/settings/standalone-settings-shell`), which owns page chrome via
 `SettingsHeaderShell` — a fixed header bar (a left back chip + right-aligned
 action chips), a scroll region, and a centered `max-w-[48rem]` content column led
 by a **title + description from navigation metadata**. The chrome stays mounted
@@ -118,7 +121,7 @@ Adding a new settings page:
 
 Settings pages never use a literal `text-[Npx]` class — always a named token from
 the scale in `sim-styling.md` ("Text Scale"). Find stragglers with
-`rg 'text-\[1[0-8]px\]' apps/sim/app/workspace apps/sim/ee`.
+`rg 'text-\[1[0-8]px\]' apps/sim/components/settings apps/sim/ee`.
 
 The two-line list row (title over a muted subtitle — a name + email, a tool name
 + description, a server name + status) is **not something you build**: it is

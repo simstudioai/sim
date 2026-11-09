@@ -1,6 +1,6 @@
 # Organization parity ledger
 
-One row per capability of the legacy organization surface. Every capability is either done with a check that proves it, or recorded here with the reason it is not. Nothing is silently dropped. `scripts/check-platform-parity.ts` holds this file to the specs, and the `live` job in `platform-design.yml` holds it to the run: a Done row whose quoted test failed or was skipped fails the job.
+One row per capability of the legacy organization surface. Every capability is either done with a check that proves it, or recorded here with the reason it is not. Nothing is silently dropped. The Legacy source column names where the capability lived on the legacy surface, whose code is deleted; quoted proofs are live test titles and stay as the specs spell them. `scripts/check-platform-parity.ts` holds this file to the specs, and the `live` job in `platform-design.yml` holds it to the run: a Done row whose quoted test failed or was skipped fails the job.
 
 | Domain | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- | --- |
@@ -10,7 +10,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Shell | Sort workspaces | None; Platform only | Hidden | Nothing stores a sort choice, so `unbacked` hides the control. Order stays pinned, then by the viewer's visits, through `useOrderedWorkspacesQuery` |
 | Shell | Oversized paste refused before an editor parses it | `app/_shell/paste-admission-guard.tsx` | Done | `paste-guard.test.tsx`, mounted without an element in `LiveProviders`. Zone fields publish no `data-paste-*` ceilings yet, so only the crash-only fallback applies; fixture sessions have no guard |
 | Shell | A tab title per route | Each legacy page's `metadata` | Done | "Each route names its own tab". Bare titles: no brand suffix, which legacy reads from whitelabeling. A Settings provider page reads Integration, not the provider's name |
-| Shell | Desktop tray: recents, New Chat, Settings, on/off | `apps/desktop/src/main/tray.ts`, `/workspace/[id]/settings/desktop` | Open | Native, and New Chat and Settings resolve from a zone route. Recents read workspace chats from `/api/copilot/chats`, so organization chats are not listed, and the on/off switch has only the workspace Desktop page |
+| Shell | Desktop tray: recents, New Chat, Settings, on/off | `apps/desktop/src/main/tray.ts`, `/workspace/[id]/settings/desktop` | Open | Native, and New Chat and Settings resolve from a product route. Recents read workspace chats from `/api/copilot/chats`, so organization chats are not listed, and the on/off switch has only the workspace Desktop page |
 | Shell | Warm a destination on pointer dwell | `nav-warmers.ts` | Open | `useNavWarmers` in `lib/data/nav-warmers.ts` is ready and proved by `nav-warmers.test.tsx`. The sidebar's destination rows have no pointer handler to call it, which is the sidebar owner's move |
 | Chat | Send, stream, stop, reconnect, resume on open and on return, withdrawal recovery, older pages, desktop tool execution | `useChat` | Unverified | Send, stream and stop are proved by "A running turn streams, stops" against a scripted worker. Reconnect, resume, withdrawal recovery, older pages and desktop tools have no live check, and no real model has run |
 | Chat | Steering: a message sent while a turn runs steers it, shows at once and settles where the turn applied it; one the turn ends without applying goes out as the next turn; a busy refusal steers the turn that holds the chat; a message shown as not delivered offers Retry and Dismiss | `useChat`, `outgoing-state.ts`, `steered-messages.ts` | Unverified | Applying is proved by "A message sent during a running turn steers it" against a scripted worker, and the not-applied fallback by "A message the turn ends without applying goes out as the next turn". The busy refusal has no live check |
@@ -49,12 +49,12 @@ One row per capability of the legacy organization surface. Every capability is e
 | Navigation | Skills: list per workspace, create, import, edit, delete, built-ins read-only, editors | `/workspace/[id]/skills`, `/o/[id]/skills` | Unverified | No live check yet. `/integrations?tab=skills&workspace=<id>`; `lib/data/skills`. Instructions use the large textarea, not legacy's rich editor |
 | Settings | Platform administration: Admin | `/o/[id]/settings/admin` | Unverified | No live check yet. `/settings/admin`, platform admins only. The legacy URL stays unmapped and keeps its own page |
 | Settings | Platform administration: Mothership | `/o/[id]/settings/mothership` | Unverified | No live check yet. `/settings/mothership`, platform admins only. The legacy URL maps here |
-| Integrations | Member inventory and account pages | `/o/[id]/integrations`, `/o/[id]/integrations/[provider]` | Unverified | No live check yet. `/integrations` and `/integrations/[providerId]`. `/integrations` maps here unless its query asks for a job the zone cannot do; `/integrations/[provider]` stays unmapped and keeps its own page |
-| Integrations | Member secrets, per-account tool permissions | `/o/[id]/integrations/secrets`, `/o/[id]/integrations/accounts/[credentialId]` | Legacy | Unmapped. Generic secrets link out through `legacyRoutes` |
+| Integrations | Member inventory and account pages | `/o/[id]/integrations`, `/o/[id]/integrations/[provider]` | Unverified | No live check yet. Served at `/o/[id]/integrations` and `/o/[id]/integrations/[providerId]` |
+| Integrations | Member secrets, per-account tool permissions | `/o/[id]/integrations/secrets`, `/o/[id]/integrations/accounts/[credentialId]` | Legacy | Unmapped. Generic secrets open the member secrets page or the generic-secrets integration (`integrations-route.tsx`) |
 | Integrations | Search sources: list, secrets, provider and source pages | `/o/[id]/settings/integrations/*` | Unverified | No live check yet. `/settings/integrations` with `secrets`, `providers/:connectorType` and `sources/:connectorId`. The legacy URLs stay unmapped and keep their own pages |
 | Integrations | Credential Groups | `/o/[id]/settings/connected-accounts` | Unverified | No live check yet. `/settings/connected-accounts`. The legacy URL stays unmapped and keeps its own page |
 | Integrations | First paint of the inventory | `settings-query-warmers.ts`, `prefetch-member-inventory.ts` | Done | `prefetch-reads.test.ts` |
-| Integrations | Member inventory page | `/o/[id]/integrations` | Open | Integrations owner. `lib/platform/routes.ts` maps the plain page. Slack handoff, connection requests and saved-account connect stay on the legacy page until the zone has them |
+| Integrations | Member inventory page | `/o/[id]/integrations` | Open | Integrations owner. Slack handoff, connection requests and saved-account connect are not on the Platform page yet |
 
 ## Settings: personal
 
@@ -174,7 +174,7 @@ Status is one of:
 
 - **Done**: works on live data. Proof quotes the title of a test in `checks/live/`, or names an integration or unit test.
 - **Unverified**: built on live data, and no check exercises it. Reason says what is proved so far and what stands in the way. Never read this as working.
-- **Legacy**: stays on the legacy surface and the Platform links out. Proof names the unmapped route in `lib/platform/routes.ts`.
+- **Legacy**: stays on a page outside the Platform, and the Platform links out. Reason names that page.
 - **Hidden**: Platform UI with no backend, hidden on live data. Reason names what a backend would need.
 - **Open**: not built yet. Reason names the owner.
 
@@ -184,7 +184,7 @@ Every row runs on live data through `lib/data/members.ts`. Proof quotes a test i
 
 | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- |
-| Section access, aliases `organization` and `team` | `O/settings/[section]`, `O/settings/navigation.ts` | Unverified | No live check yet. Section gate from `settingsSections`; aliases resolved by `lib/platform/routes.ts` before arrival |
+| Section access, aliases `organization` and `team` | `O/settings/[section]`, `O/settings/navigation.ts` | Unverified | No live check yet. Section gate from `settingsSections`; aliases redirect in `next.config.ts` before arrival |
 | Viewer role from the viewer's roster row, falling back to the server-read surface, never Better Auth's capped list | `TM/team-management.tsx` | Done | "plain member sees no controls" |
 | Roster, name and email, avatar, joined date, directory deactivation, empty, loading and error with retry, prefetch for first paint | `organization-member-lists.tsx`, `settings-query-warmers.ts` | Done | "a role change persists", "a plain member sees no controls". Failure with retry has no live check |
 | Search across every section in `?search=`, sections collapse, no-match copy | `organization-member-lists.tsx` | Done | "member search lives in the URL" |
@@ -233,7 +233,7 @@ Every row runs on live data through `lib/data/people.ts`. `/people` answers 404 
 | Page gate on `canBrowsePeople`, from `navFlags.people`. Legacy's page used the weaker flag check and rendered a refusal as a load error | `O/people/page.tsx`, `lib/people/feature-flag.ts` | Done, not copied | "a member withheld the directory" in `people.spec.ts` |
 | Directory: windowed table, paging, profile links with the origin in the query, search in the URL, department filter with counts and server search, filter tag, loading, empty, no results, error and load-more failure | `O/people/people-directory.tsx` | Done | "the directory filters" in `people.spec.ts` |
 | Identifiers: `memberId` is a directory id here, and `userId` can be null | `lib/api/contracts/people.ts` | Done | "the directory filters" |
-| Org chart on a canvas: manager, focus, reports, zoom, pan and fit. The same views as `/o/[id]/people` since #9720, which replaced the fixed CSS layout | `O/people/chart-canvas.tsx` | Unverified | "the org chart opens" reaches the page and its refusal; no zone check draws the canvas. `scripts/test-people-e2e.ts` proves it embedded |
+| Org chart on a canvas: manager, focus, reports, zoom, pan and fit. The same views as `/o/[id]/people` since #9720, which replaced the fixed CSS layout | `O/people/chart-canvas.tsx` | Unverified | "the org chart opens" reaches the page and its refusal; no live spec draws the canvas; `scripts/test-people-e2e.ts` does |
 | Chart: reporting path, top-level teams, find a person, My position, report paging by viewport, keyboard focus restoration, empty state with CTAs, 404, refusal against transient, loading, five-minute refresh | `O/people/people-chart.tsx`, `chart-empty-state.tsx` | Unverified | No live check yet. "the org chart opens" covers 404; the rest by static reading |
 | Profile: details, department link, Managed by, tenure, reports, View in org chart, Back preserving origin, 404, refusal against transient | `O/people/[memberId]/person.tsx` | Unverified | No live check yet. "the directory filters" covers Back; the rest by static reading |
 | Edit profile, gated on admin and no directory source, manager search, suspended manager label, field errors | `O/people/[memberId]/person-modal.tsx` | Unverified | No live check yet |
@@ -247,13 +247,13 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- |
 | Bare `/o` resolves to the viewer's org home | `app/o/page.tsx` | Done | "signing in through the zone lands" |
-| `/o` loading screen | `app/o/loading.tsx` | Unverified | No live check yet. Foundation: `(shell)/loading.tsx` |
+| `/o` loading screen | `app/o/loading.tsx` | Unverified | No live check yet. The product has no `loading.tsx`: bare `/o` redirects in `next.config.ts`, and the shell's `<Suspense fallback={null}>` keeps the current page |
 | Signed-out redirect with `callbackUrl` | `O/layout.tsx` | Done | "signing in through the zone lands", "sign out ends the session". A deep link is not restored |
 | Non-member denial page | `O/layout.tsx`, `organization-access-denied.tsx` | Unverified | No live check yet. Foundation: `shell-gate.tsx` |
 | Surface unavailable redirect | `O/layout.tsx` | Unverified | No live check yet. Foundation: `hasOrganizationSurface` in `live-shell.tsx` |
 | Org root redirect priority | `O/page.tsx` | Unverified | No live check yet. Foundation: `lib/data/landing.ts` |
 | Home page gate | `O/home/page.tsx` | Done | "a member who cannot build lands on Search". `resolveHomeRedirect` in `live-home-route.tsx` |
-| Error boundary with retry | `O/error.tsx` | Unverified | No live check yet. Foundation: `(shell)/error.tsx` |
+| Error boundary with retry | `O/error.tsx` | Unverified | No live check yet. Foundation: `app/(product)/error.tsx` |
 | Not found page | `O/not-found.tsx` | Done | "A chat outside the viewer’s access is not found". It is a streamed 200, not a 404 status, under the shell's Suspense boundary |
 | Server prefetch of chats, workspaces, profile | `O/prefetch.ts` | Unverified | No live check yet. Foundation: `lib/data/prefetch-shell.ts` |
 | Org surface context | `organization-provider.tsx` | Done | "signing in through the zone lands" |
@@ -266,7 +266,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Impersonation banner | `impersonation-banner.tsx` | Unverified | No live check yet. Foundation: `session-state.tsx` |
 | Session expired takeover | `session-expired.tsx` | Unverified | No live check yet. Foundation: `session-state.tsx` |
 | Stale session cookie: sign out before login instead of looping | `app/workspace/page.tsx` | Unverified | No live check yet. `live-shell/stale-session.tsx` |
-| Workspace entry: last workspace, `redirect_workflow`, `redirect`, first workspace, blocked policy | `app/workspace/page.tsx` | Unverified | No live check yet. `(shell)/workspace/page.tsx`, `lib/data/workspace-entry.ts` |
+| Workspace entry: last workspace, `redirect_workflow`, `redirect`, first workspace, blocked policy | `app/workspace/page.tsx` | Unverified | No live check yet. `app/(product)/workspace/page.tsx`, `lib/data/workspace-entry.ts` |
 | Workspace error, not found and access denied | `[workspaceId]/error.tsx`, `not-found.tsx`, `workspace-access-denied.tsx` | Unverified | No live check yet. `workspace/[workspaceId]/error.tsx` and `not-found.tsx`; an inaccessible workspace reads as not found |
 | Unsaved settings guard on links and sign out | `settings-navigation-guard.tsx`, `settings-guarded-link.tsx` | Unverified | No live check yet. `lib/data/settings-guard`, `settings-leave-guard.tsx`, `requestLeave` |
 | Unsaved settings guard on browser back and forward | `use-settings-browser-navigation.ts` | Unverified | No live check yet. `lib/data/settings-guard`, the same hook as legacy |
@@ -361,7 +361,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Home | Recents the panel shows for files and workspaces | None; Platform only | Hidden | A per-user recent destinations store |
 | Home | Needs your attention | None; Platform only | Done | "an unread chat needs attention", "an account Google stopped honoring". A failed source has no live check |
 | Home | Cross-chat approvals in Needs your attention | None; Platform only | Hidden | Pending tool permissions and assistant reviews are listed per chat. Needs a member-scoped list across chats |
-| Home | Customize Home | None; Platform only | Open | Hide and Undo work for the session; a reload restores every widget. `stores/organization-home/store.ts` already persists the choice per viewer in the browser with no migration, and `embedded/` reads it. The zone keeps it in `interface-preferences.tsx`, which is UI state and its owner's move |
+| Home | Customize Home | None; Platform only | Open | Hide and Undo work for the session; a reload restores every widget. The choice lives in `app/(product)/_components/session/interface-preferences.tsx`, which is UI state and its owner's move |
 | Home | Get started checklist | `app/o/[id]/home/components/get-started/get-started.tsx` | Done | "Search mode on Home offers Get started". Completing each step has no live check |
 | Home | Suggested action rows and Connect from a suggestion | `suggested-actions.tsx` | Open | Chat lane. Needs the block template catalog (337-file closure, banned by the seam) behind a route, and a way to hand a prompt to the composer draft. Recents hold that slot on Platform |
 | Home | Plan toggle, composer handoff and server chat id | `organization-conversation.tsx` | Open | Chat lane owns `home-composer` |
@@ -369,7 +369,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 
 ## Settings: legacy settings homes
 
-Every section of the legacy settings (`components/settings/navigation.ts`, `app/workspace/[workspaceId]/settings/**`) has one home in the zone: organization Settings for what belongs to the viewer, the organization or the deployment, and the workspace's Settings tab for what belongs to one workspace. The workspace tab lists its sections in the organization Settings navigation's pattern, with the legacy sidebar's gates (`lib/data/workspace-settings`).
+Every section of the legacy settings (`components/settings/navigation.ts`, `app/workspace/[workspaceId]/settings/**`) has one home in the Platform: organization Settings for what belongs to the viewer, the organization or the deployment, and the workspace's Settings tab for what belongs to one workspace. The workspace tab lists its sections in the organization Settings navigation's pattern, with the legacy sidebar's gates (`lib/data/workspace-settings`).
 
 | Domain | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- | --- |
@@ -379,7 +379,7 @@ Every section of the legacy settings (`components/settings/navigation.ts`, `app/
 | Settings home | Terminal | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/terminal`: org Settings, Account, listed only in the desktop app. No live check yet. Ported: run commands, theme picker, zoom |
 | Settings home | Subscription | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/billing`: org Settings, Account. Existing section; rows under Settings: billing and usage |
 | Settings home | Credit usage | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/billing/credit-usage`: org Settings, a Subscription sub-page. No live check yet. Ported: the glance and the page with period, range, export; shown on non-Enterprise plans because every user now has an organization. Reads the viewer's own usage logs |
-| Settings home | Teammates | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/teammates`: workspace Settings tab. No live check yet. Ported with a workspace invite modal in the section; the zone invite modal only invites to the organization |
+| Settings home | Teammates | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/teammates`: workspace Settings tab. No live check yet. Ported with a workspace invite modal in the section; the organization invite modal only invites to the organization |
 | Settings home | Secrets | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/secrets`: workspace Settings tab. No live check yet. Ported, with pending create requests from the `{{` suggestion |
 | Settings home | Secret details, references and usage | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/secrets/[credentialId]`: workspace Settings tab, a Secrets sub-page. No live check yet. Ported. A reference names the stored field id and a run trigger is text: block titles and icons need the blocks registry |
 | Settings home | BYOK | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/byok`: workspace Settings tab. No live check yet. Ported with organization scope. Nebius and Thinking Machines show the generic mark |
@@ -392,7 +392,7 @@ Every section of the legacy settings (`components/settings/navigation.ts`, `app/
 | Settings home | Recently deleted, workspace items | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/recently-deleted`: workspace Settings tab. Deleted chats stay in org Settings. No live check yet. Ported; restoring a folder opens the Workflows list in it |
 | Settings home | Workspace forks | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/forks`: workspace Settings tab. No live check yet. Ported except Compare in sync and the `<block.output>` picker in custom-block fields, which need the canvas-owned preview and tag dropdown |
 | Settings home | Custom blocks | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/custom-blocks`: workspace Settings tab. No live check yet. Ported. Its chunk bundles the blocks registry for the output picker, as Tables' workflow panel does |
-| Settings home | Requests, workspace scope | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/requests`: workspace Settings tab, the shared Requests panel with the workspace scope. No live check yet. Ported; zone access-request links open it |
+| Settings home | Requests, workspace scope | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/requests`: workspace Settings tab, the shared Requests panel with the workspace scope. No live check yet. Ported; Platform access-request links open it |
 | Settings home | Members | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/members`: org Settings. Existing section |
 | Settings home | Credential groups | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/connected-accounts`: org Settings. Existing section |
 | Settings home | Insights and usage events | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/usage`, `/settings/usage/events`: org Settings. Existing section |
@@ -421,7 +421,7 @@ The workspace's Dashboard, Issues, Changelog and Logs are Platform pages. Fixtur
 | Workspace | Run details: facts, the trace rooted at the workflow's input and output, each step's payloads, run files with Download, the cost ledger (line items, total, tokens), Stop (editors), Retry on a failed run, Troubleshoot in Chat, Open workflow, View snapshot; trace, input and output follow `hideTraceSpans` | `components/log-details/` | Unverified | `useLiveRun`; an open run that is still going reads again every 3s. Files download through `/api/files/serve` (execution context) and the cost apportions the usage ledger as legacy does. Not yet run against a live stack |
 | Workspace | Run snapshot: the frozen workflow a run executed, executed blocks marked by outcome, choose a block to inspect its step | `components/log-details/components/execution-snapshot/` | Unverified | `workflows/runs/[executionId]` renders the Workflows tab's `WorkflowPreview` over `useRunSnapshot` (`useExecutionSnapshot`), so the block registry loads only in the Workflows tab. Not yet run against a live stack |
 | Workspace | Snapshot drill-down into a child workflow's snapshot, the snapshot's block configuration panel, the dashboard's segment selection (click, Cmd and Shift), arrow-key navigation between runs | `w/components/preview/`, `components/dashboard/`, `logs.tsx` | Open | The snapshot's inspector shows the block's step, not its configured fields; child snapshots, segment selection and run-to-run keys are not built yet |
-| Workspace | Logs search language | `logs.tsx` (`SearchSuggestions`, `query-parser`) | Hidden | Removed from the zone's Logs by product direction |
+| Workspace | Logs search language | `logs.tsx` (`SearchSuggestions`, `query-parser`) | Hidden | Removed from the Platform's Logs by product direction |
 | Workspace | Issues: list, details, decisions | None; Platform only | Hidden | No backend exists. Its live routes answer 404, and live workspaces hide its tab, so no live page links to it |
 | Workspace | Breadcrumb folder traversal, collapsed past four crumbs, drop onto an ancestor to move | Legacy folder sidebar and resource headers | Unverified | Checked by hand on Tables, Files, Knowledge bases and Workflows. `@sim/emcn/breadcrumbs` |
 | Workspace | Pin and unpin tables, files, knowledge bases, workflows and folders | `hooks/queries/pinned-items.ts` | Unverified | Checked by hand. Pinned rows sort first |
@@ -432,7 +432,7 @@ The workspace's Dashboard, Issues, Changelog and Logs are Platform pages. Fixtur
 | Workspace | Files: new file and folder, upload files and folders, unzip, download, move, rename, share, delete | `app/workspace/[workspaceId]/files/` | Unverified | Checked by hand |
 | Workspace | File viewer and editors for every supported type, with per-file actions | `files/components/file-viewer/` | Unverified | Checked by hand. Collaborative markdown and the save-conflict notice need a calmer server for a second check |
 | Workspace | Knowledge bases: create, edit, delete, tags, documents (upload, tags, enable, retry, delete), chunks | `app/workspace/[workspaceId]/knowledge/` | Unverified | Checked by hand |
-| Workspace | Knowledge connectors: add, configure, access, sync, pause, edit, remove, in a rail and modal | `knowledge/[id]/components/connectors-section/` | Unverified | Checked by hand. The OAuth round trip from the zone needs `TRUSTED_ORIGINS` to include the zone in development |
+| Workspace | Knowledge connectors: add, configure, access, sync, pause, edit, remove, in a rail and modal | `knowledge/[id]/components/connectors-section/` | Unverified | Checked by hand |
 | Workspace | Workflows list, folders and the editor canvas: drag from the toolbar, connect, loops and parallels with nesting, undo and redo, copy and paste, auto layout, search and replace | `app/workspace/[workspaceId]/w/` | Unverified | Checked by hand |
 | Workspace | Deploy, redeploy, undeploy, roll back, rename versions, version descriptions, compare versions, API, chat and MCP deployment | `w/[workflowId]/components/panel/components/deploy/` | Unverified | Checked by hand |
 | Workspace | Terminal and workflow variables | `w/[workflowId]/components/terminal/`, `components/variables/` | Unverified | Checked by hand. Variables moved from a floating window into the right panel |
