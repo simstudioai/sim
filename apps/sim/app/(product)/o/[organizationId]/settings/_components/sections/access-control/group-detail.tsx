@@ -359,7 +359,7 @@ export function GroupDetail({
               <SearchField
                 key='providers'
                 label='Search providers'
-                placeholder='Search providers...'
+                placeholder='Search providers…'
                 value={search}
                 onValueChange={params.setSearch}
               />
@@ -407,7 +407,7 @@ export function GroupDetail({
               <SearchField
                 key='blocks'
                 label='Search blocks'
-                placeholder='Search blocks...'
+                placeholder='Search blocks…'
                 value={search}
                 onValueChange={params.setSearch}
               />
@@ -469,8 +469,8 @@ export function GroupDetail({
           kind={kind}
           searchLabel={
             kind === 'knowledge_connector'
-              ? 'Search connectors...'
-              : 'Search authentication modes...'
+              ? 'Search connectors…'
+              : 'Search authentication modes…'
           }
           emptyLabel={
             kind === 'knowledge_connector' ? 'No connectors available.' : 'No modes available.'
@@ -486,7 +486,7 @@ export function GroupDetail({
             <SearchField
               key='platform'
               label='Search features'
-              placeholder='Search features...'
+              placeholder='Search features…'
               value={search}
               onValueChange={params.setSearch}
             />

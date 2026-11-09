@@ -412,7 +412,7 @@ function SecretRows({ header, mode, refreshFailure, variables, save, isSaving }:
         grow={
           <SearchField
             label='Search secrets'
-            placeholder='Search secrets...'
+            placeholder='Search secrets…'
             value={searchTerm}
             onValueChange={setSearchTerm}
           />

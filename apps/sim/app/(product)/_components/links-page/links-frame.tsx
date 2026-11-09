@@ -48,7 +48,7 @@ export function LinksFrame({
         <SearchField
           variant='quiet'
           label='Search links'
-          placeholder='Search links...'
+          placeholder='Search links…'
           value={search}
           onValueChange={onSearch}
         />
