@@ -291,15 +291,27 @@ const PREVIEW_CHARACTERS = 1800
 const READ_WINDOW_CHARACTERS = 8000
 /** The read limit {@link READ_WINDOW_CHARACTERS} is sized for, which is the default limit. */
 const READ_WINDOW_LIMIT = 3
+/**
+ * Characters the documents of one scaled read call share. It keeps the call's result, with about
+ * a thousand characters of metadata per document, under the 50,000-character size at which MCP
+ * clients such as Claude Code save a tool result to a file rather than show it.
+ */
+const SCALED_READ_CALL_CHARACTERS = 40_000
 
 /**
  * Characters one read returns. A live document is one chunk, so a caller that scales the window
- * gets a longer one when it asks for more chunks than the default; at or below the default, and
- * for every other caller, the window stays the standard page.
+ * gets a longer one when it asks for more chunks than the default, bounded by an even share of
+ * the call's budget across the documents it reads, and never shorter than the standard page. At
+ * or below the default limit, and for every other caller, the window is the standard page.
  */
-function readWindowCharacters(input: Pick<LiveReadInput, 'limit' | 'scaleWindowWithLimit'>) {
-  if (!input.scaleWindowWithLimit || input.limit <= READ_WINDOW_LIMIT) return READ_WINDOW_CHARACTERS
-  return Math.floor((READ_WINDOW_CHARACTERS * input.limit) / READ_WINDOW_LIMIT)
+function readWindowCharacters({
+  limit,
+  scaledWindow,
+}: Pick<LiveReadInput, 'limit' | 'scaledWindow'>) {
+  if (!scaledWindow || limit <= READ_WINDOW_LIMIT) return READ_WINDOW_CHARACTERS
+  const scaled = Math.floor((READ_WINDOW_CHARACTERS * limit) / READ_WINDOW_LIMIT)
+  const share = Math.floor(SCALED_READ_CALL_CHARACTERS / Math.max(1, scaledWindow.documentsInCall))
+  return Math.max(READ_WINDOW_CHARACTERS, Math.min(scaled, share))
 }
 
 /**
@@ -992,8 +1004,11 @@ export type LiveReadInput = ResourceOwner & {
   documentId: string
   filters?: WorkspaceSearchFilters
   limit: number
-  /** Lengthens the window for a limit above the default, as {@link readWindowCharacters} sizes it. */
-  scaleWindowWithLimit?: boolean
+  /**
+   * Lengthens the window for a limit above the default, sharing one call's budget across the
+   * documents it reads, as {@link readWindowCharacters} sizes it.
+   */
+  scaledWindow?: { documentsInCall: number }
   startChunkIndex?: number
   startOffset?: number
   resultSecretRegistry: ResolvedSecretTraceRegistry
