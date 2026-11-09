@@ -530,16 +530,16 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/workflows/[workflowId]/versions/[version]/page.tsx": {
-      "modules": 1717,
+      "modules": 1991,
       "gateways": {
-        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/run-snapshot/version-snapshot.tsx": 1712,
+        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/run-snapshot/version-snapshot.tsx": 1986,
         "apps/sim/triggers/registry.ts": 597,
         "apps/sim/blocks/registry.ts": 377,
         "apps/sim/blocks/registry-maps.ts": 375,
-        "apps/sim/platform/lib/data/workflows/index.ts": 339,
-        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview.tsx": 51,
-        "apps/sim/triggers/plane/index.ts": 46,
-        "apps/sim/components/workflow-editor/hooks/use-workflow-execution.ts": 39
+        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/snapshot-block/snapshot-block.tsx": 274,
+        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/editor/sub-block/sub-block.tsx": 215,
+        "apps/sim/platform/lib/data/workflows/index.ts": 159,
+        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview.tsx": 46
       }
     },
     "app/(product)/workspace/[workspaceId]/workflows/layout.tsx": {
@@ -569,16 +569,16 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/workflows/runs/[executionId]/page.tsx": {
-      "modules": 1709,
+      "modules": 1980,
       "gateways": {
-        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/run-snapshot/run-snapshot.tsx": 1704,
-        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview.tsx": 1521,
-        "apps/sim/platform/lib/data/workflows/index.ts": 1469,
+        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/run-snapshot/run-snapshot.tsx": 1974,
         "apps/sim/triggers/registry.ts": 597,
         "apps/sim/blocks/registry.ts": 377,
         "apps/sim/blocks/registry-maps.ts": 375,
-        "apps/sim/triggers/plane/index.ts": 46,
-        "apps/sim/components/workflow-editor/hooks/use-workflow-execution.ts": 38
+        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/snapshot-block/snapshot-block.tsx": 276,
+        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/editor/sub-block/sub-block.tsx": 215,
+        "apps/sim/platform/lib/data/workflows/index.ts": 163,
+        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview.tsx": 46
       }
     },
     "app/(product)/workspace/page.tsx": {

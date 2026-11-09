@@ -9,9 +9,9 @@ import { notFound, usePathname, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { DirectoryHeading } from '@/app/(product)/_components/resource-directory/resource-directory'
 import { DetailSplit } from '@/app/(product)/workspace/[workspaceId]/_components/detail-split/detail-split'
-import { SpanInspector } from '@/app/(product)/workspace/[workspaceId]/_components/span-inspector/span-inspector'
 import { WorkflowPreview } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/run-snapshot/run-snapshot.module.css'
+import { SnapshotBlock } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/snapshot-block/snapshot-block'
 import { useRunSnapshot } from '@/platform/lib/data/logs'
 import { runSnapshotParams, serializeRunSnapshot } from '@/platform/lib/workspace-views'
 
@@ -36,7 +36,8 @@ interface RunSnapshotProps {
 
 /**
  * The workflow exactly as a run executed it, as legacy's View Snapshot shows it: the blocks that ran
- * are marked with their outcome, and choosing one opens its step beside the canvas. A workflow block
+ * are marked with their outcome, and choosing any block opens its step and the fields it ran with
+ * beside the canvas. A workflow block
  * opens the child workflow it ran, frozen as this run ran it, with a trail back to its parents; the
  * drill path lives in the URL.
  */
@@ -92,7 +93,19 @@ export function RunSnapshot({ workspaceId, executionId, back }: RunSnapshotProps
       label={`Run ${shortId} snapshot`}
       railKind='inspector'
       railLabel='Selected block'
-      rail={selected && <SpanInspector key={`${levelKey}/${blockId}`} span={selected.step} />}
+      rail={
+        level &&
+        blockId !== null &&
+        level.workflowState.blocks[blockId] && (
+          <SnapshotBlock
+            key={`${levelKey}/${blockId}`}
+            workspaceId={workspaceId}
+            workflowState={level.workflowState}
+            blockId={blockId}
+            run={{ step: selected?.step, outputs: level.blocks }}
+          />
+        )
+      }
     >
       <DirectoryHeading
         title={`Run ${shortId} snapshot`}

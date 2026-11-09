@@ -1,0 +1,35 @@
+/* The step inspector's rhythm, so the run's step and the block's fields read as one inspector. */
+.panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: var(--ui-widget-content-gap);
+}
+.heading {
+  overflow-wrap: anywhere;
+}
+.section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: var(--spacing-8);
+}
+.sectionHeading {
+  display: flex;
+  align-items: center;
+  min-block-size: var(--spacing-28);
+  color: var(--ui-secondary);
+}
+/* The editor panel's field stack, as its sub-blocks expect. */
+.fields {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: var(--spacing-field-stack);
+}
+.field {
+  min-inline-size: 0;
+}
+.field[data-tight] {
+  margin-block-start: calc(var(--spacing-8) - var(--spacing-field-stack));
+}
