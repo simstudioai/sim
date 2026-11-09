@@ -28,6 +28,8 @@ interface SetupModalProps {
 interface KeyFormSubmitProps {
   submitCredentials?: (fields: Record<string, string>) => Promise<string>
   submitPending?: boolean
+  /** An account `submitCredentials` replaces, titled Reconnect and keeping its name. */
+  replacedAccount?: { displayName?: string }
 }
 
 interface ServiceAccountModalProps extends SetupModalProps, KeyFormSubmitProps {
@@ -58,6 +60,7 @@ export function ServiceAccountModal({
   onCreated,
   submitCredentials,
   submitPending,
+  replacedAccount,
 }: ServiceAccountModalProps) {
   switch (serviceAccountSetupKind(serviceAccountProviderId)) {
     case 'form':
@@ -71,6 +74,7 @@ export function ServiceAccountModal({
           onCreated={onCreated}
           submitCredentials={submitCredentials}
           submitPending={submitPending}
+          replacedAccount={replacedAccount}
         />
       )
     case 'google':
@@ -140,6 +144,7 @@ function KeyFormModal({
   onCreated,
   submitCredentials,
   submitPending,
+  replacedAccount,
 }: SetupModalProps & KeyFormSubmitProps & { serviceAccountProviderId: string }) {
   const form = useServiceAccountForm({
     scope,
@@ -147,15 +152,18 @@ function KeyFormModal({
     onCreated,
     submitCredentials,
     submitPending,
+    initialDisplayName: replacedAccount?.displayName,
   })
   const docsUrl = form.docsUrl
+  const verb = replacedAccount ? 'Reconnect' : 'Add'
+  const pendingLabel = replacedAccount ? 'Reconnecting…' : 'Adding…'
 
   return (
     <Modal
       open={open}
       onOpenChange={onOpenChange}
-      title={`Add ${serviceName} ${form.connectNoun}`}
-      confirmLabel={form.isPending ? 'Adding…' : `Add ${form.connectNoun}`}
+      title={`${verb} ${serviceName} ${form.connectNoun}`}
+      confirmLabel={form.isPending ? pendingLabel : `${verb} ${form.connectNoun}`}
       confirmDisabled={form.confirmDisabled}
       pending={form.isPending}
       onConfirm={() => form.submit()}

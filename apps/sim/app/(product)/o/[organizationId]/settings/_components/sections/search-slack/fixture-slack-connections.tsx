@@ -1,7 +1,7 @@
 'use client'
 
+import { SlackSetupDialog } from '@/app/(product)/o/[organizationId]/settings/_components/section-parts/slack-setup-dialog'
 import { SlackConnections } from '@/app/(product)/o/[organizationId]/settings/_components/sections/search-slack/slack-connections'
-import { SlackSetupDialog } from '@/app/(product)/o/[organizationId]/settings/_components/sections/search-slack/slack-setup-dialog'
 import { useSettingsFixtureDraft } from '@/platform/lib/data/settings-providers'
 import type {
   SlackSearchInstallationView,

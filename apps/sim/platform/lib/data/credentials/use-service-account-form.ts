@@ -140,6 +140,8 @@ interface UseServiceAccountFormOptions {
   submitCredentials?: (fields: Record<string, string>) => Promise<string>
   /** Whether that operation is still saving. */
   submitPending?: boolean
+  /** The name an account being replaced already has, which the form starts with. */
+  initialDisplayName?: string
 }
 
 /**
@@ -154,6 +156,7 @@ export function useServiceAccountForm({
   onCreated,
   submitCredentials,
   submitPending = false,
+  initialDisplayName = '',
 }: UseServiceAccountFormOptions) {
   const tokenDescriptor = getTokenServiceAccountDescriptor(serviceAccountProviderId)
   const clientDescriptor = tokenDescriptor
@@ -161,7 +164,7 @@ export function useServiceAccountForm({
     : getClientCredentialAccountDescriptor(serviceAccountProviderId)
   const descriptor = tokenDescriptor ?? clientDescriptor
   const [values, setValues] = useState<Record<string, string>>({})
-  const [displayName, setDisplayName] = useState('')
+  const [displayName, setDisplayName] = useState(initialDisplayName)
   const [description, setDescription] = useState('')
   const createCredential = useCreateScopedCredential()
 

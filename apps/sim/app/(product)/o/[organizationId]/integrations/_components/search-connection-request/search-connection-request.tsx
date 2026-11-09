@@ -3,49 +3,14 @@
 import { Button } from '@sim/emcn/button'
 import { FailureNotice } from '@sim/emcn/status'
 import { ConnectionPrompt } from '@sim/emcn-platform/connection-prompt'
-import { ServiceAccountModal } from '@/app/(product)/_components/service-account-modal/service-account-modal'
+import { SavedAccountModal } from '@/app/(product)/_components/service-account-modal/saved-account-modal'
 import type { SearchConnectionTarget } from '@/platform/lib/data/chat-types'
-import {
-  useSavedSearchCredential,
-  useSearchConnectionRequest,
-} from '@/platform/lib/data/integration-handoff'
+import { useSearchConnectionRequest } from '@/platform/lib/data/integration-handoff'
 
 interface SearchConnectionRequestProps {
   organizationId: string
   userId: string
   target: SearchConnectionTarget
-}
-
-interface SavedAccountDialogProps {
-  organizationId: string
-  connection: Parameters<typeof useSavedSearchCredential>[1]
-  onClose: () => void
-  onCreated: (credentialId: string) => void
-}
-
-/** The member's own key or app credentials for a saved-account link, saved to their account. */
-function SavedAccountDialog({
-  organizationId,
-  connection,
-  onClose,
-  onCreated,
-}: SavedAccountDialogProps) {
-  const saved = useSavedSearchCredential(organizationId, connection)
-  if (!saved) return null
-  return (
-    <ServiceAccountModal
-      open
-      onOpenChange={(open) => {
-        if (!open) onClose()
-      }}
-      scope={{ kind: 'organization', organizationId }}
-      serviceAccountProviderId={connection.providerId}
-      serviceName={saved.serviceName}
-      onCreated={onCreated}
-      submitCredentials={saved.submit}
-      submitPending={saved.pending}
-    />
-  )
 }
 
 /**
@@ -62,7 +27,7 @@ export function SearchConnectionRequest({
   return (
     <>
       {connection.savedConnection && (
-        <SavedAccountDialog
+        <SavedAccountModal
           organizationId={organizationId}
           connection={connection.savedConnection}
           onClose={connection.closeSavedConnection}
