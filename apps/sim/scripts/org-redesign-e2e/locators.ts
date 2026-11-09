@@ -39,10 +39,21 @@ export const openOrgCard = (page: Page) => openMenu(orgChip(page), orgCard(page)
 export const homeRegion = (page: Page, name: string) =>
   page.getByRole('main').getByRole('region', { name, exact: true })
 
+/**
+ * The destination rows, in order. The Workspaces and Chats sections share the Main navigation
+ * landmark, each in its own region, so their rows are not destinations.
+ */
 export async function navLabels(page: Page) {
   const links = mainNav(page).getByRole('link')
   await expect(links.first()).toBeVisible()
-  return links.allInnerTexts()
+  return links.evaluateAll((anchors) =>
+    anchors
+      .filter(
+        (anchor): anchor is HTMLElement =>
+          anchor instanceof HTMLElement && !anchor.closest('nav section')
+      )
+      .map((anchor) => anchor.innerText)
+  )
 }
 
 export async function expectPageNotFound(page: Page) {
