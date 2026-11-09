@@ -4982,6 +4982,7 @@ export function TableGrid({
                       {userPermissions.canEdit && (
                         <th className={styles.addColumnCell}>
                           <ColumnDropdown
+                            placement='header'
                             columns={columns}
                             disabled={addColumnMutation.isPending}
                             blocked={!canMutateSchema}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { IconButton } from '@sim/emcn/button'
 import { Disclosure } from '@sim/emcn/disclosure'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { Tooltip } from '@sim/emcn/tooltip'
@@ -464,9 +465,9 @@ export function EditorPanel() {
         </header>
 
         {!currentBlockId || !currentBlock ? (
-          <p className={styles.empty} data-type='T060'>
-            Select a block to edit
-          </p>
+          <div className={styles.emptyFrame}>
+            <EmptyState title='Select a block to edit' />
+          </div>
         ) : subflow ? (
           <SubflowEditor
             currentBlock={currentBlock}
@@ -480,9 +481,9 @@ export function EditorPanel() {
               <WorkflowBlockPreview workspaceId={workspaceId} workflowId={childWorkflowId} />
             )}
             {subBlocks.length === 0 && !isWorkflowBlock ? (
-              <p className={styles.empty} data-type='T060'>
-                This block has no subblocks
-              </p>
+              <div className={styles.emptyFrame}>
+                <EmptyState title='This block has no subblocks' />
+              </div>
             ) : (
               <div className={styles.fields}>
                 {regularSubBlocks.map((subBlock) => (

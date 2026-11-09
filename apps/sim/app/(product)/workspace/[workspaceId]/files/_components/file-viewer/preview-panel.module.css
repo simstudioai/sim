@@ -24,9 +24,3 @@
   overscroll-behavior: contain;
   padding: var(--spacing-16);
 }
-.empty {
-  display: grid;
-  flex: 1;
-  place-items: center;
-  color: var(--ui-secondary);
-}

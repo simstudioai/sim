@@ -771,7 +771,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
         size='compact'
         icon='filter'
         count={activeRuleCount > 0 ? activeRuleCount : undefined}
-        aria-label={filterOpen ? 'Hide filter' : 'Filter'}
+        selected={filterOpen}
         onClick={() => setFilterOpen((open) => !open)}
       >
         Filter
@@ -794,6 +794,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
       </Button>
       {canEdit && (
         <ColumnDropdown
+          placement='toolbar'
           columns={columns}
           blocked={!canMutateSchema}
           onPickType={handleAddColumnOfType}

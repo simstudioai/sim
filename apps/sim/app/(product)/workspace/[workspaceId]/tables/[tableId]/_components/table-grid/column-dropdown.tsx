@@ -5,6 +5,8 @@ import { columnTypeOptionsForTable } from '@/app/(product)/workspace/[workspaceI
 import { type ColumnDefinition, LOCK_TOOLTIPS } from '@/platform/lib/data/tables'
 
 interface ColumnDropdownProps {
+  /** The control bar's is the page's create action; the one after the last header stays quiet. */
+  placement: 'toolbar' | 'header'
   columns: readonly ColumnDefinition[]
   disabled?: boolean
   /** A schema lock disables the action and explains why on hover or focus. */
@@ -19,6 +21,7 @@ interface ColumnDropdownProps {
  * header. Lists every column type, then Workflow and Enrichments; picking one opens its panel.
  */
 export function ColumnDropdown({
+  placement,
   columns,
   disabled,
   blocked,
@@ -44,6 +47,7 @@ export function ColumnDropdown({
     <ActionMenu
       label='New column'
       triggerSize='compact'
+      triggerVariant={placement === 'toolbar' ? 'secondary' : 'quiet'}
       disabled={disabled || blocked}
       disabledReason={blocked ? LOCK_TOOLTIPS.schema : undefined}
       actions={actions}

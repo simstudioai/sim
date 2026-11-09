@@ -39,13 +39,7 @@
   flex-direction: column;
   min-inline-size: 0;
 }
-
-.empty {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  padding: var(--spacing-24);
-  color: var(--ui-secondary);
-  text-align: center;
+/* Lands the empty state's text on the header's 12px text edge, past its own row inset. */
+.emptyFrame {
+  padding-inline: calc(var(--spacing-12) - var(--ui-row-inset));
 }
