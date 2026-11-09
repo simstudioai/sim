@@ -9,6 +9,7 @@ import Redis from 'ioredis'
 import postgres from 'postgres'
 import sharp from 'sharp'
 import { encryptSecret } from '@/lib/core/security/encryption'
+import { workspaceResourcePath } from '@/lib/resources/urls'
 import { getStorageProvider } from '@/lib/uploads/config'
 import { UPLOAD_DIR_SERVER } from '@/lib/uploads/core/setup.server'
 import { fileDocumentCacheIdentity, getE2BDocFormat } from '@/lib/uploads/documents/compile'
@@ -217,7 +218,7 @@ try {
       imageId: photo.id,
       token: share.token,
       source,
-      privateUrl: `/workspace/${workspaceId}/files/${required(doc.id)}${owner === 'project' ? `?owner=project&projectId=${projectId}` : ''}`,
+      privateUrl: `${workspaceResourcePath(workspaceId, 'file', required(doc.id))}${owner === 'project' ? `?owner=project&projectId=${projectId}` : ''}`,
       publicUrl: `/f/${share.token}`,
     })
     const path = `/api/files/public/${share.token}`
