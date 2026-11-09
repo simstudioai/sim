@@ -5,6 +5,7 @@ import { createRoot } from 'react-dom/client'
 import { isCredentialGroupOAuthFailure } from '@/lib/credential-groups/oauth-completion'
 import { startDesktopSourceBrowser } from '@/lib/desktop/source-browser'
 import { connectDesktopSource } from '@/lib/desktop/source-connect'
+import { ToastSink } from '@/app/_shell/toast-sink'
 import { CredentialGroupCompletionHandoff } from '@/app/(site)/credential-groups/complete/completion-handoff'
 import { SlackCompletion } from '@/app/(site)/credential-groups/slack-complete/slack-completion'
 import { SourceCompletion } from '@/app/(site)/desktop/connect/source-completion'
@@ -189,7 +190,10 @@ createRoot(root).render(
         })
       }
     >
-      <ToastProvider>{content}</ToastProvider>
+      <ToastProvider>
+        <ToastSink />
+        {content}
+      </ToastProvider>
     </QueryClientProvider>
   </StrictMode>
 )
