@@ -2,7 +2,7 @@
 
 import { createLogger } from '@sim/logger'
 import { type ClearBrowserUserDataOptions, clearBrowserUserData } from '@/lib/auth/browser-storage'
-import { stopAllDesktopTools } from '@/app/workspace/[workspaceId]/home/hooks/desktop-tool-lifetimes'
+import { stopAllDesktopTools } from '@/hooks/mothership-chat/desktop-tool-lifetimes'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 export { RECENT_IMPERSONATIONS_STORAGE_KEY } from '@/lib/auth/browser-storage'

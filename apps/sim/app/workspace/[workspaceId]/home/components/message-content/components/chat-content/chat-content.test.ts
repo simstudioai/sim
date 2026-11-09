@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { sanitizeChatDisplayContent } from '@/app/workspace/[workspaceId]/home/components/message-content/components/chat-content/chat-sanitize'
+import { sanitizeChatDisplayContent } from '@/components/mothership-chat/message-content/components/chat-content/chat-sanitize'
 import { scalingRatioOver4x } from '@/app/workspace/[workspaceId]/home/components/message-content/components/scaling-test-helpers'
 
 describe('sanitizeChatDisplayContent', () => {

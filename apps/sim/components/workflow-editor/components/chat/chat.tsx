@@ -1,0 +1,1183 @@
+'use client'
+
+import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Button,
+  ComposerActionButton,
+  cn,
+  Input,
+  Popover,
+  PopoverContent,
+  PopoverItem,
+  PopoverScrollArea,
+  PopoverTrigger,
+  scrollFadeAttributes,
+  scrollFadeClass,
+  Tooltip,
+  Trash,
+  useScrollEdges,
+} from '@sim/emcn-legacy'
+import {
+  ArrowUp,
+  CircleAlert,
+  Download,
+  MoreVertical,
+  Paperclip,
+  Square,
+  X,
+} from '@sim/emcn-legacy/icons'
+import { createLogger } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
+import { useShallow } from 'zustand/react/shallow'
+import { ChatMessage, OutputSelect } from '@/components/workflow-editor/components/chat/components'
+import {
+  type ChatFile,
+  MAX_CHAT_FILES,
+  useChatFileUpload,
+} from '@/components/workflow-editor/components/chat/hooks'
+import { usePreventZoom, useScrollManagement } from '@/components/workflow-editor/hooks'
+import {
+  useFloatBoundarySync,
+  useFloatDrag,
+  useFloatLayout,
+  useFloatResize,
+} from '@/components/workflow-editor/hooks/float'
+import {
+  isChatWorkflowRunResult,
+  useWorkflowExecution,
+  WorkflowAttachmentUploadError,
+} from '@/components/workflow-editor/hooks/use-workflow-execution'
+import type {
+  UploadedWorkflowAttachment,
+  WorkflowAttachmentInput,
+} from '@/components/workflow-editor/utils/workflow-attachment-upload'
+import { useSession } from '@/lib/auth/client'
+import {
+  extractBlockIdFromOutputId,
+  extractPathFromOutputId,
+  parseOutputContentSafely,
+} from '@/lib/core/utils/response-format'
+import { readSSEEvents } from '@/lib/core/utils/sse'
+import type { ChatMessageAttachment } from '@/lib/mothership/chat/types'
+import { CHAT_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
+import { normalizeInputFormatValue } from '@/lib/workflows/input-format'
+import { StartBlockPath, TriggerUtils } from '@/lib/workflows/triggers/triggers'
+import { START_BLOCK_RESERVED_FIELDS } from '@/lib/workflows/types'
+import type { BlockLog, ExecutionResult } from '@/executor/types'
+import { isMobileViewport, useIsMobile } from '@/hooks/use-is-mobile'
+import { useChatStore } from '@/stores/chat/store'
+import { getChatPosition } from '@/stores/chat/utils'
+import { useIsCurrentWorkflowExecuting } from '@/stores/execution'
+import { useOperationQueue } from '@/stores/operation-queue/store'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+import { useWorkflowStore } from '@/stores/workflows/workflow/store'
+
+const logger = createLogger('FloatingChat')
+
+/**
+ * Formats file size in human-readable format
+ * @param bytes - Size in bytes
+ * @returns Formatted string with appropriate unit (B, KB, MB, GB)
+ */
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return `${Math.round((bytes / 1024 ** i) * 10) / 10} ${units[i]}`
+}
+
+function toChatMessageAttachments(
+  uploadedAttachments: UploadedWorkflowAttachment[]
+): ChatMessageAttachment[] {
+  return uploadedAttachments.map((file) => {
+    const supportsPreview = file.type.startsWith('image/') || file.type.startsWith('video/')
+    return {
+      id: file.id,
+      filename: file.name,
+      media_type: file.type,
+      size: file.size,
+      ...(supportsPreview ? { previewUrl: file.url } : {}),
+    }
+  })
+}
+
+interface ChatFilePreviewProps {
+  file: ChatFile
+  onRemove: (fileId: string) => void
+}
+
+/**
+ * Uses a short-lived object URL only while an image remains in the composer.
+ * Successful uploads replace it with the storage-backed URL in message history.
+ */
+function ChatFilePreview({ file, onRemove }: ChatFilePreviewProps) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!file.type.startsWith('image/')) return
+
+    const objectUrl = URL.createObjectURL(file.file)
+    setPreviewUrl(objectUrl)
+    return () => URL.revokeObjectURL(objectUrl)
+  }, [file.file, file.type])
+
+  return (
+    <div
+      className={cn(
+        'group relative pointer-coarse:flex shrink-0 pointer-coarse:items-center overflow-hidden rounded-md bg-[var(--surface-2)]',
+        previewUrl
+          ? 'size-[40px] pointer-coarse:h-12 pointer-coarse:w-auto'
+          : 'flex pointer-coarse:min-h-12 min-w-[80px] max-w-[120px] items-center justify-center px-2 py-0.5'
+      )}
+    >
+      {previewUrl ? (
+        <img
+          src={previewUrl}
+          alt={file.name}
+          className='pointer-coarse:size-12 size-full pointer-coarse:shrink-0 object-cover'
+        />
+      ) : (
+        <div className='min-w-0 flex-1'>
+          <div className='truncate font-medium text-[var(--text-body)] text-micro'>{file.name}</div>
+          <div className='text-[9px] text-[var(--text-tertiary)]'>{formatFileSize(file.size)}</div>
+        </div>
+      )}
+
+      <Button
+        aria-label='Remove file'
+        variant='ghost'
+        size='icon'
+        onClick={(event) => {
+          event.stopPropagation()
+          onRemove(file.id)
+        }}
+        className='pointer-coarse:static absolute top-0.5 right-0.5 pointer-coarse:size-11 pointer-coarse:shrink-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 md:pointer-fine:opacity-0'
+      >
+        <span
+          className={cn(
+            'flex items-center justify-center',
+            previewUrl &&
+              'size-4 rounded-full border border-[var(--border)] bg-[var(--surface-2)] text-[var(--text-body)]'
+          )}
+        >
+          <X className='size-2.5' />
+        </span>
+      </Button>
+    </div>
+  )
+}
+
+/**
+ * Extracts output value from logs based on output ID
+ * @param logs - Array of block logs from workflow execution
+ * @param outputId - Output identifier in format blockId or blockId.path
+ * @returns Extracted output value or undefined if not found
+ */
+const extractOutputFromLogs = (logs: BlockLog[] | undefined, outputId: string): unknown => {
+  const blockId = extractBlockIdFromOutputId(outputId)
+  const path = extractPathFromOutputId(outputId, blockId)
+  const log = logs?.find((l) => l.blockId === blockId)
+
+  if (!log) return undefined
+
+  let output = log.output
+
+  if (path) {
+    output = parseOutputContentSafely(output)
+    const pathParts = path.split('.')
+    let current = output
+    for (const part of pathParts) {
+      if (current && typeof current === 'object' && part in current) {
+        current = current[part]
+      } else {
+        return undefined
+      }
+    }
+    return current
+  }
+
+  return output
+}
+
+/**
+ * Formats output content for display in chat
+ * @param output - Output value to format (string, object, or other)
+ * @returns Formatted string, markdown code block for objects, or empty string
+ */
+const formatOutputContent = (output: unknown): string => {
+  if (typeof output === 'string') {
+    return output
+  }
+  if (output && typeof output === 'object') {
+    return `\`\`\`json\n${JSON.stringify(output, null, 2)}\n\`\`\``
+  }
+  return ''
+}
+
+/**
+ * Represents a field in the start block's input format configuration
+ */
+interface StartInputFormatField {
+  id?: string
+  name?: string
+  type?: string
+  value?: unknown
+  collapsed?: boolean
+}
+
+/**
+ * Floating chat modal component
+ *
+ * A draggable chat interface positioned over the workflow canvas that allows users to:
+ * - Send messages and execute workflows
+ * - Upload and attach files
+ * - View streaming responses
+ * - Select workflow outputs as context
+ *
+ * The modal is constrained by sidebar, panel, and terminal dimensions and persists
+ * position across sessions using the floating chat store.
+ */
+export function Chat() {
+  const isMobile = useIsMobile()
+  const activeWorkflowId = useWorkflowRegistry((s) => s.activeWorkflowId)
+  const blocks = useWorkflowStore((state) => state.blocks)
+  const triggerWorkflowUpdate = useWorkflowStore((state) => state.triggerUpdate)
+  const setSubBlockValue = useSubBlockStore((state) => state.setValue)
+
+  const {
+    isChatOpen,
+    chatPosition,
+    chatWidth,
+    chatHeight,
+    setIsChatOpen,
+    setChatPosition,
+    setChatDimensions,
+    messages,
+    addMessage,
+    selectedWorkflowOutputs,
+    setSelectedWorkflowOutput,
+    appendMessageContent,
+    setMessageContent,
+    finalizeMessageStream,
+    getConversationId,
+    clearChat,
+    exportChatCSV,
+  } = useChatStore(
+    useShallow((s) => ({
+      isChatOpen: s.isChatOpen,
+      chatPosition: s.chatPosition,
+      chatWidth: s.chatWidth,
+      chatHeight: s.chatHeight,
+      setIsChatOpen: s.setIsChatOpen,
+      setChatPosition: s.setChatPosition,
+      setChatDimensions: s.setChatDimensions,
+      messages: s.messages,
+      addMessage: s.addMessage,
+      selectedWorkflowOutputs: s.selectedWorkflowOutputs,
+      setSelectedWorkflowOutput: s.setSelectedWorkflowOutput,
+      appendMessageContent: s.appendMessageContent,
+      setMessageContent: s.setMessageContent,
+      finalizeMessageStream: s.finalizeMessageStream,
+      getConversationId: s.getConversationId,
+      clearChat: s.clearChat,
+      exportChatCSV: s.exportChatCSV,
+    }))
+  )
+
+  const promptHistory = useChatStore(
+    useShallow((state) =>
+      !activeWorkflowId
+        ? []
+        : state.messages
+            .filter((message) => message.workflowId === activeWorkflowId && message.type === 'user')
+            .map((message) => message.content)
+            .filter((content): content is string => typeof content === 'string')
+    )
+  )
+
+  const isExecuting = useIsCurrentWorkflowExecuting()
+  const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
+  const { data: session } = useSession()
+  const { addToQueue } = useOperationQueue()
+
+  const [chatMessage, setChatMessage] = useState('')
+  const [historyIndex, setHistoryIndex] = useState(-1)
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false)
+
+  const inputRef = useRef<HTMLInputElement>(null)
+  const attachmentsRef = useRef<HTMLDivElement>(null)
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const streamReaderRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
+  const preventZoomRef = usePreventZoom()
+
+  const {
+    chatFiles,
+    uploadErrors,
+    isDragOver,
+    removeFile,
+    reportUploadError,
+    clearFiles,
+    clearErrors,
+    handleFileInputChange,
+    handleDragEnter,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+  } = useChatFileUpload()
+  const attachmentEdges = useScrollEdges(attachmentsRef, {
+    enabled: isChatOpen && chatFiles.length > 0,
+  })
+
+  /**
+   * Resolves the unified start block for chat execution, if available.
+   */
+  const startBlockCandidate = useMemo(() => {
+    if (!activeWorkflowId) {
+      return null
+    }
+
+    if (!blocks || Object.keys(blocks).length === 0) {
+      return null
+    }
+
+    const candidate = TriggerUtils.findStartBlock(blocks, 'chat')
+    if (!candidate || candidate.path !== StartBlockPath.UNIFIED) {
+      return null
+    }
+
+    return candidate
+  }, [activeWorkflowId, blocks])
+
+  const startBlockId = startBlockCandidate?.blockId ?? null
+
+  /**
+   * Reads the current input format for the unified start block from the subblock store,
+   * falling back to the workflow store if no explicit value is stored yet.
+   */
+  const startBlockInputFormat = useSubBlockStore((state) => {
+    if (!activeWorkflowId || !startBlockId) {
+      return null
+    }
+
+    const workflowValues = state.workflowValues[activeWorkflowId]
+    const fromStore = workflowValues?.[startBlockId]?.inputFormat
+    if (fromStore !== undefined && fromStore !== null) {
+      return fromStore
+    }
+
+    const startBlock = blocks[startBlockId]
+    return startBlock?.subBlocks?.inputFormat?.value ?? null
+  })
+
+  /**
+   * Determines which reserved start inputs are missing from the input format.
+   */
+  const missingStartReservedFields = useMemo(() => {
+    if (!startBlockId) {
+      return START_BLOCK_RESERVED_FIELDS
+    }
+
+    const normalizedFields = normalizeInputFormatValue(startBlockInputFormat)
+    const existingNames = new Set(
+      normalizedFields
+        .map((field) => field.name)
+        .filter((name): name is string => typeof name === 'string' && name.trim() !== '')
+        .map((name) => name.trim().toLowerCase())
+    )
+
+    return START_BLOCK_RESERVED_FIELDS.filter(
+      (fieldName) => !existingNames.has(fieldName.toLowerCase())
+    )
+  }, [startBlockId, startBlockInputFormat])
+
+  const shouldShowConfigureStartInputsButton =
+    Boolean(startBlockId) && missingStartReservedFields.length > 0
+
+  const { isFloatingLayout, updatePosition, updateDimensions } = useFloatLayout({
+    ref: preventZoomRef,
+    onPositionChange: setChatPosition,
+    onDimensionsChange: setChatDimensions,
+  })
+
+  const actualPosition = getChatPosition(chatPosition, chatWidth, chatHeight)
+
+  const { handleMouseDown } = useFloatDrag({
+    position: actualPosition,
+    width: chatWidth,
+    height: chatHeight,
+    onPositionChange: updatePosition,
+  })
+
+  useFloatBoundarySync({
+    isOpen: isChatOpen && !isMobile,
+    position: actualPosition,
+    width: chatWidth,
+    height: chatHeight,
+    onPositionChange: updatePosition,
+  })
+
+  const {
+    cursor: resizeCursor,
+    handleMouseMove: handleResizeMouseMove,
+    handleMouseLeave: handleResizeMouseLeave,
+    handleMouseDown: handleResizeMouseDown,
+  } = useFloatResize({
+    position: actualPosition,
+    width: chatWidth,
+    height: chatHeight,
+    onPositionChange: updatePosition,
+    onDimensionsChange: updateDimensions,
+  })
+
+  const workflowMessages = useMemo(() => {
+    if (!activeWorkflowId) return []
+    return messages.filter((msg) => msg.workflowId === activeWorkflowId)
+  }, [messages, activeWorkflowId])
+
+  const isStreaming = useMemo(() => {
+    const lastMessage = workflowMessages[workflowMessages.length - 1]
+    return Boolean(lastMessage?.isStreaming)
+  }, [workflowMessages])
+
+  const messagesForScrollHook = useMemo(() => {
+    return workflowMessages.map((msg) => ({
+      ...msg,
+      role: msg.type,
+    }))
+  }, [workflowMessages])
+
+  const { scrollAreaRef, scrollToBottom } = useScrollManagement(
+    messagesForScrollHook,
+    isStreaming,
+    {
+      behavior: 'auto',
+    }
+  )
+
+  useEffect(() => {
+    setHistoryIndex(-1)
+  }, [activeWorkflowId, promptHistory])
+
+  /**
+   * Auto-scroll to bottom when messages load and chat is open
+   */
+  useEffect(() => {
+    if (workflowMessages.length > 0 && isChatOpen) {
+      scrollToBottom()
+    }
+  }, [workflowMessages.length, scrollToBottom, isChatOpen])
+
+  const selectedOutputs = useMemo(() => {
+    if (!activeWorkflowId) return []
+    const selected = selectedWorkflowOutputs[activeWorkflowId]
+    return selected && selected.length > 0 ? [...new Set(selected)] : []
+  }, [selectedWorkflowOutputs, activeWorkflowId])
+
+  /**
+   * Focuses the input field with optional delay
+   * @param delay - Delay in milliseconds before focusing (default: 0)
+   */
+  const focusInput = useCallback((delay = 0) => {
+    timeoutRef.current && clearTimeout(timeoutRef.current)
+
+    timeoutRef.current = setTimeout(() => {
+      if (!isMobileViewport() && inputRef.current && document.contains(inputRef.current)) {
+        inputRef.current.focus({ preventScroll: true })
+      }
+    }, delay)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      timeoutRef.current && clearTimeout(timeoutRef.current)
+      streamReaderRef.current?.cancel()
+    }
+  }, [])
+
+  const handleStopStreaming = useCallback(() => {
+    streamReaderRef.current?.cancel()
+    streamReaderRef.current = null
+    handleCancelExecution()
+  }, [handleCancelExecution])
+
+  /**
+   * Processes streaming response from workflow execution
+   * Reads the stream chunk by chunk and updates the message content in real-time
+   * When the final event arrives, extracts any additional selected outputs (model, tokens, toolCalls)
+   * @param stream - ReadableStream containing the workflow execution response
+   * @param responseMessageId - ID of the message to update with streamed content
+   */
+  const processStreamingResponse = useCallback(
+    async (stream: ReadableStream<Uint8Array>, responseMessageId: string) => {
+      const reader = stream.getReader()
+      streamReaderRef.current = reader
+
+      /**
+       * Answer text tracked per block so a `chunk_reset` frame (a live-streamed
+       * turn resolved to tool calls) can drop one block's contribution. Each
+       * flush replaces the message content with the joined segments.
+       */
+      const blockOrder: string[] = []
+      const blockSegments = new Map<string, string>()
+      let accumulatedContent = ''
+      const recomputeContent = () => {
+        accumulatedContent = blockOrder.map((id) => blockSegments.get(id) ?? '').join('')
+      }
+
+      const BATCH_MAX_MS = 50
+      let contentDirty = false
+      let batchRAF: number | null = null
+      let batchTimer: ReturnType<typeof setTimeout> | null = null
+      let lastFlush = 0
+
+      const flushChunks = () => {
+        if (batchRAF !== null) {
+          cancelAnimationFrame(batchRAF)
+          batchRAF = null
+        }
+        if (batchTimer !== null) {
+          clearTimeout(batchTimer)
+          batchTimer = null
+        }
+        if (contentDirty) {
+          setMessageContent(responseMessageId, accumulatedContent)
+          contentDirty = false
+        }
+        lastFlush = performance.now()
+      }
+
+      const scheduleFlush = () => {
+        if (batchRAF !== null) return
+        const elapsed = performance.now() - lastFlush
+        if (elapsed >= BATCH_MAX_MS) {
+          flushChunks()
+          return
+        }
+        batchRAF = requestAnimationFrame(flushChunks)
+        if (batchTimer === null) {
+          batchTimer = setTimeout(flushChunks, Math.max(0, BATCH_MAX_MS - elapsed))
+        }
+      }
+
+      let finalError: string | null = null
+      try {
+        await readSSEEvents<{
+          event?: string
+          data?: ExecutionResult
+          chunk?: string
+          blockId?: string
+        }>(reader, {
+          onParseError: (_data, e) => {
+            logger.error('Error parsing stream data:', e)
+          },
+          onEvent: (json) => {
+            const { event, data: eventData, chunk: contentChunk, blockId } = json
+
+            if (event === 'final' && eventData) {
+              if ('success' in eventData && !eventData.success) {
+                finalError = eventData.error || 'Workflow execution failed'
+              }
+              return true
+            }
+
+            if (event === 'chunk_reset' && blockId) {
+              // Drop the block's provisional text and its order slot — the
+              // final turn re-registers at the end, keeping render order =
+              // arrival order (separators are recomputed on re-stream).
+              if (blockSegments.has(blockId)) {
+                blockSegments.delete(blockId)
+                const orderIndex = blockOrder.indexOf(blockId)
+                if (orderIndex !== -1) {
+                  blockOrder.splice(orderIndex, 1)
+                }
+                recomputeContent()
+                contentDirty = true
+                scheduleFlush()
+              }
+              return
+            }
+
+            if (contentChunk) {
+              const segmentKey = blockId ?? ''
+              if (!blockSegments.has(segmentKey)) {
+                blockOrder.push(segmentKey)
+                blockSegments.set(segmentKey, '')
+              }
+              blockSegments.set(segmentKey, blockSegments.get(segmentKey)! + contentChunk)
+              recomputeContent()
+              contentDirty = true
+              scheduleFlush()
+            }
+          },
+        })
+        flushChunks()
+        if (finalError) {
+          appendMessageContent(
+            responseMessageId,
+            `${accumulatedContent ? '\n\n' : ''}Error: ${finalError}`
+          )
+        }
+        finalizeMessageStream(responseMessageId)
+      } catch (error) {
+        if ((error as Error)?.name !== 'AbortError') {
+          logger.error('Error processing stream:', error)
+        }
+        flushChunks()
+        finalizeMessageStream(responseMessageId)
+      } finally {
+        if (batchRAF !== null) cancelAnimationFrame(batchRAF)
+        if (batchTimer !== null) clearTimeout(batchTimer)
+        if (streamReaderRef.current === reader) {
+          streamReaderRef.current = null
+        }
+        focusInput(100)
+      }
+    },
+    [
+      appendMessageContent,
+      setMessageContent,
+      finalizeMessageStream,
+      focusInput,
+      selectedOutputs,
+      activeWorkflowId,
+    ]
+  )
+
+  /**
+   * Handles workflow execution response
+   * @param result - The workflow execution result containing stream or logs
+   */
+  const handleWorkflowResponse = useCallback(
+    (result: unknown) => {
+      if (!result || !activeWorkflowId) return
+      if (typeof result !== 'object') return
+
+      if ('stream' in result && result.stream instanceof ReadableStream) {
+        const responseMessageId = generateId()
+        addMessage({
+          id: responseMessageId,
+          content: '',
+          workflowId: activeWorkflowId,
+          type: 'workflow',
+          isStreaming: true,
+        })
+        processStreamingResponse(result.stream, responseMessageId)
+        return
+      }
+
+      if ('success' in result && result.success && 'logs' in result && Array.isArray(result.logs)) {
+        selectedOutputs
+          .map((outputId) => extractOutputFromLogs(result.logs as BlockLog[], outputId))
+          .filter((output) => output !== undefined)
+          .forEach((output) => {
+            const content = formatOutputContent(output)
+            if (content) {
+              addMessage({
+                content,
+                workflowId: activeWorkflowId,
+                type: 'workflow',
+              })
+            }
+          })
+        return
+      }
+
+      if ('success' in result && !result.success) {
+        const errorMessage =
+          'error' in result && typeof result.error === 'string'
+            ? result.error
+            : 'Workflow execution failed.'
+        addMessage({
+          content: `Error: ${errorMessage}`,
+          workflowId: activeWorkflowId,
+          type: 'workflow',
+        })
+      }
+    },
+    [activeWorkflowId, selectedOutputs, addMessage, processStreamingResponse]
+  )
+
+  /**
+   * Sends a chat message and executes the workflow
+   * Processes file attachments, adds the user message to the chat,
+   * and triggers workflow execution with the message as input
+   */
+  const handleSendMessage = useCallback(async () => {
+    if ((!chatMessage.trim() && chatFiles.length === 0) || !activeWorkflowId || isExecuting) return
+
+    const sentMessage = chatMessage.trim()
+    const conversationId = getConversationId(activeWorkflowId)
+
+    clearErrors()
+
+    try {
+      const workflowInput: {
+        input: string
+        conversationId: string
+        files?: WorkflowAttachmentInput[]
+      } = {
+        input: sentMessage,
+        conversationId,
+      }
+
+      if (chatFiles.length > 0) {
+        workflowInput.files = chatFiles.map((chatFile) => ({
+          name: chatFile.name,
+          size: chatFile.size,
+          type: chatFile.type,
+          file: chatFile.file,
+        }))
+      }
+
+      const result = await handleRunWorkflow(workflowInput)
+      if (!isChatWorkflowRunResult(result)) {
+        focusInput(10)
+        return
+      }
+      const messageAttachments = toChatMessageAttachments(result.uploadedAttachments)
+
+      setHistoryIndex(-1)
+
+      const messageContent =
+        sentMessage || (chatFiles.length > 0 ? `Uploaded ${chatFiles.length} file(s)` : '')
+      addMessage({
+        content: messageContent,
+        workflowId: activeWorkflowId,
+        type: 'user',
+        attachments: messageAttachments,
+      })
+
+      setChatMessage('')
+      clearFiles()
+      focusInput(10)
+
+      handleWorkflowResponse(result)
+    } catch (error) {
+      if (error instanceof WorkflowAttachmentUploadError) {
+        reportUploadError(error.message)
+      } else {
+        logger.error('Error in handleSendMessage:', error)
+      }
+      focusInput(10)
+      return
+    }
+
+    focusInput(100)
+  }, [
+    chatMessage,
+    chatFiles,
+    activeWorkflowId,
+    isExecuting,
+    getConversationId,
+    addMessage,
+    handleRunWorkflow,
+    handleWorkflowResponse,
+    focusInput,
+    reportUploadError,
+    clearFiles,
+    clearErrors,
+  ])
+
+  /**
+   * Handles keyboard input for chat
+   * Supports Enter to send, ArrowUp/Down to navigate prompt history
+   * @param e - Keyboard event from the input field
+   */
+  const handleKeyPress = useCallback(
+    (e: KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        if (!isStreaming && !isExecuting) {
+          handleSendMessage()
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        if (promptHistory.length > 0) {
+          const newIndex =
+            historyIndex === -1 ? promptHistory.length - 1 : Math.max(0, historyIndex - 1)
+          setHistoryIndex(newIndex)
+          setChatMessage(promptHistory[newIndex])
+        }
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        if (historyIndex >= 0) {
+          const newIndex = historyIndex + 1
+          if (newIndex >= promptHistory.length) {
+            setHistoryIndex(-1)
+            setChatMessage('')
+          } else {
+            setHistoryIndex(newIndex)
+            setChatMessage(promptHistory[newIndex])
+          }
+        }
+      }
+    },
+    [handleSendMessage, promptHistory, historyIndex, isStreaming, isExecuting]
+  )
+
+  /**
+   * Handles output selection changes
+   * Deduplicates and stores selected workflow outputs for the current workflow
+   * @param values - Array of selected output IDs or labels
+   */
+  const handleOutputSelection = useCallback(
+    (values: string[]) => {
+      if (!activeWorkflowId) return
+
+      const dedupedValues = [...new Set(values)]
+      setSelectedWorkflowOutput(activeWorkflowId, dedupedValues)
+    },
+    [activeWorkflowId, setSelectedWorkflowOutput]
+  )
+
+  /**
+   * Closes the chat modal
+   */
+  const handleClose = useCallback(() => {
+    setIsChatOpen(false)
+  }, [setIsChatOpen])
+
+  /**
+   * Adds any missing reserved inputs (input, conversationId, files) to the unified start block.
+   */
+  const handleConfigureStartInputs = useCallback(() => {
+    if (!activeWorkflowId || !startBlockId) {
+      logger.warn('Cannot configure start inputs: missing active workflow ID or start block ID')
+      return
+    }
+
+    try {
+      const normalizedExisting = normalizeInputFormatValue(startBlockInputFormat)
+
+      const newReservedFields: StartInputFormatField[] = missingStartReservedFields.map(
+        (fieldName) => {
+          const defaultType = fieldName === 'files' ? 'file[]' : 'string'
+
+          return {
+            id: generateId(),
+            name: fieldName,
+            type: defaultType,
+            value: '',
+            collapsed: false,
+          }
+        }
+      )
+
+      const updatedFields: StartInputFormatField[] = [...newReservedFields, ...normalizedExisting]
+
+      setSubBlockValue(startBlockId, 'inputFormat', updatedFields)
+
+      const userId = session?.user?.id || 'unknown'
+      addToQueue({
+        id: generateId(),
+        operation: {
+          operation: 'subblock-update',
+          target: 'subblock',
+          payload: {
+            blockId: startBlockId,
+            subblockId: 'inputFormat',
+            value: updatedFields,
+          },
+        },
+        workflowId: activeWorkflowId,
+        userId,
+      })
+
+      triggerWorkflowUpdate()
+    } catch (error) {
+      logger.error('Failed to configure start block reserved inputs', error)
+    }
+  }, [
+    activeWorkflowId,
+    missingStartReservedFields,
+    setSubBlockValue,
+    startBlockId,
+    startBlockInputFormat,
+    triggerWorkflowUpdate,
+    session,
+    addToQueue,
+  ])
+
+  if (!isChatOpen) return null
+
+  return (
+    <div
+      ref={preventZoomRef}
+      role='dialog'
+      aria-label='Chat'
+      className='fixed z-30 flex flex-col overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-1)] px-2.5 pt-0.5 pb-2 motion-reduce:transition-none max-md:absolute max-md:inset-0! max-md:size-auto! max-md:cursor-default! max-md:rounded-none max-md:border-0 max-md:pb-[max(8px,env(safe-area-inset-bottom))]'
+      style={{
+        left: `${actualPosition.x}px`,
+        top: `${actualPosition.y}px`,
+        width: `${chatWidth}px`,
+        height: `${chatHeight}px`,
+        cursor: resizeCursor || undefined,
+      }}
+      onMouseMove={(event) => {
+        if (isFloatingLayout()) handleResizeMouseMove(event)
+      }}
+      onMouseLeave={handleResizeMouseLeave}
+      onMouseDown={(event) => {
+        if (isFloatingLayout()) handleResizeMouseDown(event)
+      }}
+    >
+      {/* Header with drag handle */}
+      <div
+        role='presentation'
+        className='flex h-[32px] shrink-0 cursor-grab items-center justify-between gap-2.5 bg-[var(--surface-1)] p-0 active:cursor-grabbing max-md:h-auto max-md:min-h-11 max-md:cursor-default max-md:flex-wrap'
+        onMouseDown={(event) => {
+          if (isFloatingLayout()) handleMouseDown(event)
+        }}
+      >
+        <span className='shrink-0 pr-0.5 text-[var(--text-primary)] text-sm'>Chat</span>
+
+        {/* Start inputs button and output selector - with max-width to prevent overflow */}
+        <div
+          className='ml-auto flex min-w-0 shrink items-center gap-1.5 max-md:order-3 max-md:w-full max-md:justify-end max-md:pb-2'
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {shouldShowConfigureStartInputsButton && (
+            <button
+              type='button'
+              className='flex flex-none cursor-pointer items-center whitespace-nowrap rounded-md border border-[var(--border-1)] bg-[var(--surface-5)] px-2.5 py-0.5 font-sans text-[var(--text-primary)] text-caption hover-hover:bg-[var(--surface-active)] max-md:pointer-coarse:min-h-11'
+              title='Add chat inputs to Start block'
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                handleConfigureStartInputs()
+              }}
+            >
+              <span className='whitespace-nowrap'>Add inputs</span>
+            </button>
+          )}
+
+          <OutputSelect
+            workflowId={activeWorkflowId}
+            selectedOutputs={selectedOutputs}
+            onOutputSelect={handleOutputSelection}
+            disabled={!activeWorkflowId}
+            placeholder='Outputs'
+            align='end'
+            maxHeight={180}
+            className='max-md:pointer-coarse:min-h-11'
+          />
+        </div>
+
+        <div className='flex shrink-0 items-center gap-2'>
+          {/* More menu with actions */}
+          <Popover size='sm' open={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                aria-label='Chat actions'
+                variant='ghost'
+                iconPadding='md'
+                className='-m-1.5 max-md:m-0 max-md:size-11'
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className='size-[14px]' />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              side='bottom'
+              align='end'
+              sideOffset={8}
+              maxHeight={100}
+              style={{ width: '110px', minWidth: '110px' }}
+            >
+              <PopoverScrollArea>
+                <PopoverItem
+                  onClick={() => {
+                    if (activeWorkflowId) exportChatCSV(activeWorkflowId)
+                    setMoreMenuOpen(false)
+                  }}
+                  disabled={workflowMessages.length === 0}
+                >
+                  <Download className='size-[13px]' />
+                  <span>Export</span>
+                </PopoverItem>
+                <PopoverItem
+                  onClick={() => {
+                    if (activeWorkflowId) clearChat(activeWorkflowId)
+                    setMoreMenuOpen(false)
+                  }}
+                  disabled={workflowMessages.length === 0}
+                >
+                  <Trash className='size-[13px]' />
+                  <span>Clear</span>
+                </PopoverItem>
+              </PopoverScrollArea>
+            </PopoverContent>
+          </Popover>
+
+          {/* Close button */}
+          <Button
+            aria-label='Close chat'
+            variant='ghost'
+            iconPadding='md'
+            className='-m-1.5 max-md:m-0 max-md:size-11'
+            onClick={handleClose}
+          >
+            <X className='size-[16px]' />
+          </Button>
+        </div>
+      </div>
+
+      {/* Chat content */}
+      <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+        {/* Messages */}
+        <div className='flex-1 overflow-hidden'>
+          {workflowMessages.length === 0 ? (
+            <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
+              No messages yet
+            </div>
+          ) : (
+            <div ref={scrollAreaRef} className='h-full overflow-y-auto overflow-x-hidden'>
+              <div className='w-full max-w-full space-y-2 overflow-hidden py-2'>
+                {workflowMessages.map((message) => (
+                  <ChatMessage key={message.id} message={message} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input section */}
+        <div
+          className='flex-none'
+          onDragEnter={!activeWorkflowId || isExecuting ? undefined : handleDragEnter}
+          onDragOver={!activeWorkflowId || isExecuting ? undefined : handleDragOver}
+          onDragLeave={!activeWorkflowId || isExecuting ? undefined : handleDragLeave}
+          onDrop={!activeWorkflowId || isExecuting ? undefined : handleDrop}
+        >
+          {/* Error messages */}
+          {uploadErrors.length > 0 && (
+            <div>
+              <div className='rounded-lg border border-[var(--terminal-status-error-border)] bg-[var(--terminal-status-error-bg)]'>
+                <div className='flex items-start gap-2'>
+                  <CircleAlert className='mt-0.5 size-3 shrink-0 text-[var(--text-error)]' />
+                  <div className='flex-1'>
+                    <div className='mb-1 text-[var(--text-error)] text-caption'>
+                      File upload error
+                    </div>
+                    <div className='space-y-1'>
+                      {uploadErrors.map((err, idx) => (
+                        <div key={idx} className='text-[var(--text-error)] text-micro'>
+                          {err}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Combined input container */}
+          <div
+            className={`rounded-sm border bg-[var(--surface-5)] py-0 pr-1.5 pl-1 transition-colors ${
+              isDragOver ? 'border-[var(--brand-secondary)]' : 'border-[var(--border-1)]'
+            }`}
+          >
+            {/* File thumbnails */}
+            {chatFiles.length > 0 && (
+              <div
+                ref={attachmentsRef}
+                className={cn(
+                  'mt-1 pointer-coarse:max-h-[102px] pointer-coarse:overflow-y-auto pointer-coarse:overscroll-contain',
+                  scrollFadeClass
+                )}
+                {...scrollFadeAttributes(attachmentEdges)}
+              >
+                <div className='flex flex-wrap gap-1.5'>
+                  {chatFiles.map((file) => (
+                    <ChatFilePreview key={file.id} file={file} onRemove={removeFile} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Input field with inline buttons */}
+            <div className='relative max-md:flex max-md:items-center'>
+              <Input
+                ref={inputRef}
+                value={chatMessage}
+                onChange={(e) => {
+                  setChatMessage(e.target.value)
+                  setHistoryIndex(-1)
+                }}
+                onKeyDown={handleKeyPress}
+                placeholder={isDragOver ? 'Drop files here...' : 'Type a message...'}
+                className='w-full border-0 bg-transparent pr-[56px] pl-1 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 max-md:min-w-0 max-md:flex-1 max-md:pr-1'
+                disabled={!activeWorkflowId}
+              />
+
+              {/* Buttons positioned absolutely on the right */}
+              <div className='-translate-y-1/2 absolute top-1/2 right-[2px] flex items-center gap-2.5 max-md:static max-md:translate-y-0 max-md:gap-1'>
+                <Tooltip.Root>
+                  <Tooltip.Trigger asChild>
+                    <Button
+                      aria-label='Attach file'
+                      variant='ghost'
+                      size={null}
+                      disabled={
+                        !activeWorkflowId || isExecuting || chatFiles.length >= MAX_CHAT_FILES
+                      }
+                      onClick={() => document.getElementById('floating-chat-file-input')?.click()}
+                      className={cn(
+                        'size-[14px] cursor-pointer rounded-md border-0! bg-transparent! p-0 max-md:size-11',
+                        (!activeWorkflowId || isExecuting || chatFiles.length >= MAX_CHAT_FILES) &&
+                          'cursor-not-allowed opacity-50'
+                      )}
+                    >
+                      <Paperclip className='size-3.5!' />
+                    </Button>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>Attach file</Tooltip.Content>
+                </Tooltip.Root>
+
+                {isStreaming ? (
+                  <ComposerActionButton
+                    aria-label='Stop generation'
+                    onClick={handleStopStreaming}
+                    size='sm'
+                    className='max-md:size-11'
+                  >
+                    <Square className='size-2.5 fill-white text-white dark:fill-black dark:text-black' />
+                  </ComposerActionButton>
+                ) : (
+                  <ComposerActionButton
+                    aria-label='Send message'
+                    onClick={handleSendMessage}
+                    size='sm'
+                    className='max-md:size-11'
+                    disabled={
+                      (!chatMessage.trim() && chatFiles.length === 0) ||
+                      !activeWorkflowId ||
+                      isExecuting ||
+                      isStreaming
+                    }
+                    active={!!(chatMessage.trim() || chatFiles.length > 0)}
+                  >
+                    <ArrowUp className='size-3.5 text-white dark:text-black' />
+                  </ComposerActionButton>
+                )}
+              </div>
+            </div>
+
+            {/* Hidden file input */}
+            <input
+              id='floating-chat-file-input'
+              type='file'
+              multiple
+              accept={CHAT_ACCEPT_ATTRIBUTE}
+              onChange={handleFileInputChange}
+              className='hidden'
+              disabled={!activeWorkflowId || isExecuting}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

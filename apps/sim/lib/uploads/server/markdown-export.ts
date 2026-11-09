@@ -9,6 +9,7 @@ import remarkGfm from 'remark-gfm'
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import { unified } from 'unified'
+import { splitFrontmatter } from '@/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { assertKnownSizeWithinLimit, isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import type { StorageContext } from '@/lib/uploads/config'
@@ -18,7 +19,6 @@ import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
 import { formatFileSize } from '@/lib/uploads/utils/file-size'
 import { safeZipLeafName } from '@/lib/uploads/zip-entry-path'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
-import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 
 const logger = createLogger('MarkdownExport')
 

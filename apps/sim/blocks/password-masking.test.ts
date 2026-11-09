@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/blocks/registry')
 
-import { PASSWORD_MASKED_SUBBLOCK_TYPES } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/password-mask'
+import { PASSWORD_MASKED_SUBBLOCK_TYPES } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/password-mask'
 import { getAllBlocks } from '@/blocks/registry'
 
 /**

@@ -8,16 +8,16 @@ import {
   yDocToProsemirrorJSON,
 } from '@tiptap/y-tiptap'
 import type * as Y from 'yjs'
-import { COLLAB_DOC_FIELD } from '@/lib/collab-doc/field'
-import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
+import { createMarkdownContentExtensions } from '@/components/file-viewer/rich-markdown-editor/extensions'
 import {
   applyFrontmatter,
   postProcessSerializedMarkdown,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+} from '@/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import {
   editorNormalForm,
   serializeDocToMarkdown,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+} from '@/components/file-viewer/rich-markdown-editor/markdown-parse'
+import { COLLAB_DOC_FIELD } from '@/lib/collab-doc/field'
 
 /**
  * Server-side conversion between a file's markdown and its collaborative Yjs document.

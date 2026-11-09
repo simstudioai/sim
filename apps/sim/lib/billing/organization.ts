@@ -8,7 +8,10 @@ import { getPlanPricing, isSubscriptionOrgScoped } from '@/lib/billing/core/bill
 import { getOrganizationIdForSubscriptionReference } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { assertNoCompetingEnterpriseIssuance } from '@/lib/billing/enterprise-outbox'
-import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
+import {
+  createOrganizationWithOwner,
+  createOrganizationWithOwnerTx,
+} from '@/lib/billing/organizations/create-organization'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { isEnterprise, isOrgPlan, isPaid } from '@/lib/billing/plan-helpers'
@@ -33,27 +36,22 @@ type SubscriptionData = {
   enterpriseOperationId?: string | null
 }
 
-/**
- * Check if a user already owns an organization
- */
+/** The team organization a user owns; a personal organization never counts. */
 async function getUserOwnedOrganization(userId: string): Promise<string | null> {
-  const existingMemberships = await db
+  const [owned] = await db
     .select({ organizationId: member.organizationId })
     .from(member)
-    .where(and(eq(member.userId, userId), eq(member.role, 'owner')))
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(and(eq(member.userId, userId), eq(member.role, 'owner'), eq(organization.kind, 'team')))
     .limit(1)
+  return owned?.organizationId ?? null
+}
 
-  if (existingMemberships.length > 0) {
-    const [existingOrg] = await db
-      .select({ id: organization.id })
-      .from(organization)
-      .where(eq(organization.id, existingMemberships[0].organizationId))
-      .limit(1)
-
-    return existingOrg?.id || null
-  }
-
-  return null
+function teamOrganizationSlug(userId: string): string {
+  return `${userId}-team-${generateId()}`
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]+/g, '-')
+    .replace(/^-|-$/g, '')
 }
 
 export async function createOrganizationForTeamPlan(
@@ -69,12 +67,7 @@ export async function createOrganizationForTeamPlan(
     }
 
     const organizationName = userName || `${userEmail || 'User'}'s Team`
-    const slug =
-      organizationSlug ||
-      `${userId}-team-${Date.now()}`
-        .toLowerCase()
-        .replace(/[^a-z0-9-_]+/g, '-')
-        .replace(/^-|-$/g, '')
+    const slug = organizationSlug || teamOrganizationSlug(userId)
 
     const { organizationId: orgId } = await createOrganizationWithOwner({
       ownerUserId: userId,
@@ -149,6 +142,7 @@ export async function ensureOrganizationForTeamSubscription(
     userId,
   })
 
+  /** A personal organization dissolves into the team this subscription creates. */
   const existingMembership = await db
     .select({
       id: member.id,
@@ -156,7 +150,8 @@ export async function ensureOrganizationForTeamSubscription(
       role: member.role,
     })
     .from(member)
-    .where(eq(member.userId, userId))
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(and(eq(member.userId, userId), eq(organization.kind, 'team')))
     .limit(1)
 
   if (existingMembership.length > 0) {
@@ -281,13 +276,18 @@ export async function ensureOrganizationForTeamSubscription(
     throw new Error('User is already member of another organization')
   }
 
-  const orgId = await createOrganizationForTeamPlan(
-    userId,
-    userData.name || undefined,
-    userData.email || undefined
-  )
-
-  await db.transaction(async (tx) => {
+  /**
+   * Creating the team (which dissolves the buyer's personal organization into it, workspaces
+   * included) and moving the subscription onto it commit together, so those workspaces are never
+   * billed to a team without its plan.
+   */
+  const orgId = await db.transaction(async (tx) => {
+    const { organizationId: orgId } = await createOrganizationWithOwnerTx(tx, {
+      ownerUserId: userId,
+      name: userData.name || `${userData.email || 'User'}'s Team`,
+      slug: teamOrganizationSlug(userId),
+      metadata: { createdForTeamPlan: true, originalUserId: userId },
+    })
     await acquireOrganizationMutationLock(tx, orgId)
     await assertNoCompetingEnterpriseIssuance(tx, orgId, subscription.enterpriseOperationId ?? null)
 
@@ -299,7 +299,7 @@ export async function ensureOrganizationForTeamSubscription(
     if (!lockedSub) {
       throw new Error(`Subscription ${subscription.id} not found during transfer`)
     }
-    if (lockedSub.referenceId === orgId) return
+    if (lockedSub.referenceId === orgId) return orgId
 
     const [lockedOrg] = await tx
       .select({ id: organization.id })
@@ -329,6 +329,7 @@ export async function ensureOrganizationForTeamSubscription(
       .update(subscriptionTable)
       .set({ referenceId: orgId })
       .where(eq(subscriptionTable.id, subscription.id))
+    return orgId
   })
 
   await attachOwnedWorkspacesToOrganization({
@@ -388,7 +389,8 @@ export async function ensureOrganizationForTeamSubscriptionTx(
   const [existingMembership] = await tx
     .select({ organizationId: member.organizationId, role: member.role })
     .from(member)
-    .where(eq(member.userId, userId))
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(and(eq(member.userId, userId), eq(organization.kind, 'team')))
     .limit(1)
 
   let organizationId: string
@@ -448,26 +450,13 @@ export async function ensureOrganizationForTeamSubscriptionTx(
       throw new Error(`User ${userId} not found while creating Team organization`)
     }
 
-    organizationId = `org_${generateId()}`
-    const now = new Date()
-    await tx.insert(organization).values({
-      id: organizationId,
+    const created = await createOrganizationWithOwnerTx(tx, {
+      ownerUserId: userId,
       name: userData.name || `${userData.email || 'User'}'s Team`,
-      slug: `${userId}-team-${generateId()}`
-        .toLowerCase()
-        .replace(/[^a-z0-9-_]+/g, '-')
-        .replace(/^-|-$/g, ''),
+      slug: teamOrganizationSlug(userId),
       metadata: { createdForTeamPlan: true, originalUserId: userId },
-      createdAt: now,
-      updatedAt: now,
     })
-    await tx.insert(member).values({
-      id: generateId(),
-      userId,
-      organizationId,
-      role: 'owner',
-      createdAt: now,
-    })
+    organizationId = created.organizationId
     await acquireOrganizationMutationLock(tx, organizationId)
     await assertNoCompetingEnterpriseIssuance(
       tx,

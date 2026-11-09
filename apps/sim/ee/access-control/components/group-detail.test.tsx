@@ -25,7 +25,7 @@ vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/providers/models', () => providersModelsMock)
 vi.mock('@/providers/utils', () => providersUtilsMock)
-vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
+vi.mock('@/components/settings/primitives/settings-panel', () => ({
   SettingsPanel: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 

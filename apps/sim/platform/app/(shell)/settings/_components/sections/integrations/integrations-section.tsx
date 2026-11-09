@@ -4,7 +4,6 @@ import { OrganizationSources } from '@/platform/app/(shell)/settings/_components
 import { SourcesView } from '@/platform/app/(shell)/settings/_components/sections/integrations/sources-view'
 import { loadSourceSettings } from '@/platform/fixtures'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
-import { readSourceSettings } from '@/platform/lib/data/source-settings'
 import { readScenario } from '@/platform/lib/navigation'
 
 export default async function IntegrationsSection({
@@ -18,6 +17,7 @@ export default async function IntegrationsSection({
   if (!inventory) {
     const manageHref = legacyRoutes(organization).settingsSection('integrations')
     if (subpath.length) redirect([manageHref, ...subpath.map(encodeURIComponent)].join('/'))
+    const { readSourceSettings } = await import('@/platform/lib/data/source-settings')
     const data = await readSourceSettings(organization.organization.id)
     return (
       <OrganizationSources

@@ -49,11 +49,13 @@ import {
 import { NebiusIcon } from '@/components/icons/nebius'
 import { ThinkingMachinesIcon } from '@/components/icons/thinking-machines'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import { useWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-provider'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
 import { type BYOKProviderId, MAX_BYOK_KEYS_PER_PROVIDER } from '@/lib/api/contracts/byok-keys'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { byokScopeParam, byokScopeUrlKeys } from '@/lib/settings/search-params'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   BYOKKeyManager,
   type BYOKManagerCapabilities,
@@ -61,8 +63,6 @@ import {
   type BYOKManagerProvider,
   type BYOKProviderSection,
 } from '@/app/workspace/[workspaceId]/settings/components/byok/byok-key-manager'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   useBYOKKeys,
   useDeleteBYOKKey,

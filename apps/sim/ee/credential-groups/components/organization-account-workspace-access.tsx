@@ -5,18 +5,18 @@ import { Chip, toast } from '@sim/emcn-legacy'
 import { Plus, Workspaces } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
-import type { OrganizationAccountWorkspaceAccess as WorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
-import { ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT } from '@/lib/credential-groups/limits'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+} from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+} from '@/components/settings/primitives/settings-resource-row'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
+import type { OrganizationAccountWorkspaceAccess as WorkspaceAccess } from '@/lib/api/contracts/organization-accounts'
+import { ORGANIZATION_ACCOUNT_WORKSPACE_LIMIT } from '@/lib/credential-groups/limits'
 import { OrganizationWorkspaceGrantModal } from '@/ee/credential-groups/components/organization-workspace-grant-modal'
 import { credentialGroupWorkspaceSearchParam } from '@/ee/credential-groups/search-params'
 import {

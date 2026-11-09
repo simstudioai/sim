@@ -1,8 +1,8 @@
 'use client'
 
 import type { ComponentProps } from 'react'
+import { ContextMenu } from '@/components/workspace-sidebar/components/workflow-list/components/context-menu/context-menu'
 import type { Workspace } from '@/lib/api/contracts/workspaces'
-import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 
 interface WorkspaceContextMenuProps
   extends Omit<

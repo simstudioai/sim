@@ -1,4 +1,6 @@
-export { ChatNavigationLink } from './chat-navigation-link/chat-navigation-link'
+export { ChatNavigationLink } from '@/components/workspace-sidebar/components/chat-navigation-link/chat-navigation-link'
+export { SidebarSection } from '@/components/workspace-sidebar/components/sidebar-section'
+export { SidebarTooltip } from '@/components/workspace-sidebar/components/sidebar-tooltip'
 export {
   CollapsedChatFlyoutItem,
   CollapsedFolderItems,
@@ -14,8 +16,6 @@ export { SettingsSidebar } from './settings-sidebar'
 export { SidebarFooter } from './sidebar-footer'
 export type { SidebarNavItemData } from './sidebar-nav-chip'
 export { isNavItemActive, SidebarNavChip } from './sidebar-nav-chip'
-export { SidebarSection } from './sidebar-section'
-export { SidebarTooltip } from './sidebar-tooltip'
 export { StatusNotice } from './status-notice'
 export { WorkflowList } from './workflow-list'
 export { WorkspaceHeader } from './workspace-header'

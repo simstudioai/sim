@@ -213,6 +213,7 @@ describe('acceptInvitation', () => {
       organizationId: 'org-2',
       role: 'member',
       memberId: 'member-2',
+      kind: 'team',
     })
     queueWhereResponses([
       [
@@ -326,6 +327,7 @@ describe('acceptInvitation', () => {
       name: 'Workspace',
       ownerId: 'owner-1',
       organizationId: null,
+      teamOrganizationId: null,
       workspaceMode: 'personal',
       billedAccountUserId: 'owner-1',
     })
@@ -395,6 +397,7 @@ describe('acceptInvitation', () => {
         organizationId: 'org-2',
         role: 'member',
         memberId: 'member-2',
+        kind: 'team',
       })
 
       queueWhereResponses([
@@ -445,6 +448,7 @@ describe('acceptInvitation', () => {
       name: 'Workspace',
       ownerId: 'owner-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
@@ -533,6 +537,7 @@ describe('acceptInvitation', () => {
       name: 'Workspace',
       ownerId: 'owner-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
@@ -586,13 +591,14 @@ describe('acceptInvitation', () => {
       name: 'Workspace',
       ownerId: 'owner-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
     // Invitee joined a different organization after the preview rendered.
     mockGetUserOrganization.mockImplementation(async (userId: string) =>
       userId === 'invitee-user'
-        ? { organizationId: 'org-2', role: 'member', memberId: 'member-2' }
+        ? { organizationId: 'org-2', role: 'member', memberId: 'member-2', kind: 'team' }
         : null
     )
 
@@ -647,6 +653,7 @@ describe('acceptInvitation', () => {
       name: 'Workspace',
       ownerId: 'owner-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
@@ -709,6 +716,7 @@ describe('acceptInvitation', () => {
       name: 'Workspace',
       ownerId: 'owner-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
@@ -773,6 +781,7 @@ describe('acceptInvitation', () => {
       name: 'Workspace',
       ownerId: 'owner-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'org-owner',
     })
@@ -780,7 +789,7 @@ describe('acceptInvitation', () => {
     // workspace), so the stale-stamped invite must not escalate to membership.
     mockGetUserOrganization.mockImplementation(async (userId: string) =>
       userId === 'inviter-1'
-        ? { organizationId: 'org-1', role: 'member', memberId: 'member-inviter' }
+        ? { organizationId: 'org-1', role: 'member', memberId: 'member-inviter', kind: 'team' }
         : null
     )
 
@@ -850,6 +859,7 @@ describe('acceptInvitation', () => {
       name: 'Workspace',
       ownerId: 'owner-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
@@ -857,6 +867,7 @@ describe('acceptInvitation', () => {
       organizationId: 'org-1',
       role: 'member',
       memberId: 'member-1',
+      kind: 'team',
     })
     mockEnsureUserInOrganization.mockResolvedValueOnce({
       success: true,
@@ -916,6 +927,7 @@ describe('acceptInvitation', () => {
       name: 'Workspace',
       ownerId: 'owner-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
@@ -981,6 +993,7 @@ describe('acceptInvitation', () => {
       name: 'Workspace',
       ownerId: 'owner-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
@@ -1065,6 +1078,7 @@ describe('acceptInvitation', () => {
       name: 'Workspace',
       ownerId: 'owner-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
@@ -1123,6 +1137,7 @@ describe('acceptInvitation', () => {
       name: 'Workspace',
       ownerId: 'owner-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
@@ -1222,6 +1237,7 @@ describe('locked invitation mutations', () => {
       name: 'Workspace',
       ownerId: 'owner-1',
       organizationId: null,
+      teamOrganizationId: null,
       workspaceMode: 'personal',
       billedAccountUserId: 'owner-1',
     })
@@ -1384,6 +1400,7 @@ describe('resolveInvitationAdmissionOrganizationId', () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
       organizationId: 'organization-1',
+      teamOrganizationId: 'organization-1',
       billedAccountUserId: 'owner-1',
     })
   })
@@ -1401,11 +1418,13 @@ describe('resolveInvitationAdmissionOrganizationId', () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
       organizationId: 'organization-2',
+      teamOrganizationId: 'organization-2',
       billedAccountUserId: 'owner-1',
     })
     mockGetUserOrganization.mockResolvedValue({
       organizationId: 'organization-2',
       role: 'admin',
+      kind: 'team',
     })
 
     expect(await resolveInvitationAdmissionOrganizationId(invitation)).toBe('organization-2')
@@ -1415,11 +1434,13 @@ describe('resolveInvitationAdmissionOrganizationId', () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
       organizationId: 'organization-2',
+      teamOrganizationId: 'organization-2',
       billedAccountUserId: 'owner-1',
     })
     mockGetUserOrganization.mockResolvedValue({
       organizationId: 'organization-2',
       role: 'member',
+      kind: 'team',
     })
 
     expect(await resolveInvitationAdmissionOrganizationId(invitation)).toBeNull()
@@ -1434,6 +1455,7 @@ describe('resolveInvitationAdmissionOrganizationId', () => {
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'workspace-1',
       organizationId: 'organization-2',
+      teamOrganizationId: 'organization-2',
       billedAccountUserId: 'owner-1',
     })
 

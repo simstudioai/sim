@@ -3,9 +3,9 @@
 import { Chip } from '@sim/emcn-legacy'
 import { ArrowRight } from '@sim/emcn-legacy/icons'
 import { useParams, useRouter } from 'next/navigation'
+import { IntegrationsShowcase } from '@/components/integrations/integrations-showcase'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isIntegrationUsable } from '@/lib/integrations/access'
-import { IntegrationsShowcase } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import { useIntegrationAccess } from '@/hooks/use-integration-access'
 

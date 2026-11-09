@@ -130,6 +130,7 @@ describe('createDefaultPersonalWorkspaceInTransaction', () => {
     await createDefaultPersonalWorkspaceInTransaction(tx, {
       userId: 'user-1',
       userName: 'Ada Lovelace',
+      personalOrganizationId: null,
     })
 
     expect(mockCreateWorkspaceAccountsGroup).not.toHaveBeenCalled()

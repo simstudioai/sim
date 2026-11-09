@@ -17,18 +17,18 @@ import {
 } from '@sim/emcn-legacy'
 import { MoreHorizontal, Pencil, Pin, Plus, SquareArrowUpRight } from '@sim/emcn-legacy/icons'
 import Link from 'next/link'
+import { ConversationListItem } from '@/components/conversation-list-item'
+import type { FlyoutEntry } from '@/components/folders'
+import { ChatNavigationLink } from '@/components/workspace-sidebar/components/chat-navigation-link/chat-navigation-link'
+import {
+  SIDEBAR_NO_MOTION_CLASS,
+  SIDEBAR_RAIL_CHIP_CLASS,
+} from '@/components/workspace-sidebar/constants'
 import { holdRowFocus, interleaveSiblings } from '@/lib/workflows/sidebar'
-import { ConversationListItem } from '@/app/workspace/[workspaceId]/components/conversation-list-item'
-import type { FlyoutEntry } from '@/app/workspace/[workspaceId]/components/folders'
-import { ChatNavigationLink } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/chat-navigation-link/chat-navigation-link'
 import {
   SidebarNavChip,
   type SidebarNavItemData,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-nav-chip'
-import {
-  SIDEBAR_NO_MOTION_CLASS,
-  SIDEBAR_RAIL_CHIP_CLASS,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import type { useHoverMenu } from '@/hooks/sidebar/use-hover-menu'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'

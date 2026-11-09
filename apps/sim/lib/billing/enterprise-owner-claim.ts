@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAuditOnce } from '@sim/audit'
 import { db } from '@sim/db'
-import { foldedEmail, member, outboxEvent, user, workspace } from '@sim/db/schema'
+import { foldedEmail, member, organization, outboxEvent, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { generateId } from '@sim/utils/id'
@@ -789,7 +789,8 @@ export async function getEnterpriseOwnerClaimDetails(params: {
     const [existingMembership] = await db
       .select({ organizationId: member.organizationId })
       .from(member)
-      .where(eq(member.userId, params.userId))
+      .innerJoin(organization, eq(organization.id, member.organizationId))
+      .where(and(eq(member.userId, params.userId), eq(organization.kind, 'team')))
       .limit(1)
     if (existingMembership) {
       acceptanceReview = {
@@ -909,13 +910,16 @@ export async function acceptEnterpriseOwnerClaim(params: {
 
       await acquireUserBillingIdentityLock(tx, params.userId)
       const [existingMembership] = await tx
-        .select({ organizationId: member.organizationId })
+        .select({ organizationId: member.organizationId, kind: organization.kind })
         .from(member)
+        .innerJoin(organization, eq(organization.id, member.organizationId))
         .where(eq(member.userId, params.userId))
         .limit(1)
-      if (existingMembership) {
+      if (existingMembership?.kind === 'team') {
         return { success: false as const, kind: 'already-in-organization' as const }
       }
+      /** A personal organization dissolves into the claimed one when it is created below. */
+      const personalOrganizationId = existingMembership?.organizationId ?? null
       const currentWorkspaces = await tx
         .select({ id: workspace.id })
         .from(workspace)
@@ -978,6 +982,7 @@ export async function acceptEnterpriseOwnerClaim(params: {
         const defaultWorkspace = await createDefaultPersonalWorkspaceInTransaction(tx, {
           userId: params.userId,
           userName: params.userName,
+          personalOrganizationId,
         })
         createdWorkspace = { id: defaultWorkspace.id, name: defaultWorkspace.name }
         workspaceIds = [defaultWorkspace.id]

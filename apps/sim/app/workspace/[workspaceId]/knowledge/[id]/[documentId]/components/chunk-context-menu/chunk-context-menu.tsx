@@ -11,7 +11,7 @@ import { Duplicate, Eye, Pencil, Plus, SquareArrowUpRight, Trash } from '@sim/em
 import {
   selectionActionLabel,
   selectionToggleActionLabel,
-} from '@/app/workspace/[workspaceId]/components/resource/selection-label'
+} from '@/components/resource/selection-label'
 
 interface ChunkContextMenuProps {
   isOpen: boolean

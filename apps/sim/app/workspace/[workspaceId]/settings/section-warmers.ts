@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
+import type { SettingsSection } from '@/components/settings/workspace-navigation'
 import { forkLineageQueryOptions } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { apiKeysQueryOptions } from '@/hooks/queries/api-key-list'
 import { customToolsQueryOptions } from '@/hooks/queries/custom-tools'
@@ -20,28 +20,26 @@ import { workflowMcpServersQueryOptions } from '@/hooks/queries/workflow-mcp-ser
  * warmer so a section's chunk can start loading on hover or press rather than after its route.
  */
 export const SECTION_MODULES = {
-  admin: () => import('@/app/workspace/[workspaceId]/settings/components/admin/admin'),
-  apikeys: () => import('@/app/workspace/[workspaceId]/settings/components/api-keys/api-keys'),
+  admin: () => import('@/components/settings/sections/admin/admin'),
+  apikeys: () => import('@/components/settings/sections/api-keys/api-keys'),
   byok: () => import('@/app/workspace/[workspaceId]/settings/components/byok/byok'),
   forks: () => import('@/ee/workspace-forking/components/forks'),
   secrets: () => import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets'),
   'connected-accounts': () =>
     import('@/ee/credential-groups/components/organization-connected-accounts'),
-  sandboxes: () => import('@/app/workspace/[workspaceId]/settings/components/sandboxes/sandboxes'),
+  sandboxes: () => import('@/components/settings/sections/sandboxes/sandboxes'),
   'custom-tools': () =>
     import('@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tools'),
   inbox: () => import('@/app/workspace/[workspaceId]/settings/components/inbox/inbox'),
   mcp: () => import('@/app/workspace/[workspaceId]/settings/components/mcp/mcp'),
-  mothership: () =>
-    import('@/app/workspace/[workspaceId]/settings/components/mothership/mothership'),
+  mothership: () => import('@/components/settings/sections/mothership/mothership'),
   'recently-deleted': () =>
     import('@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'),
   'self-host': () =>
     import('@/app/workspace/[workspaceId]/settings/components/self-host/self-host'),
-  billing: () => import('@/app/workspace/[workspaceId]/settings/components/billing/billing'),
+  billing: () => import('@/components/settings/sections/billing/billing'),
   teammates: () => import('@/app/workspace/[workspaceId]/settings/components/teammates/teammates'),
-  organization: () =>
-    import('@/app/workspace/[workspaceId]/settings/components/team-management/team-management'),
+  organization: () => import('@/components/settings/sections/team-management/team-management'),
   'workflow-mcp-servers': () =>
     import(
       '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/workflow-mcp-servers'
@@ -55,7 +53,7 @@ export const SECTION_MODULES = {
   'data-drains': () => import('@/ee/data-drains/components/data-drains-settings'),
   security: () => import('@/components/settings/organization-security'),
   usage: () => import('@/ee/organization-usage/components/usage-monitoring'),
-  desktop: () => import('@/app/workspace/[workspaceId]/settings/components/desktop/desktop'),
+  desktop: () => import('@/components/settings/sections/desktop/desktop'),
   browser: () => import('@/app/workspace/[workspaceId]/settings/components/browser/browser'),
   terminal: () => import('@/app/workspace/[workspaceId]/settings/components/terminal/terminal'),
   whitelabeling: () => import('@/ee/whitelabeling/components/whitelabeling-settings'),

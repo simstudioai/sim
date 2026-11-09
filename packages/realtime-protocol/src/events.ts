@@ -6,7 +6,7 @@ import type { RoomRef } from './rooms'
  * emits to clients. These mirror the exact object literals emitted by
  * `apps/realtime/src/handlers/**` and `apps/realtime/src/rooms/**`, and are the
  * canonical types consumed by the client socket transport
- * (`apps/sim/app/workspace/providers/socket-provider.tsx`).
+ * (`apps/sim/components/workspace-providers/socket-provider.tsx`).
  *
  * Payload bodies that the transport forwards opaquely are typed `unknown` rather
  * than a concrete operation union, because the transport never narrows them — the

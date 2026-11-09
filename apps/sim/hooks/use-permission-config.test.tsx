@@ -25,7 +25,7 @@ vi.mock('@/blocks/visibility/context', () => ({
 vi.mock('@/ee/access-control/hooks/permission-groups', () => ({
   useUserPermissionConfig: mockUseUserPermissionConfig,
 }))
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-context', () => ({
+vi.mock('@/components/workspace-providers/workspace-host-context', () => ({
   useOptionalWorkspaceHostContext: () => null,
 }))
 vi.mock('@/lib/permission-groups/model-access', () => ({ createModelAccessGate: () => () => true }))

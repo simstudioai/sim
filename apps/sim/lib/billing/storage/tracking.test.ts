@@ -167,7 +167,9 @@ describe('workspace storage counter mutations', () => {
 
     expect(mockTxSelect).toHaveBeenNthCalledWith(1, {
       billedAccountUserId: 'workspace.billedAccountUserId',
-      organizationId: 'workspace.organizationId',
+      organizationId: expect.objectContaining({
+        values: expect.arrayContaining(['workspace.organizationId', 'organization.kind']),
+      }),
       storageUsedBytes: 'workspace.storageUsedBytes',
     })
     expect(mockTxSelect).toHaveBeenNthCalledWith(2, {

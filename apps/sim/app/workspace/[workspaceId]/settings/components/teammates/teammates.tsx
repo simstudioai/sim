@@ -6,8 +6,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
+import { InviteModal } from '@/components/invite-modal'
 import { RoleLockTooltip, workspaceMemberRemovalLockReason } from '@/components/permissions'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
+import { MemberRow, MemberSection } from '@/components/settings/primitives/member-list'
+import { RowActionsMenu } from '@/components/settings/primitives/row-actions-menu'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
 import type { WorkspacePermission } from '@/lib/api/contracts/workspaces'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -15,13 +19,6 @@ import {
   type WorkspaceRoleSource,
   workspaceRoleLockReason,
 } from '@/lib/workspaces/permissions/role-lock'
-import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
-import {
-  MemberRow,
-  MemberSection,
-} from '@/app/workspace/[workspaceId]/settings/components/member-list'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   useCancelWorkspaceInvitation,
   usePendingInvitations,

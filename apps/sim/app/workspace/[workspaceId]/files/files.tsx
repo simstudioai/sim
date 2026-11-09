@@ -28,7 +28,83 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { EmptyState } from '@/components/empty-state/empty-state'
+import type { PreviewMode } from '@/components/file-viewer'
+import {
+  FileViewer,
+  isCsvStreamOnly,
+  isMarkdownFile,
+  isPreviewable,
+  isTextEditable,
+} from '@/components/file-viewer'
+import { FileDocRoomProvider } from '@/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
+import {
+  filesBrowserListParams,
+  filesFilterParsers,
+  filesFilterUrlKeys,
+  filesListPreferenceConfig,
+  filesParsers,
+  filesSortParams,
+  filesUrlKeys,
+} from '@/components/file-viewer/search-params'
+import {
+  DEFAULT_UNTITLED_NAME,
+  deriveMarkdownFileName,
+  isUntitledName,
+  renameToUniqueMarkdownName,
+  uniqueMarkdownName,
+} from '@/components/file-viewer/untitled-title'
+import { FindBar } from '@/components/find-bar/find-bar'
+import { useFindShortcut } from '@/components/find-bar/use-find-shortcut'
+import type { MoveOptionNode } from '@/components/folders'
+import {
+  breadcrumbFolderChain,
+  buildDescendantIndex,
+  buildMoveOptionsExcludingSubtrees,
+  EMPTY_LOCATION_CELL,
+  FOLDER_LOCATION_COLUMN,
+  FOLDERED_RESOURCE_HEADERS,
+  folderBreadcrumbItems,
+  folderedResourceListHref,
+  folderLocationLabel,
+  folderRowId,
+  isSearchingResources,
+  parseFolderedRowId,
+  parseMoveOptionValue,
+  scopeFolderedItems,
+  splitFolderedRowIds,
+  useFolderRowDragDrop,
+} from '@/components/folders'
 import { getDocumentIcon } from '@/components/icons/document-icons'
+import { ownerCell } from '@/components/resource/components/owner-cell'
+import {
+  FilesEmptyState,
+  ResourceNoResults,
+} from '@/components/resource/components/resource-empty-state'
+import type {
+  BreadcrumbItem,
+  ResourceAction,
+} from '@/components/resource/components/resource-header'
+import type {
+  FilterTag,
+  SearchConfig,
+  SortConfig,
+} from '@/components/resource/components/resource-options'
+import {
+  ResourceFilterPanel,
+  ResourceFilterSection,
+} from '@/components/resource/components/resource-options'
+import { timeCell } from '@/components/resource/components/time-cell'
+import { resourceListState } from '@/components/resource/is-resource-list-empty'
+import type {
+  ResourceColumn,
+  ResourceRow,
+  ResourceTableHandle,
+} from '@/components/resource/resource'
+import { EMPTY_CELL_PLACEHOLDER, Resource } from '@/components/resource/resource'
+import { selectionLabel } from '@/components/resource/selection-label'
+import { useResourceRowSelection } from '@/components/resource/use-resource-row-selection'
+import { ShareModal } from '@/components/share-modal'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
 import { useLimitUpgradeToast } from '@/lib/billing/client'
 import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
 import { captureEvent } from '@/lib/posthog/client'
@@ -47,93 +123,13 @@ import {
   isFileBrowserType,
 } from '@/lib/workspace-files/browser'
 import { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
-import { FindBar } from '@/app/workspace/[workspaceId]/components/find-bar/find-bar'
-import { useFindShortcut } from '@/app/workspace/[workspaceId]/components/find-bar/use-find-shortcut'
-import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
-import {
-  breadcrumbFolderChain,
-  buildDescendantIndex,
-  buildMoveOptionsExcludingSubtrees,
-  EMPTY_LOCATION_CELL,
-  FOLDER_LOCATION_COLUMN,
-  FOLDERED_RESOURCE_HEADERS,
-  folderBreadcrumbItems,
-  folderedResourceListHref,
-  folderLocationLabel,
-  folderRowId,
-  isSearchingResources,
-  parseFolderedRowId,
-  parseMoveOptionValue,
-  scopeFolderedItems,
-  splitFolderedRowIds,
-  useFolderRowDragDrop,
-} from '@/app/workspace/[workspaceId]/components/folders'
 import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
-import { ownerCell } from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
-import {
-  FilesEmptyState,
-  ResourceNoResults,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
-import type {
-  BreadcrumbItem,
-  ResourceAction,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
-import type {
-  FilterTag,
-  SearchConfig,
-  SortConfig,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
-import {
-  ResourceFilterPanel,
-  ResourceFilterSection,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
-import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
-import { resourceListState } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
-import type {
-  ResourceColumn,
-  ResourceRow,
-  ResourceTableHandle,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
-import {
-  EMPTY_CELL_PLACEHOLDER,
-  Resource,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
-import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
-import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
 import { DeleteConfirmModal } from '@/app/workspace/[workspaceId]/files/components/delete-confirm-modal'
 import { FileRowContextMenu } from '@/app/workspace/[workspaceId]/files/components/file-row-context-menu'
-import type { PreviewMode } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
-import {
-  FileViewer,
-  isCsvStreamOnly,
-  isMarkdownFile,
-  isPreviewable,
-  isTextEditable,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { FileDocAvatars } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-avatars'
-import { FileDocRoomProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
-import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
-import { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
 import { mergeFileListEntries } from '@/app/workspace/[workspaceId]/files/list-entries'
 import FilesLoading from '@/app/workspace/[workspaceId]/files/loading'
-import {
-  filesBrowserListParams,
-  filesFilterParsers,
-  filesFilterUrlKeys,
-  filesListPreferenceConfig,
-  filesParsers,
-  filesSortParams,
-  filesUrlKeys,
-} from '@/app/workspace/[workspaceId]/files/search-params'
-import {
-  DEFAULT_UNTITLED_NAME,
-  deriveMarkdownFileName,
-  isUntitledName,
-  renameToUniqueMarkdownName,
-  uniqueMarkdownName,
-} from '@/app/workspace/[workspaceId]/files/untitled-title'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import { usePinnedWorkspaceFiles } from '@/hooks/queries/pinned-workspace-files'
@@ -167,6 +163,7 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useResourceListPreferences } from '@/hooks/use-resource-list-preferences'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
+import { useWorkspaceFilesRoom } from '@/hooks/use-workspace-files-room'
 import { useInFlightUploadsStore } from '@/stores/in-flight-uploads/store'
 import type { ResourceListPreference } from '@/stores/resource-list-preferences'
 

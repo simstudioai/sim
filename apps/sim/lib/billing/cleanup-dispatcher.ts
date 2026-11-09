@@ -380,7 +380,8 @@ async function forEachCleanupChunk(
                 ownerId: row.ownerId,
                 organizationId: row.organizationId,
               })
-              if (row.organizationId && billing.plan === null) return null
+              if (billing.billingEntity.type === 'organization' && billing.plan === null)
+                return null
               plan = getPlanType(billing.plan)
             }
             const retentionHours =

@@ -1,13 +1,15 @@
 import 'server-only'
 import { createLogger } from '@sim/logger'
-import { getWorkflowStateContract } from '@/lib/api/contracts/workflows'
 import {
   listWorkspacesContract,
   type WorkspaceCreationPolicy,
 } from '@/lib/api/contracts/workspaces'
 import { isUpgradeReason, UPGRADE_REASON_PARAM } from '@/lib/billing/upgrade-reasons'
+import { resolveRolledOutOrganizationId } from '@/lib/navigation/resolve-app-entry'
+import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
+import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { resolveLiveLanding } from '@/platform/lib/data/landing'
-import { serverRequestJson } from '@/platform/lib/data/server-request'
+import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
 import { workspaceEntry, workspacePath } from '@/platform/lib/workspace-navigation'
 
 const logger = createLogger('PlatformWorkspaceEntry')
@@ -43,12 +45,12 @@ function workspaceDestination(workspaceId: string, query: WorkspaceEntryQuery): 
 /** The legacy entry's workflow redirect: the workflow's own workspace, or the fallback. */
 async function workflowDestination(workflowId: string, fallbackWorkspaceId: string) {
   try {
-    const { data } = await serverRequestJson(getWorkflowStateContract, {
-      params: { id: workflowId },
+    const { principal } = await requireSessionViewer()
+    const { workspaceId } = await readWorkflowDefinition.execute({
+      principal,
+      input: { workflowId, state: 'draft' },
     })
-    if (data.workspaceId) {
-      return `${workspacePath(data.workspaceId, 'workflows')}/${encodeURIComponent(workflowId)}`
-    }
+    return `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(workflowId)}`
   } catch (error) {
     logger.error('Could not resolve the workflow to open', { workflowId, error })
   }
@@ -58,14 +60,19 @@ async function workflowDestination(workflowId: string, fallbackWorkspaceId: stri
 export async function resolveWorkspaceEntry(
   query: WorkspaceEntryQuery
 ): Promise<WorkspaceEntryDecision> {
-  const list = await serverRequestJson(listWorkspacesContract, {
-    query: { scope: 'active' },
-  }).catch((error: unknown) => {
-    logger.error('Could not read the viewer’s workspaces', { error })
-    return null
+  const { principal, activeOrganizationId } = await requireSessionViewer()
+  const list = await listWorkspacesForViewer({
+    userId: principal.userId,
+    activeOrganizationId,
+    scope: 'active',
   })
+    .then((payload) => asRouteResponse(listWorkspacesContract, payload))
+    .catch((error: unknown) => {
+      logger.error('Could not read the viewer’s workspaces', { error })
+      return null
+    })
   if (!list) return { kind: 'failed' }
-  const { workspaces, lastActiveWorkspaceId, creationPolicy, forwardOrganizationId } = list
+  const { workspaces, lastActiveWorkspaceId, creationPolicy } = list
   const target =
     workspaces.find((workspace) => workspace.id === lastActiveWorkspaceId) ?? workspaces[0]
   if (target) {
@@ -76,13 +83,31 @@ export async function resolveWorkspaceEntry(
         : workspaceDestination(target.id, query),
     }
   }
-  if (forwardOrganizationId) {
-    return {
-      kind: 'redirect',
-      href: query.redirect === 'settings' ? '/settings' : await resolveLiveLanding(),
+  if (creationPolicy && !creationPolicy.canCreate) {
+    if (await resolveForwardOrganizationId(principal.userId, activeOrganizationId)) {
+      return {
+        kind: 'redirect',
+        href: query.redirect === 'settings' ? '/settings' : await resolveLiveLanding(),
+      }
     }
-  }
-  if (creationPolicy && !creationPolicy.canCreate)
     return { kind: 'blocked', policy: creationPolicy }
+  }
   return { kind: 'create' }
+}
+
+/**
+ * The organization a viewer who cannot create a workspace is handed to, as the workspace list route
+ * decides it. A failed lookup leaves them on the blocked explanation, as it does there.
+ */
+async function resolveForwardOrganizationId(
+  userId: string,
+  activeOrganizationId: string | null
+): Promise<string | null> {
+  const session = { user: { id: userId }, session: { activeOrganizationId } }
+  try {
+    return await resolveRolledOutOrganizationId(session)
+  } catch (error) {
+    logger.warn('Could not resolve an organization to forward a blocked viewer to', { error })
+    return null
+  }
 }

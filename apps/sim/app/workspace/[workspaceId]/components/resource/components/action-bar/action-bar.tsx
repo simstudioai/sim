@@ -12,8 +12,8 @@ import {
   Trash,
 } from '@sim/emcn-legacy'
 import { Download } from '@sim/emcn-legacy/icons'
-import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
-import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders'
+import type { MoveOptionNode } from '@/components/folders'
+import { renderMoveOptions } from '@/components/folders'
 
 interface ActionButtonProps {
   icon: ComponentType<{ className?: string }>

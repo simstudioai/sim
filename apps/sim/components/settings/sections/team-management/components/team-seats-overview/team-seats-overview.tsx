@@ -1,0 +1,121 @@
+import { Badge, ChipLink } from '@sim/emcn-legacy'
+import { SegmentedMeter } from '@/components/settings/primitives/segmented-meter'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
+import { checkEnterprisePlan } from '@/lib/billing/subscriptions/utils'
+
+type Subscription = {
+  id: string
+  plan: string
+  status: string
+  referenceId: string
+  cancelAtPeriodEnd?: boolean
+  periodEnd?: number | Date
+  trialEnd?: number | Date
+}
+
+interface TeamSeatsOverviewProps {
+  billingHref?: string
+  subscriptionData: Subscription | null
+  isLoadingSubscription: boolean
+  totalSeats: number
+  /** Seats consumed by actual members. Pending invites are not counted here. */
+  usedSeats: number
+  /** Outstanding invites that have not been accepted yet (do not consume a seat). */
+  pendingSeats?: number
+}
+
+export function TeamSeatsOverview({
+  billingHref,
+  subscriptionData,
+  isLoadingSubscription,
+  totalSeats,
+  usedSeats,
+  pendingSeats = 0,
+}: TeamSeatsOverviewProps) {
+  if (isLoadingSubscription) {
+    return null
+  }
+
+  if (!subscriptionData) {
+    return (
+      <SettingsSection label='Seats'>
+        <div className='flex items-center justify-between gap-3'>
+          <div className='flex min-w-0 flex-col'>
+            <span className='text-[var(--text-body)] text-small'>No active Team subscription</span>
+            <span className='text-[var(--text-muted)] text-small'>
+              Purchase a Team plan to invite teammates to this organization.
+            </span>
+          </div>
+          {billingHref && (
+            <ChipLink href={billingHref} variant='primary'>
+              View plans
+            </ChipLink>
+          )}
+        </div>
+      </SettingsSection>
+    )
+  }
+
+  const isEnterprise = checkEnterprisePlan(subscriptionData)
+  const isSeatDataPending = !isEnterprise && totalSeats === 0
+  const isOverLimit = totalSeats > 0 && usedSeats > totalSeats
+  const pillCount = Math.max(totalSeats, usedSeats, 1)
+
+  if (isSeatDataPending) {
+    return null
+  }
+
+  const pendingBadge =
+    pendingSeats > 0 ? (
+      <Badge variant='gray-secondary' size='sm'>
+        {pendingSeats} pending
+      </Badge>
+    ) : null
+
+  /**
+   * Team plans have no fixed seat cap — the seat count is reconciled to the
+   * member count, so a used/total ratio (and its meter) is always 100% and
+   * carries no information. Show a plain seat count instead, and reserve the
+   * cap meter for Enterprise, where seats are a fixed allotment.
+   */
+  if (!isEnterprise) {
+    return (
+      <SettingsSection label='Seats'>
+        <div className='flex items-center justify-between gap-2'>
+          <span className='text-[var(--text-body)] text-small tabular-nums'>
+            {usedSeats} {usedSeats === 1 ? 'seat' : 'seats'}
+          </span>
+          {pendingBadge}
+        </div>
+      </SettingsSection>
+    )
+  }
+
+  return (
+    <SettingsSection label='Seats'>
+      <div className='flex flex-col gap-2.5'>
+        <div className='flex items-center justify-between gap-2'>
+          <span className='text-[var(--text-body)] text-small tabular-nums'>
+            {usedSeats} used / {totalSeats} total
+          </span>
+          <div className='flex items-center gap-1.5'>
+            {pendingBadge}
+            {isOverLimit && (
+              <Badge variant='amber' size='sm'>
+                Over limit
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        <SegmentedMeter used={usedSeats} total={totalSeats} segments={pillCount} />
+
+        <p className='text-[var(--text-muted)] text-small'>
+          {isOverLimit
+            ? 'You have more teammates than seats. Contact support to adjust your enterprise seat count.'
+            : 'Contact support for enterprise seat changes.'}
+        </p>
+      </div>
+    </SettingsSection>
+  )
+}

@@ -1,6 +1,6 @@
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import * as Y from 'yjs'
-import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { splitFrontmatter } from '@/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { applyMarkdownToYDoc } from './converter'
 
 /**

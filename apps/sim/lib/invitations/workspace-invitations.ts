@@ -184,7 +184,7 @@ async function ensureExistingMemberOrganizationRole({
         executor: tx,
         forUpdate: true,
       })
-      if (!workspaceDetails || workspaceDetails.organizationId !== organizationId) {
+      if (!workspaceDetails || workspaceDetails.teamOrganizationId !== organizationId) {
         throw new WorkspaceInvitationError({
           message:
             'A selected workspace changed organizations. Review the selection and try again.',
@@ -307,8 +307,9 @@ export async function prepareWorkspaceInvitationContext({
     targets.push({ workspaceId, workspaceDetails, invitePolicy })
   }
 
-  const organizationId = targets[0].workspaceDetails.organizationId
-  if (targets.some((target) => target.workspaceDetails.organizationId !== organizationId)) {
+  /** A workspace in a personal organization is invited to exactly as a personal workspace. */
+  const organizationId = targets[0].workspaceDetails.teamOrganizationId
+  if (targets.some((target) => target.workspaceDetails.teamOrganizationId !== organizationId)) {
     throw new WorkspaceInvitationError({
       message: 'Select workspaces from a single organization',
       status: 400,
@@ -403,7 +404,7 @@ async function validateLockedWorkspaceInvitationContext({
       executor: tx,
       forUpdate: true,
     })
-    if (!workspaceDetails || workspaceDetails.organizationId !== organizationId) {
+    if (!workspaceDetails || workspaceDetails.teamOrganizationId !== organizationId) {
       throw new WorkspaceInvitationError({
         message: 'A selected workspace changed organizations. Review the selection and try again.',
         status: 409,
@@ -471,7 +472,9 @@ async function validateLockedWorkspaceInvitationContext({
 
   if (existingUserId) {
     const currentInviteeMembership = await getUserOrganization(existingUserId, tx)
-    if ((currentInviteeMembership?.organizationId ?? null) !== observedInviteeOrganizationId) {
+    const currentInviteeTeamId =
+      currentInviteeMembership?.kind === 'team' ? currentInviteeMembership.organizationId : null
+    if (currentInviteeTeamId !== observedInviteeOrganizationId) {
       throw new WorkspaceInvitationError({
         message: 'The invitee changed organizations. Review the invitation and try again.',
         status: 409,
@@ -573,7 +576,9 @@ export async function createWorkspaceInvitation({
     await assertInviteeNotScimManaged({ organizationId, managed: existingUser?.scimManaged })
   }
 
-  const existingMembership = existingUser ? await getUserOrganization(existingUser.id) : null
+  const observedMembership = existingUser ? await getUserOrganization(existingUser.id) : null
+  /** A personal organization dissolves on joining, so its member counts as belonging nowhere. */
+  const existingMembership = observedMembership?.kind === 'team' ? observedMembership : null
   let existingOrganizationRole = existingMembership?.role
   let organizationRoleUpdated = false
   if (

@@ -70,6 +70,92 @@ export {
   WORKFLOW_TARGET_HANDLE_ID,
   wouldCreateCycle,
 } from '@sim/workflow-types/workflow'
+/** The canvas Note's raw-source fallback: when to use it, and its paste limit. */
+export { assessRawMarkdownPaste } from '@/components/file-viewer/rich-markdown-editor/paste-admission'
+export { isRoundTripSafe } from '@/components/file-viewer/rich-markdown-editor/round-trip-safety'
+export { useWorkflowResourceReplacementOptions } from '@/components/workflow-editor/components/search-replace/hooks/use-workflow-resource-replacement-options'
+export {
+  type HydratedWorkflowSearchMatch,
+  useWorkflowSearchReferenceHydration,
+} from '@/components/workflow-editor/components/search-replace/hooks/use-workflow-search-reference-hydration'
+/** The Loop and Parallel tiles the Toolbar tab lists beside the registry's core blocks. */
+export { LoopTool } from '@/components/workflow-editor/components/subflows/loop/loop-config'
+export { ParallelTool } from '@/components/workflow-editor/components/subflows/parallel/parallel-config'
+export { useBlockProperties } from '@/components/workflow-editor/components/workflow-block/hooks/use-block-properties'
+export { useBlockState } from '@/components/workflow-editor/components/workflow-block/hooks/use-block-state'
+/** What the block card's container reads: summary-row hydration, sunset badges, child deploys. */
+export { useChildWorkflow } from '@/components/workflow-editor/components/workflow-block/hooks/use-child-workflow'
+export { useWebhookInfo } from '@/components/workflow-editor/components/workflow-block/hooks/use-webhook-info'
+export type { WorkflowBlockProps } from '@/components/workflow-editor/components/workflow-block/types'
+export {
+  getProviderName,
+  shouldSkipBlockRender,
+} from '@/components/workflow-editor/components/workflow-block/utils'
+export {
+  useFloatBoundarySync,
+  useFloatDrag,
+  useFloatLayout,
+} from '@/components/workflow-editor/hooks/float'
+export { useAutoLayout } from '@/components/workflow-editor/hooks/use-auto-layout'
+export { useBlockCurrentWorkflow } from '@/components/workflow-editor/hooks/use-block-current-workflow'
+export { useBlockDimensions } from '@/components/workflow-editor/hooks/use-block-dimensions'
+export { useCanvasContextMenu } from '@/components/workflow-editor/hooks/use-canvas-context-menu'
+export { useCurrentWorkflow } from '@/components/workflow-editor/hooks/use-current-workflow'
+export { useDynamicHandleRefresh } from '@/components/workflow-editor/hooks/use-dynamic-handle-refresh'
+export { useIsBlockInActiveExecutionHandoff } from '@/components/workflow-editor/hooks/use-execution-handoff'
+export { useNodeUtilities } from '@/components/workflow-editor/hooks/use-node-utilities'
+export { usePreventZoom } from '@/components/workflow-editor/hooks/use-prevent-zoom'
+export { useShiftSelectionLock } from '@/components/workflow-editor/hooks/use-shift-selection-lock'
+export { useWorkflowExecution } from '@/components/workflow-editor/hooks/use-workflow-execution'
+export { focusBlockParam } from '@/components/workflow-editor/search-params'
+export {
+  filterProtectedBlocks,
+  getWorkflowLockToggleIds,
+  isEdgeProtected,
+} from '@/components/workflow-editor/utils/block-protection'
+export {
+  isEdgeConnectedToEditor,
+  isEdgeHighlighted,
+} from '@/components/workflow-editor/utils/edge-highlight'
+export {
+  calculateContainerDimensions,
+  clampPositionToContainer,
+  estimateBlockDimensions,
+} from '@/components/workflow-editor/utils/node-position'
+export { getRunFromBlockDependencyState } from '@/components/workflow-editor/utils/run-from-block'
+export {
+  clearDragHighlights,
+  computeClampedPositionUpdates,
+  getArrowNavigationDirection,
+  getClampedPositionForNode,
+  getDescendantBlockIds,
+  getEdgeSelectionContextId,
+  getNodeDataDimension,
+  getNodeSelectionContextId,
+  isInEditableElement,
+  isPositionalTriggerBlock,
+  reconcileCanvasEdges,
+  reconcileCanvasNodes,
+  resolveSelectionConflicts,
+  SUBFLOW_CHILD_NODE_CLASS,
+  SUBFLOW_DROP_TARGET_CLASS,
+  shouldHighlightContainerDropTarget,
+  validateTriggerPaste,
+} from '@/components/workflow-editor/utils/workflow-canvas-helpers'
+export { useSocket } from '@/components/workspace-providers/socket-provider'
+export {
+  useOptionalWorkflowScope,
+  useScopedWorkflowId,
+  useWorkflowScope,
+  WorkflowScopeProvider,
+} from '@/components/workspace-providers/workflow-scope-provider'
+/** The read-only preview's last workspace fallback; nothing in the zone provides it yet. */
+export { useOptionalWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-context'
+export {
+  useUserPermissionsContext,
+  useWorkspacePermissionsContext,
+} from '@/components/workspace-providers/workspace-permissions-provider'
+export { filterAndCap } from '@/components/workspace-sidebar/components/search-modal/utils'
 export { useSession } from '@/lib/auth/client'
 export { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
 export { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -201,96 +287,6 @@ export { getUserColor } from '@/lib/workspaces/colors'
 export { generateFolderName, generateSubfolderName } from '@/lib/workspaces/naming'
 /** The legacy document face the canvas's block and note text is set in. */
 export { season } from '@/app/_styles/fonts/season/season'
-/** The canvas Note's raw-source fallback: when to use it, and its paste limit. */
-export { assessRawMarkdownPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission'
-export { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
-export {
-  useOptionalWorkflowScope,
-  useScopedWorkflowId,
-  useWorkflowScope,
-  WorkflowScopeProvider,
-} from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
-/** The read-only preview's last workspace fallback; nothing in the zone provides it yet. */
-export { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-context'
-export {
-  useUserPermissionsContext,
-  useWorkspacePermissionsContext,
-} from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-export { useWorkflowResourceReplacementOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/hooks/use-workflow-resource-replacement-options'
-export {
-  type HydratedWorkflowSearchMatch,
-  useWorkflowSearchReferenceHydration,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/hooks/use-workflow-search-reference-hydration'
-/** The Loop and Parallel tiles the Toolbar tab lists beside the registry's core blocks. */
-export { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
-export { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
-export { useBlockProperties } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-block-properties'
-export { useBlockState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-block-state'
-/** What the block card's container reads: summary-row hydration, sunset badges, child deploys. */
-export { useChildWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-child-workflow'
-export { useWebhookInfo } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/hooks/use-webhook-info'
-export type { WorkflowBlockProps } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/types'
-export {
-  getProviderName,
-  shouldSkipBlockRender,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-block/utils'
-export {
-  useFloatBoundarySync,
-  useFloatDrag,
-  useFloatLayout,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/float'
-export { useAutoLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-auto-layout'
-export { useBlockCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-current-workflow'
-export { useBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-block-dimensions'
-export { useCanvasContextMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-canvas-context-menu'
-export { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
-export { useDynamicHandleRefresh } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-dynamic-handle-refresh'
-export { useIsBlockInActiveExecutionHandoff } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-execution-handoff'
-export { useNodeUtilities } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-node-utilities'
-export { usePreventZoom } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-prevent-zoom'
-export { useShiftSelectionLock } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-shift-selection-lock'
-export { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
-export { focusBlockParam } from '@/app/workspace/[workspaceId]/w/[workflowId]/search-params'
-export {
-  filterProtectedBlocks,
-  getWorkflowLockToggleIds,
-  isEdgeProtected,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection'
-export {
-  isEdgeConnectedToEditor,
-  isEdgeHighlighted,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/edge-highlight'
-export {
-  calculateContainerDimensions,
-  clampPositionToContainer,
-  estimateBlockDimensions,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position'
-export { getRunFromBlockDependencyState } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/run-from-block'
-export {
-  clearDragHighlights,
-  computeClampedPositionUpdates,
-  getArrowNavigationDirection,
-  getClampedPositionForNode,
-  getDescendantBlockIds,
-  getEdgeSelectionContextId,
-  getNodeDataDimension,
-  getNodeSelectionContextId,
-  isInEditableElement,
-  isPositionalTriggerBlock,
-  reconcileCanvasEdges,
-  reconcileCanvasNodes,
-  resolveSelectionConflicts,
-  SUBFLOW_CHILD_NODE_CLASS,
-  SUBFLOW_DROP_TARGET_CLASS,
-  shouldHighlightContainerDropTarget,
-  validateTriggerPaste,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-canvas-helpers'
-export { filterAndCap } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
-export { useCanDelete } from '@/app/workspace/[workspaceId]/w/hooks/use-can-delete'
-export { useDeleteSelection } from '@/app/workspace/[workspaceId]/w/hooks/use-delete-selection'
-export { useExportSelection } from '@/app/workspace/[workspaceId]/w/hooks/use-export-selection'
-export { useExportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks/use-export-workflow'
-export { useSocket } from '@/app/workspace/providers/socket-provider'
 export { getBlock } from '@/blocks'
 export {
   buildCustomBlockConfig,
@@ -361,6 +357,10 @@ export { usePermissionConfig } from '@/hooks/use-permission-config'
 export { useReactiveConditions } from '@/hooks/use-reactive-conditions'
 export { useSandboxBlockConstraints } from '@/hooks/use-sandbox-block-constraints'
 export { useSelectorDisplayName } from '@/hooks/use-selector-display-name'
+export { useCanDelete } from '@/hooks/workflow-actions/use-can-delete'
+export { useDeleteSelection } from '@/hooks/workflow-actions/use-delete-selection'
+export { useExportSelection } from '@/hooks/workflow-actions/use-export-selection'
+export { useExportWorkflow } from '@/hooks/workflow-actions/use-export-workflow'
 export { getModelSunsetStatus } from '@/providers/models'
 export { useCanvasModeStore } from '@/stores/canvas-mode'
 export { useChatStore } from '@/stores/chat/store'

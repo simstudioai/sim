@@ -19,6 +19,16 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/components/settings/primitives/settings-resource-row'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
+import {
   groupIdParam,
   groupIdUrlKeys,
   groupSearchParam,
@@ -28,16 +38,6 @@ import {
   groupTabParam,
   groupTabUrlKeys,
 } from '@/lib/settings/search-params'
-import {
-  SettingsEmptyState,
-  SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import {
-  RESOURCE_LIST_STACK,
-  SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { GroupDetail } from '@/ee/access-control/components/group-detail'
 import { WorkspaceSelect } from '@/ee/access-control/components/workspace-select'
 import {

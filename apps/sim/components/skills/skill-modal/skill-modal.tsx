@@ -1,0 +1,277 @@
+'use client'
+
+import { useState } from 'react'
+import {
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipModalTabs,
+  chipFieldSurfaceClass,
+  cn,
+} from '@sim/emcn-legacy'
+import { getErrorMessage } from '@sim/utils/errors'
+import dynamic from 'next/dynamic'
+import { SkillImport } from '@/components/skills/skill-import'
+import {
+  isSkillNameConflictError,
+  parseSkillMarkdown,
+  validateSkillName,
+} from '@/lib/skills/authoring'
+import {
+  SKILL_CONTENT_PLACEHOLDER,
+  SKILL_DESCRIPTION_MAX_LENGTH,
+  SKILL_DESCRIPTION_PLACEHOLDER,
+  SKILL_NAME_HINT,
+  SKILL_NAME_PLACEHOLDER,
+} from '@/lib/skills/copy'
+import type { SkillDefinition } from '@/hooks/queries/skills'
+import { useCreateSkill, useUpdateSkill } from '@/hooks/queries/skills'
+
+const RichMarkdownField = dynamic(
+  () =>
+    import('@/components/file-viewer/rich-markdown-editor/rich-markdown-field').then(
+      (m) => m.RichMarkdownField
+    ),
+  {
+    ssr: false,
+    loading: () => <div className={cn('min-h-[200px]', chipFieldSurfaceClass)} />,
+  }
+)
+
+interface SkillModalProps {
+  workspaceId: string
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onSave: () => void
+  initialValues?: SkillDefinition
+}
+
+interface FieldErrors {
+  name?: string
+  description?: string
+  content?: string
+  general?: string
+}
+
+type TabValue = 'create' | 'import'
+
+const CREATE_TABS = [
+  { value: 'create', label: 'Create' },
+  { value: 'import', label: 'Import' },
+] as const
+
+export function SkillModal({
+  workspaceId,
+  open,
+  onOpenChange,
+  onSave,
+  initialValues,
+}: SkillModalProps) {
+  const createSkill = useCreateSkill()
+  const updateSkill = useUpdateSkill()
+
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [content, setContent] = useState('')
+  /**
+   * Bumped to remount the seed-once rich Content editor whenever `content` is set programmatically — a
+   * reset from a changed `initialValues` or a destructured SKILL.md paste — so the editor re-seeds (an
+   * `initialValues` change for the same skill keeps the React key otherwise stable).
+   */
+  const [contentSeed, setContentSeed] = useState(0)
+  const [errors, setErrors] = useState<FieldErrors>({})
+  const [activeTab, setActiveTab] = useState<TabValue>('create')
+  const [prevOpen, setPrevOpen] = useState(false)
+  const [prevInitialValues, setPrevInitialValues] = useState(initialValues)
+
+  // Reset by skill id, not object identity — a background refetch for the same open skill must not clobber an in-progress edit.
+  if ((open && !prevOpen) || (open && initialValues?.id !== prevInitialValues?.id)) {
+    setName(initialValues?.name ?? '')
+    setDescription(initialValues?.description ?? '')
+    setContent(initialValues?.content ?? '')
+    setErrors({})
+    setActiveTab('create')
+    setContentSeed((seed) => seed + 1)
+  }
+  if (open !== prevOpen) setPrevOpen(open)
+  if (initialValues !== prevInitialValues) setPrevInitialValues(initialValues)
+
+  const hasChanges =
+    !initialValues ||
+    name !== initialValues.name ||
+    description !== initialValues.description ||
+    content !== initialValues.content
+
+  const saving = createSkill.isPending || updateSkill.isPending
+
+  const handleSave = async () => {
+    const newErrors: FieldErrors = {}
+
+    const nameError = validateSkillName(name)
+    if (nameError) newErrors.name = nameError
+
+    if (!description.trim()) {
+      newErrors.description = 'Description is required'
+    }
+
+    if (!content.trim()) {
+      newErrors.content = 'Content is required'
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      return
+    }
+
+    try {
+      if (initialValues) {
+        await updateSkill.mutateAsync({
+          workspaceId,
+          skillId: initialValues.id,
+          updates: { name, description, content },
+        })
+      } else {
+        await createSkill.mutateAsync({
+          workspaceId,
+          skill: { name, description, content },
+        })
+      }
+      onSave()
+    } catch (error) {
+      if (isSkillNameConflictError(error)) {
+        setErrors({ name: getErrorMessage(error, 'This skill name is already taken.') })
+      } else {
+        setErrors({ general: 'Failed to save skill. Please try again.' })
+      }
+    }
+  }
+
+  const applyImportedSkill = (data: { name: string; description: string; content: string }) => {
+    setName(data.name)
+    setDescription(data.description)
+    setContent(data.content)
+    setErrors({})
+    setContentSeed((seed) => seed + 1)
+  }
+
+  const handleImport = (data: { name: string; description: string; content: string }) => {
+    applyImportedSkill(data)
+    setActiveTab('create')
+  }
+
+  /**
+   * Pasting a full SKILL.md destructures it into the fields. Gated on a real YAML `name:` key — a
+   * stray `---` thematic break or a heading-only snippet pastes as ordinary content instead of
+   * silently overwriting all three fields.
+   */
+  const handleContentPaste = (text: string): boolean => {
+    const parsed = parseSkillMarkdown(text)
+    if (!parsed.nameFromFrontmatter) return false
+    applyImportedSkill(parsed)
+    return true
+  }
+
+  const isEditing = !!initialValues
+  const isBuiltin = !!initialValues?.readOnly
+  /** New skills are created by the actor (who becomes an editor); existing ones require editor access. */
+  const canEditSkill = !initialValues || initialValues.canEdit
+  const readOnly = isBuiltin || (isEditing && !canEditSkill)
+  const showFooter = activeTab === 'create'
+
+  return (
+    <ChipModal
+      open={open}
+      onOpenChange={onOpenChange}
+      srTitle={isEditing ? 'Edit Skill' : 'Add Skill'}
+      size='lg'
+    >
+      <ChipModalHeader onClose={() => onOpenChange(false)}>
+        {isEditing ? 'Edit Skill' : 'Add Skill'}
+      </ChipModalHeader>
+
+      <ChipModalBody>
+        {!isEditing && (
+          <ChipModalTabs
+            tabs={CREATE_TABS}
+            value={activeTab}
+            onChange={(value) => setActiveTab(value as TabValue)}
+          />
+        )}
+
+        {activeTab === 'create' || isEditing ? (
+          <>
+            <ChipModalField
+              type='input'
+              title='Name'
+              value={name}
+              onChange={(value) => {
+                setName(value)
+                if (errors.name || errors.general)
+                  setErrors((prev) => ({ ...prev, name: undefined, general: undefined }))
+              }}
+              placeholder={SKILL_NAME_PLACEHOLDER}
+              required
+              error={errors.name}
+              hint={SKILL_NAME_HINT}
+              disabled={readOnly || saving}
+            />
+
+            <ChipModalField
+              type='input'
+              title='Description'
+              value={description}
+              onChange={(value) => {
+                setDescription(value)
+                if (errors.description || errors.general)
+                  setErrors((prev) => ({ ...prev, description: undefined, general: undefined }))
+              }}
+              placeholder={SKILL_DESCRIPTION_PLACEHOLDER}
+              maxLength={SKILL_DESCRIPTION_MAX_LENGTH}
+              required
+              error={errors.description}
+              disabled={readOnly || saving}
+            />
+
+            <ChipModalField type='custom' title='Content' required error={errors.content}>
+              <RichMarkdownField
+                key={`${initialValues?.id ?? 'new'}:${contentSeed}`}
+                value={content}
+                onChange={(value) => {
+                  setContent(value)
+                  if (errors.content || errors.general)
+                    setErrors((prev) => ({ ...prev, content: undefined, general: undefined }))
+                }}
+                placeholder={SKILL_CONTENT_PLACEHOLDER}
+                minHeight={200}
+                maxHeight={360}
+                disabled={readOnly || saving}
+                error={!!errors.content}
+                workspaceId={workspaceId}
+                onPasteText={handleContentPaste}
+              />
+            </ChipModalField>
+
+            <ChipModalError>{errors.general}</ChipModalError>
+          </>
+        ) : (
+          <SkillImport onImport={handleImport} />
+        )}
+      </ChipModalBody>
+
+      {showFooter && (
+        <ChipModalFooter
+          onCancel={() => onOpenChange(false)}
+          cancelDisabled={isBuiltin}
+          primaryAction={{
+            label: saving ? 'Saving...' : isEditing ? 'Update' : 'Create',
+            onClick: handleSave,
+            disabled: readOnly || saving || !hasChanges,
+          }}
+        />
+      )}
+    </ChipModal>
+  )
+}

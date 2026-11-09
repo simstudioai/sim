@@ -1,11 +1,11 @@
 'use client'
 
 import { useParams } from 'next/navigation'
+import { useOptionalWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-context'
+import { useOptionalWorkspacePermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
 import { type ResourceScope, resourceScopeFromOwner } from '@/lib/core/resource-scope'
 import { hasWorkspaceMaxConnectorAccess } from '@/lib/knowledge/connectors/entitlements'
 import { useOptionalOrganization } from '@/lib/organizations/provider'
-import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-context'
-import { useOptionalWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 
 /** Shared connector UI reads the permissions of its actual resource owner. */
 export function useConnectorScope(explicitScope?: ResourceScope) {

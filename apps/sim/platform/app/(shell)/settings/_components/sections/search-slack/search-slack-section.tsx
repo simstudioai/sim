@@ -3,15 +3,19 @@ import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_comp
 import { SlackConnections } from '@/platform/app/(shell)/settings/_components/sections/search-slack/slack-connections'
 import { loadSlackSettings } from '@/platform/fixtures'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
-import { readSlackConnections, readSlackManifest } from '@/platform/lib/data/settings-slack'
+import { readSlackManifest, type SlackSearchList } from '@/platform/lib/data/settings-slack'
 import { readScenario } from '@/platform/lib/navigation'
+
+/** Loaded on demand: the live reader imports the database, which fixture previews run without. */
+async function readLiveInventory(organizationId: string): Promise<SlackSearchList | null> {
+  const { readSlackConnections } = await import('@/platform/lib/data/slack-connections')
+  return readSlackConnections(organizationId).catch(() => null)
+}
 
 export default async function SearchSlackSection({ organization, query }: SettingsSectionProps) {
   if (!organization.viewer.isAdmin) notFound()
   const fixture = await loadSlackSettings(readScenario(query.state))
-  const inventory =
-    fixture?.inventory ??
-    (await readSlackConnections(organization.organization.id).catch(() => null))
+  const inventory = fixture?.inventory ?? (await readLiveInventory(organization.organization.id))
   const origin = fixture?.origin ?? organization.legacyOrigin
   return (
     <SlackConnections

@@ -5,14 +5,14 @@ import type { BrowserCredentialMetadata } from '@sim/desktop-bridge'
 import { ArrowLeft, ChipConfirmModal, Plus, toast } from '@sim/emcn-legacy'
 import { BrowserCredentialIcon } from '@/components/browser-credential-icon'
 import { BrowserImportDialog } from '@/components/browser-import/browser-import-dialog'
-import { getDesktopBridge } from '@/lib/desktop'
-import { PasswordDetail } from '@/app/workspace/[workspaceId]/settings/components/browser/components/password-detail/password-detail'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
 import {
   RESOURCE_LIST_GRID,
   SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+} from '@/components/settings/primitives/settings-resource-row'
+import { getDesktopBridge } from '@/lib/desktop'
+import { PasswordDetail } from '@/app/workspace/[workspaceId]/settings/components/browser/components/password-detail/password-detail'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 
 function siteLabel(origin: string): string {

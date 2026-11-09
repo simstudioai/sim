@@ -19,6 +19,7 @@ import {
   assistantActionFieldPresentation,
   assistantActionPresentation,
 } from '@/components/assistant-actions/presentation'
+import { InteractionCard } from '@/components/mothership-chat/message-content/components/interaction-card'
 import { ActivityStatus } from '@/components/ui/activity-status'
 import type {
   AssistantActionReceiptsResponse,
@@ -28,7 +29,6 @@ import { ASSISTANT_REVIEW_FIELD_MAX_CHARS } from '@/lib/assistant-actions/limits
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
 import { type ChatMessage, ToolCallStatus } from '@/lib/mothership/chat/types'
-import { InteractionCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/interaction-card'
 import { BrandIcon } from '@/blocks/brand-icon'
 import {
   useAssistantActionReceiptBatches,

@@ -18,7 +18,12 @@ import {
   updateEnvVarArray,
   validateEnvVarKey,
 } from '@/components/secrets/secret-rows'
+import { RowActionsMenu } from '@/components/settings/primitives/row-actions-menu'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import { SecretValueField } from '@/components/settings/sections/secrets/components/secret-value-field'
 import { setRecordValue } from '@/lib/core/utils/records'
 import {
   clearPendingCredentialCreateRequest,
@@ -27,11 +32,6 @@ import {
   readPendingCredentialCreateRequest,
 } from '@/lib/credentials/client-state'
 import type { SecretChanges } from '@/lib/organization-secrets/validation'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
 

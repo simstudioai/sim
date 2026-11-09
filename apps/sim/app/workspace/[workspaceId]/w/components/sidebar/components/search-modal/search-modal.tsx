@@ -40,24 +40,13 @@ import { Command } from 'cmdk'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
-import { supportsAtomicBrowserPanelOcclusion } from '@/lib/browser-agent/transport'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
-import { getFolderPathNames } from '@/lib/folders/tree'
-import { useInvokeGlobalCommand } from '@/lib/global-commands/provider'
-import { sendMothershipMessage } from '@/lib/mothership/events'
-import { workspaceIntegrationsPath } from '@/lib/navigation/paths'
-import { captureEvent } from '@/lib/posthog/client'
-import { toSearchToken } from '@/lib/search/tokens'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
-import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { useWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-provider'
 import {
   CommandFadedList,
   CommandSearch,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/command-chrome'
-import { MemoizedActionItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/command-items'
-import { SearchEntryGroup } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/components/search-groups'
+} from '@/components/workspace-sidebar/components/search-modal/components/command-chrome'
+import { MemoizedActionItem } from '@/components/workspace-sidebar/components/search-modal/components/command-items'
+import { SearchEntryGroup } from '@/components/workspace-sidebar/components/search-modal/components/search-groups'
 import type {
   ActionGroupLabel,
   ActionItem,
@@ -72,7 +61,7 @@ import type {
   TaskItem,
   WorkflowItem,
   WorkspaceItem,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+} from '@/components/workspace-sidebar/components/search-modal/utils'
 import {
   CANVAS_SECTIONS,
   getActionGroupLabel,
@@ -84,11 +73,22 @@ import {
   SECTION_LABELS,
   scoreActions,
   scoreSectionItems,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+} from '@/components/workspace-sidebar/components/search-modal/utils'
 import {
   CMDK_ITEM_GAP_CLASS,
   CMDK_SECTION_GAP_CLASS,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+} from '@/components/workspace-sidebar/constants'
+import { supportsAtomicBrowserPanelOcclusion } from '@/lib/browser-agent/transport'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { getFolderPathNames } from '@/lib/folders/tree'
+import { useInvokeGlobalCommand } from '@/lib/global-commands/provider'
+import { sendMothershipMessage } from '@/lib/mothership/events'
+import { workspaceIntegrationsPath } from '@/lib/navigation/paths'
+import { captureEvent } from '@/lib/posthog/client'
+import { toSearchToken } from '@/lib/search/tokens'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
 import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
 import { useFolderMap } from '@/hooks/queries/folders'
@@ -125,7 +125,7 @@ const MAX_SEARCH_RESULTS = 50
 /** Stable empty default so a pending folder map does not remount the memos below. */
 const EMPTY_FOLDER_MAP: Record<string, WorkflowFolder> = {}
 
-export type { SearchModalProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
+export type { SearchModalProps } from '@/components/workspace-sidebar/components/search-modal/utils'
 
 type SearchModalContentProps = Omit<SearchModalProps, 'open'>
 

@@ -20,41 +20,40 @@ import { truncate } from '@sim/utils/string'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { EmptyState } from '@/components/empty-state/empty-state'
-import { getDocumentIcon } from '@/components/icons/document-icons'
-import { getDocumentIndexingStatus } from '@/lib/knowledge/documents/types'
-import type { ChunkData } from '@/lib/knowledge/types'
-import { formatTokenCount } from '@/lib/tokenization'
 import {
   FOLDERED_RESOURCE_HEADERS,
   folderBreadcrumbItems,
   folderedResourceListHref,
   useFolderAncestors,
-} from '@/app/workspace/[workspaceId]/components/folders'
+} from '@/components/folders'
+import { getDocumentIcon } from '@/components/icons/document-icons'
+import { ActionBar } from '@/components/knowledge/base/components/action-bar'
 import type {
   BreadcrumbItem,
   ResourceAction,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+} from '@/components/resource/components/resource-header'
 import type {
   FilterTag,
   SearchConfig,
   SortConfig,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+} from '@/components/resource/components/resource-options'
 import {
   ResourceFilterPanel,
   ResourceFilterSection,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+} from '@/components/resource/components/resource-options'
 import type {
   PaginationConfig,
   ResourceColumn,
   ResourceRow,
   SelectableConfig,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
-import {
-  EMPTY_CELL_PLACEHOLDER,
-  Resource,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
-import { ResourceNotFound } from '@/app/workspace/[workspaceId]/components/resource/resource-not-found'
-import { SearchHighlight } from '@/app/workspace/[workspaceId]/components/search-highlight/search-highlight'
+} from '@/components/resource/resource'
+import { EMPTY_CELL_PLACEHOLDER, Resource } from '@/components/resource/resource'
+import { ResourceNotFound } from '@/components/resource/resource-not-found'
+import { SearchHighlight } from '@/components/search-highlight/search-highlight'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
+import { getDocumentIndexingStatus } from '@/lib/knowledge/documents/types'
+import type { ChunkData } from '@/lib/knowledge/types'
+import { formatTokenCount } from '@/lib/tokenization'
 import {
   ChunkContextMenu,
   ChunkEditor,
@@ -66,8 +65,6 @@ import {
   documentParsers,
   documentUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/search-params'
-import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/action-bar'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import {

@@ -87,12 +87,14 @@ describe('grantWorkspaceAccessDirectly', () => {
     mockGetUserOrganization.mockResolvedValue({
       organizationId: 'org-1',
       role: 'member',
+      kind: 'team',
     })
     mockGetWorkspaceWithOwner.mockResolvedValue({
       id: 'ws-1',
       name: 'Workspace 1',
       ownerId: 'user-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'user-1',
     })
@@ -109,7 +111,7 @@ describe('grantWorkspaceAccessDirectly', () => {
   it.each(['admin', 'owner'] as const)(
     'preserves an invitee who became organization %s before the transaction without redundant effects',
     async (role) => {
-      mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role })
+      mockGetUserOrganization.mockResolvedValueOnce({ organizationId: 'org-1', role, kind: 'team' })
 
       const result = await grantWorkspaceAccessDirectly({
         ...baseInput,
@@ -230,6 +232,7 @@ describe('grantWorkspaceAccessDirectly', () => {
       name: 'Workspace 1',
       ownerId: 'user-1',
       organizationId: 'org-2',
+      teamOrganizationId: 'org-2',
       workspaceMode: 'organization',
       billedAccountUserId: 'user-3',
     })

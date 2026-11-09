@@ -6,21 +6,21 @@ import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
-import { AddPeopleModal } from '@/components/permissions'
-import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
-import {
-  isSkillNameConflictError,
-  parseSkillMarkdown,
-  validateSkillName,
-} from '@/lib/skills/authoring'
 import {
   CredentialDetailHeading,
   CredentialDetailLayout,
   UnsavedChangesModal,
   useUnsavedChangesGuard,
-} from '@/app/workspace/[workspaceId]/components/credential-detail'
-import { SkillTile } from '@/app/workspace/[workspaceId]/components/skill-tile'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+} from '@/components/credential-detail'
+import { AddPeopleModal } from '@/components/permissions'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
+import { SkillTile } from '@/components/skill-tile'
+import {
+  isSkillNameConflictError,
+  parseSkillMarkdown,
+  validateSkillName,
+} from '@/lib/skills/authoring'
 import { SkillEditorsCard } from '@/app/workspace/[workspaceId]/skills/[skillId]/components/skill-editors-card'
 import {
   type SkillFieldErrors,

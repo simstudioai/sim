@@ -21,14 +21,14 @@ beforeEach(() => {
   vi.spyOn(collabState, 'commitCollabDocState').mockImplementation(mockCommitState)
 })
 
-import { markdownToYDoc, yDocToFileMarkdown, yDocToMarkdown } from '@/lib/collab-doc/converter'
-import { COLLAB_DOC_FIELD } from '@/lib/collab-doc/field'
-import { buildFileDocSeed } from '@/lib/collab-doc/seed'
-import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
+import { createMarkdownContentExtensions } from '@/components/file-viewer/rich-markdown-editor/extensions'
 import {
   parseMarkdownToDoc,
   serializeMarkdownBody,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+} from '@/components/file-viewer/rich-markdown-editor/markdown-parse'
+import { markdownToYDoc, yDocToFileMarkdown, yDocToMarkdown } from '@/lib/collab-doc/converter'
+import { COLLAB_DOC_FIELD } from '@/lib/collab-doc/field'
+import { buildFileDocSeed } from '@/lib/collab-doc/seed'
 
 const VERSION = new Date('2026-01-01T00:00:00.000Z').getTime()
 

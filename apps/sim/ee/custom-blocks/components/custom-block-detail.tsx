@@ -21,6 +21,8 @@ import {
 import { ArrowLeft, ChevronDown, X } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { compareStrings } from '@sim/utils/string'
+import { DropZone } from '@/components/drop-zone'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import {
   type FlattenOutputsBlockInput,
@@ -29,8 +31,6 @@ import {
 } from '@/lib/workflows/blocks/flatten-outputs'
 import type { CustomBlockInputPlaceholder } from '@/lib/workflows/custom-blocks/settings-input'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
-import { DropZone } from '@/app/workspace/[workspaceId]/components/drop-zone'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   type CustomBlockInput,
   type CustomBlockOutput,

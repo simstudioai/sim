@@ -5,6 +5,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useQueries } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
+import { useFileAttachments } from '@/components/workflow-editor/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { useSession } from '@/lib/auth/client'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
@@ -23,7 +24,6 @@ import {
   ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
-import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import {
   useMothershipChatHistory,
   useSetMothershipChatEffort,

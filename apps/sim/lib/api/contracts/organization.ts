@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  organizationIdSchema,
   organizationRoleSchema,
   type PiiRedactionSettings,
   piiRedactionSettingsSchema,
@@ -578,10 +579,14 @@ const organizationSurfaceResponseSchema = z.object({
   settingsSections: z.array(z.string().min(1)),
 })
 export type OrganizationSurfaceResponse = z.output<typeof organizationSurfaceResponseSchema>
-/** The viewer's own organization is resolved from their membership, so the route names none. */
+/**
+ * The viewer's surface in the organization named by `organizationId`, which the viewer must belong
+ * to. Without one, the organization is resolved from their membership.
+ */
 export const getOrganizationSurfaceContract = defineRouteContract({
   method: 'GET',
   path: '/api/organizations/surface',
+  query: z.object({ organizationId: organizationIdSchema.optional() }),
   response: { mode: 'json', schema: organizationSurfaceResponseSchema },
 })
 

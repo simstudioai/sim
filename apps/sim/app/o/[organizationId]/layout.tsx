@@ -5,7 +5,10 @@ import { createLogger } from '@sim/logger'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { ImpersonationBanner } from '@/components/impersonation-banner'
+import { SessionExpired } from '@/components/session-expired'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
+import { WorkspaceChrome, WorkspaceViewport } from '@/components/workspace-chrome'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { canUseBenchmarks } from '@/lib/benchmarks/config'
@@ -15,7 +18,7 @@ import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { GlobalCommandsProvider } from '@/lib/global-commands/provider'
 import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
-import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { OrganizationProvider } from '@/lib/organizations/provider'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
@@ -31,12 +34,6 @@ import { PlatformRouteGuard } from '@/app/o/[organizationId]/components/platform
 import { OrganizationToastSink } from '@/app/o/[organizationId]/components/toast-sink'
 import { OrganizationSimLinkProvider } from '@/app/o/[organizationId]/links/organization-sim-link-provider'
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
-import { ImpersonationBanner } from '@/app/workspace/[workspaceId]/components/impersonation-banner'
-import { SessionExpired } from '@/app/workspace/[workspaceId]/components/session-expired'
-import {
-  WorkspaceChrome,
-  WorkspaceViewport,
-} from '@/app/workspace/[workspaceId]/components/workspace-chrome'
 import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { Sidebar } from '@/platform/embedded/app/(shell)/_components/sidebar/sidebar'
 
@@ -44,9 +41,8 @@ const logger = createLogger('OrganizationLayout')
 
 /**
  * The organization surface: the viewer's own view of one organization, outside
- * any workspace. Requires membership and an available organization chat surface.
- * Non-members get an explicit denial; members outside the rollout retain
- * workspace settings, including when following a saved organization link.
+ * any workspace. Every member reaches it, personal organizations included;
+ * features that need a plan gate themselves. Non-members get an explicit denial.
  */
 export default async function OrganizationLayout({
   children,
@@ -83,13 +79,6 @@ export default async function OrganizationLayout({
   if (platformUrl) redirect(platformUrl)
   const peopleEnabledLookup = canBrowsePeople(organizationId, context.viewer.role)
   const simLinksEnabledLookup = isSimLinksEnabled(organizationId)
-  if (
-    !context.mothershipAvailable &&
-    !context.searchAccess.memberScoped &&
-    !(await peopleEnabledLookup) &&
-    !(await simLinksEnabledLookup)
-  )
-    redirect(WORKSPACE_SETTINGS_PATH)
 
   const [
     ,

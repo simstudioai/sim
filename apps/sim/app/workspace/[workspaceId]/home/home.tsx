@@ -6,6 +6,14 @@ import { createLogger } from '@sim/logger'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { ChatResourcePanel } from '@/components/mothership-chat/chat-resource-panel'
+import { HomeFallback } from '@/components/mothership-chat/home-fallback'
+import { RESOURCE_HEADER_CLASSES } from '@/components/mothership-chat/mothership-view/components/resource-tabs/resource-tab-controls'
+import {
+  fetchWorkspaceResourceRef,
+  readCachedWorkspaceResourceRef,
+} from '@/components/mothership-chat/resolve-resource-ref'
+import { SuggestedActions } from '@/components/mothership-chat/suggested-actions'
 import { requestJson } from '@/lib/api/client/request'
 import { createWorkflowContract } from '@/lib/api/contracts'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
@@ -28,21 +36,14 @@ import {
 } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { persistImportedWorkflow } from '@/lib/workflows/operations/import-export'
-import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
-import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
-import { SuggestedActions } from '@/app/workspace/[workspaceId]/home/components/suggested-actions'
-import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
-import { sendPayload } from '@/app/workspace/[workspaceId]/home/hooks/send-payload'
+import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
+import { getMothershipUseChatOptions, useChat } from '@/hooks/mothership-chat'
+import { sendPayload } from '@/hooks/mothership-chat/send-payload'
 import {
   useChatResourcePanel,
   useResourcePanelController,
-} from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
-import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
-import {
-  fetchWorkspaceResourceRef,
-  readCachedWorkspaceResourceRef,
-} from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
-import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
+} from '@/hooks/mothership-chat/use-resource-panel'
+import { useRestoredChatEntry } from '@/hooks/mothership-chat/use-restored-chat-entry'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import type { ChatContext } from '@/stores/panel'
@@ -53,7 +54,6 @@ import {
   UserInput,
   type UserInputHandle,
 } from './components'
-import { getMothershipUseChatOptions, useChat } from './hooks'
 
 const logger = createLogger('Home')
 

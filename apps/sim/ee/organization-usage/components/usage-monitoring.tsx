@@ -14,16 +14,16 @@ import {
 import { ArrowLeft, Download } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import {
+  ManageCreditsModal,
+  type ManageCreditsTarget,
+} from '@/components/settings/primitives/manage-credits-modal'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
+import {
   MAX_CUSTOM_RANGE_DAYS,
   type UsageBreakdownDimension,
 } from '@/lib/api/contracts/organization-usage'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import {
-  ManageCreditsModal,
-  type ManageCreditsTarget,
-} from '@/app/workspace/[workspaceId]/settings/components/manage-credits-modal'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { serializeAuditLogFilters } from '@/ee/audit-logs/search-params'
 import { ActivityPanel } from '@/ee/organization-usage/components/activity-panel'
 import { OrganizationActivityOverview } from '@/ee/organization-usage/components/activity-summary'

@@ -19,7 +19,7 @@ import {
 import { Check, Clipboard, Pencil, Plus, Trash } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import {
   useAddInboxSender,
   useInboxConfig,

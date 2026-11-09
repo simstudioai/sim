@@ -1,12 +1,12 @@
 import { useCallback, useMemo, useRef } from 'react'
+import { useAccessibleReferencePrefixes } from '@/components/workflow-editor/hooks/use-accessible-reference-prefixes'
+import { useWorkflowReferenceScope } from '@/components/workflow-editor/hooks/workflow-reference-scope'
 import {
   getEffectiveBlockOutputType,
   getOutputPathsFromSchema,
 } from '@/lib/workflows/blocks/outputs'
 import { getBlockReferenceTags } from '@/lib/workflows/blocks/reference-tags'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/utils'
-import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-import { useWorkflowReferenceScope } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/workflow-reference-scope'
 import { getBlock } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { isHumanInTheLoopBlock, normalizeName } from '@/executor/constants'

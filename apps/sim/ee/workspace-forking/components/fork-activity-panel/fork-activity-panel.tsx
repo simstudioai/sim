@@ -5,12 +5,9 @@ import { Badge, Button, Tooltip } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { formatDateTime } from '@sim/utils/formatting'
 import { truncate } from '@sim/utils/string'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { ActivityLog, type ActivityLogEntry } from '@/components/settings/sections/activity-log'
 import type { BackgroundWorkItem, BackgroundWorkMetadata } from '@/lib/api/contracts/workspace-fork'
-import {
-  ActivityLog,
-  type ActivityLogEntry,
-} from '@/app/workspace/[workspaceId]/settings/components/activity-log'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { useWorkspaceBackgroundWork } from '@/ee/workspace-forking/hooks/background-work'
 
 const logger = createLogger('ForkActivityPanel')

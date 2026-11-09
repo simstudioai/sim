@@ -68,7 +68,7 @@ vi.mock('@sim/emcn-legacy', () => ({
 
 vi.mock('@/lib/desktop', () => libDesktopMock)
 
-vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
+vi.mock('@/components/settings/primitives/settings-panel', () => ({
   SettingsPanel: ({
     children,
     back,
@@ -101,14 +101,11 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () =
   ),
 }))
 
-vi.mock(
-  '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section',
-  () => ({
-    SettingsSection: ({ children, label }: { children: ReactNode; label: string }) => (
-      <section aria-label={label}>{children}</section>
-    ),
-  })
-)
+vi.mock('@/components/settings/primitives/settings-section/settings-section', () => ({
+  SettingsSection: ({ children, label }: { children: ReactNode; label: string }) => (
+    <section aria-label={label}>{children}</section>
+  ),
+}))
 
 import { PasswordDetail } from '@/app/workspace/[workspaceId]/settings/components/browser/components/password-detail/password-detail'
 

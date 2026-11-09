@@ -6,7 +6,15 @@ import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import {
+  CredentialDetailHeading,
+  CredentialDetailLayout,
+  UnsavedChangesModal,
+  useUnsavedChangesGuard,
+} from '@/components/credential-detail'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
+import { SkillTile } from '@/components/skill-tile'
+import { SkillImportButton } from '@/components/skills/skill-import'
 import {
   isSkillNameConflictError,
   type ParsedSkill,
@@ -14,17 +22,9 @@ import {
   validateSkillName,
 } from '@/lib/skills/authoring'
 import {
-  CredentialDetailHeading,
-  CredentialDetailLayout,
-  UnsavedChangesModal,
-  useUnsavedChangesGuard,
-} from '@/app/workspace/[workspaceId]/components/credential-detail'
-import { SkillTile } from '@/app/workspace/[workspaceId]/components/skill-tile'
-import {
   type SkillFieldErrors,
   SkillFields,
 } from '@/app/workspace/[workspaceId]/skills/components/skill-fields'
-import { SkillImportButton } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
 import { useCreateSkill } from '@/hooks/queries/skills'
 
 const logger = createLogger('SkillCreate')

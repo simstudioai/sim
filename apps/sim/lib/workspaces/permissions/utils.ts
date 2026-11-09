@@ -10,6 +10,7 @@ import {
   resolveEffectiveWorkspacePermission,
 } from '@sim/platform-authz/workspace'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { payerOrganizationIdSql } from '@/lib/billing/core/payer-organization'
 import { HttpError } from '@/lib/core/utils/http-error'
 import type { DbOrTx } from '@/lib/db/types'
 
@@ -23,6 +24,11 @@ export interface WorkspaceWithOwner {
   name: string
   ownerId: string
   organizationId: string | null
+  /**
+   * The organization that pays for and admits members to this workspace: `organizationId` for a
+   * team, null for a workspace in a personal organization, which behaves as personal.
+   */
+  teamOrganizationId: string | null
   workspaceMode: WorkspaceMode
   billedAccountUserId: string
   allowPersonalApiKeys: boolean
@@ -96,6 +102,7 @@ async function selectWorkspaceWithOwner(
       name: workspace.name,
       ownerId: workspace.ownerId,
       organizationId: workspace.organizationId,
+      teamOrganizationId: payerOrganizationIdSql(workspace.organizationId),
       workspaceMode: workspace.workspaceMode,
       billedAccountUserId: workspace.billedAccountUserId,
       allowPersonalApiKeys: workspace.allowPersonalApiKeys,
@@ -309,9 +316,10 @@ export async function getUserEntityPermissions(
  * Retrieves a list of users with their associated permissions for a given workspace.
  *
  * A member is `isExternal` when they hold workspace access but belong to a
- * different organization than the workspace (or to any organization when the
- * workspace is personal/grandfathered and has none). The workspace owner is
- * never external. This mirrors the accept-time `external` membership intent so
+ * different team than the workspace's (or to any team when the workspace is
+ * personal). Personal organizations count as no team on either side, so a
+ * collaborator on someone's personal workspace stays a plain guest, exactly as
+ * before personal organizations existed. The workspace owner is never external. This mirrors the accept-time `external` membership intent so
  * the UI tag matches how the member actually joined.
  *
  * @param workspaceId - The ID of the workspace to retrieve user permissions for.
@@ -362,7 +370,7 @@ export async function getUsersWithPermissions(
       image: user.image,
       permissionType: permissions.permissionType,
       joinedAt: permissions.createdAt,
-      userOrganizationId: member.organizationId,
+      userTeamOrganizationId: payerOrganizationIdSql(member.organizationId),
     })
     .from(permissions)
     .innerJoin(user, eq(permissions.userId, user.id))
@@ -379,7 +387,7 @@ export async function getUsersWithPermissions(
       name: row.name,
       image: row.image ?? null,
       permissionType: row.permissionType,
-      isExternal: !isOwner && row.userOrganizationId !== ws.organizationId,
+      isExternal: !isOwner && row.userTeamOrganizationId !== ws.teamOrganizationId,
       joinedAt: row.joinedAt.toISOString(),
       roleSource: isOwner ? 'owner' : 'explicit',
       isOrgAdmin: false,
@@ -387,7 +395,7 @@ export async function getUsersWithPermissions(
     })
   }
 
-  if (ws.organizationId) {
+  if (ws.teamOrganizationId) {
     const orgAdmins = await db
       .select({
         userId: user.id,
@@ -400,7 +408,7 @@ export async function getUsersWithPermissions(
       .innerJoin(user, eq(member.userId, user.id))
       .where(
         and(
-          eq(member.organizationId, ws.organizationId),
+          eq(member.organizationId, ws.teamOrganizationId),
           inArray(member.role, [...ORG_ADMIN_ROLES])
         )
       )

@@ -3,9 +3,9 @@ import {
   INTEGRATION_METADATA,
   type IntegrationMetadata,
 } from '@sim/deployment-config/integration-metadata'
+import type { ServiceAccountProviderId } from '@/components/integrations/connect-service-account-modal'
 import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
 import { getServiceConfigByServiceId } from '@/lib/oauth'
-import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 
 /**
  * Shape returned from resolving an integration to its OAuth service entry in

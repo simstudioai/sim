@@ -4,14 +4,14 @@ import { useState } from 'react'
 import { Chip, ChipConfirmModal, ChipCopyInput, ChipInput, ChipTag, toast } from '@sim/emcn-legacy'
 import { Link } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { OrganizationDomain } from '@/lib/api/contracts/organization'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { RowActionsMenu } from '@/components/settings/primitives/row-actions-menu'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+} from '@/components/settings/primitives/settings-empty-state'
+import { SettingsResourceRow } from '@/components/settings/primitives/settings-resource-row'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
+import type { OrganizationDomain } from '@/lib/api/contracts/organization'
 import { SettingRow } from '@/ee/components/setting-row'
 import {
   useAddOrganizationDomain,

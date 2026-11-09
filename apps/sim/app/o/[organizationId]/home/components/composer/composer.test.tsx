@@ -74,7 +74,7 @@ vi.mock('@/hooks/queries/skills', () => ({
 vi.mock('@/hooks/queries/mcp', () => ({ useMcpToolServers: () => ({ data: [] }) }))
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock(
-  '@/app/workspace/[workspaceId]/home/components/user-input/components/plus-menu-dropdown/plus-menu-dropdown',
+  '@/components/mothership-chat/user-input/components/plus-menu-dropdown/plus-menu-dropdown',
   async () => {
     const { forwardRef, useImperativeHandle } = await import('react')
     return {
@@ -98,8 +98,8 @@ vi.mock('@/hooks/use-animated-placeholder', () => ({ useAnimatedPlaceholder: () 
 vi.mock('@/hooks/use-chat-input-focus', () => ({ useChatInputFocus: vi.fn() }))
 vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
 
+import { useFileAttachments } from '@/components/workflow-editor/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
-import { useFileAttachments } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { PageComposer as Composer } from '@/platform/embedded/app/(shell)/_components/conversation/page-composer'
 
 const DRAFT_KEY = 'composer-test-draft'

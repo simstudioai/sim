@@ -1,8 +1,8 @@
 'use client'
 
 import { ShieldCheck } from '@sim/emcn-legacy/icons'
-import { ResourceChromeFallback } from '@/app/workspace/[workspaceId]/components/resource/components/resource-chrome-fallback'
-import type { BreadcrumbItem } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+import { ResourceChromeFallback } from '@/components/resource/components/resource-chrome-fallback'
+import type { BreadcrumbItem } from '@/components/resource/components/resource-header'
 
 const BREADCRUMBS: BreadcrumbItem[] = [
   { label: 'Tests', icon: ShieldCheck },

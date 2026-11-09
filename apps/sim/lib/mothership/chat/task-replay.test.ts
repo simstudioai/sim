@@ -13,14 +13,11 @@ import { createStreamingContext } from '@/lib/mothership/request/context/request
 import { handleRunEvent } from '@/lib/mothership/request/handlers/run'
 import type { PersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
 import { toStreamBatchEvent } from '@/lib/mothership/request/session/types'
-import {
-  createTurnModel,
-  reduceEvent,
-} from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
+import { createTurnModel, reduceEvent } from '@/hooks/mothership-chat/stream/turn-model'
 import {
   contentBlocksToModel,
   modelToContentBlocks,
-} from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
+} from '@/hooks/mothership-chat/stream/turn-model-serialize'
 
 type TaskPayload = MothershipStreamV1TaskArmedPayload | MothershipStreamV1TaskDeliveredPayload
 

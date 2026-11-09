@@ -3,16 +3,13 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Badge, Chip, ChipDropdown, ChipInput } from '@sim/emcn-legacy'
 import { Library, ListFilter, Search, X } from '@sim/emcn-legacy/icons'
+import { Resource, type ResourceColumn } from '@/components/resource/resource'
 import {
   MenuPreviewHeader,
   MenuPreviewToolbar,
 } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
 import { LogPreviewDetails } from '@/app/(landing)/logs/components/log-history-preview/components/log-preview-details'
 import { PREVIEW_RUNS } from '@/app/(landing)/logs/components/log-history-preview/constants'
-import {
-  Resource,
-  type ResourceColumn,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'workflow', header: 'Workflow', widthMultiplier: 1.4 },

@@ -6,13 +6,13 @@ import { ArrowRight, Paperclip } from '@sim/emcn-legacy/icons'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { RESOURCE_ROW_ARROW_CLASSES } from '@/components/settings/primitives/settings-resource-row'
 import {
   type InboxStatusFilter,
   inboxTaskParsers,
   inboxTaskUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/inbox/search-params'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import type { InboxTaskItem } from '@/hooks/queries/inbox'
 import { useInboxConfig, useInboxTasks } from '@/hooks/queries/inbox'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'

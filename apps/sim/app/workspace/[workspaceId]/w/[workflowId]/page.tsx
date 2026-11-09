@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import Workflow from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow'
+import Workflow from '@/components/workflow-editor/workflow'
 
 export const metadata: Metadata = {
   title: 'Workflow',

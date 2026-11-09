@@ -1,0 +1,187 @@
+'use client'
+
+import {
+  type ComponentType,
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from 'react'
+import { noop } from '@sim/utils/helpers'
+import type { SearchIntegrationConnectionProps } from '@/components/mothership-chat/message-content/components/special-tags/search-integration-connection'
+import type { ShareDialogProps } from '@/components/share-modal'
+import type {
+  MessageActionsModel,
+  PageContextDialogProps,
+  WorkspaceResourceRef,
+} from '@/lib/mothership/chat/types'
+import { inter } from '@/app/_styles/fonts/inter/inter'
+import type { ChatContext } from '@/stores/panel'
+
+/**
+ * How a host draws the shared chat: its typeface, its class names and the parts it replaces. Set once
+ * around the whole chat, since context also reaches what the chat portals out of its own tree. A host
+ * that sets nothing gets the workspace's own look.
+ */
+export interface ChatChrome {
+  fontClassName: string
+  panelClassName?: string
+  tabsClassName?: string
+  sourcesClassName?: string
+  userBubbleClassName?: string
+  /** The reply's action row: copy, votes, fork, and sources. */
+  responseActionsClassName?: string
+  sourcesPopoverClassName?: string
+  /** Holds the transcript's place while the history loads. */
+  loadingTranscript?: ReactNode
+  /** Holds the composer's place while the history loads. */
+  loadingComposer?: ReactNode
+  /** Draws a reply's action row in place of the default one. `MessageActions` keeps its behavior. */
+  ResponseActionsComponent?: ComponentType<MessageActionsModel>
+  /** Draws the open page-context dialog in place of the default one. */
+  PageContextDialogComponent?: ComponentType<PageContextDialogProps>
+  /** Draws the share dialog in place of the default one. `useShareDialog` keeps its behavior. */
+  ShareDialogComponent?: ComponentType<ShareDialogProps>
+}
+
+const ChatChromeContext = createContext<ChatChrome>({ fontClassName: inter.className })
+
+export const ChatChromeProvider = ChatChromeContext.Provider
+
+export function useChatChrome() {
+  return useContext(ChatChromeContext)
+}
+
+/**
+ * Identity and interaction callbacks shared across a Mothership chat surface
+ * (home conversation view, home initial view, copilot panel). Carried via
+ * context so leaf components (UserInput, MessageContent, MessageActions) can
+ * consume them without relaying through every intermediate component.
+ */
+interface ChatSurfaceContextValue {
+  SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
+  /** Resolved id of the chat backing this surface, if one exists yet. */
+  chatId?: string
+  /** Id of the user interacting with this surface. */
+  userId?: string
+  /** Notifies the surface owner that a context chip was added to the input. */
+  onContextAdd: (context: ChatContext) => void
+  /**
+   * Notifies the surface owner that a context chip was removed from the input.
+   * `remaining` is the input's context list AFTER the removal, so the owner can
+   * tell whether any other chip still references the removed chip's resource
+   * before closing a shared slideover tab.
+   */
+  onContextRemove: (context: ChatContext, remaining: ChatContext[]) => void
+  onViewSources?: (messageId: string, requestId?: string) => void
+  onNavigateToChat?: (chatId: string) => void
+  /** Opens a workspace resource referenced from rendered message content. */
+  onWorkspaceResourceSelect: (resource: WorkspaceResourceRef) => void
+}
+
+const ChatSurfaceContext = createContext<ChatSurfaceContextValue>({
+  onContextAdd: noop,
+  onContextRemove: noop,
+  onWorkspaceResourceSelect: noop,
+})
+
+interface ChatSurfaceProviderProps {
+  SearchConnectionComponent?: ComponentType<SearchIntegrationConnectionProps>
+  chatId?: string
+  userId?: string
+  onContextAdd?: (context: ChatContext) => void
+  onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
+  onViewSources?: (messageId: string, requestId?: string) => void
+  onNavigateToChat?: (chatId: string) => void
+  onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
+  children: ReactNode
+}
+
+/**
+ * Provides the chat-surface identity and interaction callbacks to descendants.
+ * Callbacks are latched in refs and exposed as stable wrappers so the memoized
+ * callback identities remain stable when a parent re-creates a handler.
+ */
+export function ChatSurfaceProvider({
+  SearchConnectionComponent,
+  chatId,
+  userId,
+  onContextAdd,
+  onContextRemove,
+  onWorkspaceResourceSelect,
+  onViewSources,
+  onNavigateToChat,
+  children,
+}: ChatSurfaceProviderProps) {
+  const onViewSourcesRef = useRef(onViewSources)
+  const hasSourcePanel = Boolean(onViewSources)
+  const hasChatNavigation = Boolean(onNavigateToChat)
+  const onNavigateToChatRef = useRef(onNavigateToChat)
+  const onContextAddRef = useRef(onContextAdd)
+  const onContextRemoveRef = useRef(onContextRemove)
+  const onWorkspaceResourceSelectRef = useRef(onWorkspaceResourceSelect)
+
+  useLayoutEffect(() => {
+    onViewSourcesRef.current = onViewSources
+    onNavigateToChatRef.current = onNavigateToChat
+    onContextAddRef.current = onContextAdd
+    onContextRemoveRef.current = onContextRemove
+    onWorkspaceResourceSelectRef.current = onWorkspaceResourceSelect
+  })
+
+  const stableOnContextAdd = useCallback((context: ChatContext) => {
+    onContextAddRef.current?.(context)
+  }, [])
+  const stableOnContextRemove = useCallback((context: ChatContext, remaining: ChatContext[]) => {
+    onContextRemoveRef.current?.(context, remaining)
+  }, [])
+  const stableOnWorkspaceResourceSelect = useCallback((resource: WorkspaceResourceRef) => {
+    onWorkspaceResourceSelectRef.current?.(resource)
+  }, [])
+
+  const stableOnViewSources = useCallback((messageId: string, requestId?: string) => {
+    onViewSourcesRef.current?.(messageId, requestId)
+  }, [])
+  const stableOnNavigateToChat = useCallback((chatId: string) => {
+    onNavigateToChatRef.current?.(chatId)
+  }, [])
+
+  const value = useMemo<ChatSurfaceContextValue>(
+    () => ({
+      onViewSources: hasSourcePanel ? stableOnViewSources : undefined,
+      onNavigateToChat: hasChatNavigation ? stableOnNavigateToChat : undefined,
+      SearchConnectionComponent,
+      chatId,
+      userId,
+      onContextAdd: stableOnContextAdd,
+      onContextRemove: stableOnContextRemove,
+      onWorkspaceResourceSelect: stableOnWorkspaceResourceSelect,
+    }),
+    [
+      hasSourcePanel,
+      hasChatNavigation,
+      stableOnNavigateToChat,
+      stableOnViewSources,
+      SearchConnectionComponent,
+      chatId,
+      userId,
+      stableOnContextAdd,
+      stableOnContextRemove,
+      stableOnWorkspaceResourceSelect,
+    ]
+  )
+
+  return <ChatSurfaceContext.Provider value={value}>{children}</ChatSurfaceContext.Provider>
+}
+
+/**
+ * Reads the surrounding chat surface. Outside a provider this returns no-op
+ * callbacks and undefined identity, matching the previous optional-prop
+ * behavior.
+ */
+export function useChatSurface(): ChatSurfaceContextValue {
+  return useContext(ChatSurfaceContext)
+}

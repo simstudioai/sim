@@ -5,19 +5,19 @@ import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import {
+  highlightTerms,
+  sourceMeta,
+} from '@/components/mothership-chat/message-content/components/source-card/source-card'
+import {
+  SourceIcon,
+  sourceLabel,
+} from '@/components/mothership-chat/message-content/components/source-chip'
+import {
   useOpenSimLinkForm,
   useSimLinkOrganizationId,
 } from '@/components/sim-links/sim-link-organization-provider'
 import { useExistingSimLink } from '@/components/sim-links/sim-link-shortcut'
 import type { SourceTagData } from '@/lib/mothership/chat/special-tags'
-import {
-  highlightTerms,
-  sourceMeta,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-card/source-card'
-import {
-  SourceIcon,
-  sourceLabel,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/source-chip'
 import { useSourceNavigation } from '@/hooks/sim-search/source-history'
 import { useHydrated } from '@/hooks/use-hydrated'
 import styles from '@/platform/embedded/app/(shell)/_components/search/search.module.css'

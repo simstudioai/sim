@@ -8,6 +8,7 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { presentSlackSearchList } from '@/lib/api/server/slack-search-presenters'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
   configureSlackSearchInstallation,
@@ -22,15 +23,7 @@ export const GET = defineInternalJsonRoute({
   errorPolicy: internalOrchestrationErrorPolicy,
   mapInput: ({ query }) => query,
   useCase: listSlackSearchInstallations,
-  present: ({ installations, bots, sharedAppAvailable, memberAppKind }) => ({
-    sharedAppAvailable,
-    memberAppKind,
-    bots,
-    installations: installations.map((row) => ({
-      ...row,
-      lastEventAt: row.lastEventAt?.toISOString() ?? null,
-    })),
-  }),
+  present: presentSlackSearchList,
 })
 
 export const POST = defineInternalJsonRoute({

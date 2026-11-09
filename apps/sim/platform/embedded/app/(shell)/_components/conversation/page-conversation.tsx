@@ -4,19 +4,19 @@ import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn-legacy'
 import hostBridge from '@sim/emcn-platform/styles/host-bridge.module.css'
 import { AssistantActionReviewProvider } from '@/components/assistant-actions'
+import { ChatResourcePanel } from '@/components/mothership-chat/chat-resource-panel'
+import {
+  type ChatChrome,
+  ChatChromeProvider,
+} from '@/components/mothership-chat/chat-surface-context'
+import { SearchIntegrationConnection } from '@/components/mothership-chat/message-content/components/special-tags/search-integration-connection'
+import { MothershipChat } from '@/components/mothership-chat/mothership-chat'
 import type { ChatRequestMode } from '@/lib/mothership/chat/types'
 import type { OrganizationSummaryRequest } from '@/lib/organizations/search-params'
 import {
   useConversationGate,
   useOrganizationConversation,
 } from '@/app/_organization-conversation/use-organization-conversation'
-import { ChatResourcePanel } from '@/app/workspace/[workspaceId]/home/components/chat-resource-panel'
-import {
-  type ChatChrome,
-  ChatChromeProvider,
-} from '@/app/workspace/[workspaceId]/home/components/chat-surface-context'
-import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
-import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
 import styles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 import { PageContextDialog } from '@/platform/embedded/app/(shell)/_components/conversation/dialogs'
 import { PageComposer } from '@/platform/embedded/app/(shell)/_components/conversation/page-composer'

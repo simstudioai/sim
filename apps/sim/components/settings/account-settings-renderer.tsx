@@ -2,28 +2,20 @@
 
 import dynamic from 'next/dynamic'
 import type { AccountSettingsSection } from '@/components/settings/navigation'
-import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
+import { General } from '@/components/settings/sections/general/general'
 import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 
 const Billing = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/billing/billing').then(
-    (module) => module.Billing
-  )
+  import('@/components/settings/sections/billing/billing').then((module) => module.Billing)
 )
 const ApiKeys = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/api-keys/api-keys').then(
-    (module) => module.ApiKeys
-  )
+  import('@/components/settings/sections/api-keys/api-keys').then((module) => module.ApiKeys)
 )
 const Admin = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/admin/admin').then(
-    (module) => module.Admin
-  )
+  import('@/components/settings/sections/admin/admin').then((module) => module.Admin)
 )
 const Mothership = dynamic(() =>
-  import('@/app/workspace/[workspaceId]/settings/components/mothership/mothership').then(
-    (module) => module.Mothership
-  )
+  import('@/components/settings/sections/mothership/mothership').then((module) => module.Mothership)
 )
 
 interface AccountSettingsRendererProps {

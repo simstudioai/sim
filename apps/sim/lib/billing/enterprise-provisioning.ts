@@ -34,6 +34,7 @@ import { parseAdminInvitationOperationPayload } from '@/lib/admin/invitation-ope
 import { ADMIN_INVITATION_OPERATION_EVENT_TYPE } from '@/lib/admin/invitation-operation-event'
 import { parseBillingConcurrencyLimit } from '@/lib/billing/concurrency-defaults'
 import { getBillingConcurrencyLimit } from '@/lib/billing/concurrency-limits'
+import { payerOrganizationIdSql } from '@/lib/billing/core/payer-organization'
 import { resolveEnterpriseReportingPeriod } from '@/lib/billing/core/reporting-period'
 import {
   getBillingPeriodUsageCost,
@@ -98,6 +99,7 @@ import {
   createWorkspaceInvitation,
   prepareWorkspaceInvitationContext,
 } from '@/lib/invitations/workspace-invitations'
+import { dissolvePersonalOrganizationTx } from '@/lib/organizations/dissolve-personal'
 import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
 import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
@@ -723,7 +725,10 @@ export async function assertEnterpriseInvitationEligibility({
 }): Promise<void> {
   if (invitationEmails.length === 0) return
   const existingInvitees = await executor
-    .select({ email: user.email, organizationId: member.organizationId })
+    .select({
+      email: user.email,
+      organizationId: payerOrganizationIdSql(member.organizationId),
+    })
     .from(user)
     .leftJoin(member, eq(member.userId, user.id))
     .where(inArray(sql<string>`lower(${user.email})`, invitationEmails))
@@ -772,7 +777,7 @@ export async function getEnterpriseIssuancePreflight({
     })
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
-    .where(eq(member.userId, ownerUserId))
+    .where(and(eq(member.userId, ownerUserId), eq(organization.kind, 'team')))
     .limit(1)
   const trimmedSearch = search.trim()
   const allPersonalWorkspacesWhere = ownedAttachableWorkspacesWhere({
@@ -1582,10 +1587,12 @@ export async function issueEnterpriseProvisioning(
   // Discover the lock scope without holding a transaction connection or row
   // lock. The transaction below re-reads all membership state after taking
   // the canonical organization → user-billing-identity lock order.
+  // A personal organization is not the owner's organization here: it dissolves into the new one.
   const [membershipSnapshot] = await db
     .select({ role: member.role, organizationId: member.organizationId })
     .from(member)
-    .where(eq(member.userId, input.ownerUserId))
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(and(eq(member.userId, input.ownerUserId), eq(organization.kind, 'team')))
     .limit(1)
 
   const result = await db.transaction(async (tx) => {
@@ -1616,7 +1623,8 @@ export async function issueEnterpriseProvisioning(
       const [currentMembership] = await tx
         .select({ organizationId: member.organizationId })
         .from(member)
-        .where(eq(member.userId, input.ownerUserId))
+        .innerJoin(organization, eq(organization.id, member.organizationId))
+        .where(and(eq(member.userId, input.ownerUserId), eq(organization.kind, 'team')))
         .limit(1)
       if (currentMembership) {
         throw new EnterpriseProvisioningError(
@@ -1640,6 +1648,12 @@ export async function issueEnterpriseProvisioning(
     if (!owner) throw new EnterpriseProvisioningError('Owner user not found')
 
     if (organizationToCreate) {
+      /** Checked before the owner's personal organization, which holds them, dissolves below. */
+      await assertEnterpriseWorkspaceSelection({
+        executor: tx,
+        ownerUserId: input.ownerUserId,
+        workspaceIds,
+      })
       const now = new Date()
       await tx.insert(organization).values({
         id: organizationToCreate.id,
@@ -1647,6 +1661,11 @@ export async function issueEnterpriseProvisioning(
         slug: slugifyOrganizationName(organizationToCreate.name, organizationToCreate.id),
         createdAt: now,
         updatedAt: now,
+      })
+      await dissolvePersonalOrganizationTx(tx, {
+        userId: input.ownerUserId,
+        targetOrganizationId: organizationToCreate.id,
+        targetBilledAccountUserId: input.ownerUserId,
       })
       await tx.insert(member).values({
         id: generateId(),
@@ -1697,11 +1716,13 @@ export async function issueEnterpriseProvisioning(
       invitationEmails: invitationSpecs.map((invite) => invite.email),
     })
 
-    await assertEnterpriseWorkspaceSelection({
-      executor: tx,
-      ownerUserId: input.ownerUserId,
-      workspaceIds,
-    })
+    if (!organizationToCreate) {
+      await assertEnterpriseWorkspaceSelection({
+        executor: tx,
+        ownerUserId: input.ownerUserId,
+        workspaceIds,
+      })
+    }
     const seatRequirement = await getEnterpriseIssuanceSeatRequirement({
       executor: tx,
       organizationId,
@@ -2974,7 +2995,7 @@ export const inviteEnterprisePeople: OutboxHandler<unknown> = async (rawPayload,
 
   const normalizedEmail = normalizeEmail(payload.email)
   const [existingInvitee] = await db
-    .select({ organizationId: member.organizationId })
+    .select({ organizationId: payerOrganizationIdSql(member.organizationId) })
     .from(user)
     .leftJoin(member, eq(member.userId, user.id))
     .where(eq(user.normalizedEmail, normalizedEmail))

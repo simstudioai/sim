@@ -1,0 +1,136 @@
+'use client'
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuItemLabel,
+  DropdownMenuRadioGroup,
+} from '@sim/emcn-legacy'
+import { Brain, Check, Sparkles } from '@sim/emcn-legacy/icons'
+import { useChatSurface } from '@/components/mothership-chat/chat-surface-context'
+import { FastModeToggle } from '@/components/mothership-chat/user-input/components/fast-mode-toggle'
+import { ModelSettingTrigger } from '@/components/mothership-chat/user-input/components/model-setting-trigger'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
+import {
+  MOTHERSHIP_EFFORT_OPTIONS,
+  MOTHERSHIP_MODEL_OPTIONS,
+  MOTHERSHIP_SIMPLE_EFFORT_OPTIONS,
+  type MothershipEffort,
+  resolveMothershipModelSettings,
+} from '@/lib/mothership/model-options'
+import {
+  useMothershipChatHistory,
+  useSetMothershipChatEffort,
+} from '@/hooks/queries/mothership-chats'
+import {
+  useMothershipEffortStore,
+  useMothershipPlanEffortStore,
+} from '@/stores/mothership-effort/store'
+
+export interface ModelSelectorOptions {
+  showModelPicker?: boolean
+  fastModeDescription?: string
+  /** Marks the reasoning effort as a menu, as the model picker beside it always is. */
+  showEffortChevron?: boolean
+}
+
+interface ModelSelectorProps extends ModelSelectorOptions {
+  plan?: boolean
+}
+
+/** Model, reasoning effort, and Fast mode for Build chat composers. */
+export function ModelSelector({
+  plan = false,
+  showModelPicker = true,
+  fastModeDescription = 'Faster responses at a higher price',
+  showEffortChevron = false,
+}: ModelSelectorProps) {
+  const usePreferenceStore = plan ? useMothershipPlanEffortStore : useMothershipEffortStore
+  const advanced = useFeatureFlag('mothership-model-selector')
+  const selection = usePreferenceStore((state) => state.modelSelection)
+  const setModel = usePreferenceStore((state) => state.setModel)
+  const setFastMode = usePreferenceStore((state) => state.setFastMode)
+  const { chatId } = useChatSurface()
+  const { data: chatHistory } = useMothershipChatHistory(chatId)
+  const chatPick = useMothershipEffortStore((state) =>
+    chatId ? state.chatEfforts[chatId]?.effort : undefined
+  )
+  const newChatEffort = useMothershipEffortStore((state) => state.newChatEffort)
+  const setNewChatEffort = useMothershipEffortStore((state) => state.setNewChatEffort)
+  const { mutate: saveChatEffort } = useSetMothershipChatEffort(chatId)
+  const effortChoice = chatId ? (chatPick ?? chatHistory?.effort) : newChatEffort
+  const { effort, modelSelection } = resolveMothershipModelSettings(
+    { effort: effortChoice ?? undefined, modelSelection: selection },
+    advanced,
+    plan
+  )
+  const options = modelSelection ? MOTHERSHIP_EFFORT_OPTIONS : MOTHERSHIP_SIMPLE_EFFORT_OPTIONS
+  const setEffort = (choice: MothershipEffort) => {
+    if (chatId) saveChatEffort(choice)
+    else setNewChatEffort(choice)
+  }
+
+  const effortLabel = options.find((option) => option.value === effort)?.label ?? effort
+
+  return (
+    <div className='flex items-center gap-[inherit]'>
+      {advanced && modelSelection && (
+        <>
+          {modelSelection.model !== 'claude-opus-5-5' && (
+            <FastModeToggle
+              enabled={modelSelection.fastMode}
+              onChange={setFastMode}
+              description={fastModeDescription}
+            />
+          )}
+          {showModelPicker && (
+            <DropdownMenu modal={false}>
+              <ModelSettingTrigger
+                label='Model'
+                valueLabel={
+                  MOTHERSHIP_MODEL_OPTIONS.find((option) => option.value === modelSelection.model)
+                    ?.label ?? modelSelection.model
+                }
+                icon={Sparkles}
+                showChevron
+              />
+              <DropdownMenuContent side='top' align='end'>
+                {MOTHERSHIP_MODEL_OPTIONS.map((option) => (
+                  <DropdownMenuItem key={option.value} onSelect={() => setModel(option.value)}>
+                    <DropdownMenuItemLabel label={option.label} />
+                    {modelSelection.model === option.value && (
+                      <Check className='ml-auto! size-[16px]!' />
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </>
+      )}
+      <DropdownMenu>
+        <ModelSettingTrigger
+          label='Reasoning effort'
+          valueLabel={effortLabel}
+          icon={Brain}
+          showChevron={showEffortChevron}
+        />
+        <DropdownMenuContent side='top' align='start'>
+          <DropdownMenuRadioGroup aria-label='Reasoning effort'>
+            {options.map((option) => (
+              <DropdownMenuItem
+                key={option.value}
+                role='menuitemradio'
+                aria-checked={effort === option.value}
+                onSelect={() => setEffort(option.value)}
+              >
+                {option.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+}
