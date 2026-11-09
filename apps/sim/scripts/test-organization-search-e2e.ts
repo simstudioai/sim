@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
-import { type BrowserContext, chromium, expect } from '@playwright/test'
+import { type BrowserContext, chromium, expect, type Page } from '@playwright/test'
 import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
 import { createLogger } from '@sim/logger'
 import { createDeferred } from '@sim/testing/helpers/deferred'
@@ -14,12 +14,14 @@ import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
 import { searchWorkspaceKnowledgeContract } from '@/lib/api/contracts/knowledge/search'
 import { type CreateEventInput, createEvent } from '@/lib/mothership/request/session/event'
+import { organizationRoutes } from '@/lib/navigation/paths'
 
 /**
  * Runs against a local app and disposable PostgreSQL with member Search and Access Control enabled.
  * Requires ORGANIZATION_SEARCH_E2E_BASE_URL, ORGANIZATION_SEARCH_E2E_DATABASE_URL,
  * ORGANIZATION_SEARCH_E2E_AUTH_SECRET, and ORGANIZATION_SEARCH_E2E_REPORT_PATH.
- * Verifies navigation, draft persistence, and authorized history without invoking an LLM.
+ * Verifies the product Search and Assistant: navigation, draft persistence, and authorized history,
+ * without invoking an LLM. Every check runs and reports; any failure fails the run.
  */
 const logger = createLogger('OrganizationSearchE2E')
 function requiredEnvironment(name: string): string {
@@ -48,9 +50,20 @@ const assistantId = generateId()
 const agentId = generateId()
 const deniedChatId = generateId()
 const token = generateShortId()
-const root = `/o/${organizationId}`
+const routes = organizationRoutes(organizationId)
 const question = 'What is the latest on the product launch?'
 const answer = 'The launch checklist is complete and ready for approval.'
+/** The Assistant composer is labelled by its placeholder, which follows the conversation's state. */
+const ASSISTANT_COMPOSER = /^(Ask about your company’s knowledge|Ask a follow-up|Add a follow-up)…$/
+const HOME_COMPOSER = 'Ask about your business, or give Sim something to do…'
+const STAGES = {
+  agentRedirect: 'Search URLs cannot change an agent conversation into an assistant',
+  bookmark: 'Existing assistant bookmarks redirect into Search',
+  denied: 'Assistant history rejects a chat from another organization',
+  streamedDenied: 'A streamed denied chat remains navigable after hydration',
+  searchOnly:
+    'Search-only members land on Search with the Assistant and their history, but no agent chat',
+} as const
 const checks: { name: string; status: 'passed' | 'failed'; durationMs: number; error?: string }[] =
   []
 const DIAGNOSTIC_LIMITS = { samples: 40, text: 2000, stack: 8000, templates: 8 } as const
@@ -84,6 +97,32 @@ let deniedDocument: {
 let browserErrorCount = 0
 let browserErrorEventCount = 0
 let currentCheck = 'Setup'
+
+function appUrl(path: string): string {
+  return `${baseUrl.origin}${path}`
+}
+
+function searchMode(target: Page, mode: 'Search' | 'Assistant') {
+  return target
+    .getByRole('group', { name: 'Search mode' })
+    .getByRole('radio', { name: mode, exact: true })
+}
+
+function searchField(target: Page) {
+  return target.getByRole('search').getByRole('textbox', { name: 'Search', exact: true })
+}
+
+function assistantComposer(target: Page) {
+  return target.getByRole('textbox', { name: ASSISTANT_COMPOSER })
+}
+
+function homeComposer(target: Page) {
+  return target.getByRole('textbox', { name: HOME_COMPOSER, exact: true })
+}
+
+function isSearchChat(url: URL, chatId: string | undefined): boolean {
+  return chatId !== undefined && url.pathname === routes.searchChat(chatId)
+}
 
 function recordErrorSample(
   samples: BrowserErrorSample[],
@@ -201,6 +240,15 @@ const context = await browser.newContext({ viewport: { width: 1440, height: 1000
 await observeBrowserContext(context)
 const page = await context.newPage()
 
+async function capture(name: string, timeout = 10_000) {
+  await page.screenshot({
+    path: resolve(artifactDirectory, `${name}.png`),
+    style: 'nextjs-portal { display: none; }',
+    timeout,
+  })
+}
+
+/** Runs one check and records it; a failure fails the run without hiding the checks after it. */
 async function check(name: string, run: () => Promise<void>) {
   currentCheck = name
   const started = performance.now()
@@ -215,16 +263,156 @@ async function check(name: string, run: () => Promise<void>) {
       durationMs: Math.round(performance.now() - started),
       error: getErrorMessage(error),
     })
-    throw error
+    process.exitCode = 1
+    logger.error(`FAIL ${name}`, { error: getErrorMessage(error) })
+    await capture(`failure-${checks.length}`, 5000).catch(() => {})
   }
 }
 
-async function capture(name: string, timeout = 10_000) {
-  await page.screenshot({
-    path: resolve(artifactDirectory, `${name}.png`),
-    style: 'nextjs-portal { display: none; }',
-    timeout,
+const searchSamples = [
+  {
+    documentId: 'launch-brief',
+    documentName: 'Launch brief',
+    connectorType: 'google_drive',
+    knowledgeBaseName: 'Google Drive',
+    sourceUrl: 'https://docs.example.test/launch',
+    content: 'The launch checklist is complete. Final owner sign-off is due Friday.',
+  },
+  {
+    documentId: 'launch-readiness',
+    documentName: 'Launch readiness',
+    connectorType: 'confluence',
+    knowledgeBaseName: 'Confluence',
+    sourceUrl: 'https://wiki.example.test/launch',
+    content: 'Engineering validation is complete. The support handoff is still in progress.',
+  },
+].map((sample) => ({
+  ...sample,
+  knowledgeBaseId: 'preview-source',
+  author: 'Taylor',
+  sourceModifiedAt: '2026-10-28T18:30:00.000Z',
+  chunkIndex: 0,
+  similarity: 0.9,
+}))
+
+interface ScriptedAssistant {
+  posts: Record<string, unknown>[]
+  createdChatIds: string[]
+  searchRequests: Record<string, unknown>[]
+  documentId: string
+  /** While set, each turn waits for it before it is admitted. */
+  held: Promise<void> | undefined
+  includeAdmissionHeader: boolean
+}
+
+/** Numbers every scripted turn across checks, so each response text is unique to its turn. */
+let assistantTurnCount = 0
+function assistantResponse(turn: number): string {
+  return `Deterministic assistant response ${turn}.`
+}
+
+/**
+ * Answers Search with one Slack result and every Assistant turn with a persisted, deterministic
+ * response, recording what the page sent.
+ */
+async function withScriptedAssistant(run: (assistant: ScriptedAssistant) => Promise<void>) {
+  const assistant: ScriptedAssistant = {
+    posts: [],
+    createdChatIds: [],
+    searchRequests: [],
+    documentId: generateId(),
+    held: undefined,
+    includeAdmissionHeader: true,
+  }
+  const chatEndpoint = appUrl('/api/mothership/chat')
+  const searchEndpoint = appUrl('/api/knowledge/search')
+  const searchBody = searchWorkspaceKnowledgeContract.body
+  assert(searchBody)
+  await page.route(searchEndpoint, async (route) => {
+    const body = searchBody.parse(route.request().postDataJSON())
+    assistant.searchRequests.push(body)
+    await route.fulfill({
+      json: searchWorkspaceKnowledgeContract.response.schema.parse({
+        success: true,
+        data: {
+          query: body.query,
+          retrieval: { status: 'complete', timedOutLegs: [] },
+          results: [
+            {
+              documentId: assistant.documentId,
+              knowledgeBaseId: generateId(),
+              knowledgeBaseName: 'Team documents',
+              documentName: 'Launch checklist',
+              sourceUrl: 'https://example.invalid/launch',
+              connectorType: 'slack',
+              sourceModifiedAt: new Date().toISOString(),
+              author: null,
+              content: 'The launch checklist is ready for review.',
+              chunkIndex: 0,
+              similarity: 1,
+            },
+          ],
+        },
+      }),
+    })
   })
+  await page.route(chatEndpoint, async (route) => {
+    if (route.request().method() !== 'POST') return route.continue()
+    const body = toRecord(route.request().postDataJSON())
+    assistant.posts.push(body)
+    assistantTurnCount += 1
+    const turn = assistantTurnCount
+    await assistant.held
+    const chatId = toStringOrNull(body.chatId) ?? generateId()
+    const streamId = toStringOrNull(body.userMessageId)
+    assert(streamId)
+    assert.equal(body.organizationId, organizationId)
+    assert.equal(body.mode, 'assistant')
+    assistant.createdChatIds.push(chatId)
+    const responseText = assistantResponse(turn)
+    const requestId = generateId()
+    await sql`insert into copilot_chats (id, user_id, organization_id, type, title, config)
+      values (${chatId}, ${userId}, ${organizationId}, 'mothership', 'Navigation test', ${sql.json({ conversationMode: 'assistant' })}) on conflict (id) do nothing`
+    for (const message of [
+      { id: streamId, role: 'user', content: String(body.message) },
+      { id: generateId(), role: 'assistant', content: responseText },
+    ]) {
+      await sql`insert into copilot_messages (id, chat_id, message_id, role, stream_id, content, seq)
+        values (${generateId()}, ${chatId}, ${message.id}, ${message.role}, ${streamId}, ${sql.json({ ...message, requestId, timestamp: new Date().toISOString() })}, (select coalesce(max(seq), 0) + 1 from copilot_messages where chat_id = ${chatId}))`
+    }
+    const base = { chatId, streamId, requestId }
+    const events: CreateEventInput[] = [
+      { ...base, cursor: '1', seq: 1, type: 'session', payload: { kind: 'chat', chatId } },
+      {
+        ...base,
+        cursor: '2',
+        seq: 2,
+        type: 'text',
+        payload: { channel: 'assistant', text: responseText, textOffset: 0 },
+      },
+      {
+        ...base,
+        cursor: '3',
+        seq: 3,
+        type: 'complete',
+        payload: { status: 'complete', textLength: responseText.length },
+      },
+    ]
+    await route.fulfill({
+      status: 200,
+      headers: {
+        'content-type': 'text/event-stream',
+        ...(assistant.includeAdmissionHeader ? { 'x-mothership-chat-id': chatId } : {}),
+      },
+      body: `${events.map((event) => `data: ${JSON.stringify(createEvent(event))}\n\n`).join('')}data: [DONE]\n\n`,
+    })
+  })
+  try {
+    await run(assistant)
+  } finally {
+    await page.unroute(chatEndpoint)
+    await page.unroute(searchEndpoint)
+  }
 }
 
 async function verifyLegacyDraft(
@@ -294,17 +482,19 @@ async function verifyLegacyDraft(
       modeKey: `${userId}:${organizationId}`,
     }
   )
+  const composerFor = (surface: 'agent' | 'assistant') =>
+    surface === 'assistant' ? assistantComposer(legacyPage) : homeComposer(legacyPage)
+  const urlFor = (surface: 'agent' | 'assistant') =>
+    appUrl(surface === 'assistant' ? `${routes.search}?mode=assistant` : routes.home)
   try {
-    const destinationUrl = `${baseUrl.origin}${root}/${destination === 'assistant' ? 'search?mode=assistant' : 'home'}`
-    await legacyPage.goto(destinationUrl)
-    const input = legacyPage.getByRole('textbox', { name: 'Ask Sim' })
+    await legacyPage.goto(urlFor(destination))
+    const input = composerFor(destination)
     await expect(input).toHaveValue(expectedDraft.text)
     if (mode) {
-      await legacyPage.goto(
-        `${baseUrl.origin}${root}/${destination === 'assistant' ? 'home' : 'search?mode=assistant'}`
-      )
-      await expect(legacyPage.getByRole('textbox', { name: 'Ask Sim' })).toHaveValue('')
-      await legacyPage.goto(destinationUrl)
+      const other = destination === 'assistant' ? 'agent' : 'assistant'
+      await legacyPage.goto(urlFor(other))
+      await expect(composerFor(other)).toHaveValue('')
+      await legacyPage.goto(urlFor(destination))
     }
     await expect(input).toHaveValue(expectedDraft.text)
     await input.fill('Continue the recovered draft')
@@ -375,71 +565,55 @@ try {
   await check(
     'Search and Assistant preserve independent drafts across tabs and reloads',
     async () => {
-      await page.goto(`${baseUrl.origin}${root}/search`)
-      await expect(
-        page
-          .getByRole('navigation', { name: 'Search views' })
-          .getByRole('button', { name: 'Search', exact: true })
-      ).toHaveAttribute('aria-current', 'page')
-      const searchInput = page.getByRole('textbox', { name: 'Search your sources' })
+      await page.goto(appUrl(routes.search))
+      await expect(searchMode(page, 'Search')).toBeChecked()
+      const searchInput = searchField(page)
       await searchInput.fill('Launch notes')
-      await page
-        .getByRole('navigation', { name: 'Search views' })
-        .getByRole('button', { name: 'Assistant', exact: true })
-        .click()
-      const assistantInput = page.getByRole('textbox', { name: 'Ask Sim' })
+      await searchMode(page, 'Assistant').check()
+      const assistantInput = assistantComposer(page)
       await expect(assistantInput).toHaveValue('')
       await assistantInput.fill('Summarize launch readiness')
-      await page
-        .getByRole('navigation', { name: 'Search views' })
-        .getByRole('button', { name: 'Search', exact: true })
-        .click()
+      await searchMode(page, 'Search').check()
       await expect(searchInput).toHaveValue('Launch notes')
-      await page
-        .getByRole('navigation', { name: 'Search views' })
-        .getByRole('button', { name: 'Assistant', exact: true })
-        .click()
+      await searchMode(page, 'Assistant').check()
       await expect(assistantInput).toHaveValue('Summarize launch readiness')
       await expect(page).toHaveURL(
-        (url) => url.pathname === `${root}/search` && url.searchParams.get('mode') === 'assistant'
+        (url) => url.pathname === routes.search && url.searchParams.get('mode') === 'assistant'
       )
       await page.reload()
-      await expect(
-        page
-          .getByRole('navigation', { name: 'Search views' })
-          .getByRole('button', { name: 'Assistant', exact: true })
-      ).toHaveAttribute('aria-current', 'page')
+      await expect(searchMode(page, 'Assistant')).toBeChecked()
       await expect(assistantInput).toHaveValue('Summarize launch readiness')
+      await searchMode(page, 'Search').check()
+      await expect(searchInput).toHaveValue('Launch notes')
     }
   )
   await check('Returning to Search restores the last selected view', async () => {
-    await page.goto(`${baseUrl.origin}${root}/search`)
-    const views = page.getByRole('navigation', { name: 'Search views' })
+    await page.goto(appUrl(routes.search))
+    const navigation = page.getByRole('navigation', { name: 'Main navigation' })
     for (const mode of ['Assistant', 'Search'] as const) {
-      const tab = views.getByRole('button', { name: mode, exact: true })
-      await tab.click()
-      await expect(tab).toHaveAttribute('aria-current', 'page')
-      await page.getByRole('link', { name: 'Home', exact: true }).click()
-      await expect(page).toHaveURL(`${baseUrl.origin}${root}/home`)
-      await page.getByRole('link', { name: 'Search', exact: true }).click()
-      await expect(tab).toHaveAttribute('aria-current', 'page')
-      await page.goto(`${baseUrl.origin}${root}/search`)
-      await expect(tab).toHaveAttribute('aria-current', 'page')
+      const choice = searchMode(page, mode)
+      await choice.check()
+      await expect(choice).toBeChecked()
+      await navigation.getByRole('link', { name: 'Home', exact: true }).click()
+      await expect(page).toHaveURL(appUrl(routes.home))
+      await navigation.getByRole('link', { name: 'Search', exact: true }).click()
+      await expect(choice).toBeChecked()
+      await page.goto(appUrl(routes.search))
+      await expect(choice).toBeChecked()
     }
   })
   await check(
     'Traditional search submits the organization query and keeps results in Search',
     async () => {
-      await page
-        .getByRole('navigation', { name: 'Search views' })
-        .getByRole('button', { name: 'Search', exact: true })
-        .click()
+      await searchMode(page, 'Search').check()
+      const searchInput = searchField(page)
+      await searchInput.fill('Launch notes')
       const responsePromise = page.waitForResponse(
         (response) =>
           new URL(response.url()).pathname === '/api/knowledge/search' &&
           response.request().method() === 'POST'
       )
-      await page.getByRole('textbox', { name: 'Search your sources' }).press('Enter')
+      await searchInput.press('Enter')
       const response = await responsePromise
       assert.equal(response.status(), 200)
       const body = toRecord(response.request().postDataJSON())
@@ -447,47 +621,38 @@ try {
       assert.equal(body.query, 'Launch notes')
       // The seeded member has connected no account, so nothing was searched.
       await expect(
-        page.getByText('No connected integrations are available for this search.', { exact: true })
+        page.getByText('No connected apps are available for this search.', { exact: true })
       ).toBeVisible()
       await expect(page.getByText('Search found no results.', { exact: true })).toHaveCount(0)
-      await expect(page.getByRole('link', { name: 'Connect integrations' })).toHaveAttribute(
+      await expect(page.getByRole('link', { name: 'Connect apps' })).toHaveAttribute(
         'href',
-        `${root}/integrations`
+        routes.integrations
       )
       await expect(page).toHaveURL(
-        (url) => url.pathname === `${root}/search` && url.searchParams.get('q') === 'Launch notes'
+        (url) => url.pathname === routes.search && url.searchParams.get('q') === 'Launch notes'
       )
       await capture('search-results-desktop')
     }
   )
-  await check('Home has its own chat draft and no Build/Search picker', async () => {
-    await page.goto(`${baseUrl.origin}${root}/home`)
-    await expect(page.getByRole('textbox', { name: 'Ask Sim' })).toHaveValue('')
-    await expect(page.getByRole('combobox', { name: 'Conversation mode' })).toHaveCount(0)
-    await page.getByRole('textbox', { name: 'Ask Sim' }).fill('Prepare a launch checklist')
+  await check('Home keeps its own chat draft, apart from the Assistant', async () => {
+    await page.goto(appUrl(routes.home))
+    await expect(homeComposer(page)).toHaveValue('')
+    await homeComposer(page).fill('Prepare a launch checklist')
     await capture('home-desktop')
-    await page.goto(`${baseUrl.origin}${root}/search?mode=assistant`)
-    await expect(page.getByRole('textbox', { name: 'Ask Sim' })).toHaveValue(
-      'Summarize launch readiness'
-    )
+    await page.goto(appUrl(`${routes.search}?mode=assistant`))
+    await expect(assistantComposer(page)).toHaveValue('Summarize launch readiness')
   })
   await check('Changing Search views preserves the conversation, filters, and draft', async () => {
-    const path = `${root}/search/chat/${assistantId}`
-    await page.goto(`${baseUrl.origin}${path}?q=Launch&source=slack&updated=7d`)
-    const input = page.getByRole('textbox', { name: 'Ask Sim' })
+    const path = routes.searchChat(assistantId)
+    await page.goto(appUrl(`${path}?q=Launch&source=slack&updated=7d`))
+    const input = assistantComposer(page)
     await input.fill('Which owners still need to reply?')
-    await page
-      .getByRole('navigation', { name: 'Search views' })
-      .getByRole('button', { name: 'Search', exact: true })
-      .click()
+    await searchMode(page, 'Search').check()
     await expect(page).toHaveURL(
       (url) => url.pathname === path && url.searchParams.get('mode') === 'search'
     )
     await page.reload()
-    await page
-      .getByRole('navigation', { name: 'Search views' })
-      .getByRole('button', { name: 'Assistant', exact: true })
-      .click()
+    await searchMode(page, 'Assistant').check()
     await expect(page.getByText(answer, { exact: true })).toBeVisible()
     await expect(input).toHaveValue('Which owners still need to reply?')
     const restored = new URL(page.url())
@@ -497,204 +662,104 @@ try {
     assert.equal(restored.searchParams.get('updated'), '7d')
   })
   await check('New chat stays in Assistant and starts with a fresh draft', async () => {
-    await page.goto(`${baseUrl.origin}${root}/search/chat/${assistantId}`)
-    await expect(
-      page
-        .getByRole('navigation', { name: 'Search views' })
-        .getByRole('button', { name: 'Assistant', exact: true })
-    ).toHaveAttribute('aria-current', 'page')
+    await page.goto(appUrl(routes.searchChat(assistantId)))
+    await expect(searchMode(page, 'Assistant')).toBeChecked()
     await expect(page.getByText(answer, { exact: true })).toBeVisible()
     await capture('assistant-conversation-desktop')
     await page.getByRole('button', { name: 'New chat', exact: true }).click()
-    await expect(page).toHaveURL(`${baseUrl.origin}${root}/search?mode=assistant`)
-    await expect(page.getByRole('textbox', { name: 'Ask Sim' })).toHaveValue('')
-    await expect(
-      page
-        .getByRole('navigation', { name: 'Search views' })
-        .getByRole('button', { name: 'Assistant', exact: true })
-    ).toHaveAttribute('aria-current', 'page')
+    await expect(page).toHaveURL(appUrl(`${routes.search}?mode=assistant`))
+    await expect(assistantComposer(page)).toHaveValue('')
+    await expect(searchMode(page, 'Assistant')).toBeChecked()
   })
-  await check(
-    'Admission, New chat and repeated summaries preserve mode, context and drafts',
-    async () => {
+  await check('Admission and New chat preserve mode, context and drafts', () =>
+    withScriptedAssistant(async (assistant) => {
       const releaseAdmission = createDeferred<void>()
-      let heldAdmission: Promise<void> | undefined
-      let includeAdmissionHeader = true
-      const posts: Record<string, unknown>[] = []
-      const createdChatIds: string[] = []
-      const chatEndpoint = `${baseUrl.origin}/api/mothership/chat`
-      const searchEndpoint = `${baseUrl.origin}/api/knowledge/search`
-      const documentId = generateId()
-      const searchRequests: Record<string, unknown>[] = []
-      const searchBody = searchWorkspaceKnowledgeContract.body
-      assert(searchBody)
-      await page.route(searchEndpoint, async (route) => {
-        const body = searchBody.parse(route.request().postDataJSON())
-        searchRequests.push(body)
-        await route.fulfill({
-          json: searchWorkspaceKnowledgeContract.response.schema.parse({
-            success: true,
-            data: {
-              query: body.query,
-              retrieval: { status: 'complete', timedOutLegs: [] },
-              results: [
-                {
-                  documentId,
-                  knowledgeBaseId: generateId(),
-                  knowledgeBaseName: 'Team documents',
-                  documentName: 'Launch checklist',
-                  sourceUrl: 'https://example.invalid/launch',
-                  connectorType: 'slack',
-                  sourceModifiedAt: new Date().toISOString(),
-                  author: null,
-                  content: 'The launch checklist is ready for review.',
-                  chunkIndex: 0,
-                  similarity: 1,
-                },
-              ],
-            },
-          }),
-        })
-      })
-      await page.route(chatEndpoint, async (route) => {
-        if (route.request().method() !== 'POST') return route.continue()
-        const body = toRecord(route.request().postDataJSON())
-        const number = posts.push(body)
-        if (number === 1) await releaseAdmission.promise
-        await heldAdmission
-        const chatId = toStringOrNull(body.chatId) ?? generateId()
-        const streamId = toStringOrNull(body.userMessageId)
-        assert(streamId)
-        assert.equal(body.organizationId, organizationId)
-        assert.equal(body.mode, 'assistant')
-        createdChatIds.push(chatId)
-        const responseText = `Deterministic assistant response ${number}.`
-        const requestId = generateId()
-        await sql`insert into copilot_chats (id, user_id, organization_id, type, title, config)
-        values (${chatId}, ${userId}, ${organizationId}, 'mothership', 'Navigation test', ${sql.json({ conversationMode: 'assistant' })}) on conflict (id) do nothing`
-        for (const message of [
-          { id: streamId, role: 'user', content: String(body.message) },
-          { id: generateId(), role: 'assistant', content: responseText },
-        ]) {
-          await sql`insert into copilot_messages (id, chat_id, message_id, role, stream_id, content, seq)
-          values (${generateId()}, ${chatId}, ${message.id}, ${message.role}, ${streamId}, ${sql.json({ ...message, requestId, timestamp: new Date().toISOString() })}, (select coalesce(max(seq), 0) + 1 from copilot_messages where chat_id = ${chatId}))`
-        }
-        const base = { chatId, streamId, requestId }
-        const events: CreateEventInput[] = [
-          { ...base, cursor: '1', seq: 1, type: 'session', payload: { kind: 'chat', chatId } },
-          {
-            ...base,
-            cursor: '2',
-            seq: 2,
-            type: 'text',
-            payload: { channel: 'assistant', text: responseText, textOffset: 0 },
-          },
-          {
-            ...base,
-            cursor: '3',
-            seq: 3,
-            type: 'complete',
-            payload: { status: 'complete', textLength: responseText.length },
-          },
-        ]
-        await route.fulfill({
-          status: 200,
-          headers: {
-            'content-type': 'text/event-stream',
-            ...(includeAdmissionHeader ? { 'x-mothership-chat-id': chatId } : {}),
-          },
-          body: `${events.map((event) => `data: ${JSON.stringify(createEvent(event))}\n\n`).join('')}data: [DONE]\n\n`,
-        })
-      })
+      assistant.held = releaseAdmission.promise
+      const first = assistantTurnCount + 1
       try {
-        await page.goto(`${baseUrl.origin}${root}/search?q=Launch&source=slack&updated=7d`)
-        const navigation = page.getByRole('navigation', { name: 'Search views' })
-        await navigation.getByRole('button', { name: 'Assistant', exact: true }).click()
-        const composer = page.getByRole('textbox', { name: 'Ask Sim' })
+        await page.goto(appUrl(`${routes.search}?q=Launch&source=slack&updated=7d`))
+        await searchMode(page, 'Assistant').check()
+        const composer = assistantComposer(page)
         await composer.fill('A new conversation before admission')
         await composer.press('Enter')
-        await expect.poll(() => posts.length).toBe(1)
+        await expect.poll(() => assistant.posts.length).toBe(1)
         await page.goBack()
-        await expect(
-          navigation.getByRole('button', { name: 'Search', exact: true })
-        ).toHaveAttribute('aria-current', 'page')
+        await expect(searchMode(page, 'Search')).toBeChecked()
         releaseAdmission.resolve()
         await expect(page).toHaveURL(
           (url) =>
-            url.pathname === `${root}/search/chat/${createdChatIds[0]}` &&
+            isSearchChat(url, assistant.createdChatIds[0]) &&
             url.searchParams.get('mode') === 'search'
         )
         assert.equal(new URL(page.url()).searchParams.get('q'), 'Launch')
         assert.equal(new URL(page.url()).searchParams.get('source'), 'slack')
         assert.equal(new URL(page.url()).searchParams.get('updated'), '7d')
-        await expect(
-          page.getByText('Deterministic assistant response 1.', { exact: true })
-        ).not.toBeVisible()
-        await navigation.getByRole('button', { name: 'Assistant', exact: true }).click()
-        await expect(
-          page.getByText('Deterministic assistant response 1.', { exact: true })
-        ).toBeVisible()
+        await expect(page.getByText(assistantResponse(first), { exact: true })).not.toBeVisible()
+        await searchMode(page, 'Assistant').check()
+        await expect(page.getByText(assistantResponse(first), { exact: true })).toBeVisible()
         await composer.fill('An unsent follow-up')
         await page.getByRole('button', { name: 'New chat', exact: true }).click()
-        await expect(page).toHaveURL(`${baseUrl.origin}${root}/search?mode=assistant`)
+        await expect(page).toHaveURL(appUrl(`${routes.search}?mode=assistant`))
         await expect(composer).toHaveValue('')
         await composer.fill('A distinct new conversation')
         await composer.press('Enter')
-        await expect(
-          page.getByText('Deterministic assistant response 2.', { exact: true })
-        ).toBeVisible()
-        assert.equal(posts.length, 2)
-        assert.equal(posts[1]?.createNewChat, true)
-        assert.equal(posts[1]?.chatId, undefined)
-        assert.notEqual(createdChatIds[0], createdChatIds[1])
-        await expect(page).toHaveURL(
-          (url) => url.pathname === `${root}/search/chat/${createdChatIds[1]}`
-        )
+        await expect(page.getByText(assistantResponse(first + 1), { exact: true })).toBeVisible()
+        assert.equal(assistant.posts.length, 2)
+        assert.equal(assistant.posts[1]?.createNewChat, true)
+        assert.equal(assistant.posts[1]?.chatId, undefined)
+        assert.notEqual(assistant.createdChatIds[0], assistant.createdChatIds[1])
+        await expect(page).toHaveURL((url) => isSearchChat(url, assistant.createdChatIds[1]))
         await page.reload()
-        await expect(
-          page.getByText('Deterministic assistant response 2.', { exact: true })
-        ).toBeVisible()
-        await expect(
-          page.getByText('Deterministic assistant response 1.', { exact: true })
-        ).toHaveCount(0)
+        await expect(page.getByText(assistantResponse(first + 1), { exact: true })).toBeVisible()
+        await expect(page.getByText(assistantResponse(first), { exact: true })).toHaveCount(0)
         await capture('assistant-new-chat-after-admission')
+      } finally {
+        releaseAdmission.resolve()
+      }
+    })
+  )
+  await check(
+    'Repeated summaries and pending view selections preserve mode, context and drafts',
+    () =>
+      withScriptedAssistant(async (assistant) => {
+        const first = assistantTurnCount + 1
+        const composer = assistantComposer(page)
         const summaryStartedAt = Date.now()
-        await page.goto(`${baseUrl.origin}${root}/search?q=Launch&source=slack&updated=7d`)
+        await page.goto(appUrl(`${routes.search}?q=Launch&source=slack&updated=7d`))
         await page
           .getByRole('button', { name: 'Actions for Launch checklist', exact: true })
           .click()
         await page.getByRole('menuitem', { name: 'Summarize', exact: true }).click()
-        await expect(
-          page.getByText('Deterministic assistant response 3.', { exact: true })
-        ).toBeVisible()
-        const summaryChatId = createdChatIds[2]
-        assert.equal(posts[2]?.createNewChat, true)
-        assert.equal(posts[2]?.assistantSearchLevel, 'fast')
+        await expect(page.getByText(assistantResponse(first), { exact: true })).toBeVisible()
+        const summaryChatId = assistant.createdChatIds[0]
+        assert.equal(assistant.posts[0]?.createNewChat, true)
+        assert.equal(assistant.posts[0]?.assistantSearchLevel, 'fast')
         const { modifiedAfter: firstCutoff, ...firstSummaryFilters } = toRecord(
-          posts[2]?.assistantSearch
+          assistant.posts[0]?.assistantSearch
         )
         const { modifiedAfter: searchCutoff, ...searchFilters } = toRecord(
-          searchRequests.at(-1)?.filters
+          assistant.searchRequests.at(-1)?.filters
         )
         assert.equal(searchFilters.source, 'slack')
-        assert.deepEqual(firstSummaryFilters, { ...searchFilters, documentIds: [documentId] })
+        assert.deepEqual(firstSummaryFilters, {
+          ...searchFilters,
+          documentIds: [assistant.documentId],
+        })
         assert.equal(typeof firstCutoff, 'string')
         assert(Date.parse(String(firstCutoff)) >= summaryStartedAt - 7 * 24 * 60 * 60 * 1000)
         assert(Date.parse(String(firstCutoff)) <= Date.now() - 7 * 24 * 60 * 60 * 1000)
         await composer.fill('Keep this unsent draft')
-        await navigation.getByRole('button', { name: 'Search', exact: true }).click()
+        await searchMode(page, 'Search').check()
         await page
           .getByRole('button', { name: 'Actions for Launch checklist', exact: true })
           .click()
         await page.getByRole('menuitem', { name: 'Summarize', exact: true }).click()
-        await expect(
-          page.getByText('Deterministic assistant response 4.', { exact: true })
-        ).toBeVisible()
-        assert.equal(posts.length, 4)
-        assert.equal(posts[3]?.chatId, summaryChatId)
-        assert.equal(posts[3]?.createNewChat, false)
+        await expect(page.getByText(assistantResponse(first + 1), { exact: true })).toBeVisible()
+        assert.equal(assistant.posts.length, 2)
+        assert.equal(assistant.posts[1]?.chatId, summaryChatId)
+        assert.equal(assistant.posts[1]?.createNewChat, false)
         const { modifiedAfter: repeatedCutoff, ...repeatedSummaryFilters } = toRecord(
-          posts[3]?.assistantSearch
+          assistant.posts[1]?.assistantSearch
         )
         assert.deepEqual(repeatedSummaryFilters, firstSummaryFilters)
         assert.equal(typeof repeatedCutoff, 'string')
@@ -703,53 +768,45 @@ try {
         await expect(composer).toHaveValue('Keep this unsent draft')
         await capture('assistant-repeat-summary-preserves-draft')
         for (const selectedMode of ['search', 'assistant'] as const) {
-          includeAdmissionHeader = selectedMode === 'search'
-          await page.goto(`${baseUrl.origin}${root}/search?mode=assistant&q=Launch&source=slack`)
+          assistant.includeAdmissionHeader = selectedMode === 'search'
+          await page.goto(appUrl(`${routes.search}?mode=assistant&q=Launch&source=slack`))
           await composer.fill(`Preserve the pending ${selectedMode} selection`)
           const admission = createDeferred<void>()
-          heldAdmission = admission.promise
-          const requestNumber = posts.length + 1
+          assistant.held = admission.promise
+          const requestNumber = assistant.posts.length + 1
           try {
             await composer.press('Enter')
-            await expect.poll(() => posts.length).toBe(requestNumber)
+            await expect.poll(() => assistant.posts.length).toBe(requestNumber)
             if (selectedMode === 'assistant') {
-              await navigation.getByRole('button', { name: 'Search', exact: true }).click()
+              await searchMode(page, 'Search').check()
               await expect(page).toHaveURL((url) => url.searchParams.get('mode') === 'search')
             }
             const pausedAt = new Date()
             await page.clock.setFixedTime(pausedAt)
             await page.clock.pauseAt(pausedAt)
-            const selected = navigation.getByRole('button', {
-              name: selectedMode === 'assistant' ? 'Assistant' : 'Search',
-              exact: true,
-            })
+            const selected = searchMode(page, selectedMode === 'assistant' ? 'Assistant' : 'Search')
             await selected.click({ force: true })
-            await expect(selected).toHaveAttribute('aria-current', 'page')
+            await expect(selected).toBeChecked()
             assert.notEqual(new URL(page.url()).searchParams.get('mode'), selectedMode)
             admission.resolve()
             await expect(page).toHaveURL(
               (url) =>
-                url.pathname === `${root}/search/chat/${createdChatIds.at(-1)}` &&
+                isSearchChat(url, assistant.createdChatIds.at(-1)) &&
                 url.searchParams.get('mode') === selectedMode
             )
             assert.equal(new URL(page.url()).searchParams.get('source'), 'slack')
           } finally {
             admission.resolve()
-            heldAdmission = undefined
+            assistant.held = undefined
             await page.clock.setSystemTime(new Date())
             await page.clock.resume()
           }
         }
-      } finally {
-        releaseAdmission.resolve()
-        await page.unroute(chatEndpoint)
-        await page.unroute(searchEndpoint)
-      }
-    }
+      })
   )
-  await check('Existing assistant bookmarks redirect into Search', async () => {
-    await page.goto(`${baseUrl.origin}${root}/chat/${assistantId}`)
-    await expect(page).toHaveURL(`${baseUrl.origin}${root}/search/chat/${assistantId}`)
+  await check(STAGES.bookmark, async () => {
+    await page.goto(appUrl(routes.chat(assistantId)))
+    await expect(page).toHaveURL(appUrl(routes.searchChat(assistantId)))
     await expect(page.getByText(answer, { exact: true })).toBeVisible()
   })
   await check(
@@ -761,12 +818,14 @@ try {
         await releaseScripts.promise
         await route.continue()
       })
-      const input = page.getByRole('textbox', { name: 'Search your sources' })
+      const input = searchField(page)
       try {
-        await page.goto(`${baseUrl.origin}${root}/search?q=Launch`, { waitUntil: 'commit' })
+        await page.goto(appUrl(`${routes.search}?q=Launch`), { waitUntil: 'commit' })
         await expect(input).toBeVisible()
         await expect(input).toBeDisabled()
-        await expect(page.getByLabel('Search', { exact: true })).toBeDisabled()
+        await expect(
+          page.getByRole('search').getByRole('button', { name: 'Search', exact: true })
+        ).toBeDisabled()
       } finally {
         releaseScripts.resolve()
         await page.unrouteAll({ behavior: 'wait' })
@@ -776,20 +835,20 @@ try {
       await input.fill('Edited launch query')
       await expect(input).toHaveValue('Edited launch query')
       await page.getByRole('button', { name: 'New search', exact: true }).click()
-      await expect(page).toHaveURL(`${baseUrl.origin}${root}/search?mode=search`)
+      await expect(page).toHaveURL(appUrl(`${routes.search}?mode=search`))
       await expect(input).toHaveValue('')
       await page.goBack()
       await expect(input).toHaveValue('Edited launch query')
       assert.equal(new URL(page.url()).searchParams.get('q'), 'Launch')
     }
   )
-  await check('Search URLs cannot change an agent conversation into an assistant', async () => {
-    await page.goto(`${baseUrl.origin}${root}/search/chat/${agentId}`)
-    await expect(page).toHaveURL(`${baseUrl.origin}${root}/chat/${agentId}`)
-    await expect(page.getByRole('navigation', { name: 'Search views' })).toHaveCount(0)
+  await check(STAGES.agentRedirect, async () => {
+    await page.goto(appUrl(routes.searchChat(agentId)))
+    await expect(page).toHaveURL(appUrl(routes.chat(agentId)))
+    await expect(page.getByRole('group', { name: 'Search mode' })).toHaveCount(0)
   })
-  await check('Assistant history rejects a chat from another organization', async () => {
-    const documentResponse = await page.goto(`${baseUrl.origin}${root}/search/chat/${deniedChatId}`)
+  await check(STAGES.denied, async () => {
+    const documentResponse = await page.goto(appUrl(routes.searchChat(deniedChatId)))
     assert(documentResponse, 'The denied chat navigation must return a document')
     const html = await documentResponse.text()
     deniedDocument = {
@@ -811,12 +870,10 @@ try {
         .map((tag) => truncate(tag, DIAGNOSTIC_LIMITS.text)),
     }
     await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
-    const response = await page.request.get(
-      `${baseUrl.origin}/api/mothership/chats/${deniedChatId}`
-    )
+    const response = await page.request.get(appUrl(`/api/mothership/chats/${deniedChatId}`))
     assert.equal(response.status(), 404)
   })
-  await check('A streamed denied chat remains navigable after hydration', async () => {
+  await check(STAGES.streamedDenied, async () => {
     const releaseScripts = createDeferred<void>()
     const scripts = '**/_next/static/**/*.js'
     await page.route(scripts, async (route) => {
@@ -824,7 +881,7 @@ try {
       await route.continue()
     })
     try {
-      const response = await page.goto(`${baseUrl.origin}${root}/search/chat/${deniedChatId}`, {
+      const response = await page.goto(appUrl(routes.searchChat(deniedChatId)), {
         waitUntil: 'commit',
       })
       assert(response, 'The denied chat navigation must return a document')
@@ -835,23 +892,17 @@ try {
     }
     await page.waitForLoadState()
     await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
-    await page.getByRole('link', { name: 'Return home', exact: true }).click()
-    await expect(page).toHaveURL(`${baseUrl.origin}${root}/home`)
-    await expect(page.getByRole('textbox', { name: 'Ask Sim' })).toBeVisible()
+    await page.getByRole('button', { name: 'Return home', exact: true }).click()
+    await expect(page).toHaveURL(appUrl(routes.home))
+    await expect(homeComposer(page)).toBeVisible()
   })
   await check('Both search modes fit desktop and 320px/390px phones', async () => {
     for (const width of [1440, 390, 320]) {
       await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 })
       for (const mode of ['search', 'assistant'] as const) {
-        await page.goto(`${baseUrl.origin}${root}/search?mode=${mode}`)
-        await expect(
-          page
-            .getByRole('navigation', { name: 'Search views' })
-            .getByRole('button', { name: mode === 'search' ? 'Search' : 'Assistant', exact: true })
-        ).toHaveAttribute('aria-current', 'page')
-        await expect(
-          page.getByRole('textbox', { name: mode === 'search' ? 'Search your sources' : 'Ask Sim' })
-        ).toBeVisible()
+        await page.goto(appUrl(`${routes.search}?mode=${mode}`))
+        await expect(searchMode(page, mode === 'search' ? 'Search' : 'Assistant')).toBeChecked()
+        await expect(mode === 'search' ? searchField(page) : assistantComposer(page)).toBeVisible()
         const dimensions = await page.evaluate(() => ({
           width: innerWidth,
           contentWidth: document.documentElement.scrollWidth,
@@ -868,31 +919,6 @@ try {
     'Search keeps results usable through partial coverage and a failed request',
     async () => {
       await page.setViewportSize({ width: 1440, height: 1000 })
-      const samples = [
-        {
-          documentId: 'launch-brief',
-          documentName: 'Launch brief',
-          connectorType: 'google_drive',
-          knowledgeBaseName: 'Google Drive',
-          sourceUrl: 'https://docs.example.test/launch',
-          content: 'The launch checklist is complete. Final owner sign-off is due Friday.',
-        },
-        {
-          documentId: 'launch-readiness',
-          documentName: 'Launch readiness',
-          connectorType: 'confluence',
-          knowledgeBaseName: 'Confluence',
-          sourceUrl: 'https://wiki.example.test/launch',
-          content: 'Engineering validation is complete. The support handoff is still in progress.',
-        },
-      ].map((sample) => ({
-        ...sample,
-        knowledgeBaseId: 'preview-source',
-        author: 'Taylor',
-        sourceModifiedAt: '2026-10-28T18:30:00.000Z',
-        chunkIndex: 0,
-        similarity: 0.9,
-      }))
       let unavailable = false
       let partial = false
       const searchRoute = '**/api/knowledge/search'
@@ -908,11 +934,11 @@ try {
             success: true,
             data: {
               query: body.query,
-              results: samples.filter((sample) => !source || sample.connectorType === source),
+              results: searchSamples.filter((sample) => !source || sample.connectorType === source),
               retrieval: { status: partial ? 'partial' : 'complete', timedOutLegs: [] },
               live: {
                 backend: 'live',
-                accounts: samples.map((sample) => ({
+                accounts: searchSamples.map((sample) => ({
                   accountId: sample.documentId,
                   provider: sample.connectorType,
                   displayName: 'taylor@example.test',
@@ -925,11 +951,11 @@ try {
         })
       })
       try {
-        await page.goto(`${baseUrl.origin}${root}/search?q=Launch%20readiness`)
+        await page.goto(appUrl(`${routes.search}?q=Launch%20readiness`))
         await expect(page.getByText('Launch brief', { exact: true }).first()).toBeVisible()
-        const wikiResult = page.locator(
-          'a[data-source-link][href="https://wiki.example.test/launch"]'
-        )
+        const wikiResult = page
+          .getByRole('region', { name: 'Search results' })
+          .locator('a[data-source-link][href="https://wiki.example.test/launch"]')
         await expect(wikiResult).toBeVisible()
         await capture('search-populated-desktop')
         await page.getByRole('button', { name: 'Filter by source: All sources' }).click()
@@ -945,13 +971,13 @@ try {
         await capture('search-populated-mobile')
         await page.setViewportSize({ width: 1440, height: 1000 })
         partial = true
-        await page.goto(`${baseUrl.origin}${root}/search?q=Partial%20coverage`)
+        await page.goto(appUrl(`${routes.search}?q=Partial%20coverage`))
         await expect(
-          page.getByText('Some integrations couldn’t be searched. Showing available results.')
+          page.getByText('Some apps couldn’t be searched. Showing available results.')
         ).toBeVisible()
         await capture('search-partial-coverage')
         unavailable = true
-        await page.goto(`${baseUrl.origin}${root}/search?q=Provider%20outage`)
+        await page.goto(appUrl(`${routes.search}?q=Provider%20outage`))
         await expect(page.getByText('Search couldn’t run.', { exact: true })).toBeVisible()
         await capture('search-error-retry')
         unavailable = false
@@ -959,113 +985,119 @@ try {
         await page.getByRole('button', { name: 'Retry', exact: true }).click()
         await expect(page.getByText('Launch brief', { exact: true }).first()).toBeVisible()
         await expect(page.getByText('Search couldn’t run.', { exact: true })).toHaveCount(0)
-
-        const citedChatId = generateId()
-        const citedAnswer =
-          'The checklist is complete, with final owner sign-off due Friday. <source>{"id":"document:launch-brief"}</source>\n\nThe support handoff is still in progress. <source>{"id":"document:launch-readiness"}</source>'
-        await sql`insert into copilot_chats (id, user_id, organization_id, type, title, config)
-        values (${citedChatId}, ${userId}, ${organizationId}, 'mothership', 'Cited launch update', ${sql.json({ conversationMode: 'assistant' })})`
-        for (const [seq, role, content] of [
-          [1, 'user', question],
-          [2, 'assistant', citedAnswer],
-        ] as const) {
-          const id = generateId()
-          const contentBlocks =
-            role === 'assistant'
-              ? [
-                  {
-                    type: 'tool',
-                    phase: 'call',
-                    toolCall: {
-                      id: 'preview-retrieval',
-                      name: 'search_workspace',
-                      state: 'success',
-                      result: {
-                        success: true,
-                        output: {
-                          success: true,
-                          data: {
-                            results: samples.map((sample) => ({
-                              ...sample,
-                              citationId: `document:${sample.documentId}`,
-                              citationUrl: sample.sourceUrl,
-                            })),
-                          },
-                        },
-                      },
-                    },
-                  },
-                  { type: 'text', channel: 'final', content },
-                ]
-              : undefined
-          await sql`insert into copilot_messages (id, chat_id, message_id, role, content, seq)
-          values (${generateId()}, ${citedChatId}, ${id}, ${role}, ${sql.json({ id, role, content, contentBlocks, timestamp: new Date().toISOString() })}, ${seq})`
-        }
-        await page.goto(`${baseUrl.origin}${root}/search/chat/${citedChatId}`)
-        await expect(page.getByRole('button', { name: '2 sources', exact: true })).toBeVisible()
-        await capture('assistant-cited-answer')
-        await page.getByRole('button', { name: '2 sources', exact: true }).click()
-        await capture('assistant-sources-dropdown')
-        await page.getByRole('button', { name: 'View all sources', exact: true }).click()
-        const sourcesPanel = page.getByLabel('Cited sources', { exact: true })
-        await expect(sourcesPanel).toBeVisible()
-        await expect(sourcesPanel.getByText('Launch brief', { exact: true })).toBeVisible()
-        await expect(sourcesPanel.getByText('Launch readiness', { exact: true })).toBeVisible()
-        await capture('assistant-resources-panel')
-        await page.setViewportSize({ width: 390, height: 844 })
-        await expect(sourcesPanel).toBeVisible()
-        await capture('assistant-resources-mobile')
       } finally {
         await page.unroute(searchRoute)
       }
     }
   )
-  await check(
-    'Search-only members have Home with the Assistant and their history, but no agent chat',
-    async () => {
-      await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
+  await check('Assistant answers count their cited sources and open them in a panel', async () => {
+    await page.setViewportSize({ width: 1440, height: 1000 })
+    const citedChatId = generateId()
+    const citedAnswer =
+      'The checklist is complete, with final owner sign-off due Friday. <source>{"id":"document:launch-brief"}</source>\n\nThe support handoff is still in progress. <source>{"id":"document:launch-readiness"}</source>'
+    await sql`insert into copilot_chats (id, user_id, organization_id, type, title, config)
+      values (${citedChatId}, ${userId}, ${organizationId}, 'mothership', 'Cited launch update', ${sql.json({ conversationMode: 'assistant' })})`
+    for (const [seq, role, content] of [
+      [1, 'user', question],
+      [2, 'assistant', citedAnswer],
+    ] as const) {
+      const id = generateId()
+      const contentBlocks =
+        role === 'assistant'
+          ? [
+              {
+                type: 'tool',
+                phase: 'call',
+                toolCall: {
+                  id: 'preview-retrieval',
+                  name: 'search_workspace',
+                  state: 'success',
+                  result: {
+                    success: true,
+                    output: {
+                      success: true,
+                      data: {
+                        results: searchSamples.map((sample) => ({
+                          ...sample,
+                          citationId: `document:${sample.documentId}`,
+                          citationUrl: sample.sourceUrl,
+                        })),
+                      },
+                    },
+                  },
+                },
+              },
+              { type: 'text', channel: 'final', content },
+            ]
+          : undefined
+      await sql`insert into copilot_messages (id, chat_id, message_id, role, content, seq)
+        values (${generateId()}, ${citedChatId}, ${id}, ${role}, ${sql.json({ id, role, content, contentBlocks, timestamp: new Date().toISOString() })}, ${seq})`
+    }
+    await page.goto(appUrl(routes.searchChat(citedChatId)))
+    await expect(page.getByRole('button', { name: '2 sources', exact: true })).toBeVisible()
+    await capture('assistant-cited-answer')
+    await page.getByRole('button', { name: '2 sources', exact: true }).click()
+    await capture('assistant-sources-dropdown')
+    await page.getByRole('button', { name: 'View all sources', exact: true }).click()
+    const sourcesPanel = page.getByLabel('Cited sources', { exact: true })
+    await expect(sourcesPanel).toBeVisible()
+    await expect(sourcesPanel.getByText('Launch brief', { exact: true })).toBeVisible()
+    await expect(sourcesPanel.getByText('Launch readiness', { exact: true })).toBeVisible()
+    await capture('assistant-resources-panel')
+    await page.setViewportSize({ width: 390, height: 844 })
+    await expect(sourcesPanel).toBeVisible()
+    await capture('assistant-resources-mobile')
+  })
+  await check(STAGES.searchOnly, async () => {
+    await sql`insert into permission_group (id, organization_id, name, config, created_by, is_default)
       values (${generateId()}, ${organizationId}, 'Search only',
         ${sql.json({ disableWorkspaceCreation: true })}, ${userId}, true)`
-      await page.goto(`${baseUrl.origin}${root}/home`)
-      await expect(page).toHaveURL((url) => url.pathname === `${root}/home`)
-      await expect(page.getByRole('textbox', { name: 'Ask Sim' })).toBeVisible()
-      await page.goto(`${baseUrl.origin}${root}/chat/${agentId}`)
-      await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
-      await expect(page.getByRole('textbox', { name: 'Ask Sim' })).toHaveCount(0)
-      await page.goto(`${baseUrl.origin}${root}/search/chat/${assistantId}`)
-      await expect(page.getByText(answer, { exact: true })).toBeVisible()
-    }
-  )
+    await page.goto(appUrl(routes.home))
+    await expect(page).toHaveURL((url) => url.pathname === routes.search)
+    await expect(searchMode(page, 'Assistant')).toBeVisible()
+    await page.goto(appUrl(routes.chat(agentId)))
+    await expect(page).toHaveURL((url) => url.pathname === routes.search)
+    await page.goto(appUrl(routes.searchChat(assistantId)))
+    await expect(page.getByText(answer, { exact: true })).toBeVisible()
+  })
   await check('Search-only members recover legacy drafts without a remembered mode', () =>
     verifyLegacyDraft(undefined, 'assistant')
   )
   await check('The UI completes without unexpected browser runtime errors', async () => {
+    // Server redirects inside a streamed page surface as a handled React error on the client.
+    const handledRedirects = [
+      { stage: STAGES.agentRedirect, from: routes.searchChat(agentId), to: routes.chat(agentId) },
+      {
+        stage: STAGES.bookmark,
+        from: routes.chat(assistantId),
+        to: routes.searchChat(assistantId),
+      },
+      { stage: STAGES.searchOnly, from: routes.home, to: routes.search },
+      { stage: STAGES.searchOnly, from: routes.chat(agentId), to: routes.search },
+    ]
     const handledRedirectCount = () =>
       browserErrorEvents.reduce(
         (count, event) =>
-          event.stage === 'Search URLs cannot change an agent conversation into an assistant' &&
-          event.url === `${baseUrl.origin}${root}/search/chat/${agentId}` &&
-          event.digest === `NEXT_REDIRECT;replace;${root}/chat/${agentId};307;` &&
-          event.message.startsWith('Minified React error #419;')
+          event.message.startsWith('Minified React error #419;') &&
+          handledRedirects.some(
+            (redirect) =>
+              event.stage === redirect.stage &&
+              event.url === appUrl(redirect.from) &&
+              event.digest === `NEXT_REDIRECT;replace;${redirect.to};307;`
+          )
             ? count + event.count
             : count,
         0
       )
     await expect.poll(() => browserErrorEventCount - handledRedirectCount()).toBe(browserErrorCount)
+    const deniedStages: string[] = [STAGES.denied, STAGES.streamedDenied]
     const deniedRecoveries = browserErrorEvents.filter(
       (event) =>
         event.digest === 'NEXT_HTTP_ERROR_FALLBACK;404' &&
-        ((event.url === `${baseUrl.origin}${root}/search/chat/${deniedChatId}` &&
-          [
-            'Assistant history rejects a chat from another organization',
-            'A streamed denied chat remains navigable after hydration',
-          ].includes(event.stage)) ||
+        ((event.url === appUrl(routes.searchChat(deniedChatId)) &&
+          deniedStages.includes(event.stage)) ||
           // React reports the recovery once hydration settles, which can be after Return home.
-          (event.url === `${baseUrl.origin}${root}/home` &&
-            event.stage === 'A streamed denied chat remains navigable after hydration') ||
-          (event.url === `${baseUrl.origin}${root}/chat/${agentId}` &&
-            event.stage ===
-              'Search-only members have Home with the Assistant and their history, but no agent chat'))
+          (event.url === appUrl(routes.home) && event.stage === STAGES.streamedDenied))
     )
     const recoveryCount = deniedRecoveries.reduce((total, event) => total + event.count, 0)
     assert.equal(
