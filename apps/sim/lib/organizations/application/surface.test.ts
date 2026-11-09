@@ -20,7 +20,6 @@ vi.mock('@/lib/organizations/surface-flags', () => ({
 vi.mock('@/lib/people/feature-flag', () => ({ canBrowsePeople: vi.fn(async () => false) }))
 vi.mock('@/lib/sim-links/feature-flag', () => ({ isSimLinksEnabled: vi.fn(async () => false) }))
 vi.mock('@/lib/permissions/super-user', () => ({ isPlatformAdmin: vi.fn(async () => false) }))
-vi.mock('@/lib/platform/rollout', () => ({ isPlatformOrgUiEnabled: vi.fn(async () => true) }))
 
 import { readOrganizationSurface } from '@/lib/organizations/application/surface'
 

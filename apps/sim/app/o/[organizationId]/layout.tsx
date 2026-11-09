@@ -1,9 +1,8 @@
-import { Suspense } from 'react'
 import { cn } from '@sim/emcn-legacy'
 import hostBridge from '@sim/emcn-platform/styles/host-bridge.module.css'
 import { createLogger } from '@sim/logger'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
-import { cookies, headers } from 'next/headers'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
 import { SessionExpired } from '@/components/session-expired'
@@ -22,15 +21,12 @@ import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/pa
 import { OrganizationProvider } from '@/lib/organizations/provider'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
-import { isPlatformOrgUiEnabled } from '@/lib/platform/rollout'
-import { LEGACY_URL_HEADER, mapLegacyOrganizationUrl } from '@/lib/platform/routes'
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
-import { PlatformRouteGuard } from '@/app/o/[organizationId]/components/platform-route-guard'
 import { OrganizationToastSink } from '@/app/o/[organizationId]/components/toast-sink'
 import { OrganizationSimLinkProvider } from '@/app/o/[organizationId]/links/organization-sim-link-provider'
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
@@ -71,13 +67,6 @@ export default async function OrganizationLayout({
   if (!context) {
     return <OrganizationAccessDenied />
   }
-  // The proxy sends no legacy URL while the zone is unavailable: this organization stays here, on
-  // client navigation too, until the zone can serve it.
-  const legacyUrl = (await isPlatformOrgUiEnabled(organizationId))
-    ? (await headers()).get(LEGACY_URL_HEADER)
-    : null
-  const platformUrl = legacyUrl && mapLegacyOrganizationUrl(legacyUrl, organizationId)
-  if (platformUrl) redirect(platformUrl)
   const peopleEnabledLookup = canBrowsePeople(organizationId, context.viewer.role)
   const simLinksEnabledLookup = isSimLinksEnabled(organizationId)
   if (
@@ -143,11 +132,6 @@ export default async function OrganizationLayout({
       >
         <OrganizationProvider context={context}>
           <OrganizationToastSink />
-          {legacyUrl && (
-            <Suspense fallback={null}>
-              <PlatformRouteGuard organizationId={organizationId} />
-            </Suspense>
-          )}
           <OrganizationSimLinkProvider organizationId={simLinkOrganizationId}>
             <GlobalCommandsProvider>
               <WorkspaceViewport

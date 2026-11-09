@@ -232,12 +232,11 @@
       ]
     },
     "build": {
-      // next.config bakes the Platform rewrite from SIM_PLATFORM_ORIGIN. `app/o` bundles
-      // `platform/embedded` and the EMCN packages, so those are inputs: leaving them out would
-      // restore a stale `.next` and ship an old UI. The zone paths below are its own Next app, reached
-      // only through that rewrite, and the embedded tree imports none of them
-      // (check:platform-design rule `zone-embedded`, check:boundaries).
-      "env": ["NEXT_BUILD_SKIP_TYPE_CHECK", "SIM_PLATFORM_ORIGIN"],
+      // `app/o` bundles `platform/embedded` and the EMCN packages, so those are inputs: leaving them
+      // out would restore a stale `.next` and ship an old UI. The zone paths below are its own Next
+      // app, and the embedded tree imports none of them (check:platform-design rule `zone-embedded`,
+      // check:boundaries).
+      "env": ["NEXT_BUILD_SKIP_TYPE_CHECK"],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",

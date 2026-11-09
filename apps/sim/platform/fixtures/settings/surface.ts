@@ -28,7 +28,6 @@ export function settingsSurface(scenario: Scenario, plan: PreviewPlan): Platform
     organization: { ...organization, id: 'sim', slug: 'sim', logo: null },
     legacyOrigin: '',
     routePrefix: '',
-    platformOrgUi: true,
     viewer: {
       role: 'owner',
       isAdmin: true,

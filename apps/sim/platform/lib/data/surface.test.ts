@@ -60,7 +60,6 @@ const SURFACE: OrganizationSurfaceResponse = {
       whitelabeling: false,
     },
   },
-  platformOrgUi: true,
   navFlags: {
     people: true,
     simLinks: true,

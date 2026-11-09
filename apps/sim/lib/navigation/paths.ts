@@ -59,19 +59,15 @@ export function organizationRoutes(organizationId: string) {
   } as const
 }
 
-interface WorkspaceIntegrationContext {
-  hostOrganizationId: string | null
-  features?: { organizationSearch?: boolean; platformOrgUi?: boolean }
-}
-
-/** Members of an organization on the Platform use its integration center; everyone else keeps the workspace's. */
+/**
+ * A workspace's integrations live in its organization's integration center. Before the host
+ * context resolves, the workspace-scoped URL redirects there once the organization is known.
+ */
 export function workspaceIntegrationsPath(
   workspaceId: string,
-  context: WorkspaceIntegrationContext | null
+  context: { hostOrganizationId: string | null } | null
 ) {
-  return context?.features?.organizationSearch &&
-    context.features.platformOrgUi &&
-    context.hostOrganizationId
+  return context?.hostOrganizationId
     ? organizationRoutes(context.hostOrganizationId).integrations
     : `/workspace/${workspaceId}/integrations`
 }
@@ -104,13 +100,11 @@ export function isAppSurfacePath(pathname: string): boolean {
 }
 
 /**
- * Non-app routes that must never appear in search results: the Platform zone at `/org`,
- * deployed chats, paused-run resume links, invitations, unsubscribe links, shared
- * files, the legacy `/w` redirects, the design playground, and account, self-host,
- * and upgrade utility pages.
+ * Non-app routes that must never appear in search results: deployed chats, paused-run
+ * resume links, invitations, unsubscribe links, shared files, the legacy `/w` redirects,
+ * the design playground, and account, self-host, and upgrade utility pages.
  */
 const NOINDEX_PATH_ROOTS = [
-  '/org',
   '/sim',
   '/chat',
   '/extension',

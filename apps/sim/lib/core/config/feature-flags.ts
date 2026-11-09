@@ -77,11 +77,6 @@ const FEATURE_FLAGS = {
       'Enable the organization People directory, org chart, profile imports, and directory sync. Supports organization rollout; disabled by default.',
     fallback: 'PEOPLE',
   },
-  'platform-org-ui': {
-    description:
-      'Send an organization to the Platform UI: its legacy organization routes redirect to their Platform counterparts. Supports organization rollout; disabled by default. Also requires SIM_PLATFORM_ORIGIN.',
-    fallback: 'PLATFORM_ORG_UI',
-  },
   'mothership-model-selector': {
     description:
       'Show the Mothership model selector, model-specific effort levels, and Fast for supported ' +

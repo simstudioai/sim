@@ -20,20 +20,21 @@ import { LIBRARY_MERGED_SLUGS, LIBRARY_MOVED_BLOG_SLUGS } from './lib/library/re
 const ACCEPTS_MARKDOWN = '(.*,)?\\s*text/markdown\\s*([;,].*)?'
 const REFUSES_MARKDOWN =
   '(.*,)?\\s*text/markdown(\\s*;[^,]*?)?\\s*;\\s*q\\s*=\\s*0(\\.0{0,3})?\\s*(,.*)?'
+/** Organization settings sections the legacy surface reached by an older name. */
+const ORGANIZATION_SETTINGS_ALIASES: Readonly<Record<string, string>> = {
+  organization: 'members',
+  team: 'members',
+  subscription: 'billing',
+  domains: 'sso',
+  sessions: 'security',
+}
+
 const MARKDOWN_REQUEST = {
   has: [{ type: 'header' as const, key: 'accept', value: ACCEPTS_MARKDOWN }],
   missing: [{ type: 'header' as const, key: 'accept', value: REFUSES_MARKDOWN }],
 }
 
-/**
- * The Platform zone, proxied under one origin so its pages share the session cookie and `/api`.
- * Next bakes rewrites into the build, so the value must be present when the image is built.
- */
-const PLATFORM_ORIGIN = env.SIM_PLATFORM_ORIGIN ? new URL(env.SIM_PLATFORM_ORIGIN).origin : null
-
 const nextConfig: NextConfig = {
-  /** Lets the runtime handoff check that this build actually has the Platform rewrite. */
-  env: { SIM_PLATFORM_ZONE_REWRITE: PLATFORM_ORIGIN ? '1' : '' },
   devIndicators: false,
   poweredByHeader: false,
   // Safe here since this repo's source is already fully public on GitHub -
@@ -576,14 +577,50 @@ const nextConfig: NextConfig = {
       }
     )
 
-    // Legacy chat URL support: the workspace chat route was renamed from
-    // `/workspace/:workspaceId/task/:chatId` to `/workspace/:workspaceId/chat/:chatId`.
-    // Preserve existing bookmarks and deeplinks.
-    redirects.push({
-      source: '/workspace/:workspaceId/task/:chatId',
-      destination: '/workspace/:workspaceId/chat/:chatId',
-      permanent: true,
-    })
+    /**
+     * Workspace and organization URLs that moved with the product surface. Saved links, emails,
+     * and stored content still carry them, so every move is permanent. A move that needs the
+     * workspace's organization resolves in a page after authorizing the viewer
+     * (`lib/navigation/legacy-redirects.ts`); `task/:chatId` reaches that page through `chat`.
+     */
+    redirects.push(
+      {
+        source: '/workspace/:workspaceId/w/:path*',
+        destination: '/workspace/:workspaceId/workflows/:path*',
+        permanent: true,
+      },
+      {
+        source: '/workspace/:workspaceId/task/:chatId',
+        destination: '/workspace/:workspaceId/chat/:chatId',
+        permanent: true,
+      },
+      {
+        source: '/workspace/:workspaceId/files/:fileId/view',
+        destination: '/workspace/:workspaceId/files/:fileId',
+        permanent: true,
+      },
+      {
+        source: '/o/:organizationId/links',
+        destination: '/o/:organizationId/settings/links',
+        permanent: true,
+      },
+      {
+        source: '/o/:organizationId/skills',
+        destination: '/o/:organizationId/integrations?tab=skills',
+        permanent: true,
+      },
+      ...Object.entries(ORGANIZATION_SETTINGS_ALIASES).map(([alias, section]) => ({
+        source: `/o/:organizationId/settings/${alias}`,
+        destination: `/o/:organizationId/settings/${section}`,
+        permanent: true,
+      })),
+      {
+        source: '/o/:organizationId/settings/authorized-apps',
+        destination: '/o/:organizationId/settings/general?view=authorized-apps',
+        permanent: true,
+      },
+      { source: '/org/:path*', destination: '/home', permanent: true }
+    )
 
     // Legacy integration slug: the incident.io block's display name was fixed
     // from `incidentio` to `incident.io`, which moved its catalog slug.
@@ -751,14 +788,6 @@ const nextConfig: NextConfig = {
           source: '/r/:shortCode',
           destination: 'https://go.trybeluga.ai/:shortCode',
         },
-        ...(PLATFORM_ORIGIN
-          ? [
-              {
-                source: '/org/:path*',
-                destination: `${PLATFORM_ORIGIN}/org/:path*`,
-              },
-            ]
-          : []),
       ],
       /**
        * Fallback rewrites run only after every page and dynamic route has failed to match, so
