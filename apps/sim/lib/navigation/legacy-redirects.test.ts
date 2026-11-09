@@ -32,18 +32,28 @@ describe('mapLegacyWorkspaceUrl', () => {
     ['integrations/connected/cred-1', '/o/org-1/integrations?tab=credentials'],
     ['upgrade', '/o/org-1/settings/billing/plans'],
     ['upgrade?reason=credits&ref=email', '/o/org-1/settings/billing/plans?reason=credits'],
+    ['settings/general', '/o/org-1/settings/general'],
+    ['settings/subscription', '/o/org-1/settings/subscription'],
+    ['settings/billing/credit-usage', '/o/org-1/settings/billing/credit-usage'],
+    ['settings/usage/events?period=7d', '/o/org-1/settings/usage/events?period=7d'],
+    [
+      'settings/access-control?access-view=requests',
+      '/o/org-1/settings/access-control?access-view=requests',
+    ],
+    ['settings/apikeys', '/workspace/ws-1/settings/api-keys'],
+    ['access-requests?requestId=req-1', '/workspace/ws-1/settings/requests?requestId=req-1'],
   ])('sends /workspace/ws-1/%s to %s', (path, expected) => {
     expect(map(path)).toBe(expected)
   })
 
-  it.each(['home', 'chat/chat-1', 'skills', 'integrations', 'upgrade'])(
+  it.each(['home', 'chat/chat-1', 'skills', 'integrations', 'upgrade', 'settings/general'])(
     'gives a viewer who cannot open the workspace no destination for %s',
     (path) => {
       expect(map(path, null)).toBeNull()
     }
   )
 
-  it.each(['settings/unknown-section', 'chat', 'skills/a/b', 'home/extra'])(
+  it.each(['settings/unknown-section', 'settings/teammates', 'chat', 'skills/a/b', 'home/extra'])(
     'gives an unmapped path %s no destination',
     (path) => {
       expect(map(path)).toBeNull()

@@ -3,7 +3,7 @@
  * read that, after authorizing the viewer, so `next.config.ts` cannot redirect them statically.
  * Pure: the page passes the organization it read, and this decides the destination.
  */
-import { organizationRoutes } from '@/lib/navigation/paths'
+import { organizationRoutes, WORKSPACES_PATH } from '@/lib/navigation/paths'
 
 interface LegacyWorkspaceUrl {
   workspaceId: string
@@ -29,10 +29,66 @@ interface SettingsRedirect {
 }
 
 /**
- * Workspace Settings sections and access requests, as the settings port places them. A legacy path
- * listed nowhere here has no destination and answers not found.
+ * Legacy workspace Settings sections that moved to organization Settings, under the same key: the
+ * organization Settings route and `next.config.ts` resolve the renamed ones (`subscription`, `team`…).
  */
-const SETTINGS_REDIRECTS: readonly SettingsRedirect[] = []
+const ORGANIZATION_SETTINGS: readonly string[] = [
+  'general',
+  'preferences',
+  'account',
+  'privacy',
+  'notifications',
+  'authorized-apps',
+  'desktop',
+  'browser',
+  'terminal',
+  'billing',
+  'subscription',
+  'billing/credit-usage',
+  'usage',
+  'usage/events',
+  'connected-accounts',
+  'access-control',
+  'audit-logs',
+  'sso',
+  'domains',
+  'security',
+  'sessions',
+  'data-retention',
+  'data-drains',
+  'whitelabeling',
+  'admin',
+  'mothership',
+  'self-host',
+  'organization',
+  'team',
+]
+
+function workspaceSettings(workspaceId: string, section: string): string {
+  return `${WORKSPACES_PATH}/${encodeURIComponent(workspaceId)}/settings/${section}`
+}
+
+/**
+ * Legacy workspace Settings URLs whose page moved: sections that became organization Settings, the
+ * old API keys key, and access requests. Sections that stay with the workspace keep their URL and
+ * need no redirect. A legacy path listed nowhere here has no destination and answers not found.
+ */
+const SETTINGS_REDIRECTS: readonly SettingsRedirect[] = [
+  ...ORGANIZATION_SETTINGS.map(
+    (section): SettingsRedirect => ({
+      legacy: `settings/${section}`,
+      target: ({ organizationId }) => organizationRoutes(organizationId).settingsSection(section),
+    })
+  ),
+  {
+    legacy: 'settings/apikeys',
+    target: ({ workspaceId }) => workspaceSettings(workspaceId, 'api-keys'),
+  },
+  {
+    legacy: 'access-requests',
+    target: ({ workspaceId }) => workspaceSettings(workspaceId, 'requests'),
+  },
+]
 
 function matchSettingsRedirect(segments: readonly string[]) {
   for (const redirect of SETTINGS_REDIRECTS) {
