@@ -178,7 +178,7 @@ export function KnowledgeBaseSelector({
               if (editable) setStoreValue(storedSelection(ids))
             }}
             placeholder={placeholder}
-            searchLabel='Search knowledge bases...'
+            searchLabel='Search knowledge bases…'
             error={error ?? undefined}
             disabled={!editable}
           />
@@ -194,7 +194,7 @@ export function KnowledgeBaseSelector({
               if (editable && next !== null) setStoreValue(next)
             }}
             placeholder={placeholder}
-            searchLabel='Search knowledge bases...'
+            searchLabel='Search knowledge bases…'
             error={error ?? undefined}
             disabled={!editable}
           />

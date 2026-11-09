@@ -928,48 +928,7 @@ const FAILURE_COPY_OWNERS: ReasonedAllowlist = {
     "Predates the rule: the workspace entry's gate names its failed read",
 }
 /** Files whose product copy still spells an ellipsis as three periods. */
-const ASCII_ELLIPSIS_COPY: ReasonedAllowlist = granted(
-  'Predates copy-ellipsis: replace each ... in its copy with …',
-  [
-    `${PRODUCT_ROUTES}_components/sidebar/support-modal.tsx`,
-    `${PRODUCT_ROUTES}_components/workspace/workflows/canvas/connection-block-selector/connection-block-selector.tsx`,
-    `${PRODUCT_ROUTES}_components/workspace/workflows/canvas/workflow-block/block-view.tsx`,
-    `${PRODUCT_ROUTES}_components/workspace/workflows/search-replace/replacement-controls.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/_components/create-mcp-server-modal/create-mcp-server-modal.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/_components/generate-prompt/generate-prompt.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/api-keys/api-keys-section.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/byok/byok-key-manager.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/byok/byok-section.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/custom-blocks/custom-blocks-section.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/custom-tools/custom-tools-section.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/forks/forks-section.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/inbox/inbox-task-list.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/mcp/mcp-section.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/recently-deleted/recently-deleted-section.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/sandboxes/sandboxes-section.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/secrets/secrets-editor.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/teammates/teammates-section.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/workflow-mcp-servers/server-modals.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/workflow-mcp-servers/workflow-mcp-servers-section.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/code/code.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/combobox/combobox.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/condition-input/route-description.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/credential-selector/credential-selector.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/dropdown/dropdown.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/knowledge-base-selector/knowledge-base-selector.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/long-input/long-input.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/messages-input/messages-input.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/short-input/short-input.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/sub-block/sub-block-label.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/table-selector/table-selector.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/tool-input/tool-picker.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/variables-input/variables-input.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/wand-prompt-bar/wand-prompt-bar.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/workflow-selector/workflow-selector.tsx`,
-    `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/workspace-folder-selector/workspace-folder-selector.tsx`,
-  ]
-)
+const ASCII_ELLIPSIS_COPY: ReasonedAllowlist = {}
 
 export const PLATFORM_ALLOWLISTS = {
   LIVE_ONLY_ROUTES,

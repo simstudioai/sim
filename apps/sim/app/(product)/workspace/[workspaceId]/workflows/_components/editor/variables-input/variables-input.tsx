@@ -278,7 +278,7 @@ export function VariablesInput({
             <SearchableSelect
               label='Variable'
               searchLabel='Search variables'
-              placeholder='Select a variable...'
+              placeholder='Select a variable…'
               options={availableVariablesFor(assignment.id).map((variable) => ({
                 label: variable.name,
                 value: variable.id,

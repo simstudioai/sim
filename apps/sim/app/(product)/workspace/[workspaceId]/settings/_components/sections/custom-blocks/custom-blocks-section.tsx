@@ -108,7 +108,7 @@ export default function CustomBlocksSection({ workspaceId }: WorkspaceSettingsSe
         grow={
           <SearchField
             label='Search custom blocks'
-            placeholder='Search custom blocks...'
+            placeholder='Search custom blocks…'
             value={search}
             onValueChange={setSearch}
           />

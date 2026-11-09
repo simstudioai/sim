@@ -90,7 +90,7 @@ export function InboxTaskList({ workspaceId, address }: InboxTaskListProps) {
         grow={
           <SearchField
             label='Search tasks'
-            placeholder='Search tasks...'
+            placeholder='Search tasks…'
             value={filters.search}
             onValueChange={filters.setSearch}
           />

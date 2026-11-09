@@ -66,9 +66,9 @@ function describeServer(server: McpServer, tools: McpTool[], status: ServerRowSt
   const state = server.managedConnectorId
     ? 'Managed by Connected accounts'
     : status.connecting
-      ? 'Waiting for authorization...'
+      ? 'Waiting for authorization…'
       : status.refreshing
-        ? 'Refreshing...'
+        ? 'Refreshing…'
         : status.loadingTools && tools.length === 0
           ? null
           : showDiscoveryError && status.discoveryError
@@ -267,7 +267,7 @@ export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProp
         grow={
           <SearchField
             label='Search servers'
-            placeholder='Search servers...'
+            placeholder='Search servers…'
             value={search}
             onValueChange={setSearch}
           />

@@ -24,7 +24,7 @@ export function WandPromptBar({
   onSubmit,
   onCancel,
   onChange,
-  placeholder = 'Describe what you want to generate...',
+  placeholder = 'Describe what you want to generate…',
 }: WandPromptBarProps) {
   const bar = useRef<HTMLDivElement>(null)
   const busy = isLoading || isStreaming
@@ -46,7 +46,7 @@ export function WandPromptBar({
         className={styles.input}
         data-type='T043'
         aria-label='Generate with AI'
-        value={isStreaming ? 'Generating...' : promptValue}
+        value={isStreaming ? 'Generating…' : promptValue}
         onChange={(event) => {
           if (!isStreaming) onChange(event.target.value)
         }}

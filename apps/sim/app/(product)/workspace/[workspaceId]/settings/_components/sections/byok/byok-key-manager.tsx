@@ -288,7 +288,7 @@ export function ByokKeyManager({
           return `Are you sure you want to delete the ${name ?? 'selected'} API key? ${consequence} This action cannot be undone.`
         }}
         confirmLabel='Delete'
-        pendingLabel='Deleting...'
+        pendingLabel='Deleting…'
         confirmDisabled={!capabilities.delete}
         pending={isDeleting}
         onConfirm={(target) => onDeleteKey(target.providerId, target.keyId)}

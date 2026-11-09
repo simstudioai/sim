@@ -125,7 +125,7 @@ export default function WorkflowMcpServersSection({ workspaceId }: WorkspaceSett
         grow={
           <SearchField
             label='Search servers'
-            placeholder='Search servers...'
+            placeholder='Search servers…'
             value={search}
             onValueChange={setSearch}
           />

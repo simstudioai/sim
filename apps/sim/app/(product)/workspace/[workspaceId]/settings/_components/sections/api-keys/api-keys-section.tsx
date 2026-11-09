@@ -199,7 +199,7 @@ export default function ApiKeysSection({ workspaceId }: WorkspaceSettingsSection
         grow={
           <SearchField
             label='Search API keys'
-            placeholder='Search API keys...'
+            placeholder='Search API keys…'
             value={search}
             onValueChange={setSearch}
           />

@@ -62,8 +62,8 @@ export function ReplacementControls({
           value={replacement || null}
           selectedLabel={selectedResource?.label}
           onValueChange={(next) => onReplacementChange(next ?? '')}
-          placeholder='Choose replacement...'
-          searchLabel='Search resources...'
+          placeholder='Choose replacement…'
+          searchLabel='Search resources…'
           search={{
             query: resourceQuery,
             onQueryChange: (query) => {
@@ -104,7 +104,7 @@ export function ReplacementControls({
             disabled={disabled || isApplying || !canReplaceAll}
             onClick={onReplaceAll}
           >
-            {isApplying ? 'Replacing...' : 'Replace All'}
+            {isApplying ? 'Replacing…' : 'Replace All'}
           </Button>
         </div>
       </div>

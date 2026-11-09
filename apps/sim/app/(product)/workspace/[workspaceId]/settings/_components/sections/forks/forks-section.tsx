@@ -182,7 +182,7 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
           grow={
             <SearchField
               label='Search forks'
-              placeholder='Search forks...'
+              placeholder='Search forks…'
               value={searchTerm}
               onValueChange={setSearchTerm}
             />

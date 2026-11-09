@@ -82,7 +82,7 @@ export function WorkspaceFolderSelector({
             setStoreValue(paths.length > 0 ? paths : '')
           }}
           placeholder={subBlock.placeholder ?? ANYWHERE_LABEL}
-          searchLabel='Search folders...'
+          searchLabel='Search folders…'
           onOpenChange={(open) => {
             if (open && error) void refetch()
           }}
@@ -112,7 +112,7 @@ export function WorkspaceFolderSelector({
           if (open && error) void refetch()
         }}
         placeholder={subBlock.placeholder ?? ANYWHERE_LABEL}
-        searchLabel='Search folders...'
+        searchLabel='Search folders…'
         error={error ?? undefined}
         disabled={fieldDisabled}
       />

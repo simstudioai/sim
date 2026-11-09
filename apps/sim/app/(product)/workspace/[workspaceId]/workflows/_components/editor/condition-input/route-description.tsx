@@ -57,7 +57,7 @@ export function RouteDescription({
         className={styles.routeTextarea}
         data-type='T043'
         aria-label={label}
-        placeholder='Describe when this route should be taken...'
+        placeholder='Describe when this route should be taken…'
         value={value}
         disabled={disabled}
         spellCheck={false}

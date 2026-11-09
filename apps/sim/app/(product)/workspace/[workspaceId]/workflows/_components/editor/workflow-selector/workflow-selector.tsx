@@ -47,7 +47,7 @@ export function WorkflowSelectorInput({
       disabled={disabled}
       isPreview={isPreview}
       previewValue={previewValue}
-      placeholder={subBlock.placeholder || 'Select workflow...'}
+      placeholder={subBlock.placeholder || 'Select workflow…'}
       missingOptionLabel={DELETED_WORKFLOW_LABEL}
     />
   )

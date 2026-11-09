@@ -307,7 +307,7 @@ export default function RecentlyDeletedSection({ workspaceId }: WorkspaceSetting
         grow={
           <SearchField
             label='Search deleted items'
-            placeholder='Search deleted items...'
+            placeholder='Search deleted items…'
             value={searchTerm}
             onValueChange={setSearchTerm}
           />

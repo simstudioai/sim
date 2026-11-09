@@ -91,7 +91,7 @@ export default function CustomToolsSection({ workspaceId }: WorkspaceSettingsSec
         grow={
           <SearchField
             label='Search tools'
-            placeholder='Search tools...'
+            placeholder='Search tools…'
             value={search}
             onValueChange={setSearch}
           />

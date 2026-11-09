@@ -73,7 +73,7 @@ export function SubBlockLabel({
             <GeneratePrompt
               isLoading={false}
               isStreaming={isStreaming}
-              placeholder='Generate with AI...'
+              placeholder='Generate with AI…'
               onSubmit={(prompt) => wandControlRef.current?.onWandTrigger(prompt)}
             />
           )}

@@ -68,7 +68,7 @@ export function CreateMcpServerModal({
           options={workflowOptions}
           value={workflowIds}
           onValueChange={setWorkflowIds}
-          placeholder='Select workflows...'
+          placeholder='Select workflows…'
           searchLabel='Search workflows'
         />
       )}

@@ -88,12 +88,12 @@ function placeCaret(textarea: HTMLTextAreaElement | null, position: number) {
 function promptPlaceholderFor(generationType: GenerationType): string {
   switch (generationType) {
     case 'json-schema':
-      return 'Describe the JSON schema to generate...'
+      return 'Describe the JSON schema to generate…'
     case 'json-object':
     case 'table-schema':
-      return 'Describe the JSON object to generate...'
+      return 'Describe the JSON object to generate…'
     default:
-      return 'Describe the JavaScript code to generate...'
+      return 'Describe the JavaScript code to generate…'
   }
 }
 
@@ -146,7 +146,7 @@ interface CodeProps {
 export const Code = memo(function Code({
   blockId,
   subBlockId,
-  placeholder = 'Write JavaScript...',
+  placeholder = 'Write JavaScript…',
   password = false,
   language = 'javascript',
   generationType = 'javascript-function-body',
@@ -192,14 +192,14 @@ export const Code = memo(function Code({
       return {
         ...wandConfig,
         prompt: PYTHON_AI_PROMPT,
-        placeholder: 'Describe the Python script you want to create...',
+        placeholder: 'Describe the Python script you want to create…',
       }
     }
     if (languageValue === CodeLanguage.Shell) {
       return {
         ...wandConfig,
         prompt: SHELL_AI_PROMPT,
-        placeholder: 'Describe the shell commands you want to run...',
+        placeholder: 'Describe the shell commands you want to run…',
       }
     }
     return wandConfig
@@ -427,9 +427,9 @@ export const Code = memo(function Code({
 
   const fieldPlaceholder =
     languageValue === CodeLanguage.Python
-      ? 'Write Python...'
+      ? 'Write Python…'
       : languageValue === CodeLanguage.Shell
-        ? 'Write shell commands...'
+        ? 'Write shell commands…'
         : placeholder
   const label =
     (blockType && getBlock(blockType)?.subBlocks.find((sub) => sub.id === subBlockId)?.title) ||

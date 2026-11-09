@@ -198,7 +198,7 @@ export function ToolPicker({
           aria-label='Add tool'
           aria-expanded={open}
           aria-autocomplete='list'
-          placeholder={open ? 'Search tools...' : 'Add tool...'}
+          placeholder={open ? 'Search tools…' : 'Add tool…'}
           value={query}
           disabled={disabled}
           autoComplete='off'

@@ -80,7 +80,7 @@ export function TableSelector({
         selectedLabel={tableId ? (selectedLabel ?? tableId) : undefined}
         onValueChange={handleChange}
         placeholder={subBlock.placeholder || 'Select a table'}
-        searchLabel='Search...'
+        searchLabel='Search…'
         error={error?.message}
         disabled={!readable}
       />

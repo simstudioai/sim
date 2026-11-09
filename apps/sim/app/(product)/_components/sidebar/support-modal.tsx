@@ -79,7 +79,7 @@ export function SupportModal({ support, onClose }: SupportModalProps) {
         label='Message'
         name='message'
         required
-        placeholder='Please provide details about your request...'
+        placeholder='Please provide details about your request…'
       />
       <FileField
         label='Images'

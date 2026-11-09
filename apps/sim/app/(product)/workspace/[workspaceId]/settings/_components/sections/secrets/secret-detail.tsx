@@ -221,7 +221,7 @@ export function SecretDetail({ workspaceId, credentialId, onBack }: SecretDetail
           {!isPersonal && (
             <TextAreaField
               label='Description'
-              placeholder='Add a description...'
+              placeholder='Add a description…'
               value={form.descriptionDraft}
               onChange={form.setDescriptionDraft}
               maxLength={500}

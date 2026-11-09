@@ -141,7 +141,7 @@ export function LongInput({
           onSubmit={(prompt) => wandHook.generateStream({ prompt })}
           onCancel={wandHook.isStreaming ? wandHook.cancelGeneration : wandHook.hidePromptInline}
           onChange={wandHook.updatePromptValue}
-          placeholder={config.wandConfig?.placeholder || 'Describe what you want to generate...'}
+          placeholder={config.wandConfig?.placeholder || 'Describe what you want to generate…'}
         />
       )}
       <SubBlockInputController

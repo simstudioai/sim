@@ -311,7 +311,7 @@ export function CredentialSelector({
               ? 'Fill in required fields above first'
               : subBlock.placeholder || 'Select credential'
           }
-          searchLabel='Search credentials...'
+          searchLabel='Search credentials…'
           disabled={effectiveDisabled || isPreview}
           createLabel={createAction?.label}
           onCreate={createAction?.run}

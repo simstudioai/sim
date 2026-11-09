@@ -20,7 +20,7 @@ export function GeneratePrompt({
   isLoading,
   isStreaming,
   onSubmit,
-  placeholder = 'Describe what to generate...',
+  placeholder = 'Describe what to generate…',
 }: GeneratePromptProps) {
   const [active, setActive] = useState(false)
   const [prompt, setPrompt] = useState('')
@@ -59,7 +59,7 @@ export function GeneratePrompt({
         data-type='T060'
         aria-label={placeholder.replace(/\.+$/, '')}
         placeholder={placeholder}
-        value={isStreaming ? 'Generating...' : prompt}
+        value={isStreaming ? 'Generating…' : prompt}
         disabled={isStreaming}
         autoComplete='off'
         spellCheck={false}

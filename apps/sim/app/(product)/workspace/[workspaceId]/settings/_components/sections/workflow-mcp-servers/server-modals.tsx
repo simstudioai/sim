@@ -74,7 +74,7 @@ export function EditToolModal({ workspaceId, serverId, tool, onClose }: EditTool
     >
       <TextAreaField
         label='Description'
-        placeholder='Describe what this tool does...'
+        placeholder='Describe what this tool does…'
         value={description}
         onChange={setDescription}
       />
@@ -138,7 +138,7 @@ export function AddWorkflowModal({
         options={workflows}
         value={workflowId}
         onValueChange={setWorkflowId}
-        placeholder='Select a workflow...'
+        placeholder='Select a workflow…'
         searchLabel='Search workflows'
       />
     </Modal>

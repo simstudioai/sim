@@ -119,7 +119,7 @@ export const Dropdown = memo(function Dropdown({
   config,
   options,
   defaultValue,
-  placeholder = 'Select an option...',
+  placeholder = 'Select an option…',
   isPreview = false,
   previewValue,
   disabled = false,
@@ -391,7 +391,7 @@ export const Dropdown = memo(function Dropdown({
           }}
           onOpenChange={handleOpenChange}
           placeholder={placeholder}
-          searchLabel='Search...'
+          searchLabel='Search…'
           search={pickerSearch}
           disabled={fieldDisabled}
         />

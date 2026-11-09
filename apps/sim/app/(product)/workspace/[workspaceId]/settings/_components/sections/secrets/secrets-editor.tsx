@@ -669,7 +669,7 @@ export function SecretsEditor({
         grow={
           <SearchField
             label='Search secrets'
-            placeholder='Search secrets...'
+            placeholder='Search secrets…'
             value={searchTerm}
             onValueChange={setSearchTerm}
           />

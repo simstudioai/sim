@@ -136,7 +136,7 @@ export const ComboBox = memo(function ComboBox({
   subBlockId,
   options,
   defaultValue,
-  placeholder = 'Type or select an option...',
+  placeholder = 'Type or select an option…',
   isPreview = false,
   previewValue,
   disabled = false,
@@ -577,7 +577,7 @@ export const ComboBox = memo(function ComboBox({
                         ref={searchRef}
                         type='search'
                         aria-label={`Search ${(config.title || subBlockId).toLowerCase()} options`}
-                        placeholder='Search...'
+                        placeholder='Search…'
                         value={listQuery}
                         autoComplete='off'
                         spellCheck={false}

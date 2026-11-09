@@ -816,7 +816,7 @@ export function WorkflowBlockView({
                       onDeployChild?.()
                     }}
                   >
-                    {isDeploying ? 'Deploying...' : !childIsDeployed ? 'undeployed' : 'redeploy'}
+                    {isDeploying ? 'Deploying…' : !childIsDeployed ? 'undeployed' : 'redeploy'}
                   </StatusBadge>
                 </CanvasTooltip>
               )}

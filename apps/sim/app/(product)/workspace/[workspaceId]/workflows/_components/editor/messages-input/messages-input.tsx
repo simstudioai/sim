@@ -256,7 +256,7 @@ export function MessagesInput({
               fieldKey={`message-${index}`}
               secrets
               multiline
-              placeholder='Enter message content...'
+              placeholder='Enter message content…'
               disabled={isReadOnly}
               accessiblePrefixes={accessiblePrefixes}
               searchHighlight={getActiveWorkflowSearchHighlight({

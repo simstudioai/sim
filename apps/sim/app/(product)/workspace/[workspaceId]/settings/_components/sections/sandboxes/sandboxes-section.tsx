@@ -227,7 +227,7 @@ export default function SandboxesSection({ workspaceId }: WorkspaceSettingsSecti
         grow={
           <SearchField
             label='Search sandboxes'
-            placeholder='Search sandboxes...'
+            placeholder='Search sandboxes…'
             value={search}
             onValueChange={setSearch}
           />

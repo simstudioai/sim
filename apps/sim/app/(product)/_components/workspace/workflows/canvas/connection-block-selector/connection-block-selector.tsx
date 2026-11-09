@@ -739,7 +739,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
             aria-label='Search blocks'
             value={search}
             onValueChange={handleSearchChange}
-            placeholder='Search blocks...'
+            placeholder='Search blocks…'
           />
         </div>
       </Command>

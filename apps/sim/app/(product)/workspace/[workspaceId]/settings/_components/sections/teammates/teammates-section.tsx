@@ -227,7 +227,7 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
         grow={
           <SearchField
             label='Search teammates'
-            placeholder='Search teammates...'
+            placeholder='Search teammates…'
             value={searchTerm}
             onValueChange={setSearchTerm}
           />

@@ -107,7 +107,7 @@ export default function ByokSection({ workspaceId }: WorkspaceSettingsSectionPro
         grow={
           <SearchField
             label='Search providers'
-            placeholder='Search providers...'
+            placeholder='Search providers…'
             value={searchTerm}
             onValueChange={setSearchTerm}
           />
