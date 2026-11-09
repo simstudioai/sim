@@ -94,17 +94,11 @@ export function MessageComposer({
         onPasteFiles={composer.addFiles}
         onPasteText={composer.addPastedText}
       />
-      {refs.trigger && (
+      {refs.trigger && !(refs.loading && refs.rows.length === 0) && (
         <ComposerSuggestions
           id={refs.listId}
           label={refs.trigger.prefix === '/' ? 'Skills and MCP servers' : 'Workspace resources'}
-          empty={
-            refs.loading
-              ? 'Loading…'
-              : refs.trigger.prefix === '/'
-                ? 'No skills or MCP servers'
-                : 'No results'
-          }
+          empty={refs.trigger.prefix === '/' ? 'No skills or MCP servers' : 'No results'}
           grouped={refs.trigger.prefix === '@'}
           items={refs.rows}
           active={refs.active}

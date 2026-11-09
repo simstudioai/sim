@@ -8,7 +8,6 @@ import { FileField } from '@sim/emcn/field/file-field'
 import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
-import { InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { toast } from '@/lib/toast/sink'
@@ -302,7 +301,6 @@ export function ImportModal({ organizationId, onClose, onOpenSync }: ImportModal
                 error={fileError}
                 hint='CSV or Excel with an email column, plus any of title, department, location, start date, and manager email.'
               />
-              {reading && <InlineNotice message='Reading…' />}
               <div>
                 <Button variant='quiet' size='compact' onClick={downloadImportTemplate}>
                   Download template
