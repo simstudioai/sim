@@ -13,7 +13,7 @@ export interface ManifestView {
   createAppUrl: string
 }
 
-export interface SlackAppFields {
+interface SlackAppFields {
   botToken: string
   clientId: string
   clientSecret: string

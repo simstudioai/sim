@@ -614,6 +614,7 @@ const seamHelpers = new Set([
   'lib/integrations/credential-display',
   'lib/credential-groups/search-readiness',
   'lib/credential-groups/providers',
+  'lib/credential-groups/credential-types',
   'lib/assistant-actions/providers',
   'hooks/use-oauth-return',
   'hooks/use-hydrated',
