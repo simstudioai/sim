@@ -28,11 +28,11 @@ export function SlackSearchActions({ organizationId, token, userId }: SlackSearc
       {!handoff.retried &&
         (handoff.ready ? (
           <Button variant='primary' disabled={handoff.retrying} onClick={handoff.retry}>
-            {handoff.retrying ? 'Queuing' : 'Retry question in Slack'}
+            Retry question in Slack
           </Button>
         ) : (
           <Button disabled={handoff.checking} onClick={handoff.check}>
-            {handoff.checking ? 'Checking' : 'Check connection'}
+            Check connection
           </Button>
         ))}
       <Button
