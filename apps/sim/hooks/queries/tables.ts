@@ -24,10 +24,7 @@ import {
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
 import {
-  cancelTableImportResourceContract,
-  completeTableImportResourceContract,
   createTableExportResourceContract,
-  createTableImportPartUrlsContract,
   createTableImportResourceContract,
   downloadTableExportResourceContract,
 } from '@/lib/api/contracts/table-transfers'
@@ -84,10 +81,8 @@ import {
   updateTableRowContract,
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
-import type { V2TableImportSource, V2TableImportTarget } from '@/lib/api/contracts/v2/tables'
 import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import type {
-  CsvHeaderMapping,
   EnrichmentRunDetail,
   RowData,
   RowExecutionMetadata,
@@ -110,8 +105,6 @@ import {
 } from '@/lib/table/deps'
 import { sanitizeName } from '@/lib/table/import'
 import { toast } from '@/lib/toast/sink'
-import type { UploadProgressEvent } from '@/lib/uploads/client/types'
-import { uploadFileSession } from '@/lib/uploads/client/upload-session'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
@@ -1673,66 +1666,6 @@ export function useRestoreTable() {
   })
 }
 
-async function createAndUploadTableImport(params: {
-  workspaceId: string
-  source: V2TableImportSource
-  target: V2TableImportTarget
-  file?: File
-  mapping?: CsvHeaderMapping
-  createColumns?: string[]
-  timezone: string
-  onProgress?: (percent: number) => void
-}) {
-  const created = await requestJson(createTableImportResourceContract, {
-    body: {
-      workspaceId: params.workspaceId,
-      source: params.source,
-      target: params.target,
-      mapping: params.mapping,
-      createColumns: params.createColumns,
-      timezone: params.timezone,
-    },
-  })
-  const { session, uploadToken, transfer } = created.data
-  if (params.source.type === 'workspace_file') return session
-  if (!params.file || !uploadToken || !transfer) {
-    throw new Error('Upload-backed table import returned no upload session')
-  }
-  const getPartUrls = async (partNumbers: number[]) => {
-    const response = await requestJson(createTableImportPartUrlsContract, {
-      params: { importId: session.id },
-      query: { workspaceId: params.workspaceId },
-      headers: { 'upload-token': uploadToken },
-      body: { partNumbers },
-    })
-    return response.data.parts
-  }
-  const common = {
-    file: params.file,
-    onProgress: params.onProgress
-      ? (event: UploadProgressEvent) => params.onProgress?.(event.percent)
-      : undefined,
-    complete: async () => {
-      const response = await requestJson(completeTableImportResourceContract, {
-        params: { importId: session.id },
-        query: { workspaceId: params.workspaceId },
-        headers: { 'upload-token': uploadToken },
-      })
-      return response.data
-    },
-    abort: async () => {
-      await requestJson(cancelTableImportResourceContract, {
-        params: { importId: session.id },
-        query: { workspaceId: params.workspaceId },
-        headers: { 'upload-token': uploadToken },
-      })
-    },
-  }
-  return transfer.method === 'put'
-    ? uploadFileSession({ ...common, transfer })
-    : uploadFileSession({ ...common, transfer, getPartUrls })
-}
-
 interface ImportFileAsTableParams {
   workspaceId: string
   fileId: string
@@ -1751,19 +1684,22 @@ export function useImportFileAsTable() {
   const timezone = useTimezone()
   return useMutation({
     mutationFn: async ({ workspaceId, fileId, fileName }: ImportFileAsTableParams) => {
-      const imported = await createAndUploadTableImport({
-        workspaceId,
-        source: { type: 'workspace_file', fileId },
-        target: {
-          type: 'new',
-          name: sanitizeName(fileName.replace(/\.[^.]+$/, ''), 'imported_table').slice(
-            0,
-            TABLE_LIMITS.MAX_TABLE_NAME_LENGTH
-          ),
+      const created = await requestJson(createTableImportResourceContract, {
+        body: {
+          workspaceId,
+          source: { type: 'workspace_file', fileId },
+          target: {
+            type: 'new',
+            name: sanitizeName(fileName.replace(/\.[^.]+$/, ''), 'imported_table').slice(
+              0,
+              TABLE_LIMITS.MAX_TABLE_NAME_LENGTH
+            ),
+          },
+          timezone,
         },
-        timezone,
       })
-      return { tableId: imported.tableId, importId: imported.id }
+      const { session } = created.data
+      return { tableId: session.tableId, importId: session.id }
     },
     onError: (error) => {
       logger.error('Failed to start import from file:', error)
