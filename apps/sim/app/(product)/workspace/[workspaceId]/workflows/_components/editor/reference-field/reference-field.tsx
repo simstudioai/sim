@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { EnvVarDropdown } from '@/app/(product)/workspace/[workspaceId]/_components/env-var-dropdown/env-var-dropdown'
+import { EnvVarDropdown } from '@/app/(product)/_components/env-var-dropdown/env-var-dropdown'
 import {
   formatDisplayText,
   type WorkflowSearchTextHighlight,

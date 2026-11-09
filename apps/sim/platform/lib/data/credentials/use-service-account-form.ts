@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { isApiClientError } from '@/lib/api/client/errors'
-import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import {
   AUTH_METHOD_FIELD_ID,
   type ClientCredentialAccountDescriptor,
@@ -128,7 +128,8 @@ function clientCredentialMessage(
 }
 
 interface UseServiceAccountFormOptions {
-  workspaceId: string
+  /** The workspace or organization that owns the new credential. */
+  scope: ResourceScope
   serviceAccountProviderId: string
   onCreated: (credentialId: string) => void
 }
@@ -140,7 +141,7 @@ interface UseServiceAccountFormOptions {
  * or rejects with the provider's verification failure in readable terms.
  */
 export function useServiceAccountForm({
-  workspaceId,
+  scope,
   serviceAccountProviderId,
   onCreated,
 }: UseServiceAccountFormOptions) {
@@ -221,7 +222,7 @@ export function useServiceAccountForm({
     if (!descriptor || missingRequired) return false
     try {
       const created = await createCredential.mutateAsync({
-        ...resourceScopeFields(resourceScopeFromOwner({ workspaceId })),
+        ...resourceScopeFields(scope),
         type: 'service_account',
         providerId: descriptor.providerId,
         ...secretFields,

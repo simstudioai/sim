@@ -7,7 +7,7 @@ import {
   FieldPopoverHeading,
   FieldPopoverRow,
   useActiveRowIntoView,
-} from '@/app/(product)/workspace/[workspaceId]/_components/field-popover/field-popover'
+} from '@/app/(product)/_components/field-popover/field-popover'
 import { useEnvVarSuggestions } from '@/platform/lib/data/credentials'
 
 interface EnvVarDropdownProps {

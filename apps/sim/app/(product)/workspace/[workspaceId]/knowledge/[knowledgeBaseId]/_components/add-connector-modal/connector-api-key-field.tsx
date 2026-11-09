@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { SecretField } from '@sim/emcn/field/value-fields'
-import { EnvVarDropdown } from '@/app/(product)/workspace/[workspaceId]/_components/env-var-dropdown/env-var-dropdown'
+import { EnvVarDropdown } from '@/app/(product)/_components/env-var-dropdown/env-var-dropdown'
 import { checkEnvVarTrigger } from '@/platform/lib/data/credentials'
 
 interface ConnectorApiKeyFieldProps {

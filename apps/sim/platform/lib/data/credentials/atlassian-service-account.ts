@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { AtlassianProduct } from '@/lib/api/contracts/credentials'
-import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { getServiceAccountCoverageSentence } from '@/lib/integrations/credential-display'
 import { ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth'
 import { useCreateScopedCredential } from '@/hooks/queries/scoped-credentials'
@@ -69,7 +69,8 @@ const EMPTY_DRAFT: AtlassianServiceAccountDraft = {
 
 interface UseAtlassianServiceAccountOptions {
   open: boolean
-  workspaceId: string
+  /** The workspace or organization that owns the new credential. */
+  scope: ResourceScope
   /** The product the setup was opened from, recorded on the credential and naming its token hint. */
   atlassianProduct?: AtlassianProduct
   /** A product-specific setup guide, in place of the Atlassian service-account guide. */
@@ -85,7 +86,7 @@ interface UseAtlassianServiceAccountOptions {
  */
 export function useAtlassianServiceAccount({
   open,
-  workspaceId,
+  scope,
   atlassianProduct,
   setupGuideUrl = ATLASSIAN_SERVICE_ACCOUNT_DOCS_URL,
   onCreated,
@@ -113,7 +114,7 @@ export function useAtlassianServiceAccount({
     if (confirmDisabled) return false
     try {
       const created = await createCredential.mutateAsync({
-        ...resourceScopeFields(resourceScopeFromOwner({ workspaceId })),
+        ...resourceScopeFields(scope),
         type: 'service_account',
         providerId: ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
         apiToken: trimmedToken,

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth'
 import { useCreateScopedCredential } from '@/hooks/queries/scoped-credentials'
 
@@ -34,7 +34,8 @@ const EMPTY_DRAFT: OciApiKeyDraft = {
 
 interface UseOciApiKeyOptions {
   open: boolean
-  workspaceId: string
+  /** The workspace or organization that owns the new credential. */
+  scope: ResourceScope
   onCreated: (credentialId: string) => void
 }
 
@@ -44,7 +45,7 @@ interface UseOciApiKeyOptions {
  * are sent exactly as entered; the server checks the key with a bounded OCI request before it is
  * stored, and `submit` rejects with that failure's message. Each opening starts from an empty draft.
  */
-export function useOciApiKey({ open, workspaceId, onCreated }: UseOciApiKeyOptions) {
+export function useOciApiKey({ open, scope, onCreated }: UseOciApiKeyOptions) {
   const [draft, setDraft] = useState(EMPTY_DRAFT)
   const [wasOpen, setWasOpen] = useState(open)
   const createCredential = useCreateScopedCredential()
@@ -67,7 +68,7 @@ export function useOciApiKey({ open, workspaceId, onCreated }: UseOciApiKeyOptio
     if (confirmDisabled) return false
     try {
       const created = await createCredential.mutateAsync({
-        ...resourceScopeFields(resourceScopeFromOwner({ workspaceId })),
+        ...resourceScopeFields(scope),
         type: 'service_account',
         providerId: OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
         tenancyOcid: draft.tenancyOcid.trim(),

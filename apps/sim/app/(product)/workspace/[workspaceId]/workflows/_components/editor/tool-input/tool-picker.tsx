@@ -9,7 +9,7 @@ import {
   FieldPopoverNote,
   FieldPopoverRow,
   useActiveRowIntoView,
-} from '@/app/(product)/workspace/[workspaceId]/_components/field-popover/field-popover'
+} from '@/app/(product)/_components/field-popover/field-popover'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/tool-input/tool-picker.module.css'
 
 /** One row of the tool picker. */

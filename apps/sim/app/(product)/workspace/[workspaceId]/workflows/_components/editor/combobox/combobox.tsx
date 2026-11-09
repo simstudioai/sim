@@ -23,7 +23,7 @@ import {
   FieldPopoverNote,
   FieldPopoverRow,
   useActiveRowIntoView,
-} from '@/app/(product)/workspace/[workspaceId]/_components/field-popover/field-popover'
+} from '@/app/(product)/_components/field-popover/field-popover'
 import { useActiveSearchTarget } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/combobox/combobox.module.css'
 import { SandboxCreateModal } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/combobox/sandbox-create-modal'

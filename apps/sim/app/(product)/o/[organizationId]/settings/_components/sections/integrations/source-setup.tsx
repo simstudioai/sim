@@ -8,6 +8,8 @@ import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { OAuthConnectModal } from '@/app/(product)/_components/oauth-connect-modal/oauth-connect-modal'
+import { ServiceAccountModal } from '@/app/(product)/_components/service-account-modal/service-account-modal'
 import {
   ActionRow,
   DetailHeader,
@@ -27,6 +29,7 @@ import {
 } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/gitlab-fields'
 import {
   type ConnectorData,
+  getCanonicalScopesForProvider,
   type ResourceScope,
   useAddConnectorForm,
 } from '@/platform/lib/data/search-sources'
@@ -89,6 +92,7 @@ export function SourceSetupForm({
     isOptionalSetupField,
     rawCredentials,
     searchLabels,
+    serviceAccount,
     showGitLabPermissions,
     slackSetupRequired,
   } = form
@@ -97,6 +101,11 @@ export function SourceSetupForm({
     value: credential.id,
     label: credential.name || credential.provider,
   }))
+  const connectNew = form.canConnectOAuth
+    ? credentials.length > 0
+      ? `Connect another ${connectorConfig.name} account`
+      : `Connect ${connectorConfig.name} account`
+    : undefined
   const failedAccounts = credentialsError && rawCredentials.length === 0
   const retryAccounts = (
     <FailureNotice
@@ -117,6 +126,20 @@ export function SourceSetupForm({
           loading={credentialsLoading}
           disabled={isCreating}
         />
+        {(form.canConnectOAuth || serviceAccount) && (
+          <ActionRow>
+            {form.canConnectOAuth && (
+              <Button size='compact' onClick={form.connectOAuth}>
+                {`Connect ${connectorConfig.name} account`}
+              </Button>
+            )}
+            {serviceAccount && (
+              <Button size='compact' onClick={() => form.setServiceAccountField('content')}>
+                {serviceAccount.label}
+              </Button>
+            )}
+          </ActionRow>
+        )}
         {!form.showCredentialPicker && failedAccounts && retryAccounts}
       </>
     ) : null
@@ -221,28 +244,44 @@ export function SourceSetupForm({
                   failedAccounts ? (
                     retryAccounts
                   ) : (
-                    <SearchableSelect
-                      label={
-                        isMembersMode
-                          ? 'Account for browsing'
-                          : form.canConnectOAuth
-                            ? 'Account'
-                            : 'Service account'
-                      }
-                      searchLabel='Search accounts…'
-                      placeholder={
-                        form.canConnectOAuth
-                          ? `Select ${connectorConfig.name} account`
-                          : 'Select a service account'
-                      }
-                      options={accountOptions}
-                      value={form.effectiveCredentialId}
-                      onValueChange={form.setSelectedCredentialId}
-                      onOpenChange={(open) => {
-                        if (open) void form.refetchCredentials()
-                      }}
-                      disabled={isCreating || !isIntegrationAvailabilityReady || credentialsLoading}
-                    />
+                    <>
+                      <SearchableSelect
+                        label={
+                          isMembersMode
+                            ? 'Account for browsing'
+                            : form.canConnectOAuth
+                              ? 'Account'
+                              : 'Service account'
+                        }
+                        searchLabel='Search accounts…'
+                        placeholder={
+                          form.canConnectOAuth
+                            ? `Select ${connectorConfig.name} account`
+                            : 'Select a service account'
+                        }
+                        options={accountOptions}
+                        value={form.effectiveCredentialId}
+                        onValueChange={form.setSelectedCredentialId}
+                        onOpenChange={(open) => {
+                          if (open) void form.refetchCredentials()
+                        }}
+                        createLabel={connectNew}
+                        onCreate={connectNew ? form.connectOAuth : undefined}
+                        disabled={
+                          isCreating || !isIntegrationAvailabilityReady || credentialsLoading
+                        }
+                      />
+                      {serviceAccount && (
+                        <div>
+                          <Button
+                            size='compact'
+                            onClick={() => form.setServiceAccountField('browsing')}
+                          >
+                            {serviceAccount.label}
+                          </Button>
+                        </div>
+                      )}
+                    </>
                   )
                 ) : null}
                 {form.canSetUpGitHubInstallation && (
@@ -340,6 +379,45 @@ export function SourceSetupForm({
           </ActionRow>
         )}
       </FormFieldset>
+      {form.serviceAccountField && serviceAccount && (
+        <ServiceAccountModal
+          open
+          onOpenChange={(open) => {
+            if (!open) form.setServiceAccountField(null)
+          }}
+          scope={scope}
+          serviceAccountProviderId={serviceAccount.serviceAccountProviderId}
+          serviceName={serviceAccount.serviceName}
+          atlassianProduct={serviceAccount.atlassianProduct}
+          atlassianSetupGuideUrl={serviceAccount.atlassianSetupGuideUrl}
+          onCreated={(credentialId) => {
+            if (form.serviceAccountField === 'content') form.setContentCredentialId(credentialId)
+            else form.setSelectedCredentialId(credentialId)
+            form.setServiceAccountField(null)
+          }}
+        />
+      )}
+      {form.showOAuthModal && connectorConfig.auth.mode === 'oauth' && form.connectorProviderId && (
+        <OAuthConnectModal
+          mode='connect'
+          open
+          onOpenChange={(open) => {
+            if (!open) form.setShowOAuthModal(false)
+          }}
+          scope={scope}
+          provider={form.connectorProviderId}
+          providerId={form.connectorProviderId}
+          serviceId={connectorConfig.auth.provider}
+          docsUrl={form.docsUrl}
+          requiredScopes={getCanonicalScopesForProvider(form.connectorProviderId)}
+          returnTo={{
+            origin: 'kb-connectors',
+            knowledgeBaseId,
+            connectorType,
+            sourceAccess: access.accessMode === 'members' ? 'members' : undefined,
+          }}
+        />
+      )}
     </SectionStack>
   )
 }

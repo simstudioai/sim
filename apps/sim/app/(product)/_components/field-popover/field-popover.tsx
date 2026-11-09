@@ -20,7 +20,7 @@ import {
 } from '@floating-ui/dom'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { createPortal } from 'react-dom'
-import styles from '@/app/(product)/workspace/[workspaceId]/_components/field-popover/field-popover.module.css'
+import styles from '@/app/(product)/_components/field-popover/field-popover.module.css'
 
 const POPUP_GAP = 4
 const VIEWPORT_MARGIN = 8

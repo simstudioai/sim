@@ -15,7 +15,7 @@ export {
   getCredentialGroupProviderService,
 } from '@/lib/credential-groups/providers'
 export { hasSlackSearchUserScopes } from '@/lib/credential-groups/slack-managed-user-scopes'
-export type { Credential } from '@/lib/oauth'
+export { type Credential, getCanonicalScopesForProvider } from '@/lib/oauth'
 export type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 export { getSearchConnectionLabels } from '@/lib/sim-search/connection-labels'
 export { connectorDisplayName, getConnectorAccessAvailability } from '@/lib/sim-search/connectors'
