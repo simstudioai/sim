@@ -4,7 +4,7 @@ import { useMemo } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { ChartCanvas } from '@/app/(product)/workspace/[workspaceId]/_components/file-preview/chart-canvas'
-import styles from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/chart-preview.module.css'
+import styles from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/chart-preview.module.css'
 import {
   buildChartRenderOption,
   CHART_ROWS_DEFAULT,

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { ZoomablePreview } from '@/app/(product)/workspace/[workspaceId]/_components/file-preview/zoomable-preview'
-import { UnsupportedPreview } from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/preview-shared'
+import { UnsupportedPreview } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/preview-shared'
 import { useFileContentSource, type WorkspaceFileRecord } from '@/platform/lib/data/files'
 
 interface ImagePreviewProps {

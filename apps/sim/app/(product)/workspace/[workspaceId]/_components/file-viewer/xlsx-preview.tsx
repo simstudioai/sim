@@ -8,9 +8,9 @@ import { DataTable } from '@/app/(product)/workspace/[workspaceId]/_components/f
 import {
   PreviewError,
   resolvePreviewError,
-} from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/preview-shared'
-import styles from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/table-frame.module.css'
-import { useHorizontalWheelScroll } from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/use-horizontal-wheel-scroll'
+} from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/preview-shared'
+import styles from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/table-frame.module.css'
+import { useHorizontalWheelScroll } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/use-horizontal-wheel-scroll'
 import { useDocPreviewBinary, type WorkspaceFileRecord } from '@/platform/lib/data/files'
 import { assertOoxmlPreviewWithinLimits } from '@/platform/lib/data/files/office'
 import {

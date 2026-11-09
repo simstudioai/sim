@@ -285,13 +285,13 @@
       "modules": 567,
       "gateways": {
         "apps/sim/app/(product)/workspace/[workspaceId]/files/[fileId]/_components/file-view/file-view.tsx": 565,
-        "apps/sim/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/file-viewer.tsx": 284,
-        "apps/sim/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 157,
+        "apps/sim/app/(product)/workspace/[workspaceId]/_components/file-viewer/file-viewer.tsx": 284,
+        "apps/sim/app/(product)/workspace/[workspaceId]/_components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 157,
         "apps/sim/platform/lib/data/files/markdown/index.ts": 91,
         "apps/sim/hooks/queries/kb/knowledge.ts": 61,
         "apps/sim/lib/api/contracts/index.ts": 54,
         "apps/sim/hooks/queries/kb/connectors.ts": 43,
-        "apps/sim/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/pptx-preview.tsx": 41
+        "apps/sim/app/(product)/workspace/[workspaceId]/_components/file-viewer/pptx-preview.tsx": 41
       }
     },
     "app/(product)/workspace/[workspaceId]/files/page.tsx": {

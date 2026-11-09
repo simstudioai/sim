@@ -4,7 +4,7 @@ import { Button } from '@sim/emcn/button'
 import { InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
-import styles from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/file-save-conflict.module.css'
+import styles from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/file-save-conflict.module.css'
 
 interface FileSaveConflictProps {
   isReloading: boolean

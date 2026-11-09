@@ -5,12 +5,12 @@ import {
   PreviewError,
   PreviewErrorBoundary,
   resolvePreviewError,
-} from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/preview-shared'
+} from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/preview-shared'
 import { useDocPreviewBinary, type WorkspaceFileRecord } from '@/platform/lib/data/files'
 
 const PdfViewer = dynamic(
   () =>
-    import('@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/pdf-viewer').then(
+    import('@/app/(product)/workspace/[workspaceId]/_components/file-viewer/pdf-viewer').then(
       (module) => module.PdfViewer
     ),
   { ssr: false }
