@@ -37,6 +37,7 @@ function context(organizationId: string): OrganizationSurfaceContext {
       governanceActive: false,
       hosted: false,
       selfHosted: {},
+      personal: false,
     },
     searchAccess: { memberScoped: false, sourceMirrored: false },
     connectedAccountsAvailable: false,
