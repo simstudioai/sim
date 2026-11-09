@@ -363,6 +363,46 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Home | Plan toggle, composer handoff and server chat id | `organization-conversation.tsx` | Open | Chat lane owns `home-composer` |
 | Home | Workspace status read stays bounded under thousands of time pauses: only the asked workspaces' pauses are read, stopping at the first waiting on a person | `lib/organizations/home/workspace-activity.ts` | Done | `workspace-activity.integration.ts` measures the real plan on real PostgreSQL. No index is needed; a workspace with no match still reads every one of its live pauses |
 
+## Settings: legacy settings homes
+
+Every section of the legacy settings (`components/settings/navigation.ts`, `app/workspace/[workspaceId]/settings/**`) has one home in the zone: organization Settings for what belongs to the viewer, the organization or the deployment, and the workspace's Settings tab for what belongs to one workspace. The workspace tab lists its sections in the organization Settings navigation's pattern, with the legacy sidebar's gates (`lib/data/workspace-settings`).
+
+| Domain | Capability | Legacy source | Status | Proof or reason |
+| --- | --- | --- | --- | --- |
+| Settings home | General | `app/workspace/[workspaceId]/settings` | Open | `/settings/general`: org Settings, Account. Existing section; its capabilities are the rows under Settings: personal |
+| Settings home | Desktop | `app/workspace/[workspaceId]/settings` | Open | `/settings/desktop`: org Settings, Account, listed only in the desktop app |
+| Settings home | Browser, passwords | `app/workspace/[workspaceId]/settings` | Open | `/settings/browser`: org Settings, Account, listed only in the desktop app |
+| Settings home | Terminal | `app/workspace/[workspaceId]/settings` | Open | `/settings/terminal`: org Settings, Account, listed only in the desktop app |
+| Settings home | Subscription | `app/workspace/[workspaceId]/settings` | Open | `/settings/billing`: org Settings, Account. Existing section; rows under Settings: billing and usage |
+| Settings home | Credit usage | `app/workspace/[workspaceId]/settings` | Open | `/settings/billing/credit-usage`: org Settings, a Subscription sub-page |
+| Settings home | Teammates | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/teammates`: workspace Settings tab |
+| Settings home | Secrets | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/secrets`: workspace Settings tab |
+| Settings home | Secret details, references and usage | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/secrets/[credentialId]`: workspace Settings tab, a Secrets sub-page |
+| Settings home | BYOK | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/byok`: workspace Settings tab |
+| Settings home | Sandboxes | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/sandboxes`: workspace Settings tab |
+| Settings home | Custom tools | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/custom-tools`: workspace Settings tab |
+| Settings home | MCP tools | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/mcp`: workspace Settings tab |
+| Settings home | MCP servers | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/workflow-mcp-servers`: workspace Settings tab |
+| Settings home | Sim API keys | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/api-keys`: workspace Settings tab |
+| Settings home | Sim Mailer | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/inbox`: workspace Settings tab |
+| Settings home | Recently deleted, workspace items | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/recently-deleted`: workspace Settings tab. Deleted chats stay in org Settings |
+| Settings home | Workspace forks | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/forks`: workspace Settings tab |
+| Settings home | Custom blocks | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/custom-blocks`: workspace Settings tab |
+| Settings home | Requests, workspace scope | `app/workspace/[workspaceId]/settings` | Open | `/workspace/[id]/settings/requests`: workspace Settings tab, the shared Requests panel with the workspace scope |
+| Settings home | Members | `app/workspace/[workspaceId]/settings` | Open | `/settings/members`: org Settings. Existing section |
+| Settings home | Credential groups | `app/workspace/[workspaceId]/settings` | Open | `/settings/connected-accounts`: org Settings. Existing section |
+| Settings home | Insights and usage events | `app/workspace/[workspaceId]/settings` | Open | `/settings/usage`, `/settings/usage/events`: org Settings. Existing section |
+| Settings home | Permission groups | `app/workspace/[workspaceId]/settings` | Open | `/settings/access-control`: org Settings. Existing section |
+| Settings home | Audit logs | `app/workspace/[workspaceId]/settings` | Open | `/settings/audit-logs`: org Settings. Existing section |
+| Settings home | Single sign-on | `app/workspace/[workspaceId]/settings` | Open | `/settings/sso`: org Settings. Existing section |
+| Settings home | Security | `app/workspace/[workspaceId]/settings` | Open | `/settings/security`: org Settings. Existing section |
+| Settings home | Data retention | `app/workspace/[workspaceId]/settings` | Open | `/settings/data-retention`: org Settings. Existing section |
+| Settings home | Data drains | `app/workspace/[workspaceId]/settings` | Open | `/settings/data-drains`: org Settings. Existing section |
+| Settings home | White-labeling | `app/workspace/[workspaceId]/settings` | Open | `/settings/whitelabeling`: org Settings. Existing section |
+| Settings home | Admin | `app/workspace/[workspaceId]/settings` | Open | `/settings/admin`: org Settings, Platform. Existing section |
+| Settings home | Mothership | `app/workspace/[workspaceId]/settings` | Open | `/settings/mothership`: org Settings, Platform. Existing section |
+| Settings home | Self hosting | `app/workspace/[workspaceId]/settings` | Open | `/settings/self-host`: org Settings, Platform, on a self-hosted deployment |
+
 ## Workspace pages
 
 The workspace's Dashboard, Issues, Changelog and Logs are Platform pages with fixture data. Each view takes `data` and a named `actions` interface, so a live adapter in `lib/data` supplies the same props. Until one exists, a live workspace keeps its legacy page. Tables, Files, Knowledge bases and Workflows are live-only ports of the legacy pages; a live workspace opens on Workflows. Their rows were checked by hand against the live stack and legacy on 2026-11-08 and have no committed live check yet.

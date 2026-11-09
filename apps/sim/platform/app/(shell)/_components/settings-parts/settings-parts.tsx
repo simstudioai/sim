@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import { Button } from '@sim/emcn/button'
 import Link from 'next/link'
-import styles from '@/platform/app/(shell)/settings/_components/section-parts/section-parts.module.css'
+import styles from '@/platform/app/(shell)/_components/settings-parts/settings-parts.module.css'
 
 interface ChildrenProps {
   children: ReactNode

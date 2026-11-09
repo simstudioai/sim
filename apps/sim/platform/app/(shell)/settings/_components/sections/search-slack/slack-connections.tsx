@@ -8,7 +8,7 @@ import { Modal } from '@sim/emcn/modal'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { useRouter } from 'next/navigation'
-import { ActionRow } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { ActionRow } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import {
   type ManifestView,
   type SetupTarget,

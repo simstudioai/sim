@@ -3,7 +3,7 @@
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { Switch } from '@sim/emcn/switch'
 import dynamic from 'next/dynamic'
-import { SavedSettingsSection } from '@/platform/app/(shell)/settings/_components/section-parts/saved-settings'
+import { SavedSettingsSection } from '@/platform/app/(shell)/_components/settings-parts/saved-settings'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { useTelemetrySetting } from '@/platform/lib/data/preferences'
 

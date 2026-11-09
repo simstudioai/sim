@@ -1,0 +1,29 @@
+/* The section navigation beside the open section, as the organization Settings sidebar sits beside its page. */
+.layout {
+  display: grid;
+  grid-template-columns: var(--container-216) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--spacing-48);
+  min-inline-size: 0;
+}
+.navigation {
+  position: sticky;
+  inset-block-start: var(--ui-page-heading-inset);
+  min-inline-size: 0;
+  margin-inline-start: calc(-1 * var(--ui-row-inset));
+}
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-24);
+  min-inline-size: 0;
+}
+@media (max-width: 56rem) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--spacing-24);
+  }
+  .navigation {
+    position: static;
+  }
+}

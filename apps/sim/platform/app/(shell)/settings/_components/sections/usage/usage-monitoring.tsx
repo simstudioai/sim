@@ -8,13 +8,13 @@ import { ScrollArea } from '@sim/emcn/scroll-area'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import Link from 'next/link'
 import {
+  ActionRow,
+  DetailHeader,
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
+import {
   type CreditsTarget,
   ManageCreditsModal,
 } from '@/platform/app/(shell)/settings/_components/section-parts/manage-credits-modal'
-import {
-  ActionRow,
-  DetailHeader,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import {
   ActivityOverview,

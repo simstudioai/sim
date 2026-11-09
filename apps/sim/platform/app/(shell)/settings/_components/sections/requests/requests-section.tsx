@@ -1,6 +1,12 @@
+import { RequestsPanel } from '@/platform/app/(shell)/_components/access-requests/requests-panel'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
-import { RequestsPanel } from '@/platform/app/(shell)/settings/_components/sections/requests/requests-panel'
 
 export default function RequestsSection({ organization }: SettingsSectionProps) {
-  return <RequestsPanel organization={organization} />
+  const organizationId = organization.organization.id
+  return (
+    <RequestsPanel
+      scope={{ kind: 'organization', organizationId }}
+      reviewOrganizationId={organization.viewer.isAdmin ? organizationId : undefined}
+    />
+  )
 }

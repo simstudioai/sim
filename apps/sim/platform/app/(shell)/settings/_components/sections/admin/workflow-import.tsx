@@ -10,7 +10,7 @@ import {
   ActionRow,
   FieldStack,
   Muted,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import type { AdminExample } from '@/platform/app/(shell)/settings/_components/sections/admin/model'
 
 export interface ImportInputs {

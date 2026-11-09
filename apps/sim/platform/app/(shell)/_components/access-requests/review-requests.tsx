@@ -8,8 +8,8 @@ import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSurface } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
-import styles from '@/platform/app/(shell)/settings/_components/sections/requests/requests.module.css'
-import { ReviewModal } from '@/platform/app/(shell)/settings/_components/sections/requests/review-modal'
+import styles from '@/platform/app/(shell)/_components/access-requests/access-requests.module.css'
+import { ReviewModal } from '@/platform/app/(shell)/_components/access-requests/review-modal'
 import {
   REQUEST_STATUS_OPTIONS,
   type RequestStatusFilter,

@@ -4,6 +4,7 @@ import { type DragEvent, memo, useCallback, useEffect, useMemo, useRef, useState
 import { IconButton } from '@sim/emcn/button'
 import { ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { useSearchParams } from 'next/navigation'
 import {
   ActiveSearchTargetProvider,
   useActiveSearchTarget,
@@ -34,8 +35,6 @@ import {
   type ToolPickerItem,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/tool-picker'
 import { ToolUsageControl } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/usage-control'
-import { useOrganization } from '@/platform/lib/data/organization'
-import { legacyRoutes } from '@/platform/lib/data/organization-model'
 import {
   type ActiveSearchTarget,
   type BlockConfig,
@@ -106,6 +105,8 @@ import {
   useWorkspaceCredential,
   getMcpToolIssue as validateMcpTool,
 } from '@/platform/lib/data/workflow-editor/tool-input'
+import { platformHref, publicAssetPath } from '@/platform/lib/navigation'
+import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 const UNSUPPORTED_CUSTOM_TOOL_MESSAGE = 'Custom tools are not supported by this block yet'
 const UNSUPPORTED_MCP_TOOL_MESSAGE = 'MCP tools are not supported by this block yet'
@@ -149,7 +150,7 @@ export const ToolInput = memo(function ToolInput({
   allowExpandInPreview,
 }: ToolInputProps) {
   const { workspaceId, workflowId } = useWorkflowScope()
-  const organization = useOrganization()
+  const search = useSearchParams()
   const activeSearchTarget = useActiveSearchTarget()
   const [storeValue, setStoreValue] = useSubBlockValue<StoredTool[]>(blockId, subBlockId)
   const [open, setOpen] = useState(false)
@@ -707,9 +708,9 @@ export const ToolInput = memo(function ToolInput({
   }
 
   const openMcpSettings = (serverId: string | undefined) => {
-    const base = `${legacyRoutes(organization).workspace(encodeURIComponent(workspaceId))}/settings/mcp`
+    const base = workspacePath(workspaceId, 'settings/mcp')
     const href = serverId ? `${base}?mcpServerId=${encodeURIComponent(serverId)}` : base
-    window.open(href, '_blank', 'noopener')
+    window.open(publicAssetPath(platformHref(href, search)), '_blank', 'noopener')
   }
 
   const getParamActiveSearchTarget = (

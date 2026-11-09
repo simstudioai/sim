@@ -6,7 +6,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { Tooltip } from '@sim/emcn/tooltip'
-import styles from '@/platform/app/(shell)/settings/_components/section-parts/saved-settings.module.css'
+import styles from '@/platform/app/(shell)/_components/settings-parts/saved-settings.module.css'
 import { useBooleanSetting, useSavedSettingsRead } from '@/platform/lib/data/preferences'
 import { publicAssetPath } from '@/platform/lib/navigation'
 

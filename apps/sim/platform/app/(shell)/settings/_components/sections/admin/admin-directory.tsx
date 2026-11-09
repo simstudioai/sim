@@ -16,7 +16,7 @@ import {
   FieldStack,
   Muted,
   SectionToolbar,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { AddUserDialog } from '@/platform/app/(shell)/settings/_components/sections/admin/add-user-dialog'
 import type {
   AdminExample,

@@ -1,21 +1,22 @@
 'use client'
 
 import { SegmentedControl } from '@sim/emcn/segmented-control'
-import { MyRequests } from '@/platform/app/(shell)/settings/_components/sections/requests/my-requests'
-import styles from '@/platform/app/(shell)/settings/_components/sections/requests/requests.module.css'
-import { ReviewRequests } from '@/platform/app/(shell)/settings/_components/sections/requests/review-requests'
-import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import styles from '@/platform/app/(shell)/_components/access-requests/access-requests.module.css'
+import { MyRequests } from '@/platform/app/(shell)/_components/access-requests/my-requests'
+import { ReviewRequests } from '@/platform/app/(shell)/_components/access-requests/review-requests'
 import { type RequestScope, useMyRequests, useRequestsUrl } from '@/platform/lib/data/requests'
 
 interface RequestsPanelProps {
-  organization: PlatformOrganization
+  /** Where the viewer's own requests are filed: the organization, or one of its workspaces. */
+  scope: RequestScope
+  /** The organization whose requests the viewer reviews; absent for a viewer who reviews none. */
+  reviewOrganizationId?: string
 }
 
 /** Every member sees their own requests; the review view exists only for administrators. */
-export function RequestsPanel({ organization }: RequestsPanelProps) {
-  const canReview = organization.viewer.isAdmin
+export function RequestsPanel({ scope, reviewOrganizationId }: RequestsPanelProps) {
+  const canReview = Boolean(reviewOrganizationId)
   const { setParams, view } = useRequestsUrl(canReview)
-  const scope: RequestScope = { kind: 'organization', organizationId: organization.organization.id }
   const mine = useMyRequests(scope, view)
   const showCatalog = view === 'catalog' || mine.showCatalog
   return (
@@ -34,8 +35,8 @@ export function RequestsPanel({ organization }: RequestsPanelProps) {
           }
         />
       )}
-      {view === 'review' ? (
-        <ReviewRequests organizationId={organization.organization.id} />
+      {view === 'review' && reviewOrganizationId ? (
+        <ReviewRequests organizationId={reviewOrganizationId} />
       ) : (
         <MyRequests scope={scope} view={view} mine={mine} />
       )}
