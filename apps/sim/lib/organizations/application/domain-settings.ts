@@ -28,7 +28,7 @@ import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { authorizeOrganizationOperation } from '@/lib/core/application/organization-authorization'
 import type { OrganizationOperation } from '@/lib/core/application/organization-operation'
 import { env, isTruthy } from '@/lib/core/config/env'
-import { isBillingEnabled, isHosted } from '@/lib/core/config/env-flags'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbTransaction } from '@/lib/db/types'
 import { defineOrganizationConfigurationUseCase } from '@/lib/organizations/application/authorized-configuration-use-case'
@@ -67,7 +67,8 @@ function domainValue(
   }
 }
 async function requireDomainEnterprise(organizationId: string) {
-  if (isBillingEnabled && !(await isOrganizationOnEnterprisePlan(organizationId)))
+  /** Without billing every team is entitled; a personal organization never is. */
+  if (!(await isOrganizationOnEnterprisePlan(organizationId)))
     throw new ForbiddenOperationError(
       'ENTERPRISE_PLAN_REQUIRED',
       'Domain verification is available on Enterprise plans only'
@@ -128,8 +129,7 @@ export const listOrganizationDomains = defineOrganizationConfigurationUseCase({
     }
     context: { role: string }
   }) {
-    const isEnterprise =
-      !isBillingEnabled || (await isOrganizationOnEnterprisePlan(input.organizationId))
+    const isEnterprise = await isOrganizationOnEnterprisePlan(input.organizationId)
     if (!isEnterprise)
       return { isEnterprise: false, domains: [], truncated: false, nextCursorKeys: null }
     if (input.limit !== undefined && principal.kind !== 'organization_delegated') {

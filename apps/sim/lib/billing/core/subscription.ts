@@ -4,6 +4,7 @@ import { member, organization, subscription, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getEffectiveBillingStatus, isOrganizationBillingBlocked } from '@/lib/billing/core/access'
+import { isTeamOrganization } from '@/lib/billing/core/payer-organization'
 import {
   getHighestPriorityPersonalSubscription,
   getHighestPrioritySubscription,
@@ -465,6 +466,10 @@ async function resolveOrganizationEnterprisePlan(
   executor: DbOrTx = db
 ): Promise<boolean> {
   try {
+    if (!(await isTeamOrganization(organizationId, executor))) {
+      return false
+    }
+
     if (!isBillingEnabled) {
       return true
     }
@@ -595,6 +600,7 @@ async function resolveOrganizationGovernancePlan(
   organizationId: string,
   executor: DbOrTx = db
 ): Promise<boolean> {
+  if (!(await isTeamOrganization(organizationId, executor))) return false
   if (!isSubscriptionBackedEntitlement()) return true
 
   const orgSub = await getOrganizationSubscriptionUsable(organizationId, {
@@ -630,6 +636,7 @@ export async function isOrganizationFeatureEntitled(
   executor: DbOrTx = db,
   options: { onError?: EnterprisePlanErrorPolicy } = {}
 ): Promise<boolean> {
+  if (!(await isTeamOrganization(organizationId, executor))) return false
   if (!isBillingEnabled) return selfHostEntitlement
   return isOrganizationOnEnterprisePlan(organizationId, options.onError ?? 'return-false', executor)
 }

@@ -73,8 +73,14 @@ export async function authorizeDataDrainOperation(
   }
   if (!isBillingEnabled && !isDataDrainsEnabled)
     throw new OrchestrationError('not_found', 'Data Drains are not enabled on this deployment')
-  if (isBillingEnabled && !(await isOrganizationOnEnterprisePlan(input.organizationId)))
-    throw new OrchestrationError('forbidden', 'Data Drains are available on Enterprise plans only')
+  /** Without billing every team is entitled; a personal organization never is. */
+  if (!(await isOrganizationOnEnterprisePlan(input.organizationId)))
+    throw new OrchestrationError(
+      'forbidden',
+      isBillingEnabled
+        ? 'Data Drains are available on Enterprise plans only'
+        : 'Data Drains are available to teams only'
+    )
   if (roleError) {
     const read =
       operation === dataDrainOperations.list ||

@@ -1,3 +1,4 @@
+import { isTeamOrganization } from '@/lib/billing/core/payer-organization'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing/core/subscription'
 import { isHosted, isScimEnabled } from '@/lib/core/config/env-flags'
 import type { DbOrTx } from '@/lib/db/types'
@@ -28,6 +29,6 @@ export async function isScimEntitledForOrganization(
   executor?: DbOrTx
 ): Promise<boolean> {
   if (!isScimDeploymentEnabled()) return false
-  if (!isHosted) return true
+  if (!isHosted) return isTeamOrganization(organizationId, executor)
   return isOrganizationOnEnterprisePlan(organizationId, 'throw', executor)
 }

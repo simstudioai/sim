@@ -19,6 +19,7 @@ import {
   knowledgeAvailabilityMock,
   knowledgeAvailabilityMockFns,
 } from '@sim/testing/mocks/knowledge-availability.mock'
+import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
 import { permissionCheckMock } from '@sim/testing/mocks/permission-check.mock'
 import {
   permissionGroupsResolveMock,
@@ -40,6 +41,7 @@ const hoisted = vi.hoisted(() => ({
   resolveWorkspaceNavigation: vi.fn(),
 }))
 
+vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
 vi.mock('@/components/settings/navigation', () => ({
   getOrganizationSettingsFeatures: hoisted.getOrganizationSettingsFeatures,
   organizationPlanAllowsSettingsSection: hoisted.organizationPlanAllowsSettingsSection,

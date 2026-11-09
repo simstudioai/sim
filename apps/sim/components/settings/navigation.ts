@@ -1054,16 +1054,23 @@ export interface OrganizationSettingsFeatures {
   governanceActive: boolean
   hosted: boolean
   selfHosted: Partial<Record<OrganizationSettingsSection, boolean>>
+  /**
+   * A personal organization: one member, billed to its owner, never entitled to team or
+   * Enterprise configuration whatever the deployment enables.
+   */
+  personal: boolean
 }
 
 export function getOrganizationSettingsFeatures(
   hasEnterprisePlan: boolean,
   deployment: DeploymentShape,
   /** Defaults to the plan gate, so a caller with no reason to distinguish the two keeps its behavior. */
-  governanceActive: boolean = hasEnterprisePlan
+  governanceActive: boolean = hasEnterprisePlan,
+  personal = false
 ): OrganizationSettingsFeatures {
   const { features } = deployment
   return {
+    personal,
     billingEnabled: deployment.billingEnabled,
     hasEnterprisePlan,
     governanceActive,

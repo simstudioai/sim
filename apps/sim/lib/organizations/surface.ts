@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import type { SessionPrincipal } from '@sim/auth/principal'
 import { db } from '@sim/db'
-import { member, organization, session } from '@sim/db/schema'
+import { member, type OrganizationKind, organization, session } from '@sim/db/schema'
 import { and, asc, count, eq } from 'drizzle-orm'
 import {
   getOrganizationSettingsFeatures,
@@ -31,6 +31,8 @@ interface OrganizationSurfaceOrganization {
   name: string
   slug: string
   logo: string | null
+  /** A personal organization offers no team management or Enterprise configuration. */
+  kind: OrganizationKind
 }
 
 interface OrganizationSurfaceViewer {
@@ -90,6 +92,7 @@ async function resolveOrganizationSurfaceGate(
         name: organization.name,
         slug: organization.slug,
         logo: organization.logo,
+        kind: organization.kind,
       })
       .from(organization)
       .where(eq(organization.id, organizationId))
@@ -108,6 +111,7 @@ async function resolveOrganizationSurfaceGate(
       name: row.name,
       slug: row.slug,
       logo: row.logo ?? null,
+      kind: row.kind,
     },
     viewer: {
       userId,
@@ -166,7 +170,8 @@ async function resolveOrganizationSurfaceContext(
     settingsFeatures: getOrganizationSettingsFeatures(
       hasEnterprisePlan,
       deployment,
-      governanceActive
+      governanceActive,
+      gate.organization.kind === 'personal'
     ),
   }
 }
