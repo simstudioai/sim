@@ -1189,6 +1189,51 @@ describe('authorized live retrieval', () => {
       })
     ).rejects.toBe('user_stop:test')
   })
+  describe('read window', () => {
+    const content = 'x'.repeat(30_000)
+    async function readWindow(extra: Record<string, unknown>) {
+      const [result] = (await searchLiveKnowledge.execute({ principal, input })).results
+      if (!result) throw new Error('Expected the search fixture to return a result')
+      mocks.read.mockResolvedValue({ ...document, content })
+      const read = await readLiveDocument.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace',
+          documentId: result.documentId,
+          limit: 3,
+          resultSecretRegistry: new ResolvedSecretTraceRegistry([]),
+          ...extra,
+        },
+      })
+      const [chunk] = read.chunks
+      if (!chunk) throw new Error('Expected the read to return a window')
+      return { length: chunk.content.length, next: read.next }
+    }
+
+    it('returns a proportionally longer window when a scaling caller asks for more chunks', async () => {
+      const { length, next } = await readWindow({ limit: 8, scaleWindowWithLimit: true })
+      expect(length).toBe(21_333)
+      expect(next).toEqual({ startChunkIndex: 0, startOffset: 21_333 })
+    })
+
+    it('continues a longer window from where the previous one ended', async () => {
+      const { length, next } = await readWindow({
+        limit: 8,
+        scaleWindowWithLimit: true,
+        startOffset: 21_333,
+      })
+      expect(length).toBe(30_000 - 21_333)
+      expect(next).toBeNull()
+    })
+
+    it.each([
+      ['at the default limit', { limit: 3, scaleWindowWithLimit: true }],
+      ['below the default limit', { limit: 1, scaleWindowWithLimit: true }],
+      ['for a caller that does not scale', { limit: 8 }],
+    ])('keeps the standard window %s', async (_, extra) => {
+      expect((await readWindow(extra)).length).toBe(8_000)
+    })
+  })
   it('refuses a chunk index other than zero before reading the document from its provider', async () => {
     const [result] = (await searchLiveKnowledge.execute({ principal, input })).results
     if (!result) throw new Error('Expected the search fixture to return a result')

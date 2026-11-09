@@ -298,6 +298,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
                 ...options,
                 documentId: id,
                 organizationId,
+                scaleWindowWithLimit: true,
                 resultSecretRegistry: registry,
                 signal,
               },

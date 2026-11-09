@@ -287,8 +287,20 @@ export const LIVE_NOT_STARTED_MESSAGE =
 export const LIVE_OVER_ACCOUNT_LIMIT_MESSAGE = `Not searched: one search covers at most ${MAX_ACCOUNTS} accounts. Search this source or account alone.`
 /** Previews center on the query's longest matching term, like indexed passages. */
 const PREVIEW_CHARACTERS = 1800
-/** Characters one read returns, the same page budget indexed document reads use. */
+/** Characters one read returns at the default limit, the page budget indexed document reads use. */
 const READ_WINDOW_CHARACTERS = 8000
+/** The read limit {@link READ_WINDOW_CHARACTERS} is sized for, which is the default limit. */
+const READ_WINDOW_LIMIT = 3
+
+/**
+ * Characters one read returns. A live document is one chunk, so a caller that scales the window
+ * gets a longer one when it asks for more chunks than the default; at or below the default, and
+ * for every other caller, the window stays the standard page.
+ */
+function readWindowCharacters(input: Pick<LiveReadInput, 'limit' | 'scaleWindowWithLimit'>) {
+  if (!input.scaleWindowWithLimit || input.limit <= READ_WINDOW_LIMIT) return READ_WINDOW_CHARACTERS
+  return Math.floor((READ_WINDOW_CHARACTERS * input.limit) / READ_WINDOW_LIMIT)
+}
 
 /**
  * Verifies candidates in rank order. A revoked grant fails the whole account; any other
@@ -980,6 +992,8 @@ export type LiveReadInput = ResourceOwner & {
   documentId: string
   filters?: WorkspaceSearchFilters
   limit: number
+  /** Lengthens the window for a limit above the default, as {@link readWindowCharacters} sizes it. */
+  scaleWindowWithLimit?: boolean
   startChunkIndex?: number
   startOffset?: number
   resultSecretRegistry: ResolvedSecretTraceRegistry
@@ -1125,7 +1139,7 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
         'validation',
         'This document changed. Read again from the beginning'
       )
-    const end = Math.min(content.length, start + READ_WINDOW_CHARACTERS)
+    const end = Math.min(content.length, start + readWindowCharacters(input))
     return {
       documentId: input.documentId,
       knowledgeBaseId: '',
