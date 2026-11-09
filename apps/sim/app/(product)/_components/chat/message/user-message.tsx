@@ -3,6 +3,7 @@ import { CopyButton } from '@sim/emcn/button/copy-button'
 import { MessageBubble } from '@sim/emcn-platform/message-bubble'
 import styles from '@/app/(product)/_components/chat/message/message.module.css'
 import { MessageTime } from '@/app/(product)/_components/chat/message/message-time'
+import { PageContext } from '@/app/(product)/_components/chat/message/page-context'
 import type { PlatformTurn } from '@/app/(product)/_components/chat/model'
 import { MessageAttachments } from '@/app/(product)/_components/composer/message-attachments'
 import { useChatHandlers } from '@/app/(product)/_components/session/chat-runtime'
@@ -18,9 +19,20 @@ interface UserMessageProps {
 }
 export function UserMessage({ turn }: UserMessageProps) {
   const { retryMessage, dismissMessage } = useChatHandlers()
+  const pages = turn.prompt.attachments.flatMap((item) =>
+    item.context?.kind === 'browser_page' && item.context.snapshot
+      ? [{ id: item.id, label: item.name, snapshot: item.context.snapshot }]
+      : []
+  )
+  const attachments = pages.length
+    ? turn.prompt.attachments.filter((item) => item.context?.kind !== 'browser_page')
+    : turn.prompt.attachments
   return (
     <div className={styles.user}>
-      <MessageAttachments items={turn.prompt.attachments} />
+      {pages.map((page) => (
+        <PageContext key={page.id} snapshot={page.snapshot} label={page.label} />
+      ))}
+      <MessageAttachments items={attachments} />
       {turn.prompt.text && (
         <MessageBubble>
           <span data-chat-find=''>{turn.prompt.text}</span>

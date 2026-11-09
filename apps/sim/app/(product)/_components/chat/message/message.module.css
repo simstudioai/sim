@@ -165,3 +165,13 @@
   gap: var(--ui-list-gap);
   justify-self: stretch;
 }
+.pageContext {
+  display: contents;
+}
+.pageContextText {
+  margin-inline: var(--ui-dialog-inset);
+  max-height: 60dvh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

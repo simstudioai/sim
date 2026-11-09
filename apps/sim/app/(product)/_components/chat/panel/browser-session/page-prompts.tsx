@@ -168,14 +168,32 @@ function ChoicePrompt({
       footerStartAction={refuse ? { label: refuse.label, onClick: refuse.onSelect } : undefined}
       onConfirm={() => onChoose(choiceId)}
     >
-      <SelectField
-        label={fieldLabel}
-        placeholder={placeholder}
-        options={options}
-        value={choiceId || undefined}
-        onValueChange={setChoiceId}
-        hint={choiceId ? hintFor?.(choiceId) : undefined}
-      />
+      {/* The dialog focuses the closed picker; Enter there dismisses instead of opening it. */}
+      <div
+        onKeyDownCapture={(event) => {
+          const { target } = event
+          if (
+            event.key !== 'Enter' ||
+            event.nativeEvent.isComposing ||
+            !(target instanceof HTMLElement) ||
+            target.getAttribute('role') !== 'combobox' ||
+            target.getAttribute('aria-expanded') === 'true'
+          )
+            return
+          event.preventDefault()
+          event.stopPropagation()
+          onCancel()
+        }}
+      >
+        <SelectField
+          label={fieldLabel}
+          placeholder={placeholder}
+          options={options}
+          value={choiceId || undefined}
+          onValueChange={setChoiceId}
+          hint={choiceId ? hintFor?.(choiceId) : undefined}
+        />
+      </div>
     </Modal>
   )
 }

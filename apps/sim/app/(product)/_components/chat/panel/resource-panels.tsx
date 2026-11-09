@@ -111,7 +111,7 @@ export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
                 currentResource.workspaceId && (
                   <IconButton
                     icon='I037'
-                    label={`Open ${currentResource.title} in its workspace`}
+                    label={`Open ${currentResource.title}`}
                     tooltip
                     render={<Link href={currentResource.href} />}
                   />
