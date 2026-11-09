@@ -275,6 +275,7 @@ const serverSeamHelpers = new Set([
   'lib/mothership/chat/intent',
   'lib/mothership/chat/lifecycle',
   'lib/mothership/chat/organization-chats',
+  'lib/navigation/legacy-redirects',
   'lib/navigation/resolve-app-entry',
   'lib/organization-secrets/application/use-cases',
   'lib/organizations/application/member-roster',
@@ -283,6 +284,7 @@ const serverSeamHelpers = new Set([
   'lib/sim-links/application/use-cases',
   'lib/users/application/read-current-user',
   'lib/workflows/application/read-workflow-definition',
+  'lib/workspaces/host-context',
   'lib/workspaces/list',
   'lib/workspaces/seed-workspace-list',
 ])
