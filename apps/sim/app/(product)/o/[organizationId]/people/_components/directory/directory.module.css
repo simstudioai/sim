@@ -32,6 +32,13 @@
   margin-inline-start: auto;
 }
 
+/* A phone gives search its own row, out to the page gutter. */
+@media (width < 30rem) {
+  .search {
+    flex-basis: 100%;
+  }
+}
+
 .scope {
   flex: 1;
   color: var(--ui-secondary);
