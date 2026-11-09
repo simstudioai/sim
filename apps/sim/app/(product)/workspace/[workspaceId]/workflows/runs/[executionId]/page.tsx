@@ -9,6 +9,9 @@ import { readTestReturn } from '@/platform/shared/test-return'
 
 export const metadata: Metadata = { title: 'Run snapshot' }
 
+/** Rendered per request: a build must never prerender a viewer's page. */
+export const dynamic = 'force-dynamic'
+
 /**
  * A run's frozen workflow. It lives in the Workflows tab, the one place the block registry the
  * canvas draws with may load, and returns to the run it came from, or to the test whose draft run

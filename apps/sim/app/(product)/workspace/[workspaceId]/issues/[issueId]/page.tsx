@@ -12,6 +12,9 @@ export async function generateMetadata({
   return { title: decodeURIComponent(issueId) }
 }
 
+/** Rendered per request: a build must never prerender a viewer's page. */
+export const dynamic = 'force-dynamic'
+
 export default async function Page({
   params,
   searchParams,

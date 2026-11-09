@@ -5,6 +5,9 @@ import type { ProductPageProps } from '@/platform/lib/route-props'
 
 export const metadata: Metadata = { title: 'Workflows' }
 
+/** Rendered per request: a build must never prerender a viewer's page. */
+export const dynamic = 'force-dynamic'
+
 export default async function Page({ params }: ProductPageProps<{ workspaceId: string }>) {
   if (resolvePlatformMode() !== 'live') notFound()
   const [{ workspaceId }, { WorkflowsRoute }] = await Promise.all([
