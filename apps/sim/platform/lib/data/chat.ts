@@ -7,8 +7,13 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
-import { resourceParam, searchFilterParsers } from '@/lib/mothership/chat/search-params'
+import {
+  resourceParam,
+  searchFilterParsers,
+  searchFiltersFromParams,
+} from '@/lib/mothership/chat/search-params'
 import type { ChatMessage, ChatRequestMode } from '@/lib/mothership/chat/types'
+import { createSearchResource } from '@/lib/mothership/resources/search'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import {
   organizationSearchParsers,
@@ -191,6 +196,37 @@ export function useLiveChatRuntime({
       })
     }
   }, [chatId, organizationId, requestMode, sendMessage, assistantOptions])
+
+  /** A new chat reopens the results tab its address selects, as legacy Home did; closing it clears the URL. */
+  const { q, source, updated, from, to } = searchState
+  const hasChat = Boolean(chatId) || chat.messages.length > 0
+  const { addResourceFromUser } = panel
+  useEffect(() => {
+    const query = q.trim()
+    if (hasChat || !query) return
+    const resource = createSearchResource({
+      scope: { kind: 'organization', organizationId },
+      query,
+      filters: searchFiltersFromParams({ source, updated, from, to }, Date.now()),
+    })
+    if (
+      controller.activeResourceParam !== resource.id ||
+      chat.resources.some((entry) => entry.id === resource.id)
+    )
+      return
+    addResourceFromUser(resource)
+  }, [
+    hasChat,
+    q,
+    source,
+    updated,
+    from,
+    to,
+    organizationId,
+    controller.activeResourceParam,
+    chat.resources,
+    addResourceFromUser,
+  ])
 
   useSendSummary({
     request: summaryRequest,
