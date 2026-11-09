@@ -5,8 +5,9 @@ const report = process.env.PLATFORM_LIVE_REPORT_PATH ?? 'test-results/platform-l
 
 /**
  * Runs against a real main app and database you have already started; it starts no servers. Point
- * `PLATFORM_LIVE_ORIGIN` at the main app. `.github/scripts/http-e2e.sh` boots that stack and picks a
- * project:
+ * `PLATFORM_LIVE_ORIGIN` at the main app, `PLATFORM_LIVE_DATABASE_URL` at its (test) database, and
+ * `PLATFORM_LIVE_AUTH_SECRET` at its `BETTER_AUTH_SECRET`: checks seed their own sessions and rows
+ * there. `.github/scripts/http-e2e.sh` boots that stack and picks a project:
  *
  * - `product`: hosted Enterprise, every spec in this folder.
  * - `self-hosted`: not on a Sim hostname, billing and Enterprise off.

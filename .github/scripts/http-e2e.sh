@@ -138,6 +138,16 @@ start_realtime() {
   wait_ready "$realtime_pid" "http://127.0.0.1:$port/health" "$name realtime server"
 }
 
+# start_scripted_agent <name> <port>: the scripted Mothership worker at the app's SIM_AGENT_API_URL,
+# ready before the app starts so no chat turn can reach a port nothing listens on yet.
+start_scripted_agent() {
+  local name=$1 port=$2
+  bun --no-env-file platform/checks/live/support/scripted-agent.ts "$port" \
+    > "$report_dir/$name-agent.log" 2>&1 &
+  agent_pid=$!
+  wait_ready "$agent_pid" "http://127.0.0.1:$port/health" 'scripted agent'
+}
+
 # stop_app: stops the app start_app started, so a group can start it again under other flags.
 stop_app() {
   bash "$GITHUB_WORKSPACE/.github/scripts/stop-session.sh" "$server_pid" "$app_tag"
@@ -188,8 +198,10 @@ platform_live_environment() {
   export PLATFORM_LIVE_OFF_ORGANIZATION_ID=platform-live-organization-off
   export PLATFORM_LIVE_OFF_EMAIL=odessa@platform-live.test
   export PLATFORM_LIVE_ORCHESTRATOR=1
-  # A check that removes a member seeds its own there, so the shared seed stays as it was.
+  # Checks seed their own sessions and rows there and put back what they change, so the shared seed
+  # stays as it was. The secret signs those sessions' cookies, as the app's sign-in does.
   export PLATFORM_LIVE_DATABASE_URL="$DATABASE_URL"
+  export PLATFORM_LIVE_AUTH_SECRET="$BETTER_AUTH_SECRET"
   bun --no-env-file scripts/platform-live-seed.ts
 }
 
@@ -363,10 +375,7 @@ case "$group" in
     export BROWSER_EXTENSION_IDS=abcdefghijklmnopabcdefghijklmnop
     bun --no-env-file scripts/org-redesign-seed.ts
     start_browser_install org-redesign --only-shell chromium
-    bun --no-env-file platform/checks/live/support/scripted-agent.ts 3031 \
-      > "$report_dir/org-redesign-agent.log" 2>&1 &
-    agent_pid=$!
-    wait_ready "$agent_pid" http://127.0.0.1:3031/health 'scripted agent'
+    start_scripted_agent org-redesign 3031
     start_app org-redesign 3029 'organization redesign' record-http-status
     start_realtime org-redesign 3030
     wait_for_browsers
@@ -476,11 +485,9 @@ JS
   platform-live)
     platform_live_environment
     start_browser_install platform-live --only-shell chromium
+    start_scripted_agent platform-live 3029
     start_app platform-live 3027 'Product' record-http-status
     start_realtime platform-live 3030
-    bun --no-env-file platform/checks/live/support/scripted-agent.ts 3029 \
-      > "$report_dir/platform-live-agent.log" 2>&1 &
-    agent_pid=$!
     wait_for_browsers
     run_platform_live product platform-live
     ;;
@@ -492,6 +499,7 @@ JS
     export E2E_APP_PUBLIC_URL=http://127.0.0.1:3027 PLATFORM_LIVE_ORIGIN=http://127.0.0.1:3027
     export ALLOWED_ORIGINS=http://127.0.0.1:3027
     start_browser_install platform-live --only-shell chromium
+    start_scripted_agent platform-live-self-hosted 3029
     start_app platform-live-self-hosted 3027 'Self-hosted' record-http-status
     start_realtime platform-live-self-hosted 3030
     wait_for_browsers

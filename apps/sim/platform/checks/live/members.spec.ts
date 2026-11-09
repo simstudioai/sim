@@ -1,7 +1,4 @@
 import { expect, type Page } from '@playwright/test'
-import { assertDisposableTestDatabaseUrl } from '@sim/db/testing/test-infrastructure'
-import { generateId } from '@sim/utils/id'
-import postgres from 'postgres'
 import {
   memberEmail,
   organizationId,
@@ -9,6 +6,7 @@ import {
   signIn,
   signInAsAdmin,
 } from '@/platform/checks/live/session'
+import { withLiveDatabase, withPerson } from '@/platform/checks/live/support/database'
 import { liveRoute } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
@@ -16,33 +14,10 @@ import { test } from '@/platform/checks/test'
  * Mutates the seeded organization. `PLATFORM_LIVE_EMAIL` is an administrator,
  * `PLATFORM_LIVE_MEMBER_EMAIL` a plain member, `PLATFORM_LIVE_ROLE_TARGET_EMAIL` a member whose role
  * flips and flips back, and `PLATFORM_LIVE_REFUSED_INVITE_EMAIL` an address the batch invite always
- * refuses. The member a removal check removes is its own, seeded in `PLATFORM_LIVE_DATABASE_URL`.
+ * refuses. The member a removal check removes is its own, seeded in `PLATFORM_LIVE_DATABASE_URL`, and
+ * a role change is put back there whatever the check did.
  */
 const MEMBERS = liveRoute('/settings/members')
-
-/**
- * Runs `check` with a member of the organization made for it alone, so removing them changes
- * nothing another check or run reads, and deletes the account afterwards whatever happened.
- */
-async function withOwnMember(check: (email: string) => Promise<void>) {
-  const databaseUrl = assertDisposableTestDatabaseUrl(requireEnv('PLATFORM_LIVE_DATABASE_URL'))
-  const sql = postgres(databaseUrl.toString(), { max: 1 })
-  const id = `platform-live-removable-${generateId()}`
-  const email = `${id}@platform-live.test`
-  try {
-    await sql.begin(async (tx) => {
-      await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
-        values (${id}, 'Remy Removable', ${email}, ${email}, true, now(), now())`
-      await tx`insert into user_stats (id, user_id) values (${`${id}-stats`}, ${id})`
-      await tx`insert into member (id, user_id, organization_id, role)
-        values (${`${id}-member`}, ${id}, ${organizationId()}, 'member')`
-    })
-    await check(email)
-  } finally {
-    await sql`delete from "user" where id = ${id}`
-    await sql.end()
-  }
-}
 
 async function openMembers(page: Page) {
   await signInAsAdmin(page, MEMBERS)
@@ -94,55 +69,69 @@ test('a role change persists and a failed one is reported', async ({ page }) => 
     ])
     expect(saved.ok()).toBe(true)
   }
-  await chooseRole('Admin')
-  await page.reload()
-  await expect(roleSelect()).toHaveText(/Admin/)
+  try {
+    await chooseRole('Admin')
+    await page.reload()
+    await expect(roleSelect()).toHaveText(/Admin/)
 
-  await page.route('**/api/organizations/*/members/*', (route) =>
-    route.request().method() === 'PUT'
-      ? route.fulfill({ status: 500, json: { error: 'Refused by the live check' } })
-      : route.continue()
-  )
-  await roleSelect().click()
-  await page.getByRole('menuitemradio', { name: 'Member' }).click()
-  await expect(page.getByText("Couldn't change the role")).toBeVisible()
-  await expect(roleSelect()).toHaveText(/Admin/)
-  await page.unroute('**/api/organizations/*/members/*')
+    await page.route('**/api/organizations/*/members/*', (route) =>
+      route.request().method() === 'PUT'
+        ? route.fulfill({ status: 500, json: { error: 'Refused by the live check' } })
+        : route.continue()
+    )
+    await roleSelect().click()
+    await page.getByRole('menuitemradio', { name: 'Member' }).click()
+    await expect(page.getByText("Couldn't change the role")).toBeVisible()
+    await expect(roleSelect()).toHaveText(/Admin/)
+    await page.unroute('**/api/organizations/*/members/*')
 
-  await chooseRole('Member')
-  await page.reload()
-  await expect(roleSelect()).toHaveText(/Member/)
+    await chooseRole('Member')
+    await page.reload()
+    await expect(roleSelect()).toHaveText(/Member/)
+  } finally {
+    // A failure part-way must not leave the seeded member an administrator for the next run.
+    await withLiveDatabase(
+      (sql) => sql`update member set role = 'member'
+        where organization_id = ${organizationId()}
+          and user_id = (select id from "user" where email = ${target})`
+    )
+  }
 })
 
 test('removal holds on its disclosure, keeps the dialog on failure, then removes', async ({
   page,
 }) => {
-  await withOwnMember(async (target) => {
-    await openMembers(page)
-    await memberRow(page, target)
-      .getByRole('button', { name: /^Actions for/ })
-      .click()
-    await page.getByRole('menuitem', { name: 'Remove', exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: 'Remove team member' })
-    const confirm = dialog.getByRole('button', { name: 'Remove', exact: true })
-    await expect(confirm).toBeEnabled()
+  await withPerson(
+    'removable',
+    { organizationId: organizationId(), role: 'member' },
+    async (person) => {
+      const target = person.email
+      await openMembers(page)
+      await memberRow(page, target)
+        .getByRole('button', { name: /^Actions for/ })
+        .click()
+      await page.getByRole('menuitem', { name: 'Remove', exact: true }).click()
+      const dialog = page.getByRole('dialog', { name: 'Remove team member' })
+      const confirm = dialog.getByRole('button', { name: 'Remove', exact: true })
+      await expect(confirm).toBeEnabled()
 
-    await page.route('**/api/organizations/*/members/*', (route) =>
-      route.request().method() === 'DELETE'
-        ? route.fulfill({ status: 403, json: { error: 'Refused by the live check' } })
-        : route.continue()
-    )
-    await confirm.click()
-    await expect(dialog.getByRole('alert')).toContainText('Refused by the live check')
-    await page.unroute('**/api/organizations/*/members/*')
+      await page.route('**/api/organizations/*/members/*', (route) =>
+        route.request().method() === 'DELETE'
+          ? route.fulfill({ status: 403, json: { error: 'Refused by the live check' } })
+          : route.continue()
+      )
+      await confirm.click()
+      await expect(dialog.getByRole('alert')).toContainText('Refused by the live check')
+      await page.unroute('**/api/organizations/*/members/*')
 
-    await confirm.click()
-    await expect(dialog).toBeHidden()
-    await expect(page.getByText(target)).toHaveCount(0)
-    await page.reload()
-    await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible()
-    await expect(page.getByText(target)).toHaveCount(0)
-  })
+      await confirm.click()
+      await expect(dialog).toBeHidden()
+      await expect(page.getByText(target)).toHaveCount(0)
+      await page.reload()
+      await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible()
+      await expect(page.getByText(target)).toHaveCount(0)
+    }
+  )
 })
 
 test('a plain member sees no controls the server would refuse', async ({ page }) => {
