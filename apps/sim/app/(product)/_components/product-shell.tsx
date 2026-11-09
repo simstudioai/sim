@@ -1,4 +1,5 @@
 import { type ReactNode, Suspense } from 'react'
+import { notFound } from 'next/navigation'
 import { FixtureProductSession } from '@/app/(product)/_components/product-session'
 
 /**
@@ -17,6 +18,7 @@ export async function ProductShell({
   if (process.env.SIM_PLATFORM_FIXTURES === '1') {
     const { FIXTURE_ROUTE_PREFIX, loadShellScenarios } = await import('@/platform/fixtures')
     const fixtures = await loadShellScenarios()
+    if (!fixtures) notFound()
     return (
       <Suspense fallback={null}>
         <FixtureProductSession fixtures={fixtures} routePrefix={FIXTURE_ROUTE_PREFIX}>
