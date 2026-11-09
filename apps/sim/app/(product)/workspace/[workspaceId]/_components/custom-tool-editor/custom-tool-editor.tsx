@@ -3,7 +3,7 @@
 import { CodeField } from '@/app/(product)/workspace/[workspaceId]/_components/code-field/code-field'
 import { highlightSyntax } from '@/app/(product)/workspace/[workspaceId]/_components/code-field/highlight'
 import styles from '@/app/(product)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-editor.module.css'
-import { SCHEMA_PLACEHOLDER } from '@/platform/lib/data/workflow-editor/tool-input'
+import { SCHEMA_PLACEHOLDER } from '@/platform/lib/data/workflow-editor/custom-tool'
 
 /** What deleting a custom tool costs, asked by every surface that edits one. */
 export const CUSTOM_TOOL_DELETE_DESCRIPTION =

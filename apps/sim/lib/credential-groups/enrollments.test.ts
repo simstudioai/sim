@@ -53,7 +53,7 @@ import {
   resendCredentialGroupEnrollment,
 } from '@/lib/credential-groups/enrollments'
 import { CredentialGroupProviderConfigurationError } from '@/lib/credential-groups/provider-adapter'
-import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/providers'
+import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/provider-ids'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 
 const mockGetOrganizationSubscriptionUsable =

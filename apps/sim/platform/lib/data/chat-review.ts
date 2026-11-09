@@ -24,7 +24,7 @@ import {
   useDecideAssistantAction,
   useRefreshAssistantActionReceipts,
 } from '@/hooks/queries/assistant-actions'
-import { getToolMetadata } from '@/tools/metadata'
+import { getAssistantToolEffect } from '@/tools/assistant-effects'
 
 type ReceiptState = AssistantActionReceiptsResponse['receipts'][number]['state']
 
@@ -47,10 +47,10 @@ type ReviewedField = AssistantActionsResponse['actions'][number]['fields'][numbe
  */
 function receiptCandidates(message: ChatMessage): string[] {
   return (message.contentBlocks ?? []).flatMap(({ toolCall }) => {
-    const assistant = toolCall && getToolMetadata(toolCall.name)?.assistant
+    const effect = toolCall && getAssistantToolEffect(toolCall.name)
     return toolCall &&
-      assistant &&
-      (assistant.effect === 'write' || toolCall.status === ToolCallStatus.awaiting_approval)
+      effect &&
+      (effect === 'write' || toolCall.status === ToolCallStatus.awaiting_approval)
       ? [toolCall.id]
       : []
   })

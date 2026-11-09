@@ -1,50 +1,12 @@
+import {
+  CREDENTIAL_GROUP_PROVIDER_IDS,
+  CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS,
+} from '@/lib/credential-groups/provider-ids'
 import type { OAuthServiceConfig } from '@/lib/oauth'
 import { getServiceConfigByServiceId } from '@/lib/oauth'
 
-export const CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS = [
-  'gmail',
-  'google-calendar',
-  'google-drive',
-  'google-docs',
-  'google-forms',
-  'google-chat',
-  'google-meet',
-  'google-sheets',
-  'microsoft-teams',
-  'outlook',
-  'onedrive',
-  'sharepoint',
-  'microsoft-excel',
-  'confluence',
-  'jira',
-  'airtable',
-  'asana',
-  'attio',
-  'bitbucket',
-  'github-repositories',
-  'box',
-  'calcom',
-  'clickup',
-  'docusign',
-  'dropbox',
-  'hubspot',
-  'linear',
-  'linkedin',
-  'monday',
-  'notion',
-  'pipedrive',
-  'salesforce',
-  'wordpress',
-  'zoom',
-] as const
-
 export type CredentialGroupStandardOAuthProvider =
   (typeof CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS)[number]
-
-export const CREDENTIAL_GROUP_PROVIDER_IDS = [
-  ...CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS,
-  'slack',
-] as const
 
 export type CredentialGroupProvider = (typeof CREDENTIAL_GROUP_PROVIDER_IDS)[number]
 

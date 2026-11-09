@@ -197,10 +197,6 @@ export {
 export { resolveSelectedTriggerId } from '@/lib/workflows/blocks/canvas-trigger-sentence'
 export { resolveCanvasCodePreview } from '@/lib/workflows/blocks/code-preview'
 export { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
-export {
-  flattenWorkflowOutputs,
-  getBlockExecutionOrder,
-} from '@/lib/workflows/blocks/flatten-outputs'
 /** A version comparison's per-block and per-edge status, as the read-only preview paints them. */
 export type {
   BlockDiffStatus,
@@ -307,7 +303,7 @@ export { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 export { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 export { useCustomBlocks } from '@/hooks/queries/custom-blocks'
 export { useCustomTools } from '@/hooks/queries/custom-tools'
-export { useDeployedWorkflowState, useDeployWorkflow } from '@/hooks/queries/deployments'
+export { useDeployWorkflow } from '@/hooks/queries/deployments'
 export { useDynamicSubBlockOptionDisplayName } from '@/hooks/queries/dynamic-subblock-options'
 export { useWorkspaceEnvironment } from '@/hooks/queries/environment'
 export { useFolderMap } from '@/hooks/queries/folders'
@@ -339,10 +335,8 @@ export {
   useDeleteWorkflowMutation,
   useDuplicateWorkflowMutation,
   useReorderWorkflows,
-  useRestoreWorkflow,
   useUpdateWorkflow,
   useWorkflowMap,
-  useWorkflowStates,
   useWorkflows,
 } from '@/hooks/queries/workflows'
 export { useUploadWorkspaceFile } from '@/hooks/queries/workspace-files'

@@ -22,8 +22,6 @@ vi.mock('@/lib/credential-groups/rate-limit', () => ({
   enforcePublicCredentialGroupIpRateLimit: mocks.rateLimit,
 }))
 vi.mock('@/lib/credential-groups/providers', () => ({
-  CREDENTIAL_GROUP_PROVIDER_IDS: ['confluence', 'slack'],
-  CREDENTIAL_GROUP_STANDARD_OAUTH_PROVIDER_IDS: ['confluence'],
   getCredentialGroupProviderService: (provider: string) => ({
     providerId: provider,
     name: provider === 'confluence' ? 'Confluence' : 'Slack',

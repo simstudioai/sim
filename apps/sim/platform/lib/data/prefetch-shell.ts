@@ -53,7 +53,7 @@ export async function prefetchShell(organization: PlatformOrganization): Promise
           }),
         staleTime: MOTHERSHIP_CHAT_LIST_STALE_TIME,
       }),
-    seedWorkspaceList(queryClient, principal.userId, activeOrganizationId),
+    seedWorkspaceList(queryClient, principal.userId, activeOrganizationId, withinPrefetchBudget),
     queryClient.prefetchQuery({
       queryKey: userProfileKeys.profile(),
       queryFn: () =>

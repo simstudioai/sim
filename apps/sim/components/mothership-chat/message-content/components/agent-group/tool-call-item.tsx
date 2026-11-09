@@ -24,7 +24,7 @@ import { extractStreamingStringArgument } from '@/lib/mothership/tools/streaming
 import { BrandIcon } from '@/blocks/brand-icon'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getBlockByToolName } from '@/blocks/registry'
-import { getToolMetadata } from '@/tools/metadata'
+import { getAssistantToolEffect } from '@/tools/assistant-effects'
 
 export interface ToolCallItemProps {
   toolName: string
@@ -146,7 +146,7 @@ export function ToolCallItem({
         params={params}
       />
     )
-    return getToolMetadata(toolName)?.assistant ? (
+    return getAssistantToolEffect(toolName) ? (
       <AssistantActionReviewStatus toolCallId={toolCallId} title={title} fallback={fallback} />
     ) : (
       fallback
@@ -189,7 +189,7 @@ export function ToolCallItem({
     ),
   }
   const fallback = renderStatus ? renderStatus(activity) : <ActivityStatus {...activity} />
-  return toolCallId && getToolMetadata(toolName)?.assistant ? (
+  return toolCallId && getAssistantToolEffect(toolName) ? (
     <AssistantActionReviewStatus
       toolCallId={toolCallId}
       title={title}

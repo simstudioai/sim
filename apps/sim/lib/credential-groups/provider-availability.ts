@@ -7,8 +7,8 @@ import {
   MANAGED_MCP_CONNECTOR_IDS,
   MANAGED_MCP_CONNECTORS,
 } from '@/lib/credential-groups/managed-mcp-connectors'
+import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/provider-ids'
 import {
-  CREDENTIAL_GROUP_PROVIDER_IDS,
   type CredentialGroupProvider,
   getCredentialGroupProviderId,
   isCredentialGroupStandardOAuthProvider,

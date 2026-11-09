@@ -10,8 +10,8 @@ import {
   isManagedCredentialGroupBindingLive,
   loadManagedCredentialGroupBinding,
 } from '@/lib/credential-groups/credentials'
+import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/provider-ids'
 import {
-  CREDENTIAL_GROUP_PROVIDER_IDS,
   findCredentialGroupProviderFromProviderId,
   getCredentialGroupProviderService,
 } from '@/lib/credential-groups/providers'

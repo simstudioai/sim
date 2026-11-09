@@ -29,10 +29,10 @@ import { moreUsableAccount } from '@/lib/credential-groups/account-rules'
 import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
 import { getManagedMcpConnector } from '@/lib/credential-groups/managed-mcp-connectors'
 import { requireOrganizationAccountsSetup } from '@/lib/credential-groups/organization-setup'
+import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/provider-ids'
 import { getCredentialGroupProviderAdapter } from '@/lib/credential-groups/provider-registry'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import {
-  CREDENTIAL_GROUP_PROVIDER_IDS,
   getCredentialGroupProviderFromProviderId,
   isCredentialGroupProvider,
 } from '@/lib/credential-groups/providers'

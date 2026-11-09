@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
-import { WORKSPACE_SETTINGS_SECTIONS } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
+import { WORKSPACE_SETTINGS_SUBPATHS } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import {
   LiveWorkspaceSettings,
   WorkspaceSettings,
 } from '@/app/(product)/workspace/[workspaceId]/settings/_components/workspace-settings/workspace-settings'
+import { WorkspaceSettingsSection } from '@/app/(product)/workspace/[workspaceId]/settings/_components/workspace-settings-section/workspace-settings-section'
 import { loadWorkspaceSummary } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import {
@@ -60,12 +61,15 @@ export default async function Page({
     const { redirectLegacyWorkspaceUrl } = await import('@/platform/lib/data/legacy-redirects')
     return redirectLegacyWorkspaceUrl(workspaceId, ['settings', ...path], query)
   }
-  const entry = WORKSPACE_SETTINGS_SECTIONS[key]
-  if (subpath.length && !matchesSubpath(entry.subpaths, subpath)) notFound()
-  const { default: Section } = await entry.load()
+  if (subpath.length && !matchesSubpath(WORKSPACE_SETTINGS_SUBPATHS[key], subpath)) notFound()
   return (
     <LiveWorkspaceSettings workspaceId={workspaceId} section={key}>
-      <Section workspaceId={workspaceId} subpath={subpath} query={query} />
+      <WorkspaceSettingsSection
+        section={key}
+        workspaceId={workspaceId}
+        subpath={subpath}
+        query={query}
+      />
     </LiveWorkspaceSettings>
   )
 }

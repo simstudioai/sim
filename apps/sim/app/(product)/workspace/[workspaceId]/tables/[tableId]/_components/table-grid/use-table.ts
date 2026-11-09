@@ -19,7 +19,7 @@ import {
   type WorkflowGroup,
   type WorkflowMetadata,
 } from '@/platform/lib/data/tables'
-import { useWorkflowStates, useWorkflows } from '@/platform/lib/data/workflows'
+import { useWorkflowStates, useWorkflows } from '@/platform/lib/data/workflows/records'
 
 /**
  * What a workflow-output column's header shows about the block that fills it: the block's type
