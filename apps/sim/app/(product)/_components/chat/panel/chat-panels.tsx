@@ -31,14 +31,16 @@ const tabs: Record<PanelDestination, Pick<TabItem, 'label' | 'icon'>> = {
 
 export const OpenPanel = createContext<((element: HTMLButtonElement) => void) | null>(null)
 
+/** The control that opens the chat panel, absent while the surface holds the panel back. */
 export function ChatPanelTrigger() {
   const open = useContext(OpenPanel)
+  if (!open) return null
   return (
     <span className={styles.openTrigger}>
       <IconButton
         icon='I038'
         label='Open chat panel'
-        onClick={(event) => open?.(event.currentTarget)}
+        onClick={(event) => open(event.currentTarget)}
       />
     </span>
   )

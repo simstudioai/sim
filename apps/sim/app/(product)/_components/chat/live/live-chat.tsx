@@ -73,15 +73,20 @@ function LiveConversation({
     onPlanChange: destination === 'agent' ? setPlanning : undefined,
   })
   const resources = usePanelResources({ chat, turns: runtime.turns, panel, controller })
+  const { organization } = useOrganization()
+  const hasChat = Boolean(chat.resolvedChatId ?? chatId) || runtime.turns.length > 0
   return (
     <ChatCardsProvider value={CARDS}>
       <SearchTabProvider value={LiveSearchTab}>
-        <ResourcePanels panel={resources}>
+        <ResourcePanels panel={resources} alwaysOpenable={destination === 'agent' && hasChat}>
           <Conversation
             runtime={runtime}
             composer={composer}
             placeholders={PLACEHOLDERS[destination]}
             header={header}
+            landing={
+              destination === 'assistant' && <h1 data-type='T076'>Ask {organization.name}</h1>
+            }
           />
         </ResourcePanels>
       </SearchTabProvider>
