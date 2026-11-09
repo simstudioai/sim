@@ -1,6 +1,6 @@
 import { type ReactNode, Suspense } from 'react'
 import { ProductSession } from '@/app/(product)/_components/product-session'
-import { FIXTURE_ORGANIZATION_ID, loadShellScenarios } from '@/platform/fixtures'
+import { FIXTURE_ROUTE_PREFIX, loadShellScenarios } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
 /**
@@ -16,7 +16,7 @@ export async function ProductShell({ children }: { children: ReactNode }) {
   const fixtures = await loadShellScenarios()
   return (
     <Suspense fallback={null}>
-      <ProductSession fixtures={fixtures} routePrefix={`/o/${FIXTURE_ORGANIZATION_ID}`}>
+      <ProductSession fixtures={fixtures} routePrefix={FIXTURE_ROUTE_PREFIX}>
         {children}
       </ProductSession>
     </Suspense>
