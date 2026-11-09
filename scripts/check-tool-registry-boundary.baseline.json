@@ -431,7 +431,7 @@
       "gateways": {}
     },
     "app/(product)/workspace/[workspaceId]/settings/[[...section]]/page.tsx": {
-      "modules": 2697,
+      "modules": 2552,
       "gateways": {
         "apps/sim/platform/lib/data/legacy-redirects.ts": 725,
         "apps/sim/lib/auth/index.ts": 721,
@@ -457,7 +457,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/tables/[tableId]/page.tsx": {
-      "modules": 1854,
+      "modules": 1620,
       "gateways": {
         "apps/sim/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/table-route/table-route.tsx": 1852,
         "apps/sim/platform/lib/data/workflows/index.ts": 1323,

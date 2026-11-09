@@ -11,7 +11,7 @@ import { shouldStripCodeFences, stripCodeFences } from '@/lib/wand/strip-code-fe
 import type { GenerationType } from '@/blocks/types'
 import { scheduleUsageRefresh } from '@/hooks/queries/utils/invalidate-usage'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowRegistry } from '@/stores/workflows/state-port'
 
 const logger = createLogger('useWand')
 

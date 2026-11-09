@@ -19,12 +19,12 @@ import {
 import { CodeField } from '@/app/(product)/workspace/[workspaceId]/_components/code-field/code-field'
 import styles from '@/app/(product)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-editor.module.css'
 import { highlightCustomToolCode } from '@/app/(product)/workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-highlight'
-import { checkTagTrigger } from '@/platform/lib/data/workflow-editor'
 import {
   CODE_PLACEHOLDER,
   checkEnvVarTrigger,
+  checkTagTrigger,
   type SchemaParameter,
-} from '@/platform/lib/data/workflow-editor/tool-input'
+} from '@/platform/lib/data/workflow-editor/custom-tool'
 
 /** The identifier under the caret, which both the parameter trigger and its completion act on. */
 const SCHEMA_PARAM_WORD = /[a-zA-Z_]\w*$/

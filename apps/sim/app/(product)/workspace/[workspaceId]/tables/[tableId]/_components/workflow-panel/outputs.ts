@@ -5,7 +5,7 @@ import {
   isAnnotationOnlyBlock,
   TriggerUtils,
   type WorkflowState,
-} from '@/platform/lib/data/workflows'
+} from '@/platform/lib/data/workflows/records'
 
 const OUTPUT_VALUE_SEPARATOR = '::'
 

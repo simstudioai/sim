@@ -3,11 +3,11 @@ import {
   escapeHtml,
   highlightSyntax,
 } from '@/app/(product)/workspace/[workspaceId]/_components/code-field/highlight'
-import { createEnvVarPattern } from '@/platform/lib/data/workflow-editor'
 import {
+  createEnvVarPattern,
   createWorkflowVariablePattern,
   type SchemaParameter,
-} from '@/platform/lib/data/workflow-editor/tool-input'
+} from '@/platform/lib/data/workflow-editor/custom-tool'
 
 /**
  * A custom tool's function body: JavaScript markup with `{{SECRET}}` names, `<variable.name>`
