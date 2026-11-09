@@ -9,7 +9,7 @@ import {
   type StorageBillingContext,
 } from '@/lib/billing/storage'
 import type { DbOrTx } from '@/lib/db/types'
-import type { WorkspaceCreationPolicy } from '@/lib/workspaces/policy'
+import { WORKSPACE_MODE, type WorkspaceCreationPolicy } from '@/lib/workspaces/policy'
 import { ForkError } from '@/ee/workspace-forking/lib/lineage/authz'
 
 /** Resource ids whose blob bytes a fork/sync copy would duplicate into the target. */
@@ -115,13 +115,16 @@ async function resolvePlannedWorkspaceStorageContext(
   plannedWorkspaceId: string,
   policy: ForkCreationPayerPolicy
 ): Promise<StorageBillingContext> {
-  const subscription = policy.organizationId
-    ? await getOrganizationSubscription(policy.organizationId, { onError: 'throw' })
+  /** A personal workspace bills its billed account, also when it sits in a personal organization. */
+  const payerOrganizationId =
+    policy.workspaceMode === WORKSPACE_MODE.ORGANIZATION ? policy.organizationId : null
+  const subscription = payerOrganizationId
+    ? await getOrganizationSubscription(payerOrganizationId, { onError: 'throw' })
     : await getHighestPriorityPersonalSubscription(policy.billedAccountUserId, {
         onError: 'throw',
       })
-  const billingEntity = policy.organizationId
-    ? ({ type: 'organization', id: policy.organizationId } as const)
+  const billingEntity = payerOrganizationId
+    ? ({ type: 'organization', id: payerOrganizationId } as const)
     : ({ type: 'user', id: policy.billedAccountUserId } as const)
 
   return {

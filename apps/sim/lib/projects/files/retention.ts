@@ -43,15 +43,17 @@ async function prepareRetention(tx: DbTransaction, projectId: string, job: FileR
     { projectId, ownerId: owner.ownerId, organizationId: owner.organizationId },
     tx
   )
-  if (isBillingEnabled && owner.organizationId && billing.plan === null) return null
+  const payerOrganizationId =
+    billing.billingEntity.type === 'organization' ? billing.billingEntity.id : null
+  if (isBillingEnabled && payerOrganizationId && billing.plan === null) return null
   const plan = isBillingEnabled ? getPlanType(billing.plan) : 'enterprise'
   const config = CLEANUP_CONFIG[job]
   let hours: number | null = config.defaults[plan]
-  if (plan === 'enterprise' && owner.organizationId) {
+  if (plan === 'enterprise' && payerOrganizationId) {
     const [payer] = await tx
       .select({ settings: organization.dataRetentionSettings })
       .from(organization)
-      .where(eq(organization.id, owner.organizationId))
+      .where(eq(organization.id, payerOrganizationId))
       .limit(1)
     hours = payer?.settings?.[config.key] ?? null
   }
