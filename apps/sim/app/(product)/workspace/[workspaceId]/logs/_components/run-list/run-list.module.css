@@ -96,7 +96,8 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-@container run-list (width < 44rem) {
+/* Below this the six fixed lanes would leave the workflow name too narrow to read. */
+@container run-list (width < 56rem) {
   .header,
   .row {
     grid-template-columns:
