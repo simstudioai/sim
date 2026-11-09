@@ -24,7 +24,13 @@ interface SetupModalProps {
   onCreated: (credentialId: string) => void
 }
 
-interface ServiceAccountModalProps extends SetupModalProps {
+/** Saves a pasted token or client credentials through another operation; see `useServiceAccountForm`. */
+interface KeyFormSubmitProps {
+  submitCredentials?: (fields: Record<string, string>) => Promise<string>
+  submitPending?: boolean
+}
+
+interface ServiceAccountModalProps extends SetupModalProps, KeyFormSubmitProps {
   serviceAccountProviderId: string
   /** The Atlassian product the account is for, which picks its setup guide. */
   atlassianProduct?: 'jira' | 'confluence'
@@ -38,7 +44,8 @@ interface ServiceAccountModalProps extends SetupModalProps {
  * dialog its provider needs: a pasted token or an app's client credentials, a
  * Google JSON key, an Atlassian API token, an OCI signing key, an Oracle Database wallet or a custom
  * Slack bot. The provider verifies the secret before it is stored, and `onCreated` receives the new
- * credential to select.
+ * credential to select. `submitCredentials` saves a pasted token or client credentials through
+ * another operation, as a member's saved Search account does.
  */
 export function ServiceAccountModal({
   serviceAccountProviderId,
@@ -49,6 +56,8 @@ export function ServiceAccountModal({
   scope,
   serviceName,
   onCreated,
+  submitCredentials,
+  submitPending,
 }: ServiceAccountModalProps) {
   switch (serviceAccountSetupKind(serviceAccountProviderId)) {
     case 'form':
@@ -60,6 +69,8 @@ export function ServiceAccountModal({
           serviceAccountProviderId={serviceAccountProviderId}
           serviceName={serviceName}
           onCreated={onCreated}
+          submitCredentials={submitCredentials}
+          submitPending={submitPending}
         />
       )
     case 'google':
@@ -127,8 +138,16 @@ function KeyFormModal({
   serviceAccountProviderId,
   serviceName,
   onCreated,
-}: SetupModalProps & { serviceAccountProviderId: string }) {
-  const form = useServiceAccountForm({ scope, serviceAccountProviderId, onCreated })
+  submitCredentials,
+  submitPending,
+}: SetupModalProps & KeyFormSubmitProps & { serviceAccountProviderId: string }) {
+  const form = useServiceAccountForm({
+    scope,
+    serviceAccountProviderId,
+    onCreated,
+    submitCredentials,
+    submitPending,
+  })
   const docsUrl = form.docsUrl
 
   return (
