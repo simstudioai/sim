@@ -1,4 +1,5 @@
-import { keepPreviousData, useQueries, useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
+import { keepPreviousData, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type MentionFamily,
@@ -13,6 +14,7 @@ export interface MentionRequest {
   workspaceId?: string
   family?: MentionFamily
   folderId?: string
+  cursor?: string
   limit: number
 }
 
@@ -27,6 +29,7 @@ const organizationMentionKeys = {
       request.workspaceId ?? '',
       request.family ?? '',
       request.folderId ?? '',
+      request.cursor ?? '',
       request.limit,
     ] as const,
 }
@@ -57,15 +60,28 @@ export function useOrganizationMentions(
   })
 }
 
-/** The browsed workspaces' families and first rows, read as each workspace is opened. */
-export function useOrganizationMentionBrowse(
+/** Several mention reads at once: opened workspaces' first pages, or families' later pages. */
+export function useOrganizationMentionPages(
   organizationId: string,
-  workspaceIds: readonly string[],
-  limit: number
+  requests: readonly MentionRequest[]
 ) {
   return useQueries({
-    queries: workspaceIds.map((workspaceId) =>
-      mentionQueryOptions(organizationId, { query: '', workspaceId, limit }, true)
-    ),
+    queries: requests.map((request) => mentionQueryOptions(organizationId, request, true)),
   })
+}
+
+/**
+ * Marks every mention read stale after any mutation in this tab succeeds, so a resource just
+ * created, renamed or deleted is listed as it now is the next time a picker reads.
+ */
+export function useMentionsFollowMutations() {
+  const queryClient = useQueryClient()
+  useEffect(
+    () =>
+      queryClient.getMutationCache().subscribe((event) => {
+        if (event.type === 'updated' && event.action.type === 'success')
+          void queryClient.invalidateQueries({ queryKey: organizationMentionKeys.all })
+      }),
+    [queryClient]
+  )
 }

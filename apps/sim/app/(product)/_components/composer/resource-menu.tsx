@@ -16,6 +16,8 @@ interface ComposerResourceMenuProps {
   onWorkspaceOpen?: (workspaceId: string) => void
   /** The menu's search as typed, which the host answers. */
   onSearchChange?: (query: string) => void
+  /** Loads the next page of a workspace's family, when it has one. */
+  moreFor?: (workspaceId: string, group: string) => (() => void) | undefined
   onUploadFiles: () => void
   onUploadFolder: () => void
 }
@@ -45,7 +47,11 @@ function selection(item: ComposerOption, select: SelectResource): MenuAction {
   }
 }
 
-function familyRows(items: readonly ComposerOption[], select: SelectResource): MenuAction[] {
+function familyRows(
+  items: readonly ComposerOption[],
+  select: SelectResource,
+  more?: (group: string) => (() => void) | undefined
+): MenuAction[] {
   const families = groupItems(items, (item) => item.folderFor ?? item.group)
   return Array.from(families).flatMap(([family, members]): MenuAction[] => {
     const folders = new Set(members.filter((item) => item.folderFor).map((item) => item.id))
@@ -62,7 +68,11 @@ function familyRows(items: readonly ComposerOption[], select: SelectResource): M
         children: [choose, ...(byParent.get(item.id) ?? []).map(row)],
       }
     }
-    const [first, ...rest] = (byParent.get(undefined) ?? []).map(row)
+    const loadMore = more?.(family)
+    const moreRow: MenuAction[] = loadMore
+      ? [{ id: `${family}:more`, label: 'Show more', keepOpen: true, onSelect: loadMore }]
+      : []
+    const [first, ...rest] = [...(byParent.get(undefined) ?? []).map(row), ...moreRow]
     if (!first) return []
     return [
       {
@@ -78,7 +88,8 @@ function familyRows(items: readonly ComposerOption[], select: SelectResource): M
 function browseRows(
   items: readonly ComposerOption[],
   select: SelectResource,
-  openWorkspace: ComposerResourceMenuProps['onWorkspaceOpen']
+  openWorkspace: ComposerResourceMenuProps['onWorkspaceOpen'],
+  moreFor: ComposerResourceMenuProps['moreFor']
 ): MenuAction[] {
   const workspaces = items.filter((item) => item.group === 'Workspaces')
   const workspaceIds = new Set(workspaces.map((item) => item.id))
@@ -95,7 +106,11 @@ function browseRows(
       onOpen: openWorkspace && (() => openWorkspace(workspace.id)),
       children: [
         selection(workspace, select),
-        ...familyRows(byWorkspace.get(workspace.id) ?? [], select),
+        ...familyRows(
+          byWorkspace.get(workspace.id) ?? [],
+          select,
+          moreFor && ((group) => moreFor(workspace.id, group))
+        ),
       ],
     })
   )
@@ -125,6 +140,7 @@ export function ComposerResourceMenu({
   onOpenChange,
   onWorkspaceOpen,
   onSearchChange,
+  moreFor,
   onUploadFiles,
   onUploadFolder,
 }: ComposerResourceMenuProps) {
@@ -138,7 +154,7 @@ export function ComposerResourceMenu({
       : [
           { id: 'upload', label: 'Upload files', icon: 'I117', onSelect: onUploadFiles },
           { id: 'upload-folder', label: 'Upload folder', icon: 'I100', onSelect: onUploadFolder },
-          ...browseRows(items, onSelect, onWorkspaceOpen).map((action, index) => ({
+          ...browseRows(items, onSelect, onWorkspaceOpen, moreFor).map((action, index) => ({
             ...action,
             separatorBefore: index === 0,
           })),

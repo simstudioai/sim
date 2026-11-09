@@ -64,6 +64,8 @@ export type MenuAction = {
       disabledReason?: string
       destructive?: boolean
       shortcut?: string
+      /** Keeps the menu open after the row runs, for a row that adds to the list it sits in. */
+      keepOpen?: boolean
     }
 )
 
@@ -156,6 +158,7 @@ function actionRows(actions: readonly MenuAction[]): ReactNode {
           shortcut={action.shortcut}
           href={action.href}
           onSelect={action.onSelect}
+          keepOpen={action.keepOpen}
         />
       )}
     </Fragment>
@@ -549,6 +552,8 @@ interface MenuItemProps {
   selected?: boolean
   href?: string
   onSelect?: () => void
+  /** Keeps a floating menu open after the row runs. */
+  keepOpen?: boolean
 }
 
 export function MenuItem({
@@ -565,6 +570,7 @@ export function MenuItem({
   disabledReason,
   href,
   onSelect,
+  keepOpen,
 }: MenuItemProps) {
   const inline = useContext(InlineMenu)
   const floating = useContext(FloatingMenu)
@@ -650,6 +656,7 @@ export function MenuItem({
         label={label}
         data-type={type}
         onClick={onSelect}
+        closeOnClick={!keepOpen}
       >
         {content}
       </Menu.Item>

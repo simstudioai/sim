@@ -409,6 +409,7 @@ export function useLiveComposer({
     browse: mentions.browse,
     onBrowseWorkspace: mentions.onBrowseWorkspace,
     onBrowseSearch: mentions.onBrowseSearch,
+    browseMore: mentions.browseMore,
     settings,
     accept: assistant ? ASSISTANT_ACCEPT : undefined,
     voice: voice.isSupported

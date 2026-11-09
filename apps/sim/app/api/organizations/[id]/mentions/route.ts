@@ -26,6 +26,7 @@ export const GET = defineInternalJsonRoute({
     workspaceId: query.workspaceId,
     family: query.family,
     folderId: query.folderId,
+    cursor: query.cursor,
     limit: query.limit,
   }),
   useCase: searchMentions,
