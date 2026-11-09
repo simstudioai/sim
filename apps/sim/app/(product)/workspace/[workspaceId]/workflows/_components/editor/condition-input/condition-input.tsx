@@ -10,8 +10,8 @@ import {
   useState,
 } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { EnvVarDropdown } from '@/app/(product)/_components/env-var-dropdown/env-var-dropdown'
 import { CodeField } from '@/app/(product)/workspace/[workspaceId]/_components/code-field/code-field'
-import { EnvVarDropdown } from '@/app/(product)/workspace/[workspaceId]/_components/env-var-dropdown/env-var-dropdown'
 import { useActiveSearchTarget } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/condition-input/condition-input.module.css'
 import { RouteDescription } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/condition-input/route-description'

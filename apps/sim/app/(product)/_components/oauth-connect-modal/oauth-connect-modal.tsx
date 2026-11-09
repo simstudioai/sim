@@ -18,9 +18,10 @@ interface OAuthConnectModalProps extends OAuthConnectOptions {
 
 /**
  * Connects a new OAuth account, or reauthorizes an existing one with the scopes it now needs, and
- * hands the browser to the provider. Shared by a workflow block's credential picker and a knowledge
- * base's connectors: `returnTo` names the page the provider sends the viewer back to, whose OAuth
- * return handling selects or restores the account.
+ * hands the browser to the provider. Shared by a workflow block's credential picker, a knowledge
+ * base's connectors and an organization's Search source setup; `scope` names the workspace or
+ * organization that owns the credential, and `returnTo` the page the provider sends the viewer back
+ * to, whose OAuth return handling selects or restores the account.
  */
 export function OAuthConnectModal({
   open,

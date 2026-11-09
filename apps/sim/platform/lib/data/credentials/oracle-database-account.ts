@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { isApiClientError } from '@/lib/api/client/errors'
-import { resourceScopeFields, resourceScopeFromOwner } from '@/lib/core/resource-scope'
+import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth'
 import { useCreateScopedCredential } from '@/hooks/queries/scoped-credentials'
 
@@ -41,7 +41,8 @@ const EMPTY_DRAFT: OracleDatabaseDraft = {
 
 interface UseOracleDatabaseAccountOptions {
   open: boolean
-  workspaceId: string
+  /** The workspace or organization that owns the new credential. */
+  scope: ResourceScope
   onCreated: (credentialId: string) => void
 }
 
@@ -53,7 +54,7 @@ interface UseOracleDatabaseAccountOptions {
  */
 export function useOracleDatabaseAccount({
   open,
-  workspaceId,
+  scope,
   onCreated,
 }: UseOracleDatabaseAccountOptions) {
   const [draft, setDraft] = useState(EMPTY_DRAFT)
@@ -96,7 +97,7 @@ export function useOracleDatabaseAccount({
     }
     try {
       const created = await createCredential.mutateAsync({
-        ...resourceScopeFields(resourceScopeFromOwner({ workspaceId })),
+        ...resourceScopeFields(scope),
         serviceAccountJson: JSON.stringify(connection),
         displayName: draft.displayName.trim() || undefined,
         description: draft.description.trim() || undefined,

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { OAuthConnectModal } from '@/app/(product)/workspace/[workspaceId]/_components/oauth-connect-modal/oauth-connect-modal'
+import { OAuthConnectModal } from '@/app/(product)/_components/oauth-connect-modal/oauth-connect-modal'
 import styles from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/connector-recovery/connector-recovery.module.css'
 import {
   CONNECTOR_META_REGISTRY,
@@ -195,7 +195,7 @@ export function ConnectorRecovery({
             if (!open) setReconnecting(false)
           }}
           mode={selected ? 'reauthorize' : 'connect'}
-          workspaceId={workspaceId}
+          scope={{ kind: 'workspace', workspaceId }}
           providerId={selected?.provider ?? providerId}
           serviceName={meta.name}
           docsUrl={docsUrl}

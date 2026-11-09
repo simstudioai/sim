@@ -3,12 +3,12 @@
 import { TextAreaField, TextField } from '@sim/emcn/field'
 import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
-import { useAtlassianServiceAccount } from '@/platform/lib/data/credentials'
+import { type ResourceScope, useAtlassianServiceAccount } from '@/platform/lib/data/credentials'
 
 interface AtlassianServiceAccountModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  scope: ResourceScope
   /** The vendor the setup is titled with (family name, e.g. "Atlassian"). */
   serviceName: string
   /** Receives the new credential id so the picker can select it. */
@@ -27,7 +27,7 @@ interface AtlassianServiceAccountModalProps {
 export function AtlassianServiceAccountModal({
   open,
   onOpenChange,
-  workspaceId,
+  scope,
   serviceName,
   onCreated,
   atlassianProduct,
@@ -35,7 +35,7 @@ export function AtlassianServiceAccountModal({
 }: AtlassianServiceAccountModalProps) {
   const form = useAtlassianServiceAccount({
     open,
-    workspaceId,
+    scope,
     atlassianProduct,
     setupGuideUrl,
     onCreated,

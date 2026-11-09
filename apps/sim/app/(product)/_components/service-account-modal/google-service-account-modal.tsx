@@ -3,12 +3,12 @@
 import { TextAreaField, TextField } from '@sim/emcn/field'
 import { FileField } from '@sim/emcn/field/file-field'
 import { Modal } from '@sim/emcn/modal'
-import { useGoogleServiceAccount } from '@/platform/lib/data/credentials'
+import { type ResourceScope, useGoogleServiceAccount } from '@/platform/lib/data/credentials'
 
 interface GoogleServiceAccountModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  scope: ResourceScope
   /** The vendor the setup is titled with (family name, e.g. "Google"). */
   serviceName: string
   /** Receives the new credential id so the picker can select it. */
@@ -23,11 +23,11 @@ interface GoogleServiceAccountModalProps {
 export function GoogleServiceAccountModal({
   open,
   onOpenChange,
-  workspaceId,
+  scope,
   serviceName,
   onCreated,
 }: GoogleServiceAccountModalProps) {
-  const form = useGoogleServiceAccount({ open, workspaceId, onCreated })
+  const form = useGoogleServiceAccount({ open, scope, onCreated })
   const docsUrl = form.docsUrl
 
   return (

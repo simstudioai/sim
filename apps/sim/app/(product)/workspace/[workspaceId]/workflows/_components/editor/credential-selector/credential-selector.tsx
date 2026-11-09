@@ -12,8 +12,8 @@ import { Button } from '@sim/emcn/button'
 import { Icon } from '@sim/emcn/icon'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { InlineNotice } from '@sim/emcn/status'
-import { OAuthConnectModal } from '@/app/(product)/workspace/[workspaceId]/_components/oauth-connect-modal/oauth-connect-modal'
-import { ServiceAccountModal } from '@/app/(product)/workspace/[workspaceId]/_components/service-account-modal/service-account-modal'
+import { OAuthConnectModal } from '@/app/(product)/_components/oauth-connect-modal/oauth-connect-modal'
+import { ServiceAccountModal } from '@/app/(product)/_components/service-account-modal/service-account-modal'
 import { useActiveSearchTarget } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/credential-selector/credential-selector.module.css'
 import { isWorkflowSearchTargetForField } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
@@ -358,7 +358,7 @@ export function CredentialSelector({
         <ServiceAccountModal
           open={serviceAccountOpen}
           onOpenChange={setServiceAccountOpen}
-          workspaceId={workspaceId}
+          scope={{ kind: 'workspace', workspaceId }}
           serviceAccountProviderId={serviceAccountTarget.serviceAccountProviderId}
           atlassianProduct={serviceAccountTarget.atlassianProduct}
           serviceName={serviceAccountTarget.serviceName}
@@ -380,7 +380,7 @@ export function CredentialSelector({
           requiredScopes={
             dataversePolicy.applies ? requiredScopes : getCanonicalScopesForProvider(provider)
           }
-          workspaceId={workspaceId}
+          scope={{ kind: 'workspace', workspaceId }}
           returnTo={{ origin: 'workflow', workflowId: activeWorkflowId || '' }}
           requireDataverseEnvironment={dataversePolicy.applies}
           dataverseEnvironmentUrl={dataversePolicy.environmentUrl}
@@ -402,7 +402,7 @@ export function CredentialSelector({
             dataversePolicy.applies ? requiredScopes : getCanonicalScopesForProvider(provider)
           }
           newScopes={missingRequiredScopes}
-          workspaceId={workspaceId}
+          scope={{ kind: 'workspace', workspaceId }}
           reconnectTarget={{
             credentialId: selectedCredential.id,
             displayName: selectedCredential.name,

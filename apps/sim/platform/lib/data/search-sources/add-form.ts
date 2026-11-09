@@ -25,6 +25,7 @@ import { useSourceAccounts } from '@/hooks/queries/source-accounts'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
 import { useGitHubInstallationSetup } from '@/hooks/use-github-installation-setup'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
+import { connectorServiceAccount } from '@/platform/lib/data/knowledge/connectors/service-account'
 import { useConnectorScope, useSearchAvailability } from '@/platform/lib/data/search-sources/scope'
 import type {
   ConnectorAccessSelection,
@@ -119,6 +120,11 @@ export function useAddConnectorForm({
   )
   const [showMetadata, setShowMetadata] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showOAuthModal, setShowOAuthModal] = useState(false)
+  /** Which picker a new service account fills: the browsing account or the content account. */
+  const [serviceAccountField, setServiceAccountField] = useState<'browsing' | 'content' | null>(
+    null
+  )
 
   const gitlabPermissions = useGitLabPermissionForm()
   const [apiKeyValue, setApiKeyValue] = useState('')
@@ -198,6 +204,18 @@ export function useAddConnectorForm({
     connectorConfig?.auth.mode === 'oauth'
       ? (getProviderIdFromServiceId(connectorConfig.auth.provider) as OAuthProvider)
       : null
+
+  const requiresServiceAccount =
+    access.accessMode === 'admin' &&
+    connectorConfig?.auth.mode === 'oauth' &&
+    !isConnectorCredentialTypeAllowed(connectorConfig.auth, access.accessMode, 'oauth')
+  const serviceAccount = connectorServiceAccount({
+    connectorConfig,
+    providerId: connectorProviderId,
+    offered: isSearchIndex || requiresServiceAccount,
+    integrationAvailability,
+    docsUrl,
+  })
 
   const browsePersonalAccounts =
     isMembersMode && (selectedType === 'jira' || selectedType === 'confluence')
@@ -309,6 +327,12 @@ export function useAddConnectorForm({
       disabledTagIds: Array.from(disabledTagIds),
       savedAt: Date.now(),
     })
+  }
+
+  /** Keeps the draft through the provider's round trip, which returns to this setup page. */
+  const connectOAuth = () => {
+    saveSetup()
+    setShowOAuthModal(true)
   }
 
   const isOptionalSetupField = (field: ConnectorConfigField) =>
@@ -485,6 +509,7 @@ export function useAddConnectorForm({
     canSubmit,
     closeSetup,
     configFieldsProps,
+    connectOAuth,
     connectorConfig,
     connectorProviderId,
     contentCredentialId,
@@ -531,13 +556,17 @@ export function useAddConnectorForm({
     searchLabels,
     searchTerm,
     selectedType,
+    serviceAccount,
+    serviceAccountField,
     setAccess,
     setApiKeyValue,
     setContentCredentialId,
     setDisabledTagIds,
     setSearchTerm,
     setSelectedCredentialId,
+    setServiceAccountField,
     setShowMetadata,
+    setShowOAuthModal,
     setStep,
     setSyncInterval,
     setUseApiKey,
@@ -545,6 +574,7 @@ export function useAddConnectorForm({
     showCredentialPicker,
     showGitLabPermissions,
     showMetadata,
+    showOAuthModal,
     slackSetupRequired,
     step,
     syncInterval,

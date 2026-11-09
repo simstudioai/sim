@@ -3,7 +3,7 @@
 import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
 import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
-import { useOracleDatabaseAccount } from '@/platform/lib/data/credentials'
+import { type ResourceScope, useOracleDatabaseAccount } from '@/platform/lib/data/credentials'
 
 const PROTOCOL_OPTIONS = [
   { value: 'tcps', label: 'TCPS (TLS)' },
@@ -18,7 +18,7 @@ const CONNECTION_TYPE_OPTIONS = [
 interface OracleDatabaseAccountModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  scope: ResourceScope
   /** The vendor the setup is titled with. The dialog names the Oracle Database connection itself. */
   serviceName: string
   /** Receives the new credential id so the picker can select it. */
@@ -32,10 +32,10 @@ interface OracleDatabaseAccountModalProps {
 export function OracleDatabaseAccountModal({
   open,
   onOpenChange,
-  workspaceId,
+  scope,
   onCreated,
 }: OracleDatabaseAccountModalProps) {
-  const form = useOracleDatabaseAccount({ open, workspaceId, onCreated })
+  const form = useOracleDatabaseAccount({ open, scope, onCreated })
   const { values, setField } = form
   const docsUrl = form.docsUrl
 

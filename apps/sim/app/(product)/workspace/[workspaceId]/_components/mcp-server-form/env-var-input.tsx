@@ -1,7 +1,7 @@
 'use client'
 
 import { type ChangeEvent, type KeyboardEvent, type ReactNode, useRef, useState } from 'react'
-import { EnvVarDropdown } from '@/app/(product)/workspace/[workspaceId]/_components/env-var-dropdown/env-var-dropdown'
+import { EnvVarDropdown } from '@/app/(product)/_components/env-var-dropdown/env-var-dropdown'
 import styles from '@/app/(product)/workspace/[workspaceId]/_components/mcp-server-form/mcp-server-form.module.css'
 import { checkEnvVarTrigger } from '@/platform/lib/data/credentials'
 

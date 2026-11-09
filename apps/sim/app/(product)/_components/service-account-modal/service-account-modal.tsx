@@ -3,24 +3,34 @@
 import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
 import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
-import { AtlassianServiceAccountModal } from '@/app/(product)/workspace/[workspaceId]/_components/service-account-modal/atlassian-service-account-modal'
-import { GoogleServiceAccountModal } from '@/app/(product)/workspace/[workspaceId]/_components/service-account-modal/google-service-account-modal'
-import { OciApiKeyModal } from '@/app/(product)/workspace/[workspaceId]/_components/service-account-modal/oci-api-key-modal'
-import { OracleDatabaseAccountModal } from '@/app/(product)/workspace/[workspaceId]/_components/service-account-modal/oracle-database-account-modal'
-import { SlackBotModal } from '@/app/(product)/workspace/[workspaceId]/_components/service-account-modal/slack-bot-modal'
-import { serviceAccountSetupKind, useServiceAccountForm } from '@/platform/lib/data/credentials'
+import { AtlassianServiceAccountModal } from '@/app/(product)/_components/service-account-modal/atlassian-service-account-modal'
+import { GoogleServiceAccountModal } from '@/app/(product)/_components/service-account-modal/google-service-account-modal'
+import { OciApiKeyModal } from '@/app/(product)/_components/service-account-modal/oci-api-key-modal'
+import { OracleDatabaseAccountModal } from '@/app/(product)/_components/service-account-modal/oracle-database-account-modal'
+import { SlackBotModal } from '@/app/(product)/_components/service-account-modal/slack-bot-modal'
+import {
+  type ResourceScope,
+  serviceAccountSetupKind,
+  useServiceAccountForm,
+} from '@/platform/lib/data/credentials'
 
 interface SetupModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  scope: ResourceScope
   /** The vendor the setup is titled with, such as "Atlassian" for a family key. */
   serviceName: string
   /** Receives the new credential, so the picker can select it. */
   onCreated: (credentialId: string) => void
 }
 
-interface ServiceAccountModalProps extends SetupModalProps {
+/** Saves a pasted token or client credentials through another operation; see `useServiceAccountForm`. */
+interface KeyFormSubmitProps {
+  submitCredentials?: (fields: Record<string, string>) => Promise<string>
+  submitPending?: boolean
+}
+
+interface ServiceAccountModalProps extends SetupModalProps, KeyFormSubmitProps {
   serviceAccountProviderId: string
   /** The Atlassian product the account is for, which picks its setup guide. */
   atlassianProduct?: 'jira' | 'confluence'
@@ -29,11 +39,13 @@ interface ServiceAccountModalProps extends SetupModalProps {
 }
 
 /**
- * Adds a service account in place, from a workflow block's credential picker or a knowledge
- * connector, with the dialog its provider needs: a pasted token or an app's client credentials, a
+ * Adds a service account in place, from a workflow block's credential picker, a knowledge connector
+ * or an organization's Search source, owned by the workspace or organization `scope` names, with the
+ * dialog its provider needs: a pasted token or an app's client credentials, a
  * Google JSON key, an Atlassian API token, an OCI signing key, an Oracle Database wallet or a custom
  * Slack bot. The provider verifies the secret before it is stored, and `onCreated` receives the new
- * credential to select.
+ * credential to select. `submitCredentials` saves a pasted token or client credentials through
+ * another operation, as a member's saved Search account does.
  */
 export function ServiceAccountModal({
   serviceAccountProviderId,
@@ -41,9 +53,11 @@ export function ServiceAccountModal({
   atlassianSetupGuideUrl,
   open,
   onOpenChange,
-  workspaceId,
+  scope,
   serviceName,
   onCreated,
+  submitCredentials,
+  submitPending,
 }: ServiceAccountModalProps) {
   switch (serviceAccountSetupKind(serviceAccountProviderId)) {
     case 'form':
@@ -51,10 +65,12 @@ export function ServiceAccountModal({
         <KeyFormModal
           open={open}
           onOpenChange={onOpenChange}
-          workspaceId={workspaceId}
+          scope={scope}
           serviceAccountProviderId={serviceAccountProviderId}
           serviceName={serviceName}
           onCreated={onCreated}
+          submitCredentials={submitCredentials}
+          submitPending={submitPending}
         />
       )
     case 'google':
@@ -62,7 +78,7 @@ export function ServiceAccountModal({
         <GoogleServiceAccountModal
           open={open}
           onOpenChange={onOpenChange}
-          workspaceId={workspaceId}
+          scope={scope}
           serviceName={serviceName}
           onCreated={onCreated}
         />
@@ -72,7 +88,7 @@ export function ServiceAccountModal({
         <AtlassianServiceAccountModal
           open={open}
           onOpenChange={onOpenChange}
-          workspaceId={workspaceId}
+          scope={scope}
           serviceName={serviceName}
           onCreated={onCreated}
           atlassianProduct={atlassianProduct}
@@ -84,7 +100,7 @@ export function ServiceAccountModal({
         <OciApiKeyModal
           open={open}
           onOpenChange={onOpenChange}
-          workspaceId={workspaceId}
+          scope={scope}
           serviceName={serviceName}
           onCreated={onCreated}
         />
@@ -94,7 +110,7 @@ export function ServiceAccountModal({
         <OracleDatabaseAccountModal
           open={open}
           onOpenChange={onOpenChange}
-          workspaceId={workspaceId}
+          scope={scope}
           serviceName={serviceName}
           onCreated={onCreated}
         />
@@ -104,7 +120,7 @@ export function ServiceAccountModal({
         <SlackBotModal
           open={open}
           onOpenChange={onOpenChange}
-          workspaceId={workspaceId}
+          scope={scope}
           serviceName={serviceName}
           onCreated={onCreated}
         />
@@ -118,12 +134,20 @@ export function ServiceAccountModal({
 function KeyFormModal({
   open,
   onOpenChange,
-  workspaceId,
+  scope,
   serviceAccountProviderId,
   serviceName,
   onCreated,
-}: SetupModalProps & { serviceAccountProviderId: string }) {
-  const form = useServiceAccountForm({ workspaceId, serviceAccountProviderId, onCreated })
+  submitCredentials,
+  submitPending,
+}: SetupModalProps & KeyFormSubmitProps & { serviceAccountProviderId: string }) {
+  const form = useServiceAccountForm({
+    scope,
+    serviceAccountProviderId,
+    onCreated,
+    submitCredentials,
+    submitPending,
+  })
   const docsUrl = form.docsUrl
 
   return (

@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { SecretField } from '@sim/emcn/field/value-fields'
-import { EnvVarDropdown } from '@/app/(product)/workspace/[workspaceId]/_components/env-var-dropdown/env-var-dropdown'
+import { EnvVarDropdown } from '@/app/(product)/_components/env-var-dropdown/env-var-dropdown'
 import { checkEnvVarTrigger } from '@/platform/lib/data/credentials'
 
 interface ConnectorApiKeyFieldProps {
-  workspaceId: string
+  /** The workspace whose secrets are offered beside the viewer's; an organization's source has none. */
+  workspaceId?: string
   label: string
   placeholder: string
   value: string
@@ -17,8 +18,9 @@ interface ConnectorApiKeyFieldProps {
 }
 
 /**
- * A connector's API key, which may be a `{{SECRET}}` reference: typing `{{` offers the workspace's
- * and the viewer's secret names at the caret, and choosing one writes the reference in place.
+ * A connector's API key, which may be a `{{SECRET}}` reference: typing `{{` offers the secret names
+ * at the caret (the workspace's and the viewer's, or the viewer's own for an organization's Search
+ * source, as legacy offered them), and choosing one writes the reference in place.
  */
 export function ConnectorApiKeyField({
   workspaceId,

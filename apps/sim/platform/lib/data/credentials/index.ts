@@ -1,3 +1,4 @@
+export type { ResourceScope } from '@/lib/core/resource-scope'
 export { useAtlassianServiceAccount } from './atlassian-service-account'
 export { checkEnvVarTrigger, useEnvVarSuggestions } from './env-var-suggestions'
 export { useGoogleServiceAccount } from './google-service-account'

@@ -3,12 +3,12 @@
 import { TextAreaField, TextField } from '@sim/emcn/field'
 import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
-import { useOciApiKey } from '@/platform/lib/data/credentials'
+import { type ResourceScope, useOciApiKey } from '@/platform/lib/data/credentials'
 
 interface OciApiKeyModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  scope: ResourceScope
   /** The vendor the setup is titled with (family name, e.g. "Oracle Cloud"). */
   serviceName: string
   /** Receives the new credential id so the picker can select it. */
@@ -22,11 +22,11 @@ interface OciApiKeyModalProps {
 export function OciApiKeyModal({
   open,
   onOpenChange,
-  workspaceId,
+  scope,
   serviceName,
   onCreated,
 }: OciApiKeyModalProps) {
-  const form = useOciApiKey({ open, workspaceId, onCreated })
+  const form = useOciApiKey({ open, scope, onCreated })
   const { values, setField } = form
   const docsUrl = form.docsUrl
 

@@ -34,7 +34,7 @@ import { useRouter } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
-import { OAuthConnectModal } from '@/app/(product)/workspace/[workspaceId]/_components/oauth-connect-modal/oauth-connect-modal'
+import { OAuthConnectModal } from '@/app/(product)/_components/oauth-connect-modal/oauth-connect-modal'
 import { BlockMenu } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/block-menu/block-menu'
 import {
   CONNECTION_BLOCK_SELECTOR_DIMENSIONS,
@@ -5148,7 +5148,7 @@ const WorkflowContent = memo(function WorkflowContent({
           providerId={oauthModal.provider}
           serviceId={oauthModal.serviceId}
           requiredScopes={oauthModal.requiredScopes}
-          workspaceId={workspaceId}
+          scope={{ kind: 'workspace', workspaceId }}
           returnTo={{ origin: 'workflow', workflowId: workflowIdParam }}
           requireDataverseEnvironment={false}
         />
@@ -5170,7 +5170,7 @@ const WorkflowContent = memo(function WorkflowContent({
           serviceId={oauthModal.serviceId}
           requiredScopes={oauthModal.requiredScopes}
           newScopes={oauthModal.newScopes}
-          workspaceId={workspaceId}
+          scope={{ kind: 'workspace', workspaceId }}
           requireDataverseEnvironment={false}
         />
       )}

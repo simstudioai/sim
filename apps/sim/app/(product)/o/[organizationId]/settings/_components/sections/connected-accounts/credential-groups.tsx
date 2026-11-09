@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
@@ -10,7 +10,10 @@ import { ActionRow, SectionStack } from '@/app/(product)/_components/settings-pa
 import { GroupAccess } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/group-access'
 import { GroupPeople } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/group-people'
 import { GroupProviders } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/group-providers'
-import type { CredentialGroupsData } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
+import type {
+  CredentialGroupsData,
+  CredentialProvider,
+} from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
 import type { CredentialGroupActions } from '@/platform/lib/data/credential-group-actions'
 
 const VIEWS = [
@@ -29,9 +32,15 @@ interface CredentialGroupsProps {
   actions: CredentialGroupActions
   /** URL changes stay on the client, where the data is already whole; otherwise the server reads them. */
   shallow: boolean
+  renderSlackSetup: (provider: CredentialProvider, onClose: () => void) => ReactNode
 }
 
-export function CredentialGroups({ data, actions, shallow }: CredentialGroupsProps) {
+export function CredentialGroups({
+  data,
+  actions,
+  shallow,
+  renderSlackSetup,
+}: CredentialGroupsProps) {
   const [tab, setTab] = useQueryState('tab', tabParser.withOptions({ shallow }))
   const [settingUp, setSettingUp] = useState(false)
   if (!data.canManage)
@@ -66,7 +75,9 @@ export function CredentialGroups({ data, actions, shallow }: CredentialGroupsPro
           onSelect={(value) => void setTab(value)}
         />
       </ActionRow>
-      {tab === 'providers' && <GroupProviders data={data} actions={actions} />}
+      {tab === 'providers' && (
+        <GroupProviders data={data} actions={actions} renderSlackSetup={renderSlackSetup} />
+      )}
       {tab === 'people' && (
         <GroupPeople
           people={data.people}

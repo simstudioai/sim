@@ -7,8 +7,12 @@ import { SecretField } from '@sim/emcn/field/value-fields'
 import { MultiStepModal } from '@sim/emcn/modal'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { ExecutionSteps } from '@sim/emcn-platform/execution-steps'
-import styles from '@/app/(product)/workspace/[workspaceId]/_components/service-account-modal/slack-bot-modal.module.css'
-import { type SlackSlashCommandDraft, useSlackBotForm } from '@/platform/lib/data/credentials'
+import styles from '@/app/(product)/_components/service-account-modal/slack-bot-modal.module.css'
+import {
+  type ResourceScope,
+  type SlackSlashCommandDraft,
+  useSlackBotForm,
+} from '@/platform/lib/data/credentials'
 
 const CREATE_STEPS = [
   {
@@ -42,7 +46,7 @@ const ALL_PERMISSIONS_HINT =
 interface SlackBotModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  workspaceId: string
+  scope: ResourceScope
   /** The vendor the setup is titled with (family name, e.g. "Slack"). */
   serviceName: string
   /** Receives the new credential id so the picker can select it. */
@@ -58,11 +62,11 @@ interface SlackBotModalProps {
 export function SlackBotModal({
   open,
   onOpenChange,
-  workspaceId,
+  scope,
   serviceName,
   onCreated,
 }: SlackBotModalProps) {
-  const form = useSlackBotForm({ open, workspaceId, onCreated })
+  const form = useSlackBotForm({ open, scope, onCreated })
 
   return (
     <MultiStepModal
