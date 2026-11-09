@@ -212,6 +212,8 @@ function resolveMonacoLanguage(file: { type: string; name: string }): string {
 
 interface TextEditorProps extends FileEditingProps {
   previewMode: PreviewMode
+  /** Receives why a save was refused. */
+  onSaveError?: (error: unknown) => void
 }
 
 /**
@@ -227,6 +229,7 @@ export function TextEditor({
   autoFocus,
   onDirtyChange,
   onSaveStatusChange,
+  onSaveError,
   saveRef,
   downloadSourceRef,
   discardRef,
@@ -262,6 +265,7 @@ export function TextEditor({
     canEdit,
     onDirtyChange,
     onSaveStatusChange,
+    onSaveError,
     saveRef,
     discardRef,
   })

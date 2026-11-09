@@ -110,6 +110,8 @@ interface FileViewerProps extends FileEditingProps {
   onDeriveTitleFromHeading?: (fileId: string, headingText: string) => void
   /** Lets an open markdown file claim Cmd/Ctrl+F for find-in-document. */
   enableFind?: boolean
+  /** Receives why a save was refused; text files only. */
+  onSaveError?: (error: unknown) => void
 }
 
 /**
@@ -134,6 +136,7 @@ export function FileViewer(props: FileViewerProps) {
             autoFocus={props.autoFocus}
             onDirtyChange={props.onDirtyChange}
             onSaveStatusChange={props.onSaveStatusChange}
+            onSaveError={props.onSaveError}
             saveRef={props.saveRef}
             downloadSourceRef={props.downloadSourceRef}
             discardRef={props.discardRef}
@@ -156,6 +159,7 @@ function FileViewerContent({
   autoFocus,
   onDirtyChange,
   onSaveStatusChange,
+  onSaveError,
   saveRef,
   downloadSourceRef,
   discardRef,
@@ -202,6 +206,7 @@ function FileViewerContent({
         autoFocus={autoFocus}
         onDirtyChange={onDirtyChange}
         onSaveStatusChange={onSaveStatusChange}
+        onSaveError={onSaveError}
         saveRef={saveRef}
         downloadSourceRef={downloadSourceRef}
         discardRef={discardRef}

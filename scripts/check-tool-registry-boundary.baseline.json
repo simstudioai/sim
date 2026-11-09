@@ -477,16 +477,16 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/tests/[name]/page.tsx": {
-      "modules": 2005,
+      "modules": 2339,
       "gateways": {
-        "apps/sim/platform/lib/data/workspace-tab-flags.ts": 1850,
-        "apps/sim/platform/lib/data/server-read.ts": 1356,
-        "apps/sim/lib/auth/index.ts": 1354,
-        "apps/sim/blocks/registry.ts": 947,
-        "apps/sim/blocks/registry-maps.ts": 943,
+        "apps/sim/platform/lib/data/workspace-tab-flags.ts": 1802,
+        "apps/sim/platform/lib/data/server-read.ts": 1351,
+        "apps/sim/blocks/registry.ts": 945,
+        "apps/sim/blocks/registry-maps.ts": 941,
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,
-        "apps/sim/lib/webhooks/providers/index.ts": 96
+        "apps/sim/app/(product)/workspace/[workspaceId]/tests/_components/test-details/test-details.tsx": 415,
+        "apps/sim/app/(product)/workspace/[workspaceId]/tests/_components/test-source/test-source.tsx": 334
       }
     },
     "app/(product)/workspace/[workspaceId]/tests/page.tsx": {
