@@ -168,9 +168,9 @@ export function ReferenceField({
     handlers?.onDrop(event)
   }
 
-  const masked = shouldMaskSecretValue({ password, isFocused: focused })
-  const fieldValue = masked ? maskSecretText(value) : value
-  const shown = masked
+  const shouldMask = shouldMaskSecretValue({ password, isFocused: focused })
+  const fieldValue = shouldMask ? maskSecretText(value) : value
+  const shown = shouldMask
     ? fieldValue
     : formatDisplayText(value, {
         accessiblePrefixes,

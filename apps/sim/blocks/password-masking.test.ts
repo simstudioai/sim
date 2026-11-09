@@ -29,12 +29,12 @@ const maskedTypes = new Set<string>(PASSWORD_MASKED_SUBBLOCK_TYPES)
 const SUB_BLOCK_COMPONENTS_DIR = join(
   import.meta.dirname,
   '..',
-  'components/workflow-editor/components/panel/components/editor/components/sub-block/components'
+  'app/(product)/workspace/[workspaceId]/workflows/_components/editor'
 )
 
 /**
- * The renderer file backing each masking sub-block type, relative to the
- * sub-block components directory. The exhaustive `Record` is the compile-time
+ * The renderer file backing each masking sub-block type, relative to the product
+ * editor's sub-block directory (a table's cells are reference fields). The exhaustive `Record` is the compile-time
  * gate: adding a type to `PASSWORD_MASKED_SUBBLOCK_TYPES` fails type-check until
  * its renderer is registered here and therefore audited below.
  */
@@ -42,7 +42,7 @@ const RENDERER_SOURCES: Record<(typeof PASSWORD_MASKED_SUBBLOCK_TYPES)[number], 
   'short-input': 'short-input/short-input.tsx',
   'long-input': 'long-input/long-input.tsx',
   code: 'code/code.tsx',
-  table: 'table/table.tsx',
+  table: 'reference-field/reference-field.tsx',
 }
 
 /**
@@ -115,7 +115,8 @@ describe('password reveal policy', () => {
       const source = readRendererSource(RENDERER_SOURCES[type])
 
       expect(
-        source.includes('shouldMaskSecretValue') && source.includes("components/password-mask'"),
+        source.includes('shouldMaskSecretValue') &&
+          source.includes("formatted-text/password-mask'"),
         `${type} must import shouldMaskSecretValue from the password-mask module`
       ).toBe(true)
 

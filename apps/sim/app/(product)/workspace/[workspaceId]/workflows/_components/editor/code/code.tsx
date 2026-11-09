@@ -415,7 +415,8 @@ export const Code = memo(function Code({
     subBlockId,
     valuePath: [],
   })
-  const highlight = shouldMaskSecretValue({ password, isFocused })
+  const shouldMask = shouldMaskSecretValue({ password, isFocused })
+  const highlight = shouldMask
     ? highlightMaskedCode
     : (source: string) =>
         highlightCode(source, effectiveLanguage, {
