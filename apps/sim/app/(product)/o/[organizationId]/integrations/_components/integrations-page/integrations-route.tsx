@@ -19,6 +19,7 @@ import { MemberSecrets } from '@/app/(product)/o/[organizationId]/integrations/_
 import { ProviderHeading } from '@/app/(product)/o/[organizationId]/integrations/_components/provider-heading/provider-heading'
 import { QueryFailure } from '@/app/(product)/o/[organizationId]/integrations/_components/query-failure/query-failure'
 import { LiveGroup } from '@/app/(product)/o/[organizationId]/integrations/_components/resource-list/resource-list'
+import { SkillDetails } from '@/app/(product)/o/[organizationId]/integrations/_components/skill-details/skill-details'
 import { ToolPermissionsPanel } from '@/app/(product)/o/[organizationId]/integrations/_components/tool-permissions/tool-permissions-panel'
 import {
   IntegrationAccessRequest,
@@ -77,7 +78,7 @@ export function IntegrationsRoute({
   const actions = useIntegrationActions(organizationId, { enabled: member })
   const defaults = defaultIntegrationPaths(organizationId)
   const directory = useWorkspaceDirectory(defaults.index, workspaceScope)
-  const { workspace, connections, view, mcps } = directory
+  const { workspace, connections, view, mcps, skills } = directory
   useIntegrationsOAuthReturn(workspace?.id)
   const { account, clearAccount, serialize } = view
   const indexHref = directory.keep(integrationCenterHref(defaults.index, params))
@@ -107,14 +108,68 @@ export function IntegrationsRoute({
     </>
   )
 
-  if (!section && directory.skills.detail)
-    return <IntegrationsPage>{directory.skills.detail}</IntegrationsPage>
+  if (!section && skills.detail)
+    return (
+      <IntegrationsPage>
+        <SkillDetails
+          key={`${skills.workspace?.id ?? ''}:${skills.detail.skillId ?? 'new'}`}
+          workspaceId={skills.workspace?.id}
+          skillId={skills.detail.skillId}
+          backHref={skills.detailBackHref}
+          onBack={skills.closeDetail}
+          onCreated={skills.created}
+        />
+      </IntegrationsPage>
+    )
 
   if (!section) {
     const term = q.trim().toLowerCase()
     const servers = (mcps.servers ?? [])
       .filter((server) => `${server.name} ${server.description}`.toLowerCase().includes(term))
       .sort((a, b) => (order === 'asc' ? 1 : -1) * a.name.localeCompare(b.name))
+    const skillsTab: LiveTab = {
+      filter: skills.workspace && skills.workspaceOptions && (
+        <ChoiceMenu
+          label='Workspace'
+          value={skills.workspace.id}
+          options={skills.workspaceOptions}
+          onValueChange={skills.chooseWorkspace}
+        />
+      ),
+      actions: (
+        <Button
+          variant='secondary'
+          size='compact'
+          icon='I074'
+          disabled={!skills.workspace}
+          disabledReason='Skills belong to a workspace. Create a workspace first.'
+          onClick={() => skills.open('new')}
+        >
+          Create skill
+        </Button>
+      ),
+      content: skills.query.error ? (
+        <QueryFailure message='Could not load skills' query={skills.query} />
+      ) : (
+        <>
+          <LiveGroup
+            title='Workspace skills'
+            glyph='I044'
+            rows={skills.rows.filter((row) => !row.builtin)}
+            onOpen={(row) => skills.open(row.id)}
+          />
+          <LiveGroup
+            title='Built-in skills'
+            glyph='I044'
+            rows={skills.rows.filter((row) => row.builtin)}
+            onOpen={(row) => skills.open(row.id)}
+          />
+        </>
+      ),
+      empty: !skills.rows.length && !skills.query.error,
+      settled: skills.settled,
+      emptyDescription: 'Skills in this workspace appear here.',
+    }
     const mcpTab: LiveTab | undefined = workspace && {
       actions: mcps.connectHref && (
         <Button
@@ -158,7 +213,7 @@ export function IntegrationsRoute({
                 : directory.appHref(GENERIC_SECRETS_SEGMENT)
             }
             settled={(!member || (policies.isSuccess && secrets.isSuccess)) && directory.settled}
-            skills={directory.skills.tab}
+            skills={skillsTab}
             mcps={mcpTab}
             createCredentialHref={directory.createCredentialHref}
             scopeFilter={
