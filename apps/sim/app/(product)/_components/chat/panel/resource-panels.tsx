@@ -24,8 +24,7 @@ interface ResourcePanelsProps {
  * width belongs to the divider, which keeps a width per viewer and chat.
  */
 export function ResourcePanels({ panel, alwaysOpenable, children }: ResourcePanelsProps) {
-  const { resources, collapsed, onSelect, onRemove, onExpand, onCollapse, resize } =
-    panel
+  const { resources, collapsed, onSelect, onRemove, onExpand, onCollapse, resize } = panel
   const [expanded, setExpanded] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   /** Set by a press inside the panel, so a tab chosen by pointer can be told from arrow keys. */

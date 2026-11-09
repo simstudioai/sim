@@ -93,16 +93,16 @@ export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
   return (
     <HomeSection title='Needs your attention'>
       {state.status === 'error' && (
-        <FailureNotice
-          message='This could not load.'
-          retrying={state.retrying}
-          onRetry={onRetry}
-        />
+        <FailureNotice message='This could not load.' retrying={state.retrying} onRetry={onRetry} />
       )}
       {state.status === 'ready' && (
         <>
           {state.partial && (
-            <FailureNotice intent='warning' message='Some items could not load.' onRetry={onRetry} />
+            <FailureNotice
+              intent='warning'
+              message='Some items could not load.'
+              onRetry={onRetry}
+            />
           )}
           {state.items.length > 0 ? (
             <div className={styles.viewport}>

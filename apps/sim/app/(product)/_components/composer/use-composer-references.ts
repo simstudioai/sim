@@ -1,13 +1,6 @@
 'use client'
 
-import {
-  type KeyboardEvent,
-  type PointerEvent,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { type KeyboardEvent, type PointerEvent, useId, useMemo, useRef, useState } from 'react'
 import type { ComposerController } from '@/app/(product)/_components/composer/model'
 import {
   type ComposerOption,

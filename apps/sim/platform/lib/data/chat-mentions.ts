@@ -154,9 +154,7 @@ export function useMentionBrowse(enabled: boolean, organizationId: string) {
   return {
     /** Whether the rows are the search's matches rather than the workspaces. */
     searching: Boolean(browseSearch.trim()),
-    rows: browseSearch.trim()
-      ? (browseMatches.data?.rows ?? [])
-      : (workspaces.data?.rows ?? []),
+    rows: browseSearch.trim() ? (browseMatches.data?.rows ?? []) : (workspaces.data?.rows ?? []),
     onBrowseSearch: setBrowseSearch,
   }
 }
@@ -193,10 +191,7 @@ export function useMentionInventory(
     { query: '', family: 'skills', limit: MENTION_BROWSE_LIMIT },
     { enabled: wanted.skills }
   )
-  const { rows, onBrowseSearch } = useMentionBrowse(
-    wanted.resources,
-    organizationId
-  )
+  const { rows, onBrowseSearch } = useMentionBrowse(wanted.resources, organizationId)
   const skillList: SkillListStatus = skills.data ? 'landed' : skills.isError ? 'failed' : 'pending'
   return {
     references: grouped(suggestions.data?.rows),

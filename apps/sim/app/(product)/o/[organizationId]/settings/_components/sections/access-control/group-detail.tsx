@@ -468,9 +468,7 @@ export function GroupDetail({
           items={items.map(({ value, label }) => ({ id: value, label }))}
           kind={kind}
           searchLabel={
-            kind === 'knowledge_connector'
-              ? 'Search connectors…'
-              : 'Search authentication modes…'
+            kind === 'knowledge_connector' ? 'Search connectors…' : 'Search authentication modes…'
           }
           emptyLabel={
             kind === 'knowledge_connector' ? 'No connectors available.' : 'No modes available.'

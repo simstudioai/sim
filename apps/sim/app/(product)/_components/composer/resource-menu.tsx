@@ -96,7 +96,9 @@ function browseRows(
       ...familyRows(byWorkspace.get(workspace.id) ?? [], select),
     ]
     if (!first) return []
-    return [{ id: workspace.id, label: workspace.name, icon: workspace.icon, children: [first, ...rest] }]
+    return [
+      { id: workspace.id, label: workspace.name, icon: workspace.icon, children: [first, ...rest] },
+    ]
   })
   return [...workspaceRows, ...familyRows(byWorkspace.get(undefined) ?? [], select)]
 }
