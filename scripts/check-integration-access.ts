@@ -46,8 +46,6 @@ const RAW_CATALOGS: Readonly<Record<string, readonly string[]>> = {
 const EXEMPT: Readonly<Record<string, string>> = {
   'app/(landing)/': 'public marketing site: lists the catalog to visitors, who have no policy',
   'app/sitemap.ts': 'public sitemap of the marketing integration pages',
-  'ee/credential-groups/components/credential-group-provider-tile.tsx':
-    'looks up one integration by type for its tile',
 }
 
 interface SourceFile {
