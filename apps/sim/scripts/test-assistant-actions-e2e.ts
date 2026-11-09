@@ -1178,6 +1178,9 @@ try {
       await expect(approvedReceipt).toContainText('Approved')
       await approvedReceipt.scrollIntoViewIfNeeded()
       await capture('action-review-approved-and-pending')
+      await approvedReceipt
+        .getByRole('button', { name: 'View Create Jira issue receipt: Approved', exact: true })
+        .click()
       await expect(approvedReceipt.getByRole('textbox')).toHaveCount(0)
       await expect(approvedReceipt.getByText('acme.atlassian.net', { exact: true })).toBeVisible()
       const cancellation = page.waitForResponse(
