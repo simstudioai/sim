@@ -280,6 +280,13 @@ export function useLiveChatRuntime({
     decideTools,
     review,
     openResource,
+    viewSources: (turnId, requestId) =>
+      panel.addResourceFromUser({
+        type: 'sources',
+        id: 'cited-sources',
+        title: 'Sources',
+        sources: { messageId: turnId, ...(requestId ? { requestId } : {}) },
+      }),
     finishTerminalHandoff: isTerminalAvailable()
       ? (terminalId) => {
           void finishTerminalHandoff(terminalId, desktopChatScopeId('', chat.resolvedChatId))

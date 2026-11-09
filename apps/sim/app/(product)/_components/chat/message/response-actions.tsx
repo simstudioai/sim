@@ -10,6 +10,7 @@ import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import styles from '@/app/(product)/_components/chat/message/message.module.css'
+import { MessageSources } from '@/app/(product)/_components/chat/message/message-sources'
 import { MessageTime } from '@/app/(product)/_components/chat/message/message-time'
 import type { PlatformTurn } from '@/app/(product)/_components/chat/model'
 import { useChatHandlers } from '@/app/(product)/_components/session/chat-runtime'
@@ -22,7 +23,7 @@ interface ResponseActionsProps {
 
 export function ResponseActions({ turn }: ResponseActionsProps) {
   const { copyText: text, sentAt } = turn
-  const { rate, fork } = useChatHandlers()
+  const { rate, fork, viewSources } = useChatHandlers()
   const [feedback, setFeedback] = useState<Rating | null>(null)
   const [rating, setRating] = useState<Rating | null>(null)
   return (
@@ -45,6 +46,12 @@ export function ResponseActions({ turn }: ResponseActionsProps) {
             label='Fork in new chat'
             icon='I118'
             onClick={() => void fork(turn.id)}
+          />
+        )}
+        {turn.sources && (
+          <MessageSources
+            sources={turn.sources}
+            onViewAll={viewSources && (() => viewSources(turn.id, turn.requestId))}
           />
         )}
         {sentAt !== undefined && <MessageTime sentAt={sentAt} />}
