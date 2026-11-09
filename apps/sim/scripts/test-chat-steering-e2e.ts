@@ -1081,6 +1081,8 @@ const scenarios: Scenario[] = [
       await expect(conversation(page).getByText(message, { exact: true })).toBeVisible({
         timeout: 2_000,
       })
+      // A negative window: nothing signals that an offline send was held back, so the check gives
+      // it time to (wrongly) reach the model before asserting it did not.
       await sleep(5_000)
       assert.equal(model.containing(message).length, 0, 'Nothing reached the model offline')
       await context.setOffline(false)
