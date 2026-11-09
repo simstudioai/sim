@@ -138,12 +138,16 @@ interface HomeSavedConnection {
   close: () => void
 }
 
-function useConnectionActions(organizationId: string): {
+/** `allowed` is the member-integrations gate; without it the viewer has no inventory to read. */
+function useConnectionActions(
+  organizationId: string,
+  allowed: boolean
+): {
   actions: Omit<HomeWidgetActions, 'retry'>
   savedConnection: HomeSavedConnection | null
 } {
   const { connecting, connect, reconnect, disconnect, savedConnection, closeSavedConnection } =
-    useIntegrationActions(organizationId)
+    useIntegrationActions(organizationId, { enabled: allowed })
   return {
     actions: {
       connect: connecting ? undefined : (optionId) => connect({ optionId }),
@@ -475,7 +479,10 @@ export function useLiveHome(
   const integrations = useHomeIntegrations(organization)
   const connectionFor = (sources: typeof HOME_EMAIL_SOURCES) =>
     toHomeConnection({ ...integrations, sources })
-  const { actions: connectionActions, savedConnection } = useConnectionActions(organizationId)
+  const { actions: connectionActions, savedConnection } = useConnectionActions(
+    organizationId,
+    integrations.allowed
+  )
   const email = useHomeEmail(
     organizationId,
     connectionFor(HOME_EMAIL_SOURCES),
