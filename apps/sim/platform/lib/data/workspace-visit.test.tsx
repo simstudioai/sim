@@ -55,7 +55,6 @@ describe('recording workspace visits', () => {
 
   afterEach(() => {
     act(() => root.unmount())
-    vi.unstubAllGlobals()
     mockUseSession.mockReset()
   })
 

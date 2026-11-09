@@ -28,7 +28,6 @@ describe('the workspace upload guard', () => {
   afterEach(() => {
     act(() => root.unmount())
     useInFlightUploadsStore.setState({ count: 0 })
-    vi.unstubAllGlobals()
   })
 
   it('asks before unloading while an upload sends, and stops once it settles', () => {

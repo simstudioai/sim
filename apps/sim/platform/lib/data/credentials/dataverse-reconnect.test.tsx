@@ -70,7 +70,6 @@ describe('reconnecting a Dataverse credential', () => {
 
   afterEach(() => {
     act(() => root.unmount())
-    vi.unstubAllGlobals()
   })
 
   it('reconnects a bound credential to the environment it is bound to', async () => {
