@@ -4,7 +4,8 @@ exact = true
 # (blocks freshly published, potentially compromised releases).
 minimumReleaseAge = 604800
 # Explicit framework pins must install before their release reaches the age threshold: a
-# security release of Next.js is pinned exactly the day it ships.
+# security release of Next.js is pinned exactly the day it ships. They are bare names because Bun 1.4
+# ignores version-pinned exclusions; `exact = true` and the lockfile still hold the pinned versions.
 minimumReleaseAgeExcludes = [
   "next",
   "@next/env",

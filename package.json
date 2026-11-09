@@ -139,8 +139,8 @@
   "overrides": {
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "next": "16.4.1",
-    "@next/env": "16.4.1",
+    "next": "16.4.5",
+    "@next/env": "16.4.5",
     "postgres": "3.4.9",
     "marked": "18.0.11",
     "mermaid": "11.16.1",
@@ -162,7 +162,7 @@
     "hono": "4.13.13",
     "image-size": "2.0.4",
     "ip-address": "10.7.4",
-    "postcss": "8.5.30",
+    "postcss": "8.5.32",
     "prosemirror-model": "1.25.12",
     "prosemirror-state": "1.4.4",
     "prosemirror-transform": "1.12.0",
@@ -177,10 +177,10 @@
     "ws": "8.21.3"
   },
   "optionalDependencies": {
-    "@next/swc-darwin-arm64": "16.4.1",
-    "@next/swc-darwin-x64": "16.4.1",
-    "@next/swc-linux-arm64-gnu": "16.4.1",
-    "@next/swc-linux-x64-gnu": "16.4.1"
+    "@next/swc-darwin-arm64": "16.4.5",
+    "@next/swc-darwin-x64": "16.4.5",
+    "@next/swc-linux-arm64-gnu": "16.4.5",
+    "@next/swc-linux-x64-gnu": "16.4.5"
   },
   "devDependencies": {
     "@babel/parser": "7.29.9",
@@ -228,7 +228,7 @@
     "postgres@3.4.9": "patches/postgres@3.4.9.patch",
     "oracledb@7.0.1": "patches/oracledb@7.0.1.patch",
     "echarts@6.1.0": "patches/echarts@6.1.0.patch",
-    "next@16.4.1": "patches/next@16.4.1.patch",
+    "next@16.4.5": "patches/next@16.4.5.patch",
     "zod@4.3.6": "patches/zod@4.3.6.patch"
   }
 }
