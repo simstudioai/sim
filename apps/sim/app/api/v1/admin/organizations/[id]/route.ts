@@ -53,7 +53,7 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { deleteOrganizationRehomingMembers } from '@/lib/organizations/deletion'
+import { deleteTeamOrganization } from '@/lib/organizations/deletion'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminBadRequestResponse,
@@ -278,7 +278,7 @@ export const DELETE = withRouteHandler(
         .from(member)
         .where(eq(member.organizationId, organizationId))
 
-      const { detachedWorkspaceIds } = await deleteOrganizationRehomingMembers(organizationId)
+      const { detachedWorkspaceIds } = await deleteTeamOrganization(organizationId)
 
       logger.info(`Admin API: Deleted organization ${organizationId}`, {
         slug: existing.slug,
