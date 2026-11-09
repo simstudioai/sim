@@ -49,7 +49,8 @@
  * ## Deployment-shape flags in client code
  *
  * Client code — `stores/`, `hooks/`, `blocks/`, and any `'use client'` module or hook
- * under the workspace, organization, or standalone settings surfaces — must not import the
+ * under the product (`app/(product)`), site (`app/(site)`), Platform data and shared code
+ * (`platform/lib`, `platform/shared`), or legacy settings (`components/settings`, `ee`) — must not import the
  * deployment-shape flags from `env-flags`; it reads them through
  * `@/lib/core/config/deployment-shape`. The flag list is that module's own `env-flags`
  * import, so it cannot drift. A namespace import (`* as flags`) is refused outright: its reads
@@ -109,7 +110,9 @@ const DEPLOYMENT_SHAPE_MODULE = path.join(APP_DIR, 'lib/core/config/deployment-s
 
 /** Surfaces whose shell seeds the server-resolved deployment shape (paths relative to apps/sim). */
 function isDeploymentShapeSurface(rel: string): boolean {
-  return /^(?:app\/(?:workspace|o|account|selfhost\/settings)|components\/settings|ee)\//.test(rel)
+  return /^(?:app\/\((?:product|site)\)|platform\/(?:lib|shared)|components\/settings|ee)\//.test(
+    rel
+  )
 }
 
 /**

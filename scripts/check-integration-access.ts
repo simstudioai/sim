@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 /**
- * Keeps every surface that lists integrations on `useIntegrationAccess`.
+ * Keeps every surface that lists integrations on `useIntegrationAccess`, or, in the product's
+ * server data seam (`platform/lib/data`), on `resolveIntegrationAccess`.
  *
  * The integration catalogs are plain module exports, so a new picker that maps
  * over one starts with every integration and is correct only if its author
@@ -10,8 +11,8 @@
  * one verdict those surfaces share; this audit makes reaching a raw catalog
  * without it a build failure.
  *
- * The rule: a scanned module that reads a raw catalog must also call
- * `useIntegrationAccess`, or appear in {@link EXEMPT} with the reason it may see
+ * The rule: a scanned module that reads a raw catalog must also call one of
+ * {@link GATES}, or appear in {@link EXEMPT} with the reason it may see
  * every integration (a lookup by id, a public page, a builder whose caller
  * gates). An exemption that no longer covers a raw import is reported too, so
  * the list cannot outlive its reason. `useIntegrationAccessPolicy`, which fails
@@ -19,7 +20,8 @@
  * no listing can reach around the gate through it.
  *
  * Scope: client-facing modules under {@link SCAN_ROOTS}, minus API routes,
- * `*.server.ts` and tests. `lib/` and `blocks/` are not scanned: they define
+ * `*.server.ts` and tests. A dynamic `import()` of a catalog module counts as
+ * reading every catalog export it has. `lib/` and `blocks/` are not scanned: they define
  * and derive the catalogs, and no module there renders a list to a viewer.
  */
 import { readdirSync, readFileSync } from 'node:fs'
@@ -28,9 +30,14 @@ import { fileURLToPath } from 'node:url'
 import { escapeRegExp } from '@sim/utils/string'
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../apps/sim')
-const SCAN_ROOTS = ['app', 'components', 'hooks', 'stores', 'ee'] as const
+const SCAN_ROOTS = ['app', 'components', 'hooks', 'stores', 'ee', 'platform'] as const
 const GATE_MODULE = '@/hooks/use-integration-access'
 const GATE_NAME = 'useIntegrationAccess'
+/** The calls that judge a viewer's access to each integration: the client hook, and the server verdict the product's data seam applies. */
+const GATES: readonly { module: string; name: string }[] = [
+  { module: GATE_MODULE, name: GATE_NAME },
+  { module: '@/lib/integrations/access', name: 'resolveIntegrationAccess' },
+]
 const FAIL_OPEN_NAME = 'useIntegrationAccessPolicy'
 /** The one module allowed the fail-open policy, for the gates that have always failed open. */
 const FAIL_OPEN_READER = 'hooks/use-permission-config.ts'
@@ -40,12 +47,14 @@ const RAW_CATALOGS: Readonly<Record<string, readonly string[]>> = {
   '@/lib/integrations': ['INTEGRATIONS'],
   '@/blocks/integration-matcher': ['listIntegrations', 'listIntegrationsByPopularity'],
   '@sim/deployment-config/integration-metadata': ['INTEGRATION_METADATA'],
+  '@/platform/lib/integrations/catalog.generated': ['integrationCatalog'],
 }
 
 /** Modules, or directories ending in `/`, allowed every integration, relative to `apps/sim`. */
 const EXEMPT: Readonly<Record<string, string>> = {
   'app/(landing)/': 'public marketing site: lists the catalog to visitors, who have no policy',
   'app/sitemap.ts': 'public sitemap of the marketing integration pages',
+  'platform/fixtures/': 'design fixtures: seeded demo data rendered without a viewer policy',
 }
 
 interface SourceFile {
@@ -63,6 +72,7 @@ interface IntegrationAccessViolation {
 
 const NAMED_IMPORT = /import\s+(type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g
 const NAMESPACE_IMPORT = /import\s+\*\s+as\s+([\w$]+)\s+from\s*['"]([^'"]+)['"]/g
+const DYNAMIC_IMPORT = /import\(\s*['"]([^'"]+)['"]\s*\)/g
 
 /** One export of a module, and the expression the importing module reaches it through. */
 interface ExportReference {
@@ -103,6 +113,9 @@ function exportReferences(
     if (new RegExp(`${binding}(?!\\s*\\.[\\w$])`).test(body)) {
       references.push(...exports.map((exported) => ({ exported })))
     }
+  }
+  for (const [, module] of source.matchAll(DYNAMIC_IMPORT)) {
+    if (module === from) references.push(...exports.map((exported) => ({ exported })))
   }
   return references
 }
@@ -148,8 +161,10 @@ export function findIntegrationAccessViolations(
       usedExemptions.add(exemption)
       continue
     }
-    const callsGate = gateReferences.some(
-      ({ exported, local }) => exported === GATE_NAME && isCalled(source, local)
+    const callsGate = GATES.some(({ module, name }) =>
+      exportReferences(source, module, [name]).some(
+        ({ exported, local }) => exported === name && isCalled(source, local)
+      )
     )
     if (!callsGate) violations.push({ path, names, stale: false })
   }
@@ -184,7 +199,9 @@ function collectSources(): SourceFile[] {
 function main() {
   const violations = findIntegrationAccessViolations(collectSources(), EXEMPT)
   if (violations.length === 0) {
-    console.log('✓ every integration listing calls useIntegrationAccess')
+    console.log(
+      '✓ every integration listing calls useIntegrationAccess or resolveIntegrationAccess'
+    )
     return
   }
   for (const violation of violations) {
@@ -198,12 +215,12 @@ function main() {
       )
     } else {
       console.error(
-        `✗ apps/sim/${violation.path}: reads ${violation.names.join(', ')} without calling ${GATE_NAME}`
+        `✗ apps/sim/${violation.path}: reads ${violation.names.join(', ')} without calling ${GATES.map(({ name }) => name).join(' or ')}`
       )
     }
   }
   console.error(
-    `\nList integrations through ${GATE_NAME} (${GATE_MODULE}), which fails closed until the viewer's policy loads. A module that may see every integration belongs in EXEMPT with its reason.`
+    `\nList integrations through ${GATE_NAME} (${GATE_MODULE}), which fails closed until the viewer's policy loads, or, in server code, judge each one with resolveIntegrationAccess (@/lib/integrations/access). A module that may see every integration belongs in EXEMPT with its reason.`
   )
   process.exit(1)
 }
