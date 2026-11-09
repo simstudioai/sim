@@ -5,6 +5,7 @@ import {
   readRememberedSearchMode,
   searchModeCookieName,
 } from '@/lib/organizations/search-params'
+import type { ShellLocation } from '@/platform/lib/data/landing'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { requireSessionViewer } from '@/platform/lib/data/server-read'
 
@@ -23,4 +24,19 @@ export async function readPinnedSearchHref(
     viewer.principal.userId
   )
   return pinnedSearchHref(surfaceHref(organization, '/search'), searchParams, remembered)
+}
+
+/**
+ * The same pin for a document request, applied by the shell before anything streams so the viewer
+ * gets one HTTP redirect; a redirect from the page itself would paint first and navigate again.
+ */
+export function readEntrySearchPin(
+  organization: PlatformOrganization,
+  location: ShellLocation | null
+): Promise<string | null> | null {
+  if (!location || location.pathname !== surfaceHref(organization, '/search')) return null
+  if (!organization.searchAccess.memberScoped) return null
+  const searchParams: Record<string, string[]> = {}
+  for (const [key, value] of location.query) (searchParams[key] ??= []).push(value)
+  return readPinnedSearchHref(organization, searchParams)
 }

@@ -16,6 +16,7 @@ import {
 } from '@/platform/lib/data/organization-model'
 import { prefetchShell } from '@/platform/lib/data/prefetch-shell'
 import { LiveProviders } from '@/platform/lib/data/providers'
+import { readEntrySearchPin } from '@/platform/lib/data/search-pin'
 import { resolveSettingsNavigation } from '@/platform/lib/data/settings-navigation'
 import { readShellLocation } from '@/platform/lib/data/shell-scope'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
@@ -48,9 +49,11 @@ export async function LiveShell({
 
   const { organization } = surface
   const cookieStore = await cookies()
+  const location = await readShellLocation()
   const surfaceRedirect =
     resolveSurfaceRedirect(organization) ??
-    resolveEntryRedirect(organization, await readShellLocation())
+    resolveEntryRedirect(organization, location) ??
+    (await readEntrySearchPin(organization, location))
   if (surfaceRedirect) redirect(surfaceRedirect)
 
   return (

@@ -10,11 +10,8 @@ export const metadata: Metadata = { title: 'Search' }
 export default async function Page({ searchParams }: ProductPageProps<{ organizationId: string }>) {
   await connection()
   if (resolvePlatformMode() !== 'live') notFound()
-  const [query, { LiveSearchRoute }] = await Promise.all([
-    searchParams,
-    import(
-      '@/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route'
-    ),
-  ])
-  return <LiveSearchRoute searchParams={query} />
+  const { LiveSearchRoute } = await import(
+    '@/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route'
+  )
+  return <LiveSearchRoute searchParams={await searchParams} />
 }
