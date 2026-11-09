@@ -6,6 +6,7 @@ import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { SearchField } from '@sim/emcn/search-field'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
@@ -40,7 +41,6 @@ import {
   type WorkflowTestRecord,
 } from '@/platform/lib/data/workflow-tests'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 const EMPTY_TESTS: WorkflowTestRecord[] = []

@@ -8,6 +8,7 @@ import { SettingsSection } from '@sim/emcn/settings-section'
 import { InlineNotice } from '@sim/emcn/status'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import {
   ActionRow,
   FieldStack,
@@ -15,7 +16,6 @@ import {
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 export function MothershipByok() {
   const preview = useFixtureSettingsActions()?.previewByokWorkspaces

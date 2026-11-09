@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import {
@@ -49,7 +50,6 @@ import {
 import { useWorkspaceFileFolders } from '@/platform/lib/data/folders'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { folderChain } from '@/platform/lib/folder-chain'
-import { workspaceEntry, workspacePath } from '@/platform/lib/workspace-navigation'
 
 interface FileViewProps {
   workspaceId: string

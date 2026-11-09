@@ -7,13 +7,13 @@ import { DetailsField } from '@sim/emcn/field/details-field'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import Link from 'next/link'
+import { workspacePath } from '@/lib/navigation/paths'
 import styles from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/connector-access-field/connector-access-field.module.css'
 import {
   type ConnectorAccessMode,
   type ConnectorMeta,
   useConnectorAccessField,
 } from '@/platform/lib/data/knowledge/connectors'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 const CONNECTED_MEMBERS = '__connected_members__'
 

@@ -7,6 +7,7 @@ import { type PropertyItem, PropertyList } from '@sim/emcn/property-list'
 import { ExecutionSteps } from '@sim/emcn-platform/execution-steps'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { DirectoryHeading } from '@/app/(product)/_components/resource-directory/resource-directory'
 import { DashboardTable } from '@/app/(product)/workspace/[workspaceId]/_components/dashboard-table/dashboard-table'
 import {
@@ -27,7 +28,6 @@ import { SourceExcerpt } from '@/app/(product)/workspace/[workspaceId]/issues/_c
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatTimestamp } from '@/platform/shared/time'
 
 export type IssueDecision = 'approve' | 'deny' | 'cancel' | 'retry' | 'reload'

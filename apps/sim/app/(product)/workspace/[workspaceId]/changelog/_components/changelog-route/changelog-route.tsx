@@ -2,9 +2,9 @@
 
 import { useSearchParams } from 'next/navigation'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
+import { workspacePath } from '@/lib/navigation/paths'
 import { ChangelogFeed } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-feed/changelog-feed'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import type { ChangelogData } from '@/platform/shared/workspace-records'
 
 interface ChangelogRouteProps {

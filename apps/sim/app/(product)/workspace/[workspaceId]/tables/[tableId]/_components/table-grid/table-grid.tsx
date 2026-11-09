@@ -20,6 +20,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useSearchParams } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { FindBar } from '@/app/(product)/workspace/[workspaceId]/_components/find-bar/find-bar'
 import type { ColumnConfig } from '@/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/column-config/column-config'
@@ -122,7 +123,6 @@ import {
   type WorkflowGroup,
 } from '@/platform/lib/data/tables'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 /** A menu the grid opens at a viewport point: under a header, or where a cell was right-clicked. */
 interface GridMenu {
