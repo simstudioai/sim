@@ -8,11 +8,13 @@ import {
   billingWorkspaceAccessMockFns,
 } from '@sim/testing/mocks/billing-workspace-access.mock'
 import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const hoisted = vi.hoisted(() => ({
   workspaceAvailable: vi.fn(),
 }))
+vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/lib/billing/core/access', () => billingAccessMock)
 vi.mock('@/lib/billing/core/workspace-access', () => billingWorkspaceAccessMock)

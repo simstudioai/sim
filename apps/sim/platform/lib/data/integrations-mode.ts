@@ -1,4 +1,4 @@
-import { canReadMemberIntegrations } from '@/lib/credential-groups/member-access'
+import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations-access'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 
 /**

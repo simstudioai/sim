@@ -6,7 +6,11 @@ import {
   copilotRuns,
   credential,
   customBlock,
+  invitation,
   knowledgeBase,
+  knowledgeConnectorMember,
+  knowledgeExternalDirectory,
+  knowledgeExternalGroup,
   mcpServerOauth,
   mcpServers,
   member,
@@ -14,8 +18,11 @@ import {
   mothershipMemorySelections,
   mothershipMemorySpaces,
   organization,
+  organizationAccessRequestSettings,
   organizationSearchHistory,
+  organizationSearchMcpInvocation,
   pendingCredentialDraft,
+  permissionAccessRequest,
   simLink,
   user,
   workspace,
@@ -206,13 +213,18 @@ const OWNED_ORGANIZATION_CONTENT: ReadonlyArray<{ table: PgTable; organizationId
   { table: simLink, organizationId: simLink.organizationId },
   { table: assistantToolPermission, organizationId: assistantToolPermission.organizationId },
   { table: pendingCredentialDraft, organizationId: pendingCredentialDraft.organizationId },
+  /** A members-mode connector's per-member sync state, which follows its knowledge base. */
+  { table: knowledgeConnectorMember, organizationId: knowledgeConnectorMember.organizationId },
 ]
 
 /**
- * Per-person rows keyed by organization and person: they move too, except where the person already
- * holds that row in the target from an earlier membership, which stays authoritative.
+ * Rows keyed within their organization: they move too, except where the target already holds a row
+ * under the same key, which stays authoritative. Per-person state the person holds in the target
+ * from an earlier membership, and the mirrors of an external identity directory the moved
+ * knowledge bases' connectors read (the target's mirror of the same directory is equivalent, and
+ * the next connector sync refreshes it).
  */
-const PER_PERSON_ORGANIZATION_STATE: ReadonlyArray<{
+const KEYED_ORGANIZATION_STATE: ReadonlyArray<{
   table: PgTable
   organizationId: PgColumn
   key: PgColumn[]
@@ -232,6 +244,38 @@ const PER_PERSON_ORGANIZATION_STATE: ReadonlyArray<{
     organizationId: copilotOrganizationRequestStops.organizationId,
     key: [copilotOrganizationRequestStops.userId, copilotOrganizationRequestStops.streamId],
   },
+  {
+    table: knowledgeExternalDirectory,
+    organizationId: knowledgeExternalDirectory.organizationId,
+    key: [knowledgeExternalDirectory.providerId, knowledgeExternalDirectory.tenantId],
+  },
+  {
+    table: knowledgeExternalGroup,
+    organizationId: knowledgeExternalGroup.organizationId,
+    key: [
+      knowledgeExternalGroup.providerId,
+      knowledgeExternalGroup.tenantId,
+      knowledgeExternalGroup.externalGroupId,
+    ],
+  },
+]
+
+/**
+ * Rows meaningful only inside the personal organization, which nothing in the target could read:
+ * its Search MCP activity log, its access-request opt-out, and the access requests filed against
+ * it (personal workspaces leave for the organization-less state, where access requests never
+ * existed). They go with it.
+ */
+const PERSONAL_ORGANIZATION_ONLY: ReadonlyArray<{ table: PgTable; organizationId: PgColumn }> = [
+  {
+    table: organizationSearchMcpInvocation,
+    organizationId: organizationSearchMcpInvocation.organizationId,
+  },
+  {
+    table: organizationAccessRequestSettings,
+    organizationId: organizationAccessRequestSettings.organizationId,
+  },
+  { table: permissionAccessRequest, organizationId: permissionAccessRequest.organizationId },
 ]
 
 async function moveOrganizationContentTx(tx: DbTransaction, from: string, to: string) {
@@ -252,7 +296,7 @@ async function moveOrganizationContentTx(tx: DbTransaction, from: string, to: st
       )
     }
   }
-  for (const { table, organizationId, key } of PER_PERSON_ORGANIZATION_STATE) {
+  for (const { table, organizationId, key } of KEYED_ORGANIZATION_STATE) {
     const keyMatch = sql.join(
       key.map((column) => sql`existing.${sql.identifier(column.name)} = ${column}`),
       sql` AND `
@@ -267,13 +311,27 @@ async function moveOrganizationContentTx(tx: DbTransaction, from: string, to: st
     `)
     await tx.execute(sql`DELETE FROM ${table} WHERE ${organizationId} = ${from}`)
   }
+  for (const { table, organizationId } of PERSONAL_ORGANIZATION_ONLY) {
+    await tx.execute(sql`DELETE FROM ${table} WHERE ${organizationId} = ${from}`)
+  }
+  /**
+   * A pending invitation to a personal workspace keeps inviting to it, recorded without an
+   * organization as an organization-less workspace's invitation is; one to the personal
+   * organization itself has nothing left to admit anyone to.
+   */
+  await tx
+    .update(invitation)
+    .set({ organizationId: null, updatedAt: new Date() })
+    .where(and(eq(invitation.organizationId, from), eq(invitation.kind, 'workspace')))
+  await tx.delete(invitation).where(eq(invitation.organizationId, from))
 }
 
 /**
  * Proves nothing would cascade away with the personal organization: every table whose rows its
- * deletion would delete must hold none of them by now (its membership aside). Data of a kind that
- * cannot follow its owner into another organization — organization settings a personal
- * organization should never hold — refuses the join instead of being lost.
+ * deletion would delete must hold none of them by now (its membership aside). Every such table is
+ * moved, keyed, personal-only (above), or refused on personal organizations by migrations 0456 and
+ * 0457 (`personal-organizations.integration.ts` proves the classification is complete), so this
+ * only refuses a join over rows written around those guards, rather than losing them.
  */
 async function assertNothingCascadesTx(tx: DbTransaction, organizationId: string) {
   const members = await tx

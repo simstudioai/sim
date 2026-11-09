@@ -8,7 +8,7 @@ import {
   organizationAccountAccessPolicyCodec,
   organizationAccountPolicyAllowsWorkspace,
 } from '@/lib/credential-groups/application/workspace-access-policy'
-import { organizationOAuthCredentialType } from '@/lib/credential-groups/credential-types'
+import { organizationOAuthCredentialType } from '@/lib/credential-groups/credential-type-catalog'
 import { isScopedCredentialGroupsAvailable } from '@/lib/credential-groups/scoped-availability'
 import { requireResourcePolicy } from '@/lib/resource-policies/repository'
 

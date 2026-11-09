@@ -32,7 +32,6 @@ import {
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useHydrated } from '@/hooks/use-hydrated'
 import { useOrganization } from '@/platform/lib/data/organization'
-import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSummaryQueue } from '@/platform/lib/data/search-summary'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
@@ -391,18 +390,4 @@ export function useSearchTabResults(resource: PlatformResource): SearchResultsDa
     nativeQueries: search?.nativeQueries,
     reuseFreshResult: true,
   })
-}
-
-/** Home's Search entry: a submitted query, recorded as Search's own field records one. */
-export function useStartSearch(): ((query: string) => void) | null {
-  const organization = useOrganization()
-  const organizationId = organization.organization.id
-  const { data: session } = useSession()
-  const record = useRecordSearchHistory(organizationId, session?.user?.id)
-  const router = useRouter()
-  if (!organization.searchAccess.memberScoped) return null
-  return (query) => {
-    record.mutate({ kind: 'query', query })
-    router.push(`${surfaceHref(organization, '/search')}?${new URLSearchParams({ q: query })}`)
-  }
 }

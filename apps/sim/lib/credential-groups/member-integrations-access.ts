@@ -1,7 +1,4 @@
-/**
- * Who has a member integrations inventory at all: the rule behind the member Integrations page.
- * Kept apart from the inventory's projection so a route deciding which page to serve stays light.
- */
+/** Who has a member integrations inventory at all: the rule behind the member Integrations page. */
 export function canReadMemberIntegrations(surface: {
   searchAccess: { memberScoped: boolean }
   viewer: { canConnectSearchIntegrations: boolean }

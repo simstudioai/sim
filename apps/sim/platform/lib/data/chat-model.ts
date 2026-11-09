@@ -54,8 +54,9 @@ import type {
   PlatformTurn,
 } from '@/app/(product)/_components/chat/model'
 import type { ChatAttachment } from '@/app/(product)/_components/composer/model'
+import { attachmentKind } from '@/platform/shared/attachment-kind'
 import { formatInstantDate } from '@/platform/shared/time'
-import { getToolMetadata } from '@/tools/metadata'
+import { getAssistantToolEffect } from '@/tools/assistant-effects'
 
 /** Tool payloads are diagnostic text, never the whole of a file a tool wrote. */
 const MAX_PAYLOAD_CHARS = 6_000
@@ -121,7 +122,7 @@ function toPlatformTool(tool: ToolCallData, now: number): PlatformTool {
     output: payloadText(tool.result?.output),
     error: tool.result?.error,
     handoff: terminalHandoff(tool),
-    reviewed: Boolean(getToolMetadata(tool.toolName)?.assistant),
+    reviewed: getAssistantToolEffect(tool.toolName) !== undefined,
   }
 }
 
@@ -408,12 +409,6 @@ function toParts(
     })
   })
   return parts
-}
-
-export function attachmentKind(mediaType: string): ChatAttachment['kind'] {
-  if (mediaType.startsWith('image/')) return 'image'
-  if (mediaType.startsWith('text/')) return 'text'
-  return 'document'
 }
 
 /** A saved context restores only with its resource identity, which prompt recall sends again. */

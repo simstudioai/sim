@@ -32,6 +32,7 @@ import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/au
 import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID, SLACK_CUSTOM_BOT_SECRET_TYPE } from '@/lib/oauth/types'
+import { requireTeamOrganization } from '@/lib/organizations/team-only'
 import {
   ensureSharedSlackAppRow,
   slackBotCredentialVersion,
@@ -69,6 +70,7 @@ export const prepareSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
     resolveKnowledgeOrganizationContext(input),
   async execute({ input, context }) {
     await requireOrganizationSearchAvailable(context.organizationId)
+    await requireTeamOrganization(context.organizationId, 'Slack Search')
     const member = await resolveOrganizationSlackMemberApp(context.organizationId)
     const manifest = createSlackSearchManifest(
       input.name,
@@ -193,6 +195,7 @@ export const startSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
   async execute({ principal, input, context }) {
     if (principal.kind !== 'session') throw new Error('Slack setup requires a browser session')
     await requireOrganizationSearchAvailable(context.organizationId)
+    await requireTeamOrganization(context.organizationId, 'Slack Search')
     const attempt = await prepareInstallationAttempt(principal, input)
     const state = await storeSlackSearchOAuthAttempt(attempt)
     const installation = attempt.installation ?? attempt.customInstallation
@@ -521,6 +524,7 @@ export const completeSlackSearchSetup = defineAuthorizedKnowledgeUseCase({
         'Slack installation was not authorized. Start setup again.'
       )
     await requireOrganizationSearchAvailable(context.organizationId)
+    await requireTeamOrganization(context.organizationId, 'Slack Search')
     const { attempt } = context
     if (attempt.customInstallation && (!attempt.sharedApp || attempt.installation))
       throw new OrchestrationError('validation', 'Invalid Slack app transition')
@@ -613,6 +617,7 @@ export const connectCustomSlackSearch = defineAuthorizedKnowledgeUseCase({
     resolveKnowledgeOrganizationContext(input),
   async execute({ principal, input, context }) {
     await requireOrganizationSearchAvailable(context.organizationId)
+    await requireTeamOrganization(context.organizationId, 'Slack Search')
     if (!input.botToken.startsWith('xoxb-'))
       throw new OrchestrationError(
         'validation',

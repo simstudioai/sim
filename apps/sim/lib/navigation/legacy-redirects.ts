@@ -151,10 +151,7 @@ export function mapLegacyWorkspaceUrl({
   if (head === 'integrations' && rest.length === 0)
     return withQuery(routes.integrations, inWorkspace(query, workspaceId))
   if (head === 'integrations' && rest.length === 2 && rest[0] === 'connected')
-    return withQuery(
-      routes.integrations,
-      new URLSearchParams({ tab: 'credentials', workspace: workspaceId })
-    )
+    return withQuery(routes.account(rest[1]), inWorkspace(query, workspaceId))
   if (head === 'integrations' && rest.length === 1)
     return withQuery(routes.integration(rest[0]), inWorkspace(query, workspaceId))
   if (head === 'upgrade' && rest.length === 0) {

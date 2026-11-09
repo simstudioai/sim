@@ -3193,6 +3193,13 @@
       "when": 1794207548776,
       "tag": "0456_personal_organization_team_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 457,
+      "version": "7",
+      "when": 1794219156974,
+      "tag": "0457_personal_organization_team_only_tables",
+      "breakpoints": true
     }
   ]
 }

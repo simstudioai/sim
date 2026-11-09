@@ -59,6 +59,7 @@ import {
   detachPersonalOrganizationWorkspacesTx,
   getPersonalOrganizationId,
 } from '@/lib/organizations/personal'
+import { enqueueOrganizationResourceCleanup } from '@/lib/organizations/resource-cleanup'
 import {
   getProjectAccountDeletionBlockers,
   prepareProjectsForAccountDeletion,
@@ -1071,6 +1072,11 @@ export async function deleteUserAccount(
     if (recordIdentity) await recordDeletedAccountIdentities(tx, userId)
 
     if (personalOrganizationId) {
+      /**
+       * The personal organization's own files, knowledge documents, chats and memory go with its
+       * row, which the account's storage sweep deliberately leaves to the organization's cleanup.
+       */
+      await enqueueOrganizationResourceCleanup(tx, personalOrganizationId)
       await tx
         .delete(organization)
         .where(and(eq(organization.id, personalOrganizationId), eq(organization.kind, 'personal')))

@@ -25,7 +25,7 @@ async function resolveOrganizationEntryPath(session: EntrySession): Promise<stri
 
 /**
  * Routes every viewer to their organization's Home. An account not yet in any organization lands
- * on the workspace picker, whose first load provisions their personal organization. The default
+ * on the workspace picker, whose product shell provisions their personal organization. The default
  * landing never opens settings: a viewer who did not ask for settings must not be dropped into
  * them.
  */

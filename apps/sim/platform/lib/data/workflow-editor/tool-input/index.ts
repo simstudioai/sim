@@ -1,9 +1,6 @@
 export {
-  CODE_PLACEHOLDER,
   extractSchemaParameters,
   FUNCTION_NAME_LOCKED,
-  SCHEMA_PLACEHOLDER,
-  type SchemaParameter,
   validateCustomToolSchema,
 } from '@/components/custom-tool-editor/custom-tool-schema'
 export {
@@ -54,7 +51,6 @@ export {
 export { isCustomBlockType } from '@/blocks/custom/build-config'
 export { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 export { getAllBlocks } from '@/blocks/registry'
-export { createWorkflowVariablePattern } from '@/executor/utils/reference-validation'
 export { useMcpOauthPopup } from '@/hooks/mcp/use-mcp-oauth-popup'
 export { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 export { useWorkspaceCredential } from '@/hooks/queries/credentials'
@@ -76,7 +72,6 @@ export {
 export { useWorkflows } from '@/hooks/queries/workflows'
 export { useOperationAccess } from '@/hooks/use-operation-access'
 export { usePermissionConfig } from '@/hooks/use-permission-config'
-export { checkEnvVarTrigger } from '@/platform/lib/data/credentials'
 export {
   getProviderFromModel,
   supportsForcedToolUse,

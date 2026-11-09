@@ -41,7 +41,7 @@ import {
   spanFailed,
 } from '@/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/execution-details/trace'
 import { formatCreditCost, normalizeToolId, type TraceSpan } from '@/platform/lib/data/tables'
-import { isCustomBlockType } from '@/platform/lib/data/workflows'
+import { isCustomBlockType } from '@/platform/lib/data/workflows/records'
 import { formatClockTime } from '@/platform/shared/time'
 
 /** Why a custom block's steps are absent; a joined child run is its own evidence. */

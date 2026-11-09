@@ -1,12 +1,5 @@
-import {
-  MANAGED_MCP_CONNECTOR_IDS,
-  MANAGED_MCP_CONNECTORS,
-} from '@/lib/credential-groups/managed-mcp-connectors'
-import {
-  CREDENTIAL_GROUP_PROVIDER_IDS,
-  getCredentialGroupProviderFromProviderId,
-  getCredentialGroupProviderService,
-} from '@/lib/credential-groups/providers'
+import { MANAGED_MCP_CONNECTOR_IDS } from '@/lib/credential-groups/managed-mcp-connectors'
+import { CREDENTIAL_GROUP_PROVIDER_IDS } from '@/lib/credential-groups/provider-ids'
 
 export type OrganizationCredentialType =
   | `oauth:${(typeof CREDENTIAL_GROUP_PROVIDER_IDS)[number]}`
@@ -21,22 +14,4 @@ export const ORGANIZATION_CREDENTIAL_TYPES: readonly OrganizationCredentialType[
 
 export function isOrganizationCredentialType(value: string): value is OrganizationCredentialType {
   return ORGANIZATION_CREDENTIAL_TYPES.some((type) => type === value)
-}
-
-export function organizationOAuthCredentialType(providerId: string): OrganizationCredentialType {
-  return `oauth:${getCredentialGroupProviderFromProviderId(providerId)}`
-}
-
-export function getOrganizationCredentialTypeCatalog() {
-  return [
-    ...CREDENTIAL_GROUP_PROVIDER_IDS.map((provider) => ({
-      id: `oauth:${provider}` as const,
-      label: getCredentialGroupProviderService(provider).name,
-    })),
-    ...MANAGED_MCP_CONNECTOR_IDS.map((provider) => ({
-      id: `mcp:${provider}` as const,
-      label: MANAGED_MCP_CONNECTORS[provider].name,
-    })),
-    { id: 'personal_token:gitlab' as const, label: 'GitLab' },
-  ].sort((left, right) => left.label.localeCompare(right.label))
 }

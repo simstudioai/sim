@@ -32,7 +32,7 @@ import {
   useCodeGeneration,
   useSchemaGeneration,
   validateCustomToolSchema,
-} from '@/platform/lib/data/workflow-editor/tool-input'
+} from '@/platform/lib/data/workflow-editor/custom-tool'
 
 const logger = createLogger('CustomToolDetail')
 

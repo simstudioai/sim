@@ -15,7 +15,7 @@ export async function LiveChatRoute({ chatId }: { chatId?: string }) {
       surfaceHref(organization, organization.searchAccess.memberScoped ? '/search' : '/settings')
     )
   if (chatId) {
-    const mode = await readChatMode(chatId)
+    const mode = await readChatMode(chatId, organization.organization.id)
     if (!mode) notFound()
     if (mode === 'assistant') redirect(surfaceHref(organization, `/search/chat/${chatId}`))
   }
