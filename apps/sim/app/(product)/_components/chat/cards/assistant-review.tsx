@@ -1,6 +1,6 @@
 'use client'
 
-import { type RefObject, useEffect, useRef, useState } from 'react'
+import { Fragment, type RefObject, useEffect, useRef, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { Disclosure } from '@sim/emcn/disclosure'
 import { Input, TextArea } from '@sim/emcn/field/inputs'
@@ -298,7 +298,6 @@ export function AssistantReview({ turnId, turn }: AssistantReviewProps) {
   const { actions, status, more, retry, decide, streamIds } = review
   const ownsActions = review.turnId === turnId
   const streamId = streamIds.get(turnId)
-  const pendingIds = new Set(actions.map((action) => action.id))
   async function run(ids: readonly string[], decision: Decision, source: HTMLButtonElement) {
     focusOrigin.current = document.activeElement === source ? source : null
     setErrors((current) =>
@@ -318,6 +317,29 @@ export function AssistantReview({ turnId, turn }: AssistantReviewProps) {
       setSaving(null)
     }
   }
+  const reviewCards = ownsActions
+    ? actions.map((action) => ({
+        id: action.id,
+        sequence: action.sequence,
+        card: (
+          <ActionCard
+            action={action}
+            edits={edits[action.id]}
+            error={errors[action.id]}
+            disabled={pending || status === 'error'}
+            saving={saving?.ids.includes(action.id) ? saving.decision : null}
+            onEdit={(name, value) => {
+              setErrors((current) => omit(current, [action.id]))
+              setEdits((current) => ({
+                ...current,
+                [action.id]: { ...current[action.id], [name]: value },
+              }))
+            }}
+            onDecide={(decision, source) => void run([action.id], decision, source)}
+          />
+        ),
+      }))
+    : []
   const history =
     streamId && review.chatId && cards?.TurnReceipts ? (
       <cards.TurnReceipts
@@ -325,11 +347,8 @@ export function AssistantReview({ turnId, turn }: AssistantReviewProps) {
         streamId={streamId}
         active={review.active && ownsActions}
         mountedTurnCount={streamIds.size}
-        candidateIds={[
-          ...(review.candidates.get(turnId) ?? []),
-          ...(ownsActions ? pendingIds : []),
-        ]}
-        pendingIds={ownsActions ? pendingIds : new Set()}
+        candidateIds={review.candidates.get(turnId) ?? []}
+        pending={reviewCards}
       />
     ) : null
   if (!ownsActions) return history
@@ -341,26 +360,9 @@ export function AssistantReview({ turnId, turn }: AssistantReviewProps) {
       {status === 'error' && (
         <FailureNotice message='Could not load action review' onRetry={retry} />
       )}
-      {actions.length > 0 && (
+      {actions.length > 0 && (!history || actions.length > 1 || pending || more) && (
         <section className={styles.review} aria-label='Actions to review'>
-          {actions.map((action) => (
-            <ActionCard
-              key={action.id}
-              action={action}
-              edits={edits[action.id]}
-              error={errors[action.id]}
-              disabled={pending || status === 'error'}
-              saving={saving?.ids.includes(action.id) ? saving.decision : null}
-              onEdit={(name, value) => {
-                setErrors((current) => omit(current, [action.id]))
-                setEdits((current) => ({
-                  ...current,
-                  [action.id]: { ...current[action.id], [name]: value },
-                }))
-              }}
-              onDecide={(decision, source) => void run([action.id], decision, source)}
-            />
-          ))}
+          {!history && reviewCards.map((item) => <Fragment key={item.id}>{item.card}</Fragment>)}
           {actions.length > 1 && (
             <div className={styles.actions} aria-busy={pending || undefined}>
               <Button

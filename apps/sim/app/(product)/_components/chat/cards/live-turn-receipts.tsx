@@ -1,5 +1,6 @@
 'use client'
 
+import { Fragment } from 'react'
 import { Button } from '@sim/emcn/button'
 import { FailureNotice } from '@sim/emcn/status'
 import { Receipt } from '@/app/(product)/_components/chat/cards/assistant-review'
@@ -18,7 +19,7 @@ export function LiveTurnReceipts({
   active,
   mountedTurnCount,
   candidateIds,
-  pendingIds,
+  pending,
 }: TurnReceiptsProps) {
   const { organization } = useOrganization()
   const history = useTurnReceipts({
@@ -28,11 +29,24 @@ export function LiveTurnReceipts({
     active,
     mountedTurnCount,
     candidateIds,
+    pendingIds: new Set(pending.map((item) => item.id)),
   })
-  const receipts = history.receipts.filter((receipt) => !pendingIds.has(receipt.id))
-  const { recovery } = history
+  const { receipts, unavailable, recovery } = history
+  // One list in turn order, as legacy's recovery read: receipts and waiting actions interleaved.
+  const items = [
+    ...receipts.map((receipt) => ({
+      id: receipt.id,
+      sequence: receipt.sequence,
+      card: <Receipt receipt={receipt} />,
+    })),
+    ...pending,
+  ].sort(
+    (left, right) =>
+      (left.sequence ?? Number.MAX_SAFE_INTEGER) - (right.sequence ?? Number.MAX_SAFE_INTEGER)
+  )
   if (
-    !receipts.length &&
+    !items.length &&
+    !unavailable.length &&
     history.status !== 'error' &&
     !history.more &&
     (!recovery || recovery.loading)
@@ -40,8 +54,16 @@ export function LiveTurnReceipts({
     return null
   return (
     <section className={styles.history} aria-label='Action history'>
-      {receipts.map((receipt) => (
-        <Receipt key={receipt.id} receipt={receipt} />
+      {items.map((item) => (
+        <Fragment key={item.id}>{item.card}</Fragment>
+      ))}
+      {unavailable.map((item) => (
+        <FailureNotice
+          key={item.id}
+          message='Could not load action history'
+          retrying={item.retrying}
+          onRetry={item.retry}
+        />
       ))}
       {history.status === 'error' && (
         <FailureNotice
