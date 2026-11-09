@@ -10864,7 +10864,8 @@
       "namespaced": false,
       "modelPatterns": [{ "source": "^claude", "flags": "" }],
       "models": [
-        { "id": "claude-fable-5-1", "inStaticCatalog": true, "sunset": null },
+        { "id": "claude-fable-5-2", "inStaticCatalog": true, "sunset": null },
+        { "id": "claude-fable-5-1", "inStaticCatalog": true, "sunset": "legacy" },
         { "id": "claude-fable-5", "inStaticCatalog": true, "sunset": "legacy" },
         { "id": "claude-sonnet-5-5", "inStaticCatalog": true, "sunset": null },
         { "id": "claude-sonnet-5", "inStaticCatalog": true, "sunset": "legacy" },
