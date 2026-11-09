@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { withRunListView } from '@/platform/lib/workspace-views'
 
 export const metadata: Metadata = { title: 'Run snapshot' }

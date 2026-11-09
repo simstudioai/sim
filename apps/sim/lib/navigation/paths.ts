@@ -25,6 +25,15 @@ export const WORKSPACES_PATH = '/workspace'
 /** Opens full settings in the viewer's most recent accessible workspace. */
 export const WORKSPACE_SETTINGS_PATH = `${WORKSPACES_PATH}?redirect=settings`
 
+/** A workspace itself; its route opens the page `workspaceHome` names for the server's data. */
+export function workspaceEntry(workspaceId: string) {
+  return `${WORKSPACES_PATH}/${encodeURIComponent(workspaceId)}`
+}
+
+export function workspacePath(workspaceId: string, section: string) {
+  return `${WORKSPACES_PATH}/${encodeURIComponent(workspaceId)}/${section}`
+}
+
 /** Root of the organization surface; `/o` alone resolves like {@link APP_ENTRY_PATH}. */
 const ORGANIZATIONS_PATH = '/o'
 

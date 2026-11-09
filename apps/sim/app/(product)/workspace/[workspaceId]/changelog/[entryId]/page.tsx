@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { ChangelogDetails } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-details/changelog-details'
 import { loadWorkspaceChangelogEntry } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref, readScenario } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { withChangelogView } from '@/platform/lib/workspace-views'
 
 export const metadata: Metadata = { title: 'Changelog' }

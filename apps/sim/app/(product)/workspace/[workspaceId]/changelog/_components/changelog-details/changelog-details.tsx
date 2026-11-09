@@ -5,6 +5,7 @@ import { Button } from '@sim/emcn/button'
 import { PropertyList } from '@sim/emcn/property-list'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { DirectoryHeading } from '@/app/(product)/_components/resource-directory/resource-directory'
 import {
   DetailSection,
@@ -15,7 +16,6 @@ import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_com
 import { useViewerTimeZone } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import styles from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-details/changelog-details.module.css'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatTimestamp } from '@/platform/shared/time'
 import type { ChangelogDetail } from '@/platform/shared/workspace-records'
 

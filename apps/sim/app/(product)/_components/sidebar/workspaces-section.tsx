@@ -9,6 +9,7 @@ import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { ActionMenu, ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { useSearchParams } from 'next/navigation'
+import { workspaceEntry } from '@/lib/navigation/paths'
 import type { ShellActions, ShellData, ShellWorkspace } from '@/app/(product)/_components/model'
 import { SidebarSortMenu } from '@/app/(product)/_components/sidebar/collection-order'
 import { openInNewTabAction, pinAction } from '@/app/(product)/_components/sidebar/row-links'
@@ -16,7 +17,6 @@ import { SectionStatus } from '@/app/(product)/_components/sidebar/section-statu
 import styles from '@/app/(product)/_components/sidebar/sidebar-collections.module.css'
 import { useSidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layout'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 import { readFormText } from '@/platform/shared/row-links'
 
 const WORKSPACE_NAME_MAX_LENGTH = 100

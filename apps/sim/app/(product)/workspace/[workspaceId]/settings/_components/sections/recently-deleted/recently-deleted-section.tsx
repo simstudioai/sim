@@ -14,6 +14,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { workspacePath } from '@/lib/navigation/paths'
 import {
   SectionStack,
   SectionToolbar,
@@ -42,7 +43,6 @@ import {
 import { useRestoreWorkflow } from '@/platform/lib/data/workflows'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatInstantDate } from '@/platform/shared/time'
 
 type WorkspaceFilter = (typeof WORKSPACE_RECENTLY_DELETED_FILTERS)[number]

@@ -5,6 +5,7 @@ import { IconButton } from '@sim/emcn/button'
 import { ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { useSearchParams } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import {
   type McpServerFormConfig,
   McpServerFormModal,
@@ -106,7 +107,6 @@ import {
   getMcpToolIssue as validateMcpTool,
 } from '@/platform/lib/data/workflow-editor/tool-input'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 const UNSUPPORTED_CUSTOM_TOOL_MESSAGE = 'Custom tools are not supported by this block yet'
 const UNSUPPORTED_MCP_TOOL_MESSAGE = 'MCP tools are not supported by this block yet'

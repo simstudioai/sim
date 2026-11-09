@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import Link from 'next/link'
 import { notFound, useSearchParams } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { DetailSplit } from '@/app/(product)/workspace/[workspaceId]/_components/detail-split/detail-split'
 import { ChangelogAccess } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-access/changelog-access'
 import { ChangelogDetails } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-details/changelog-details'
@@ -12,7 +13,6 @@ import { ReleaseNotes } from '@/app/(product)/workspace/[workspaceId]/changelog/
 import { useChangelogAccess, useLiveRelease } from '@/platform/lib/data/changelog'
 import { useLiveWorkspace } from '@/platform/lib/data/workspace-summary'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 interface LiveReleaseProps {
   workspaceId: string

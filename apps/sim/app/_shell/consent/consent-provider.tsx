@@ -4,11 +4,12 @@ import type { ReactNode } from 'react'
 import { ConsentStoreProvider } from '@/lib/consent/store-provider'
 import { TrackingConsentProvider } from '@/lib/consent/tracking-consent'
 import { AttributionCookieGuard } from '@/app/_shell/consent/attribution-cookie-guard'
-import { ConsentBanner } from '@/app/_shell/consent/consent-banner'
 import { FreebuffClickIdGuard } from '@/app/_shell/consent/freebuff-click-id-guard'
 import { GoogleAnalyticsPageViewTracker } from '@/app/_shell/consent/google-analytics-page-view-tracker'
 
 interface ConsentProviderProps {
+  /** The first-visit banner in the mounting root's own design system. */
+  banner: ReactNode
   children: ReactNode
 }
 
@@ -18,7 +19,7 @@ interface ConsentProviderProps {
  * entry route, including a direct workspace visit. Privacy settings remain the
  * durable control after the initial decision.
  */
-export function ConsentProvider({ children }: ConsentProviderProps) {
+export function ConsentProvider({ banner, children }: ConsentProviderProps) {
   return (
     <ConsentStoreProvider>
       <TrackingConsentProvider>
@@ -26,7 +27,7 @@ export function ConsentProvider({ children }: ConsentProviderProps) {
         <GoogleAnalyticsPageViewTracker />
         <FreebuffClickIdGuard />
         <AttributionCookieGuard />
-        <ConsentBanner />
+        {banner}
       </TrackingConsentProvider>
     </ConsentStoreProvider>
   )

@@ -147,6 +147,8 @@ export interface ShellHelp {
   slackUrl?: string
   downloadUrl?: string
   desktopUpdate?: { label: string; disabled: boolean; run: () => void }
+  /** Records that the viewer followed a help link, on live data. */
+  onLinkOpened?: (link: 'documentation' | 'slack') => void
 }
 
 /**

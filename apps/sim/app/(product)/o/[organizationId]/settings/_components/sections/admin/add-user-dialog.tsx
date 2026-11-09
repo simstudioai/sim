@@ -4,10 +4,9 @@ import { useState } from 'react'
 import { SelectField, TextField } from '@sim/emcn/field'
 import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
-import { generateId } from '@sim/utils/id'
 import { isValidEmailSyntax } from '@sim/utils/string'
 import { FieldStack } from '@/app/(product)/_components/settings-parts/settings-parts'
-import type { DirectoryUser } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/model'
+import type { NewDirectoryUser } from '@/platform/lib/data/admin-model'
 
 const CREDENTIALS = [
   { value: 'set', label: 'Set a password' },
@@ -20,7 +19,8 @@ const EMAIL_STATUS = [
 
 interface AddUserDialogProps {
   onClose: () => void
-  onAdd: (user: DirectoryUser) => void
+  /** Settles with the account's creation; a refusal keeps the draft with its message. */
+  onAdd: (user: NewDirectoryUser) => Promise<void>
 }
 
 export function AddUserDialog({ onClose, onAdd }: AddUserDialogProps) {
@@ -31,6 +31,7 @@ export function AddUserDialog({ onClose, onAdd }: AddUserDialogProps) {
   const [emailStatus, setEmailStatus] = useState('verified')
   const address = email.trim().toLowerCase()
   const validEmail = isValidEmailSyntax(address)
+  const setsPassword = credentials === 'set'
   return (
     <Modal
       open
@@ -39,17 +40,13 @@ export function AddUserDialog({ onClose, onAdd }: AddUserDialogProps) {
       }}
       title='Add user'
       confirmLabel='Add user'
-      confirmDisabled={
-        !name.trim() || !validEmail || (credentials === 'set' && password.length < 8)
-      }
+      confirmDisabled={!name.trim() || !validEmail || (setsPassword && password.length < 8)}
       onConfirm={() =>
         onAdd({
-          id: generateId(),
           name: name.trim(),
           email: address,
           emailVerified: emailStatus === 'verified',
-          role: 'user',
-          banned: false,
+          ...(setsPassword ? { password } : {}),
         })
       }
     >
@@ -84,7 +81,7 @@ export function AddUserDialog({ onClose, onAdd }: AddUserDialogProps) {
               : undefined
           }
         />
-        {credentials === 'set' && (
+        {setsPassword && (
           <SecretField
             label='Password'
             value={password}

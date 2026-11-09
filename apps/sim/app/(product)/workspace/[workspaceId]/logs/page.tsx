@@ -1,12 +1,12 @@
 import { EmptyState } from '@sim/emcn/empty-state'
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { LogsRoute } from '@/app/(product)/workspace/[workspaceId]/logs/_components/logs-route/logs-route'
 import { loadWorkspaceRuns } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref, readScenario } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { withRunListView } from '@/platform/lib/workspace-views'
 
 export const metadata: Metadata = { title: 'Logs' }

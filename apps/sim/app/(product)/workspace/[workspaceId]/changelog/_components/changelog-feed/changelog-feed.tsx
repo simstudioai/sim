@@ -6,6 +6,7 @@ import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { workspacePath } from '@/lib/navigation/paths'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import {
   ListEnd,
@@ -23,7 +24,6 @@ import {
 } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import styles from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-feed/changelog-feed.module.css'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import {
   CHANGELOG_PERIODS,
   changelogParams,

@@ -5,12 +5,12 @@ import {
   type WorkspaceCreationPolicy,
 } from '@/lib/api/contracts/workspaces'
 import { isUpgradeReason, UPGRADE_REASON_PARAM } from '@/lib/billing/upgrade-reasons'
+import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
 import { resolveRolledOutOrganizationId } from '@/lib/navigation/resolve-app-entry'
 import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
-import { workspaceEntry, workspacePath } from '@/platform/lib/workspace-navigation'
 
 const logger = createLogger('PlatformWorkspaceEntry')
 

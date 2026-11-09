@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import type { Locator, Page } from '@playwright/test'
 import { sleep } from '@sim/utils/helpers'
-import { workspaceEntry } from '@/platform/lib/workspace-navigation'
+import { workspaceEntry } from '@/lib/navigation/paths'
 import {
   ADMIN,
   ADMIN_CHATS,

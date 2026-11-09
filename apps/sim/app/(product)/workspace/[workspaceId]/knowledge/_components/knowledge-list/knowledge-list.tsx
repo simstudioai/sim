@@ -13,10 +13,12 @@ import { Stack } from '@sim/emcn/stack'
 import { getErrorMessage } from '@sim/utils/errors'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import { openInNewTabAction } from '@/app/(product)/_components/sidebar/row-links'
+import { AccessRequired } from '@/app/(product)/workspace/[workspaceId]/_components/access-required/access-required'
 import {
   descendantIndex,
   folderLocation,
@@ -96,7 +98,6 @@ import {
 } from '@/platform/lib/data/knowledge'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/platform/lib/data/pins'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 const ROOT_LABEL = 'Knowledge bases'
@@ -834,9 +835,11 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
       read={read}
     >
       {access.hidden ? (
-        <WorkspaceEmpty
-          title='Access required'
-          description='Your organization restricts this feature.'
+        <AccessRequired
+          workspaceId={workspaceId}
+          gate='hideKnowledgeBaseTab'
+          refreshing={access.refreshing}
+          onRefresh={access.refresh}
         />
       ) : (
         <ResourceTable

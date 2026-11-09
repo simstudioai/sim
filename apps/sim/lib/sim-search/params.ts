@@ -1,4 +1,4 @@
-import { parseAsStringLiteral } from 'nuqs/server'
+import { createSerializer, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
 const SEARCH_SETUP_SOURCES = [
   'coda',
@@ -22,6 +22,17 @@ export const searchSetupParam = {
 export const searchSetupAccessParam = {
   key: 'source-access',
   parser: parseAsStringLiteral(['members']),
+} as const
+
+export const serializeSearchSetup = createSerializer({
+  [searchSetupParam.key]: searchSetupParam.parser,
+  [searchSetupAccessParam.key]: searchSetupAccessParam.parser,
+})
+
+/** Null closes the source management panel. */
+export const managedSourceParam = {
+  key: 'manage-source',
+  parser: parseAsString,
 } as const
 
 /** A setup detour carries intent, never an arbitrary redirect URL. */

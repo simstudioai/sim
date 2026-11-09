@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import type { Page } from '@playwright/test'
 import { getErrorMessage } from '@sim/utils/errors'
-import { workspaceEntry, workspacePath } from '@/platform/lib/workspace-navigation'
+import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
 import {
   ADMIN,
   MEMBER,

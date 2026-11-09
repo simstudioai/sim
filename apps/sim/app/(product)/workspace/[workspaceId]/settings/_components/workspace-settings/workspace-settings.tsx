@@ -2,6 +2,7 @@
 
 import { type ReactNode, useState } from 'react'
 import { notFound, useRouter, useSearchParams } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
 import { SettingsNavigation } from '@/app/(product)/_components/settings-navigation/settings-navigation'
 import {
@@ -17,7 +18,6 @@ import {
   type WorkspaceSettingsKey,
 } from '@/platform/lib/data/workspace-settings'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 /** Example workspaces have no settings to show: the tab is in place and empty. */
 export function WorkspaceSettings({ workspace }: { workspace: WorkspaceSummary }) {

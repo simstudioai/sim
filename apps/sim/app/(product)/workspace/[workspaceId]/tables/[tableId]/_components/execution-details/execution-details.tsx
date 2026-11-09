@@ -8,6 +8,7 @@ import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { formatDuration } from '@sim/utils/formatting'
 import { isRecordLike } from '@sim/utils/object'
+import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import {
   type MetadataField,
@@ -35,7 +36,6 @@ import {
   useTroubleshootRun,
   type WorkflowLogRow,
 } from '@/platform/lib/data/tables'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatTimestamp } from '@/platform/shared/time'
 
 type LogTab = 'overview' | 'trace'

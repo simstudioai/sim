@@ -6,6 +6,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { FailureNotice } from '@sim/emcn/status'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import {
   BLOCK_NAMES,
   DELETED_WORKFLOW_LABEL,
@@ -14,7 +15,6 @@ import {
   useSecretUsage,
 } from '@/platform/lib/data/secrets'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatTimestamp } from '@/platform/shared/time'
 
 /** The Logs page's labels for its core triggers; an integration trigger reads as its block. */

@@ -9,6 +9,7 @@ import { LRUCache } from 'lru-cache'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { parse } from 'tldts'
+import { workspacePath } from '@/lib/navigation/paths'
 import { resolveSelectOptions } from '@/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/select-field/select-field'
 import { InlineEditor } from '@/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/inline-editors'
 import styles from '@/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/table-grid.module.css'
@@ -27,7 +28,6 @@ import {
 } from '@/platform/lib/data/tables'
 import { useWorkflows } from '@/platform/lib/data/workflows'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 /** Workspace resources a cell URL can point to. */
 type SimResourceType = 'workflow' | 'table' | 'knowledge' | 'file'

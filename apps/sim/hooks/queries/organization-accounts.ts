@@ -13,9 +13,12 @@ import {
 import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
+import type { ContractBodyInput } from '@/lib/api/contracts'
+import type { UpdateCredentialGroupBody } from '@/lib/api/contracts/credential-groups'
 import type { DesktopSourceRequest } from '@/lib/api/contracts/desktop-source-connect'
 import {
   disconnectPersonalOrganizationAccountContract,
+  ensureOrganizationAccountsContract,
   getOrganizationAccountsContract,
   getWorkspaceOrganizationAccountsContract,
   listOrganizationAccountPeopleContract,
@@ -24,6 +27,7 @@ import {
   reconnectPersonalOrganizationAccountContract,
   type StartOrganizationAccountConnectionBody,
   startOrganizationAccountConnectionContract,
+  updateOrganizationAccountsContract,
 } from '@/lib/api/contracts/organization-accounts'
 import { connectCredentialGroupInPopup } from '@/lib/credential-groups/oauth-popup'
 import { isDesktopApp } from '@/lib/desktop'
@@ -40,6 +44,7 @@ import {
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
+import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
 
 function useAccountConnectionMutation<Variables>(
   requestFor: (
@@ -163,6 +168,52 @@ export function useOrganizationAccounts(organizationId?: string) {
   return useQuery({
     ...organizationAccountsQueryOptions(organizationId),
     enabled: Boolean(organizationId),
+  })
+}
+
+export function useEnsureOrganizationAccounts() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      organizationId,
+      ...body
+    }: { organizationId: string } & ContractBodyInput<typeof ensureOrganizationAccountsContract>) =>
+      requestJson(ensureOrganizationAccountsContract, { params: { id: organizationId }, body }),
+    onSuccess: (_, { organizationId }) =>
+      queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.detail(organizationId) }),
+  })
+}
+
+export function useUpdateOrganizationAccounts() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      organizationId,
+      groupId,
+      update,
+    }: {
+      organizationId: string
+      groupId: string
+      update: UpdateCredentialGroupBody
+    }) =>
+      requestJson(updateOrganizationAccountsContract, {
+        params: { id: organizationId, groupId },
+        body: update,
+      }),
+    onSuccess: (_, { organizationId }) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: organizationAccountsKeys.detail(organizationId),
+        }),
+        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
+        invalidateSelectorQueries(queryClient),
+        queryClient.invalidateQueries({
+          queryKey: slackSearchKeys.organizationManifests(organizationId),
+        }),
+        queryClient.invalidateQueries({ queryKey: slackSearchKeys.list(organizationId) }),
+      ]),
   })
 }
 

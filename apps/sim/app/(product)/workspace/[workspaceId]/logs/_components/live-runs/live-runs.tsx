@@ -3,6 +3,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { RunDashboard } from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-dashboard/run-dashboard'
 import {
@@ -20,7 +21,6 @@ import {
   useRunFilterOptions,
 } from '@/platform/lib/data/logs'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { runListParams, serializeRunList } from '@/platform/lib/workspace-views'
 import type { RunSummary } from '@/platform/shared/workspace-records'
 
