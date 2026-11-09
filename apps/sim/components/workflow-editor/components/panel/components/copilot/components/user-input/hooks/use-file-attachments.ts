@@ -96,6 +96,20 @@ interface UseFileAttachmentsProps {
   initialAttachments?: FileAttachmentForApi[]
 }
 
+/** A finished upload, such as one a saved draft kept, as an attached file. */
+export function attachedFileFromUpload(file: FileAttachmentForApi): AttachedFile {
+  return {
+    id: file.id,
+    name: file.filename,
+    size: file.size,
+    type: file.media_type,
+    key: file.key,
+    path: file.path || getMothershipAttachmentPreviewUrl(file) || getMothershipAttachmentUrl(file),
+    previewUrl: getMothershipAttachmentPreviewUrl(file),
+    uploading: false,
+  }
+}
+
 /**
  * Custom hook to manage file attachments including upload, drag/drop, and preview
  * Handles S3 presigned URL uploads and preview URL generation
@@ -108,17 +122,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   const imagesOnly = Boolean(organizationId) && requestMode !== 'agent' && requestMode !== 'plan'
 
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>(() =>
-    (props.initialAttachments ?? []).map((file) => ({
-      id: file.id,
-      name: file.filename,
-      size: file.size,
-      type: file.media_type,
-      key: file.key,
-      path:
-        file.path || getMothershipAttachmentPreviewUrl(file) || getMothershipAttachmentUrl(file),
-      previewUrl: getMothershipAttachmentPreviewUrl(file),
-      uploading: false,
-    }))
+    (props.initialAttachments ?? []).map(attachedFileFromUpload)
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
   const attachedFilesRef = useRef<AttachedFile[]>(attachedFiles)

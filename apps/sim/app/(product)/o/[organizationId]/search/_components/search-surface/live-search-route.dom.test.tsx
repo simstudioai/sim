@@ -7,7 +7,9 @@
  * sidebar differently from the server's markup, which React answers with #418 and a client
  * re-render; and the gate holding the first paint after hydration, so the sidebar never says there
  * are no workspaces. The server seeds the session, as `prefetchShell` does; the workspace list is
- * the one read that answers, and every other read stays in flight on both sides.
+ * the one read that answers, and every other read stays in flight on both sides. The viewer's
+ * remembered Search mode lives in a browser cookie the server markup never saw: read during
+ * hydration, it paints a different mode than the server did.
  */
 
 import { act, type ReactNode, Suspense } from 'react'
@@ -23,9 +25,11 @@ import { renderToString } from 'react-dom/server'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 vi.mock('next/navigation', () => nextNavigationMock)
+/** The URL's query string; the route under test reads it through nuqs. */
+let routeSearch = '?mode=search'
 vi.mock('nuqs/adapters/next/app', () => ({
   NuqsAdapter: ({ children }: { children: ReactNode }) => (
-    <NuqsTestingAdapter searchParams='?mode=search'>{children}</NuqsTestingAdapter>
+    <NuqsTestingAdapter searchParams={routeSearch}>{children}</NuqsTestingAdapter>
   ),
 }))
 
@@ -35,6 +39,8 @@ import type { PlatformOrganization } from '@/platform/lib/data/organization-mode
 import { LiveProviders } from '@/platform/lib/data/providers'
 
 const ORGANIZATION_ID = 'org-narrow'
+/** The cookie Search remembers the viewer's last mode in, `<userId>:<mode>`. */
+const SEARCH_MODE_COOKIE = `search_mode_${ORGANIZATION_ID}`
 
 /** A member in a restrictive permission group: Search only, no build, no workspaces. */
 const NARROW_MEMBER_SURFACE = {
@@ -188,11 +194,14 @@ beforeEach(() => {
   )
   pagePayload = createDeferred<void>()
   pagePayloadArrived = true
+  routeSearch = '?mode=search'
 })
 
 afterEach(() => {
   for (const root of roots.splice(0)) act(() => root.unmount())
+  renderCache?.clear()
   document.body.replaceChildren()
+  document.cookie = `${SEARCH_MODE_COOKIE}=; path=/; max-age=0`
 })
 
 it('hydrates a member with no workspaces whose list lands before the page does, then says so', async () => {
@@ -228,4 +237,31 @@ it('hydrates a member with no workspaces whose list lands before the page does, 
   expect(hydrationErrors).toEqual([])
   expect(container.querySelector('aside')).toBe(serverSidebar)
   expect(container.textContent).toContain('No workspaces yet')
+})
+
+it('hydrates a bare Search URL as the server painted it, then applies the remembered mode', async () => {
+  routeSearch = ''
+  nextNavigationMockFns.mockUseSearchParams.mockReturnValue(new URLSearchParams())
+  const shell = seededSession()
+  const container = document.createElement('div')
+  container.innerHTML = renderToString(<SearchRoute shell={shell} />)
+  renderCache?.clear()
+  document.body.append(container)
+  const served = container.innerHTML
+  document.cookie = `${SEARCH_MODE_COOKIE}=viewer-narrow:assistant; path=/`
+
+  const hydrationErrors: unknown[] = []
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  await act(async () => {
+    roots.push(
+      hydrateRoot(container, <SearchRoute shell={shell} />, {
+        onRecoverableError: (error) => hydrationErrors.push(error),
+      })
+    )
+  })
+  await act(flushMacrotask)
+
+  expect(hydrationErrors).toEqual([])
+  expect(container.innerHTML).not.toBe(served)
+  expect(container.textContent).toContain('Ask Org')
 })

@@ -5,7 +5,10 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import { useRouter } from 'next/navigation'
-import { useFileAttachments } from '@/components/workflow-editor/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+import {
+  attachedFileFromUpload,
+  useFileAttachments,
+} from '@/components/workflow-editor/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { useSession } from '@/lib/auth/client'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { BrowserStorage, MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
@@ -190,26 +193,14 @@ export function useLiveComposer({
   const userId = session?.user?.id
   const assistant = requestMode === 'assistant'
   const key = `${userId}:organization:${organization.id}:${draftKey}`
+  // The key this composer opened on; a draft typed there follows a new chat to its own key.
   const [initialKey] = useState(key)
-  const [legacyKey] = useState(() =>
-    chatId || !userId
-      ? null
-      : legacySharedDraftKey(userId, organization.id, {
-          assistant,
-          canBuild,
-        })
-  )
-  const saved = useMothershipDraftsStore((state) =>
-    readDraft(state.drafts, legacyKey ? [key, initialKey, legacyKey] : [key, initialKey])
-  )
-  const [initial] = useState(() =>
-    readDraft(useMothershipDraftsStore.getState().drafts, legacyKey ? [key, legacyKey] : [key])
-  )
+  // The store's hook serves its state from before rehydration while this hydrates, so server markup
+  // and hydration show no draft and the next render shows it.
+  const saved = useMothershipDraftsStore((state) => readDraft(state.drafts, [key, initialKey]))
   useEffect(() => {
-    const store = useMothershipDraftsStore.getState()
-    if (legacyKey) store.migrateDraft(legacyKey, initialKey)
-    if (initialKey !== key) store.migrateDraft(initialKey, key)
-  }, [initialKey, key, legacyKey])
+    if (initialKey !== key) useMothershipDraftsStore.getState().migrateDraft(initialKey, key)
+  }, [initialKey, key])
   const [resourceIntent, setResourceIntent] = useState(false)
   const [skillIntent, setSkillIntent] = useState(false)
   const [referenceSearch, setReferenceSearch] = useState('')
@@ -226,8 +217,35 @@ export function useLiveComposer({
     userId,
     organizationId: organization.id,
     requestMode,
-    initialAttachments: initial?.fileAttachments,
+    initialAttachments: saved?.fileAttachments,
   })
+  const { attachedFiles, restoreAttachedFiles } = files
+  // Storage is read once in the browser: a draft the legacy shared slot kept moves here, and a mount
+  // that hydrated, which had no draft to start its uploads from, takes them now. Until then the
+  // uploads are not written back, so the empty start never overwrites the saved ones.
+  const [storageApplied, setStorageApplied] = useState(false)
+  useEffect(() => {
+    if (storageApplied) return
+    const legacyKey =
+      chatId || !userId
+        ? null
+        : legacySharedDraftKey(userId, organization.id, { assistant, canBuild })
+    if (legacyKey) useMothershipDraftsStore.getState().migrateDraft(legacyKey, initialKey)
+    const stored = useMothershipDraftsStore.getState().drafts[initialKey]?.fileAttachments
+    if (!attachedFiles.length && stored?.length)
+      restoreAttachedFiles(stored.map(attachedFileFromUpload))
+    setStorageApplied(true)
+  }, [
+    storageApplied,
+    chatId,
+    userId,
+    organization.id,
+    assistant,
+    canBuild,
+    initialKey,
+    attachedFiles,
+    restoreAttachedFiles,
+  ])
   const contexts: ChatContext[] = saved?.contexts ?? []
   const text = saved?.text ?? ''
 
@@ -253,8 +271,9 @@ export function useLiveComposer({
   }, [assistant, key])
 
   useEffect(() => {
+    if (!storageApplied) return
     const store = useMothershipDraftsStore.getState()
-    const fileAttachments: FileAttachmentForApi[] = files.attachedFiles.flatMap((file) =>
+    const fileAttachments: FileAttachmentForApi[] = attachedFiles.flatMap((file) =>
       !file.uploading && file.key
         ? [
             {
@@ -269,7 +288,7 @@ export function useLiveComposer({
         : []
     )
     store.setDraft(key, { ...(store.drafts[key] ?? { text: '' }), fileAttachments })
-  }, [key, files.attachedFiles])
+  }, [storageApplied, key, attachedFiles])
 
   const write = (next: { text?: string; contexts?: ChatContext[] }) => {
     const store = useMothershipDraftsStore.getState()

@@ -627,6 +627,7 @@ const seamHelpers = new Set([
   'lib/assistant-actions/providers',
   'hooks/use-oauth-return',
   'hooks/use-hydrated',
+  'hooks/use-client-stored',
   'lib/messaging/email/validation',
   'lib/navigation/paths',
   'ee/access-requests/lib/navigation',
