@@ -102,9 +102,17 @@ export function WorkspacePage({
     )
   if (embedded)
     return (
-      <div className={styles.embedded} data-layout={layout}>
+      <div className={styles.embedded}>
         {controls && <div className={styles.embeddedControls}>{controls}</div>}
-        <div className={styles.embeddedContent}>{content}</div>
+        <div
+          className={
+            layout === 'canvas'
+              ? styles.embeddedContent
+              : `${styles.embeddedContent} ${layout === 'page' ? styles.embeddedScroll : styles.embeddedInset}`
+          }
+        >
+          {content}
+        </div>
       </div>
     )
   if (layout === 'canvas')

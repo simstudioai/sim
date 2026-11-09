@@ -8,6 +8,7 @@ export {
   useReorderFolders,
   useUpdateFolder,
 } from '@/hooks/queries/folders'
+export { useWorkflowMap } from '@/hooks/queries/workflows'
 export { useWorkspaceMembersQuery } from '@/hooks/queries/workspace'
 export {
   useBulkArchiveWorkspaceFileItems,

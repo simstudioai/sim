@@ -83,11 +83,11 @@
   min-block-size: 0;
   min-inline-size: 0;
 }
-.embedded[data-layout="page"] > .embeddedContent {
+.embeddedScroll {
   overflow: auto;
   padding-inline: var(--spacing-14);
   gap: var(--ui-product-section-gap);
 }
-.embedded[data-layout="fill"] > .embeddedContent {
+.embeddedInset {
   padding-inline: var(--spacing-14);
 }
