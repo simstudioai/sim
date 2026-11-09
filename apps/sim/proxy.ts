@@ -17,6 +17,7 @@ import {
   shellScopeHeaderValue,
 } from '@/lib/navigation/shell-scope'
 import { isOAuthAuthorizationCallback, resolveAuthRedirect } from '@/app/(auth)/auth-redirect'
+import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { getEnv } from './lib/core/config/env'
 import { isAuthDisabled, isDev, isHosted } from './lib/core/config/env-flags'
 import { generateRuntimeCSP } from './lib/core/security/csp'
@@ -432,7 +433,8 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isAppSurfacePath(url.pathname)) {
-    if (!hasActiveSession) {
+    // Example data renders with no login, so a fixture server has no sign-in to send a visit to.
+    if (!hasActiveSession && resolvePlatformMode() !== 'fixture') {
       const login = new URL('/login', request.url)
       login.searchParams.set('callbackUrl', `${url.pathname}${url.search}`)
       return applyIndexingPolicy(request, NextResponse.redirect(login))
