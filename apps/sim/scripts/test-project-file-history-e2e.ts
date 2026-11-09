@@ -69,7 +69,9 @@ async function verifyStreamedDownload(
     signal: AbortSignal.timeout(90_000),
   })
   assert.equal(response.status, 200)
-  assert.equal(Number(response.headers.get('content-length')), expectedBytes)
+  // Next 16.4.5+ strips Content-Length from every Route Handler response (GHSA-pc58-hwjq-p385).
+  const declaredLength = response.headers.get('content-length')
+  if (declaredLength !== null) assert.equal(Number(declaredLength), expectedBytes)
   assert.ok(response.body)
   const reader = response.body.getReader()
   const hash = createHash('sha256')
