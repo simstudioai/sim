@@ -5,6 +5,7 @@ import { Button } from '@sim/emcn/button'
 import Link from 'next/link'
 import { notFound, useSearchParams } from 'next/navigation'
 import { DetailSplit } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/detail-split/detail-split'
+import { ChangelogAccess } from '@/platform/app/(shell)/workspace/[workspaceId]/changelog/_components/changelog-access/changelog-access'
 import { ChangelogDetails } from '@/platform/app/(shell)/workspace/[workspaceId]/changelog/_components/changelog-details/changelog-details'
 import { ReleaseEdit } from '@/platform/app/(shell)/workspace/[workspaceId]/changelog/_components/release-edit/release-edit'
 import { ReleaseNotes } from '@/platform/app/(shell)/workspace/[workspaceId]/changelog/_components/release-notes/release-notes'
@@ -24,12 +25,20 @@ interface LiveReleaseProps {
  * title, version and reason here, and its notes in their file.
  */
 export function LiveRelease({ workspaceId, releaseId, back }: LiveReleaseProps) {
+  return (
+    <ChangelogAccess workspaceId={workspaceId}>
+      <Release workspaceId={workspaceId} releaseId={releaseId} back={back} />
+    </ChangelogAccess>
+  )
+}
+
+function Release({ workspaceId, releaseId, back }: LiveReleaseProps) {
   const search = useSearchParams()
   const [editing, setEditing] = useState(false)
   const access = useChangelogAccess(workspaceId)
   const workspace = useLiveWorkspace(workspaceId)
   const live = useLiveRelease(workspaceId, releaseId, workspace.workspace)
-  if (!access.enabled || workspace.missing || live.missing) notFound()
+  if (workspace.missing || live.missing) notFound()
   if (!live.detail || !live.release)
     return (
       <DetailSplit read={live.read} back={back} label='Change details' railLabel='Facts'>

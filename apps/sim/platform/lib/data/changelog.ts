@@ -5,7 +5,6 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { ChangelogRelease } from '@/lib/api/contracts/changelog'
 import { useChangelogReleases, useUpdateChangelogRelease } from '@/hooks/queries/changelog'
 import { useWorkspaceFileContent, useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
-import { useFeatureFlag } from '@/platform/lib/data/files/dashboards'
 import { useWorkspaceUserPermissions } from '@/platform/lib/data/tables/permissions'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import {
@@ -68,15 +67,9 @@ function useReleases(workspaceId: string) {
   return { query, read, releases: query.data?.pages.flatMap((page) => page.releases) ?? [] }
 }
 
-/**
- * Whether this workspace shows its changelog, as legacy's gate decides, and whether the viewer may
- * edit its releases.
- */
+/** Whether the viewer may edit the workspace's releases; the page itself is gated on the server. */
 export function useChangelogAccess(workspaceId: string) {
-  return {
-    enabled: useFeatureFlag('changelog'),
-    canEdit: useWorkspaceUserPermissions(workspaceId).canEdit,
-  }
+  return { canEdit: useWorkspaceUserPermissions(workspaceId).canEdit }
 }
 
 /** Every release Sim published in the workspace, newest first, read a page at a time. */

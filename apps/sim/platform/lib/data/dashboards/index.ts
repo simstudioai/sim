@@ -11,6 +11,7 @@ export {
   dashboardUrlOptions,
 } from '@/components/dashboards/search-params'
 export { useDashboardTime } from '@/components/dashboards/use-dashboard-time'
+export { zonedWallClock } from '@/lib/core/utils/timezone'
 export {
   DASHBOARD_RANGES,
   type DashboardBlock,

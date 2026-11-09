@@ -24,9 +24,13 @@ export default async function Page({
   }
   const id = decodeURIComponent(entryId)
   if (resolvePlatformMode() === 'live') {
-    const { LiveRelease } = await import(
-      '@/platform/app/(shell)/workspace/[workspaceId]/changelog/_components/live-release/live-release'
-    )
+    const [{ readWorkspaceTabFlag }, { LiveRelease }] = await Promise.all([
+      import('@/platform/lib/data/workspace-tab-flags'),
+      import(
+        '@/platform/app/(shell)/workspace/[workspaceId]/changelog/_components/live-release/live-release'
+      ),
+    ])
+    if (!(await readWorkspaceTabFlag('changelog'))) notFound()
     return <LiveRelease workspaceId={workspaceId} releaseId={id} back={back} />
   }
   const entry = await loadWorkspaceChangelogEntry(readScenario(query.state), workspaceId, id)

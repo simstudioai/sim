@@ -18,9 +18,13 @@ export default async function Page({
   const [{ workspaceId }, query] = await Promise.all([params, searchParams])
   const mode = resolvePlatformMode()
   if (mode === 'live') {
-    const { LiveDashboard } = await import(
-      '@/platform/app/(shell)/workspace/[workspaceId]/dashboards/_components/live-dashboard/live-dashboard'
-    )
+    const [{ readWorkspaceTabFlag }, { LiveDashboard }] = await Promise.all([
+      import('@/platform/lib/data/workspace-tab-flags'),
+      import(
+        '@/platform/app/(shell)/workspace/[workspaceId]/dashboards/_components/live-dashboard/live-dashboard'
+      ),
+    ])
+    if (!(await readWorkspaceTabFlag('dashboards'))) notFound()
     return <LiveDashboard workspaceId={workspaceId} />
   }
   const data = await loadWorkspaceDashboard(readScenario(query.state), workspaceId)

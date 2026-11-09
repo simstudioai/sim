@@ -18,9 +18,13 @@ export default async function Page({
   const [{ workspaceId }, query] = await Promise.all([params, searchParams])
   const mode = resolvePlatformMode()
   if (mode === 'live') {
-    const { LiveChangelog } = await import(
-      '@/platform/app/(shell)/workspace/[workspaceId]/changelog/_components/live-changelog/live-changelog'
-    )
+    const [{ readWorkspaceTabFlag }, { LiveChangelog }] = await Promise.all([
+      import('@/platform/lib/data/workspace-tab-flags'),
+      import(
+        '@/platform/app/(shell)/workspace/[workspaceId]/changelog/_components/live-changelog/live-changelog'
+      ),
+    ])
+    if (!(await readWorkspaceTabFlag('changelog'))) notFound()
     return <LiveChangelog workspaceId={workspaceId} />
   }
   const data = await loadWorkspaceChangelog(readScenario(query.state), workspaceId)

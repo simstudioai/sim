@@ -1,11 +1,8 @@
 'use client'
 
-import {
-  LiveWorkspacePage,
-  WorkspaceEmpty,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
+import { ChangelogAccess } from '@/platform/app/(shell)/workspace/[workspaceId]/changelog/_components/changelog-access/changelog-access'
 import { ChangelogFeed } from '@/platform/app/(shell)/workspace/[workspaceId]/changelog/_components/changelog-feed/changelog-feed'
-import { useChangelogAccess, useLiveChangelog } from '@/platform/lib/data/changelog'
+import { useLiveChangelog } from '@/platform/lib/data/changelog'
 
 function Releases({ workspaceId }: { workspaceId: string }) {
   const live = useLiveChangelog(workspaceId)
@@ -22,13 +19,11 @@ function Releases({ workspaceId }: { workspaceId: string }) {
   )
 }
 
-/** The workspace's releases, behind the same feature gate legacy's changelog has. */
+/** The workspace's releases, behind the same Files access legacy's changelog requires. */
 export function LiveChangelog({ workspaceId }: { workspaceId: string }) {
-  if (!useChangelogAccess(workspaceId).enabled)
-    return (
-      <LiveWorkspacePage workspaceId={workspaceId} current='changelog'>
-        <WorkspaceEmpty title='The changelog is not enabled' />
-      </LiveWorkspacePage>
-    )
-  return <Releases workspaceId={workspaceId} />
+  return (
+    <ChangelogAccess workspaceId={workspaceId}>
+      <Releases workspaceId={workspaceId} />
+    </ChangelogAccess>
+  )
 }

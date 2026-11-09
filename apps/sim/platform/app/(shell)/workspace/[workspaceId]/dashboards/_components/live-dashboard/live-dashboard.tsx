@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { DateRangePicker } from '@sim/emcn/picker/date-picker'
 import { InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { useQueryState, useQueryStates } from 'nuqs'
@@ -32,14 +33,10 @@ import {
   parseDashboardSpec,
   useDashboardTime,
   useWorkspaceDashboard,
+  zonedWallClock,
 } from '@/platform/lib/data/dashboards'
 import { useWorkspaceFilesRoom } from '@/platform/lib/data/files'
-import {
-  DASHBOARD_RANGE_LABELS,
-  dashboardRangeText,
-  getBrowserTimezone,
-  useFeatureFlag,
-} from '@/platform/lib/data/files/dashboards'
+import { DASHBOARD_RANGE_LABELS, getBrowserTimezone } from '@/platform/lib/data/files/dashboards'
 
 interface DashboardContext {
   workspaceId: string
@@ -160,6 +157,8 @@ function DashboardDocument({ workspaceId, dashboardId, spec }: DashboardDocument
     live: true,
   })
   const { controls } = time
+  const [choosingRange, setChoosingRange] = useState(false)
+  const custom = choosingRange || controls.period === 'custom'
   const first = spec.blocks[0]
   const description = first && 'text' in first ? first.text : null
   const startIndex = description === null ? 0 : 1
@@ -179,23 +178,39 @@ function DashboardDocument({ workspaceId, dashboardId, spec }: DashboardDocument
                     value: range,
                     label: DASHBOARD_RANGE_LABELS[range],
                   })),
-                  ...(controls.period === 'custom'
-                    ? [
-                        {
-                          value: 'custom',
-                          label: controls.rangeError
-                            ? 'Custom range'
-                            : dashboardRangeText(controls.range, controls.timeZone),
-                        },
-                      ]
-                    : []),
+                  { value: 'custom', label: 'Custom range' },
                 ]}
-                value={controls.period}
+                value={custom ? 'custom' : controls.period}
                 onValueChange={(value) => {
                   const range = DASHBOARD_RANGES.find((option) => option === value)
+                  setChoosingRange(!range)
                   if (range) controls.onPeriodChange(range)
                 }}
               />
+              {custom && (
+                <DateRangePicker
+                  label='Custom range'
+                  labelHidden
+                  withTime
+                  open={choosingRange}
+                  onOpenChange={setChoosingRange}
+                  value={
+                    controls.period === 'custom' && !controls.rangeError
+                      ? {
+                          start: zonedWallClock(new Date(controls.range.from), controls.timeZone),
+                          end: zonedWallClock(
+                            new Date(Date.parse(controls.range.to) - 1),
+                            controls.timeZone
+                          ),
+                        }
+                      : null
+                  }
+                  onValueChange={(range) =>
+                    range !== null &&
+                    controls.onCalendarChange(`${range.start}:00`, `${range.end}:59`)
+                  }
+                />
+              )}
               <ChoiceMenu
                 label='Time zone'
                 options={[
@@ -243,8 +258,11 @@ function DashboardDocument({ workspaceId, dashboardId, spec }: DashboardDocument
   )
 }
 
-/** The dashboard, read again whenever the workspace's files room reports Sim rewrote it, as legacy does. */
-function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
+/**
+ * The workspace's dashboard on live data, read again whenever the workspace's files room reports Sim
+ * rewrote it, as legacy does. The page answers 404 while the `dashboards` flag is off.
+ */
+export function LiveDashboard({ workspaceId }: { workspaceId: string }) {
   useWorkspaceFilesRoom(workspaceId)
   const newChat = useNewChatHref()
   const query = useWorkspaceDashboard(workspaceId)
@@ -287,15 +305,4 @@ function WorkspaceDashboard({ workspaceId }: { workspaceId: string }) {
       )}
     </LiveWorkspacePage>
   )
-}
-
-/** The workspace's dashboard on live data, behind the same feature gate legacy's has. */
-export function LiveDashboard({ workspaceId }: { workspaceId: string }) {
-  if (!useFeatureFlag('dashboards'))
-    return (
-      <LiveWorkspacePage workspaceId={workspaceId} current='dashboards'>
-        <WorkspaceEmpty title='Dashboards are not enabled' />
-      </LiveWorkspacePage>
-    )
-  return <WorkspaceDashboard workspaceId={workspaceId} />
 }
