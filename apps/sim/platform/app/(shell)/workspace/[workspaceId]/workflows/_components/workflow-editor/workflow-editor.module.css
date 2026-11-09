@@ -12,3 +12,8 @@
   min-block-size: 0;
   min-inline-size: 0;
 }
+@media (max-width: 48rem) {
+  .workspace {
+    flex-direction: column;
+  }
+}

@@ -32,3 +32,18 @@
 .pane[hidden] {
   display: none;
 }
+/*
+ * Too narrow for a canvas beside the panel: the panel follows the canvas, each taking half the
+ * height. The stored width stays on the element; the full-width floor outranks it here.
+ */
+@media (max-width: 48rem) {
+  .panel {
+    flex: 1;
+    min-inline-size: 100%;
+    border-inline-start: none;
+    border-block-start: var(--spacing-stroke-hairline) solid var(--ui-border);
+  }
+  .resizer {
+    display: none;
+  }
+}
