@@ -34,10 +34,13 @@ export default async function Page({
         )
       )
     }
-    const { LiveRuns } = await import(
-      '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/live-runs/live-runs'
+    const [{ LiveRuns }, { readIntegrationTriggerOptions }] = await Promise.all([
+      import('@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/live-runs/live-runs'),
+      import('@/platform/lib/data/workflows/trigger-options'),
+    ])
+    return (
+      <LiveRuns workspaceId={workspaceId} integrationTriggers={readIntegrationTriggerOptions()} />
     )
-    return <LiveRuns workspaceId={workspaceId} />
   }
   const data = await loadWorkspaceRuns(readScenario(query.state), workspaceId)
   if (!data) {

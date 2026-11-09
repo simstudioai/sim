@@ -4,17 +4,24 @@ import { useQueryStates } from 'nuqs'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { useRevealedCount } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import { RunList } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/run-list/run-list'
-import { type RUN_SORTS, runListParams } from '@/platform/lib/workspace-views'
-import { DAY_MS } from '@/platform/shared/time'
+import { type RUN_PERIODS, type RUN_SORTS, runListParams } from '@/platform/lib/workspace-views'
+import { DAY_MS, MINUTE_MS } from '@/platform/shared/time'
 import type { RunSummary, RunsData } from '@/platform/shared/workspace-records'
 
 const PAGE_SIZE = 50
 
-const PERIOD_MS = {
+const HOUR_MS = DAY_MS / 24
+
+const PERIOD_MS: Record<Exclude<(typeof RUN_PERIODS)[number], 'custom'>, number> = {
   all: Number.POSITIVE_INFINITY,
-  '1h': DAY_MS / 24,
+  '30m': HOUR_MS / 2,
+  '1h': HOUR_MS,
+  '6h': 6 * HOUR_MS,
+  '12h': 12 * HOUR_MS,
   '24h': DAY_MS,
+  '3d': 3 * DAY_MS,
   '7d': 7 * DAY_MS,
+  '14d': 14 * DAY_MS,
   '30d': 30 * DAY_MS,
 }
 
@@ -42,23 +49,31 @@ function ExampleRuns({ data }: { data: RunsData }) {
   const triggers = [...new Set(data.runs.map((run) => run.trigger.label))]
     .sort()
     .map((trigger) => ({ value: trigger, label: trigger }))
-  // A trigger or workflow no longer among the runs, from an old link, reads as all of them.
-  const trigger = triggers.some((option) => option.value === view.trigger) ? view.trigger : 'all'
-  const workflow = workflows.some((option) => option.value === view.workflow)
-    ? view.workflow
-    : 'all'
-  const since = data.referenceTime - PERIOD_MS[view.period]
+  // A trigger or workflow no longer among the runs, from an old link, filters nothing.
+  const trigger = view.trigger.filter((value) => triggers.some((option) => option.value === value))
+  const workflow = view.workflow.filter((value) =>
+    workflows.some((option) => option.value === value)
+  )
+  // A custom range reads its local bounds as legacy's calendar writes them.
+  const [since, until] =
+    view.period === 'custom'
+      ? [
+          view.start ? Date.parse(view.start) : Number.NEGATIVE_INFINITY,
+          view.end ? Date.parse(view.end) + MINUTE_MS : Number.POSITIVE_INFINITY,
+        ]
+      : [data.referenceTime - PERIOD_MS[view.period], Number.POSITIVE_INFINITY]
   const [revealed, revealMore] = useRevealedCount(
-    `logs/${data.workspace.id}/${view.period}/${view.status}/${trigger}/${workflow}/${view.sort}`,
+    `logs/${data.workspace.id}/${view.period}/${view.start}/${view.end}/${view.status}/${trigger}/${workflow}/${view.sort}`,
     PAGE_SIZE
   )
   const matches = data.runs
     .filter(
       (run) =>
         run.startedAt >= since &&
+        run.startedAt < until &&
         (view.status === 'all' || run.status === view.status) &&
-        (trigger === 'all' || run.trigger.label === trigger) &&
-        (workflow === 'all' || run.workflow.id === workflow)
+        (trigger.length === 0 || trigger.includes(run.trigger.label)) &&
+        (workflow.length === 0 || workflow.includes(run.workflow.id))
     )
     .sort(compareRuns(view.sort))
   return (

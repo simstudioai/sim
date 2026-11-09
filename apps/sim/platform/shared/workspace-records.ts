@@ -125,10 +125,30 @@ export interface TraceSpan {
   children?: readonly TraceSpan[]
 }
 
+/** A file the run produced, with where it downloads from. */
+export interface RunFile {
+  id: string
+  name: string
+  /** Size, type and the workspace file version the bytes came from, written for people. */
+  detail: string
+  href: string
+}
+
+/** What the run cost, line by line from its usage ledger; a run from before the ledger has its total alone. */
+export interface RunCost {
+  items: readonly { id: string; label: string; value: string }[]
+  total: string
+  /** Tokens in and out, when a model ran. */
+  tokens?: string
+  note: string
+}
+
 export interface RunDetail extends RunSummary {
   /** The deployment that ran; a draft run has none. */
   version?: string
   trace: readonly TraceSpan[]
+  files?: readonly RunFile[]
+  cost?: RunCost
 }
 
 interface LiveQuery {

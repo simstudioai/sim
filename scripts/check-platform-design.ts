@@ -528,6 +528,7 @@ const seamHelpers = new Set([
   'lib/guardrails/custom-patterns',
   'lib/guardrails/pii-entities',
   'lib/logs/time-range',
+  'lib/logs/get-trigger-options',
   'lib/permission-groups/features',
   'lib/permission-groups/fields',
   'lib/permission-groups/model-gate',

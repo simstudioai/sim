@@ -5,11 +5,26 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQuery } from '@tanstack/react-query'
 import type { inferParserType } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
-import type { LogTraceSpan, WorkflowLogDetail, WorkflowLogSummary } from '@/lib/api/contracts/logs'
-import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import type {
+  DashboardStatsResponse,
+  LogTraceSpan,
+  WorkflowLogDetail,
+  WorkflowLogSummary,
+} from '@/lib/api/contracts/logs'
+import { BASE_EXECUTION_CHARGE } from '@/lib/billing/constants'
+import {
+  apportionCredits,
+  dollarsToCredits,
+  formatCreditCost,
+} from '@/lib/billing/credits/conversion'
+import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
+import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/time-range'
+import { useFolderMap } from '@/hooks/queries/folders'
 import {
   type LogFilters,
   useCancelExecution,
+  useDashboardStats,
+  useExecutionSnapshot,
   useLogByExecutionId,
   useLogSnapshotUpdates,
   useLogsSnapshot,
@@ -17,11 +32,14 @@ import {
   useRetryExecution,
 } from '@/hooks/queries/logs'
 import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list-query'
+import { useTraceVisibility, useTroubleshootRun } from '@/platform/lib/data/tables/execution'
 import { useWorkspaceUserPermissions } from '@/platform/lib/data/tables/permissions'
 import type { runListParams } from '@/platform/lib/workspace-views'
 import {
   queryRead,
+  type RunCost,
   type RunDetail,
+  type RunFile,
   type RunStatus,
   type RunSummary,
   type RunTrigger,
@@ -29,19 +47,28 @@ import {
   type TraceSpan,
 } from '@/platform/shared/workspace-records'
 import { CORE_TRIGGER_TYPES, type TimeRange } from '@/stores/logs/filters/types'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 type RunListView = inferParserType<typeof runListParams>
 
 const PAGE_SIZE = 50
 /** How often an open run that is still going is read again, as legacy's details do. */
 const ACTIVE_RUN_REFRESH_MS = 3_000
+/** How often the runs dashboard reads its counts again, as legacy's does. */
+const DASHBOARD_REFRESH_MS = 10_000
 
 const TIME_RANGE: Record<RunListView['period'], TimeRange> = {
   all: 'All time',
+  '30m': 'Past 30 minutes',
   '1h': 'Past hour',
+  '6h': 'Past 6 hours',
+  '12h': 'Past 12 hours',
   '24h': 'Past 24 hours',
+  '3d': 'Past 3 days',
   '7d': 'Past 7 days',
+  '14d': 'Past 14 days',
   '30d': 'Past 30 days',
+  custom: 'Custom range',
 }
 
 /** The logs API's `level` for each run status the list filters by. */
@@ -75,7 +102,7 @@ const TRIGGER_LABEL: Record<(typeof CORE_TRIGGER_TYPES)[number], string> = {
   test: 'Test',
 }
 
-/** The Trigger filter's choices: the core trigger types the logs API filters by. */
+/** The Trigger filter's core choices; the server adds the integrations the workflow registry knows. */
 export const RUN_TRIGGER_OPTIONS = CORE_TRIGGER_TYPES.map((type) => ({
   value: type,
   label: TRIGGER_LABEL[type],
@@ -128,6 +155,44 @@ function toRunSummary(log: WorkflowLogSummary & { executionId: string }): RunSum
     startedAt: Date.parse(log.createdAt),
     durationMs: durationMs(log.duration),
     cu: log.cost ? dollarsToCredits(log.cost.total) : null,
+  }
+}
+
+/** The workflow a run can open and run again: none for a Sim job or an archived workflow. */
+function openableWorkflowId(log: WorkflowLogSummary): string | null {
+  if (log.trigger === 'mothership' || log.workflow?.archivedAt) return null
+  return log.workflow?.id || log.workflowId || null
+}
+
+/**
+ * What a run's commands may do, as legacy's row menu decides: retry a failed run of a workflow,
+ * stop one still going, and open the workflow while it exists.
+ */
+export interface RunCommandsTarget {
+  executionId: string
+  /** The workflow the run belongs to, for Stop and Retry; absent for a Sim job or a deleted workflow. */
+  workflowId: string | null
+  /** The workflow the run can open, which an archived workflow cannot. */
+  openWorkflowId: string | null
+  retryable: boolean
+  stoppable: boolean
+  stopping: boolean
+  /** A workflow run has a frozen snapshot; a Sim job does not. */
+  snapshot: boolean
+}
+
+function commandsTarget(log: WorkflowLogSummary & { executionId: string }): RunCommandsTarget {
+  const workflowId = log.workflow?.id || log.workflowId || null
+  return {
+    executionId: log.executionId,
+    workflowId,
+    openWorkflowId: openableWorkflowId(log),
+    retryable: log.status === 'failed' && workflowId !== null && log.trigger !== 'mothership',
+    stoppable:
+      (log.status === 'running' || log.status === 'pending' || log.status === 'cancelling') &&
+      workflowId !== null,
+    stopping: log.status === 'cancelling',
+    snapshot: log.trigger !== 'mothership',
   }
 }
 
@@ -217,87 +282,204 @@ function toTraceSpan(span: LogTraceSpan, origin: number): TraceSpan {
   }
 }
 
+function formatFileSize(bytes: number) {
+  if (bytes === 0) return '0 B'
+  const sizes = ['B', 'KB', 'MB', 'GB']
+  const index = Math.floor(Math.log(bytes) / Math.log(1024))
+  return `${Number.parseFloat((bytes / 1024 ** index).toFixed(1))} ${sizes[index]}`
+}
+
+/** The files a run produced: an execution file through the app's file route, a link-only file at its URL. */
+function runFiles(files: WorkflowLogDetail['files']): RunFile[] | undefined {
+  if (!files?.length) return undefined
+  return files.map((file, index) => ({
+    id: file.id || `file-${index}`,
+    name: file.name,
+    detail: [
+      formatFileSize(file.size),
+      file.type,
+      ...(file.version === undefined ? [] : [`v${file.version}`]),
+    ].join(' · '),
+    href: file.key.startsWith('url/')
+      ? file.url
+      : `/api/files/serve/${encodeURIComponent(file.key)}?context=execution`,
+  }))
+}
+
 /**
- * A run's details: its facts and one trace rooted at the run itself, whose input and output are the
- * workflow's, with the recorded spans beneath it on the run's clock.
+ * An apportioned credit figure; `dollars` tells a real zero ("0 credits") from a charge that rounds
+ * below one credit ("<1 credit").
  */
-function toRunDetail(log: WorkflowLogDetail & { executionId: string }): RunDetail {
+function creditLabel(credits: number, dollars: number) {
+  if (credits <= 0) return dollars > 0 ? '<1 credit' : '0 credits'
+  return `${credits.toLocaleString('en-US')} ${credits === 1 ? 'credit' : 'credits'}`
+}
+
+/**
+ * The run's cost from its usage ledger: line items apportioned once at the total so they always add
+ * up, as legacy's details itemize it. A run from before the ledger shows its total alone.
+ */
+function runCost(log: WorkflowLogDetail): RunCost | undefined {
+  const note = `Total includes a ${formatCreditCost(BASE_EXECUTION_CHARGE)} base charge plus model and tool usage.`
+  const ledger = log.costLedger
+  if (ledger && ledger.items.length > 0) {
+    const credits = apportionCredits(
+      ledger.items.map((item, index) => ({ key: String(index), dollars: item.cost }))
+    )
+    const input = ledger.items.reduce((sum, item) => sum + (item.inputTokens ?? 0), 0)
+    const output = ledger.items.reduce((sum, item) => sum + (item.outputTokens ?? 0), 0)
+    return {
+      items: ledger.items.map((item, index) => ({
+        id: String(index),
+        label:
+          item.category === 'fixed' && item.description === 'execution_fee'
+            ? 'Base Run'
+            : item.description,
+        value: creditLabel(credits[String(index)] ?? 0, item.cost),
+      })),
+      total: creditLabel(dollarsToCredits(ledger.total), ledger.total),
+      tokens: input > 0 || output > 0 ? `${input} in · ${output} out` : undefined,
+      note,
+    }
+  }
+  const total = log.cost?.total
+  if (total === undefined) return undefined
+  return { items: [], total: creditLabel(dollarsToCredits(total), total), note }
+}
+
+/**
+ * A run's details: its facts, files and cost, and one trace rooted at the run itself, whose input
+ * and output are the workflow's, with the recorded spans beneath it on the run's clock. A viewer
+ * whose permission group hides traces sees no trace, input or output, as in legacy.
+ */
+function toRunDetail(log: WorkflowLogDetail & { executionId: string }, traced: boolean): RunDetail {
   const summary = toRunSummary(log)
   const execution = log.executionData
   const spans = execution.traceSpans ?? []
   const total = execution.totalDuration ?? summary.durationMs ?? 0
+  const executed = (log.trigger === 'manual' && Boolean(log.duration)) || spans.length > 0
   return {
     ...summary,
     version:
       log.deploymentVersionName ??
       (log.deploymentVersion === null ? undefined : `v${log.deploymentVersion}`),
-    trace: [
-      {
-        id: `run:${log.executionId}`,
-        name: summary.workflow.name,
-        kind: 'workflow',
-        status:
-          summary.status === 'failed'
-            ? 'error'
-            : summary.status === 'running' || summary.status === 'waiting'
-              ? 'running'
-              : 'success',
-        startMs: 0,
-        durationMs: total,
-        context: [],
-        input: payload(execution.workflowInput, false),
-        output: payload(execution.finalOutput, false),
-        children: spans.map((span) => toTraceSpan(span, summary.startedAt)),
-      },
-    ],
+    files: runFiles(log.files),
+    cost: executed && log.cost ? runCost(log) : undefined,
+    trace: traced
+      ? [
+          {
+            id: `run:${log.executionId}`,
+            name: summary.workflow.name,
+            kind: 'workflow',
+            status:
+              summary.status === 'failed'
+                ? 'error'
+                : summary.status === 'running' || summary.status === 'waiting'
+                  ? 'running'
+                  : 'success',
+            startMs: 0,
+            durationMs: total,
+            context: [],
+            input: payload(execution.workflowInput, false),
+            output: payload(filterHiddenOutputKeys(execution.finalOutput), false),
+            children: spans.map((span) => toTraceSpan(span, summary.startedAt)),
+          },
+        ]
+      : [],
+  }
+}
+
+/** The view's period as the logs API reads it: a preset's label, or a custom range's local bounds. */
+function periodFilters(view: RunListView): Pick<LogFilters, 'timeRange' | 'startDate' | 'endDate'> {
+  if (view.period !== 'custom') return { timeRange: TIME_RANGE[view.period] }
+  return {
+    timeRange: TIME_RANGE.custom,
+    startDate: view.start ?? undefined,
+    endDate: view.end ?? undefined,
+  }
+}
+
+function viewFilters(view: RunListView): Omit<LogFilters, 'limit' | 'sortBy' | 'sortOrder'> {
+  return {
+    ...periodFilters(view),
+    level: LEVEL[view.status],
+    workflowIds: view.workflow,
+    folderIds: view.folder,
+    triggers: view.trigger,
+    searchQuery: '',
   }
 }
 
 function listFilters(view: RunListView): LogFilters {
+  return { ...viewFilters(view), limit: PAGE_SIZE, ...SORT[view.sort] }
+}
+
+/**
+ * Where legacy's Export downloads the view's runs as CSV: the same filters the list reads, through
+ * the logs export route.
+ */
+export function runExportHref(workspaceId: string, view: RunListView) {
+  const filters = viewFilters(view)
+  const params = new URLSearchParams({ workspaceId })
+  if (filters.level !== 'all') params.set('level', filters.level)
+  if (filters.triggers.length > 0) params.set('triggers', filters.triggers.join(','))
+  if (filters.workflowIds.length > 0) params.set('workflowIds', filters.workflowIds.join(','))
+  if (filters.folderIds.length > 0) params.set('folderIds', filters.folderIds.join(','))
+  const start = getStartDateFromTimeRange(filters.timeRange, filters.startDate)
+  if (start) params.set('startDate', start.toISOString())
+  const end = getEndDateFromTimeRange(filters.timeRange, filters.endDate)
+  if (end) params.set('endDate', end.toISOString())
+  return `/api/logs/export?${params}`
+}
+
+/** The Workflow and Folder filters' choices: the workspace's workflows and workflow folders. */
+export function useRunFilterOptions(workspaceId: string) {
+  const workflows = useQuery(getWorkflowListQueryOptions(workspaceId)).data ?? []
+  const folders = useFolderMap(workspaceId).data ?? {}
+  const byLabel = (left: { label: string }, right: { label: string }) =>
+    left.label.localeCompare(right.label)
   return {
-    timeRange: TIME_RANGE[view.period],
-    level: LEVEL[view.status],
-    workflowIds: view.workflow === 'all' ? [] : [view.workflow],
-    folderIds: [],
-    triggers: view.trigger === 'all' ? [] : [view.trigger],
-    searchQuery: '',
-    limit: PAGE_SIZE,
-    ...SORT[view.sort],
+    workflows: workflows
+      .map((workflow) => ({ value: workflow.id, label: workflow.name }))
+      .sort(byLabel),
+    folders: Object.values(folders)
+      .filter((folder) => folder.workspaceId === workspaceId)
+      .map((folder) => ({ value: folder.id, label: folder.name }))
+      .sort(byLabel),
   }
 }
 
 /**
  * The workspace's runs for a list view, paged by the server in the view's order. The list holds a
  * snapshot, as legacy's does, and reads it again on its own once new or changed runs match it, so
- * new runs join without a refresh control.
+ * new runs join without a refresh control. The dashboard view reads none of it.
  */
 export function useLiveRuns(workspaceId: string, view: RunListView) {
+  const enabled = view.view === 'runs'
   const filters = listFilters(view)
-  const snapshot = useLogsSnapshot(workspaceId, filters)
+  const snapshot = useLogsSnapshot(workspaceId, filters, { enabled })
   const first = snapshot.isPlaceholderData ? undefined : snapshot.data?.pages[0]
-  const newRuns = useNewLogCount(workspaceId, filters, first?.snapshotAt).data ?? 0
+  const newRuns = useNewLogCount(workspaceId, filters, first?.snapshotAt, { enabled }).data ?? 0
   const changedPage = snapshot.data?.pages.some((page) => page.snapshotChanged) === true
   const updated = useLogSnapshotUpdates(workspaceId, first, {
-    enabled: newRuns === 0 && !changedPage,
+    enabled: enabled && newRuns === 0 && !changedPage,
   }).data
   const stale = newRuns > 0 || updated === true || changedPage
   const { refetch, isFetching } = snapshot
   useEffect(() => {
-    if (stale && !isFetching) void refetch()
-  }, [stale, isFetching, refetch])
-  const workflows = useQuery(getWorkflowListQueryOptions(workspaceId)).data ?? []
+    if (enabled && stale && !isFetching) void refetch()
+  }, [enabled, stale, isFetching, refetch])
   const read = queryRead(snapshot, 'Runs could not be loaded.')
+  const logs =
+    snapshot.data?.pages.flatMap((page) =>
+      page.logs.flatMap((log) =>
+        log.executionId ? [{ ...log, executionId: log.executionId }] : []
+      )
+    ) ?? []
   return {
     read,
-    runs:
-      snapshot.data?.pages.flatMap((page) =>
-        page.logs.flatMap((log) =>
-          log.executionId ? [toRunSummary({ ...log, executionId: log.executionId })] : []
-        )
-      ) ?? [],
-    workflows: workflows
-      .map((workflow) => ({ value: workflow.id, label: workflow.name }))
-      .sort((left, right) => left.label.localeCompare(right.label)),
+    runs: logs.map(toRunSummary),
+    commands: new Map(logs.map((log) => [log.executionId, commandsTarget(log)])),
     more: {
       hasMore: snapshot.hasNextPage,
       loading: snapshot.isFetchingNextPage,
@@ -309,8 +491,84 @@ export function useLiveRuns(workspaceId: string, view: RunListView) {
   }
 }
 
-/** One run by its execution, read again every few seconds while it is still going. */
-export function useLiveRun(workspaceId: string, executionId: string) {
+/** A dashboard series point: the segment's start and its value. */
+export interface RunSeriesPoint {
+  at: number
+  value: number
+}
+
+export interface RunDashboardWorkflow {
+  id: string
+  name: string
+  runs: number
+  /** Successful runs as a share of all, 0–100. */
+  successRate: number
+  segments: readonly { at: number; runs: number; failed: number }[]
+}
+
+function latestRun(workflow: DashboardStatsResponse['workflows'][number]) {
+  for (let index = workflow.segments.length - 1; index >= 0; index--) {
+    const segment = workflow.segments[index]
+    if (segment.totalExecutions > 0) return Date.parse(segment.timestamp)
+  }
+  return 0
+}
+
+/**
+ * Legacy's logs dashboard for the view's period and filters: runs, errors and average latency over
+ * time, and each workflow's runs by segment, most recently run first. It reads again every few
+ * seconds while open.
+ */
+export function useRunDashboard(workspaceId: string, view: RunListView) {
+  const query = useDashboardStats(workspaceId, viewFilters(view), {
+    enabled: view.view === 'dashboard',
+    refetchInterval: DASHBOARD_REFRESH_MS,
+  })
+  const stats = query.data
+  const series = (pick: (segment: DashboardStatsResponse['aggregateSegments'][number]) => number) =>
+    stats?.aggregateSegments.map((segment) => ({
+      at: Date.parse(segment.timestamp),
+      value: pick(segment),
+    })) ?? []
+  return {
+    read: queryRead(query, 'The dashboard could not be loaded.'),
+    totals: stats && {
+      runs: stats.totalRuns,
+      errors: stats.totalErrors,
+      latencyMs: stats.avgLatency,
+    },
+    runs: series((segment) => segment.totalExecutions),
+    errors: series((segment) => segment.totalExecutions - segment.successfulExecutions),
+    latency: series((segment) => segment.avgDurationMs),
+    workflows: (stats?.workflows ?? [])
+      .map((workflow) => ({ workflow, latest: latestRun(workflow) }))
+      .sort(
+        (left, right) =>
+          right.latest - left.latest ||
+          left.workflow.workflowName.localeCompare(right.workflow.workflowName)
+      )
+      .map(
+        ({ workflow }): RunDashboardWorkflow => ({
+          id: workflow.workflowId,
+          name: workflow.workflowName,
+          runs: workflow.totalExecutions,
+          successRate: workflow.overallSuccessRate,
+          segments: workflow.segments.map((segment) => ({
+            at: Date.parse(segment.timestamp),
+            runs: segment.totalExecutions,
+            failed: segment.totalExecutions - segment.successfulExecutions,
+          })),
+        })
+      ),
+  }
+}
+
+/**
+ * One run's log, read again every few seconds while it is still going, and whether the viewer's
+ * permission group lets them read its trace, input and output. Nothing reads as ready until both
+ * answer, so a trace never shows and then hides.
+ */
+function useRunLog(workspaceId: string, executionId: string) {
   const query = useLogByExecutionId(workspaceId, executionId, {
     refetchInterval: (current) => {
       const status = current.state.data?.status
@@ -319,35 +577,115 @@ export function useLiveRun(workspaceId: string, executionId: string) {
         : false
     },
   })
-  const log = query.data
-  const read = queryRead(query, 'This run could not be loaded.')
+  const traces = useTraceVisibility(workspaceId)
+  const log = query.data && { ...query.data, executionId }
+  const traced = traces === 'shown'
+  const executed =
+    log !== undefined &&
+    log.trigger !== 'mothership' &&
+    ((log.trigger === 'manual' && Boolean(log.duration)) || Boolean(log.executionData.traceSpans))
+  return {
+    log,
+    traced,
+    read:
+      traces === 'pending'
+        ? { status: 'pending' as const }
+        : queryRead(query, 'This run could not be loaded.'),
+    missing: isApiClientError(query.error) && query.error.status === 404,
+    /** Legacy offers the frozen workflow of a workflow run whose trace the viewer may read. */
+    hasSnapshot: traced && executed,
+  }
+}
+
+/** One run by its execution: its details, what its commands may do, and whether it has a snapshot. */
+export function useLiveRun(workspaceId: string, executionId: string) {
+  const { log, traced, read, missing, hasSnapshot } = useRunLog(workspaceId, executionId)
   return {
     read,
-    missing: isApiClientError(query.error) && query.error.status === 404,
-    run: log && toRunDetail({ ...log, executionId }),
-    /** The workflow the run belongs to, while it can still be opened and run again. */
-    workflowId:
-      log && log.trigger !== 'mothership' && !log.workflow?.archivedAt
-        ? (log.workflow?.id ?? log.workflowId)
-        : null,
+    missing,
+    run: log && toRunDetail(log, traced),
+    commands: log && commandsTarget(log),
+    hasSnapshot,
   }
 }
 
 /**
- * Stop and Retry on a run, as legacy offers them: stopping waits until the run is confirmed
- * cancelled and needs edit access; retrying starts a new run from the same input.
+ * Stop, Retry and Troubleshoot on a run, as legacy offers them: stopping waits until the run is
+ * confirmed cancelled and needs edit access; retrying starts a new run from the same input; a failed
+ * run can be handed to a new chat.
  */
 export function useRunCommands(workspaceId: string) {
   const { canEdit } = useWorkspaceUserPermissions(workspaceId)
   const cancel = useCancelExecution(workspaceId)
   const retry = useRetryExecution()
+  const troubleshoot = useTroubleshootRun()
   return {
     canStop: canEdit,
-    stopping: cancel.isPending,
+    /** Legacy's Export needs edit access too. */
+    canExport: canEdit,
+    stopping: (executionId: string) =>
+      cancel.isPending && cancel.variables?.executionId === executionId,
     retrying: retry.isPending,
     stop: (workflowId: string, executionId: string) =>
       cancel.mutateAsync({ workflowId, executionId }),
     retry: (workflowId: string, executionId: string) =>
       retry.mutateAsync({ workflowId, executionId }),
+    canTroubleshoot: troubleshoot.available,
+    troubleshoot: (executionId: string, workflowName: string) =>
+      troubleshoot.troubleshoot({ workspaceId, executionId, workflowName }),
+  }
+}
+
+/** One block's run in a snapshot: its status on the canvas and its step for the inspector. */
+interface SnapshotBlock {
+  status: string
+  output?: unknown
+  step: TraceSpan
+}
+
+function isPauseOutput(output: unknown) {
+  return typeof output === 'object' && output !== null && '_pauseMetadata' in output
+}
+
+/** Each block's first recorded span, in trace order, as legacy's snapshot maps blocks to runs. */
+function snapshotBlocks(spans: readonly LogTraceSpan[], origin: number) {
+  const blocks = new Map<string, SnapshotBlock>()
+  const visit = (span: LogTraceSpan) => {
+    if (span.blockId && !blocks.has(span.blockId))
+      blocks.set(span.blockId, {
+        status: isPauseOutput(span.output) ? 'pending' : (span.status ?? 'unknown'),
+        output: span.output,
+        step: toTraceSpan(span, origin),
+      })
+    span.children?.forEach(visit)
+  }
+  spans.forEach(visit)
+  return blocks
+}
+
+/**
+ * A run's frozen workflow: the state it executed with, which blocks ran and how, and each block's
+ * step. A run recorded before snapshots existed has no state to draw, which `migrated` says. A run
+ * without a snapshot reads as missing.
+ */
+export function useRunSnapshot(workspaceId: string, executionId: string) {
+  const { log, read, missing, hasSnapshot } = useRunLog(workspaceId, executionId)
+  const snapshot = useExecutionSnapshot(hasSnapshot ? executionId : undefined)
+  const state = snapshot.data?.workflowState
+  const migrated = state?._migrated === true
+  const startedAt = log ? Date.parse(log.createdAt) : 0
+  return {
+    read:
+      read.status === 'ready'
+        ? queryRead(snapshot, 'This run snapshot could not be loaded.')
+        : read,
+    missing:
+      missing ||
+      (read.status === 'ready' && log !== undefined && !hasSnapshot) ||
+      (snapshot.isSuccess && !state),
+    run: log && toRunSummary(log),
+    workflowState: state && !migrated ? (state as WorkflowState) : undefined,
+    migrated,
+    blocks: snapshotBlocks(log?.executionData.traceSpans ?? [], startedAt),
   }
 }

@@ -9,6 +9,7 @@ import { RunDetails } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/
 import { useLiveRun, useRunCommands } from '@/platform/lib/data/logs'
 import { platformHref } from '@/platform/lib/navigation'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
+import { withRunListView } from '@/platform/lib/workspace-views'
 import { toast } from '@/platform/shared/toast'
 
 interface LiveRunProps {
@@ -18,22 +19,24 @@ interface LiveRunProps {
 }
 
 /**
- * One live run. A run that is still going refreshes itself and can be stopped by an editor; a run
- * whose workflow still exists can be retried from the same input or opened in the editor.
+ * One live run. A run that is still going refreshes itself and can be stopped by an editor; a
+ * failed run can be retried from the same input or handed to a new chat; a workflow run opens its
+ * workflow and the frozen snapshot it executed.
  */
 export function LiveRun({ workspaceId, executionId, back }: LiveRunProps) {
   const search = useSearchParams()
   const live = useLiveRun(workspaceId, executionId)
   const commands = useRunCommands(workspaceId)
   if (live.missing) notFound()
-  if (!live.run)
+  if (!live.run || !live.commands)
     return (
       <DetailSplit read={live.read} back={back} label='Run trace' railLabel='Selected step'>
         {null}
       </DetailSplit>
     )
-  const { workflowId } = live
-  const going = live.run.status === 'running' || live.run.status === 'waiting'
+  const { run } = live
+  const { workflowId, openWorkflowId, retryable, stoppable } = live.commands
+  const stopping = live.commands.stopping || commands.stopping(executionId)
   const stop = async (id: string) => {
     try {
       await commands.stop(id, executionId)
@@ -52,18 +55,19 @@ export function LiveRun({ workspaceId, executionId, back }: LiveRunProps) {
   }
   return (
     <RunDetails
-      run={live.run}
+      run={run}
       back={back}
+      read={live.read}
       actions={
-        workflowId && (
-          <>
+        <>
+          {openWorkflowId && (
             <Button
               variant='secondary'
               size='compact'
               render={
                 <Link
                   href={platformHref(
-                    workspacePath(workspaceId, `workflows/${encodeURIComponent(workflowId)}`),
+                    workspacePath(workspaceId, `workflows/${encodeURIComponent(openWorkflowId)}`),
                     search
                   )}
                 />
@@ -71,29 +75,59 @@ export function LiveRun({ workspaceId, executionId, back }: LiveRunProps) {
             >
               Open workflow
             </Button>
-            {going ? (
-              commands.canStop && (
-                <Button
-                  variant='secondary'
-                  size='compact'
-                  disabled={commands.stopping}
-                  onClick={() => void stop(workflowId)}
-                >
-                  {commands.stopping ? 'Stopping…' : 'Stop run'}
-                </Button>
-              )
-            ) : (
-              <Button
-                variant='secondary'
-                size='compact'
-                disabled={commands.retrying}
-                onClick={() => void retry(workflowId)}
-              >
-                {commands.retrying ? 'Retrying…' : 'Retry'}
-              </Button>
-            )}
-          </>
-        )
+          )}
+          {live.hasSnapshot && (
+            <Button
+              variant='secondary'
+              size='compact'
+              render={
+                <Link
+                  href={withRunListView(
+                    platformHref(
+                      workspacePath(
+                        workspaceId,
+                        `workflows/runs/${encodeURIComponent(executionId)}`
+                      ),
+                      search
+                    ),
+                    Object.fromEntries(search.entries())
+                  )}
+                />
+              }
+            >
+              View snapshot
+            </Button>
+          )}
+          {run.status === 'failed' && live.commands.snapshot && commands.canTroubleshoot && (
+            <Button
+              variant='secondary'
+              size='compact'
+              onClick={() => commands.troubleshoot(executionId, run.workflow.name)}
+            >
+              Troubleshoot in Chat
+            </Button>
+          )}
+          {stoppable && workflowId && commands.canStop && (
+            <Button
+              variant='secondary'
+              size='compact'
+              disabled={stopping}
+              onClick={() => void stop(workflowId)}
+            >
+              {stopping ? 'Stopping…' : 'Stop run'}
+            </Button>
+          )}
+          {retryable && workflowId && (
+            <Button
+              variant='secondary'
+              size='compact'
+              disabled={commands.retrying}
+              onClick={() => void retry(workflowId)}
+            >
+              {commands.retrying ? 'Retrying…' : 'Retry'}
+            </Button>
+          )}
+        </>
       }
     />
   )
