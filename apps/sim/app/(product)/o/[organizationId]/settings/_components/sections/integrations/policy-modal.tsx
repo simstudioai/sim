@@ -219,7 +219,7 @@ function ServiceAccountSource({
           options={options}
           value={sourceId || null}
           onValueChange={(value) => onChange(value ?? '')}
-          placeholder={sources.isPending ? 'Loading connections' : 'Select a connection'}
+          placeholder='Select a connection'
           selectedLabel={
             sourceId && !options.some((option) => option.value === sourceId)
               ? 'Configured connection'
@@ -248,7 +248,7 @@ function ServiceAccountSource({
             disabled={sources.isFetchingNextPage}
             onClick={() => void sources.fetchNextPage()}
           >
-            {sources.isFetchingNextPage ? 'Loading' : 'Load more'}
+            {sources.isFetchingNextPage ? 'Loading…' : 'Load more'}
           </Button>
         </div>
       ) : null}

@@ -73,22 +73,16 @@ export async function searchChecks() {
       await modeRadio(page, 'Search').click()
     })
   })
-  await check('field grows on Shift+Enter, Enter submits, results follow the field', async () => {
+  await check('the one-line field submits on Enter, results follow the field', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await stubSearch(page)
       await page.goto(searchUrl({ mode: 'search' }))
       const field = searchField(page)
-      await field.fill('Parts')
-      const before = (await field.boundingBox())?.height ?? 0
-      await field.press('Shift+Enter')
-      await field.pressSequentially('recall')
-      await expect
-        .poll(async () => (await field.boundingBox())?.height ?? 0)
-        .toBeGreaterThan(before)
+      // Emir's one-line Input, not a growing textarea.
+      expect(await field.evaluate((element) => element.tagName)).toBe('INPUT')
+      await field.fill('Parts recall')
       await field.press('Enter')
-      await expect(page).toHaveURL(
-        (address) => address.searchParams.get('q')?.includes('Parts') ?? false
-      )
+      await expect(page).toHaveURL((address) => address.searchParams.get('q') === 'Parts recall')
       // The page header keeps its heading; the results take the column under the field.
       await expect(page.getByRole('heading', { name: `Search ${ORGANIZATION_NAME}` })).toBeVisible()
       await expect(page.getByRole('region', { name: 'Search results' })).toBeVisible()

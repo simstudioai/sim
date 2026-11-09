@@ -10,6 +10,7 @@ import path from 'node:path'
 import ts from '@typescript/typescript6'
 import postcss from 'postcss'
 import { emcnPackages, emcnTypeScriptPaths, resolveEmcnImport } from './emcn-packages'
+import { allowlistReasonFindings, type ReasonedAllowlist } from './platform-allowlist-reasons'
 import { ORGANIZATION_ROUTES, PRODUCT_ROUTES } from './platform-product-routes'
 import { productUsage } from './platform-variant-usage'
 
@@ -182,6 +183,53 @@ for (const [key, recipe] of Object.entries(recipes)) {
       report('recipe-owner', recipesPath, `${key} names unknown slot master ${nested}`)
   }
 }
+/**
+ * Variants that carry no Paper key, by `Owner.prop=value`, with the reason each stands without one.
+ * Every other variant names at least one reachable Paper key; a new code-first variant states its
+ * reason here (`platform/AGENTS.md`, Code-first product design).
+ */
+const CODE_FIRST_VARIANTS: ReasonedAllowlist = {
+  'ActivityRow.density=comfortable':
+    "Settings' roomier row; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'ActivityRow.density=regular':
+    "The default row density; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'Avatar.size=card':
+    "A card's avatar; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'Avatar.size=hero':
+    "A profile header's avatar; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'Avatar.size=inline':
+    "An avatar set in a line of text; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'Avatar.size=row':
+    "A row's leading avatar; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'IconButton.size=inline':
+    "An action inside a line of text; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'IconButton.size=row':
+    "A ControlRow's trailing action; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'CopyButton.size=small':
+    "The standalone copy action; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'CopyButton.size=compact':
+    "A field's trailing copy action; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'SearchField.variant=quiet':
+    "The borderless toolbar search with its focus underline; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'TextArea.defaultSize=regular':
+    "The 76px default textarea; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'TextArea.defaultSize=large':
+    "The 240px skill instruction editor; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'Disclosure.variant=navigation':
+    "A navigation group's disclosure; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'MultiSelect.variant=field':
+    "The labelled form picker; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'MultiSelect.variant=text':
+    "The compact toolbar text trigger; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'SearchableSelect.variant=field':
+    "The labelled form picker; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'SearchableSelect.variant=text':
+    "The compact toolbar text trigger; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'DatePopover.variant=field':
+    "The labelled form picker; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+  'DatePopover.variant=text':
+    "The compact toolbar text trigger; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+}
 const exportedOwners = new Set<string>()
 const declarations = new Set<string>()
 for (const [owner, props] of Object.entries(variants)) {
@@ -195,6 +243,14 @@ for (const [owner, props] of Object.entries(variants)) {
           'variant-use',
           variantsPath,
           `${owner}.${prop}=${value}: missing reachable Paper key`
+        )
+      }
+      const variant = `${owner}.${prop}=${value}`
+      if (Array.isArray(ids) && !ids.length && !Object.hasOwn(CODE_FIRST_VARIANTS, variant)) {
+        report(
+          'variant-evidence',
+          variantsPath,
+          `${variant}: name its Paper key, or its reason in CODE_FIRST_VARIANTS`
         )
       }
     }
@@ -222,6 +278,18 @@ const LOCAL_TOKEN_OWNERS: ReadonlySet<string> = new Set([
   `${ORGANIZATION_ROUTES}people/_components/directory/directory.module.css`,
   `${ORGANIZATION_ROUTES}people/_components/org-chart/org-chart.module.css`,
 ])
+/**
+ * Loading paints nothing (`platform/AGENTS.md`): no text such as `Loading…` stands in for content
+ * whose read is pending. An action's pending label is feedback, not loading copy, so the rule passes
+ * a `pendingLabel` and the pending label of a Load action (`isFetchingNextPage ? 'Loading…' :
+ * 'Load more'`). These files keep loading copy for the reason given; each must still contain some.
+ */
+const LOADING_COPY_OWNERS: ReasonedAllowlist = {
+  [`${PRODUCT_ROUTES}_components/composer/message-composer.tsx`]:
+    "Emir's composer: the @ menu names its pending list while the draft keeps focus and typing",
+  [`${PRODUCT_ROUTES}_components/composer/resource-menu.tsx`]:
+    'Home lane: a workspace submenu names its pending resources; reported to that lane for removal',
+}
 /** The calendar day column, which places each event by its time through an inline style. */
 const CALENDAR_DAY = `${ORGANIZATION_ROUTES}home/_components/calendar/calendar-day.tsx`
 /** The org chart's canvas, whose nodes and edges are styled through React Flow's own props. */
@@ -231,68 +299,85 @@ const seamRoots = ['hooks/queries', 'lib/api']
  * The application use cases and server helpers a server-only seam module runs in process, as the
  * routes behind its contracts do, with the viewer's session principal. A server-only module never
  * reaches a browser bundle, so `checkSeamClosure` does not walk from one; a module that is not
- * server-only (or its test) may not name these.
+ * server-only (or its test) may not name these. Each entry carries the one-line reason it was granted.
  */
-const serverSeamHelpers = new Set([
-  'lib/auth',
-  'lib/auth/session-response',
-  'lib/billing/application/organization-billing/get-organization-billing-summary',
-  'lib/core/application/organization-authorization',
-  // The fixture build's inlined switch, which `lib/data/mode.ts` reads.
-  'lib/core/config/platform-fixtures',
-  'lib/core/utils/deadline',
-  'lib/credential-groups/application/organization-access',
-  'lib/credential-groups/application/organization-account-management',
-  'lib/credential-groups/application/organization-accounts',
-  'lib/knowledge/application/search-history',
-  'lib/knowledge/application/search-integrations',
-  'lib/knowledge/application/slack-search/installations',
-  'lib/mothership/chat/intent',
-  'lib/mothership/chat/lifecycle',
-  'lib/mothership/chat/organization-chats',
-  'lib/navigation/legacy-redirects',
-  'lib/navigation/resolve-app-entry',
-  'lib/navigation/shell-scope',
-  'lib/organization-secrets/application/use-cases',
-  'lib/organizations/application/member-roster',
-  'lib/organizations/application/surface',
-  'lib/organizations/application/viewer-organization',
-  'lib/settings/prefetch-current-user-settings',
-  'lib/sim-links/application/use-cases',
-  'lib/users/application/read-current-user',
-  'lib/workflows/application/read-workflow-definition',
-  'lib/workspaces/application/workspace-shell',
-  'lib/workspaces/list',
-  'lib/workspaces/seed-workspace-list',
-  // A workspace's Integrations directory: the access policy its pickers apply, judged on the server
-  // from the permission group, deployment availability and block visibility routes' own reads.
-  'lib/core/config/block-visibility',
-  'lib/integrations/access',
-  'lib/integrations/application/read-availability',
-  'lib/permission-groups/application/read-user-config',
-  'lib/permissions/super-user',
-])
+const serverSeamHelpers: ReasonedAllowlist = {
+  'lib/auth': "getSession, the viewer's session that every server read and redirect starts from",
+  'lib/auth/session-response':
+    'toAppSession and getActiveOrganizationId, the session shape prefetchShell seeds',
+  'lib/billing/application/organization-billing/get-organization-billing-summary':
+    "The billing summary use case behind the billing route, prefetched for Settings' Billing",
+  'lib/core/application/organization-authorization':
+    'OrganizationMembershipNotFoundError, which readOrganizationSurface answers as not found',
+  'lib/core/config/platform-fixtures':
+    "The fixture build's inlined switch, which `lib/data/mode.ts` reads",
+  'lib/core/utils/deadline': 'withinDeadline, the budget server-read holds a first-paint read to',
+  'lib/credential-groups/application/organization-access':
+    "The account workspace-access use case behind Connected accounts' route",
+  'lib/credential-groups/application/organization-account-management':
+    "The account people use case behind Connected accounts' route",
+  'lib/credential-groups/application/organization-accounts':
+    'The Connected accounts settings use case, read for that section and the member inventory',
+  'lib/knowledge/application/search-history': 'The Search history use case, prefetched for Search',
+  'lib/knowledge/application/search-integrations':
+    'The Search integrations use case, prefetched for the member inventory',
+  'lib/knowledge/application/slack-search/installations':
+    'The Slack Search installations use case, prefetched for its Settings section',
+  'lib/mothership/chat/intent': "ConversationMode, the chat gate's mode type",
+  'lib/mothership/chat/lifecycle': "getAccessibleCopilotChatAuth, the chat route's access check",
+  'lib/mothership/chat/organization-chats':
+    "The organization chats list, prefetched for the shell's sidebar",
+  'lib/navigation/legacy-redirects':
+    'mapLegacyWorkspaceUrl, the legacy workspace URL table route resolution runs',
+  'lib/navigation/resolve-app-entry':
+    'resolveRolledOutOrganizationId, which organization a workspace entry opens in',
+  'lib/navigation/shell-scope': "The proxy's shell scope and path headers and their parser",
+  'lib/organization-secrets/application/use-cases':
+    'The Generic Secrets source use case, read for Integrations and its prefetch',
+  'lib/organizations/application/member-roster':
+    "The roster use case behind People's route, prefetched",
+  'lib/organizations/application/surface':
+    'The organization surface use case readOrganizationSurface runs',
+  'lib/organizations/application/viewer-organization':
+    'ensureViewerOrganization, the personal organization the shell falls back to',
+  'lib/settings/prefetch-current-user-settings': "The viewer's settings prefetch the shell seeds",
+  'lib/sim-links/application/use-cases': 'The Links list use case, prefetched for Links',
+  'lib/users/application/read-current-user': "The viewer's profile use case the shell seeds",
+  'lib/workflows/application/read-workflow-definition':
+    'The workflow definition use case a workspace entry reads to open a workflow',
+  'lib/workspaces/application/workspace-shell':
+    "The workspace shell use case behind the shell's scope",
+  'lib/workspaces/list': 'listWorkspacesForViewer, the workspaces a viewer may open',
+  'lib/workspaces/seed-workspace-list': 'The workspace list the shell seeds for the sidebar',
+  'lib/core/config/block-visibility':
+    "Block visibility, which a workspace's Integrations directory judges on the server",
+  'lib/integrations/access':
+    "The integration access policy a workspace's Integrations pickers apply",
+  'lib/integrations/application/read-availability':
+    "The deployment availability use case behind a workspace's Integrations directory",
+  'lib/permission-groups/application/read-user-config':
+    "The viewer's permission group config, which the Integrations directory applies",
+  'lib/permissions/super-user':
+    'isPlatformAdmin, which widens the Integrations directory for admins',
+}
 /**
- * Application modules every Platform file may import, views included, because the Platform and the
- * legacy app share them: the toast sink each root connects its own toaster to.
+ * Host modules every Platform file may import, views included, because the product shares them with
+ * the rest of the app. They draw only with shared EMCN. Each entry carries its one-line reason.
  */
-/**
- * Host modules the product shares with the rest of the app: one toast sink, one desktop tool
- * lifetime, the app's path builders and Settings aliases, and the file viewer with the markdown
- * editor and dashboard panel it renders, which the public share page also renders. They draw only
- * with shared EMCN.
- */
-const platformHostModules: ReadonlySet<string> = new Set([
-  'lib/toast/sink',
-  'hooks/mothership-chat/desktop-tool-lifetimes',
-  'lib/navigation/paths',
-  'lib/navigation/settings-aliases',
-  'components/file-viewer/file-viewer',
-  'components/file-viewer/collaboration/file-doc-room',
-  'components/file-viewer/types',
-  'components/file-viewer/rich-markdown-editor/rich-markdown-field',
-  'components/dashboard-panel/dashboard-panel',
-])
+const platformHostModules: ReasonedAllowlist = {
+  'lib/toast/sink': 'The one toast sink each root connects its own toaster to',
+  'hooks/mothership-chat/desktop-tool-lifetimes': 'The one desktop tool lifetime both apps share',
+  'lib/navigation/paths': "The app's path builders",
+  'lib/navigation/settings-aliases': 'The one table of renamed Settings sections',
+  'components/file-viewer/file-viewer':
+    'The one file viewer, which the public share page also renders',
+  'components/file-viewer/collaboration/file-doc-room':
+    "The file viewer's collaborative document room",
+  'components/file-viewer/types': "The file viewer's public types",
+  'components/file-viewer/rich-markdown-editor/rich-markdown-field':
+    'The markdown editor field the file viewer, changelog and workflow notes use',
+  'components/dashboard-panel/dashboard-panel': 'The dashboard panel the markdown editor embeds',
+}
 const isServerOnly = (file: string) => /^import 'server-only'$/m.test(read(file))
 /** A seam module that runs only on the server, or a test, which no bundle includes. */
 const runsOnServer = (file: string) => /\.test\.tsx?$/.test(file) || isServerOnly(file)
@@ -1001,7 +1086,7 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
     inSeam &&
     target !== null &&
     (seamHelpers.has(target) ||
-      (serverSeamHelpers.has(target) && runsOnServer(file)) ||
+      (Object.hasOwn(serverSeamHelpers, target) && runsOnServer(file)) ||
       seamRoots.some((root) => target === root || target.startsWith(`${root}/`)))
   // Shared helpers stay pure; a shared model may name the design system's icon or menu types.
   const sharedNamesDesignSystemType = typesOnly && Boolean(target && isSystem(target))
@@ -1022,7 +1107,7 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
         (inPlatform &&
           !inPlatformTree(target) &&
           !isSystem(target) &&
-          !platformHostModules.has(target))) &&
+          !Object.hasOwn(platformHostModules, target))) &&
       !seamTarget &&
       file !== PRODUCT_ROOT_LAYOUT) ||
     (inPlatform &&
@@ -1546,6 +1631,48 @@ function checkSeamClosure() {
   }
 }
 
+/** Files on {@link LOADING_COPY_OWNERS} whose loading copy the walk found. */
+const loadingCopyOwners = new Set<string>()
+/** A string branch a Load action shows at rest, such as `Load more` or `Load all`. */
+const LOAD_ACTION = /^Load\b(?!ing)/
+
+/** The string leaves of the conditional chain a branch belongs to, from its outermost conditional. */
+function conditionalLeaves(node: ts.Node): string[] {
+  let top: ts.Node = node
+  while (
+    ts.isParenthesizedExpression(top.parent) ||
+    (ts.isConditionalExpression(top.parent) && top.parent.condition !== top)
+  )
+    top = top.parent
+  const leaves: string[] = []
+  const collect = (branch: ts.Node) => {
+    if (ts.isParenthesizedExpression(branch)) collect(branch.expression)
+    else if (ts.isConditionalExpression(branch)) {
+      collect(branch.whenTrue)
+      collect(branch.whenFalse)
+    } else if (ts.isStringLiteralLike(branch)) leaves.push(branch.text.trim())
+  }
+  collect(top)
+  return leaves
+}
+
+/**
+ * Rendered text that announces a pending read, outside an action's pending label. A Load action's
+ * pending label takes the ellipsis, as `Saving…` does.
+ */
+function isLoadingCopy(node: ts.Node): boolean {
+  const text =
+    ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isJsxText(node)
+      ? node.text.trim()
+      : ''
+  if (!/^Loading\b/.test(text)) return false
+  const attribute = ts.isJsxExpression(node.parent) ? node.parent.parent : node.parent
+  if (ts.isJsxAttribute(attribute) && attribute.name.getText() === 'pendingLabel') return false
+  const loadActionLabel =
+    text.endsWith('…') && conditionalLeaves(node).some((leaf) => LOAD_ACTION.test(leaf))
+  return !loadActionLabel
+}
+
 function checkJs(file: string, content: string) {
   const inPlatform = inPlatformTree(file) || isSystem(file)
   if (
@@ -1606,6 +1733,15 @@ function checkJs(file: string, content: string) {
           'Use the shared Platform time formatter and supply raw dates'
         )
       }
+    }
+    if (inPlatform && !ownsTimeLabels && isLoadingCopy(node)) {
+      if (Object.hasOwn(LOADING_COPY_OWNERS, file)) loadingCopyOwners.add(file)
+      else
+        report(
+          'loading-copy',
+          location(node),
+          `Loading paints nothing: render no copy while the read is pending (${node.getText(sf).trim()})`
+        )
     }
     if (
       inPlatform &&
@@ -1873,15 +2009,43 @@ for (const [name, props] of Object.entries(variants)) {
 checkSeamClosure()
 
 /**
- * Every allowlist entry must still name a module, so an exception cannot outlive the file it was
- * granted for. The entries name this repository's files, so a fixture root is not held to them.
+ * Every reasoned allowlist entry states why it was granted, and every allowlist entry must still name
+ * a module, so an exception cannot outlive the file it was granted for. The entries name this
+ * repository's files, so a fixture root is not held to their existence.
  */
 function checkAllowlists() {
-  if (root !== path.resolve(import.meta.dir, '..')) return
-  const allowlists: Record<string, Iterable<string>> = {
-    seamHelpers,
+  for (const finding of allowlistReasonFindings({
     serverSeamHelpers,
     platformHostModules,
+    LOADING_COPY_OWNERS,
+    CODE_FIRST_VARIANTS,
+  })) {
+    report('allowlist-reason', 'scripts/check-platform-design.ts', finding)
+  }
+  if (root !== path.resolve(import.meta.dir, '..')) return
+  for (const variant of Object.keys(CODE_FIRST_VARIANTS)) {
+    const [name, choice] = variant.split('.')
+    const [prop, value] = choice?.split('=') ?? []
+    const ids = variants[name]?.[prop]?.[value]
+    if (!ids || ids.length)
+      report(
+        'stale-allowlist',
+        'scripts/check-platform-design.ts',
+        `CODE_FIRST_VARIANTS names ${variant}, which ${ids ? 'has a Paper key' : 'is not a variant'}`
+      )
+  }
+  for (const file of Object.keys(LOADING_COPY_OWNERS)) {
+    if (!loadingCopyOwners.has(file))
+      report(
+        'stale-allowlist',
+        'scripts/check-platform-design.ts',
+        `LOADING_COPY_OWNERS names ${file}, which has no loading copy`
+      )
+  }
+  const allowlists: Record<string, Iterable<string>> = {
+    seamHelpers,
+    serverSeamHelpers: Object.keys(serverSeamHelpers),
+    platformHostModules: Object.keys(platformHostModules),
     seamClosureViews,
     workflowClosureViews,
     FRAMES_OUTSIDE_SURFACE,

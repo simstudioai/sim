@@ -71,12 +71,15 @@ export function useCredentialWorkspace(items: readonly PlatformCredentialRequest
   }
 }
 
-/** What stands between this viewer and saving a Generic Secret, in the legacy host's order. */
+/**
+ * What stands between this viewer and saving a Generic Secret, in the legacy host's order. A pending
+ * read has no message: loading paints nothing.
+ */
 function organizationSecretGate(
   source: ReturnType<typeof useOrganizationSecretSource>,
   isAdmin: boolean
 ): string | null {
-  if (source.isPending) return 'Loading Generic Secrets'
+  if (source.isPending) return null
   if (source.isError) return 'Could not load Generic Secrets.'
   const current = source.data?.source
   if (!current)
@@ -133,6 +136,8 @@ export function useSecretSaver(items: readonly PlatformCredentialRequest[]) {
   }
   return {
     gate: hasOrganization ? organizationSecretGate(source, organization.viewer.isAdmin) : null,
+    /** Organization secrets wait for their source read before offering an input. */
+    gatePending: hasOrganization && source.isPending,
     /**
      * Saves the entered secrets by scope, in parallel. A row that saved stays saved when another
      * fails. Only with nothing failed is there a message for the chat, which carries names only.

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, it } from 'vitest'
+import { allowlistReasonFindings } from './platform-allowlist-reasons'
 
 const CHECK = fileURLToPath(new URL('./check-platform-design.ts', import.meta.url))
 const ROOT = mkdtempSync(path.join(tmpdir(), 'sim-platform-design-'))
@@ -203,7 +204,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     write('app/(product)/account/details/page.tsx', 'export default function Page(){return null}')
     const choices = ['primary', 'ghost', 'shadow', 'defaulted', ...Object.values(boundaries)]
     writeCatalog('variants', {
-      Button: { variant: Object.fromEntries(choices.map((choice) => [choice, []])) },
+      Button: { variant: Object.fromEntries(choices.map((choice) => [choice, ['C0092']])) },
     })
     write(
       `${component}/button.tsx`,
@@ -679,7 +680,7 @@ it('counts a variant a product page mounts through a dynamic section table', () 
   try {
     put(
       '../../packages/emcn-platform/src/catalog/variants.json',
-      JSON.stringify({ Button: { variant: { primary: ['C0092'], quiet: [] } } })
+      JSON.stringify({ Button: { variant: { primary: ['C0092'], quiet: ['C0092'] } } })
     )
     put(
       button,
@@ -711,3 +712,99 @@ it('counts a variant a product page mounts through a dynamic section table', () 
     rmSync(root, { recursive: true, force: true })
   }
 }, 30_000)
+
+it("passes an action's pending label: a pendingLabel, and a Load action's Loading…", () => {
+  const { root, put, run } = productFixture()
+  try {
+    put(
+      'app/(product)/o/[organizationId]/home/_components/panel/panel.tsx',
+      `function Confirm(_: { pendingLabel: string }) { return null }
+      export function Panel({ busy, all }: { busy: boolean; all: boolean }) {
+        return <>
+          <Confirm pendingLabel='Loading…' />
+          <button>{busy ? 'Loading…' : 'Load more'}</button>
+          <button>{busy ? (all ? 'Loading all…' : 'Loading options…') : 'Load all'}</button>
+        </>
+      }
+`
+    )
+    expect(run()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
+it('fails a variant with no Paper key that CODE_FIRST_VARIANTS gives no reason for', () => {
+  const { root, put, run } = productFixture()
+  try {
+    put(
+      '../../packages/emcn-platform/src/catalog/variants.json',
+      JSON.stringify({ Button: { variant: { primary: ['C0092'], bar: [] } } })
+    )
+    put(
+      '../../packages/emcn/src/components/button/button.tsx',
+      `export function Button({variant}: {variant: 'primary' | 'bar'}) { return <button data-variant={variant}/> }`
+    )
+    put(
+      'app/(product)/o/[organizationId]/home/page.tsx',
+      `import { Button } from '@sim/emcn/button'
+      export default function Page() { return <><Button variant='primary'/><Button variant='bar'/></> }`
+    )
+    const result = run()
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('[variant-evidence] Button.variant=bar')
+    expect(result.output).not.toContain('[variant-evidence] Button.variant=primary')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
+it('fails an allowlist entry without a one-line reason', () => {
+  expect(
+    allowlistReasonFindings({
+      platformHostModules: {
+        'lib/toast/sink': 'The one toast sink each root connects its own toaster to',
+        'lib/navigation/paths': '',
+        'lib/navigation/settings-aliases': '  ',
+        'components/file-viewer/types': 'The file viewer types\nand more',
+      },
+    })
+  ).toEqual([
+    'platformHostModules grants lib/navigation/paths without a reason',
+    'platformHostModules grants lib/navigation/settings-aliases without a reason',
+    'platformHostModules gives components/file-viewer/types a reason longer than one line',
+  ])
+})
+
+it.each([
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/accounts.tsx',
+    `export function Accounts({ pending }: { pending: boolean }) { return <p>{pending ? 'Loading accounts…' : 'Accounts'}</p> }`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/rows.tsx',
+    `export function Rows() { return <p role='status'>Loading...</p> }`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/more.tsx',
+    `export function More({ busy }: { busy: boolean }) { return <button>{busy ? 'Loading' : 'Load more'}</button> }`,
+  ],
+  [
+    'platform/lib/data/gate.ts',
+    `export const gate = (pending: boolean) => (pending ? 'Loading Generic Secrets' : null)`,
+  ],
+])(
+  'fails [loading-copy] for %s',
+  (file, source) => {
+    const { root, put, run } = productFixture()
+    try {
+      put(file, `${source}\n`)
+      const result = run()
+      expect(result.status).toBe(1)
+      expect(result.output).toContain(`${file}:1 [loading-copy]`)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  },
+  30_000
+)

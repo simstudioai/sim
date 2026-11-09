@@ -19,8 +19,9 @@ interface LinksFrameProps {
 }
 
 /**
- * Links' search, sort and actions, painted before the first read of links settles. Links is a
- * Settings section, so the Settings screen owns the page's column, landmark and one heading.
+ * Links' actions, then its search and sort, painted before the first read of links settles. Links is
+ * a Settings section, so the Settings screen owns the page's column, landmark and one heading; the
+ * actions sit beneath it where the page header held them, above the options row.
  */
 export function LinksFrame({
   search,
@@ -33,23 +34,7 @@ export function LinksFrame({
   const hosted = useLinksHosted()
   return (
     <div className={styles.page}>
-      <SectionToolbar
-        grow={
-          <SearchField
-            label='Search links'
-            placeholder='Search links...'
-            value={search}
-            onValueChange={onSearch}
-          />
-        }
-      >
-        <ActionMenu
-          label={sortLabel}
-          icon={null}
-          triggerSize='compact'
-          align='end'
-          actions={sortActions}
-        />
+      <SectionToolbar>
         {hosted && (
           <Button icon='I041' onClick={openChromeStore}>
             Install Sim for Chrome
@@ -59,6 +44,22 @@ export function LinksFrame({
           New link
         </Button>
       </SectionToolbar>
+      <div className={styles.options}>
+        <SearchField
+          variant='quiet'
+          label='Search links'
+          placeholder='Search links...'
+          value={search}
+          onValueChange={onSearch}
+        />
+        <ActionMenu
+          label={sortLabel}
+          icon={null}
+          triggerSize='compact'
+          align='end'
+          actions={sortActions}
+        />
+      </div>
       {children}
     </div>
   )

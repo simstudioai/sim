@@ -82,10 +82,10 @@ export function GitHubConnectionField({
           disabled={disabled}
           hint={hint}
         />
-      ) : (
+      ) : isLoading ? null : (
         <div>
-          <Button size='compact' disabled={disabled || isLoading} onClick={onConnect}>
-            {isLoading ? 'Loading GitHub…' : 'Connect GitHub'}
+          <Button size='compact' disabled={disabled} onClick={onConnect}>
+            Connect GitHub
           </Button>
         </div>
       )}

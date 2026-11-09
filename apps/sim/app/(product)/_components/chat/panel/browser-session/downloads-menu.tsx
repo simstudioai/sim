@@ -27,7 +27,6 @@ export function DownloadsMenu({ downloads }: DownloadsMenuProps) {
       <ActionMenu
         label={inProgress ? `Downloads, ${inProgress} in progress` : 'Downloads'}
         icon={inProgress ? 'I014' : downloads.justCompleted ? 'I072' : 'I049'}
-        triggerSize='bar'
         align='end'
         heading='Downloads'
         open={downloads.open}

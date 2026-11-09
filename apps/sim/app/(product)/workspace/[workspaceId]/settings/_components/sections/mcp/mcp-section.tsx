@@ -70,11 +70,12 @@ function describeServer(server: McpServer, tools: McpTool[], status: ServerRowSt
       : status.refreshing
         ? 'Refreshing...'
         : status.loadingTools && tools.length === 0
-          ? 'Loading...'
+          ? null
           : showDiscoveryError && status.discoveryError
             ? status.discoveryError
             : getServerToolsLabel(tools, server.connectionStatus, server.lastError, server.authType)
-  return `${formatTransportLabel(server.transport)} · ${state}`
+  const transport = formatTransportLabel(server.transport)
+  return state ? `${transport} · ${state}` : transport
 }
 
 /** The workspace's MCP servers, whose tools workflows and agents call. */

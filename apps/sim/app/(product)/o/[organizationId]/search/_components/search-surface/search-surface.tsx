@@ -3,7 +3,7 @@
 import type { FormEvent } from 'react'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { TextArea } from '@sim/emcn/field/inputs'
+import { Input } from '@sim/emcn/field/inputs'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { FailureNotice } from '@sim/emcn/status'
 import { PageColumn } from '@sim/emcn-platform/page-column'
@@ -31,9 +31,8 @@ function SearchField({ query, searching, onSubmit, onStop, newSearch }: SearchFi
   }
   return (
     <form className={styles.field} onSubmit={submit} role='search'>
-      <TextArea
+      <Input
         label='Search'
-        defaultSize='line'
         placeholder='Search your company’s knowledge…'
         value={field.value}
         onChange={field.setValue}

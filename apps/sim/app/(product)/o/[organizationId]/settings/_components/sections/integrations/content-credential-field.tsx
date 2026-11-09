@@ -29,7 +29,6 @@ export function ContentCredentialField({
       options={[{ value: CONNECTED_MEMBERS, label: 'Connected members' }, ...options]}
       onValueChange={(value) => onChange(value === CONNECTED_MEMBERS ? null : value)}
       disabled={disabled || loading}
-      hint={loading ? 'Loading accounts…' : undefined}
     />
   )
 }

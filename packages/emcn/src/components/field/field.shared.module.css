@@ -134,21 +134,6 @@ textarea.input {
 .textareaFrame[data-default-size="large"] {
   block-size: calc(3 * var(--spacing-80));
 }
-
-.textareaFrame[data-default-size="line"] {
-  block-size: auto;
-}
-
-.textareaFrame[data-default-size="line"] > textarea.input {
-  field-sizing: content;
-  height: auto;
-  min-block-size: calc(var(--spacing-app-chip) - 2 * var(--spacing-stroke-default));
-  max-block-size: calc(3 * var(--spacing-80));
-  padding-block: calc(
-    (var(--spacing-app-chip) - 2 * var(--spacing-stroke-default) - var(--leading-20)) /
-    2
-  );
-}
 .switchField {
   display: flex;
   align-items: center;

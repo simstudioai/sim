@@ -55,7 +55,7 @@ export function AddSourceModal({
             availabilityStatus === 'error'
               ? 'Could not check availability'
               : !sourceReady
-                ? 'Checking availability'
+                ? undefined
                 : !available
                   ? 'Unavailable in this deployment'
                   : descriptions[type]
