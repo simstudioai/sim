@@ -39,7 +39,7 @@ export function ReviewRequests({ organizationId }: ReviewRequestsProps) {
     <>
       <SearchField
         label='Search requests'
-        placeholder='Search requests...'
+        placeholder='Search requests…'
         value={list.search}
         onValueChange={list.setSearch}
       />

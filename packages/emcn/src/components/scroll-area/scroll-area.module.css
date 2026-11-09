@@ -64,6 +64,9 @@
   min-block-size: var(--spacing-app-control-md);
   padding-inline: var(--ui-row-inset);
   gap: var(--ui-row-gap);
-  color: var(--control-danger);
+  color: var(--ui-secondary);
   overflow-wrap: anywhere;
+}
+.loadStatus[data-failed] {
+  color: var(--control-danger);
 }

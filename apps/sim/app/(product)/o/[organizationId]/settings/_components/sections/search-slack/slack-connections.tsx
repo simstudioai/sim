@@ -7,7 +7,7 @@ import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
-import { ActionRow, Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { ActionRow } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { SlackSearchInstallationView } from '@/platform/lib/data/settings-slack'
 import {
   needsSharedInstall,
@@ -126,7 +126,6 @@ export function SlackConnections({ connections, renderSetup }: SlackConnectionsP
       {connections.updateError && (
         <InlineNotice intent='danger' message={connections.updateError} />
       )}
-      {connections.updating && <Muted>Updating the Slack connection</Muted>}
       {setup && renderSetup(setup.target, setup.botName, () => setSetup(undefined))}
       {removing && (
         <Modal

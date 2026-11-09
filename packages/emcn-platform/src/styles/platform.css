@@ -173,11 +173,3 @@
 [data-platform-ui][data-embedded] :focus-visible:not(input, textarea, select, [tabindex="-1"]) {
   outline: var(--spacing-stroke-focus) solid var(--ui-secondary);
 }
-
-[data-platform-ui][data-system-font] {
-  --font-sans: var(--font-native);
-}
-
-[data-platform-ui][data-system-mono] {
-  --font-mono: ui-monospace, monospace;
-}

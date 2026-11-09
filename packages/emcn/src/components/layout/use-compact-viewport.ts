@@ -20,8 +20,3 @@ export function useCompactViewport(surface: 'content' | 'navigation' = 'content'
   const media = surface === 'navigation' ? navigation : content
   return useSyncExternalStore(media.subscribe, media.snapshot, server)
 }
-
-/** Reads the breakpoint in an effect or handler, where the hook's hydration value would be stale. */
-export function isCompactViewport(surface: 'content' | 'navigation' = 'content') {
-  return (surface === 'navigation' ? navigation : content).snapshot()
-}

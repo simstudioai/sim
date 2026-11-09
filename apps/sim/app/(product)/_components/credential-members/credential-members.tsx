@@ -155,7 +155,7 @@ export function CredentialMembers({
         title='Leave credential'
         description={`Are you sure you want to leave ${credentialName}? You will lose access to it until an admin adds you back.`}
         confirmLabel='Leave'
-        pendingLabel='Leaving...'
+        pendingLabel='Leaving…'
         onConfirm={async () => {
           await leaveCredential.mutateAsync(credentialId)
           setConfirmingLeave(false)

@@ -11,37 +11,53 @@ export type WorkspaceTabFlags = Readonly<Partial<Record<WorkspaceTabFlag, boolea
 
 /**
  * The workspace's pages, in tab order, with the data modes the zone serves each from. A page with
- * no live adapter yet is fixture-only; a page built on live data alone has no fixtures.
+ * no live adapter yet is fixture-only; a page built on live data alone has no fixtures. A `hidden`
+ * page is held back by design until the designer's pass: its route and views stay, but no live tab
+ * lists it.
  */
 const WORKSPACE_TABS = [
-  { section: 'dashboards', label: 'Dashboard', modes: ['fixture', 'live'], flag: 'dashboards' },
-  { section: 'issues', label: 'Issues', modes: ['fixture'] },
-  { section: 'changelog', label: 'Changelog', modes: ['fixture', 'live'], flag: 'changelog' },
+  {
+    section: 'dashboards',
+    label: 'Dashboard',
+    modes: ['fixture', 'live'],
+    flag: 'dashboards',
+    hidden: true,
+  },
+  { section: 'issues', label: 'Issues', modes: ['fixture'], hidden: true },
+  {
+    section: 'changelog',
+    label: 'Changelog',
+    modes: ['fixture', 'live'],
+    flag: 'changelog',
+    hidden: true,
+  },
   { section: 'logs', label: 'Logs', modes: ['fixture', 'live'] },
   { section: 'tables', label: 'Tables', modes: ['live'] },
   { section: 'files', label: 'Files', modes: ['live'] },
   { section: 'knowledge', label: 'Knowledge bases', modes: ['live'] },
   { section: 'workflows', label: 'Workflows', modes: ['live'] },
-  { section: 'tests', label: 'Tests', modes: ['live'], flag: 'workflow-tests' },
+  { section: 'tests', label: 'Tests', modes: ['live'], flag: 'workflow-tests', hidden: true },
   { section: 'settings', label: 'Settings', modes: ['fixture', 'live'] },
 ] as const satisfies readonly {
   section: string
   label: string
   modes: readonly WorkspaceDataMode[]
   flag?: WorkspaceTabFlag
+  hidden?: boolean
 }[]
 
 export type WorkspaceTab = (typeof WORKSPACE_TABS)[number]['section']
 
 /**
- * The tabs a server in `mode` serves, in order. On live data a tab whose rollout flag is off is left
- * out; example data shows every tab it serves.
+ * The tabs a server in `mode` serves, in order. On live data a hidden tab, and a tab whose rollout
+ * flag is off, is left out; example data shows every tab it serves.
  */
 export function workspaceTabs(mode: WorkspaceDataMode, flags: WorkspaceTabFlags = {}) {
   return WORKSPACE_TABS.filter(
     (tab) =>
       (tab.modes as readonly WorkspaceDataMode[]).includes(mode) &&
-      (mode === 'fixture' || !('flag' in tab) || flags[tab.flag] === true)
+      (mode === 'fixture' ||
+        (!('hidden' in tab) && (!('flag' in tab) || flags[tab.flag as WorkspaceTabFlag] === true)))
   )
 }
 

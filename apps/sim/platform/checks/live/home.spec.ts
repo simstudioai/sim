@@ -271,7 +271,7 @@ test.describe('Home with connected accounts', () => {
       page.getByRole('region', { name: 'Calendar', exact: true }).getByText(/^Standup /)
     ).toBeVisible()
     failing = false
-    await email.getByRole('button', { name: 'Try again' }).click()
+    await email.getByRole('button', { name: 'Retry' }).click()
     await expect(email.getByText('Grace Hopper')).toBeVisible()
   })
 

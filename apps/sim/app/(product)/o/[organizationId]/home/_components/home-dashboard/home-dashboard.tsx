@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { InlineNotice } from '@sim/emcn/status'
+import { FailureNotice } from '@sim/emcn/status'
 import { PageColumn, PageOverflow } from '@sim/emcn-platform/page-column'
 import { RecentItems } from '@sim/emcn-platform/recent-items'
 import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
@@ -23,9 +23,13 @@ import type {
   HomeActions,
   HomeView,
 } from '@/app/(product)/o/[organizationId]/home/_components/model'
-import { RetryButton } from '@/app/(product)/o/[organizationId]/home/_components/retry-button/retry-button'
 
 const WIDGETS: readonly HomeWidget[] = ['Activity', 'Email', 'Calendar']
+/**
+ * Home sections held back by design until the designer's pass. Their views and reads stay; Home
+ * renders none of them.
+ */
+const HIDDEN_SECTIONS: ReadonlySet<'Needs your attention'> = new Set(['Needs your attention'])
 const ACTIVITY_METRIC_TITLES: Record<HomeMode, string> = { Build: 'Tasks run', Search: 'Searches' }
 
 interface HomeDashboardProps {
@@ -85,7 +89,9 @@ export function HomeDashboard({
               <header className={styles.greeting}>
                 <div>
                   <h1 data-type='T076'>
-                    {view.firstName ? `${view.greeting}, ${view.firstName}` : view.greeting}
+                    {view.greeting && view.firstName
+                      ? `${view.greeting}, ${view.firstName}`
+                      : view.greeting}
                   </h1>
                   <p data-type='T048'>{prompt}</p>
                 </div>
@@ -118,12 +124,10 @@ export function HomeDashboard({
           <PlatformSurface theme='system'>
             <div className={styles.sections}>
               {view.recents.status === 'error' && (
-                <InlineNotice
-                  intent='warning'
+                <FailureNotice
                   message='Recents could not load.'
-                  action={
-                    <RetryButton retrying={view.recents.retrying} onRetry={actions.retryRecents} />
-                  }
+                  retrying={view.recents.retrying}
+                  onRetry={actions.retryRecents}
                 />
               )}
               {view.recents.status === 'ready' && view.recents.items.length > 0 && (
@@ -162,11 +166,13 @@ export function HomeDashboard({
                   )}
                 </div>
                 <div className={styles.column}>
-                  <AttentionList
-                    state={view.attention}
-                    asOf={view.asOf}
-                    onRetry={actions.retryAttention}
-                  />
+                  {!HIDDEN_SECTIONS.has('Needs your attention') && (
+                    <AttentionList
+                      state={view.attention}
+                      asOf={view.asOf}
+                      onRetry={actions.retryAttention}
+                    />
+                  )}
                   {!hiddenWidgets.includes('Calendar') && (
                     <ConnectedWidget
                       title='Calendar'

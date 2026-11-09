@@ -59,7 +59,6 @@ export function AdminDirectory({ directory, onImpersonate }: AdminDirectoryProps
         />
         {directory.error && <InlineNotice intent='danger' message={directory.error} />}
         {directory.warning && <InlineNotice intent='warning' message={directory.warning} />}
-        {directory.status && <Muted>{directory.status}</Muted>}
         {q && results && rows.length === 0 && <EmptyState title='No users found.' />}
         {rows.length > 0 && (
           <div>
@@ -219,7 +218,7 @@ function DirectorySearch({ initial, searching, onSearch, onAdd }: DirectorySearc
         }
       >
         <Button size='compact' submit variant='primary' disabled={searching}>
-          {searching ? 'Searching…' : 'Search'}
+          Search
         </Button>
         <Button size='compact' onClick={onAdd}>
           Add user

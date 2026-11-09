@@ -50,7 +50,6 @@ export function useLiveSlackSearch(organizationId: string): SlackSearchConsole {
     retry: () => void installations.refetch(),
     busy: configure.isPending || remove.isPending,
     canSetUp: true,
-    updating: configure.isPending,
     updateError: configure.error?.message,
     toggle: (installation: SlackSearchInstallationView) =>
       configure.mutate({

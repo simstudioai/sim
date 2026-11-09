@@ -13,8 +13,6 @@ interface PanelTabsProps {
   expanded: boolean
   onSelect: (id: string) => void
   onRemove: (id: string) => void
-  /** Moves a tab to an index in the strip; absent, the tabs keep their order. */
-  onReorder?: (id: string, index: number) => void
   /** The current tab's own commands, before the panel's. */
   actions?: ReactNode
   /** What opens a new tab, after the strip; absent when this surface has nothing to open one with. */
@@ -29,14 +27,12 @@ export function PanelTabs({
   expanded,
   onSelect,
   onRemove,
-  onReorder,
   actions,
   add,
   onExpand,
   onHide,
 }: PanelTabsProps) {
   const active = tabs.find((tab) => tab.id === current)
-  const index = tabs.findIndex((tab) => tab.id === current)
   return (
     <Tabs
       label='Chat panel tabs'
@@ -44,7 +40,6 @@ export function PanelTabs({
       current={current}
       onSelect={onSelect}
       onRemove={onRemove}
-      onReorder={onReorder}
       renderHeader={(tabList) => (
         <header className={styles.header} data-expanded={expanded || undefined}>
           <div className={styles.tabList}>{tabList}</div>
@@ -72,27 +67,10 @@ export function PanelTabs({
                     checked: tab.id === current,
                     onSelect: () => onSelect(tab.id),
                   })),
-                  ...(onReorder
-                    ? [
-                        {
-                          id: 'move-left',
-                          label: 'Move tab left',
-                          separatorBefore: true,
-                          disabled: index <= 0,
-                          onSelect: () => onReorder(current, index - 1),
-                        },
-                        {
-                          id: 'move-right',
-                          label: 'Move tab right',
-                          disabled: index < 0 || index >= tabs.length - 1,
-                          onSelect: () => onReorder(current, index + 1),
-                        },
-                      ]
-                    : []),
                   {
                     id: 'close',
                     label: 'Close current tab',
-                    separatorBefore: !onReorder,
+                    separatorBefore: true,
                     onSelect: () => onRemove(current),
                   },
                 ]}

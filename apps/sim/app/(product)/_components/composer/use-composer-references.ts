@@ -1,15 +1,6 @@
 'use client'
 
-import {
-  type KeyboardEvent,
-  type PointerEvent,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
-import { isCompactViewport } from '@sim/emcn/layout/use-compact-viewport'
+import { type KeyboardEvent, type PointerEvent, useId, useMemo, useRef, useState } from 'react'
 import type { ComposerController } from '@/app/(product)/_components/composer/model'
 import {
   type ComposerOption,
@@ -36,24 +27,6 @@ export function useComposerReferences(composer: ComposerController) {
   const [caret, setCaret] = useState<number | null>(null)
   const [dismissed, setDismissed] = useState<number | null>(null)
   const [highlight, setHighlight] = useState({ key: '', index: 0 })
-
-  /**
-   * The field takes focus once it mounts, except on a phone, in a background window, or over a
-   * field the viewer is already typing in.
-   */
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      if (isCompactViewport('navigation') || !document.hasFocus()) return
-      const active = document.activeElement
-      if (
-        active instanceof HTMLElement &&
-        (active.matches('input, textarea, select') || active.isContentEditable)
-      )
-        return
-      editor.current?.focus({ preventScroll: true })
-    })
-    return () => cancelAnimationFrame(frame)
-  }, [])
 
   const { text, attachments } = composer.draft
   const { references, tools, skills } = composer

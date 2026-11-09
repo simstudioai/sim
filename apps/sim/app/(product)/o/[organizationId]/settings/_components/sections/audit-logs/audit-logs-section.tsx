@@ -156,7 +156,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
         grow={
           <SearchField
             label='Search audit logs'
-            placeholder='Search audit logs...'
+            placeholder='Search audit logs…'
             value={feed.search}
             onValueChange={feed.setSearch}
           />
@@ -233,7 +233,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
               disabled={refreshing}
               onClick={() => void refresh()}
             >
-              {refreshing ? 'Refreshing…' : 'Refresh'}
+              Refresh
             </Button>
             <Button
               size='compact'

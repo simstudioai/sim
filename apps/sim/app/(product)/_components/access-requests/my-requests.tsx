@@ -28,7 +28,7 @@ export function MyRequests({ scope, view, mine }: MyRequestsProps) {
       {view === 'catalog' && mine.hasOrganization && (
         <SearchField
           label='Search access'
-          placeholder='Search features, integrations, and models...'
+          placeholder='Search features, integrations, and models…'
           value={mine.search}
           onValueChange={mine.setSearch}
         />

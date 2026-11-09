@@ -112,7 +112,7 @@ export function PasswordsView({
             grow={
               <SearchField
                 label='Search passwords'
-                placeholder='Search passwords...'
+                placeholder='Search passwords…'
                 value={searchTerm}
                 onValueChange={setSearchTerm}
               />

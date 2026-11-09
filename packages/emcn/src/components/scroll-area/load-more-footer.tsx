@@ -19,7 +19,7 @@ export function LoadMoreFooter({ state }: LoadMoreFooterProps) {
     <>
       <div ref={sentinel} className={styles.sentinel} aria-hidden='true' />
       {state.error && (
-        <div className={styles.loadStatus} data-type='T060' role='alert'>
+        <div className={styles.loadStatus} data-failed data-type='T060' role='alert'>
           <span>{state.error}</span>
           {retry && (
             <Button variant='quiet' size='compact' onClick={retry}>

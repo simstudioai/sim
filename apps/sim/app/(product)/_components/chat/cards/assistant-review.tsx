@@ -85,12 +85,11 @@ interface ActionCardProps {
   edits: Record<string, string> | undefined
   error: string | undefined
   disabled: boolean
-  saving: Decision | null
   onEdit: (name: string, value: string) => void
   onDecide: (decision: Decision, source: HTMLButtonElement) => void
 }
 
-function ActionCard({ action, edits, error, disabled, saving, onEdit, onDecide }: ActionCardProps) {
+function ActionCard({ action, edits, error, disabled, onEdit, onDecide }: ActionCardProps) {
   const [editing, setEditing] = useState(false)
   const inactive = action.account?.active === false
   const fields = action.fields.map((field) => ({
@@ -159,7 +158,12 @@ function ActionCard({ action, edits, error, disabled, saving, onEdit, onDecide }
       ) : (
         <ActionPreview account={action.account?.name ?? 'Account unavailable'} fields={fields} />
       )}
-      {(inactive || !action.account) && (
+      {action.account && inactive && (
+        <p className={styles.quiet} data-type='T052'>
+          {`${action.account.name} needs to be reconnected`}
+        </p>
+      )}
+      {!action.account && (
         <p className={styles.quiet} data-type='T052'>
           This account is no longer available.
         </p>
@@ -172,7 +176,7 @@ function ActionCard({ action, edits, error, disabled, saving, onEdit, onDecide }
           disabled={disabled || inactive || !action.account}
           onClick={(event) => onDecide('allow', event.currentTarget)}
         >
-          {saving === 'allow' ? 'Saving…' : 'Allow'}
+          Allow
         </Button>
         <Button
           variant='muted'
@@ -180,7 +184,7 @@ function ActionCard({ action, edits, error, disabled, saving, onEdit, onDecide }
           disabled={disabled}
           onClick={(event) => onDecide('skip', event.currentTarget)}
         >
-          {saving === 'skip' ? 'Saving…' : 'Cancel'}
+          Cancel
         </Button>
       </div>
     </section>
@@ -260,7 +264,6 @@ export function AssistantReview({ turnId, turn }: AssistantReviewProps) {
   const cards = useChatCards()
   const [edits, setEdits] = useState<Edits>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [saving, setSaving] = useState<{ ids: readonly string[]; decision: Decision } | null>(null)
   const focusOrigin = useRef<HTMLButtonElement | null>(null)
   const pending = review?.pending ?? false
 
@@ -303,19 +306,14 @@ export function AssistantReview({ turnId, turn }: AssistantReviewProps) {
     setErrors((current) =>
       Object.fromEntries(Object.entries(current).filter(([id]) => !ids.includes(id)))
     )
-    setSaving({ ids, decision })
-    try {
-      const failures = await decide(ids, decision, decision === 'allow' ? edits : undefined)
-      // The cards not decided stay on screen, with whatever was typed into them.
-      setEdits((current) =>
-        Object.fromEntries(
-          Object.entries(current).filter(([id]) => !ids.includes(id) || id in failures)
-        )
+    const failures = await decide(ids, decision, decision === 'allow' ? edits : undefined)
+    // The cards not decided stay on screen, with whatever was typed into them.
+    setEdits((current) =>
+      Object.fromEntries(
+        Object.entries(current).filter(([id]) => !ids.includes(id) || id in failures)
       )
-      setErrors((current) => ({ ...current, ...failures }))
-    } finally {
-      setSaving(null)
-    }
+    )
+    setErrors((current) => ({ ...current, ...failures }))
   }
   const reviewCards = ownsActions
     ? actions.map((action) => ({
@@ -327,7 +325,6 @@ export function AssistantReview({ turnId, turn }: AssistantReviewProps) {
             edits={edits[action.id]}
             error={errors[action.id]}
             disabled={pending || status === 'error'}
-            saving={saving?.ids.includes(action.id) ? saving.decision : null}
             onEdit={(name, value) => {
               setErrors((current) => omit(current, [action.id]))
               setEdits((current) => ({
@@ -395,16 +392,10 @@ export function AssistantReview({ turnId, turn }: AssistantReviewProps) {
               </Button>
             </div>
           )}
-          {pending ? (
-            <p className={styles.quiet} data-type='T052' role='status'>
-              Saving review
+          {!pending && more && (
+            <p className={styles.quiet} data-type='T052'>
+              More actions are waiting.
             </p>
-          ) : (
-            more && (
-              <p className={styles.quiet} data-type='T052'>
-                More actions are waiting.
-              </p>
-            )
           )}
         </section>
       )}

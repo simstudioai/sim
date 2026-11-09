@@ -57,7 +57,7 @@ export function WorkflowImport({ importer, inputs, onChange, onImported }: Workf
               variant='primary'
               disabled={locked || !workflow.trim() || !target.trim()}
             >
-              {importer.pending ? 'Importing…' : 'Import'}
+              Import
             </Button>
           </ActionRow>
           {importer.notice && (

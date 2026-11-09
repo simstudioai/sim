@@ -32,7 +32,6 @@ export interface SlackSearchConsole {
   busy: boolean
   /** Whether a new install or reconnect can start here. */
   canSetUp: boolean
-  updating: boolean
   updateError?: string
   toggle: (installation: SlackSearchInstallationView) => void
   remove: (installation: SlackSearchInstallationView) => Promise<void>

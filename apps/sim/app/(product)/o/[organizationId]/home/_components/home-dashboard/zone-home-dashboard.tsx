@@ -1,7 +1,7 @@
 'use client'
 
 import { SegmentedControl } from '@sim/emcn/segmented-control'
-import type { HomeMode, HomeWidget } from '@/app/(product)/_components/model'
+import type { HomeWidget } from '@/app/(product)/_components/model'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
 import { HomeComposer } from '@/app/(product)/o/[organizationId]/home/_components/home-composer/home-composer'
 import { HomeDashboard } from '@/app/(product)/o/[organizationId]/home/_components/home-dashboard/home-dashboard'
@@ -10,10 +10,7 @@ import type {
   HomeView,
 } from '@/app/(product)/o/[organizationId]/home/_components/model'
 
-const PROMPTS: Record<HomeMode, string> = {
-  Build: 'What should we get done?',
-  Search: 'Ask about your company’s knowledge.',
-}
+const PROMPT = 'Your company’s knowledge and work, connected by Sim.'
 
 interface ZoneHomeDashboardProps {
   view: HomeView
@@ -41,7 +38,7 @@ export function ZoneHomeDashboard({
       view={{ ...view, firstName }}
       actions={actions}
       mode={homeMode}
-      prompt={PROMPTS[homeMode]}
+      prompt={PROMPT}
       composer={<HomeComposer mode={homeMode} inventory={view.composerInventory} />}
       composerActions={
         <SegmentedControl
