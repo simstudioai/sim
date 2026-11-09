@@ -202,6 +202,7 @@ Status is one of:
 - **Legacy**: stays on a page outside the Platform, and the Platform links out. Reason names that page.
 - **Hidden**: Platform UI with no backend, hidden on live data. Reason names what a backend would need.
 - **Open**: not built yet. Reason names the owner.
+- **Declined**: a legacy capability the Platform design deliberately leaves out. Reason quotes or cites the design decision.
 
 ## Members
 
@@ -392,9 +393,9 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Home | Needs your attention | None; Platform only | Done | "an unread chat needs attention", "an account Google stopped honoring". A failed source has no live check |
 | Home | Cross-chat approvals in Needs your attention | None; Platform only | Hidden | Pending tool permissions and assistant reviews are listed per chat. Needs a member-scoped list across chats |
 | Home | Customize Home | `stores/organization-home/store.ts` | Unverified | No live check yet. Hide and Undo persist in this browser per viewer and organization under legacy's `organization-home:v1` key, cleared on sign-out (`useHiddenHomeWidgets` in `lib/data/home.ts`). Live Home waits for the session to name the viewer, so a hidden widget never reads. Fixture sessions keep the choice for the session |
-| Home | Workspaces widget: rows with status and last run, See more, its own read | `platform/embedded/.../home-workspaces.tsx`, `/home/workspace-activity` | Unverified | `home/_components/home-workspaces/` over `useHomeWorkspaces` in `lib/data/home.ts`: the sidebar's cached workspace list (no request of its own), ranked Review, Running, then the rest by `toHomeWorkspaceItems`, with `useOrganizationHomeWorkspaceActivity` polling only while a run is live. Rows paint before their activity (`…`), a failed activity read keeps them with Try again, and five rows page like the rail. Customize Home offers it beside the other widgets under the same `organization-home:v1` store; hidden, it reads nothing. `scripts/org-redesign-e2e/checks/home.ts` covers it; not yet run against a live stack |
+| Home | Workspaces widget: rows with status and last run, See more, its own read | `platform/embedded/.../home-workspaces.tsx`, `/home/workspace-activity` | Declined | Emir Karabeg removed it from the Platform's Home in `2f1bf5ac21`, leaving Customize Home to Activity, Email and Calendar; the sidebar lists the workspaces. A stored `Workspaces` choice under `organization-home:v1` is ignored. The `/home/workspace-activity` route, contract and use case remain with no Platform reader |
 | Home | Get started checklist | `app/o/[id]/home/components/get-started/get-started.tsx` | Done | "Search mode on Home offers Get started". Completing each step has no live check |
-| Home | Suggested action rows and Connect from a suggestion | `suggested-actions.tsx` | Hidden | Removed from the Platform's Home by product direction, with its catalog route |
+| Home | Suggested action rows and Connect from a suggestion | `suggested-actions.tsx` | Declined | Emir Karabeg removed it from the Platform's Home: "you added back things like suggested actions which I removed … things like the suggested actions will pollute the styling for the rest of the files. It was different font, spacing, etc." Its catalog route, contract and use case went with it |
 | Home | Plan toggle, composer handoff and server chat id | `organization-conversation.tsx` | Open | Chat lane owns `home-composer` |
 | Home | Workspace status read stays bounded under thousands of time pauses: only the asked workspaces' pauses are read, stopping at the first waiting on a person | `lib/organizations/home/workspace-activity.ts` | Done | `workspace-activity.integration.ts` measures the real plan on real PostgreSQL. No index is needed; a workspace with no match still reads every one of its live pauses |
 
