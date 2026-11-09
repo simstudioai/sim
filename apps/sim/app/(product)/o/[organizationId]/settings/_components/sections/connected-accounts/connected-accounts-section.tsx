@@ -1,15 +1,19 @@
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
-import { FixtureCredentialGroups } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/fixture-credential-groups'
 import { LiveCredentialGroups } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/live-credential-groups'
-import { loadCredentialGroupsData } from '@/platform/fixtures'
 import { readScenario } from '@/platform/lib/navigation'
 
 export default async function ConnectedAccountsSection({
   organization,
-  fixture,
   query,
 }: SettingsSectionProps) {
-  if (fixture) {
+  // Inlined at build time, so a normal build carries neither this branch nor the example data.
+  if (process.env.SIM_PLATFORM_FIXTURES === '1') {
+    const [{ FixtureCredentialGroups }, { loadCredentialGroupsData }] = await Promise.all([
+      import(
+        '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/fixture-credential-groups'
+      ),
+      import('@/platform/fixtures'),
+    ])
     const data = await loadCredentialGroupsData(readScenario(query.state))
     return data && <FixtureCredentialGroups data={data} />
   }

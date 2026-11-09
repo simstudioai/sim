@@ -2,15 +2,13 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import { ChangelogDetails } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-details/changelog-details'
-import { loadWorkspaceChangelogEntry } from '@/platform/fixtures'
-import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref, readScenario } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
 import { withChangelogView } from '@/platform/lib/workspace-views'
 
 export const metadata: Metadata = { title: 'Changelog' }
 
-/** The mode is per-request; a build must not freeze the answer. */
+/** Rendered per request: a build must never prerender a viewer's page. */
 export const dynamic = 'force-dynamic'
 
 export default async function Page({
@@ -24,17 +22,19 @@ export default async function Page({
     label: 'Changelog',
   }
   const id = decodeURIComponent(entryId)
-  if (resolvePlatformMode() === 'live') {
-    const [{ readWorkspaceTabFlag }, { LiveRelease }] = await Promise.all([
-      import('@/platform/lib/data/workspace-tab-flags'),
-      import(
-        '@/app/(product)/workspace/[workspaceId]/changelog/_components/live-release/live-release'
-      ),
-    ])
-    if (!(await readWorkspaceTabFlag('changelog'))) notFound()
-    return <LiveRelease workspaceId={workspaceId} releaseId={id} back={back} />
+  // Inlined at build time, so a normal build carries neither this branch nor the example data.
+  if (process.env.SIM_PLATFORM_FIXTURES === '1') {
+    const { loadWorkspaceChangelogEntry } = await import('@/platform/fixtures')
+    const entry = await loadWorkspaceChangelogEntry(readScenario(query.state), workspaceId, id)
+    if (!entry) notFound()
+    return <ChangelogDetails entry={entry} back={back} />
   }
-  const entry = await loadWorkspaceChangelogEntry(readScenario(query.state), workspaceId, id)
-  if (!entry) notFound()
-  return <ChangelogDetails entry={entry} back={back} />
+  const [{ readWorkspaceTabFlag }, { LiveRelease }] = await Promise.all([
+    import('@/platform/lib/data/workspace-tab-flags'),
+    import(
+      '@/app/(product)/workspace/[workspaceId]/changelog/_components/live-release/live-release'
+    ),
+  ])
+  if (!(await readWorkspaceTabFlag('changelog'))) notFound()
+  return <LiveRelease workspaceId={workspaceId} releaseId={id} back={back} />
 }

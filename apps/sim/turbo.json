@@ -229,8 +229,9 @@
     },
     "build": {
       // The product routes and their data seam ship in this build; the Platform's browser checks,
-      // docs and live seed do not.
-      "env": ["NEXT_BUILD_SKIP_TYPE_CHECK"],
+      // docs and live seed do not. SIM_PLATFORM_FIXTURES makes a different build, the fixture
+      // preview with no sign-in, so it keys the cache: a fixture build never restores as a normal one.
+      "env": ["NEXT_BUILD_SKIP_TYPE_CHECK", "SIM_PLATFORM_FIXTURES"],
       "inputs": [
         "$TURBO_DEFAULT$",
         ".env*",

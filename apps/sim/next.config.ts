@@ -34,9 +34,27 @@ const MARKDOWN_REQUEST = {
   missing: [{ type: 'header' as const, key: 'accept', value: REFUSES_MARKDOWN }],
 }
 
+/**
+ * The value every bundle inlines as `process.env.SIM_PLATFORM_FIXTURES`: `'1'` makes a fixture build,
+ * which renders Platform's example data with no sign-in (`lib/core/config/platform-fixtures.ts`).
+ * Always a string, since Next inlines an `env` entry only when it is set and an unset one would
+ * leave the reads to the server's own environment. A production image never carries example data.
+ */
+function platformFixturesBuildValue(): '1' | '' {
+  if (process.env.SIM_PLATFORM_FIXTURES !== '1') return ''
+  if (isTruthy(env.DOCKER_BUILD)) {
+    throw new Error(
+      'SIM_PLATFORM_FIXTURES=1 builds example data that renders with no sign-in; a production image cannot carry it'
+    )
+  }
+  return '1'
+}
+
 const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
+  /** Inlined into every bundle at build time; a normal build compiles its fixture branches away. */
+  env: { SIM_PLATFORM_FIXTURES: platformFixturesBuildValue() },
   // Safe here since this repo's source is already fully public on GitHub -
   // no additional exposure versus Next's default (disabled to avoid leaking
   // source on the client).

@@ -12,7 +12,7 @@ export const FIXTURE_ORGANIZATION_ID = 'sim'
 /** The example organization's `routePrefix`: its routes live under `/o/sim`. */
 export const FIXTURE_ROUTE_PREFIX = `/o/${FIXTURE_ORGANIZATION_ID}`
 
-/** Only invoke the scenario's import on a development server that opted into preview data. */
+/** Only invoke the scenario's import on a fixture build; callers reach this module only on one. */
 function fixture<T, Args extends unknown[]>(
   read: (scenario: Scenario, ...args: Args) => Promise<T>
 ) {

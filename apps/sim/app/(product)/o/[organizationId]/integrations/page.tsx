@@ -1,20 +1,20 @@
 import type { Metadata } from 'next'
-import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import type { ProductPageProps } from '@/platform/lib/route-props'
 
 /** A Slack onboarding token rides in the query, so it never leaves in a Referer. */
 export const metadata: Metadata = { title: 'Integrations', referrer: 'no-referrer' }
 
 export default async function Page({ searchParams }: ProductPageProps<{ organizationId: string }>) {
-  // Loaded only behind its mode, so a fixture server never evaluates the data seam.
-  if (resolvePlatformMode() === 'live') {
-    const { LiveIntegrationsRoute } = await import(
-      '@/app/(product)/o/[organizationId]/integrations/_components/integrations-page/live-integrations-route'
+  // Inlined at build time, so a normal build carries neither this branch nor the example data.
+  if (process.env.SIM_PLATFORM_FIXTURES === '1') {
+    const { IntegrationsRoute } = await import(
+      '@/app/(product)/o/[organizationId]/integrations/_components/fixtures/integrations-page/integrations-route'
     )
-    return <LiveIntegrationsRoute searchParams={await searchParams} />
+    return <IntegrationsRoute searchParams={searchParams} />
   }
-  const { IntegrationsRoute } = await import(
-    '@/app/(product)/o/[organizationId]/integrations/_components/fixtures/integrations-page/integrations-route'
+  // Loaded only here, so a fixture build never evaluates the data seam.
+  const { LiveIntegrationsRoute } = await import(
+    '@/app/(product)/o/[organizationId]/integrations/_components/integrations-page/live-integrations-route'
   )
-  return <IntegrationsRoute searchParams={searchParams} />
+  return <LiveIntegrationsRoute searchParams={await searchParams} />
 }

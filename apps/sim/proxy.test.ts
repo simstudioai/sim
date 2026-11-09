@@ -321,17 +321,18 @@ describe('signed-out product visit', () => {
     )
   })
 
-  it('opens example data on the fixture development server, which has no sign-in', async () => {
-    vi.stubEnv('NODE_ENV', 'development')
+  // The build inlines `process.env.SIM_PLATFORM_FIXTURES`; these stub the value each build inlines.
+  it('opens example data on a fixture build, which has no sign-in', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
     vi.stubEnv('SIM_PLATFORM_FIXTURES', '1')
     const response = await signedOutVisit('/o/sim/integrations/gmail?state=full')
     expect(response.headers.get('location')).toBeNull()
     expect(response.headers.get(`x-middleware-request-${SHELL_SCOPE_HEADER}`)).toBe('org:sim')
   })
 
-  it('still sends a production build with the fixture switch on to sign-in', async () => {
+  it('sends a normal build to sign-in', async () => {
     vi.stubEnv('NODE_ENV', 'production')
-    vi.stubEnv('SIM_PLATFORM_FIXTURES', '1')
+    vi.stubEnv('SIM_PLATFORM_FIXTURES', '')
     const response = await signedOutVisit('/o/sim/home')
     expect(response.headers.get('location')).toContain('/login?callbackUrl=')
   })

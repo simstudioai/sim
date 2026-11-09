@@ -1,7 +1,5 @@
 import { type ReactNode, Suspense } from 'react'
 import { ProductSession } from '@/app/(product)/_components/product-session'
-import { FIXTURE_ROUTE_PREFIX, loadShellScenarios } from '@/platform/fixtures'
-import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
 /**
  * The one product shell, around every organization and workspace page, so the sidebar never
@@ -15,17 +13,19 @@ export async function ProductShell({
   telemetry: ReactNode
   children: ReactNode
 }) {
-  if (resolvePlatformMode() === 'live') {
-    // Loaded only here, so a fixture server never evaluates the data seam.
-    const { LiveShell } = await import('@/app/(product)/_components/live-shell/live-shell')
-    return <LiveShell telemetry={telemetry}>{children}</LiveShell>
+  // Inlined at build time, so a normal build carries neither this branch nor the example data.
+  if (process.env.SIM_PLATFORM_FIXTURES === '1') {
+    const { FIXTURE_ROUTE_PREFIX, loadShellScenarios } = await import('@/platform/fixtures')
+    const fixtures = await loadShellScenarios()
+    return (
+      <Suspense fallback={null}>
+        <ProductSession fixtures={fixtures} routePrefix={FIXTURE_ROUTE_PREFIX}>
+          {children}
+        </ProductSession>
+      </Suspense>
+    )
   }
-  const fixtures = await loadShellScenarios()
-  return (
-    <Suspense fallback={null}>
-      <ProductSession fixtures={fixtures} routePrefix={FIXTURE_ROUTE_PREFIX}>
-        {children}
-      </ProductSession>
-    </Suspense>
-  )
+  // Loaded only here, so a fixture build never evaluates the data seam.
+  const { LiveShell } = await import('@/app/(product)/_components/live-shell/live-shell')
+  return <LiveShell telemetry={telemetry}>{children}</LiveShell>
 }

@@ -238,7 +238,7 @@ const serverSeamHelpers = new Set([
   'lib/auth/session-response',
   'lib/billing/application/organization-billing/get-organization-billing-summary',
   'lib/core/application/organization-authorization',
-  // The example-data rule the proxy also reads, so a fixture server needs no sign-in.
+  // The fixture build's inlined switch, which `lib/data/mode.ts` reads.
   'lib/core/config/platform-fixtures',
   'lib/core/utils/deadline',
   'lib/credential-groups/application/organization-access',
