@@ -1,71 +1,38 @@
 import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { type NextRequest, NextResponse } from 'next/server'
-import { createWorkflowContract, workflowListQuerySchema } from '@/lib/api/contracts/workflows'
+import { createWorkflowContract, listWorkflowsContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
+import {
+  defineInternalJsonRoute,
+  internalErrorResponse,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { listWorkspaceWorkflowItemsUseCase } from '@/lib/workflows/application/list-workflows'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 import { performCreateWorkflow } from '@/lib/workflows/orchestration'
-import { listWorkflowsForUser } from '@/lib/workflows/queries'
-import { getUserEntityPermissions, workspaceExists } from '@/lib/workspaces/permissions/utils'
-import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
+import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkflowAPI')
 
-export const GET = withRouteHandler(async (request: NextRequest) => {
-  const startTime = Date.now()
-  const url = new URL(request.url)
-  const query = workflowListQuerySchema.safeParse(Object.fromEntries(url.searchParams.entries()))
-  if (!query.success) {
-    return NextResponse.json(
-      { error: 'Invalid query parameters', details: query.error.issues },
-      { status: 400 }
-    )
-  }
-  const { workspaceId, scope } = query.data
-
-  try {
-    const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-    if (!auth.success || !auth.userId) {
-      logger.warn('Unauthorized workflow access attempt')
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    const userId = auth.userId
-
-    if (workspaceId) {
-      const wsExists = await workspaceExists(workspaceId)
-
-      if (!wsExists) {
-        logger.warn(`Attempt to fetch workflows for non-existent workspace: ${workspaceId}`)
-        return NextResponse.json(
-          { error: 'Workspace not found', code: 'WORKSPACE_NOT_FOUND' },
-          { status: 404 }
-        )
-      }
-
-      const userRole = await verifyWorkspaceMembership(userId, workspaceId)
-
-      if (!userRole) {
-        logger.warn(
-          `User ${userId} attempted to access workspace ${workspaceId} without membership`
-        )
-        return NextResponse.json(
-          { error: 'Access denied to this workspace', code: 'WORKSPACE_ACCESS_DENIED' },
-          { status: 403 }
-        )
-      }
-    }
-
-    const workflows = await listWorkflowsForUser({ userId, workspaceId, scope })
-
-    return NextResponse.json({ data: workflows }, { status: 200 })
-  } catch (error: any) {
-    const elapsed = Date.now() - startTime
-    logger.error(`Workflow fetch error after ${elapsed}ms`, error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+export const GET = defineInternalJsonRoute({
+  contract: listWorkflowsContract,
+  auth: internalSessionAuth,
+  operation: workflowOperations.list,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve existing workflow list behavior' }),
+  errorPolicy: {
+    ...internalOrchestrationErrorPolicy,
+    unhandled: () => internalErrorResponse(500, { error: 'Internal server error' }),
+  },
+  mapInput: ({ query }) => ({ workspaceId: query.workspaceId, scope: query.scope }),
+  useCase: listWorkspaceWorkflowItemsUseCase,
+  present: (data) => ({ data }),
 })
 
 // POST /api/workflows - Create a new workflow

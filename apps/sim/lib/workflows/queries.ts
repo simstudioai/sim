@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
-import { and, asc, eq, inArray, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import type { WorkflowListItem } from '@/lib/api/contracts/workflows'
 import {
   type CursorKey,
@@ -16,9 +16,8 @@ import {
   timestampKey,
 } from '@/lib/api/list-query'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 
-type WorkflowListScope = 'active' | 'archived' | 'all'
+export type WorkflowListScope = 'active' | 'archived' | 'all'
 
 export type WorkflowSortBy = 'position' | 'name' | 'createdAt' | 'updatedAt' | 'runCount'
 export type WorkflowSortOrder = ListSortOrder
@@ -219,49 +218,21 @@ function toListItem(row: WorkflowListRow): WorkflowListItem {
   }
 }
 
-function scopeCondition(
-  scope: WorkflowListScope,
-  base: ReturnType<typeof eq> | ReturnType<typeof inArray>
-) {
+function scopeCondition(scope: WorkflowListScope, base: ReturnType<typeof eq>) {
   if (scope === 'all') return base
   if (scope === 'archived') return and(base, sql`${workflow.archivedAt} IS NOT NULL`)
   return and(base, isNull(workflow.archivedAt))
 }
 
-/**
- * Lists workflows visible to a user as the contract wire shape, shared by the
- * `GET /api/workflows` route and the workspace sidebar prefetch. Performs no auth
- * or membership checks — callers enforce access before invoking.
- *
- * With `workspaceId`, returns that workspace's workflows; without it, returns
- * workflows across every workspace the user has permissions on.
- */
-export async function listWorkflowsForUser({
-  userId,
-  workspaceId,
-  scope,
-}: {
-  userId: string
-  workspaceId?: string
+/** One workspace's workflows as the contract wire shape. Performs no auth or membership checks. */
+export async function listWorkspaceWorkflowItems(
+  workspaceId: string,
   scope: WorkflowListScope
-}): Promise<WorkflowListItem[]> {
-  if (workspaceId) {
-    const rows = await db
-      .select(listColumns)
-      .from(workflow)
-      .where(scopeCondition(scope, eq(workflow.workspaceId, workspaceId)))
-      .orderBy(...orderByClause)
-    return rows.map(toListItem)
-  }
-
-  const accessibleRows = await listAccessibleWorkspaceRowsForUser(userId, 'all')
-  const workspaceIds = accessibleRows.map((row) => row.workspace.id)
-  if (workspaceIds.length === 0) return []
-
+): Promise<WorkflowListItem[]> {
   const rows = await db
     .select(listColumns)
     .from(workflow)
-    .where(scopeCondition(scope, inArray(workflow.workspaceId, workspaceIds)))
+    .where(scopeCondition(scope, eq(workflow.workspaceId, workspaceId)))
     .orderBy(...orderByClause)
   return rows.map(toListItem)
 }

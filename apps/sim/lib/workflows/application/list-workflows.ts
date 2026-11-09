@@ -9,7 +9,9 @@ import {
 } from '@/lib/workflows/application/folders'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
+  listWorkspaceWorkflowItems,
   listWorkspaceWorkflows,
+  type WorkflowListScope,
   type WorkflowSortBy,
   type WorkflowSortOrder,
 } from '@/lib/workflows/queries'
@@ -81,4 +83,17 @@ export const listWorkflows = defineAuthorizedWorkflowUseCase({
       sortOrder: input.sortOrder,
     }
   },
+})
+
+export interface ListWorkspaceWorkflowItemsInput {
+  workspaceId: string
+  scope: WorkflowListScope
+}
+
+/** A workspace's whole workflow list as the internal route sends it, in the sidebar's order. */
+export const listWorkspaceWorkflowItemsUseCase = defineAuthorizedWorkflowUseCase({
+  operation: workflowOperations.list,
+  resolveContext: ({ input }: { input: ListWorkspaceWorkflowItemsInput }) =>
+    resolveActiveWorkspaceApplicationContext(input.workspaceId),
+  execute: ({ input, context }) => listWorkspaceWorkflowItems(context.workspaceId, input.scope),
 })

@@ -97,7 +97,7 @@ function singleTypeSource(
 
 /**
  * Each requested type's archived rows, with exactly the predicate its own archived list
- * applies (`listWorkflowsForUser`, `listFoldersForWorkspace`, `listTables`,
+ * applies (`listWorkspaceWorkflowItems`, `listFoldersForWorkspace`, `listTables`,
  * `getWorkspaceKnowledgeBases`, `listWorkspaceFiles`, `listWorkspaceFileFolders`,
  * `listMothershipChats`), so the two never disagree about what is in the trash.
  *

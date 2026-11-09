@@ -235,7 +235,7 @@ export const workflowIdParamsSchema = z.object({
 })
 
 export const workflowListQuerySchema = z.object({
-  workspaceId: z.string().min(1).optional(),
+  workspaceId: z.string().min(1),
   scope: workflowScopeSchema.default('active'),
 })
 

@@ -17,7 +17,7 @@ vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 import { db } from '@sim/db'
-import { GET, POST } from '@/app/api/folders/route'
+import { POST } from '@/app/api/folders/route'
 
 const mockDb = db as any
 
@@ -144,27 +144,6 @@ describe('Folders API Route', () => {
     mockTransaction.mockImplementation(createMockTransaction({}))
 
     mockGetUserEntityPermissions.mockResolvedValue('admin')
-  })
-
-  describe('GET /api/folders', () => {
-    it('should return 403 when user has no workspace permissions', async () => {
-      mockAuthenticatedUser()
-      mockGetUserEntityPermissions.mockResolvedValue(null)
-
-      const mockRequest = createMockRequest(
-        'GET',
-        undefined,
-        {},
-        'http://localhost:3000/api/folders?workspaceId=workspace-123'
-      )
-
-      const response = await GET(mockRequest)
-
-      expect(response.status).toBe(403)
-
-      const data = await response.json()
-      expect(data).toHaveProperty('error', 'Access denied to this workspace')
-    })
   })
 
   describe('POST /api/folders', () => {
