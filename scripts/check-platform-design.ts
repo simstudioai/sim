@@ -275,6 +275,7 @@ const serverSeamHelpers = new Set([
   'lib/mothership/chat/intent',
   'lib/mothership/chat/lifecycle',
   'lib/mothership/chat/organization-chats',
+  'lib/navigation/legacy-redirects',
   'lib/navigation/resolve-app-entry',
   'lib/organization-secrets/application/use-cases',
   'lib/organizations/application/member-roster',
@@ -284,6 +285,7 @@ const serverSeamHelpers = new Set([
   'lib/users/application/read-current-user',
   'lib/workflows/application/read-workflow-definition',
   'lib/workspaces/list',
+  'lib/workspaces/permissions/utils',
   'lib/workspaces/seed-workspace-list',
 ])
 const isServerOnly = (file: string) => /^import 'server-only'$/m.test(read(file))

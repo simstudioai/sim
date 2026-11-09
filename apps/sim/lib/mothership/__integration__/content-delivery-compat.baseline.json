@@ -777,7 +777,7 @@
           "name": "content fixture <workflow>",
           "runCount": 0,
           "updatedAt": "<time>",
-          "webUrl": "http://localhost:3000/workspace/<workspace>/w/<workflow>",
+          "webUrl": "http://localhost:3000/workspace/<workspace>/workflows/<workflow>",
           "workspaceId": "<workspace>"
         }
       ],

@@ -149,7 +149,7 @@ export function ForkWorkspaceModal({
           toast.success(`Forked into "${result.workspace.name}"`, {
             action: {
               label: 'Open fork',
-              onClick: () => router.push(`/workspace/${result.workspace.id}/w`),
+              onClick: () => router.push(`/workspace/${result.workspace.id}/workflows`),
             },
           })
           onOpenChange(false)

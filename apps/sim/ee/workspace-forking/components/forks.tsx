@@ -189,7 +189,7 @@ export function Forks() {
   }
 
   const openForkWorkspace = (forkId: string) => {
-    requestLeave(() => router.push(`/workspace/${forkId}/w`))
+    requestLeave(() => router.push(`/workspace/${forkId}/workflows`))
   }
 
   const openForkMappings = (forkId: string) => {

@@ -220,7 +220,7 @@ function renderInlineMarkdown(text: string): string {
 }
 
 const SIM_RESOURCE_ROUTES: Record<string, (workspaceId: string, id: string) => string> = {
-  workflow: (workspaceId, id) => `/workspace/${workspaceId}/w/${id}`,
+  workflow: (workspaceId, id) => `/workspace/${workspaceId}/workflows/${id}`,
   table: (workspaceId, id) => `/workspace/${workspaceId}/tables/${id}`,
   knowledge: (workspaceId, id) => `/workspace/${workspaceId}/knowledge/${id}`,
 }

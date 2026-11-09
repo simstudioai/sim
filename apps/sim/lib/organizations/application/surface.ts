@@ -18,7 +18,6 @@ import {
 import { resolveOrganizationSurfaceFlags } from '@/lib/organizations/surface-flags'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
-import { isPlatformOrgUiEnabled } from '@/lib/platform/rollout'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 
 const logger = createLogger('OrganizationSurfaceRead')
@@ -29,20 +28,18 @@ async function resolveOrganizationSurface(
   userId: string
 ): Promise<OrganizationSurfaceResponse> {
   const organizationId = context.organization.id
-  const [{ flags, benchmarkEnabled }, people, simLinks, platformAdmin, platformOrgUi] =
-    await Promise.all([
-      resolveOrganizationSurfaceFlags(organizationId, userId),
-      canBrowsePeople(organizationId, context.viewer.role),
-      isSimLinksEnabled(organizationId),
-      // Decides which links are drawn; the pages behind them authorize for themselves.
-      isPlatformAdmin(userId).catch((error: unknown) => {
-        logger.warn('Could not resolve platform administration navigation', {
-          error: getErrorMessage(error),
-        })
-        return false
-      }),
-      isPlatformOrgUiEnabled(organizationId),
-    ])
+  const [{ flags, benchmarkEnabled }, people, simLinks, platformAdmin] = await Promise.all([
+    resolveOrganizationSurfaceFlags(organizationId, userId),
+    canBrowsePeople(organizationId, context.viewer.role),
+    isSimLinksEnabled(organizationId),
+    // Decides which links are drawn; the pages behind them authorize for themselves.
+    isPlatformAdmin(userId).catch((error: unknown) => {
+      logger.warn('Could not resolve platform administration navigation', {
+        error: getErrorMessage(error),
+      })
+      return false
+    }),
+  ])
 
   return {
     organization: context.organization,
@@ -53,7 +50,6 @@ async function resolveOrganizationSurface(
     connectedAccountsAvailable: context.connectedAccountsAvailable,
     settingsFeatures: context.settingsFeatures,
     deployment: context.deployment,
-    platformOrgUi,
     navFlags: {
       people,
       simLinks,

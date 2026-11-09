@@ -42,10 +42,8 @@ Deployed, the Platform is a zone at `/org` on the main app's origin, so it share
 | `SIM_PLATFORM_BASE_PATH=/org` | Platform, at build and at `next start` | Prefixes routes and assets; `next start` re-reads the config, so without it every route answers 404 |
 | `SIM_PLATFORM_API_ORIGIN` | Platform, at runtime, standalone only | Where the browser's `/api` requests are proxied when there is no base path |
 | `NEXT_PUBLIC_APP_URL` | Platform, at runtime | The main app's public origin, for login and legacy links |
-| `SIM_PLATFORM_ORIGIN` | Main app, at build and runtime | The `/org` rewrite is baked at build; the organization redirect reads it at runtime |
-| `platform-org-ui` flag | AppConfig, or `PLATFORM_ORG_UI` | Which organizations the legacy layout redirects here |
 
-With none of these set, nothing changes for either app. The legacy layout redirects only flagged members, keeps its query string, and leaves unmapped routes on the legacy surface. To run live locally without the zone, start the main app, sign in at its origin, then start this app with the main app's environment, `SIM_PLATFORM_API_ORIGIN=http://localhost:3000` and `NEXT_PUBLIC_APP_URL=http://localhost:3000`; with no base path it proxies the browser's `/api` itself.
+To run live locally without the zone, start the main app, sign in at its origin, then start this app with the main app's environment, `SIM_PLATFORM_API_ORIGIN=http://localhost:3000` and `NEXT_PUBLIC_APP_URL=http://localhost:3000`; with no base path it proxies the browser's `/api` itself.
 
 ## Desktop
 

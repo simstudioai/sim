@@ -31,8 +31,8 @@ function shouldLoadProviderModels(
   return (
     pathname === workspaceBase ||
     pathname === `${workspaceBase}/home` ||
-    pathname === `${workspaceBase}/w` ||
-    pathname?.startsWith(`${workspaceBase}/w/`) === true ||
+    pathname === `${workspaceBase}/workflows` ||
+    pathname?.startsWith(`${workspaceBase}/workflows/`) === true ||
     pathname === `${workspaceBase}/chat` ||
     pathname?.startsWith(`${workspaceBase}/chat/`) === true
   )

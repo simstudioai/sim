@@ -91,7 +91,7 @@ export function useDuplicateWorkflow({ workspaceId, onSuccess }: UseDuplicateWor
         })
 
         if (duplicatedIds.length === 1) {
-          router.push(`/workspace/${workspaceIdRef.current}/w/${duplicatedIds[0]}`)
+          router.push(`/workspace/${workspaceIdRef.current}/workflows/${duplicatedIds[0]}`)
         }
 
         onSuccessRef.current?.()

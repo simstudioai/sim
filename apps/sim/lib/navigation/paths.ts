@@ -26,7 +26,7 @@ export const WORKSPACES_PATH = '/workspace'
 export const WORKSPACE_SETTINGS_PATH = `${WORKSPACES_PATH}?redirect=settings`
 
 /** Root of the organization surface; `/o` alone resolves like {@link APP_ENTRY_PATH}. */
-export const ORGANIZATIONS_PATH = '/o'
+const ORGANIZATIONS_PATH = '/o'
 
 /**
  * Every destination under one organization's surface, built from one place so the
@@ -44,11 +44,11 @@ export function organizationRoutes(organizationId: string) {
       `${root}/integrations/accounts/${encodeURIComponent(credentialId)}`,
     benchmark: `${root}/benchmark`,
     memberSecrets: `${root}/integrations/secrets`,
-    simLinks: `${root}/links`,
+    simLinks: `${root}/settings/links`,
     people: `${root}/people`,
     person: (memberId: string) => `${root}/people/${encodeURIComponent(memberId)}`,
     organizationSecrets: `${root}/settings/integrations/secrets`,
-    skills: `${root}/skills`,
+    skills: `${root}/integrations?tab=skills`,
     settings: `${root}/settings`,
     searchProvider: (connectorType: string) =>
       `${root}/settings/integrations/providers/${encodeURIComponent(connectorType)}`,
@@ -59,19 +59,15 @@ export function organizationRoutes(organizationId: string) {
   } as const
 }
 
-interface WorkspaceIntegrationContext {
-  hostOrganizationId: string | null
-  features?: { organizationSearch?: boolean; platformOrgUi?: boolean }
-}
-
-/** Members of an organization on the Platform use its integration center; everyone else keeps the workspace's. */
+/**
+ * A workspace's integrations live in its organization's integration center. Before the host
+ * context resolves, the workspace-scoped URL redirects there once the organization is known.
+ */
 export function workspaceIntegrationsPath(
   workspaceId: string,
-  context: WorkspaceIntegrationContext | null
+  context: { hostOrganizationId: string | null } | null
 ) {
-  return context?.features?.organizationSearch &&
-    context.features.platformOrgUi &&
-    context.hostOrganizationId
+  return context?.hostOrganizationId
     ? organizationRoutes(context.hostOrganizationId).integrations
     : `/workspace/${workspaceId}/integrations`
 }
@@ -104,13 +100,11 @@ export function isAppSurfacePath(pathname: string): boolean {
 }
 
 /**
- * Non-app routes that must never appear in search results: the Platform zone at `/org`,
- * deployed chats, paused-run resume links, invitations, unsubscribe links, shared
- * files, the legacy `/w` redirects, the design playground, and account, self-host,
- * and upgrade utility pages.
+ * Non-app routes that must never appear in search results: deployed chats, paused-run
+ * resume links, invitations, unsubscribe links, shared files, the legacy `/w` redirects,
+ * the design playground, and account, self-host, and upgrade utility pages.
  */
 const NOINDEX_PATH_ROOTS = [
-  '/org',
   '/sim',
   '/chat',
   '/extension',

@@ -414,7 +414,11 @@ export function Editor() {
    */
   const handleOpenChildWorkflow = useCallback(() => {
     if (childWorkflowId && workspaceId) {
-      window.open(`/workspace/${workspaceId}/w/${childWorkflowId}`, '_blank', 'noopener,noreferrer')
+      window.open(
+        `/workspace/${workspaceId}/workflows/${childWorkflowId}`,
+        '_blank',
+        'noopener,noreferrer'
+      )
     }
   }, [childWorkflowId, workspaceId])
 

@@ -232,7 +232,7 @@ export function useImportWorkflow({ workspaceId }: UseImportWorkflowProps) {
             format: hasZip && fileArray.length === 1 ? 'zip' : 'json',
           })
           router.push(
-            `/workspace/${workspaceId}/w/${importedWorkflowIds[importedWorkflowIds.length - 1]}`
+            `/workspace/${workspaceId}/workflows/${importedWorkflowIds[importedWorkflowIds.length - 1]}`
           )
         }
       } catch (error) {

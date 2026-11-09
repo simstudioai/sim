@@ -9,7 +9,6 @@ import {
   resolveKnowledgeAccessAvailability,
 } from '@/lib/knowledge/access/availability'
 import { getOrganizationSettingsAccess } from '@/lib/organizations/settings-access'
-import { isPlatformOrgUiEnabled } from '@/lib/platform/rollout'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 /**
@@ -38,28 +37,24 @@ async function resolveWorkspaceHostContextForViewer(
   const hostOrganizationAccess = hostOrganizationId
     ? await getOrganizationSettingsAccess(hostOrganizationId, userId)
     : { role: null, isMember: false, isAdmin: false }
-  const [credentialGroupsAvailable, knowledgeAccess, organizationSearch, chat, platformOrgUi] =
-    await Promise.all([
-      hostOrganizationId
-        ? isScopedCredentialGroupsAvailable({
-            kind: 'organization',
-            organizationId: hostOrganizationId,
-          })
-        : Promise.resolve(false),
-      resolveKnowledgeAccessAvailability({ workspaceId, ownerBilling }),
-      hostOrganizationId && hostOrganizationAccess.isMember
-        ? isKnowledgeMemberAccessAvailable({ organizationId: hostOrganizationId })
-        : Promise.resolve(false),
-      payerHasChatAccess({
-        billingEntity: ownerBilling.organizationId
-          ? { type: 'organization', id: ownerBilling.organizationId }
-          : { type: 'user', id: access.workspace.billedAccountUserId },
-        payerSubscription: { plan: ownerBilling.plan },
-      }),
-      hostOrganizationId && hostOrganizationAccess.isMember
-        ? isPlatformOrgUiEnabled(hostOrganizationId)
-        : Promise.resolve(false),
-    ])
+  const [credentialGroupsAvailable, knowledgeAccess, organizationSearch, chat] = await Promise.all([
+    hostOrganizationId
+      ? isScopedCredentialGroupsAvailable({
+          kind: 'organization',
+          organizationId: hostOrganizationId,
+        })
+      : Promise.resolve(false),
+    resolveKnowledgeAccessAvailability({ workspaceId, ownerBilling }),
+    hostOrganizationId && hostOrganizationAccess.isMember
+      ? isKnowledgeMemberAccessAvailable({ organizationId: hostOrganizationId })
+      : Promise.resolve(false),
+    payerHasChatAccess({
+      billingEntity: ownerBilling.organizationId
+        ? { type: 'organization', id: ownerBilling.organizationId }
+        : { type: 'user', id: access.workspace.billedAccountUserId },
+      payerSubscription: { plan: ownerBilling.plan },
+    }),
+  ])
 
   return {
     workspace: {
@@ -80,7 +75,6 @@ async function resolveWorkspaceHostContextForViewer(
     features: {
       credentialGroups: credentialGroupsAvailable,
       organizationSearch,
-      platformOrgUi,
       knowledgeMemberAccess: knowledgeAccess.memberScoped,
       knowledgeSourceMirroredAccess: knowledgeAccess.sourceMirrored,
       chat,

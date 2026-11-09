@@ -2754,7 +2754,7 @@ const WorkflowContent = React.memo(
 
       if (workflowCount === 0) {
         logger.info('No workflows found, redirecting to workspace root')
-        router.replace(`/workspace/${workspaceId}/w`)
+        router.replace(`/workspace/${workspaceId}/workflows`)
         return
       }
 
@@ -2768,9 +2768,9 @@ const WorkflowContent = React.memo(
           .map(([id]) => id)
 
         if (workspaceWorkflows.length > 0) {
-          router.replace(`/workspace/${workspaceId}/w/${workspaceWorkflows[0]}`)
+          router.replace(`/workspace/${workspaceId}/workflows/${workspaceWorkflows[0]}`)
         } else {
-          router.replace(`/workspace/${workspaceId}/w`)
+          router.replace(`/workspace/${workspaceId}/workflows`)
         }
         return
       }
@@ -2780,7 +2780,7 @@ const WorkflowContent = React.memo(
         logger.warn(
           `Workflow ${workflowIdParam} belongs to workspace ${workflowData.workspaceId}, not ${workspaceId}`
         )
-        router.replace(`/workspace/${workflowData.workspaceId}/w/${workflowIdParam}`)
+        router.replace(`/workspace/${workflowData.workspaceId}/workflows/${workflowIdParam}`)
       }
     }, [
       embedded,

@@ -43,17 +43,16 @@ function organizationIdFromRoute(lastRoute: string | undefined): string | null {
   return null
 }
 
-/** The organization's Platform pages, mounted at `/org`, which name no organization in the path. */
-function isOrganizationZoneRoute(lastRoute: string | undefined): boolean {
-  return isSafeInternalPath(lastRoute) && /^\/org(?:[/?#]|$)/.test(lastRoute)
-}
-
 /**
- * Route for "New Chat": the home (chat) surface of the workspace the user was
- * last in, falling back to the app entry when the last route carries no
- * workspace.
+ * Route for "New Chat": the Home of the organization the user was last in. A workspace route names
+ * no organization, so its legacy Home URL lets the web app redirect to the workspace's
+ * organization. Anything else opens the app entry.
  */
 export function newChatRoute(lastRoute: string | undefined): string {
+  const organizationId = organizationIdFromRoute(lastRoute)
+  if (organizationId) {
+    return `/o/${organizationId}/home`
+  }
   const workspaceId = workspaceIdFromRoute(lastRoute)
   return workspaceId ? `/workspace/${workspaceId}/home` : APP_ENTRY_ROUTE
 }
@@ -71,5 +70,5 @@ export function settingsRoute(lastRoute: string | undefined): string {
   if (organizationId) {
     return `/o/${organizationId}/settings/general`
   }
-  return isOrganizationZoneRoute(lastRoute) ? '/org/settings/general' : SETTINGS_ENTRY_ROUTE
+  return SETTINGS_ENTRY_ROUTE
 }
