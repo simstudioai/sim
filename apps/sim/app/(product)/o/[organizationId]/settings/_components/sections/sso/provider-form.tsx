@@ -263,7 +263,15 @@ export function ProviderForm({
                   value={form.providerId || null}
                   selectedLabel={form.providerId || undefined}
                   onValueChange={(value) => set('providerId', value ?? '')}
-                  search={{ query: providerIdQuery, onQueryChange: setProviderIdQuery }}
+                  search={{
+                    query: providerIdQuery,
+                    // Typed text is the value, as in legacy's editable combobox; closing the popup
+                    // resets the query with another reason and keeps it.
+                    onQueryChange: (next, { reason }) => {
+                      setProviderIdQuery(next)
+                      if (reason === 'input-change') set('providerId', next.trim())
+                    },
+                  }}
                 />
               )}
               <TextField

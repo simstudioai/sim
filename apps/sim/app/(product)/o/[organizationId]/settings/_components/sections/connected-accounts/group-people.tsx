@@ -131,6 +131,7 @@ export function GroupPeople({ people, nextCursor, shallow, actions }: GroupPeopl
             placeholder='name@company.com'
             recipients={recipients}
             onRecipientsChange={setRecipients}
+            submitsWithInvalid
           />
         </FieldStack>
       </Modal>
