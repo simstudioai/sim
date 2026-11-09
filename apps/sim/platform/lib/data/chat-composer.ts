@@ -85,6 +85,12 @@ function selectedReferenceId(
     return `${context.workspaceId}:${context.chatId}`
   if (context.kind === 'logs' && context.workspaceId && context.executionId)
     return `${context.workspaceId}:${context.executionId}`
+  if (context.kind === 'folder' && context.workspaceId)
+    return `${context.workspaceId}:${context.folderId}`
+  if (context.kind === 'filefolder' && context.workspaceId)
+    return `${context.workspaceId}:${context.fileFolderId}`
+  if (context.kind === 'dashboard' && context.workspaceId)
+    return `${context.workspaceId}:${context.dashboardId}`
   if (context.kind === 'skill') {
     return context.workspaceId
       ? `${context.workspaceId}:${context.skillId}`

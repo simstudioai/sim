@@ -117,6 +117,7 @@ export function FixtureHome({ data, recentLinks }: FixtureHomeProps) {
       : { status: 'not_connected', options: CONNECT_OPTIONS.Calendar },
     recents: { status: 'ready', items: recents },
     getStarted: [],
+    suggestions: [],
     composerInventory: data?.composerInventory,
   }
   const actions: HomeActions = {

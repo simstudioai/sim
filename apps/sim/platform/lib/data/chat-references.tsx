@@ -33,6 +33,10 @@ export interface WorkspaceLists {
     createdAt: string
     workflow: { name?: string | null } | null
   }[]
+  /** Workflow, table and knowledge base folders, each named by its family. */
+  folders: readonly (NamedRecord & { family: string })[]
+  fileFolders?: readonly NamedRecord[]
+  dashboards: readonly NamedRecord[]
   pending: boolean
 }
 
@@ -105,6 +109,40 @@ function workspaceGroups(
       ),
     },
     {
+      group: 'Dashboards',
+      items: owned((list) => list.dashboards).map(({ record, workspaceId, workspaceName }) =>
+        item(workspaceId, workspaceName, record.id, record.name, {
+          kind: 'dashboard',
+          dashboardId: record.id,
+          label: record.name,
+          workspaceId,
+        })
+      ),
+    },
+    {
+      group: 'File Folders',
+      items: owned((list) => list.fileFolders).map(({ record, workspaceId, workspaceName }) =>
+        item(workspaceId, workspaceName, record.id, record.name, {
+          kind: 'filefolder',
+          fileFolderId: record.id,
+          label: record.name,
+          workspaceId,
+        })
+      ),
+    },
+    {
+      group: 'Folders',
+      items: owned((list) => list.folders).map(({ record, workspaceId, workspaceName }) => ({
+        ...item(workspaceId, workspaceName, record.id, record.name, {
+          kind: 'folder',
+          folderId: record.id,
+          label: record.name,
+          workspaceId,
+        }),
+        family: record.family,
+      })),
+    },
+    {
       group: 'Logs',
       items: owned((list) => list.logs).map(({ record, workspaceId, workspaceName }) => {
         // The name keeps the absolute time: it is saved with the chat, where an age goes stale.
@@ -125,7 +163,8 @@ function workspaceGroups(
 }
 
 /**
- * The chats, tables, files, knowledge bases and logs of each workspace, for `@` mentions. Each
+ * The chats, dashboards, tables, files, folders, knowledge bases and logs of each workspace, for
+ * `@` mentions. Each
  * workspace's lists are separate queries, so a renderless reader per workspace runs them; the
  * composer mounts `readers` while the inventory is wanted.
  */

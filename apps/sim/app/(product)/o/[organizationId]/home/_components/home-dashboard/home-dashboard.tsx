@@ -23,6 +23,7 @@ import type {
   HomeView,
 } from '@/app/(product)/o/[organizationId]/home/_components/model'
 import { RetryButton } from '@/app/(product)/o/[organizationId]/home/_components/retry-button/retry-button'
+import { SuggestedActions } from '@/app/(product)/o/[organizationId]/home/_components/suggested-actions/suggested-actions'
 
 const WIDGETS: readonly HomeWidget[] = ['Activity', 'Email', 'Calendar']
 const ACTIVITY_METRIC_TITLES: Record<HomeMode, string> = { Build: 'Tasks run', Search: 'Searches' }
@@ -135,6 +136,7 @@ export function HomeDashboard({
                 </div>
               )}
               {view.getStarted.length > 0 && <GetStarted steps={view.getStarted} />}
+              {view.suggestions.length > 0 && <SuggestedActions items={view.suggestions} />}
               <div className={styles.columns}>
                 <div className={styles.column}>
                   <HomeActivityChart
