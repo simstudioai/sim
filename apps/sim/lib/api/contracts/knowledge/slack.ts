@@ -123,7 +123,8 @@ export const slackSearchOAuthCallbackContract = defineRouteContract({
   response: { mode: 'redirect' },
 })
 
-const slackSearchOnboardingInputSchema = z.object({ token: z.string().uuid() })
+export const slackSearchOnboardingInputSchema = z.object({ token: z.string().uuid() })
+export type SlackSearchOnboardingInput = z.input<typeof slackSearchOnboardingInputSchema>
 export const slackSearchOnboardingViewSchema = z.discriminatedUnion('status', [
   z.object({ status: z.literal('wrong_account') }),
   z.object({ status: z.literal('verify_email') }),
