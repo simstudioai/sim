@@ -1256,7 +1256,7 @@
     "apps/sim/executor/utils/run-from-block.ts": 3,
     "apps/sim/executor/variables/resolvers/block.ts": 4,
     "apps/sim/hooks/kb/connectors/use-connector-config-fields.test.tsx": 7,
-    "apps/sim/hooks/mothership-chat/use-chat.ts": 2,
+    "apps/sim/hooks/mothership-chat/use-chat.ts": 1,
     "apps/sim/hooks/queries/deployments.ts": 5,
     "apps/sim/hooks/queries/kb/connectors-cache.test.tsx": 1,
     "apps/sim/hooks/queries/schedules.ts": 2,
