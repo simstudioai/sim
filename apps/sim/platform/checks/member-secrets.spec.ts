@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test('the member secrets destination delivers only the credential names the viewer can inspect', async ({
   page,
@@ -9,11 +8,11 @@ test('the member secrets destination delivers only the credential names the view
   const credentials = page
     .getByRole('navigation', { name: 'Integration categories' })
     .getByRole('link', { name: 'Credentials', exact: true })
-  await page.goto(`${origin}/integrations?state=full`)
+  await page.goto(fixtureUrl('/integrations?state=full'))
   await credentials.click()
   await expect(link).toHaveCount(0)
 
-  await page.goto(`${origin}/integrations?state=stress`)
+  await page.goto(fixtureUrl('/integrations?state=stress'))
   await credentials.click()
   await link.click()
   await expect(page.getByRole('region', { name: 'Personal secrets' })).toContainText(
@@ -21,7 +20,7 @@ test('the member secrets destination delivers only the credential names the view
   )
   await expect(page.getByRole('main').getByRole('textbox')).toHaveCount(0)
 
-  const managed = await page.goto(`${origin}/integrations?state=stress&secrets=organization`)
+  const managed = await page.goto(fixtureUrl('/integrations?state=stress&secrets=organization'))
   expect(await managed?.text()).not.toContain('REPORTING_TOKEN')
   await credentials.click()
   await link.click()

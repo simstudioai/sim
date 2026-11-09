@@ -1,12 +1,11 @@
 import { expect, test } from '@playwright/test'
-
-const base = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test('a chat panel preserves its file, tabs and focus across resize, collapse and restore', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1600, height: 1000 })
-  await page.goto(`${base}/chat/weekly-review?theme=light&state=full`)
+  await page.goto(fixtureUrl('/chat/weekly-review?theme=light&state=full'))
   const open = page.getByRole('button', { name: 'Open chat panel' })
   const title = page.getByRole('heading', { level: 1, name: 'Review the renewal brief' })
   const titleBefore = await title.boundingBox()

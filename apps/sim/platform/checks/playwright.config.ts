@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { defineConfig } from '@playwright/test'
+import { FIXTURE_PORT, FIXTURES_OFF_PORT, productionServer } from './routes'
 
 const appRoot = path.resolve(__dirname, '../..')
 const report = process.env.PLATFORM_REPORT_PATH ?? 'test-results/platform/report.json'
@@ -21,10 +22,13 @@ export default defineConfig({
   use: { screenshot: 'only-on-failure', trace: 'retain-on-failure' },
   webServer: existingOrigin
     ? undefined
-    : [0, 1].map((flag) => ({
-        command: `bunx --no-install next start platform -H 127.0.0.1 -p ${3180 + flag}`,
+    : [
+        { port: FIXTURES_OFF_PORT, fixtures: '0' },
+        { port: FIXTURE_PORT, fixtures: '1' },
+      ].map(({ port, fixtures }) => ({
+        command: productionServer(port),
         cwd: appRoot,
-        env: { SIM_PLATFORM_FIXTURES: String(flag) },
-        url: `http://127.0.0.1:${3180 + flag}`,
+        env: { SIM_PLATFORM_FIXTURES: fixtures },
+        url: `http://127.0.0.1:${port}`,
       })),
 })

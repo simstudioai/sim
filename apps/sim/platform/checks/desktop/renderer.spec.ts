@@ -3,27 +3,27 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { _electron, expect, test } from '@playwright/test'
 import { checkCredentialFields } from '@/platform/checks/field-checks'
+import { desktopOrigin, fixtureUrl } from '@/platform/checks/routes'
 
 test('the actual desktop renderer shares product routes, reserves native chrome and preserves panel tabs', async () => {
   const testInfo = test.info()
-  const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3182'
   const profile = await mkdtemp(path.join(tmpdir(), 'sim-platform-renderer-'))
   const app = await _electron.launch({
     cwd: path.resolve(__dirname, '../../../../desktop'),
     args: ['.'],
-    env: { ...process.env, SIM_DESKTOP_ORIGIN: origin, SIM_DESKTOP_USER_DATA: profile },
+    env: { ...process.env, SIM_DESKTOP_ORIGIN: desktopOrigin, SIM_DESKTOP_USER_DATA: profile },
   })
   const page = await app.firstWindow()
   const window = await app.browserWindow(page)
   try {
     await window.evaluate((native) => native.setContentSize(960, 720))
-    await page.waitForURL((url) => url.origin === origin)
+    await page.waitForURL((url) => url.origin === desktopOrigin)
     for (const theme of ['light', 'dark']) {
-      await checkCredentialFields(page, origin, theme, testInfo, () =>
+      await checkCredentialFields(page, desktopOrigin, theme, testInfo, () =>
         app.evaluate(({ clipboard }) => clipboard.readText())
       )
     }
-    await page.goto(`${origin}/home?theme=dark&state=full`)
+    await page.goto(fixtureUrl('/home?theme=dark&state=full', desktopOrigin))
     await expect(page.locator('html')).toHaveAttribute('data-sim-desktop-title-bar', 'inset')
     await expect(
       page.getByRole('list', { name: 'Recents' }).getByRole('link', { name: 'GitHub' })

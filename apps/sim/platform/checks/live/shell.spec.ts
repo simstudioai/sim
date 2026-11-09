@@ -7,22 +7,23 @@ import {
   signIn,
   signInThroughForm,
 } from '@/platform/checks/live/session'
+import { liveLoginPattern, liveRoute, liveRoutePattern } from '@/platform/checks/routes'
 
 test('signing in through the zone lands on a shell showing the real organization', async ({
   page,
 }) => {
-  await page.goto('/org')
-  await expect(page).toHaveURL(/\/login\?.*callbackUrl=%2Forg/)
-  await signInThroughForm(page, adminEmail(), '/org')
+  await page.goto(liveRoute(''))
+  await expect(page).toHaveURL(liveLoginPattern(''))
+  await signInThroughForm(page, adminEmail(), liveRoute(''))
 
-  await expect(page).toHaveURL(/\/org(?:\/|$)/)
+  await expect(page).toHaveURL(liveRoutePattern('', '(?:/|$)'))
   await expect(page.getByRole('button', { name: 'Organization menu' })).toContainText(
     organizationName()
   )
 })
 
 async function open(page: Page, email: string) {
-  await signIn(page, email, '/org')
+  await signIn(page, email, liveRoute(''))
   await expect(page.getByRole('button', { name: 'Organization menu' })).toBeVisible()
 }
 
@@ -145,7 +146,7 @@ test('a chat renames and deletes through the real API', async ({ page }) => {
 })
 
 test('sign out ends the session and the zone returns to login', async ({ page }) => {
-  await signInThroughForm(page, adminEmail(), '/org')
+  await signInThroughForm(page, adminEmail(), liveRoute(''))
   const footer = page.getByRole('complementary', { name: 'Platform sidebar' }).locator('footer')
   await footer.getByRole('button').first().click()
   await page
@@ -153,6 +154,6 @@ test('sign out ends the session and the zone returns to login', async ({ page })
     .getByRole('button', { name: 'Sign out' })
     .click()
   await expect(page).toHaveURL(/\/login/)
-  await page.goto('/org')
-  await expect(page).toHaveURL(/\/login\?.*callbackUrl=%2Forg/)
+  await page.goto(liveRoute(''))
+  await expect(page).toHaveURL(liveLoginPattern(''))
 })

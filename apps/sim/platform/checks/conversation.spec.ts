@@ -1,11 +1,10 @@
 import { expect, type Locator, test } from '@playwright/test'
-
-const populated = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test('Home can hide, undo, disconnect and reconnect widgets without losing the rest of the dashboard', async ({
   page,
 }) => {
-  await page.goto(`${populated}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   const email = page.getByRole('region', { name: 'Email', exact: true })
   await expect(page.getByRole('region', { name: 'Home dashboard' })).toHaveAttribute(
     'data-edges',
@@ -40,7 +39,7 @@ test('Home can hide, undo, disconnect and reconnect widgets without losing the r
 test('Now restores today’s time after scrolling the calendar or viewing another day', async ({
   page,
 }) => {
-  await page.goto(`${populated}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   const calendar = page.getByRole('region', { name: 'Calendar', exact: true })
   const schedule = calendar.getByRole('region', { name: 'Calendar schedule' })
   const now = calendar.getByRole('button', { name: 'Now', exact: true })
@@ -94,7 +93,7 @@ test('Now restores today’s time after scrolling the calendar or viewing anothe
 test('Home fills the available chart column and keeps calendar day controls on the same baseline', async ({
   page,
 }) => {
-  await page.goto(`${populated}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   const chart = page.getByRole('region', { name: 'Tasks run' })
   const email = page.getByRole('region', { name: 'Email', exact: true })
   const tasks = page.getByRole('region', { name: 'Needs your attention' })
@@ -144,7 +143,7 @@ test('the sidebar opener stays in place while Home scrolls and keeps its reading
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 700 })
-  await page.goto(`${populated}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   const home = page.getByRole('region', { name: 'Home dashboard' })
   const opener = page.getByRole('button', { name: 'Expand sidebar' })
   await expect(opener).toBeVisible()
@@ -168,7 +167,7 @@ test('the sidebar opener stays in place while Home scrolls and keeps its reading
 
 test('clipped mail fades sideways inside the scrolling Home dashboard', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 740 })
-  await page.goto(`${populated}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   const home = page.getByRole('region', { name: 'Home dashboard' })
   const row = home.getByRole('button', { name: /Nina Patel.*Updated onboarding checklist/ })
   await expect(home).toHaveAttribute('data-edges', 'end')
@@ -214,7 +213,7 @@ test('clipped mail fades sideways inside the scrolling Home dashboard', async ({
 test('a new chat carries its local draft and attachments through navigation without putting the message in the URL', async ({
   page,
 }) => {
-  await page.goto(`${populated}/home?theme=dark&state=full`)
+  await page.goto(fixtureUrl('/home?theme=dark&state=full'))
   const attach = page.getByRole('button', { name: 'Add attachment' })
   await attach.click()
   const chooser = page.waitForEvent('filechooser')
@@ -273,7 +272,7 @@ test('a new chat carries its local draft and attachments through navigation with
 test('each message reveals its own footer across the text and the gap to its actions', async ({
   page,
 }) => {
-  await page.goto(`${populated}/chat/weekly-review?state=full`)
+  await page.goto(fixtureUrl('/chat/weekly-review?state=full'))
   const prompt = page.getByText(/^Review the renewal brief for Aster Labs/)
   const answer = page.getByText(/^The renewal is in good shape/)
   const userTime = page.getByText('3:46 PM', { exact: true })
@@ -304,7 +303,7 @@ test('chat activity, recovery, and feedback controls work at intermediate and na
   page,
 }) => {
   await page.setViewportSize({ width: 647, height: 790 })
-  await page.goto(`${populated}/chat/weekly-review?state=full`)
+  await page.goto(fixtureUrl('/chat/weekly-review?state=full'))
   async function linePlacement(line: Locator) {
     await expect(line).toBeVisible()
     return line.evaluate((element) => {
@@ -374,7 +373,7 @@ test('chat activity, recovery, and feedback controls work at intermediate and na
   await dialog.getByRole('button', { name: 'Send feedback' }).click()
   await expect(dialog).not.toBeVisible()
   await page.setViewportSize({ width: 356, height: 740 })
-  await page.goto(`${populated}/chat/october-close?theme=dark&state=full`)
+  await page.goto(fixtureUrl('/chat/october-close?theme=dark&state=full'))
   await page.getByRole('button', { name: 'Retry', exact: true }).click()
   await page.getByRole('button', { name: 'Stop response' }).click()
   await expect(page.getByText('Stopped', { exact: true })).toBeVisible()
@@ -387,7 +386,7 @@ test('stress transcript keeps attachment review bounded and returns the reader t
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto(`${populated}/chat/weekly-review?state=stress`)
+  await page.goto(fixtureUrl('/chat/weekly-review?state=stress'))
   await page
     .getByRole('button', { name: /20 attachments.*Show all/ })
     .last()
@@ -402,7 +401,7 @@ test('stress transcript keeps attachment review bounded and returns the reader t
 test('collapsing work preserves prose and a long follow-up leaves the active run stoppable', async ({
   page,
 }) => {
-  await page.goto(`${populated}/chat/customer-onboarding?state=full`)
+  await page.goto(fixtureUrl('/chat/customer-onboarding?state=full'))
   const editor = page.getByRole('textbox', { name: 'Add a follow-up…' })
   const progress = page.getByText(/checking for unresolved/)
   await expect(progress).toBeVisible()
@@ -427,7 +426,7 @@ test('collapsing work preserves prose and a long follow-up leaves the active run
 test('unsent drafts and files stay with their chat through navigation and clear after sending', async ({
   page,
 }) => {
-  await page.goto(`${populated}/chat/weekly-review?state=full`)
+  await page.goto(fixtureUrl('/chat/weekly-review?state=full'))
   const editor = page.getByRole('textbox', { name: 'Ask a follow-up…' })
   await editor.fill('Review before sending')
   await page.getByRole('button', { name: 'Add attachment' }).click()
@@ -460,7 +459,7 @@ test.describe('touch composer', () => {
   test('Return inserts a newline and sending consumes the original attachment batch', async ({
     page,
   }) => {
-    await page.goto(`${populated}/chat?state=stress`)
+    await page.goto(fixtureUrl('/chat?state=stress'))
     const editor = page.getByRole('textbox', { name: /Ask about your business/ })
     await editor.fill('Review the attached files')
     await editor.press('Enter')

@@ -1,9 +1,12 @@
 import { expect, type Locator, test } from '@playwright/test'
 import evidence from '@sim/emcn-platform/catalog/evidence.json'
 import { load } from 'cheerio'
+import { fixturesOffOrigin, fixtureUrl } from '@/platform/checks/routes'
 
-const enabled = `${process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'}/workbench`
-const catalog = process.env.PLATFORM_E2E_ORIGIN ? enabled : 'http://127.0.0.1:3180/workbench'
+const enabled = fixtureUrl('/workbench')
+const catalog = process.env.PLATFORM_E2E_ORIGIN
+  ? enabled
+  : fixtureUrl('/workbench', fixturesOffOrigin)
 
 test('the workbench changes its example data with the selected fixture state', async ({ page }) => {
   await page.goto(`${enabled}?state=full`)

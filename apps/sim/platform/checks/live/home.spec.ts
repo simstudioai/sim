@@ -6,10 +6,11 @@ import {
   signIn,
   signInAsAdmin,
 } from '@/platform/checks/live/session'
+import { liveRoute, liveRoutePattern } from '@/platform/checks/routes'
 
 test.describe('Home on real data', () => {
   test.beforeEach(async ({ page }) => {
-    await signInAsAdmin(page, '/org/home')
+    await signInAsAdmin(page, liveRoute('/home'))
   })
 
   test('the Email and Calendar widgets each settle in a state the member can act on', async ({
@@ -91,19 +92,19 @@ test.describe('Home on real data', () => {
 })
 
 test('a member who cannot build lands on Search, not an error', async ({ page }) => {
-  await signIn(page, memberEmail(), '/org/home')
-  await expect(page).toHaveURL(/\/org\/search/)
+  await signIn(page, memberEmail(), liveRoute('/home'))
+  await expect(page).toHaveURL(liveRoutePattern('/search'))
   await expect(page.getByRole('textbox', { name: 'Search' })).toBeVisible()
 })
 
 test.describe('Home for the seeded administrator', () => {
   test('greets the member by first name', async ({ page }) => {
-    await signInAsAdmin(page, '/org/home')
+    await signInAsAdmin(page, liveRoute('/home'))
     await expect(page.getByRole('heading', { level: 1 })).toContainText(/, Ada$/)
   })
 
   test('Recents list the viewer’s real history and × removes it for good', async ({ page }) => {
-    await signInAsAdmin(page, '/org/home')
+    await signInAsAdmin(page, liveRoute('/home'))
     const recents = page.getByRole('region', { name: 'Recents', exact: true })
     await expect(recents.getByRole('link', { name: 'Onboarding guide' })).toBeVisible()
     const renewal = recents.getByRole('link', { name: 'Renewal terms' })
@@ -116,17 +117,17 @@ test.describe('Home for the seeded administrator', () => {
   })
 
   test('an unread chat needs attention and opens from there', async ({ page }) => {
-    await signInAsAdmin(page, '/org/home')
+    await signInAsAdmin(page, liveRoute('/home'))
     const attention = page.getByRole('region', { name: 'Needs your attention', exact: true })
     await expect(attention.getByText('Vendor renewals')).toBeVisible()
     await expect(attention.getByText('Quarterly review')).toHaveCount(0)
     await attention.getByText('Vendor renewals').click()
-    await expect(page).toHaveURL(/\/org\/search\/chat\/22222222-/)
+    await expect(page).toHaveURL(liveRoutePattern('/search/chat/22222222-'))
     await expect(page.getByText('Here is what I found about Vendor renewals.')).toBeVisible()
   })
 
   test('Search mode drops the activity chart and offers Search’s Get started', async ({ page }) => {
-    await signInAsAdmin(page, '/org/home')
+    await signInAsAdmin(page, liveRoute('/home'))
     await expect(page.getByRole('region', { name: 'Tasks run', exact: true })).toBeVisible()
     await page.getByRole('radio', { name: 'Search' }).click()
     await expect(page.getByRole('region', { name: 'Tasks run', exact: true })).toHaveCount(0)
@@ -137,7 +138,7 @@ test.describe('Home for the seeded administrator', () => {
     await context.route('https://accounts.google.com/**', (route) =>
       route.fulfill({ status: 200, contentType: 'text/html', body: 'Google stand-in' })
     )
-    await signInAsAdmin(page, '/org/home')
+    await signInAsAdmin(page, liveRoute('/home'))
     const authorization = context.waitForEvent('request', (request) =>
       request.url().startsWith('https://accounts.google.com/')
     )
@@ -214,7 +215,7 @@ test.describe('Home with connected accounts', () => {
   }
 
   const open = (page: Page) =>
-    signIn(page, requireEnv('PLATFORM_LIVE_CONNECTED_EMAIL'), '/org/home')
+    signIn(page, requireEnv('PLATFORM_LIVE_CONNECTED_EMAIL'), liveRoute('/home'))
 
   test('a connected member reads their mail, opens a thread, and keeps a chosen day', async ({
     page,

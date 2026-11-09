@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test.use({ hasTouch: true })
 
@@ -10,7 +9,7 @@ for (const theme of ['light', 'dark']) {
       page,
     }) => {
       await page.setViewportSize({ width, height: 1100 })
-      await page.goto(`${origin}/integrations/gmail?state=full&theme=${theme}`)
+      await page.goto(fixtureUrl(`/integrations/gmail?state=full&theme=${theme}`))
       const main = page.getByRole('main')
       await main
         .getByRole('region', { name: 'Connected credentials', exact: true })

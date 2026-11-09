@@ -1,6 +1,5 @@
 import { expect, type Locator, test } from '@playwright/test'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 function paint(control: Locator) {
   return control.evaluate((element) => {
@@ -29,7 +28,7 @@ test('quiet actions and menu rows preserve optical weight and distinguish their 
 }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   for (const theme of ['light', 'dark']) {
-    await page.goto(`${origin}/home?state=full&theme=${theme}`)
+    await page.goto(fixtureUrl(`/home?state=full&theme=${theme}`))
     const sort = page.getByRole('button', { name: 'Sort workspaces' })
     await page.mouse.move(0, 0)
     const quiet = await paint(sort)

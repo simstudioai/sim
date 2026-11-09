@@ -1,11 +1,10 @@
 import { expect, type Locator, test } from '@playwright/test'
-
-const base = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test('Back to app holds an unsaved Settings draft and restores the full entry URL after discard', async ({
   page,
 }) => {
-  const entry = `${base}/integrations?state=full&theme=dark&source=all`
+  const entry = fixtureUrl('/integrations?state=full&theme=dark&source=all')
   await page.goto(entry)
   await page.getByRole('button', { name: 'Emir Karabeg', exact: true }).click()
   await page
@@ -28,7 +27,7 @@ test('Back to app holds an unsaved Settings draft and restores the full entry UR
 test('preferences apply to the interface and survive settings navigation in this session', async ({
   page,
 }) => {
-  await page.goto(`${base}/settings?theme=unrecognized&state=full`)
+  await page.goto(fixtureUrl('/settings?theme=unrecognized&state=full'))
   const theme = page.getByRole('button', { name: /^Theme:/ })
   await expect(theme).toHaveText('System')
   await theme.click()
@@ -50,12 +49,12 @@ test('preferences apply to the interface and survive settings navigation in this
 test('a platform administration link is gated in the sidebar and at its bookmarked URL', async ({
   page,
 }) => {
-  await page.goto(`${base}/settings?state=full`)
+  await page.goto(fixtureUrl('/settings?state=full'))
   const nav = page.getByRole('navigation', { name: 'Settings', exact: true })
   await expect(nav.getByRole('link', { name: 'Admin', exact: true })).toHaveCount(0)
-  await page.goto(`${base}/settings/admin?state=full`)
+  await page.goto(fixtureUrl('/settings/admin?state=full'))
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
-  await page.goto(`${base}/settings?state=stress`)
+  await page.goto(fixtureUrl('/settings?state=stress'))
   await nav.getByRole('link', { name: 'Admin', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Admin', exact: true, level: 1 })).toBeVisible()
 })
@@ -64,7 +63,7 @@ test('the small Settings drawer filters destinations, restores navigation and cl
   page,
 }) => {
   await page.setViewportSize({ width: 356, height: 740 })
-  await page.goto(`${base}/settings?state=full`)
+  await page.goto(fixtureUrl('/settings?state=full'))
   await page.getByRole('button', { name: 'Expand sidebar' }).click()
   const drawer = page.getByRole('dialog', { name: 'Navigation drawer' })
   const field = drawer.getByRole('searchbox', { name: 'Search settings' })
@@ -84,7 +83,7 @@ test('cancelled profile edits reset and saved name and picture survive Settings 
   page,
 }) => {
   await page.setViewportSize({ width: 356, height: 740 })
-  await page.goto(`${base}/settings?state=full`)
+  await page.goto(fixtureUrl('/settings?state=full'))
   await page.getByRole('button', { name: 'Emir Karabeg', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Edit display name' })
   await dialog.getByRole('textbox', { name: 'Display name' }).fill('Unsaved draft')
@@ -143,13 +142,13 @@ test('form titles start at their content edge and Cancel is consistent across ro
     })
     expect(Math.abs(offset)).toBeLessThan(1)
   }
-  await page.goto(`${base}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   await page.getByRole('button', { name: 'Organization menu', exact: true }).click()
   await page.getByRole('button', { name: 'Invite', exact: true }).click()
   const invite = page.getByRole('dialog', { name: 'Invite people' })
   await expectTitleAtStart(invite)
   const cancel = await cancelPaint(invite)
-  await page.goto(`${base}/settings?state=full`)
+  await page.goto(fixtureUrl('/settings?state=full'))
   await page.getByRole('button', { name: 'Emir Karabeg', exact: true }).last().click()
   const edit = page.getByRole('dialog', { name: 'Edit display name' })
   await expect(edit.getByRole('textbox', { name: 'Display name' })).toBeFocused()
@@ -165,7 +164,7 @@ test('invite recipients can be typed, pasted, corrected and removed by keyboard 
 }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.setViewportSize({ width: 360, height: 640 })
-  await page.goto(`${base}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   const expand = page.getByRole('button', { name: 'Expand sidebar' })
   await expand.click()
   const organization = page.getByRole('button', { name: 'Organization menu', exact: true })

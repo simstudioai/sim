@@ -1,9 +1,8 @@
 import { expect, test } from '@playwright/test'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test('credential Back returns to its directory origin with filters intact', async ({ page }) => {
-  await page.goto(`${origin}/integrations?state=full&tab=credentials&q=Customer&order=desc`)
+  await page.goto(fixtureUrl('/integrations?state=full&tab=credentials&q=Customer&order=desc'))
   const main = page.getByRole('main')
   await main.getByRole('link', { name: /^Customer operations service account / }).click()
   await expect(main.getByLabel('Credential ID', { exact: true })).toBeVisible()
@@ -25,7 +24,7 @@ test('manual secrets link to apps, start private and clear values across type ch
   page.on('request', (request) => {
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method())) writes.push(request.url())
   })
-  await page.goto(`${origin}/integrations/onepassword?state=full`)
+  await page.goto(fixtureUrl('/integrations/onepassword?state=full'))
   const main = page.getByRole('main')
   await main.getByRole('button', { name: 'Create credential', exact: true }).click()
   const modal = page.getByRole('dialog', { name: 'Create credential', exact: true })

@@ -1,10 +1,11 @@
 import { expect, test } from '@playwright/test'
 import { signInAsAdmin } from '@/platform/checks/live/session'
+import { liveRoute, liveRoutePattern } from '@/platform/checks/routes'
 
 test('A query lands in the URL, searches under the viewer, and a filter narrows it', async ({
   page,
 }) => {
-  await signInAsAdmin(page, '/org/search')
+  await signInAsAdmin(page, liveRoute('/search'))
 
   const searched = page.waitForRequest(
     (request) => request.method() === 'POST' && request.url().includes('/api/knowledge/search')
@@ -26,11 +27,11 @@ test('A query lands in the URL, searches under the viewer, and a filter narrows 
 })
 
 test('Home’s Search segment opens Search with the query', async ({ page }) => {
-  await signInAsAdmin(page, '/org/home')
+  await signInAsAdmin(page, liveRoute('/home'))
   await page.getByRole('radio', { name: 'Search' }).click()
   await page.getByRole('textbox', { name: /Search your company/ }).fill('renewal')
   await page.getByRole('button', { name: 'Send message' }).click()
-  await expect(page).toHaveURL(/\/org\/search\?.*q=renewal/)
+  await expect(page).toHaveURL(liveRoutePattern('/search', '\\?.*q=renewal'))
 })
 
 test('Summarize on a result switches to Assistant and asks about that document', async ({
@@ -62,7 +63,7 @@ test('Summarize on a result switches to Assistant and asks about that document',
       },
     })
   )
-  await signInAsAdmin(page, '/org/search?mode=search&q=renewal')
+  await signInAsAdmin(page, liveRoute('/search?mode=search&q=renewal'))
   await page.getByRole('button', { name: 'Actions for Renewal plan' }).click()
   const posted = page.waitForRequest(
     (request) => request.method() === 'POST' && request.url().includes('/api/mothership/chat')

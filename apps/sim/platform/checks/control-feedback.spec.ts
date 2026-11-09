@@ -1,12 +1,11 @@
 import { expect, type Locator, test } from '@playwright/test'
 import sharp from 'sharp'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test('either half of a binary mode control switches the composer without breaking keyboard selection', async ({
   page,
 }) => {
-  await page.goto(`${origin}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   const build = page.getByRole('radio', { name: 'Build' })
   const search = page.getByRole('radio', { name: 'Search', exact: true })
   await expect(build).toBeChecked()
@@ -22,7 +21,7 @@ test('either half of a binary mode control switches the composer without breakin
 test('a notice stays actionable while hovered and can be reopened after its feedback period', async ({
   page,
 }) => {
-  await page.goto(`${origin}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   await expect(page.getByRole('region', { name: 'Home dashboard' })).toHaveAttribute(
     'data-edges',
     'end'
@@ -124,7 +123,7 @@ for (const theme of ['light', 'dark']) {
   test.describe(`${theme} action feedback`, () => {
     test.beforeEach(async ({ page }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' })
-      await page.goto(`${origin}/chat/weekly-review?theme=${theme}&state=full`)
+      await page.goto(fixtureUrl(`/chat/weekly-review?theme=${theme}&state=full`))
     })
 
     test('archiving and saving have the same perceptual hover and press steps', async ({
@@ -196,7 +195,7 @@ for (const theme of ['light', 'dark']) {
         .getByRole('button', { name: 'Cancel', exact: true })
         .click()
 
-      await page.goto(`${origin}/integrations/gmail?state=full&theme=${theme}`)
+      await page.goto(fixtureUrl(`/integrations/gmail?state=full&theme=${theme}`))
       const main = page.getByRole('main')
       await main.getByRole('button', { name: /^Customer operations service account / }).click()
       const disconnect = main.getByRole('button', { name: 'Disconnect', exact: true })
@@ -255,7 +254,7 @@ for (const theme of ['light', 'dark']) {
 test('long feedback scrolls inside the field and dragging its corner leaves the dialog geometry fixed', async ({
   page,
 }) => {
-  await page.goto(`${origin}/chat/weekly-review?state=full`)
+  await page.goto(fixtureUrl('/chat/weekly-review?state=full'))
   await page.getByRole('button', { name: 'Rate response' }).first().click()
   await page.getByRole('menuitem', { name: 'Bad response' }).click()
   const dialog = page.getByRole('dialog', { name: 'Share feedback' })
@@ -278,7 +277,7 @@ test('long feedback scrolls inside the field and dragging its corner leaves the 
 test('the composer keeps its reading size through reflow and respects a larger root text size', async ({
   page,
 }) => {
-  await page.goto(`${origin}/home?theme=light&state=full`)
+  await page.goto(fixtureUrl('/home?theme=light&state=full'))
   const editor = page.getByRole('textbox', { name: /Ask about your business/ })
   const desktop = await editor.evaluate((el) => getComputedStyle(el).fontSize)
   await editor.fill('Continue the conversation')

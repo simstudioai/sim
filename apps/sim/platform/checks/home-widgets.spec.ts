@@ -1,13 +1,12 @@
 import { expect, test } from '@playwright/test'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test('Home recent links scroll, open independently and share dismissals with Chat', async ({
   page,
   context,
 }) => {
   await page.setViewportSize({ width: 390, height: 800 })
-  await page.goto(`${origin}/home?state=stress`)
+  await page.goto(fixtureUrl('/home?state=stress'))
   const lane = page.getByRole('region', { name: 'Recents', exact: true })
   await expect(lane).toHaveAttribute('data-edges', 'end')
   await page.getByRole('button', { name: 'Scroll Recents forward' }).click()
@@ -37,7 +36,7 @@ test('long Home lists scroll to the last item without moving their headings or g
   page,
 }) => {
   await page.setViewportSize({ width: 1000, height: 800 })
-  await page.goto(`${origin}/home?state=stress`)
+  await page.goto(fixtureUrl('/home?state=stress'))
   for (const [title, label] of [
     ['Email', 'Email messages'],
     ['Needs your attention', 'Attention requests'],

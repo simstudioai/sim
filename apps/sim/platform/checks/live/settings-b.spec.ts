@@ -1,9 +1,10 @@
 import { expect, type Page, test } from '@playwright/test'
 import { organizationId, signInAsAdmin } from '@/platform/checks/live/session'
+import { liveRoute } from '@/platform/checks/routes'
 
 /** A seeded admin of an Enterprise organization, or a self-hosted deployment with these features on. */
 function openSection(page: Page, section: string) {
-  return signInAsAdmin(page, `/org/settings/${section}`)
+  return signInAsAdmin(page, liveRoute(`/settings/${section}`))
 }
 
 test.describe('governance settings', () => {
@@ -13,14 +14,14 @@ test.describe('governance settings', () => {
       (request) =>
         request.url().includes('/api/audit-logs?') && !request.url().includes('workspaceId')
     )
-    await page.goto('/org/settings/audit-logs')
+    await page.goto(liveRoute('/settings/audit-logs'))
     await orgWideRead
 
     const reads: string[] = []
     page.on('request', (request) => {
       if (request.url().includes('/api/audit-logs')) reads.push(request.url())
     })
-    await page.goto('/org/settings/audit-logs?workspace=not-a-real-workspace')
+    await page.goto(liveRoute('/settings/audit-logs?workspace=not-a-real-workspace'))
     await expect(page.getByText('That workspace is not part of this organization.')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Export' })).toBeDisabled()
     await page.getByRole('button', { name: 'Refresh' }).click()
@@ -76,7 +77,7 @@ test.describe('governance settings', () => {
       (response) =>
         response.request().method() === 'GET' && response.url().includes('/api/auth/sso/providers')
     )
-    await page.goto('/org/settings/sso')
+    await page.goto(liveRoute('/settings/sso'))
     await expect(page.getByRole('radio', { name: 'Domains' })).toBeAttached()
     expect(await (await providers).text()).not.toMatch(/"clientSecret":"(?!\[REDACTED\])/)
     await expect(page.getByRole('button', { name: /Copy Client secret/ })).toHaveCount(0)

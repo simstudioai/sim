@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { defineConfig } from '@playwright/test'
+import { DESKTOP_PORT, desktopOrigin, fixtureUrl, productionServer } from '../routes'
 
 const appRoot = path.resolve(__dirname, '../../..')
 const report =
@@ -14,9 +15,9 @@ export default defineConfig({
   webServer: process.env.PLATFORM_E2E_ORIGIN
     ? undefined
     : {
-        command: 'bunx --no-install next start platform -H 127.0.0.1 -p 3182',
+        command: productionServer(DESKTOP_PORT),
         cwd: appRoot,
         env: { SIM_PLATFORM_FIXTURES: '1' },
-        url: 'http://127.0.0.1:3182/home',
+        url: fixtureUrl('/home', desktopOrigin),
       },
 })

@@ -1,11 +1,10 @@
 import { expect, test } from '@playwright/test'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test('app discovery preserves editable installed skills and sends templates to the existing draft', async ({
   page,
 }) => {
-  await page.goto(`${origin}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   const composer = page.getByRole('textbox', {
     name: 'Ask about your business, or give Sim something to do…',
   })
@@ -104,7 +103,7 @@ test('app discovery preserves editable installed skills and sends templates to t
 test('adding another credential preserves existing accounts and its details survive immediate browser back', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations?state=full`)
+  await page.goto(fixtureUrl('/integrations?state=full'))
   const list = page.getByRole('main')
   await list.getByRole('searchbox', { name: 'Search apps' }).fill('gmail')
   await list.getByRole('link', { name: /^Gmail / }).click()
@@ -146,7 +145,7 @@ test('adding another credential preserves existing accounts and its details surv
 test('a private connection keeps its identity when shared and protects its only administrator', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations/gmail?state=full`)
+  await page.goto(fixtureUrl('/integrations/gmail?state=full'))
   const main = page.getByRole('main')
   await main.getByRole('button', { name: 'Connect integration', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Connect with OAuth', exact: true }).click()
@@ -205,7 +204,7 @@ test('a private connection keeps its identity when shared and protects its only 
 test('Fireflies uses its managed MCP method and keeps every template in page flow', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations/fireflies?state=full`)
+  await page.goto(fixtureUrl('/integrations/fireflies?state=full'))
   const main = page.getByRole('main')
   const templates = main.getByRole('region', { name: 'Agent templates', exact: true })
   await expect(templates.getByRole('listitem')).toHaveCount(10)
@@ -240,7 +239,7 @@ test('Fireflies uses its managed MCP method and keeps every template in page flo
 test('shared family credential edits and access changes propagate without removing the last explicit admin', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations?state=full`)
+  await page.goto(fixtureUrl('/integrations?state=full'))
   const main = page.getByRole('main')
   await main.getByRole('link', { name: /^Google Sheets / }).click()
   await expect(
@@ -318,7 +317,7 @@ test('service-account branches validate active fields and discard secrets after 
   page.on('request', (request) => {
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method())) writes.push(request.url())
   })
-  await page.goto(`${origin}/integrations/salesforce?state=full`)
+  await page.goto(fixtureUrl('/integrations/salesforce?state=full'))
   const main = page.getByRole('main')
   await expect(main.getByRole('button', { name: 'Connect integration', exact: true })).toBeVisible()
   await main.getByRole('button', { name: 'Connect integration', exact: true }).click()
@@ -362,7 +361,7 @@ test('service-account branches validate active fields and discard secrets after 
 test('a Google JSON credential is validated before joining every app in its family and never prefills a key', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations/gmail?state=full`)
+  await page.goto(fixtureUrl('/integrations/gmail?state=full'))
   const main = page.getByRole('main')
   await main.getByRole('button', { name: 'Connect integration', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Add service account', exact: true }).click()
@@ -420,7 +419,7 @@ test('a Google JSON credential is validated before joining every app in its fami
 test('Slack bot steps preserve configuration when going back and clear secrets on a new connection', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations/slack?state=full`)
+  await page.goto(fixtureUrl('/integrations/slack?state=full'))
   const main = page.getByRole('main')
   await main.getByRole('button', { name: 'Connect integration', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Set up a custom bot', exact: true }).click()
@@ -488,7 +487,7 @@ test('Slack bot steps preserve configuration when going back and clear secrets o
 test('Dataverse retains an immutable environment binding when reconnecting a named credential', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations/microsoft_dataverse?state=full`)
+  await page.goto(fixtureUrl('/integrations/microsoft_dataverse?state=full'))
   const main = page.getByRole('main')
   await main.getByRole('button', { name: 'Connect integration', exact: true }).click()
   const connect = page.getByRole('dialog', { name: 'Connect Microsoft Dataverse', exact: true })
@@ -525,7 +524,7 @@ test('Dataverse retains an immutable environment binding when reconnecting a nam
 test('member credentials withhold administration and personal tokens never offer sharing', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations/github?state=stress`)
+  await page.goto(fixtureUrl('/integrations/github?state=stress'))
   const main = page.getByRole('main')
   await main
     .getByRole('region', { name: 'Connected credentials', exact: true })
@@ -570,7 +569,7 @@ test('member credentials withhold administration and personal tokens never offer
 test('individual permissions inherit their default without changing other tools', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations/gmail?state=full`)
+  await page.goto(fixtureUrl('/integrations/gmail?state=full'))
   await page
     .getByRole('main')
     .getByRole('button', { name: 'Connect integration', exact: true })
@@ -610,7 +609,7 @@ test('individual permissions inherit their default without changing other tools'
   await expect(send).toHaveCount(0)
   await query.fill('unknown-tool')
   await expect(tools.getByText('No matching tools', { exact: true })).toBeVisible()
-  await page.goto(`${origin}/integrations/gmail?state=stress`)
+  await page.goto(fixtureUrl('/integrations/gmail?state=stress'))
   await page
     .getByRole('region', { name: 'Connected credentials', exact: true })
     .getByRole('button', { name: /^emir@sim.ai / })
@@ -622,7 +621,7 @@ test('individual permissions inherit their default without changing other tools'
 test('a cleared integration search stays clear when opening a provider and returning', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations?state=full&q=Fireflies`)
+  await page.goto(fixtureUrl('/integrations?state=full&q=Fireflies'))
   const main = page.getByRole('main')
   const field = main.getByRole('searchbox', { name: 'Search apps' })
   await page
@@ -643,7 +642,7 @@ test('a cleared integration search stays clear when opening a provider and retur
 test('managed, unconfigured and retained connections expose only the actions the member can take', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations?state=stress`)
+  await page.goto(fixtureUrl('/integrations?state=stress'))
   const main = page.getByRole('main')
   const fireflies = main.getByRole('link', { name: /^Fireflies / })
   await fireflies.click()
@@ -680,7 +679,7 @@ test('managed, unconfigured and retained connections expose only the actions the
 
 test('a single click opens a member credential at 200 percent text size', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 820 })
-  await page.goto(`${origin}/integrations?state=full`)
+  await page.goto(fixtureUrl('/integrations?state=full'))
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '200%'
   })
@@ -704,9 +703,9 @@ test('a single click opens a member credential at 200 percent text size', async 
 })
 
 test('an empty member inventory gates both the index and deep links', async ({ page }) => {
-  await page.goto(`${origin}/integrations?state=empty`)
+  await page.goto(fixtureUrl('/integrations?state=empty'))
   await expect(page.getByRole('heading', { name: 'No apps yet' })).toBeVisible()
-  await page.goto(`${origin}/integrations/gmail?state=empty`)
+  await page.goto(fixtureUrl('/integrations/gmail?state=empty'))
   await expect(page.getByRole('heading', { name: 'Gmail', exact: true })).toHaveCount(0)
   await expect(page.getByText('emir@sim.ai', { exact: true })).toHaveCount(0)
 })

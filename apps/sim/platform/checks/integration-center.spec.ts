@@ -1,11 +1,10 @@
 import { expect, test } from '@playwright/test'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test('credential scope hides personal secret sources from shared results and survives details', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations?state=stress&tab=credentials`)
+  await page.goto(fixtureUrl('/integrations?state=stress&tab=credentials'))
   const main = page.getByRole('main')
   const secrets = main.getByRole('link', { name: /^Generic Secrets / })
   await expect(secrets).toBeVisible()
@@ -23,7 +22,7 @@ test('credential scope hides personal secret sources from shared results and sur
 test('directory filters and ordering survive app details and resource browser history', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations?state=full`)
+  await page.goto(fixtureUrl('/integrations?state=full'))
   const main = page.getByRole('main')
   await main.getByRole('button', { name: /^App filter:/ }).click()
   await page.getByRole('menuitem', { name: 'Categories', exact: true }).press('ArrowRight')
@@ -82,7 +81,7 @@ test('available app usage stays inline and passive while connected counts includ
     ['full', '13 others', '1 connected credential'],
     ['stress', '1,000 others', '2 connected credentials'],
   ]) {
-    await page.goto(`${origin}/integrations?state=${scenario}`)
+    await page.goto(fixtureUrl(`/integrations?state=${scenario}`))
     const main = page.getByRole('main')
     const notion = main.getByRole('link', { name: /^Notion / })
     await expect(notion).toContainText('Used by')
@@ -129,7 +128,7 @@ test('available app usage stays inline and passive while connected counts includ
 test('editing a shared skill preserves its members and survives leaving the directory', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations?state=full&tab=skills`)
+  await page.goto(fixtureUrl('/integrations?state=full&tab=skills'))
   const main = page.getByRole('main')
   await main.getByRole('link', { name: /^Weekly customer review / }).click()
   const editor = main.getByRole('form', { name: 'Skill details', exact: true })
@@ -172,7 +171,7 @@ test('editing a shared skill preserves its members and survives leaving the dire
 test('shared creation needs a recipient and deletion affects only the confirmed resource', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations?state=full&tab=skills`)
+  await page.goto(fixtureUrl('/integrations?state=full&tab=skills'))
   const main = page.getByRole('main')
   await main.getByRole('button', { name: 'Create skill', exact: true }).click()
   const editor = main.getByRole('form', { name: 'Skill details', exact: true })
@@ -219,7 +218,7 @@ test('MCP and credential examples retain metadata without sending writes or reta
   page.on('request', (request) => {
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method())) writes.push(request.url())
   })
-  await page.goto(`${origin}/integrations?state=full&tab=mcps`)
+  await page.goto(fixtureUrl('/integrations?state=full&tab=mcps'))
   const main = page.getByRole('main')
   await main.getByRole('button', { name: 'Connect MCP', exact: true }).click()
   const mcp = main.getByRole('form', { name: 'MCP details', exact: true })
@@ -297,7 +296,7 @@ test('all integration tabs retain usable geometry across themes and widths', asy
   test.setTimeout(120_000)
   const main = page.getByRole('main')
   for (const theme of ['light', 'dark']) {
-    await page.goto(`${origin}/integrations?state=full&theme=${theme}`)
+    await page.goto(fixtureUrl(`/integrations?state=full&theme=${theme}`))
     for (const width of [390, 901, 1920]) {
       await page.setViewportSize({ width, height: 900 })
       for (const tab of ['Apps', 'Skills', 'MCPs', 'Credentials']) {

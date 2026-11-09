@@ -1,6 +1,5 @@
 import { expect, type Page, test } from '@playwright/test'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
@@ -47,7 +46,7 @@ async function box(page: Page, selector: string) {
 test('a workspace opens beside the organization sidebar, which stays as it is', async ({
   page,
 }) => {
-  await page.goto(`${origin}/home?state=full`)
+  await page.goto(fixtureUrl('/home?state=full'))
   const sidebar = page.getByRole('complementary', { name: 'Platform sidebar' })
   const navigation = sidebar.getByRole('navigation', { name: 'Main navigation' })
   const workspaces = navigation.getByRole('region', { name: 'Workspaces', exact: true })
@@ -74,7 +73,7 @@ test('a workspace opens beside the organization sidebar, which stays as it is', 
 test('workspace tabs share the Integrations heading, tab row and control positions', async ({
   page,
 }) => {
-  await page.goto(`${origin}/integrations?state=full`)
+  await page.goto(fixtureUrl('/integrations?state=full'))
   const reference = {
     heading: await box(page, 'main h1'),
     tabs: await box(page, 'main nav'),
@@ -87,7 +86,7 @@ test('workspace tabs share the Integrations heading, tab row and control positio
     ['dashboards', false, false],
     ['changelog', false, false],
   ] as const) {
-    await page.goto(`${origin}/workspace/it/${tab}?state=full`)
+    await page.goto(fixtureUrl(`/workspace/it/${tab}?state=full`))
     await expect(main(page).getByRole('heading', { level: 1, name: 'IT operations' })).toBeVisible()
     const heading = await box(page, 'main h1')
     const tabs = await box(page, 'main nav')
@@ -105,7 +104,7 @@ test('workspace tabs share the Integrations heading, tab row and control positio
 })
 
 test('tab changes keep a heading on screen and mark the current tab', async ({ page }) => {
-  await page.goto(`${origin}/workspace/it/dashboards?state=full`)
+  await page.goto(fixtureUrl('/workspace/it/dashboards?state=full'))
   const tabs = main(page).getByRole('navigation', { name: 'IT operations pages' })
   await expect(tabs.getByRole('link', { name: 'Dashboard' })).toHaveAttribute(
     'aria-current',
@@ -126,7 +125,7 @@ test('tab changes keep a heading on screen and mark the current tab', async ({ p
 test('a dashboard section choice changes only that section; the period changes the snapshot', async ({
   page,
 }) => {
-  await page.goto(`${origin}/workspace/it/dashboards?state=full`)
+  await page.goto(fixtureUrl('/workspace/it/dashboards?state=full'))
   const requests = main(page).getByRole('region', { name: 'Requests', exact: true })
   const mix = main(page).getByRole('region', { name: 'Request mix', exact: true })
   const mixLegend = await mix.getByRole('list', { name: 'Distribution legend' }).innerText()
@@ -146,7 +145,7 @@ test('a dashboard section choice changes only that section; the period changes t
 })
 
 test('chart points open the shared tooltip by pointer and by keyboard', async ({ page }) => {
-  await page.goto(`${origin}/workspace/it/dashboards?state=full`)
+  await page.goto(fixtureUrl('/workspace/it/dashboards?state=full'))
   const plot = main(page).getByRole('group', { name: 'Requests data' })
   await plot.hover({ position: { x: 40, y: 40 } })
   await expect(page.getByRole('tooltip')).toBeVisible()
@@ -162,7 +161,7 @@ test('chart points open the shared tooltip by pointer and by keyboard', async ({
 })
 
 test('issue list to details and Back restores the filters, scroll and chrome', async ({ page }) => {
-  await page.goto(`${origin}/workspace/workspace-0/issues?state=stress&sort=oldest`)
+  await page.goto(fixtureUrl('/workspace/workspace-0/issues?state=stress&sort=oldest'))
   const search = main(page).getByRole('searchbox', { name: 'Search issues' })
   await search.fill('Escalate')
   await expect(page).toHaveURL(/q=Escalate/)
@@ -210,7 +209,7 @@ test('issue list to details and Back restores the filters, scroll and chrome', a
 })
 
 test('long lists page quietly with edge fades only where content continues', async ({ page }) => {
-  await page.goto(`${origin}/workspace/workspace-0/logs?state=stress`)
+  await page.goto(fixtureUrl('/workspace/workspace-0/logs?state=stress'))
   const rows = main(page).getByRole('list', { name: 'Runs' }).getByRole('listitem')
   await expect(rows).toHaveCount(50)
   const region = page
@@ -227,7 +226,7 @@ test('long lists page quietly with edge fades only where content continues', asy
 test('an issue decision changes only the session and moves the issue between groups', async ({
   page,
 }) => {
-  await page.goto(`${origin}/workspace/it/issues?state=full`)
+  await page.goto(fixtureUrl('/workspace/it/issues?state=full'))
   await main(page)
     .getByRole('link', { name: /Route expired access requests/ })
     .click()
@@ -259,11 +258,11 @@ test('an issue decision changes only the session and moves the issue between gro
 
 test('pages refresh themselves, keeping only when they last updated', async ({ page }) => {
   for (const tab of ['dashboards', 'changelog']) {
-    await page.goto(`${origin}/workspace/it/${tab}?state=full`)
+    await page.goto(fixtureUrl(`/workspace/it/${tab}?state=full`))
     await expect(main(page).getByText(/^Updated /)).toBeVisible()
     await expect(main(page).getByRole('button', { name: /refresh/i })).toHaveCount(0)
   }
-  await page.goto(`${origin}/workspace/it/logs?state=full`)
+  await page.goto(fixtureUrl('/workspace/it/logs?state=full'))
   const rows = main(page).getByRole('list', { name: 'Runs' }).getByRole('listitem')
   await expect(rows.first()).toContainText('Running')
   await expect(main(page).getByRole('button', { name: /new runs?$/ })).toHaveCount(0)
@@ -272,7 +271,7 @@ test('pages refresh themselves, keeping only when they last updated', async ({ p
 test('a record keeps its identifiers in its facts, and the rail line spans only them', async ({
   page,
 }) => {
-  await page.goto(`${origin}/workspace/it/issues/IT-136?state=full`)
+  await page.goto(fixtureUrl('/workspace/it/issues/IT-136?state=full'))
   const facts = page.getByRole('complementary', { name: 'Facts' })
   await expect(facts.locator('dd', { hasText: /^IT-136$/ })).toBeVisible()
   const bar = main(page).getByRole('navigation', { name: 'Issues navigation' }).locator('xpath=..')
@@ -303,7 +302,7 @@ test('a record keeps its identifiers in its facts, and the rail line spans only 
 test('a run opens its trace and selected step, with its execution ID among its facts', async ({
   page,
 }) => {
-  await page.goto(`${origin}/workspace/it/logs?state=full`)
+  await page.goto(fixtureUrl('/workspace/it/logs?state=full'))
   const rows = main(page).getByRole('list', { name: 'Runs' }).getByRole('listitem')
   await expect(rows).toHaveCount(50)
   await rows.nth(4).getByRole('link').click()
@@ -333,7 +332,7 @@ test('a run opens its trace and selected step, with its execution ID among its f
 test('trace rows share one disclosure-to-name gap and hang guides under open parents', async ({
   page,
 }) => {
-  await page.goto(`${origin}/workspace/it/logs?state=full`)
+  await page.goto(fixtureUrl('/workspace/it/logs?state=full'))
   await main(page)
     .getByRole('list', { name: 'Runs' })
     .getByRole('listitem')
@@ -379,7 +378,7 @@ test('trace rows share one disclosure-to-name gap and hang guides under open par
 })
 
 test('logs filter from the leading edge of the bar, with no search', async ({ page }) => {
-  await page.goto(`${origin}/workspace/it/logs?state=full`)
+  await page.goto(fixtureUrl('/workspace/it/logs?state=full'))
   await expect(main(page).getByRole('button', { name: /Status/ })).toBeVisible()
   await expect(main(page).getByRole('searchbox')).toHaveCount(0)
   const tabs = await main(page)
@@ -394,7 +393,7 @@ test('logs filter from the leading edge of the bar, with no search', async ({ pa
 })
 
 test('the changelog ends each entry with its ticket, under the time', async ({ page }) => {
-  await page.goto(`${origin}/workspace/it/changelog?state=full`)
+  await page.goto(fixtureUrl('/workspace/it/changelog?state=full'))
   const entry = main(page).getByRole('listitem').first()
   const time = await entry.locator('time').boundingBox()
   const ticket = await entry.getByRole('link', { name: /^[A-Z]+-\d+$/ }).boundingBox()
@@ -410,7 +409,7 @@ test('the changelog ends each entry with its ticket, under the time', async ({ p
 })
 
 test('the changelog labels each day once and links each change to its issue', async ({ page }) => {
-  await page.goto(`${origin}/workspace/it/changelog?state=full`)
+  await page.goto(fixtureUrl('/workspace/it/changelog?state=full'))
   const days = await main(page).locator('section h2').allInnerTexts()
   expect(new Set(days).size).toBe(days.length)
   expect(days[0]).toBe('Today')
@@ -428,7 +427,7 @@ test('empty workspaces show one centered empty state per tab', async ({ page }) 
     ['changelog', 'No changes yet', 'View issues'],
     ['logs', 'No runs yet', undefined],
   ] as const) {
-    await page.goto(`${origin}/workspace/it/${tab}?state=empty`)
+    await page.goto(fixtureUrl(`/workspace/it/${tab}?state=empty`))
     const heading = main(page).getByRole('heading', { level: 2, name: title })
     await expect(heading).toBeVisible()
     if (action) await expect(main(page).getByRole('link', { name: action })).toBeVisible()

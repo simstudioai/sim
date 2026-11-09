@@ -1,6 +1,5 @@
 import { expect, test } from '@playwright/test'
-
-const origin = process.env.PLATFORM_E2E_ORIGIN ?? 'http://127.0.0.1:3181'
+import { fixtureUrl } from '@/platform/checks/routes'
 
 test('typing preserves field fill, shadow and outline', async ({ page }) => {
   for (const [theme, input, textarea, search] of [
@@ -12,7 +11,7 @@ test('typing preserves field fill, shadow and outline', async ({ page }) => {
       [textarea, 'ChipTextarea'],
       [search, 'Search'],
     ]) {
-      await page.goto(`${origin}/workbench?recipe=${key}&theme=${theme}&state=full`)
+      await page.goto(fixtureUrl(`/workbench?recipe=${key}&theme=${theme}&state=full`))
       const field =
         key === search
           ? page.getByRole('searchbox')
