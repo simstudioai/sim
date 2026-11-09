@@ -1,5 +1,19 @@
 import type { IntegrationPerson } from '@/platform/lib/integrations/center-model'
-import type { IntegrationAccount } from '@/platform/lib/integrations/fixture-model'
+import type { ToolPolicy } from '@/platform/shared/integrations'
+
+/** An account's Assistant tool policies: a default per kind and each tool's override. */
+export interface CredentialToolPermissions {
+  read: ToolPolicy
+  write: ToolPolicy
+  canAutoApprove: boolean
+  tools: {
+    id: string
+    label: string
+    description?: string
+    kind: 'read' | 'write'
+    override: ToolPolicy | null
+  }[]
+}
 
 export interface CredentialMember extends IntegrationPerson {
   userId: string
@@ -20,6 +34,8 @@ export interface IntegrationCredential {
   description: string
   accountLabel?: string
   instanceUrl?: string
+  /** What the connection calls `instanceUrl`, such as GitLab host or Environment URL. */
+  instanceLabel?: string
   role: 'admin' | 'member'
   status: 'active' | 'needs_reauth'
   canReconnect: boolean
@@ -29,7 +45,7 @@ export interface IntegrationCredential {
     | { kind: 'personal'; ownerId: string }
     | { kind: 'organization-managed'; id: string; name: string }
   members: readonly CredentialMember[]
-  permissions?: IntegrationAccount['permissions']
+  permissions?: CredentialToolPermissions
 }
 
 export interface CredentialField {

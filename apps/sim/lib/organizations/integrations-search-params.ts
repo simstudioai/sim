@@ -5,11 +5,6 @@ export const integrationSearchParsers = {
   q: parseAsString.withDefault(''),
 } as const
 
-export const integrationSearchUrlKeys = {
-  history: 'replace',
-  clearOnDefault: true,
-} as const
-
 export const integrationViewParsers = {
   integration: parseAsString,
   account: parseAsString,

@@ -1,3 +1,4 @@
+export type { WorkspaceCredential } from '@/lib/api/contracts/credentials'
 export { useSession } from '@/lib/auth/client'
 export type { ResourceScope } from '@/lib/core/resource-scope'
 export { partitionSettledFailures, resolveAddEmail } from '@/lib/workspaces/sharing'

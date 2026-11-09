@@ -9,18 +9,19 @@ import {
   type ConnectMethod,
   LiveIntegrationDetails,
 } from '@/app/(product)/o/[organizationId]/integrations/_components/live-integration-details/live-integration-details'
-import { useWorkspaceAppCredentials } from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-integration-details/workspace-app-credentials'
-import { useIntegrationViewer } from '@/platform/lib/data/integration-credentials'
 import {
-  type AppWorkspaceCredential,
-  toMemberAccountCredential,
-} from '@/platform/lib/data/integration-credentials-model'
+  useWorkspaceAppCredentials,
+  WorkspaceAppDialogs,
+  type WorkspaceAppScope,
+  WorkspaceCredentialPage,
+} from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-integration-details/workspace-app-credentials'
+import { useIntegrationViewer } from '@/platform/lib/data/integration-credentials'
+import { toMemberAccountCredential } from '@/platform/lib/data/integration-credentials-model'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
-import type { WorkspaceAppDetail } from '@/platform/lib/integrations/workspace-catalog'
+import { UNCONFIGURED_APP_REASON } from '@/platform/lib/integrations/workspace-catalog'
 import { isConnectable, type OrganizationIntegration } from '@/platform/shared/integrations'
 
-interface IntegrationDetailsProps {
-  integration: OrganizationIntegration
+type IntegrationDetailsProps = {
   accountId: string | null
   integrationHref: string
   /** A credential's own page on this app. */
@@ -33,22 +34,24 @@ interface IntegrationDetailsProps {
   /** Back to the app once the viewer leaves an open workspace credential. */
   onLeave: () => void
   renderToolPermissions: (accountId: string) => ReactNode
-  /** The app in the chosen workspace's catalog, whose credentials the page lists too. */
-  workspaceApp?: WorkspaceAppProps
-}
-
-interface WorkspaceAppProps {
-  app: WorkspaceAppDetail
-  workspace: { id: string; name: string }
-  credentials: readonly AppWorkspaceCredential[] | undefined
-}
+} & (
+  | {
+      /** The member's own accounts for this app, where the organization keeps member accounts. */
+      integration: OrganizationIntegration
+      /** The app in the chosen workspace's catalog, whose credentials the page lists too. */
+      workspaceApp?: WorkspaceAppScope
+    }
+  | { integration?: never; workspaceApp: WorkspaceAppScope }
+)
 
 /**
- * A member integration's page: the member's own accounts, each opening to its details, access and
- * tool permissions, and, where the chosen workspace may use the app, that workspace's credentials.
+ * An app's page: the member's own accounts and the chosen workspace's credentials in one list, each
+ * opening to its details, access and tool permissions, the ways to connect either, and the
+ * workspace's suggested skills and templates for the app.
  */
 export function IntegrationDetails({
   integration,
+  workspaceApp,
   accountId,
   integrationHref,
   accountHref,
@@ -58,74 +61,89 @@ export function IntegrationDetails({
   onDisconnect,
   onLeave,
   renderToolPermissions,
-  workspaceApp,
 }: IntegrationDetailsProps) {
   const viewer = useIntegrationViewer()
-  const workspace = useWorkspaceAppCredentials({
-    app: workspaceApp?.app,
-    workspace: workspaceApp?.workspace,
-    credentials: workspaceApp?.credentials,
-    accountId,
-  })
+  const workspace = useWorkspaceAppCredentials(workspaceApp, accountId)
   const [connecting, setConnecting] = useState(false)
-  const { accounts, connectionTarget, name } = integration
+  const accounts = integration?.accounts ?? []
   const accountById = new Map(accounts.map((account) => [account.id, account]))
-  const memberCredentials = viewer
-    ? accounts.map((account) =>
+  const memberCredentials = integration
+    ? viewer &&
+      accounts.map((account) =>
         toMemberAccountCredential(account, {
           appId: integration.id,
           providerId: integration.providerId,
           viewerId: viewer.id,
         })
       )
-    : undefined
+    : []
   const credentials =
     memberCredentials && workspace.credentials
       ? [...memberCredentials, ...workspace.credentials]
       : undefined
   const memberMethods: ConnectMethod[] =
-    connectionTarget && isConnectable(integration)
+    integration?.connectionTarget && isConnectable(integration)
       ? [
           {
             id: 'member-account',
             label: 'Personal account',
-            oauth: !('savedProviderId' in connectionTarget),
+            oauth: !('savedProviderId' in integration.connectionTarget),
             onSelect: () => setConnecting(true),
           },
         ]
       : []
   const workspaceMethods = workspace.methods.map((method) => ({
-    id: method.id,
+    ...method,
     label:
       memberMethods.length && workspaceApp
         ? `${method.label} (${workspaceApp.workspace.name})`
         : method.label,
-    oauth: method.oauth,
-    onSelect: method.onSelect,
   }))
-  const reason =
-    integration.availability === 'managed'
+  const memberReason =
+    integration?.availability === 'managed'
       ? `Managed by your organization. ${integration.accessDescription}`
-      : integration.status
+      : integration?.status
+  const app = integration
+    ? {
+        providerId: integration.providerId,
+        icon: integration.icon,
+        name: integration.name,
+        description: integration.description,
+        docsUrl: integration.setupGuideUrl,
+      }
+    : {
+        providerId: workspaceApp.app.id,
+        name: workspaceApp.app.name,
+        description: workspaceApp.app.description,
+        docsUrl: workspaceApp.app.docsUrl,
+      }
 
-  function renderMemberAccount(credential: IntegrationCredential, disconnect: () => void) {
+  function renderCredential(credential: IntegrationCredential, disconnect: () => void) {
     const account = accountById.get(credential.id)
-    if (!account || !viewer) return null
+    if (account && viewer)
+      return (
+        <CredentialDetail
+          key={credential.id}
+          credential={credential}
+          integrationName={app.name}
+          providerId={app.providerId}
+          viewer={viewer}
+          onReconnect={account.canReconnect ? () => onReconnect(account.id) : undefined}
+          onDisconnect={disconnect}
+          permissions={account.hasToolPermissions ? renderToolPermissions(account.id) : undefined}
+        />
+      )
+    if (!workspaceApp) return null
     return (
-      <CredentialDetail
+      <WorkspaceCredentialPage
         key={credential.id}
+        workspaceId={workspaceApp.workspace.id}
         credential={credential}
-        integrationName={name}
-        providerId={integration.providerId}
-        viewer={viewer}
-        people={[]}
-        // Only its owner holds a member account, so nothing here proposes an edit.
-        onChange={() => undefined}
-        onLeave={() => undefined}
-        detailsReadOnly
-        onReconnect={account.canReconnect ? () => onReconnect(account.id) : undefined}
+        appName={workspaceApp.app.name}
+        providerId={workspaceApp.app.id}
+        onReconnect={credential.canReconnect ? () => workspace.reconnect(credential) : undefined}
         onDisconnect={disconnect}
-        permissions={account.hasToolPermissions ? renderToolPermissions(account.id) : undefined}
+        onLeft={onLeave}
       />
     )
   }
@@ -134,30 +152,26 @@ export function IntegrationDetails({
     <>
       <LiveIntegrationDetails
         app={{
-          providerId: integration.providerId,
-          icon: integration.icon,
-          name,
-          description: integration.description,
-          docsUrl: integration.setupGuideUrl,
+          ...app,
           example:
             workspaceApp?.app.example ??
-            (integration.providerId === 'fireflies'
-              ? 'Use Fireflies to remember the interests prospects mention on calls. Turn those details into thoughtful gifts and personal follow-ups.'
-              : `${integration.description.replace(/[.!?]+$/, '')}. Bring that context into your next conversation with Sim.`),
+            `${app.description.replace(/[.!?]+$/, '')}. Bring that context into your next conversation with Sim.`,
         }}
         credentials={credentials}
         accountId={accountId}
         integrationHref={integrationHref}
         credentialHref={(credential) => accountHref(credential.id)}
         methods={[...memberMethods, ...workspaceMethods]}
-        unavailableReason={connectionTarget ? reason : undefined}
-        emptyNotice={isConnectable(integration) ? undefined : reason}
-        pending={pending}
-        renderCredential={(credential, disconnect) =>
-          accountById.has(credential.id)
-            ? renderMemberAccount(credential, disconnect)
-            : workspace.renderCredential(credential, disconnect, onLeave)
+        unavailableReason={
+          integration
+            ? integration.connectionTarget && memberReason
+            : workspaceApp.app.access === 'unconfigured'
+              ? UNCONFIGURED_APP_REASON
+              : 'This app has no connection you can add here.'
         }
+        emptyNotice={integration && !isConnectable(integration) ? memberReason : undefined}
+        pending={pending}
+        renderCredential={renderCredential}
         onDisconnect={(credential) => onDisconnect(credential.id)}
         capabilities={
           workspaceApp && (
@@ -169,12 +183,18 @@ export function IntegrationDetails({
           )
         }
       />
-      {workspace.dialogs}
-      {connecting && (
+      {workspaceApp && (
+        <WorkspaceAppDialogs
+          app={workspaceApp.app}
+          workspaceId={workspaceApp.workspace.id}
+          dialogs={workspace.dialogs}
+        />
+      )}
+      {integration && connecting && (
         <Modal
           open
-          title={`Connect ${name}`}
-          description={`Review access before continuing to ${name}.`}
+          title={`Connect ${app.name}`}
+          description={`Review access before continuing to ${app.name}.`}
           confirmLabel='Continue'
           confirmDisabled={pending || !isConnectable(integration)}
           onOpenChange={setConnecting}

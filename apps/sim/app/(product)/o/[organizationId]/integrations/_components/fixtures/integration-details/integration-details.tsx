@@ -13,6 +13,7 @@ import { CredentialConnect } from '@/app/(product)/o/[organizationId]/integratio
 import type { CredentialDraft } from '@/app/(product)/o/[organizationId]/integrations/_components/credential-connect/types'
 import { CredentialDetail } from '@/app/(product)/o/[organizationId]/integrations/_components/credential-detail/credential-detail'
 import { CredentialList } from '@/app/(product)/o/[organizationId]/integrations/_components/credential-list/credential-list'
+import { FixtureToolPermissions } from '@/app/(product)/o/[organizationId]/integrations/_components/fixtures/tool-permissions/tool-permissions'
 import { IntegrationCapabilities } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-capabilities/integration-capabilities'
 import { IntegrationIdea } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-idea/integration-idea'
 import { IntegrationUsage } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-usage/integration-usage'
@@ -241,6 +242,9 @@ export function IntegrationDetails({
       description: draft.description,
       accountLabel: draft.accountLabel,
       instanceUrl: draft.instanceUrl,
+      instanceLabel: enrollment.connection.fields.find(
+        (field) => field.id === 'domain' || field.id === 'dataverseEnvironmentUrl'
+      )?.label,
       role: 'admin',
       status: 'active',
       canReconnect: true,
@@ -288,11 +292,22 @@ export function IntegrationDetails({
           integrationName={integration.name}
           providerId={integration.providerId}
           viewer={viewer}
-          people={allowedPeople}
-          onChange={save}
+          onSaveDetails={(details) => save({ ...selected, ...details })}
+          access={{ people: allowedPeople, onChange: save, onLeave: () => leave(selected) }}
           onReconnect={canReconnect(selected) ? () => reconnect(selected) : undefined}
           onDisconnect={() => setDisconnecting(selected)}
-          onLeave={() => leave(selected)}
+          permissions={
+            selected.permissions && (
+              <FixtureToolPermissions
+                account={selected}
+                permissions={selected.permissions}
+                readOnly={
+                  selected.role !== 'admin' || selected.scope.kind === 'organization-managed'
+                }
+                onChange={(permissions) => save({ ...selected, permissions })}
+              />
+            )
+          }
         />
       ) : (
         <>

@@ -347,16 +347,14 @@ const serverSeamHelpers: ReasonedAllowlist = {
     "The workspace shell use case behind the shell's scope",
   'lib/workspaces/list': 'listWorkspacesForViewer, the workspaces a viewer may open',
   'lib/workspaces/seed-workspace-list': 'The workspace list the shell seeds for the sidebar',
-  'lib/core/config/block-visibility':
-    "Block visibility, which a workspace's Integrations directory judges on the server",
+  'lib/catalog/application/list-workspace-apps':
+    "The use case that resolves the access policy a workspace's Integrations directory applies",
   'lib/integrations/access':
-    "The integration access policy a workspace's Integrations pickers apply",
-  'lib/integrations/application/read-availability':
-    "The deployment availability use case behind a workspace's Integrations directory",
-  'lib/permission-groups/application/read-user-config':
-    "The viewer's permission group config, which the Integrations directory applies",
-  'lib/permissions/super-user':
-    'isPlatformAdmin, which widens the Integrations directory for admins',
+    "The integration access verdict a workspace's Integrations directory reads from that policy",
+  'lib/credentials/application/crud':
+    'getWorkspaceCredentialUseCase, which sends a legacy credential link to its app page',
+  'lib/credentials/application/presentation':
+    "toWorkspaceCredential, the credential route's presenter that server read checks against",
 }
 /**
  * Host modules every Platform file may import, views included, because the product shares them with

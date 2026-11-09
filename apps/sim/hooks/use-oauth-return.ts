@@ -291,22 +291,20 @@ async function verifyOAuthChatAttempt(queryClient: QueryClient, attemptId: strin
  */
 export function useOAuthReturnRouter(options?: {
   /**
-   * The scope the page connects credentials in, when it is not the route's own: an organization's
-   * Integrations page that manages one workspace's credentials returns those connections here.
+   * A workspace the page also connects credentials in, beside the route's own scope: an
+   * organization's Integrations page that manages one workspace's credentials returns both the
+   * organization's connections and that workspace's here.
    */
-  scope?: { workspaceId: string }
+  workspaceId?: string
 }) {
   const router = useRouter()
   const params = useParams()
   const queryClient = useQueryClient()
-  const explicitWorkspaceId = options?.scope?.workspaceId
   const workspaceId =
-    explicitWorkspaceId ?? (typeof params.workspaceId === 'string' ? params.workspaceId : undefined)
-  const organizationId = explicitWorkspaceId
-    ? undefined
-    : typeof params.organizationId === 'string'
-      ? params.organizationId
-      : undefined
+    options?.workspaceId ??
+    (typeof params.workspaceId === 'string' ? params.workspaceId : undefined)
+  const organizationId =
+    typeof params.organizationId === 'string' ? params.organizationId : undefined
   const handledRef = useRef(false)
   const chatAttemptHandledRef = useRef(false)
 
@@ -338,7 +336,15 @@ export function useOAuthReturnRouter(options?: {
       return
     }
 
-    if (ctx.workspaceId !== workspaceId || ctx.organizationId !== organizationId) return
+    const forOrganization =
+      organizationId !== undefined &&
+      ctx.organizationId === organizationId &&
+      ctx.workspaceId === undefined
+    const forWorkspace =
+      workspaceId !== undefined &&
+      ctx.workspaceId === workspaceId &&
+      ctx.organizationId === undefined
+    if (!forOrganization && !forWorkspace) return
     handledRef.current = true
     const callbackError = consumeOAuthCallbackError(ctx)
     if (callbackError) {

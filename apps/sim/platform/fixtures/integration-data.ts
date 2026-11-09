@@ -251,6 +251,7 @@ function credentialExamples(
       displayName: 'My GitLab account',
       description: '',
       instanceUrl: 'https://gitlab.com',
+      instanceLabel: 'GitLab host',
       role: 'admin',
       status: 'active',
       canReconnect: true,

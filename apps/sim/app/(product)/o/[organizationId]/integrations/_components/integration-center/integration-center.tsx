@@ -6,6 +6,7 @@ import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { SearchField } from '@sim/emcn/search-field'
 import { DestinationTabs } from '@sim/emcn-platform/destination-tabs'
+import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
@@ -44,15 +45,17 @@ interface ResourceLibrary {
   leave: (id: string) => void
 }
 
-/** The live Skills tab: a workspace's skills, which the tab lists one workspace at a time. */
-export interface SkillsTab {
-  /** The workspace choice, where the library's ownership filter sits. */
-  filter: ReactNode
+/** A tab whose rows live data supplies, such as a workspace's skills or MCP servers. */
+export interface LiveTab {
+  /** A choice of its own beside the page's, where the tab has one. */
+  filter?: ReactNode
   /** Create and import, ending the control bar. */
   actions: ReactNode
   content: ReactNode
   empty: boolean
   settled: boolean
+  /** What the tab reads with nothing in it yet. */
+  emptyDescription: string
 }
 
 interface IntegrationCenterProps {
@@ -64,7 +67,10 @@ interface IntegrationCenterProps {
   apps: readonly AppSummary[]
   credentials?: readonly AppSummary[]
   library?: ResourceLibrary
-  skills?: SkillsTab
+  skills?: LiveTab
+  mcps?: LiveTab
+  /** Where a credential is created on live data, which the Credentials tab's Create opens. */
+  createCredentialHref?: string
   settled?: boolean
   /** The choice every tab lists within, such as the workspace whose credentials and skills it shows. */
   scopeFilter?: ReactNode
@@ -86,6 +92,8 @@ export function IntegrationCenter({
   credentials = [],
   library,
   skills,
+  mcps,
+  createCredentialHref,
   settled = true,
   scopeFilter,
   appsEmptyDescription = 'Apps available to your organization appear here.',
@@ -107,7 +115,11 @@ export function IntegrationCenter({
   const tabs = library
     ? CENTER_TABS
     : CENTER_TABS.filter(
-        (tab) => tab.id === 'apps' || tab.id === 'credentials' || (tab.id === 'skills' && skills)
+        (tab) =>
+          tab.id === 'apps' ||
+          tab.id === 'credentials' ||
+          (tab.id === 'skills' && skills) ||
+          (tab.id === 'mcps' && mcps)
       )
   const current: IntegrationTab = tabs.some((tab) => tab.id === view.tab) ? view.tab : 'apps'
   const base = `${pathname}?${search.toString()}`
@@ -161,9 +173,15 @@ export function IntegrationCenter({
   const editing = isOpening
     ? undefined
     : library?.data.resources.find((resource) => resource.id === view.resource)
-  const liveSkills = current === 'skills' && !library ? skills : undefined
-  const empty = liveSkills
-    ? liveSkills.empty
+  const live = library
+    ? undefined
+    : current === 'skills'
+      ? skills
+      : current === 'mcps'
+        ? mcps
+        : undefined
+  const empty = live
+    ? live.empty
     : current === 'apps'
       ? !visibleApps.length
       : !resources.length && !(current === 'credentials' && credentialLinks.length)
@@ -288,8 +306,8 @@ export function IntegrationCenter({
                   }
                 }}
               />
-            ) : liveSkills ? (
-              liveSkills.filter
+            ) : live ? (
+              live.filter
             ) : (
               <ChoiceMenu
                 label='Category'
@@ -324,7 +342,17 @@ export function IntegrationCenter({
                 },
               ]}
             />
-            {liveSkills?.actions}
+            {live?.actions}
+            {current === 'credentials' && !library && createCredentialHref && (
+              <Button
+                variant='secondary'
+                size='compact'
+                icon='I074'
+                render={<Link href={createCredentialHref} />}
+              >
+                Create credential
+              </Button>
+            )}
             {current !== 'apps' && library && (
               <Button
                 variant='secondary'
@@ -345,8 +373,8 @@ export function IntegrationCenter({
           </ControlBar>
         </div>
         <div className={styles.groups}>
-          {liveSkills ? (
-            liveSkills.content
+          {live ? (
+            live.content
           ) : current === 'apps' ? (
             <>
               <AppGroup
@@ -385,7 +413,7 @@ export function IntegrationCenter({
               ))}
             </>
           )}
-          {(liveSkills ? liveSkills.settled : settled) && empty && (
+          {(live ? live.settled : settled) && empty && (
             <section className={styles.empty} aria-label='Search results'>
               <h2 data-type='T059'>
                 {term ? 'No results found' : `No ${current === 'mcps' ? 'MCPs' : current} yet`}
@@ -395,8 +423,8 @@ export function IntegrationCenter({
                   ? 'Try a different name or clear your filters.'
                   : current === 'apps'
                     ? appsEmptyDescription
-                    : liveSkills
-                      ? 'Skills in this workspace appear here.'
+                    : live
+                      ? live.emptyDescription
                       : 'Your personal and shared connections appear here.'}
               </p>
             </section>

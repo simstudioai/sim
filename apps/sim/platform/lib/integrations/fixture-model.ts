@@ -1,10 +1,12 @@
 import { integrationCenterHref } from '@/platform/lib/integrations/center-navigation'
-import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
+import type {
+  CredentialToolPermissions,
+  IntegrationCredential,
+} from '@/platform/lib/integrations/credential-model'
 import type { MemberSecretSource } from '@/platform/lib/integrations/member-secret-source'
 import { platformHref } from '@/platform/lib/navigation'
 
 export type AccountMethod = 'oauth' | 'mcp' | 'slack'
-export type ToolPolicy = 'allow' | 'ask' | 'block'
 
 export interface IntegrationAccount {
   id: string
@@ -12,18 +14,7 @@ export interface IntegrationAccount {
   method: AccountMethod
   status: 'active' | 'needs_reauth'
   canReconnect: boolean
-  permissions?: {
-    read: ToolPolicy
-    write: ToolPolicy
-    canAutoApprove: boolean
-    tools: {
-      id: string
-      label: string
-      description?: string
-      kind: 'read' | 'write'
-      override: ToolPolicy | null
-    }[]
-  }
+  permissions?: CredentialToolPermissions
 }
 
 /** The member inventory is projected before the page receives it. */

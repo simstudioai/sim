@@ -1,129 +1,122 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
+import { useState } from 'react'
 import { OAuthConnectModal } from '@/app/(product)/_components/oauth-connect-modal/oauth-connect-modal'
 import { ServiceAccountModal } from '@/app/(product)/_components/service-account-modal/service-account-modal'
 import { CredentialDetail } from '@/app/(product)/o/[organizationId]/integrations/_components/credential-detail/credential-detail'
-import type { ConnectMethod } from '@/app/(product)/o/[organizationId]/integrations/_components/live-integration-details/live-integration-details'
 import { PersonalTokenModal } from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-integration-details/personal-token-modal'
 import {
   hasServiceAccountForm,
-  type ResourceScope,
   useDataverseReconnect,
+  type WorkspaceCredential,
 } from '@/platform/lib/data/credentials'
 import { useWorkspaceCredentialAccess } from '@/platform/lib/data/integration-credentials'
-import {
-  type AppWorkspaceCredential,
-  toWorkspaceIntegrationCredential,
-} from '@/platform/lib/data/integration-credentials-model'
+import { toWorkspaceIntegrationCredential } from '@/platform/lib/data/integration-credentials-model'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 import {
   appCredentials,
+  GITLAB_TOKEN_CONNECTION,
   type WorkspaceAppConnection,
   type WorkspaceAppDetail,
 } from '@/platform/lib/integrations/workspace-catalog'
 
-interface WorkspaceAppCredentialsOptions {
-  /** The app in the workspace's catalog; absent where the workspace cannot use it. */
-  app: WorkspaceAppDetail | undefined
-  workspace: { id: string; name: string } | undefined
+export interface WorkspaceAppScope {
+  app: WorkspaceAppDetail
+  workspace: { id: string; name: string }
   /** The workspace's credentials; absent until they load. */
-  credentials: readonly AppWorkspaceCredential[] | undefined
-  /** The credential the URL opens, whose Dataverse binding decides whether it reconnects. */
-  accountId: string | null
+  credentials: readonly WorkspaceCredential[] | undefined
 }
 
 /**
  * One app's credentials in one workspace, as legacy's workspace integration page served them: the
- * methods this deployment can complete, the dialogs they open, and each connected credential's
- * page with its details, access and reconnection.
+ * methods this deployment can complete, which dialog is open, and each connected credential in the
+ * credential page's vocabulary. `WorkspaceAppDialogs` renders the dialogs it opens.
  */
-export function useWorkspaceAppCredentials({
-  app,
-  workspace,
-  credentials,
-  accountId,
-}: WorkspaceAppCredentialsOptions) {
+export function useWorkspaceAppCredentials(
+  scope: WorkspaceAppScope | undefined,
+  accountId: string | null
+) {
   const [connecting, setConnecting] = useState<WorkspaceAppConnection | null>(null)
   const [reconnectingId, setReconnectingId] = useState<string | null>(null)
   const [replacingTokenId, setReplacingTokenId] = useState<string | null>(null)
-  const connected =
-    app && workspace ? (credentials ? appCredentials(app, credentials) : undefined) : []
+  const connected = scope ? scope.credentials && appCredentials(scope.app, scope.credentials) : []
   const selected = connected?.find((credential) => credential.id === accountId)
   const dataverse = useDataverseReconnect(selected)
-  const connections = app?.connections ?? []
+  const connections = scope?.app.connections ?? []
   const oauthFor = (providerId: string | null) =>
     connections.find(
       (connection) => connection.kind === 'oauth' && connection.providerId === providerId
     )
-  const usable = connections.filter(
-    (connection) =>
-      connection.kind === 'oauth' ||
-      connection.kind === 'personal_token' ||
-      hasServiceAccountForm(connection.providerId)
-  )
-  const reconnectable = (credential: AppWorkspaceCredential) =>
-    credential.type === 'personal_token' ||
+  const reconnectable = (credential: WorkspaceCredential) =>
+    (credential.type === 'personal_token' && credential.providerId === 'gitlab') ||
     (Boolean(oauthFor(credential.providerId)) &&
       (credential.id !== selected?.id || (!dataverse.pending && !dataverse.blockedReason)))
-  const mapped = connected?.flatMap((credential) => {
-    if (!app || !workspace) return []
-    const projected = toWorkspaceIntegrationCredential(credential, {
-      appId: app.id,
-      workspace,
-      canReconnect: reconnectable(credential),
-    })
-    return projected ? [projected] : []
-  })
-  const reconnecting = connected?.find((credential) => credential.id === reconnectingId)
-  const replacingToken = connected?.find((credential) => credential.id === replacingTokenId)
 
-  const methods: ConnectMethod[] = usable.map((connection) => ({
-    id: connection.id,
-    label: connection.label,
-    oauth: connection.kind === 'oauth',
-    onSelect: () => setConnecting(connection),
-  }))
-
-  function renderCredential(
-    credential: IntegrationCredential,
-    disconnect: () => void,
-    onLeft: () => void
-  ): ReactNode {
-    if (!app || !workspace) return null
-    return (
-      <WorkspaceCredentialPage
-        key={credential.id}
-        workspaceId={workspace.id}
-        credential={credential}
-        appName={app.name}
-        providerId={app.id}
-        onReconnect={
-          credential.canReconnect
-            ? () =>
-                credential.type === 'personal_token'
-                  ? setReplacingTokenId(credential.id)
-                  : setReconnectingId(credential.id)
-            : undefined
-        }
-        onDisconnect={disconnect}
-        onLeft={onLeft}
-      />
-    )
+  return {
+    credentials: connected?.flatMap((credential) => {
+      if (!scope) return []
+      const projected = toWorkspaceIntegrationCredential(credential, {
+        appId: scope.app.id,
+        workspace: scope.workspace,
+        canReconnect: reconnectable(credential),
+        instanceLabel: credential.providerId
+          ? scope.app.instanceLabels[credential.providerId]
+          : undefined,
+      })
+      return projected ? [projected] : []
+    }),
+    methods: connections
+      .filter(
+        (connection) =>
+          connection.kind === 'oauth' ||
+          connection.id === GITLAB_TOKEN_CONNECTION ||
+          hasServiceAccountForm(connection.providerId)
+      )
+      .map((connection) => ({
+        id: connection.id,
+        label: connection.label,
+        oauth: connection.kind === 'oauth',
+        onSelect: () => setConnecting(connection),
+      })),
+    reconnect(credential: IntegrationCredential) {
+      if (credential.type === 'personal_token') setReplacingTokenId(credential.id)
+      else setReconnectingId(credential.id)
+    },
+    dialogs: {
+      connecting,
+      reconnecting: connected?.find((credential) => credential.id === reconnectingId),
+      replacingToken: connected?.find((credential) => credential.id === replacingTokenId),
+      requiredScopes: (providerId: string) =>
+        oauthFor(providerId)?.requiredScopes?.map((requested) => requested.id),
+      dataverseEnvironmentUrl: dataverse.environmentUrl,
+      close() {
+        setConnecting(null)
+        setReconnectingId(null)
+        setReplacingTokenId(null)
+      },
+    },
   }
+}
 
-  const scope: ResourceScope | undefined = workspace && {
-    kind: 'workspace',
-    workspaceId: workspace.id,
+interface WorkspaceAppDialogsProps {
+  app: WorkspaceAppDetail
+  workspaceId: string
+  dialogs: ReturnType<typeof useWorkspaceAppCredentials>['dialogs']
+}
+
+/** The connect and reconnect dialogs `useWorkspaceAppCredentials` opens. */
+export function WorkspaceAppDialogs({ app, workspaceId, dialogs }: WorkspaceAppDialogsProps) {
+  const { connecting, reconnecting, replacingToken, close } = dialogs
+  const scope = { kind: 'workspace' as const, workspaceId }
+  const onOpenChange = (open: boolean) => {
+    if (!open) close()
   }
-  const dialogs = app && workspace && scope && (
+  return (
     <>
       {connecting?.kind === 'oauth' && (
         <OAuthConnectModal
           open
-          onOpenChange={(open) => {
-            if (!open) setConnecting(null)
-          }}
+          onOpenChange={onOpenChange}
           mode='connect'
           scope={scope}
           providerId={connecting.providerId}
@@ -134,65 +127,48 @@ export function useWorkspaceAppCredentials({
           docsUrl={app.docsUrl}
         />
       )}
-      {connecting?.kind === 'personal_token' && (
-        <PersonalTokenModal workspaceId={workspace.id} onClose={() => setConnecting(null)} />
+      {connecting?.id === GITLAB_TOKEN_CONNECTION && (
+        <PersonalTokenModal workspaceId={workspaceId} onClose={close} />
       )}
       {connecting?.kind === 'service_account' && (
         <ServiceAccountModal
           open
-          onOpenChange={(open) => {
-            if (!open) setConnecting(null)
-          }}
+          onOpenChange={onOpenChange}
           scope={scope}
           serviceAccountProviderId={connecting.providerId}
-          atlassianProduct={app.id === 'confluence' ? 'confluence' : 'jira'}
+          atlassianProduct={connecting.atlassianProduct}
           serviceName={app.name}
-          onCreated={() => setConnecting(null)}
+          onCreated={close}
         />
       )}
       {replacingToken && (
         <PersonalTokenModal
-          workspaceId={workspace.id}
+          workspaceId={workspaceId}
           replacing={{ credentialId: replacingToken.id, instanceUrl: replacingToken.instanceUrl }}
-          onClose={() => setReplacingTokenId(null)}
+          onClose={close}
         />
       )}
       {reconnecting?.providerId && (
         <OAuthConnectModal
           open
-          onOpenChange={(open) => {
-            if (!open) setReconnectingId(null)
-          }}
+          onOpenChange={onOpenChange}
           mode='reauthorize'
           scope={scope}
           providerId={reconnecting.providerId}
           serviceName={app.name}
-          requiredScopes={oauthFor(reconnecting.providerId)?.requiredScopes?.map(
-            (requested) => requested.id
-          )}
+          requiredScopes={dialogs.requiredScopes(reconnecting.providerId)}
           reconnectTarget={{
             credentialId: reconnecting.id,
             displayName: reconnecting.displayName,
           }}
-          requireDataverseEnvironment={Boolean(dataverse.environmentUrl)}
-          dataverseEnvironmentUrl={dataverse.environmentUrl}
+          requireDataverseEnvironment={Boolean(dialogs.dataverseEnvironmentUrl)}
+          dataverseEnvironmentUrl={dialogs.dataverseEnvironmentUrl}
           returnTo={{ origin: 'integrations' }}
           docsUrl={app.docsUrl}
         />
       )}
     </>
   )
-
-  return {
-    credentials: mapped,
-    methods,
-    unavailableReason:
-      app?.access === 'unconfigured'
-        ? 'Unavailable in this deployment. Contact your administrator.'
-        : 'This app has no connection you can add here.',
-    renderCredential,
-    dialogs,
-  }
 }
 
 interface WorkspaceCredentialPageProps {
@@ -207,7 +183,7 @@ interface WorkspaceCredentialPageProps {
 }
 
 /** A workspace credential's own page: details its admins rename, and who can use it. */
-function WorkspaceCredentialPage({
+export function WorkspaceCredentialPage({
   workspaceId,
   credential,
   appName,
@@ -224,11 +200,14 @@ function WorkspaceCredentialPage({
       integrationName={appName}
       providerId={providerId}
       viewer={access.viewer}
-      people={access.people}
-      onChange={access.save}
+      onSaveDetails={access.saveDetails}
+      access={{
+        people: access.people,
+        onChange: access.saveAccess,
+        onLeave: () => access.leave(onLeft),
+      }}
       onReconnect={onReconnect}
       onDisconnect={onDisconnect}
-      onLeave={() => access.leave(onLeft)}
     />
   )
 }

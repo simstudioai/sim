@@ -1,13 +1,16 @@
 import 'server-only'
-import { createLogger } from '@sim/logger'
+import type { DehydratedState } from '@tanstack/react-query'
+import { getWorkspaceCredentialContract } from '@/lib/api/contracts/credentials'
 import { listWorkspacesContract } from '@/lib/api/contracts/workspaces'
-import { getBlockVisibility } from '@/lib/core/config/block-visibility'
-import { createIntegrationAccessPolicy, resolveIntegrationAccess } from '@/lib/integrations/access'
-import { readIntegrationAvailability } from '@/lib/integrations/application/read-availability'
-import { readUserPermissionConfig } from '@/lib/permission-groups/application/read-user-config'
-import { isPlatformAdmin } from '@/lib/permissions/super-user'
+import { listWorkspaceApps } from '@/lib/catalog/application/list-workspace-apps'
+import { resolveIntegrationAccess } from '@/lib/integrations/access'
+import { getWorkspaceCredentialUseCase } from '@/lib/credentials/application/crud'
+import { toWorkspaceCredential } from '@/lib/credentials/application/presentation'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
+import { readIntegrationLinks } from '@/platform/lib/data/integration-links'
+import { hasMemberIntegrations } from '@/platform/lib/data/member-integrations'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
+import { prefetchIntegrations } from '@/platform/lib/data/prefetch-integrations'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
 import type {
   WorkspaceApp,
@@ -15,7 +18,8 @@ import type {
 } from '@/platform/lib/integrations/workspace-catalog'
 import { projectWorkspaceApp } from '@/platform/lib/integrations/workspace-catalog'
 
-const logger = createLogger('PlatformWorkspaceIntegrations')
+type SearchParams = Record<string, string | string[] | undefined>
+
 
 interface IntegrationsWorkspace {
   id: string
@@ -44,39 +48,18 @@ async function readIntegrationsWorkspaces(
 }
 
 /**
- * The apps the viewer may see in one workspace, judged by the same integration access policy the
- * workflow editor's pickers apply: the workspace's permission group, the deployment's allowlist and
- * configuration, and the viewer's block visibility. Each input is read through the use case its
- * route runs, with the viewer's session.
+ * The apps the viewer may see in one workspace, each judged by the access policy the catalog's
+ * workspace-apps use case resolves, projected from the generated catalog.
  */
 async function readWorkspaceApps(workspaceId: string): Promise<WorkspaceAppDetail[]> {
   const { principal } = await requireSessionViewer()
-  const [permission, availability, { integrationCatalog }] = await Promise.all([
-    readUserPermissionConfig.execute({ principal, input: { workspaceId } }),
-    readIntegrationAvailability.execute({ principal, input: undefined }),
-    import('@/platform/lib/integrations/catalog.generated'),
-  ])
-  const visibility = await getBlockVisibility({
-    userId: principal.userId,
-    orgId: permission.organizationId ?? undefined,
-    isAdmin: await isPlatformAdmin(principal.userId).catch((error: unknown) => {
-      logger.warn('Could not resolve platform administration for block visibility', { error })
-      return false
-    }),
-  })
-  const policy = createIntegrationAccessPolicy({
-    groupConfig: permission.config,
-    groupAllowlist: permission.config?.allowedIntegrations ?? null,
-    deploymentAllowlist: availability.allowedIntegrations,
-    availability: availability.integrationAvailability,
-    visibility,
-    credentialGroupsEnabled: false,
+  const { integrationCatalog } = await import('@/platform/lib/integrations/catalog.generated')
+  const { policy, oauthAvailability } = await listWorkspaceApps.execute({
+    principal,
+    input: { workspaceId },
   })
   const oauth = new Map(
-    availability.oauthServiceAvailability.map(({ providerId, available }) => [
-      providerId.toLowerCase(),
-      available,
-    ])
+    oauthAvailability.map(({ providerId, available }) => [providerId.toLowerCase(), available])
   )
   return integrationCatalog.flatMap((entry) => {
     const app = projectWorkspaceApp(entry, {
@@ -89,47 +72,115 @@ async function readWorkspaceApps(workspaceId: string): Promise<WorkspaceAppDetai
   })
 }
 
-/**
- * The workspace an Integrations page lists within, as its `workspace` query names it, else the
- * viewer's most recent one, and the apps the access policy lets the viewer see there.
- */
-export async function readIntegrationsWorkspaceScope(
-  organizationId: string,
-  requested: string | string[] | undefined
-) {
-  const workspaces = await readIntegrationsWorkspaces(organizationId)
-  const workspaceId = Array.isArray(requested) ? requested[0] : requested
-  const workspace = workspaces.find((item) => item.id === workspaceId) ?? workspaces[0]
-  const apps = workspace ? await readWorkspaceApps(workspace.id) : []
-  return { workspaces, workspace, apps }
-}
-
-/** The app a `/integrations/[app]` segment names, by its catalog id or its legacy slug. */
-export function findWorkspaceApp(apps: readonly WorkspaceAppDetail[], section: string) {
-  return apps.find((app) => app.id === section || app.slug === section)
-}
+/** What an Integrations URL shows, decided once on the server for the page that renders it. */
+export type IntegrationsSection =
+  | { kind: 'redirect'; href: string }
+  | { kind: 'notFound' }
+  | {
+      kind: 'render'
+      /** Whether the organization keeps member-scoped accounts the viewer may connect. */
+      member: boolean
+      links?: Extract<Awaited<ReturnType<typeof readIntegrationLinks>>, { kind: 'page' }>
+      workspaces: IntegrationsWorkspace[]
+      /** The workspace every tab lists within; absent when the viewer has none. */
+      workspaceId: string | null
+      apps: WorkspaceApp[]
+      /** The app the `[app]` segment names in that workspace's catalog. */
+      detail?: WorkspaceAppDetail
+      state?: DehydratedState
+    }
 
 /**
- * Where a legacy link that names an app by its old slug lands: the app's page at its catalog id,
- * with the link's query kept.
+ * Decides what an Integrations URL shows: the index or an app page over the member's own accounts,
+ * where the organization keeps them, and one workspace's catalog, credentials and skills. A
+ * `workspace` the viewer cannot list canonicalizes to their first workspace, a legacy slug to the
+ * app's id, and a link from before providers had pages to its provider's page.
  */
-export function appPagePath(
+export async function resolveIntegrationsSection(
   organization: PlatformOrganization,
-  appId: string,
-  searchParams: Record<string, string | string[] | undefined> | undefined
+  section: string | undefined,
+  searchParams: SearchParams
+): Promise<IntegrationsSection> {
+  const member = hasMemberIntegrations(organization)
+  // Links name the index; a provider page reads only its own view state.
+  const links =
+    member && !section ? await readIntegrationLinks(organization, searchParams) : undefined
+  if (links?.kind === 'invalid') return { kind: 'notFound' }
+  if (links?.kind === 'redirect') return links
+  const workspaces = await readIntegrationsWorkspaces(organization.organization.id)
+  const requested = Array.isArray(searchParams.workspace)
+    ? searchParams.workspace[0]
+    : searchParams.workspace
+  const workspace =
+    requested === undefined ? workspaces[0] : workspaces.find((item) => item.id === requested)
+  if (requested !== undefined && !workspace)
+    return {
+      kind: 'redirect',
+      href: integrationsPath(organization, section, {
+        ...searchParams,
+        workspace: workspaces[0]?.id,
+      }),
+    }
+  const [apps, state] = await Promise.all([
+    workspace ? readWorkspaceApps(workspace.id) : [],
+    member ? prefetchIntegrations(organization) : undefined,
+  ])
+  // A legacy connected-credential link names only the credential: open it in its app's page.
+  const legacyAccount = Array.isArray(searchParams.account)
+    ? searchParams.account[0]
+    : searchParams.account
+  if (!member && !section && workspace && legacyAccount) {
+    const providerId = await readCredentialProvider(legacyAccount, workspace.id)
+    const app = providerId && apps.find((item) => item.credentialProviders.includes(providerId))
+    return app
+      ? { kind: 'redirect', href: integrationsPath(organization, app.id, searchParams) }
+      : { kind: 'notFound' }
+  }
+  const detail = section
+    ? apps.find((app) => app.id === section || app.slug === section)
+    : undefined
+  if (detail && section !== detail.id)
+    return { kind: 'redirect', href: integrationsPath(organization, detail.id, searchParams) }
+  // A member integration is read in the browser, so only an organization without one can tell here.
+  if (section && !detail && !member) return { kind: 'notFound' }
+  return {
+    kind: 'render',
+    member,
+    links,
+    workspaces,
+    workspaceId: workspace?.id ?? null,
+    apps: apps.map(({ example, skills, templates, ...app }) => app),
+    detail,
+    state,
+  }
+}
+
+/** The provider of a workspace credential a legacy link names, read as its route reads it. */
+async function readCredentialProvider(credentialId: string, workspaceId: string) {
+  const { principal } = await requireSessionViewer()
+  const { credential, access } = await getWorkspaceCredentialUseCase.execute({
+    principal,
+    input: { credentialId, assertedWorkspaceId: workspaceId },
+  })
+  const response = await asRouteResponse(getWorkspaceCredentialContract, {
+    credential: toWorkspaceCredential(credential, access),
+  })
+  return response.credential?.providerId ?? null
+}
+
+/** An Integrations page with the query it was asked for. */
+function integrationsPath(
+  organization: PlatformOrganization,
+  section: string | undefined,
+  searchParams: SearchParams
 ) {
   const query = new URLSearchParams()
-  for (const [key, value] of Object.entries(searchParams ?? {}))
+  for (const [key, value] of Object.entries(searchParams))
     for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value])
       query.append(key, item)
-  const path = surfaceHref(organization, `/integrations/${encodeURIComponent(appId)}`)
+  const path = surfaceHref(
+    organization,
+    section ? `/integrations/${encodeURIComponent(section)}` : '/integrations'
+  )
   return query.size ? `${path}?${query}` : path
-}
-
-/** The directory's apps, without the copy only a detail page shows. */
-export function toAppSummaries(apps: readonly WorkspaceAppDetail[]): WorkspaceApp[] {
-  return apps.map((detail) => {
-    const { example, skills, templates, ...app } = detail
-    return app
-  })
 }

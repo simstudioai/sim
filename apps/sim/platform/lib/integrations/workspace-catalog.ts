@@ -13,7 +13,19 @@ type WorkspaceAppAccess = 'available' | 'unconfigured' | 'restricted'
 export type WorkspaceAppConnection = Pick<
   CredentialConnection,
   'id' | 'kind' | 'label' | 'providerId' | 'setup' | 'requiredScopes'
->
+> & {
+  /** The Atlassian product an Atlassian service account connects for this app. */
+  atlassianProduct?: 'jira' | 'confluence'
+}
+
+/** Why an app the deployment has not configured cannot be connected. */
+export const UNCONFIGURED_APP_REASON = 'Unavailable in this deployment. Contact your administrator.'
+
+/** The connection that adds a GitLab personal access token, the one personal token form. */
+export const GITLAB_TOKEN_CONNECTION = 'gitlab-personal-token'
+
+/** Connection fields that hold the immutable host or environment a credential connects to. */
+const INSTANCE_FIELDS: ReadonlySet<string> = new Set(['domain', 'dataverseEnvironmentUrl'])
 
 /** An app of a workspace's Integrations directory: catalog metadata and the viewer's verdict. */
 export interface WorkspaceApp {
@@ -31,6 +43,8 @@ export interface WorkspaceApp {
   credentialProviders: readonly string[]
   /** The methods that can add a credential now; empty when none can. */
   connections: readonly WorkspaceAppConnection[]
+  /** What each credential provider's immutable host or environment is called, by provider id. */
+  instanceLabels: Readonly<Record<string, string>>
 }
 
 /** What the detail page adds for the one app it shows. */
@@ -49,6 +63,8 @@ export interface WorkspaceAppVerdicts {
   /** Whether the deployment can complete an OAuth provider's sign-in; absent reads as available. */
   oauthAvailable: (providerId: string) => boolean | undefined
 }
+
+const ATLASSIAN_SERVICE_ACCOUNT_PROVIDER = 'atlassian-service-account'
 
 /** The connection kinds this page can add a credential with; the rest list but cannot connect. */
 const CONNECTABLE_KINDS: ReadonlySet<CredentialConnection['kind']> = new Set([
@@ -95,7 +111,16 @@ export function projectWorkspaceApp(
       providerId,
       setup,
       requiredScopes,
+      ...(providerId === ATLASSIAN_SERVICE_ACCOUNT_PROVIDER
+        ? { atlassianProduct: entry.type.startsWith('confluence') ? 'confluence' : 'jira' }
+        : {}),
     })),
+    instanceLabels: Object.fromEntries(
+      entry.connections.flatMap((connection) => {
+        const field = connection.fields.find((item) => INSTANCE_FIELDS.has(item.id))
+        return field ? [[connection.providerId, field.label]] : []
+      })
+    ),
   }
 }
 

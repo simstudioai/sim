@@ -135,30 +135,32 @@ export function ResourceGroup({
   )
 }
 
-interface SkillGroupProps {
+interface LiveGroupProps {
   title: string
-  skills: readonly { id: string; name: string; description: string; href: string }[]
-  onOpen: (id: string) => void
+  /** The kind's glyph: the slash for skills, the plug for MCP servers. */
+  glyph: 'I044' | 'I126'
+  rows: readonly { id: string; name: string; description: string; href: string }[]
+  onOpen: (row: { id: string; href: string }) => void
 }
 
-/** A workspace's live skills, with the same group and row rhythm as the library's resources. */
-export function SkillGroup({ title, skills, onOpen }: SkillGroupProps) {
-  if (!skills.length) return null
+/** Live skills or MCP servers, with the same group and row rhythm as the library's resources. */
+export function LiveGroup({ title, glyph, rows, onOpen }: LiveGroupProps) {
+  if (!rows.length) return null
   return (
     <section className={styles.group} aria-label={title}>
       <h2 data-type='T059'>{title}</h2>
       <ul className={styles.rows}>
-        {skills.map((skill) => (
+        {rows.map((row) => (
           <ActivityRow
-            key={skill.id}
-            href={skill.href}
+            key={row.id}
+            href={row.href}
             onNavigate={(event) => {
               event.preventDefault()
-              onOpen(skill.id)
+              onOpen(row)
             }}
-            leading={<Icon name='I044' />}
-            title={skill.name}
-            detail={skill.description}
+            leading={<Icon name={glyph} />}
+            title={row.name}
+            detail={row.description}
           />
         ))}
       </ul>
