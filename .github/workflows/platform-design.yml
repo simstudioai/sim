@@ -161,10 +161,25 @@ jobs:
         run: node "$(node -p "require.resolve('electron/install.js')")"
       - uses: ./.github/actions/desktop-native-cache
       - run: bun run --cwd apps/desktop build
+      # This runner cold-compiles the fixture development server for twenty minutes, so Turbopack's
+      # dev cache carries over between runs. It is saved even when the spec fails, which is when the
+      # next run needs it most; Turbopack revalidates every entry against the sources.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        with:
+          path: apps/sim/.next/dev/cache/turbopack
+          key: platform-desktop-turbopack-${{ hashFiles('bun.lock') }}-${{ github.sha }}
+          restore-keys: |
+            platform-desktop-turbopack-${{ hashFiles('bun.lock') }}-
+            platform-desktop-turbopack-
       - run: bun run --cwd apps/sim test:platform:desktop
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=6144'
           PLATFORM_DESKTOP_REPORT_PATH: ${{ runner.temp }}/platform-desktop/report.json
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v5
+        if: always()
+        with:
+          path: apps/sim/.next/dev/cache/turbopack
+          key: platform-desktop-turbopack-${{ hashFiles('bun.lock') }}-${{ github.sha }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
