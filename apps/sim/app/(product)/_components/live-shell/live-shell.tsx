@@ -62,7 +62,6 @@ export async function LiveShell({
       <Suspense fallback={null}>
         <LiveComposerHost>
           <ProductSession
-            fixtures={null}
             routePrefix={organization.routePrefix}
             banner={<SessionState />}
             sidebarCollapsed={cookieStore.get('sidebar_collapsed')?.value === '1'}

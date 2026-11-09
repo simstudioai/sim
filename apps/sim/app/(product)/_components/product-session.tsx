@@ -17,6 +17,7 @@ import { SidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layou
 import type { Scenario } from '@/platform/fixtures'
 import { useLiveShellData } from '@/platform/lib/data/shell-context'
 import {
+  type Appearance,
   type PreviewPlan,
   readAppearance,
   readPreviewPlan,
@@ -24,11 +25,7 @@ import {
 } from '@/platform/lib/navigation'
 import { SurfaceScopeProvider } from '@/platform/lib/surface-scope'
 
-interface ProductSessionProps {
-  fixtures: Record<
-    Scenario,
-    ShellData & { settingsByPlan: Record<PreviewPlan, SettingsNavGroup[]> }
-  > | null
+interface SessionFrameProps {
   /** `/o/<organizationId>`: what every organization route's path needs in front of it. */
   routePrefix: string
   /** Above the shell, inside the theme: session states only a live session has. */
@@ -38,24 +35,22 @@ interface ProductSessionProps {
   children: ReactNode
 }
 
-export function ProductSession({
+interface SessionTreeProps extends SessionFrameProps {
+  data: ShellData | null
+  theme: Appearance
+  /** Example data: its integration changes are session state, and its scenario resets preferences. */
+  scenario?: Scenario
+}
+
+function SessionTree({
   children,
-  fixtures,
   routePrefix,
   banner,
   sidebarCollapsed,
-}: ProductSessionProps) {
-  const search = useSearchParams()
-  const scenario = readScenario(search.get('state'))
-  const live = useLiveShellData()
-  const fixture = fixtures?.[scenario]
-  const data =
-    live ??
-    (fixture && {
-      ...fixture,
-      settingsNavigation: fixture.settingsByPlan[readPreviewPlan(search.get('plan'))],
-    }) ??
-    null
+  data,
+  theme,
+  scenario,
+}: SessionTreeProps) {
   return (
     <SurfaceScopeProvider routePrefix={routePrefix}>
       <InterfacePreferences key={scenario}>
@@ -65,9 +60,9 @@ export function ProductSession({
             <ChatChangesProvider>
               <ComposerDrafts>
                 <ComposerSession>
-                  <PlatformSurface theme={live?.appearance ?? readAppearance(search.get('theme'))}>
+                  <PlatformSurface theme={theme}>
                     <IntegrationChanges>
-                      <IntegrationCenterChanges enabled={Boolean(fixture) && !live}>
+                      <IntegrationCenterChanges enabled={scenario !== undefined}>
                         <PlatformShell data={data} banner={banner}>
                           {children}
                         </PlatformShell>
@@ -82,4 +77,39 @@ export function ProductSession({
       </InterfacePreferences>
     </SurfaceScopeProvider>
   )
+}
+
+/**
+ * A fixture build's session: the scenario, plan and theme its URL selects. Only this path reads the
+ * query, so a live session never re-renders on a query change.
+ */
+export function FixtureProductSession({
+  fixtures,
+  ...frame
+}: SessionFrameProps & {
+  fixtures: Record<
+    Scenario,
+    ShellData & { settingsByPlan: Record<PreviewPlan, SettingsNavGroup[]> }
+  >
+}) {
+  const search = useSearchParams()
+  const scenario = readScenario(search.get('state'))
+  const fixture = fixtures[scenario]
+  return (
+    <SessionTree
+      {...frame}
+      data={{
+        ...fixture,
+        settingsNavigation: fixture.settingsByPlan[readPreviewPlan(search.get('plan'))],
+      }}
+      theme={readAppearance(search.get('theme'))}
+      scenario={scenario}
+    />
+  )
+}
+
+/** A live session's shell, over the data `LiveProviders` holds. */
+export function ProductSession(frame: SessionFrameProps) {
+  const live = useLiveShellData()
+  return <SessionTree {...frame} data={live} theme={live?.appearance ?? 'system'} />
 }

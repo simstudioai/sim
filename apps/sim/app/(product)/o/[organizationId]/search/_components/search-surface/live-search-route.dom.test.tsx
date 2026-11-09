@@ -148,7 +148,7 @@ function SearchRoute({ shell }: { shell: DehydratedState }) {
       <RenderCache />
       <Suspense fallback={null}>
         <PagePayload>
-          <ProductSession fixtures={null} routePrefix={NARROW_MEMBER_SURFACE.routePrefix}>
+          <ProductSession routePrefix={NARROW_MEMBER_SURFACE.routePrefix}>
             <SearchSurface />
           </ProductSession>
         </PagePayload>
