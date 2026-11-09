@@ -141,16 +141,19 @@ export function IntegrationDetails({
           label='Credential details'
           actions={
             <>
-              {selected.canReconnect && (
-                <Button
-                  variant='quiet'
-                  size='compact'
-                  disabled={pending}
-                  onClick={() => onReconnect(selected.id)}
-                >
-                  Reconnect
-                </Button>
-              )}
+              <Button
+                variant='quiet'
+                size='compact'
+                disabled={pending || !selected.canReconnect}
+                disabledReason={
+                  selected.canReconnect
+                    ? undefined
+                    : `${name} connections are not available to reconnect this account`
+                }
+                onClick={() => onReconnect(selected.id)}
+              >
+                Reconnect
+              </Button>
               <Button
                 variant='quiet'
                 destructive
