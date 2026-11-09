@@ -10,6 +10,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { parseAsString, useQueryStates } from 'nuqs'
 import { toast } from '@/lib/toast/sink'
+import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import {
   descendantIndex,
@@ -82,6 +83,7 @@ import {
   useUpdateWorkflow,
   useUserPermissionsContext,
   useWorkflows,
+  useWorkspaceWorkflowsRoom,
   type WorkflowMetadata,
 } from '@/platform/lib/data/workflows'
 import { platformHref } from '@/platform/lib/navigation'
@@ -188,6 +190,7 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
   const canAdmin = permissions.canAdmin
 
   const workflowsQuery = useWorkflows(workspaceId)
+  useWorkspaceWorkflowsRoom(workspaceId)
   const allWorkflows = workflowsQuery.data ?? EMPTY_WORKFLOWS
   const workflows = useMemo(
     () => allWorkflows.filter((workflow) => workflow.workspaceId === workspaceId),
@@ -750,6 +753,34 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
   const chain = folderPath(folderById, folderId)
   const hrefFor = (id: string | null) => folderHref(pathname, searchParams, id)
   const createBlocked = !canEdit || currentLocked
+
+  usePageCommands(
+    createBlocked
+      ? []
+      : [
+          {
+            id: 'workflows-new-workflow',
+            label: 'New workflow',
+            run: () => {
+              if (!ops.isCreatingWorkflow) ops.createWorkflow(folderId)
+            },
+          },
+          {
+            id: 'workflows-new-folder',
+            label: 'New folder',
+            run: () => {
+              if (!ops.isCreatingFolder) void createFolderIn(folderId)
+            },
+          },
+          {
+            id: 'workflows-import',
+            label: 'Import',
+            run: () => {
+              if (!ops.isImporting) fileInput.current?.click()
+            },
+          },
+        ]
+  )
 
   const newWorkflowAction: MenuAction = {
     id: 'new-workflow',
