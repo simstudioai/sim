@@ -1,6 +1,11 @@
 import path from 'node:path'
 import { defineConfig } from '@playwright/test'
-import { FIXTURE_PORT, fixtureServer } from '@/platform/checks/routes'
+import {
+  FIXTURE_PORT,
+  FIXTURE_READY_TIMEOUT_MS,
+  FIXTURE_SERVER_ENV,
+  fixtureServer,
+} from '@/platform/checks/routes'
 
 const appRoot = path.resolve(__dirname, '../..')
 const report = process.env.PLATFORM_REPORT_PATH ?? 'test-results/platform/report.json'
@@ -22,9 +27,8 @@ export default defineConfig({
     : {
         command: fixtureServer(FIXTURE_PORT),
         cwd: appRoot,
-        env: { SIM_PLATFORM_FIXTURES: '1' },
-        // A development server compiles each route on its first request.
-        timeout: 300_000,
+        env: FIXTURE_SERVER_ENV,
+        timeout: FIXTURE_READY_TIMEOUT_MS,
         url: `http://127.0.0.1:${FIXTURE_PORT}/api/health`,
       },
 })

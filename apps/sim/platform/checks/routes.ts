@@ -43,3 +43,15 @@ export const liveLoginPattern = (route: string) =>
  * development-only mode: a production build never serves it.
  */
 export const fixtureServer = (port: number) => `bunx --no-install next dev -H 127.0.0.1 -p ${port}`
+
+/**
+ * The fixture development server's environment and readiness deadline. Its first request
+ * cold-compiles the whole app under Turbopack, 60-185s on a healthy CI runner and past 300s on a
+ * degraded one, so the deadline matches `.github/scripts/http-e2e.sh`'s.
+ */
+export const FIXTURE_SERVER_ENV = {
+  SIM_PLATFORM_FIXTURES: '1',
+  DISABLE_TELEMETRY: 'true',
+  NEXT_TELEMETRY_DISABLED: '1',
+}
+export const FIXTURE_READY_TIMEOUT_MS = 600_000
