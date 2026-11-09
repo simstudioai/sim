@@ -19,10 +19,10 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-context', () => ({
+vi.mock('@/components/workspace-providers/workspace-host-context', () => ({
   useOptionalWorkspaceHostContext: () => mocks.workspace,
 }))
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
+vi.mock('@/components/workspace-providers/workspace-permissions-provider', () => ({
   useOptionalWorkspacePermissionsContext: () => ({ userPermissions: { canAdmin: true } }),
 }))
 vi.mock('@/lib/knowledge/connectors/entitlements', () => ({

@@ -13,14 +13,14 @@ import {
 } from '@sim/emcn-legacy'
 import { ChevronDown, Search } from '@sim/emcn-legacy/icons'
 import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/components/settings/primitives/settings-empty-state'
+import { SettingsResourceRow } from '@/components/settings/primitives/settings-resource-row'
+import {
   ORGANIZATION_SCOPED_FEATURE_NOTE,
   type PermissionGroupPlatformFeature,
 } from '@/lib/permission-groups/features'
-import {
-  SettingsEmptyState,
-  SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import type { BlockConfig } from '@/blocks/types'
 import {
   AccessStateSelect,

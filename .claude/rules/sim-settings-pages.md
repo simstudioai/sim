@@ -3,7 +3,7 @@ description: Settings page layout and SettingsPanel design-system compliance
 paths:
   - "apps/sim/app/workspace/*/settings/**"
   - "apps/sim/app/workspace/*/{integrations,skills,upgrade}/**"
-  - "apps/sim/app/workspace/*/components/{resource-tile,credential-detail}/**"
+  - "apps/sim/components/{resource-tile,credential-detail}/**"
   - "apps/sim/components/{settings,permissions}/**"
   - "apps/sim/ee/**/components/**"
 ---

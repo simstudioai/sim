@@ -4,20 +4,7 @@
     "apps/sim/platform/embedded/app/(shell)/search/_components/search-surface/search-surface.tsx": 1
   },
   "platformLibToWorkspace": {},
-  "viewsToWorkspace": {
-    "apps/sim/platform/embedded/app/(shell)/_components/conversation/page-composer.tsx": 3,
-    "apps/sim/platform/embedded/app/(shell)/_components/conversation/page-conversation.tsx": 4,
-    "apps/sim/platform/embedded/app/(shell)/_components/conversation/search-input-bar.tsx": 2,
-    "apps/sim/platform/embedded/app/(shell)/_components/conversation/share-dialog.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/_components/conversation/skeletons.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/_components/search/source-row.tsx": 2,
-    "apps/sim/platform/embedded/app/(shell)/_components/sidebar/chats-section.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/integrations/_components/integrations-page/integrations-route.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/integrations/_components/search-connection-request/search-connection-request.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/search/_components/search-surface/search-surface.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/connector-settings-fields.tsx": 1,
-    "apps/sim/platform/embedded/app/(shell)/settings/_components/sections/integrations/source-setup.tsx": 2
-  },
+  "viewsToWorkspace": {},
   "zoneLibToViewTypes": {
     "apps/sim/platform/lib/data/admin.ts": 1,
     "apps/sim/platform/lib/data/chat-composer.ts": 2,

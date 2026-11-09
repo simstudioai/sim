@@ -5,9 +5,9 @@ import { FILE_DOC_EVENTS, type FileDocPresence } from '@sim/realtime-protocol/fi
 import { type QueryFilters, useQueryClient } from '@tanstack/react-query'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
+import { FileDocProvider } from '@/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider'
+import { useSocket } from '@/components/workspace-providers/socket-provider'
 import { getUserColor } from '@/lib/workspaces/colors'
-import { FileDocProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider'
-import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { workspaceFileMetadataFilter } from '@/hooks/queries/utils/workspace-file-cache'
 import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-keys'
 

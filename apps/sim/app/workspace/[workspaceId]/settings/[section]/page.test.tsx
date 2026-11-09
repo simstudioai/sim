@@ -25,7 +25,7 @@ vi.mock('@/lib/workspaces/host-context', () => ({
 vi.mock('@/hooks/queries/utils/get-query-client', () => ({
   getQueryClient: mockGetQueryClient,
 }))
-vi.mock('@/app/workspace/[workspaceId]/settings/navigation', () => ({
+vi.mock('@/components/settings/workspace-navigation', () => ({
   resolveSettingsSection: vi.fn((section: string) => {
     const aliases: Record<string, string> = { subscription: 'billing' }
     const id = aliases[section] ?? section

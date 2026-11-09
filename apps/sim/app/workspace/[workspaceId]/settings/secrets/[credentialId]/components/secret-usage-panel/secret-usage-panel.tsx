@@ -3,16 +3,13 @@
 import { useMemo } from 'react'
 import { ChipLink } from '@sim/emcn-legacy'
 import { formatDateTime } from '@sim/utils/formatting'
+import { TriggerBadge } from '@/components/logs/utils'
+import { FloatingOverflowText } from '@/components/resource/components/floating-overflow-text'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { ActivityLog, type ActivityLogEntry } from '@/components/settings/sections/activity-log'
 import { SettingsActionChip } from '@/components/settings/settings-header'
 import type { SecretUsageEntryPayload, SecretUsageScope } from '@/lib/api/contracts'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
-import { TriggerBadge } from '@/app/workspace/[workspaceId]/logs/utils'
-import {
-  ActivityLog,
-  type ActivityLogEntry,
-} from '@/app/workspace/[workspaceId]/settings/components/activity-log'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { useSecretUsage } from '@/hooks/queries/credentials'
 
 /**

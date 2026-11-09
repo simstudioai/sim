@@ -11,16 +11,13 @@ import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { InlineNotice } from '@sim/emcn/status'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import { isValidEmailSyntax, normalizeEmail } from '@sim/utils/string'
+import { type ShareDialogProps, useShareDialog } from '@/components/share-modal'
 import {
   useOpenSimLinkForm,
   useSimLinkOrganizationId,
 } from '@/components/sim-links/sim-link-organization-provider'
 import { useExistingSimLink } from '@/components/sim-links/sim-link-shortcut'
 import { generatePassword } from '@/lib/core/security/encryption'
-import {
-  type ShareDialogProps,
-  useShareDialog,
-} from '@/app/workspace/[workspaceId]/files/components/share-modal'
 import styles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 import { BodyDialog } from '@/platform/embedded/app/(shell)/_components/conversation/dialogs'
 

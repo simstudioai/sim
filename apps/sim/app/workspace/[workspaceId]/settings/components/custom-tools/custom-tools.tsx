@@ -7,15 +7,15 @@ import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
-import { customToolIdParam, customToolIdUrlKeys } from '@/lib/settings/search-params'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import type { SettingsAction } from '@/components/settings/primitives/settings-header/settings-header'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+} from '@/components/settings/primitives/settings-resource-row'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
+import { customToolIdParam, customToolIdUrlKeys } from '@/lib/settings/search-params'
 import { useCustomTools } from '@/hooks/queries/custom-tools'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 

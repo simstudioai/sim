@@ -9,14 +9,11 @@ import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
 import type { ChatMessage, ChatRequestMode } from '@/lib/mothership/chat/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
-import {
-  getMothershipUseChatOptions,
-  useChat,
-} from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
+import { getMothershipUseChatOptions, useChat } from '@/hooks/mothership-chat/use-chat'
 import {
   useChatResourcePanel,
   useResourcePanelController,
-} from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
+} from '@/hooks/mothership-chat/use-resource-panel'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useDecideToolPermissions } from '@/hooks/queries/copilot-tool-permissions'
 import {

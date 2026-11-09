@@ -8,9 +8,9 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/code-field'
 import { highlightSyntax } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/highlight'
+import { GeneratePrompt } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/generate-prompt/generate-prompt'
 import { CustomToolCodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/custom-tool-code-field'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/custom-tool-modal.module.css'
-import { GeneratePrompt } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/generate-prompt'
 import { useWorkflowScope } from '@/platform/lib/data/workflow-editor'
 import {
   type CustomToolDefinition,

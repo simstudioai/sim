@@ -5,7 +5,9 @@ import { ArrowLeft, Chip, toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { BillingPeriodToggle, ComparisonTable, UpgradePlanCard } from '@/components/billing/upgrade'
 import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { useWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-provider'
 import { useSession } from '@/lib/auth/client'
 import {
   getUpgradeCardCta,
@@ -13,16 +15,8 @@ import {
   type PlanTier,
   type UpgradeCardId,
 } from '@/lib/billing/client'
+import { useUpgradeState } from '@/lib/billing/client/upgrade-state'
 import { ANNUAL_DISCOUNT_RATE } from '@/lib/billing/constants'
-import { DEFAULT_UPGRADE_HEADER, UPGRADE_REASON_COPY } from '@/lib/billing/upgrade-reasons'
-import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import {
-  BillingPeriodToggle,
-  ComparisonTable,
-  UpgradePlanCard,
-} from '@/app/workspace/[workspaceId]/upgrade/components'
-import { useUpgradeState } from '@/app/workspace/[workspaceId]/upgrade/hooks'
 import {
   ENTERPRISE_PLAN_CREDITS,
   ENTERPRISE_PLAN_FEATURES,
@@ -30,7 +24,9 @@ import {
   MAX_PLAN_FEATURES,
   PRO_PLAN_CREDITS,
   PRO_PLAN_FEATURES,
-} from '@/app/workspace/[workspaceId]/upgrade/plan-configs'
+} from '@/lib/billing/plan-configs'
+import { DEFAULT_UPGRADE_HEADER, UPGRADE_REASON_COPY } from '@/lib/billing/upgrade-reasons'
+import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import {
   upgradeReasonParam,
   upgradeUrlKeys,

@@ -3,16 +3,16 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
+import { SettingsUpgradeNotice } from '@/components/settings/primitives/settings-upgrade-notice'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
 import {
   InboxEnableToggle,
   InboxSettingsTab,
   InboxTaskList,
 } from '@/app/workspace/[workspaceId]/settings/components/inbox/components'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { SettingsUpgradeNotice } from '@/app/workspace/[workspaceId]/settings/components/settings-upgrade-notice'
 import { useInboxConfig } from '@/hooks/queries/inbox'
 
 export function Inbox() {

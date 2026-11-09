@@ -1,6 +1,6 @@
 import { noop } from '@sim/utils/helpers'
+import { PreviewToolbar } from '@/components/file-viewer/preview-toolbar'
 import type { LibraryFile } from '@/app/(landing)/files/components/files-library-preview/data'
-import { PreviewToolbar } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-toolbar'
 
 interface LibraryFileDetailProps {
   file: LibraryFile

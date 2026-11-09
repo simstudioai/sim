@@ -6,8 +6,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+} from '@/components/settings/primitives/settings-empty-state'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import { SettingRow } from '@/ee/components/setting-row'
 import { useOrganizationSsoPolicy, useUpdateOrganizationSsoPolicy } from '@/ee/sso/hooks/sso-policy'
 import { describeSsoPolicy, SSO_POLICY_OPTIONS } from '@/ee/sso/lib/provider-form'

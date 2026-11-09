@@ -5,24 +5,17 @@ import { Chip, toast } from '@sim/emcn-legacy'
 import { PlayOutline, ShieldCheck } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import type { WorkflowTestRecord } from '@/lib/api/contracts/workflow-tests'
-import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { ownerCell } from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
+import { ownerCell } from '@/components/resource/components/owner-cell'
 import {
   ResourceNoResults,
   TestsEmptyState,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
-import type {
-  SearchConfig,
-  SortConfig,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
-import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
-import {
-  Resource,
-  type ResourceColumn,
-  type ResourceRow,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+} from '@/components/resource/components/resource-empty-state'
+import type { SearchConfig, SortConfig } from '@/components/resource/components/resource-options'
+import { timeCell } from '@/components/resource/components/time-cell'
+import { Resource, type ResourceColumn, type ResourceRow } from '@/components/resource/resource'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
+import type { WorkflowTestRecord } from '@/lib/api/contracts/workflow-tests'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { TestStatusBadge } from '@/app/workspace/[workspaceId]/tests/components/test-status-badge'
 import {
   testsParsers,

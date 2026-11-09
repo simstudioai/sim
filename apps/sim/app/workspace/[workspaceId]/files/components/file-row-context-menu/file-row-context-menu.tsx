@@ -16,9 +16,9 @@ import {
   Pencil,
 } from '@sim/emcn-legacy'
 import { Download, Link, Pin, Send, Trash } from '@sim/emcn-legacy/icons'
-import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
-import { renderMoveOption } from '@/app/workspace/[workspaceId]/components/folders'
-import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
+import type { MoveOptionNode } from '@/components/folders'
+import { renderMoveOption } from '@/components/folders'
+import { selectionActionLabel } from '@/components/resource/selection-label'
 
 interface FileRowContextMenuProps {
   isOpen: boolean

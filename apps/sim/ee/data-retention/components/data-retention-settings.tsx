@@ -19,6 +19,13 @@ import { ArrowLeft, Plus } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { CustomPatternsEditor } from '@/components/pii/custom-patterns-editor'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/components/settings/primitives/settings-resource-row'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import type { RetentionOverride } from '@/lib/api/contracts/primitives'
@@ -33,13 +40,6 @@ import {
   type PiiStageKey,
   type PiiStagePolicy,
 } from '@/lib/guardrails/pii-entities'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import {
-  RESOURCE_LIST_STACK,
-  SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   type DataRetentionResponse,
   useOrganizationRetention,

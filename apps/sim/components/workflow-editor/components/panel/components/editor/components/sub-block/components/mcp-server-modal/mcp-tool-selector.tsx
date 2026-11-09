@@ -1,0 +1,119 @@
+'use client'
+
+import { useMemo } from 'react'
+import { Combobox } from '@sim/emcn-legacy'
+import { formatDisplayText } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { getWorkflowSearchLabelHighlight } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useMcpBlockConfig } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/hooks/use-mcp-block-config'
+import { useSubBlockValue } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/components/workflow-editor/components/panel/components/editor/providers/active-search-target-provider'
+import { useWorkflowScope } from '@/components/workspace-providers/workflow-scope-provider'
+import {
+  createMcpToolOutputSnapshot,
+  MCP_TOOL_OUTPUT_SCHEMA_SUBBLOCK,
+} from '@/lib/mcp/output-schema'
+import type { SubBlockConfig } from '@/blocks/types'
+import { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
+
+interface McpToolSelectorProps {
+  blockId: string
+  subBlock: SubBlockConfig
+  disabled?: boolean
+  isPreview?: boolean
+  previewValue?: string | null
+  previewContextValues?: Record<string, unknown>
+}
+
+export function McpToolSelector({
+  blockId,
+  subBlock,
+  disabled = false,
+  isPreview = false,
+  previewValue,
+  previewContextValues,
+}: McpToolSelectorProps) {
+  const activeSearchTarget = useActiveSearchTarget()
+  const { workspaceId } = useWorkflowScope()
+
+  const { mcpTools, isLoading, error, refreshTools } = useMcpTools(workspaceId)
+
+  const [storeValue, setStoreValue] = useSubBlockValue(blockId, subBlock.id)
+  const [, setSchemaCache] = useSubBlockValue(blockId, '_toolSchema')
+  const [, setOutputSchemaSnapshot] = useSubBlockValue(blockId, MCP_TOOL_OUTPUT_SCHEMA_SUBBLOCK)
+
+  const { server: serverValue } = useMcpBlockConfig({ blockId, previewContextValues })
+
+  const label = subBlock.placeholder || 'Select tool'
+
+  const effectiveValue = isPreview && previewValue !== undefined ? previewValue : storeValue
+  const selectedToolId = effectiveValue || ''
+
+  const availableTools = useMemo(
+    () => mcpTools.filter((tool) => tool.serverId === serverValue),
+    [mcpTools, serverValue]
+  )
+
+  const selectedTool = availableTools.find(
+    (tool) => tool.id === selectedToolId || tool.name === selectedToolId
+  )
+
+  const comboboxOptions = useMemo(
+    () =>
+      availableTools.map((tool) => ({
+        label: tool.name,
+        value: tool.name,
+      })),
+    [availableTools]
+  )
+
+  const inputValue =
+    selectedTool?.name ?? (typeof effectiveValue === 'string' ? effectiveValue : '')
+  const handleComboboxChange = (value: string) => {
+    if (isPreview) return
+    const matchedTool = availableTools.find((tool) => tool.name === value)
+    setStoreValue(matchedTool?.name ?? value)
+    setSchemaCache(matchedTool?.inputSchema ?? null)
+    setOutputSchemaSnapshot(
+      matchedTool && typeof serverValue === 'string'
+        ? createMcpToolOutputSnapshot(serverValue, matchedTool.name, matchedTool.outputSchema)
+        : null
+    )
+  }
+
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen && serverValue) {
+      refreshTools()
+    }
+  }
+
+  const isDisabled = disabled || !serverValue
+  const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+    activeSearchTarget,
+    subBlockId: subBlock.id,
+    valuePath: [],
+    label: inputValue,
+  })
+
+  return (
+    <Combobox
+      options={comboboxOptions}
+      value={inputValue}
+      selectedValue={selectedToolId}
+      onChange={handleComboboxChange}
+      onOpenChange={handleOpenChange}
+      placeholder={serverValue ? label : 'Select server first'}
+      disabled={isDisabled}
+      editable={false}
+      searchable
+      filterOptions={false}
+      isLoading={isLoading}
+      error={error || null}
+      overlayLabel={inputValue || undefined}
+      overlayContent={
+        workflowSearchHighlight ? (
+          <span>{formatDisplayText(inputValue, { workflowSearchHighlight })}</span>
+        ) : undefined
+      }
+    />
+  )
+}

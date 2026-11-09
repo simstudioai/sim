@@ -13,6 +13,14 @@ import {
 import { Plus } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
+import { RowActionsMenu } from '@/components/settings/primitives/row-actions-menu'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/components/settings/primitives/settings-resource-row'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
 import {
   MANAGED_MCP_CONNECTORS,
@@ -27,14 +35,6 @@ import {
   credentialGroupProviderSearchParam,
   credentialGroupProviderSearchUrlKeys,
 } from '@/lib/settings/search-params'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import {
-  RESOURCE_LIST_STACK,
-  SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { CredentialGroupProviderTile } from '@/ee/credential-groups/components/credential-group-provider-tile'
 import { DatabricksMcpConnectorModal } from '@/ee/credential-groups/components/databricks-mcp-connector-modal'
 import { OrganizationAccountProviderCatalog } from '@/ee/credential-groups/components/organization-account-provider-catalog'

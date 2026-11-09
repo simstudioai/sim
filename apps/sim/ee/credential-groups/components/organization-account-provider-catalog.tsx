@@ -11,14 +11,14 @@ import {
   ChipModalHeader,
 } from '@sim/emcn-legacy'
 import { Search } from '@sim/emcn-legacy/icons'
-import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
-import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
-import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+} from '@/components/settings/primitives/settings-resource-row'
+import type { OrganizationAccountsSettings } from '@/lib/api/contracts/organization-accounts'
+import type { ManagedMcpConnectorId } from '@/lib/credential-groups/managed-mcp-connectors'
+import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import { CredentialGroupProviderTile } from '@/ee/credential-groups/components/credential-group-provider-tile'
 import {
   type OrganizationAccountProviderChoice,

@@ -3,8 +3,8 @@
 import { ChipLink } from '@sim/emcn-legacy'
 import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { useParams } from 'next/navigation'
-import { CredentialDetailLayout } from '@/app/workspace/[workspaceId]/components/credential-detail'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { CredentialDetailLayout } from '@/components/credential-detail'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
 
 /**
  * Serves both the route transition into a secret and the in-page Suspense boundary the

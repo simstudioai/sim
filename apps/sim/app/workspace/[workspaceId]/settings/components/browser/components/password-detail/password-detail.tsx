@@ -16,14 +16,11 @@ import {
   toast,
 } from '@sim/emcn-legacy'
 import { BrowserCredentialIcon } from '@/components/browser-credential-icon'
+import { RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN } from '@/components/resource-tile'
+import { SettingsField } from '@/components/settings/primitives/settings-field'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import { getDesktopBridge } from '@/lib/desktop'
-import {
-  RESOURCE_TILE_BASE,
-  RESOURCE_TILE_PLAIN,
-} from '@/app/workspace/[workspaceId]/components/resource-tile'
-import { SettingsField } from '@/app/workspace/[workspaceId]/settings/components/settings-field'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 /** The same focus-independent mask the Secrets page uses for values. */
 const MASKED_STYLE = { WebkitTextSecurity: 'disc' } as CSSProperties

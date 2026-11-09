@@ -2,14 +2,13 @@
 
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { TextField } from '@sim/emcn/field'
+import { SwitchField, TextField } from '@sim/emcn/field'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
-import { Switch } from '@sim/emcn/switch'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/enrichments-panel/enrichments-panel.module.css'
 import {
   SidePanel,
+  SidePanelNote,
   SidePanelSection,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/side-panel/side-panel'
 import { RunAfterField } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/workflow-panel/run-after-field'
@@ -267,9 +266,7 @@ export function EnrichmentConfig({
     >
       <SidePanelSection title='Inputs'>
         {enrichment.inputs.length === 0 ? (
-          <p className={styles.note} data-type='T060'>
-            This enrichment needs no inputs.
-          </p>
+          <SidePanelNote>This enrichment needs no inputs.</SidePanelNote>
         ) : (
           enrichment.inputs.map((input) => (
             <SearchableSelect
@@ -311,10 +308,7 @@ export function EnrichmentConfig({
       </SidePanelSection>
 
       <SidePanelSection>
-        <div className={styles.switchRow}>
-          <span data-type='T059'>Auto-run</span>
-          <Switch label='Auto-run' checked={autoRun} onCheckedChange={setAutoRun} />
-        </div>
+        <SwitchField label='Auto-run' checked={autoRun} onCheckedChange={setAutoRun} />
         {autoRun && (
           <RunAfterField
             columns={allColumns}

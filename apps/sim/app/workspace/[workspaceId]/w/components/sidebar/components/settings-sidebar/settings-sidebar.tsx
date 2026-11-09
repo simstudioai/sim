@@ -24,27 +24,24 @@ import {
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
 import { useSettingsNavigationState } from '@/components/settings/settings-navigation-provider'
 import { usePendingSettingsSelection } from '@/components/settings/use-pending-settings-selection'
-import { useSession } from '@/lib/auth/client'
-import { getSubscriptionAccessState } from '@/lib/billing/client'
-import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { hasBrowserAgent, hasDesktopSettings, hasTerminal } from '@/lib/desktop'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
-import {
-  allNavigationItems,
-  sectionConfig,
-} from '@/app/workspace/[workspaceId]/settings/navigation'
-import { SidebarSection } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-section'
-import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
+import type { SettingsSection } from '@/components/settings/workspace-navigation'
+import { allNavigationItems, sectionConfig } from '@/components/settings/workspace-navigation'
+import { useWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-provider'
+import { useWorkspacePermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
+import { SidebarSection } from '@/components/workspace-sidebar/components/sidebar-section'
+import { SidebarTooltip } from '@/components/workspace-sidebar/components/sidebar-tooltip'
 import {
   SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
   SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
   SIDEBAR_ITEM_GAP_CLASS,
   SIDEBAR_RAIL_CHIP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+} from '@/components/workspace-sidebar/constants'
+import { useSession } from '@/lib/auth/client'
+import { getSubscriptionAccessState } from '@/lib/billing/client'
+import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import { hasBrowserAgent, hasDesktopSettings, hasTerminal } from '@/lib/desktop'
 import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
 import { useSSOProviders } from '@/ee/sso/hooks/sso'
 import { useForkingAvailable } from '@/ee/workspace-forking/hooks/use-forking-available'

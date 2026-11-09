@@ -75,18 +75,23 @@ async function resolveOrganizationSurface(
   }
 }
 
+interface ReadOrganizationSurfaceInput {
+  /** The organization to read; without one, the viewer's landing organization. */
+  organizationId?: string
+}
+
 /**
- * The viewer's organization surface, resolved from their membership. A member belongs to one
- * organization, so the caller names none and session active-organization state is not consulted.
- * Having no membership reads the same as not being a member of a named organization.
+ * The viewer's surface in a named organization, or, with none named, in the one they joined first.
+ * Session active-organization state is not consulted. A named organization the viewer does not
+ * belong to reads the same as having no membership at all.
  */
 export const readOrganizationSurface: OperationUseCase<
   typeof organizationOperations.readSurface,
-  Record<string, never>,
+  ReadOrganizationSurfaceInput,
   OrganizationSurfaceResponse
 > = {
   operation: organizationOperations.readSurface,
-  async execute({ principal }) {
+  async execute({ principal, input }) {
     if (principal.kind !== 'session') {
       throw new PrincipalKindAuthorizationError(
         principal.kind,
@@ -94,7 +99,7 @@ export const readOrganizationSurface: OperationUseCase<
       )
     }
     const { userId } = principal
-    const organizationId = await resolveOrganizationLanding(userId, null)
+    const organizationId = input.organizationId ?? (await resolveOrganizationLanding(userId, null))
     if (!organizationId) throw new OrganizationMembershipNotFoundError()
     await authorizeOrganizationOperation(principal, organizationOperations.readSurface, {
       organizationId,

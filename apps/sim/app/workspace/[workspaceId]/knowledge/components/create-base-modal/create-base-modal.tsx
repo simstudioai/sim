@@ -34,7 +34,7 @@ import {
 import { validateKnowledgeBaseFile } from '@/lib/uploads/utils/file'
 import { formatFileSize } from '@/lib/uploads/utils/file-size'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
-import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
+import { useKnowledgeUpload } from '@/hooks/knowledge/use-knowledge-upload'
 import { useCreateKnowledgeBase, useDeleteKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('CreateBaseModal')

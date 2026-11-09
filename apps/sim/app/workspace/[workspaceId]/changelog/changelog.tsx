@@ -3,15 +3,15 @@
 import { useState } from 'react'
 import { Chip, cn, scrollFadeAttributes, scrollFadeClass, useScrollEdges } from '@sim/emcn-legacy'
 import { Rss } from '@sim/emcn-legacy/icons'
+import { ChangelogEmptyState } from '@/components/resource/components/resource-empty-state'
+import { Resource } from '@/components/resource/resource'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
 import type { ChangelogRelease } from '@/lib/api/contracts/changelog'
 import {
   ReleaseDetailsModal,
   ReleaseEntry,
 } from '@/app/workspace/[workspaceId]/changelog/components'
 import ChangelogLoading from '@/app/workspace/[workspaceId]/changelog/loading'
-import { ChangelogEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
-import { Resource } from '@/app/workspace/[workspaceId]/components/resource/resource'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useChangelogReleases } from '@/hooks/queries/changelog'
 

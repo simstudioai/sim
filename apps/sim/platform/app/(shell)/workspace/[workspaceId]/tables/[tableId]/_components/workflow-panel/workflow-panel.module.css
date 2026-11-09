@@ -1,68 +1,10 @@
-.note {
-  margin: 0;
-  color: var(--ui-secondary);
-}
-/* A setting that applies with its switch: the caption on the text edge, the switch at the end. */
-.switchRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-inline-size: 0;
-  gap: var(--ui-row-gap);
-  color: var(--ui-ink);
-}
 .disclosed {
   display: flex;
   flex-direction: column;
   min-inline-size: 0;
   margin-block-start: var(--ui-content-gap);
 }
-/* The compact preview: the deployment's blocks in run order inside the legacy preview's frame. */
-.preview {
-  position: relative;
-  min-inline-size: 0;
-  border: var(--spacing-stroke-default) solid var(--ui-border);
-  border-radius: var(--radius-control);
-  background: var(--ui-canvas);
-}
-.previewBlocks {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  max-block-size: calc(var(--spacing-128) + var(--spacing-32));
-  margin: 0;
-  padding: var(--spacing-8) var(--spacing-12);
-  gap: var(--ui-list-gap);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  list-style: none;
-}
-.previewBlock {
-  display: flex;
-  align-items: center;
-  min-inline-size: 0;
-  min-block-size: var(--spacing-24);
-  gap: var(--ui-row-gap);
-  padding-inline-end: var(--spacing-32);
-}
-.previewMark {
-  display: grid;
-  flex: none;
-  place-items: center;
-  color: var(--ui-secondary);
-}
-.previewName {
-  display: flex;
-  min-inline-size: 0;
-  color: var(--ui-ink);
-}
-.previewNote {
-  margin: 0;
-  padding: var(--spacing-12);
-  color: var(--ui-secondary);
-  text-align: center;
-}
+/* The preview's open action keeps its label's width rather than filling the section. */
 .previewOpen {
-  position: absolute;
-  inset-block-start: var(--spacing-6);
-  inset-inline-end: var(--spacing-6);
+  display: flex;
 }

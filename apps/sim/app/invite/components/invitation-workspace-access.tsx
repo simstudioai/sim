@@ -3,9 +3,9 @@ import { AuthResourceRow } from '@sim/emcn-auth/resource'
 import { AuthTag } from '@sim/emcn-auth/tag'
 import { ChipTag } from '@sim/emcn-legacy'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import { SettingsResourceRow } from '@/components/settings/primitives/settings-resource-row'
 import type { InvitationDetails } from '@/lib/api/contracts/invitations'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 
 interface InvitationWorkspaceAccessProps {
   grants: InvitationDetails['grants']

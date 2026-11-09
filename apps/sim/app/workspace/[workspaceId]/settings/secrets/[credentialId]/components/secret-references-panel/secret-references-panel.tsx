@@ -1,17 +1,17 @@
 'use client'
 
 import { Wrench } from '@sim/emcn-legacy/icons'
+import { DetailSection } from '@/components/credential-detail'
 import { McpIcon } from '@/components/icons'
-import type { SecretReferenceResourcePayload } from '@/lib/api/contracts'
-import { customToolIdParam, mcpServerIdParam } from '@/lib/settings/search-params'
-import { DetailSection } from '@/app/workspace/[workspaceId]/components/credential-detail'
-import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { IntegrationTile } from '@/components/integrations/integrations-showcase'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { focusBlockParam } from '@/app/workspace/[workspaceId]/w/[workflowId]/search-params'
+} from '@/components/settings/primitives/settings-resource-row'
+import { focusBlockParam } from '@/components/workflow-editor/search-params'
+import type { SecretReferenceResourcePayload } from '@/lib/api/contracts'
+import { customToolIdParam, mcpServerIdParam } from '@/lib/settings/search-params'
 import { getBlock } from '@/blocks/registry'
 import { useSecretReferences } from '@/hooks/queries/credentials'
 

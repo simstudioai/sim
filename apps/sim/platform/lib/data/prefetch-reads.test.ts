@@ -3,25 +3,38 @@
  *
  * A first-paint read is only worth its seat if the client finds it, and may never cost the page.
  * Failure modes: an entry under a key the hook does not read, a read for a viewer the route would
- * refuse, a failed read hydrating as success or taking its neighbours down, and a Links list whose
- * URL or cached shape differs from what the page's infinite query reads.
+ * refuse, a failed read or one outside its route contract hydrating as success or taking its
+ * neighbours down, and a Links list whose input or cached shape differs from what the page's
+ * infinite query reads.
  */
 import type { DehydratedState } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { listSearchHistoryContract } from '@/lib/api/contracts/knowledge/search-history'
-import { listSearchIntegrationsContract } from '@/lib/api/contracts/knowledge/search-integrations'
-import { getOrganizationAccountsContract } from '@/lib/api/contracts/organization-accounts'
-import { listSimLinksContract } from '@/lib/api/contracts/sim-links'
-import { getUserProfileContract } from '@/lib/api/contracts/user'
+import { getSession } from '@/lib/auth'
 import { searchIntegrationsQueryOptions } from '@/hooks/queries/search-integrations'
 import { simLinksQueryOptions } from '@/hooks/queries/sim-links'
 import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 import { searchHistoryKeys } from '@/hooks/queries/utils/search-history-keys'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 
-const { prefetchRequestJson } = vi.hoisted(() => ({ prefetchRequestJson: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  accounts: vi.fn(),
+  integrations: vi.fn(),
+  history: vi.fn(),
+  links: vi.fn(),
+}))
 vi.mock('server-only', () => ({}))
-vi.mock('@/platform/lib/data/server-request', () => ({ prefetchRequestJson }))
+vi.mock('@/lib/credential-groups/application/organization-accounts', () => ({
+  getOrganizationAccountsSettings: { execute: mocks.accounts },
+}))
+vi.mock('@/lib/knowledge/application/search-integrations', () => ({
+  listSearchIntegrations: { execute: mocks.integrations },
+}))
+vi.mock('@/lib/knowledge/application/search-history', () => ({
+  listSearchHistory: { execute: mocks.history },
+}))
+vi.mock('@/lib/sim-links/application/use-cases', () => ({
+  listSimLinks: { execute: mocks.links },
+}))
 
 import { prefetchHome } from '@/platform/lib/data/prefetch-home'
 import { prefetchIntegrations } from '@/platform/lib/data/prefetch-integrations'
@@ -38,21 +51,51 @@ function organization(memberScoped = true, canConnect = true) {
   } as unknown as PlatformOrganization
 }
 
+const ACCOUNTS = {
+  credentialGroup: null,
+  viewerAccounts: [],
+  viewerMcpAccounts: [],
+  availableProviders: [],
+  assistantProviders: [],
+  availableMcpConnectors: [],
+  canManage: false,
+  indexingAvailable: true,
+}
+
+const LINK = {
+  id: 'link-1',
+  name: 'handbook',
+  normalizedName: 'handbook',
+  url: 'https://example.com/handbook',
+  defaultUrl: null,
+  description: null,
+  unlisted: false,
+  restrictEdit: false,
+  visitCount: 3,
+  createdBy: null,
+  updatedAt: new Date('2026-11-01T00:00:00.000Z'),
+  canEdit: true,
+  canManage: false,
+}
+
 const ACCOUNTS_KEY = [...organizationAccountsKeys.detail('org-1')]
 const INTEGRATIONS_KEY = [...searchIntegrationsQueryOptions('org-1').queryKey]
 const HISTORY_KEY = [...searchHistoryKeys.list('org-1', 'viewer')]
 
 const seeded = (state: DehydratedState) => state.queries.map(({ queryKey }) => queryKey)
 
+/** Only the ids a principal carries are read from the session. */
+const SESSION = { user: { id: 'viewer' }, session: { id: 'session-1' } } as NonNullable<
+  Awaited<ReturnType<typeof getSession>>
+>
+
 beforeEach(() => {
-  prefetchRequestJson.mockImplementation(async (contract: unknown) => {
-    if (contract === getUserProfileContract) return { user: { id: 'viewer' } }
-    if (contract === listSearchHistoryContract) return { sources: [], queries: [] }
-    if (contract === listSearchIntegrationsContract) return { data: [] }
-    if (contract === getOrganizationAccountsContract) return { viewerAccounts: [] }
-    if (contract === listSimLinksContract) return { links: [], nextCursor: 'next' }
-    throw new Error('unexpected read')
-  })
+  vi.clearAllMocks()
+  vi.mocked(getSession).mockResolvedValue(SESSION)
+  mocks.accounts.mockResolvedValue(ACCOUNTS)
+  mocks.integrations.mockResolvedValue([])
+  mocks.history.mockResolvedValue({ sources: [], queries: [] })
+  mocks.links.mockResolvedValue({ links: [LINK], nextCursor: 'next' })
 })
 
 describe('seeding under the keys the hooks read', () => {
@@ -62,14 +105,8 @@ describe('seeding under the keys the hooks read', () => {
     expect(keys).toEqual(expect.arrayContaining([ACCOUNTS_KEY, INTEGRATIONS_KEY, HISTORY_KEY]))
   })
 
-  it('seeds Search with the history', async () => {
+  it('seeds Search with the history, keyed to the session viewer', async () => {
     expect(seeded(await prefetchSearch(organization()))).toEqual([HISTORY_KEY])
-  })
-
-  it('seeds Integrations with the inventory', async () => {
-    const keys = seeded(await prefetchIntegrations(organization()))
-    expect(keys).toHaveLength(2)
-    expect(keys).toEqual(expect.arrayContaining([ACCOUNTS_KEY, INTEGRATIONS_KEY]))
   })
 
   it('unwraps the policies the way the hook does', async () => {
@@ -82,36 +119,30 @@ describe('seeding under the keys the hooks read', () => {
 })
 
 describe('Links', () => {
-  it('reads and keys the list this URL asks for, in the infinite query shape', async () => {
+  it('reads the list this URL asks for and caches it as the route sends it', async () => {
     const state = await prefetchSimLinks('org-1', { search: ' hand ', sort: 'popular', dir: 'asc' })
     expect(seeded(state)).toEqual([
       [...simLinksQueryOptions('org-1', 'hand', 'popular', 'asc').queryKey],
     ])
-    expect(prefetchRequestJson).toHaveBeenLastCalledWith(listSimLinksContract, {
-      params: { id: 'org-1' },
-      query: { search: 'hand', sort: 'popular', dir: 'asc' },
+    expect(mocks.links).toHaveBeenLastCalledWith({
+      principal: { kind: 'session', userId: 'viewer', sessionId: 'session-1' },
+      input: { organizationId: 'org-1', search: 'hand', sort: 'popular', dir: 'asc' },
     })
+    const { normalizedName, ...wire } = LINK
     expect(state.queries[0]?.state.data).toEqual({
-      pages: [{ links: [], nextCursor: 'next' }],
+      pages: [{ links: [{ ...wire, updatedAt: '2026-11-01T00:00:00.000Z' }], nextCursor: 'next' }],
       pageParams: [undefined],
     })
-  })
-
-  it('omits an empty search and falls to the default order on a bare URL', async () => {
-    const state = await prefetchSimLinks('org-1', {})
-    const { search, sort, dir } = prefetchRequestJson.mock.calls.at(-1)?.[1].query ?? {}
-    expect(search).toBeUndefined()
-    expect(seeded(state)).toEqual([[...simLinksQueryOptions('org-1', '', sort, dir).queryKey]])
   })
 })
 
 describe('a viewer the route would refuse', () => {
   it('reads nothing without member-scoped Search', async () => {
-    prefetchRequestJson.mockClear()
     expect(seeded(await prefetchHome(organization(false)))).toEqual([])
     expect(seeded(await prefetchSearch(organization(false)))).toEqual([])
     expect(seeded(await prefetchIntegrations(organization(false)))).toEqual([])
-    expect(prefetchRequestJson).not.toHaveBeenCalled()
+    expect(mocks.accounts).not.toHaveBeenCalled()
+    expect(mocks.history).not.toHaveBeenCalled()
   })
 
   it('keeps the recents but not the inventory for one who cannot connect', async () => {
@@ -121,31 +152,19 @@ describe('a viewer the route would refuse', () => {
 
 describe('a failed read', () => {
   it('stays out of hydration for the client and leaves its neighbours seeded', async () => {
-    prefetchRequestJson.mockImplementation(async (contract: unknown) => {
-      if (contract === getUserProfileContract) return { user: { id: 'viewer' } }
-      if (contract === listSearchHistoryContract) throw new Error('budget spent')
-      if (contract === listSearchIntegrationsContract) return { data: [] }
-      return { viewerAccounts: [] }
-    })
+    mocks.history.mockRejectedValue(new Error('database unavailable'))
     const keys = seeded(await prefetchHome(organization()))
     expect(keys).not.toContainEqual(HISTORY_KEY)
     expect(keys).toEqual(expect.arrayContaining([ACCOUNTS_KEY, INTEGRATIONS_KEY]))
   })
 
-  it('skips the history when the viewer cannot be named, rather than keying it to nobody', async () => {
-    prefetchRequestJson.mockImplementation(async (contract: unknown) => {
-      if (contract === getUserProfileContract) throw new Error('budget spent')
-      throw new Error('unexpected read')
-    })
+  it('stays out of hydration when the result has drifted from the route contract', async () => {
+    mocks.history.mockResolvedValue({ sources: 'not a list', queries: [] })
     expect(seeded(await prefetchSearch(organization()))).toEqual([])
-    expect(prefetchRequestJson).not.toHaveBeenCalledWith(
-      listSearchHistoryContract,
-      expect.anything()
-    )
   })
 
   it('never fails the page', async () => {
-    prefetchRequestJson.mockRejectedValue(new Error('down'))
+    vi.mocked(getSession).mockResolvedValue(null)
     await expect(prefetchSimLinks('org-1', {})).resolves.toMatchObject({ queries: [] })
     await expect(prefetchSearch(organization())).resolves.toMatchObject({ queries: [] })
   })

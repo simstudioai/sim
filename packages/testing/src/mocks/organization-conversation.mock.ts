@@ -24,22 +24,22 @@ export const organizationConversationMockFns = {
 
 const fns = organizationConversationMockFns
 
-/** `@/app/workspace/[workspaceId]/home/hooks/use-chat` */
+/** `@/hooks/mothership-chat/use-chat` */
 export const useChatMock = {
   getMothershipUseChatOptions: (options: object) => ({ ...options, mothership: true }),
   useChat: fns.mockUseChat,
 }
 
-/** `@/app/workspace/[workspaceId]/home/hooks/use-resource-panel` */
+/** `@/hooks/mothership-chat/use-resource-panel` */
 export const useResourcePanelMock = {
   useResourcePanelController: fns.mockUseResourcePanelController,
   useChatResourcePanel: fns.mockUseChatResourcePanel,
 }
 
-/** `@/app/workspace/[workspaceId]/home/components/mothership-chat` */
+/** `@/components/mothership-chat/mothership-chat` */
 export const mothershipChatMock = { MothershipChat: fns.mockMothershipChat }
 
-/** `@/app/workspace/[workspaceId]/home/components/chat-resource-panel` */
+/** `@/components/mothership-chat/chat-resource-panel` */
 export const chatResourcePanelMock = { ChatResourcePanel: fns.mockChatResourcePanel }
 
 /** `@/hooks/queries/mothership-chats` */

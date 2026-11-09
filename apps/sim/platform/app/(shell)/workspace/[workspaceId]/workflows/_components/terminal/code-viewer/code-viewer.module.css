@@ -51,40 +51,15 @@
   inline-size: calc(var(--spacing-52) + var(--spacing-2));
 }
 
+/* The fold control's lane, centring its 16px EMCN action on the 20px line. */
 .fold {
   display: flex;
   flex: none;
-  justify-content: flex-end;
-  inline-size: var(--spacing-12);
-  margin-inline-start: var(--spacing-4);
-}
-
-.foldButton {
-  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  inline-size: var(--spacing-12);
+  justify-content: flex-end;
+  inline-size: var(--spacing-16);
   block-size: var(--spacing-20);
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--ui-secondary);
-  cursor: pointer;
-}
-
-.foldButton:hover {
-  color: var(--ui-ink);
-}
-
-.foldButton > svg {
-  inline-size: var(--spacing-12);
-  block-size: var(--spacing-12);
-  transform: rotate(90deg);
-  transition: transform var(--ui-motion-position);
-}
-
-.foldButton[data-collapsed] > svg {
-  transform: none;
+  margin-inline-start: var(--spacing-4);
 }
 
 .code {

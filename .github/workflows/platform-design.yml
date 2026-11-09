@@ -25,9 +25,9 @@ on:
       - 'apps/sim/lib/knowledge/search/results.ts'
       - 'apps/sim/hooks/sim-search/**'
       - 'apps/sim/ee/**'
-      - 'apps/sim/app/workspace/*/home/hooks/**'
-      - 'apps/sim/app/workspace/*/home/components/message-content/**'
-      - 'apps/sim/app/workspace/*/w/*/components/panel/components/copilot/components/user-input/hooks/**'
+      - 'apps/sim/hooks/mothership-chat/**'
+      - 'apps/sim/components/mothership-chat/message-content/**'
+      - 'apps/sim/components/workflow-editor/components/panel/components/copilot/components/user-input/hooks/**'
       - 'apps/sim/scripts/platform-live-seed.ts'
       - 'apps/sim/package.json'
       - 'apps/realtime/**'
@@ -108,6 +108,7 @@ jobs:
       - run: bun run --cwd apps/sim build:platform
         env:
           NEXT_BUILD_SKIP_TYPE_CHECK: '1'
+          NODE_OPTIONS: '--no-warnings --max-old-space-size=6144'
       - run: bun run --cwd apps/sim test:platform:desktop
         env:
           PLATFORM_DESKTOP_REPORT_PATH: ${{ runner.temp }}/platform-desktop/report.json

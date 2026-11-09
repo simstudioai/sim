@@ -1,9 +1,9 @@
 'use client'
 
 import { type ReactNode, useId } from 'react'
-import { Icon } from '@sim/emcn/icon'
 import { StatusTag } from '@sim/emcn/status'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/entry-card/entry-card.module.css'
+import { FoldToggle } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/fold-toggle/fold-toggle'
 
 interface EntryCardProps {
   /** Names the entry for assistive technology, as "Input 2". */
@@ -37,22 +37,12 @@ export function EntryCard({
   return (
     <div role='group' aria-label={label} className={styles.entry}>
       <div className={styles.header}>
-        <button
-          type='button'
-          className={styles.toggle}
-          aria-expanded={!collapsed}
-          aria-controls={collapsed ? undefined : bodyId}
-          disabled={!onToggle}
-          onClick={onToggle}
-        >
-          <span className={styles.chevron}>
-            <Icon name={collapsed ? 'I032' : 'I051'} />
-          </span>
+        <FoldToggle open={!collapsed} controls={bodyId} onToggle={onToggle}>
           <span className={styles.title} data-type='T060'>
             {title}
           </span>
           {typeTag && <StatusTag label={typeTag} />}
-        </button>
+        </FoldToggle>
         {actions && <span className={styles.actions}>{actions}</span>}
       </div>
       {!collapsed && (

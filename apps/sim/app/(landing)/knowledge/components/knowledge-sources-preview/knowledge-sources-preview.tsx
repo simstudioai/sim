@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Badge, Chip, ChipModal, ChipModalBody, ChipModalHeader, cn } from '@sim/emcn-legacy'
 import { ChevronRight, Database } from '@sim/emcn-legacy/icons'
+import { ResourceOptions } from '@/components/resource/components/resource-options'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
 import { usePreviewDialogFocus } from '@/app/(landing)/hooks/use-preview-dialog-focus'
 import { KnowledgeDocumentDetail } from '@/app/(landing)/knowledge/components/knowledge-sources-preview/components/knowledge-document-detail'
@@ -11,7 +12,6 @@ import {
   KNOWLEDGE_PREVIEW_SOURCES,
   type KnowledgePreviewDocument,
 } from '@/app/(landing)/knowledge/components/knowledge-sources-preview/data'
-import { ResourceOptions } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 
 const DOCUMENTS: readonly KnowledgePreviewDocument[] = KNOWLEDGE_PREVIEW_SOURCES.flatMap(
   (source): readonly KnowledgePreviewDocument[] => source.documents

@@ -188,9 +188,9 @@ import { POST as workflowOperationsRoute } from '@/app/api/v2/workflows/[workflo
 import { GET as runRoute } from '@/app/api/v2/workflows/[workflowId]/runs/[runId]/route'
 import { GET as workflowStateRoute } from '@/app/api/v2/workflows/[workflowId]/state/route'
 import { GET as workflowsRoute } from '@/app/api/v2/workflows/route'
-import { toRawPersistedContentBlock } from '@/app/workspace/[workspaceId]/home/hooks/message-reconcile'
 import { getLatestBlock } from '@/blocks/registry'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { toRawPersistedContentBlock } from '@/hooks/mothership-chat/message-reconcile'
 import type { BlockState, WorkflowState } from '@/stores/workflows/workflow/types'
 
 const fixture = vi.hoisted(() => ({

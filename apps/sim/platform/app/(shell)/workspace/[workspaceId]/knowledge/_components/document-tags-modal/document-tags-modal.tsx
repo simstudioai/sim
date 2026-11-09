@@ -1,14 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { DataTable } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { SelectField, TextField } from '@sim/emcn/field'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
-import { OverflowText } from '@sim/emcn/overflow-text'
 import { DatePicker } from '@sim/emcn/picker/date-picker'
 import { InlineNotice } from '@sim/emcn/status'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/knowledge/_components/document-tags-modal/document-tags-modal.module.css'
 import {
   ALL_TAG_SLOTS,
   type DocumentData,
@@ -40,6 +39,11 @@ interface TagDraft {
 type View = { kind: 'list' } | { kind: 'create' } | { kind: 'edit'; slot: string }
 
 const LIST: View = { kind: 'list' }
+const TAG_COLUMNS = [
+  { key: 'name', label: 'Name', kind: 'text', primary: true },
+  { key: 'type', label: 'Type', kind: 'text' },
+  { key: 'value', label: 'Value', kind: 'text' },
+] as const
 const NEW_TAG = '__new__'
 const EMPTY_DRAFT: TagDraft = { displayName: '', fieldType: 'text', value: '' }
 const NUMBER = /^-?\d*\.?\d*$/
@@ -354,47 +358,37 @@ export function DocumentTagsModal({
           description='Add a tag to organize and filter documents.'
         />
       ) : (
-        <ul className={styles.list} aria-label='Tags'>
-          {tags.map((tag) => {
-            const type = FIELD_TYPE_LABELS[tag.fieldType] ?? tag.fieldType
-            const value = displayValue(tag.value, tag.fieldType)
-            return (
-              <li key={tag.slot} className={styles.row}>
-                <button
-                  type='button'
-                  className={styles.open}
-                  aria-label={`Edit ${tag.displayName}, ${type}, ${value}`}
-                  onClick={() => startEdit(tag)}
-                >
-                  <span className={styles.name} data-type='T060'>
-                    <OverflowText text={tag.displayName}>{tag.displayName}</OverflowText>
-                  </span>
-                  <span className={styles.secondary} data-type='T060'>
-                    {type}
-                  </span>
-                  <span className={styles.value} data-type='T060'>
-                    <OverflowText text={value}>{value}</OverflowText>
-                  </span>
-                </button>
-                <ActionMenu
-                  label={`${tag.displayName} options`}
-                  icon='I108'
-                  align='end'
-                  actions={[
-                    { id: 'edit', label: 'Edit', onSelect: () => startEdit(tag) },
-                    {
-                      id: 'remove',
-                      label: 'Remove tag',
-                      destructive: true,
-                      separatorBefore: true,
-                      onSelect: () => void remove(tag),
-                    },
-                  ]}
-                />
-              </li>
-            )
-          })}
-        </ul>
+        <DataTable
+          title='Tags'
+          titleHidden
+          columns={TAG_COLUMNS}
+          rows={tags.map((tag) => ({
+            id: tag.slot,
+            values: {
+              name: tag.displayName,
+              type: FIELD_TYPE_LABELS[tag.fieldType] ?? tag.fieldType,
+              value: displayValue(tag.value, tag.fieldType),
+            },
+            onOpen: () => startEdit(tag),
+            action: (
+              <ActionMenu
+                label={`${tag.displayName} options`}
+                icon='I108'
+                align='end'
+                actions={[
+                  { id: 'edit', label: 'Edit', onSelect: () => startEdit(tag) },
+                  {
+                    id: 'remove',
+                    label: 'Remove tag',
+                    destructive: true,
+                    separatorBefore: true,
+                    onSelect: () => void remove(tag),
+                  },
+                ]}
+              />
+            ),
+          }))}
+        />
       )}
     </Modal>
   )

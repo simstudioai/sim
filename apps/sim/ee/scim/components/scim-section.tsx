@@ -20,22 +20,22 @@ import {
 } from '@sim/emcn-legacy'
 import { Key } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
+import { RowActionsMenu } from '@/components/settings/primitives/row-actions-menu'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/components/settings/primitives/settings-empty-state'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/components/settings/primitives/settings-resource-row'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import type {
   ScimActivityEntry,
   ScimConnectionView,
   ScimCredentialView,
 } from '@/lib/api/contracts/organization-scim'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import {
-  SettingsEmptyState,
-  SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import {
-  RESOURCE_LIST_STACK,
-  SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { SettingRow } from '@/ee/components/setting-row'
 import { GroupMappings } from '@/ee/scim/components/group-mappings'
 import {

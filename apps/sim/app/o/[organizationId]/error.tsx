@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { Button } from '@sim/emcn/button'
 import { createLogger } from '@sim/logger'
-import type { ErrorBoundaryProps } from '@/app/workspace/[workspaceId]/components/error/error'
+import type { ErrorBoundaryProps } from '@/components/error/error'
 import { RouteStatus } from '@/platform/embedded/app/(shell)/_components/route-status/route-status'
 
 const logger = createLogger('OrganizationError')

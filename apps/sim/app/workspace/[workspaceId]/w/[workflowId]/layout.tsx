@@ -1,4 +1,4 @@
-import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error'
+import { ErrorBoundary } from '@/components/workflow-editor/components/error'
 
 export default function WorkflowLayout({ children }: { children: React.ReactNode }) {
   return (

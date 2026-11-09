@@ -14,6 +14,14 @@ import {
 import { Lock } from '@sim/emcn-legacy/icons'
 import { redirect, useParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { IntegrationTabsHeader } from '@/components/integration-tabs-header'
+import { IntegrationTile } from '@/components/integrations/integrations-showcase'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/components/settings/primitives/settings-empty-state'
+import { SettingsResourceRow } from '@/components/settings/primitives/settings-resource-row'
+import { useWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-provider'
 import {
   blockTypeToIconMap,
   formatIntegrationType,
@@ -23,9 +31,7 @@ import {
 } from '@/lib/integrations'
 import { isIntegrationPermitted } from '@/lib/integrations/access'
 import { workspaceIntegrationsPath } from '@/lib/navigation/paths'
-import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components/integration-tabs-header'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
-import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
 import {
@@ -35,12 +41,6 @@ import {
   integrationsParsers,
   integrationsUrlKeys,
 } from '@/app/workspace/[workspaceId]/integrations/search-params'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import {
-  SettingsEmptyState,
-  SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import {
   PermissionAccessBoundary,
   useWorkspaceAccessRequestFeatures,

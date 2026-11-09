@@ -2,14 +2,14 @@
 
 import { Chip, ChipDropdown } from '@sim/emcn-legacy'
 import { ArrowLeft } from '@sim/emcn-legacy/icons'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import { isApiClientError } from '@/lib/api/client/errors'
 import {
   ACTIVITY_MAX_PAGE,
   type ActivityDimension,
   type ActivitySort,
 } from '@/lib/billing/core/organization-activity'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { ActivitySummary } from '@/ee/organization-usage/components/activity-summary'
 import { ActivityTable } from '@/ee/organization-usage/components/activity-table'
 import {

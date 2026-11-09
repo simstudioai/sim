@@ -201,12 +201,17 @@
   inline-size: 100%;
   min-block-size: var(--spacing-20);
 }
+/* Option tags keep their width on one line, so they never grow the fixed-height cell; it clips the rest. */
 .pills {
-  display: flex;
+  display: grid;
+  grid-auto-columns: max-content;
+  grid-auto-flow: column;
   align-items: center;
+  justify-content: start;
   min-inline-size: 0;
   gap: var(--spacing-4);
   overflow: hidden;
+  white-space: nowrap;
 }
 .placeholderText {
   color: var(--ui-muted);
@@ -352,8 +357,9 @@
 .expandedHint {
   color: var(--ui-muted);
 }
+/* Keys read in the surrounding hint's type, as the command palette's footer shows them. */
 .expandedHint kbd {
-  font-family: var(--font-mono);
+  font: inherit;
 }
 .expandedInput {
   flex: 1;
@@ -387,33 +393,12 @@
 }
 
 /* Find, floating over the grid's top-right corner. */
-.findBar {
+.findFrame {
   position: absolute;
   inset-block-start: var(--spacing-8);
   inset-inline-end: var(--spacing-8);
   z-index: 20;
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-4);
   max-inline-size: calc(100% - var(--spacing-16));
-  padding: var(--spacing-4);
-  border: var(--spacing-stroke-default) solid var(--ui-border);
-  border-radius: var(--radius-menu-shared);
-}
-.findInput {
-  display: flex;
-  flex: 0 1 calc(var(--spacing-192) + var(--spacing-8));
-  min-inline-size: 0;
-}
-.findCount {
-  display: flex;
-  flex: none;
-  justify-content: flex-end;
-  min-inline-size: var(--spacing-64);
-  padding-inline: var(--spacing-4);
-  color: var(--ui-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 /* Column headers. */
@@ -599,16 +584,6 @@
 }
 
 /* The grid's one floating menu hangs off an invisible trigger moved to the menu's point. */
-.pointAnchor {
-  position: fixed;
-  inset-block-start: 0;
-  inset-inline-start: 0;
-  z-index: 2;
-  inline-size: var(--spacing-1);
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-}
 
 /* Collaborators' selections and their name tags. */
 .remoteLayer,

@@ -1,5 +1,5 @@
 import type { Editor } from '@tiptap/core'
-import { moveDraggedImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drag-move'
+import { moveDraggedImageNode } from '@/components/file-viewer/rich-markdown-editor/image-drag-move'
 
 interface DropOptions {
   html?: string

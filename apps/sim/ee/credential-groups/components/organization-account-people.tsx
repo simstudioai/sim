@@ -3,18 +3,18 @@
 import { type ReactNode, useState } from 'react'
 import { Avatar, Chip, ChipConfirmModal, ChipModalError, toast } from '@sim/emcn-legacy'
 import { Plus } from '@sim/emcn-legacy/icons'
-import type { SettingsAction, SettingsBackAction } from '@/components/settings/settings-header'
-import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
+import { RowActionsMenu } from '@/components/settings/primitives/row-actions-menu'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+} from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+} from '@/components/settings/primitives/settings-resource-row'
+import type { SettingsAction, SettingsBackAction } from '@/components/settings/settings-header'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { OrganizationAccountInviteModal } from '@/ee/credential-groups/components/organization-account-invite-modal'
 import { OrganizationPersonConnections } from '@/ee/credential-groups/components/organization-person-connections'
 import {

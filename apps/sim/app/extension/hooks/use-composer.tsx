@@ -4,11 +4,11 @@ import { useCallback, useMemo } from 'react'
 import type { PageSnapshot } from '@sim/browser-extension-protocol'
 import { Chip, DropdownMenuCheckboxItem, DropdownMenuItem, Tooltip, toast } from '@sim/emcn-legacy'
 import { Globe, Highlighter, Settings } from '@sim/emcn-legacy/icons'
+import { PageContext } from '@/components/mothership-chat/message-content/components/page-context'
+import { prepareContextForInsert } from '@/components/workflow-editor/components/panel/components/copilot/components/user-input/utils'
 import { getPageContextBudgetError } from '@/lib/mothership/chat/page-context'
 import { usePageContext } from '@/app/extension/hooks/use-page-context'
 import { useExtensionIdentity } from '@/app/extension/providers'
-import { PageContext } from '@/app/workspace/[workspaceId]/home/components/message-content/components/page-context'
-import { prepareContextForInsert } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/utils'
 import {
   PendingComposerSubmission,
   type PrepareChatSubmission,

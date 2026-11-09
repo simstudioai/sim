@@ -17,6 +17,6 @@ export const GET = defineInternalJsonRoute({
       'Read per Platform server render, as the legacy organization layout reads it per render',
   }),
   errorPolicy: internalOrganizationErrorPolicy,
-  mapInput: () => ({}),
+  mapInput: ({ query }) => query,
   useCase: readOrganizationSurface,
 })

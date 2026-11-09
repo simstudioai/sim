@@ -26,6 +26,14 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
 import { useQueryState } from 'nuqs'
+import { MemberRow } from '@/components/settings/primitives/member-list'
+import { RowActionsMenu } from '@/components/settings/primitives/row-actions-menu'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { isAccessControlAllowlistRow } from '@/lib/permission-groups/block-access'
@@ -44,14 +52,6 @@ import {
   groupTabParam,
   groupTabUrlKeys,
 } from '@/lib/settings/search-params'
-import { MemberRow } from '@/app/workspace/[workspaceId]/settings/components/member-list'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import {
-  SettingsEmptyState,
-  SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { getAllBlocks } from '@/blocks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'

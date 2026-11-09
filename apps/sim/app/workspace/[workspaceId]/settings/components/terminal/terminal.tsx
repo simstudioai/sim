@@ -9,11 +9,11 @@ import type {
 } from '@sim/desktop-bridge'
 import { Label, Switch, toast } from '@sim/emcn-legacy'
 import { useParams, useRouter } from 'next/navigation'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import { getDesktopBridge } from '@/lib/desktop'
 import { loadDesktopTerminalThemeProfiles } from '@/lib/desktop/appearance'
 import { DefaultZoomSelect } from '@/app/workspace/[workspaceId]/settings/components/default-zoom-select'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { TerminalThemePicker } from '@/app/workspace/[workspaceId]/settings/components/terminal/terminal-theme-picker'
 import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
 

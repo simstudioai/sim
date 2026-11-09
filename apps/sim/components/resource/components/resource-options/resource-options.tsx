@@ -1,0 +1,384 @@
+'use client'
+
+import { memo, type ReactNode, useState } from 'react'
+import * as PopoverPrimitive from '@radix-ui/react-popover'
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Chip,
+  chipFieldTextClass,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  ListFilter,
+  POPOVER_ANIMATION_CLASSES,
+  Search,
+  X,
+} from '@sim/emcn-legacy'
+import { FloatingOverflowText } from '@/components/resource/components/floating-overflow-text'
+
+const SEARCH_ICON = (
+  <Search className='pointer-events-none size-[14px] shrink-0 text-[var(--text-muted)]' />
+)
+
+const RESOURCE_MENU_EDGE_OFFSET = 6
+
+/**
+ * Section heading inside a filter popover ("File Type", "Owner", …). One constant so every
+ * resource list labels its filter sections identically — muted at the field-title size, per
+ * the label role in `sim-styling.md`.
+ */
+export const FILTER_SECTION_LABEL_CLASS = 'text-[var(--text-muted)] text-small'
+
+type SortDirection = 'asc' | 'desc'
+
+export interface ColumnOption {
+  id: string
+  label: string
+  type?: string
+  icon?: React.ElementType
+}
+
+export interface SortConfig {
+  options: readonly ColumnOption[]
+  active: { column: string; direction: SortDirection } | null
+  onSort: (column: string, direction: SortDirection) => void
+  onClear?: () => void
+  keepOpenOnSelect?: boolean
+}
+
+export interface FilterTag {
+  label: string
+  onRemove: () => void
+}
+
+export interface SearchTag {
+  label: string
+  value: string
+  onRemove: () => void
+}
+
+export interface SearchConfig {
+  value: string
+  maxLength?: number
+  onChange: (value: string) => void
+  placeholder?: string
+  inputRef?: React.RefObject<HTMLInputElement | null>
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  onFocus?: () => void
+  onBlur?: () => void
+  tags?: SearchTag[]
+  highlightedTagIndex?: number | null
+  onClearAll?: () => void
+  dropdown?: ReactNode
+  dropdownRef?: React.RefObject<HTMLDivElement | null>
+}
+
+/**
+ * The Filter control has two shapes, picked by `mode`:
+ * - `popover` (default): list pages pass the filter controls as `content`; the
+ *   button opens them in a popover. `active` highlights the button.
+ * - `toggle`: detail views (e.g. the table editor) that render their filter as a
+ *   separate panel toggle the button instead of opening a popover.
+ */
+export type FilterConfig =
+  | { mode?: 'popover'; content: ReactNode; active?: boolean }
+  | { mode: 'toggle'; active: boolean; onToggle: () => void }
+
+interface ResourceOptionsProps {
+  search?: SearchConfig
+  sort?: SortConfig
+  filter?: FilterConfig
+  filterTags?: FilterTag[]
+  /**
+   * Lightweight control rendered immediately to the LEFT of the filter/sort
+   * cluster, forming one group with it — e.g. the knowledge view's
+   * connected-source badge or the table editor's embedded run/stop control. With
+   * a search the group is pushed right (opposite the search); without one it
+   * stays left-aligned (the embedded table editor). Keep it to badges/status
+   * widgets; primary actions belong in the header's `actions`.
+   */
+  aside?: ReactNode
+  /**
+   * Mirror of {@link aside} on the other side: rendered immediately to the RIGHT
+   * of the filter/sort cluster and still grouped with it — e.g. the table editor's
+   * Columns menu, which reads as the last item in the Filter/Sort/Columns row.
+   */
+  asideEnd?: ReactNode
+  /**
+   * Control pinned to the far RIGHT of the bar, opposite the filter/sort cluster —
+   * e.g. the table editor's Save-view button. Unlike `aside` it is a real action,
+   * so it is separated from the menu group rather than joined to it.
+   */
+  trailing?: ReactNode
+}
+
+export const ResourceOptions = memo(function ResourceOptions({
+  search,
+  sort,
+  filter,
+  filterTags,
+  aside,
+  asideEnd,
+  trailing,
+}: ResourceOptionsProps) {
+  /**
+   * Coordinates the Filter popover and Sort menu as a single menu bar: clicking
+   * one while the other is open switches to it in a single click. Functional
+   * updates make the close→open ordering race-proof, so whichever menu the click
+   * targets wins regardless of which `onOpenChange` fires first.
+   */
+  const [openMenu, setOpenMenu] = useState<'filter' | 'sort' | null>(null)
+
+  const isToggleFilter = filter?.mode === 'toggle'
+  const popoverFilter = filter && filter.mode !== 'toggle' ? filter : null
+
+  const hasContent =
+    search ||
+    sort ||
+    filter ||
+    aside ||
+    asideEnd ||
+    trailing ||
+    (filterTags && filterTags.length > 0)
+  if (!hasContent) return null
+
+  return (
+    <div className={cn('border-[var(--border)] border-b px-4 py-2.5', search && 'md:px-6')}>
+      <div className='flex flex-wrap items-center gap-y-2 max-md:gap-x-1 md:flex-nowrap'>
+        {search && <SearchSection search={search} />}
+        {/* `ml-auto` moves to `trailing` when present so the menu cluster stays put
+            and only the trailing action is pushed to the far edge. */}
+        <div
+          className={cn(
+            'flex min-w-0 flex-wrap items-center gap-1.5 md:shrink-0 md:flex-nowrap',
+            search && 'max-md:contents',
+            search && !trailing && 'ml-auto'
+          )}
+        >
+          {aside && (
+            <div
+              className={cn(
+                'flex min-w-0 flex-wrap items-center gap-1.5 md:flex-nowrap',
+                search && 'max-md:order-last max-md:basis-full'
+              )}
+            >
+              {aside}
+            </div>
+          )}
+          <div
+            className={cn(
+              'flex min-w-0 flex-wrap items-center gap-1 md:flex-nowrap',
+              search && 'max-md:contents'
+            )}
+          >
+            {Boolean(filterTags?.length) && (
+              <div
+                className={cn(
+                  'flex min-w-0 flex-wrap items-center gap-1 md:flex-nowrap',
+                  search && 'max-md:order-last max-md:basis-full'
+                )}
+              >
+                {filterTags?.map((tag) => (
+                  <Chip
+                    key={tag.label}
+                    rightIcon={X}
+                    onClick={tag.onRemove}
+                    className='max-md:max-w-full'
+                  >
+                    {tag.label}
+                  </Chip>
+                ))}
+              </div>
+            )}
+            {isToggleFilter && filter.mode === 'toggle' ? (
+              <Chip
+                active={filter.active}
+                leftIcon={ListFilter}
+                mobileIconOnly
+                onClick={filter.onToggle}
+              >
+                Filter
+              </Chip>
+            ) : popoverFilter ? (
+              <PopoverPrimitive.Root
+                open={openMenu === 'filter'}
+                onOpenChange={(open) =>
+                  setOpenMenu((current) =>
+                    open ? 'filter' : current === 'filter' ? null : current
+                  )
+                }
+              >
+                <PopoverPrimitive.Anchor asChild>
+                  <div className='flex shrink-0 items-center gap-1'>
+                    <PopoverPrimitive.Trigger asChild>
+                      <Chip active={popoverFilter.active} leftIcon={ListFilter} mobileIconOnly>
+                        Filter
+                      </Chip>
+                    </PopoverPrimitive.Trigger>
+                    {sort && (
+                      <SortDropdown
+                        config={sort}
+                        open={openMenu === 'sort'}
+                        onOpenChange={(open) =>
+                          setOpenMenu((current) =>
+                            open ? 'sort' : current === 'sort' ? null : current
+                          )
+                        }
+                      />
+                    )}
+                  </div>
+                </PopoverPrimitive.Anchor>
+                <PopoverPrimitive.Portal>
+                  <PopoverPrimitive.Content
+                    align='end'
+                    alignOffset={RESOURCE_MENU_EDGE_OFFSET}
+                    collisionPadding={6}
+                    sideOffset={6}
+                    className={cn(
+                      POPOVER_ANIMATION_CLASSES,
+                      'z-[var(--z-popover)] w-fit origin-[--radix-popover-content-transform-origin] rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xs'
+                    )}
+                  >
+                    {popoverFilter.content}
+                  </PopoverPrimitive.Content>
+                </PopoverPrimitive.Portal>
+              </PopoverPrimitive.Root>
+            ) : null}
+            {sort && (isToggleFilter || !popoverFilter) && <SortDropdown config={sort} />}
+          </div>
+          {asideEnd}
+        </div>
+        {trailing && <div className='ml-auto flex shrink-0 items-center gap-1.5'>{trailing}</div>}
+      </div>
+    </div>
+  )
+})
+
+const SearchSection = memo(function SearchSection({ search }: { search: SearchConfig }) {
+  return (
+    <div className='relative flex min-w-0 flex-1 items-center gap-1.5'>
+      {SEARCH_ICON}
+      <div className='flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'>
+        {search.tags?.map((tag, i) => (
+          <Chip
+            key={`${tag.label}-${tag.value}`}
+            rightIcon={X}
+            onClick={tag.onRemove}
+            active={search.highlightedTagIndex === i}
+            className='max-w-[280px] shrink-0'
+          >
+            <FloatingOverflowText label={`${tag.label}: ${tag.value}`} className='block'>
+              {tag.label}: {tag.value}
+            </FloatingOverflowText>
+          </Chip>
+        ))}
+        <input
+          ref={search.inputRef}
+          type='text'
+          value={search.value}
+          maxLength={search.maxLength}
+          onChange={(e) => search.onChange(e.target.value)}
+          onKeyDown={search.onKeyDown}
+          onFocus={search.onFocus}
+          onBlur={search.onBlur}
+          placeholder={search.tags?.length ? '' : (search.placeholder ?? 'Search...')}
+          className={cn(chipFieldTextClass, 'min-w-[80px] flex-1 bg-transparent py-1')}
+        />
+      </div>
+      {search.tags?.length || search.value ? (
+        <button
+          type='button'
+          aria-label='Clear search'
+          className='mr-0.5 flex size-[14px] shrink-0 items-center justify-center text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-body)] max-md:size-11'
+          onClick={search.onClearAll ?? (() => search.onChange(''))}
+        >
+          <X className='size-[12px]' />
+        </button>
+      ) : null}
+      {search.dropdown && (
+        <div
+          ref={search.dropdownRef}
+          className='absolute top-full left-0 z-[var(--z-dropdown)] mt-1.5 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] shadow-xs'
+        >
+          {search.dropdown}
+        </div>
+      )}
+    </div>
+  )
+})
+
+interface SortDropdownProps {
+  config: SortConfig
+  /** Controlled open state — omit for standalone (uncontrolled) usage. */
+  open?: boolean
+  /** Controlled open-change handler, paired with {@link SortDropdownProps.open}. */
+  onOpenChange?: (open: boolean) => void
+}
+
+export const SortDropdown = memo(function SortDropdown({
+  config,
+  open,
+  onOpenChange,
+}: SortDropdownProps) {
+  const { options, active, onSort, onClear, keepOpenOnSelect = false } = config
+
+  return (
+    <DropdownMenu modal={false} open={open} onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger asChild>
+        <Chip active={Boolean(active)} leftIcon={ArrowUpDown} mobileIconOnly>
+          Sort
+        </Chip>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align='end'
+        alignOffset={RESOURCE_MENU_EDGE_OFFSET}
+        className='max-h-[var(--radix-dropdown-menu-content-available-height,400px)]'
+      >
+        {active && onClear && (
+          <>
+            <DropdownMenuItem
+              onSelect={(event) => {
+                if (keepOpenOnSelect) event.preventDefault()
+                onClear()
+              }}
+            >
+              <X />
+              Clear sort
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
+        {options.map((option) => {
+          const isActive = active?.column === option.id
+          const Icon = option.icon
+          const DirectionIcon = isActive ? (active.direction === 'asc' ? ArrowUp : ArrowDown) : null
+
+          return (
+            <DropdownMenuItem
+              key={option.id}
+              onSelect={(event) => {
+                if (keepOpenOnSelect) event.preventDefault()
+                if (isActive) {
+                  onSort(option.id, active.direction === 'asc' ? 'desc' : 'asc')
+                } else {
+                  onSort(option.id, 'desc')
+                }
+              }}
+            >
+              {Icon && <Icon />}
+              <FloatingOverflowText label={option.label} className='block' />
+              {DirectionIcon && (
+                <DirectionIcon className='ml-auto size-[12px] text-[var(--text-tertiary)]' />
+              )}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+})

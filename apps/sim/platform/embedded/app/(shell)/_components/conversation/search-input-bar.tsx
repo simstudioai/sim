@@ -5,8 +5,8 @@ import {
   type RefObject,
   useRef,
 } from 'react'
-import { GrowingTextarea } from '@/app/workspace/[workspaceId]/home/components/user-input/components/growing-textarea'
-import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
+import { GrowingTextarea } from '@/components/mothership-chat/user-input/components/growing-textarea'
+import { InputToolbar } from '@/components/mothership-chat/user-input/components/input-toolbar'
 import styles from '@/platform/embedded/app/(shell)/_components/conversation/page-composer.module.css'
 
 interface SearchInputBarProps {

@@ -7,14 +7,14 @@ import { yUndoPluginKey } from '@tiptap/y-tiptap'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as Y from 'yjs'
-import { BlockMover } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/block-mover'
-import { FileCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration'
+import { BlockMover } from '@/components/file-viewer/rich-markdown-editor/block-mover'
+import { FileCollaboration } from '@/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration'
 import {
   ResizableImage,
   ResizableInlineImage,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image'
+} from '@/components/file-viewer/rich-markdown-editor/image'
+import { isImageNode } from '@/components/file-viewer/rich-markdown-editor/image-node'
 import { dispatchEditorDrop } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drop.test-helpers'
-import { isImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
 
 let host: HTMLDivElement
 let root: Root

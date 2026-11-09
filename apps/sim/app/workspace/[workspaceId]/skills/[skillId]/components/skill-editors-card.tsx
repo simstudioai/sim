@@ -1,12 +1,12 @@
 'use client'
 
+import { DetailSection } from '@/components/credential-detail'
 import {
   MemberRow,
   SKILL_EDITOR_ROLE_OPTIONS,
   type SkillEditorRole,
   skillEditorLockReason,
 } from '@/components/permissions'
-import { DetailSection } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import type { SkillEditorsController } from '@/app/workspace/[workspaceId]/skills/components/skill-members'
 
 interface SkillEditorsCardProps {

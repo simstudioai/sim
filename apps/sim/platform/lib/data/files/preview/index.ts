@@ -1,3 +1,5 @@
+export { useCsvTruncationImport } from '@/components/file-viewer/csv-import'
+export { mermaidWorkflowCss } from '@/components/file-viewer/mermaid-theme'
 export { installBarRowHighlight } from '@/lib/charts/bar-row-highlight'
 export {
   buildChartRenderOption,
@@ -20,7 +22,5 @@ export {
   usesSimArtifactStyles,
 } from '@/lib/workspace-files/artifact-stylesheet'
 export { compileSimPage, isSimPageSource } from '@/lib/workspace-files/page-compile'
-export { useCsvTruncationImport } from '@/app/workspace/[workspaceId]/files/components/file-viewer/csv-import'
-export { mermaidWorkflowCss } from '@/app/workspace/[workspaceId]/files/components/file-viewer/mermaid-theme'
 export { useTable, useTableRowsSample } from '@/hooks/queries/tables'
 export { useWorkspaceCsvPreview } from '@/hooks/queries/workspace-file-table'

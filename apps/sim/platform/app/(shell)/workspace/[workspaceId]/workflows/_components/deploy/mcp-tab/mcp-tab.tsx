@@ -3,11 +3,11 @@
 import { useEffect } from 'react'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { FieldFrame, TextAreaField, TextField } from '@sim/emcn/field'
+import { TextAreaField, TextField } from '@sim/emcn/field'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { InlineNotice } from '@sim/emcn/status'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/mcp-tab/mcp-tab.module.css'
 import type { McpToolForm } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/mcp-tab/use-mcp-tool'
+import { ParameterDescriptions } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/parameter-descriptions/parameter-descriptions'
 import {
   useWorkflowMcpTools,
   type WorkflowMcpServer,
@@ -73,7 +73,7 @@ export function McpTab({
 
   const nameReady = Boolean(tool.toolName.trim()) && !tool.toolNameError
   return (
-    <div className={styles.form}>
+    <>
       {tool.servers.map((server) => (
         <ServerToolQuery
           key={server.id}
@@ -104,28 +104,13 @@ export function McpTab({
         value={tool.toolDescription}
         onChange={tool.setToolDescription}
       />
-      {tool.inputFormat.length > 0 && (
-        <FieldFrame
-          label='Parameters'
-          count={tool.inputFormat.length}
-          hint='Descriptions default to your Start block inputs; edit to override for this tool.'
-        >
-          <div className={styles.parameters}>
-            {tool.inputFormat.map((field) => (
-              <TextField
-                key={field.name}
-                label={`${field.name} · ${field.type || 'string'}`}
-                placeholder={tool.startDescriptions[field.name] || `Describe ${field.name}`}
-                value={
-                  tool.parameterDescriptions[field.name] ?? tool.startDescriptions[field.name] ?? ''
-                }
-                onChange={(value) => tool.setParameterDescription(field.name, value)}
-                autoComplete='off'
-              />
-            ))}
-          </div>
-        </FieldFrame>
-      )}
+      <ParameterDescriptions
+        fields={tool.inputFormat}
+        value={(name) => tool.parameterDescriptions[name] ?? tool.startDescriptions[name] ?? ''}
+        placeholder={(name) => tool.startDescriptions[name] || `Describe ${name}`}
+        onChange={tool.setParameterDescription}
+        hint='Descriptions default to your Start block inputs; edit to override for this tool.'
+      />
       <MultiSelect
         label='Servers'
         options={tool.servers.map((server) => ({ value: server.id, label: server.name }))}
@@ -145,6 +130,6 @@ export function McpTab({
       {tool.saveErrors.length > 0 && (
         <InlineNotice intent='danger' message={tool.saveErrors.join('. ')} />
       )}
-    </div>
+    </>
   )
 }

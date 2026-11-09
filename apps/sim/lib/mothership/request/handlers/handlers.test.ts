@@ -87,11 +87,8 @@ import type {
   StreamEvent,
   StreamingContext,
 } from '@/lib/mothership/request/types'
-import {
-  createTurnModel,
-  reduceEvent,
-} from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { createTurnModel, reduceEvent } from '@/hooks/mothership-chat/stream/turn-model'
 
 const {
   mockUpsertAsyncToolCall: upsertAsyncToolCall,

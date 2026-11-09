@@ -48,7 +48,7 @@ vi.mock('@/hooks/use-settings-search', () => ({
   useSettingsSearch: () => [mockSearch.value, vi.fn()],
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
+vi.mock('@/components/settings/primitives/settings-panel', () => ({
   SettingsPanel: ({
     children,
     back,
@@ -81,10 +81,9 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () =
   ),
 }))
 
-vi.mock(
-  '@/app/workspace/[workspaceId]/settings/components/settings-empty-state/settings-empty-state',
-  () => ({ SettingsEmptyState: ({ children }: { children: ReactNode }) => <p>{children}</p> })
-)
+vi.mock('@/components/settings/primitives/settings-empty-state/settings-empty-state', () => ({
+  SettingsEmptyState: ({ children }: { children: ReactNode }) => <p>{children}</p>,
+}))
 
 vi.mock('@/components/browser-import/browser-import-dialog', () => ({
   BrowserImportDialog: ({ open, onImported }: { open: boolean; onImported: () => void }) =>

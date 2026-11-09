@@ -4,6 +4,18 @@
  */
 
 export { getMcpTargetOptions } from '@/components/mcp/target-options'
+export {
+  CLI_TOOL_GROUPS,
+  DEPENDENCY_PLACEHOLDERS,
+  LANGUAGE_OPTIONS,
+  SANDBOX_UPGRADE_DESCRIPTION,
+  SANDBOX_UPGRADE_TITLE,
+  type SandboxLanguage,
+  SYSTEM_PACKAGE_PLACEHOLDER,
+} from '@/components/settings/sections/sandboxes/utils'
+export { shouldClearMissingOption } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/combobox/missing-option'
+export { resolveMicrosoftDataverseCredentialPolicy } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/credential-selector/microsoft-dataverse-policy'
+export { staleSelectionOptions } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/dropdown/stale-selections'
 export type { FolderResourceType } from '@/lib/api/contracts/folders'
 export type { SandboxCliToolId } from '@/lib/api/contracts/sandboxes'
 export { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -29,18 +41,6 @@ export { getSelectorManifestEntry, type SelectorKey } from '@/lib/selectors/mani
 export { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 export { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
 export { withCanonicalModes } from '@/lib/workflows/subblocks/visibility'
-export {
-  CLI_TOOL_GROUPS,
-  DEPENDENCY_PLACEHOLDERS,
-  LANGUAGE_OPTIONS,
-  SANDBOX_UPGRADE_DESCRIPTION,
-  SANDBOX_UPGRADE_TITLE,
-  type SandboxLanguage,
-  SYSTEM_PACKAGE_PLACEHOLDER,
-} from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
-export { shouldClearMissingOption } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/combobox/missing-option'
-export { resolveMicrosoftDataverseCredentialPolicy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/credential-selector/microsoft-dataverse-policy'
-export { staleSelectionOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/dropdown/stale-selections'
 export { useKnowledgeBasesList } from '@/hooks/kb/use-knowledge'
 export { useMcpTools } from '@/hooks/mcp/use-mcp-tools'
 export { useWorkspaceCredential, useWorkspaceCredentials } from '@/hooks/queries/credentials'

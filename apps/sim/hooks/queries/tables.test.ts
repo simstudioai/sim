@@ -13,7 +13,7 @@ vi.mock('@/lib/api/client/errors', () => ({
   extractValidationIssues: vi.fn(() => []),
 }))
 
-vi.mock('@/app/workspace/providers/socket-provider', () => ({
+vi.mock('@/components/workspace-providers/socket-provider', () => ({
   useSocket: vi.fn(() => ({ socket: null })),
 }))
 

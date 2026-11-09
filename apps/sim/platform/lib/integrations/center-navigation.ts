@@ -17,6 +17,11 @@ export const centerParams = {
   resource: parseAsString,
 }
 
+/** The workspace whose skills the Skills tab lists; skills belong to a workspace, as in legacy. */
+export const skillWorkspaceParams = {
+  workspace: parseAsString,
+}
+
 export const resourceDetailParams = {
   resourceTab: parseAsStringLiteral(['details', 'access']).withDefault('details'),
 }

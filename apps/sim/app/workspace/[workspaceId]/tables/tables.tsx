@@ -15,14 +15,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
-import type { TableDefinition } from '@/lib/table'
-import { generateUniqueTableName, MAX_TABLE_BATCH_ITEMS } from '@/lib/table/constants'
-import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import type {
-  MoveOptionNode,
-  SortableResource,
-} from '@/app/workspace/[workspaceId]/components/folders'
+import type { MoveOptionNode, SortableResource } from '@/components/folders'
 import {
   buildDescendantIndex,
   buildMoveOptions,
@@ -44,54 +37,51 @@ import {
   splitFolderedRowIds,
   useFolderNavigation,
   useFolderRowDragDrop,
-} from '@/app/workspace/[workspaceId]/components/folders'
-import { reportBulkOutcome } from '@/app/workspace/[workspaceId]/components/resource/bulk-outcome'
-import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
-import { ownerCell } from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
+} from '@/components/folders'
+import { reportBulkOutcome } from '@/components/resource/bulk-outcome'
+import { ownerCell } from '@/components/resource/components/owner-cell'
 import {
   ResourceNoResults,
   TablesEmptyState,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+} from '@/components/resource/components/resource-empty-state'
 import type {
   DropdownOption,
   ResourceAction,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+} from '@/components/resource/components/resource-header'
 import type {
   FilterTag,
   SearchConfig,
   SortConfig,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
+} from '@/components/resource/components/resource-options'
 import {
   ResourceFilterPanel,
   ResourceFilterSection,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
-import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
-import { resourceListState } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
-import type {
-  ResourceColumn,
-  ResourceRow,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
+} from '@/components/resource/components/resource-options'
+import { timeCell } from '@/components/resource/components/time-cell'
+import { resourceListState } from '@/components/resource/is-resource-list-empty'
+import type { ResourceColumn, ResourceRow } from '@/components/resource/resource'
+import { EMPTY_CELL_PLACEHOLDER, Resource } from '@/components/resource/resource'
+import { selectionLabel } from '@/components/resource/selection-label'
+import { useResourceRowSelection } from '@/components/resource/use-resource-row-selection'
 import {
-  EMPTY_CELL_PLACEHOLDER,
-  Resource,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
-import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
-import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+  tablesListPreferenceConfig,
+  tablesParsers,
+  tablesSortParams,
+  tablesUrlKeys,
+} from '@/components/tables/list/search-params'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
+import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
+import type { TableDefinition } from '@/lib/table'
+import { generateUniqueTableName, MAX_TABLE_BATCH_ITEMS } from '@/lib/table/constants'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
 import {
   ImportCsvDialog,
   ImportProgressMenu,
   TablesListContextMenu,
 } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
-import { useWorkspaceTablesRoom } from '@/app/workspace/[workspaceId]/tables/hooks/use-workspace-tables-room'
 import TablesLoading from '@/app/workspace/[workspaceId]/tables/loading'
-import {
-  tablesListPreferenceConfig,
-  tablesParsers,
-  tablesSortParams,
-  tablesUrlKeys,
-} from '@/app/workspace/[workspaceId]/tables/search-params'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useCreateFolder, useDeleteFolderMutation, useUpdateFolder } from '@/hooks/queries/folders'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
@@ -115,6 +105,7 @@ import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useResourceListPreferences } from '@/hooks/use-resource-list-preferences'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
+import { useWorkspaceTablesRoom } from '@/hooks/use-workspace-tables-room'
 import type { WorkflowFolder } from '@/stores/folders/types'
 import { useInFlightUploadsStore } from '@/stores/in-flight-uploads/store'
 import type { ResourceListPreference } from '@/stores/resource-list-preferences'

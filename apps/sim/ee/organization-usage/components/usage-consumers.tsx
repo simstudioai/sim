@@ -16,17 +16,14 @@ import {
 } from '@sim/emcn-legacy'
 import { ArrowRight, ChevronDown, CircleInfo } from '@sim/emcn-legacy/icons'
 import { PROVIDER_ICONS } from '@/components/icons/providers'
+import { type RowAction, RowActionsMenu } from '@/components/settings/primitives/row-actions-menu'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { RESOURCE_ROW_ARROW_CLASSES } from '@/components/settings/primitives/settings-resource-row'
 import type {
   OrganizationUsageBreakdown,
   OrganizationUsageBreakdownRow,
   UsageBreakdownDimension,
 } from '@/lib/api/contracts/organization-usage'
-import {
-  type RowAction,
-  RowActionsMenu,
-} from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { USAGE_TAB_EMPTY_COPY } from '@/ee/organization-usage/constants'
 
 interface UsageConsumerRowProps {

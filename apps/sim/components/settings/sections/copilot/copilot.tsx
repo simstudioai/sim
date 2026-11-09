@@ -1,0 +1,280 @@
+'use client'
+
+import { useMemo, useState } from 'react'
+import {
+  ChipConfirmModal,
+  ChipModal,
+  ChipModalBody,
+  ChipModalError,
+  ChipModalField,
+  ChipModalFooter,
+  ChipModalHeader,
+  SecretReveal,
+} from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
+import { createLogger } from '@sim/logger'
+import { formatDate } from '@sim/utils/formatting'
+import { RowActionsMenu } from '@/components/settings/primitives/row-actions-menu'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import type { SettingsAction } from '@/components/settings/primitives/settings-header/settings-header'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/components/settings/primitives/settings-resource-row'
+import {
+  type CopilotKey,
+  useCopilotKeys,
+  useDeleteCopilotKey,
+  useGenerateCopilotKey,
+} from '@/hooks/queries/copilot-keys'
+import { useSettingsSearch } from '@/hooks/use-settings-search'
+
+const logger = createLogger('CopilotSettings')
+
+/** Formats a key's last-used timestamp, falling back to "Never" when unset. */
+function formatLastUsed(dateString?: string | null): string {
+  if (!dateString) return 'Never'
+  return formatDate(new Date(dateString))
+}
+
+/**
+ * Copilot Keys management component for handling API keys used with the Copilot feature.
+ * Provides functionality to create, view, and delete copilot API keys.
+ */
+export function Copilot() {
+  const { data: keys = [], isLoading } = useCopilotKeys()
+  const generateKey = useGenerateCopilotKey()
+  const deleteKeyMutation = useDeleteCopilotKey()
+
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [newKeyName, setNewKeyName] = useState('')
+  const [newKey, setNewKey] = useState<string | null>(null)
+  const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
+  const [deleteKey, setDeleteKey] = useState<CopilotKey | null>(null)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [searchTerm, setSearchTerm] = useSettingsSearch()
+  const [createError, setCreateError] = useState<string | null>(null)
+
+  const filteredKeys = useMemo(() => {
+    if (!searchTerm.trim()) return keys
+    const term = searchTerm.toLowerCase()
+    return keys.filter(
+      (key) =>
+        key.name?.toLowerCase().includes(term) || key.displayKey?.toLowerCase().includes(term)
+    )
+  }, [keys, searchTerm])
+
+  const handleCreateKey = async () => {
+    if (!newKeyName.trim()) return
+
+    const trimmedName = newKeyName.trim()
+    const isDuplicate = keys.some((k) => k.name === trimmedName)
+    if (isDuplicate) {
+      setCreateError(
+        `A Chat API key named "${trimmedName}" already exists. Please choose a different name.`
+      )
+      return
+    }
+
+    setCreateError(null)
+    try {
+      const data = await generateKey.mutateAsync({ name: trimmedName })
+      if (data?.key?.apiKey) {
+        setNewKey(data.key.apiKey)
+        setShowNewKeyDialog(true)
+        setNewKeyName('')
+        setCreateError(null)
+        setIsCreateDialogOpen(false)
+      }
+    } catch (error) {
+      logger.error('Failed to generate copilot API key', { error })
+      setCreateError('Failed to create API key. Please check your connection and try again.')
+    }
+  }
+
+  const handleDeleteKey = async () => {
+    if (!deleteKey) return
+    try {
+      setShowDeleteDialog(false)
+      const keyToDelete = deleteKey
+      setDeleteKey(null)
+
+      await deleteKeyMutation.mutateAsync({ keyId: keyToDelete.id })
+    } catch (error) {
+      logger.error('Failed to delete copilot API key', { error })
+    }
+  }
+
+  const hasKeys = keys.length > 0
+  const showEmptyState = !hasKeys
+  const showNoResults = searchTerm.trim() && filteredKeys.length === 0 && keys.length > 0
+
+  const actions: SettingsAction[] = [
+    {
+      text: 'Create API key',
+      icon: Plus,
+      variant: 'primary',
+      onSelect: () => {
+        setIsCreateDialogOpen(true)
+        setCreateError(null)
+      },
+      disabled: isLoading,
+    },
+  ]
+
+  return (
+    <>
+      <SettingsPanel
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: 'Search API keys...',
+        }}
+        actions={actions}
+      >
+        {isLoading ? null : showEmptyState ? (
+          <SettingsEmptyState>Click "Create API key" above to get started</SettingsEmptyState>
+        ) : (
+          <div className={RESOURCE_LIST_STACK}>
+            {filteredKeys.map((key) => (
+              <SettingsResourceRow
+                key={key.id}
+                title={key.name || 'Unnamed Key'}
+                description={key.displayKey}
+                badge={
+                  <span className='whitespace-nowrap text-[var(--text-muted)] text-caption'>
+                    {`last used ${formatLastUsed(key.lastUsed).toLowerCase()}`}
+                  </span>
+                }
+                trailing={
+                  <RowActionsMenu
+                    label={`Actions for ${key.name || 'Unnamed Key'}`}
+                    actions={[
+                      {
+                        label: 'Delete',
+                        destructive: true,
+                        onSelect: () => {
+                          setDeleteKey(key)
+                          setShowDeleteDialog(true)
+                        },
+                      },
+                    ]}
+                  />
+                }
+              />
+            ))}
+            {showNoResults && (
+              <SettingsEmptyState variant='inline'>
+                No API keys found matching "{searchTerm}"
+              </SettingsEmptyState>
+            )}
+          </div>
+        )}
+      </SettingsPanel>
+
+      <ChipModal
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+        srTitle='Create new API key'
+      >
+        <ChipModalHeader onClose={() => setIsCreateDialogOpen(false)}>
+          Create new API key
+        </ChipModalHeader>
+        <ChipModalBody>
+          <p className='px-2 text-[var(--text-secondary)] text-sm'>
+            This key will allow access to Chat features. Make sure to copy it after creation as you
+            won't be able to see it again.
+          </p>
+          <ChipModalField
+            type='input'
+            title='Key name'
+            value={newKeyName}
+            onChange={(value) => {
+              setNewKeyName(value)
+              if (createError) setCreateError(null)
+            }}
+            placeholder='e.g., Development, Production'
+            required
+          />
+          <ChipModalError>{createError}</ChipModalError>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => {
+            setIsCreateDialogOpen(false)
+            setNewKeyName('')
+            setCreateError(null)
+          }}
+          primaryAction={{
+            label: generateKey.isPending ? 'Creating...' : 'Create',
+            onClick: handleCreateKey,
+            disabled: !newKeyName.trim() || generateKey.isPending,
+          }}
+        />
+      </ChipModal>
+
+      <ChipModal
+        open={showNewKeyDialog}
+        onOpenChange={(open) => {
+          setShowNewKeyDialog(open)
+          if (!open) {
+            setNewKey(null)
+          }
+        }}
+        srTitle='Your API key has been created'
+      >
+        <ChipModalHeader
+          onClose={() => {
+            setShowNewKeyDialog(false)
+            setNewKey(null)
+          }}
+        >
+          Your API key has been created
+        </ChipModalHeader>
+        <ChipModalBody>
+          <ChipModalField type='custom' title="Copy it now — it won't be shown again">
+            {newKey && <SecretReveal value={newKey} />}
+          </ChipModalField>
+        </ChipModalBody>
+        <ChipModalFooter
+          onCancel={() => {
+            setShowNewKeyDialog(false)
+            setNewKey(null)
+          }}
+          primaryAction={{
+            label: 'Done',
+            onClick: () => {
+              setShowNewKeyDialog(false)
+              setNewKey(null)
+            },
+          }}
+        />
+      </ChipModal>
+
+      <ChipConfirmModal
+        open={showDeleteDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowDeleteDialog(false)
+            setDeleteKey(null)
+          }
+        }}
+        srTitle='Delete API key'
+        title='Delete API key'
+        text={[
+          'Deleting ',
+          { text: deleteKey?.name || 'Unnamed Key', bold: true },
+          ' ',
+          { text: 'will immediately revoke access for any integrations using it.', error: true },
+          ' This action cannot be undone.',
+        ]}
+        confirm={{
+          label: 'Delete',
+          onClick: handleDeleteKey,
+          pending: deleteKeyMutation.isPending,
+          pendingLabel: 'Deleting...',
+        }}
+      />
+    </>
+  )
+}

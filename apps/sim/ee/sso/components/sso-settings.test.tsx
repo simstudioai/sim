@@ -137,7 +137,7 @@ vi.mock('@sim/emcn-legacy', () => ({
 
 vi.mock('@/lib/auth/client', () => authClientMock)
 
-vi.mock('@/app/workspace/[workspaceId]/components/credential-detail', () => ({
+vi.mock('@/components/credential-detail', () => ({
   UnsavedChangesModal: () => null,
 }))
 
@@ -158,7 +158,7 @@ vi.mock('@/components/settings/save-discard-actions', () => ({
   ],
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state', () => ({
+vi.mock('@/components/settings/primitives/settings-empty-state', () => ({
   SettingsEmptyState: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   SettingsQueryErrorState: ({
     error,
@@ -180,7 +180,7 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
   ),
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
+vi.mock('@/components/settings/primitives/settings-panel', () => ({
   SettingsPanel: ({
     actions = [],
     back,
@@ -233,7 +233,7 @@ vi.mock('@/ee/sso/hooks/sso', () => ({
 }))
 
 /** The resource row is design-system chrome; here it is a labelled button carrying its text. */
-vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-resource-row', () => ({
+vi.mock('@/components/settings/primitives/settings-resource-row', () => ({
   RESOURCE_LIST_STACK: '',
   SettingsResourceRow: ({
     title,

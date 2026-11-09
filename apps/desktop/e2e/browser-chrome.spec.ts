@@ -28,7 +28,7 @@ test('crowded tabs and renderer overlays work with a real native browser page', 
     )
     const hook = join(
       SIM_DIR,
-      'app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion.ts'
+      'components/mothership-chat/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion.ts'
     )
     const bundle = await build({
       stdin: {

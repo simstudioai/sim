@@ -3,20 +3,20 @@
 import type { ReactNode } from 'react'
 import { ChipInput, ChipTextarea, chipFieldSurfaceClass, cn, Tooltip } from '@sim/emcn-legacy'
 import dynamic from 'next/dynamic'
-import { DetailSection } from '@/app/workspace/[workspaceId]/components/credential-detail'
+import { DetailSection } from '@/components/credential-detail'
 import {
   SKILL_CONTENT_PLACEHOLDER,
   SKILL_DESCRIPTION_MAX_LENGTH,
   SKILL_DESCRIPTION_PLACEHOLDER,
   SKILL_NAME_HINT,
   SKILL_NAME_PLACEHOLDER,
-} from '@/app/workspace/[workspaceId]/skills/components/skill-copy'
+} from '@/lib/skills/copy'
 
 const RichMarkdownField = dynamic(
   () =>
-    import(
-      '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-field'
-    ).then((m) => m.RichMarkdownField),
+    import('@/components/file-viewer/rich-markdown-editor/rich-markdown-field').then(
+      (m) => m.RichMarkdownField
+    ),
   {
     ssr: false,
     loading: () => <div className={cn('min-h-[260px]', chipFieldSurfaceClass)} />,

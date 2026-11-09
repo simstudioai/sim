@@ -6,6 +6,70 @@
  */
 
 export type { TableCellSelection } from '@sim/realtime-protocol/table-presence'
+export {
+  exceedsTablePasteRowLimit,
+  parseBoundedTsv,
+} from '@/components/tables/components/table-grid/table-paste'
+export type { DisplayColumn } from '@/components/tables/components/table-grid/types'
+export {
+  buildHeaderGroups,
+  buildTableSelectionContext,
+  type CellCoord,
+  canWriteRowsWithChip,
+  checkboxColLayout,
+  chipRowCount,
+  classifyExecStatusMix,
+  collectRowSnapshots,
+  computeNormalizedSelection,
+  drainTargetForChip,
+  type ExecStatusMix,
+  expandToDisplayColumns,
+  horizontalEdgeScrollVelocity,
+  isCellInSelection,
+  moveCell,
+  type NormalizedSelection,
+  ROW_SELECTION_ALL,
+  ROW_SELECTION_NONE,
+  type RowSelection,
+  resolveCellExec,
+  rowSelectionCoversAll,
+  rowSelectionIncludes,
+  rowSelectionIsEmpty,
+  rowSelectionMaterialize,
+  selectedColumnIds,
+} from '@/components/tables/components/table-grid/utils'
+export { getTimezoneEditBlockedMessage } from '@/components/tables/components/timezone-editing'
+export { useTableEventStream } from '@/components/tables/hooks/use-table-event-stream'
+export {
+  tablesListPreferenceConfig,
+  tablesParsers,
+  tablesSortParams,
+  tablesUrlKeys,
+} from '@/components/tables/list/search-params'
+export {
+  type BlockedTableAction,
+  describeBlockedAction,
+  LOCK_FIELDS,
+  LOCK_TOOLTIPS,
+  lockedNouns,
+} from '@/components/tables/lock-copy'
+export type {
+  ContextMenuState,
+  EditingCell,
+  QueryOptions,
+  RowInsertTarget,
+  SaveReason,
+} from '@/components/tables/types'
+export {
+  cleanCellValue,
+  dateValueToLocalParts,
+  displayToStorage,
+  formatValueForInput,
+  generateColumnName,
+  localPartsToDateValue,
+  storageToDisplay,
+  todayLocalCalendarDate,
+} from '@/components/tables/utils'
 export { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 export type { WorkflowLogRow } from '@/lib/api/contracts/logs'
 export type {
@@ -99,71 +163,6 @@ export { normalizeInputFormatValue } from '@/lib/workflows/input-format'
 /** The workflow, enrichment and execution panels: run inputs, the enrichment catalog, a run's log. */
 export type { InputFormatField } from '@/lib/workflows/types'
 export { getUserColor, USER_COLORS } from '@/lib/workspaces/colors'
-export {
-  exceedsTablePasteRowLimit,
-  parseBoundedTsv,
-} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/table-paste'
-export type { DisplayColumn } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/types'
-export {
-  buildHeaderGroups,
-  buildTableSelectionContext,
-  type CellCoord,
-  canWriteRowsWithChip,
-  checkboxColLayout,
-  chipRowCount,
-  classifyExecStatusMix,
-  collectRowSnapshots,
-  computeNormalizedSelection,
-  drainTargetForChip,
-  type ExecStatusMix,
-  expandToDisplayColumns,
-  horizontalEdgeScrollVelocity,
-  isCellInSelection,
-  moveCell,
-  type NormalizedSelection,
-  ROW_SELECTION_ALL,
-  ROW_SELECTION_NONE,
-  type RowSelection,
-  resolveCellExec,
-  rowSelectionCoversAll,
-  rowSelectionIncludes,
-  rowSelectionIsEmpty,
-  rowSelectionMaterialize,
-  selectedColumnIds,
-} from '@/app/workspace/[workspaceId]/tables/[tableId]/components/table-grid/utils'
-export { getTimezoneEditBlockedMessage } from '@/app/workspace/[workspaceId]/tables/[tableId]/components/timezone-editing'
-export { useTableEventStream } from '@/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-event-stream'
-export {
-  type BlockedTableAction,
-  describeBlockedAction,
-  LOCK_FIELDS,
-  LOCK_TOOLTIPS,
-  lockedNouns,
-} from '@/app/workspace/[workspaceId]/tables/[tableId]/lock-copy'
-export type {
-  ContextMenuState,
-  EditingCell,
-  QueryOptions,
-  RowInsertTarget,
-  SaveReason,
-} from '@/app/workspace/[workspaceId]/tables/[tableId]/types'
-export {
-  cleanCellValue,
-  dateValueToLocalParts,
-  displayToStorage,
-  formatValueForInput,
-  generateColumnName,
-  localPartsToDateValue,
-  storageToDisplay,
-  todayLocalCalendarDate,
-} from '@/app/workspace/[workspaceId]/tables/[tableId]/utils'
-export { useWorkspaceTablesRoom } from '@/app/workspace/[workspaceId]/tables/hooks/use-workspace-tables-room'
-export {
-  tablesListPreferenceConfig,
-  tablesParsers,
-  tablesSortParams,
-  tablesUrlKeys,
-} from '@/app/workspace/[workspaceId]/tables/search-params'
 export { ALL_ENRICHMENTS, getEnrichment } from '@/enrichments/registry'
 export type { EnrichmentConfig } from '@/enrichments/types'
 export { type TimezoneState, useTimezone, useTimezoneState } from '@/hooks/queries/general-settings'
@@ -212,6 +211,7 @@ export { useWorkspaceFileLookup } from '@/hooks/queries/workspace-files'
 export { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'
 export { useInlineRename } from '@/hooks/use-inline-rename'
 export { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
+export { useWorkspaceTablesRoom } from '@/hooks/use-workspace-tables-room'
 /** Add to Chat opens a new chat with the selection as a draft, the same way the Files tab does. */
 export { useAddToChat } from '@/platform/lib/data/files/add-to-chat'
 export { useTraceVisibility, useTroubleshootRun } from '@/platform/lib/data/tables/execution'

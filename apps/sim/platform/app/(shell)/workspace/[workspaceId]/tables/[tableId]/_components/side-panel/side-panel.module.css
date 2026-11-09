@@ -61,6 +61,10 @@
   margin: 0;
   color: var(--ui-secondary);
 }
+.note {
+  margin: 0;
+  color: var(--ui-secondary);
+}
 @media (width < 48rem) {
   .panel {
     position: absolute;

@@ -7,7 +7,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import dynamic from 'next/dynamic'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { FloatingOverflowText } from '@/components/resource/components/floating-overflow-text'
+import { type RowAction, RowActionsMenu } from '@/components/settings/primitives/row-actions-menu'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import type { SettingsAction } from '@/components/settings/settings-header'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
 import type { ForkLineageChildApi, ForkLineageNodeApi } from '@/lib/api/contracts/workspace-fork'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
@@ -16,15 +22,6 @@ import {
   forkViewParam,
   forkViewUrlKeys,
 } from '@/lib/settings/search-params'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import {
-  type RowAction,
-  RowActionsMenu,
-} from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { ForkActivityPanel } from '@/ee/workspace-forking/components/fork-activity-panel/fork-activity-panel'
 import { ForkSyncDefaultToggle } from '@/ee/workspace-forking/components/fork-sync-default-toggle/fork-sync-default-toggle'
 import { ForkSyncedWorkflows } from '@/ee/workspace-forking/components/fork-synced-workflows/fork-synced-workflows'

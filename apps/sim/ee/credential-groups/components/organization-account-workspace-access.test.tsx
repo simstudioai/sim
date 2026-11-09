@@ -37,11 +37,11 @@ vi.mock('@sim/emcn-legacy', () => ({
   toast: { error: hoisted.toastError, success: hoisted.toastSuccess },
 }))
 vi.mock('@sim/emcn-legacy/icons', () => emcnIconsMock)
-vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
+vi.mock('@/components/settings/primitives/settings-panel', () => ({
   SettingsPanel: ({ children }: { children: ReactNode }) => <>{children}</>,
 }))
 vi.mock('@/hooks/queries/organization-accounts', () => organizationAccountsQueriesMock)
-vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-resource-row', () => ({
+vi.mock('@/components/settings/primitives/settings-resource-row', () => ({
   RESOURCE_LIST_STACK: '',
   SettingsResourceRow: ({
     title,
@@ -59,31 +59,28 @@ vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-resource-row
     </div>
   ),
 }))
-vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-empty-state', () => ({
+vi.mock('@/components/settings/primitives/settings-empty-state', () => ({
   SettingsEmptyState: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SettingsQueryErrorState: ({ error }: { error: Error }) => <div>{error.message}</div>,
 }))
-vi.mock(
-  '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section',
-  () => ({
-    SettingsSection: ({
-      label,
-      action,
-      children,
-    }: {
-      label: string
-      action: ReactNode
-      children: ReactNode
-    }) => (
-      <section>
-        <h2>{label}</h2>
-        {action}
-        {children}
-      </section>
-    ),
-  })
-)
-vi.mock('@/app/workspace/[workspaceId]/settings/components/row-actions-menu', () => ({
+vi.mock('@/components/settings/primitives/settings-section/settings-section', () => ({
+  SettingsSection: ({
+    label,
+    action,
+    children,
+  }: {
+    label: string
+    action: ReactNode
+    children: ReactNode
+  }) => (
+    <section>
+      <h2>{label}</h2>
+      {action}
+      {children}
+    </section>
+  ),
+}))
+vi.mock('@/components/settings/primitives/row-actions-menu', () => ({
   RowActionsMenu: ({ actions }: { actions: Array<{ label: string; onSelect: () => void }> }) => (
     <div>
       {actions.map((action) => (

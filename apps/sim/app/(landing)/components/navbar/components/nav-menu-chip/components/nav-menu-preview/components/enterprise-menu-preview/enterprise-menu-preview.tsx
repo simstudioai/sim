@@ -1,9 +1,9 @@
 import { Chip, ChipDropdown, cn } from '@sim/emcn-legacy'
 import { Building, MoreHorizontal, Plus } from '@sim/emcn-legacy/icons'
+import { MemberRow } from '@/components/settings/primitives/member-list/member-list'
+import { SegmentedMeter } from '@/components/settings/primitives/segmented-meter/segmented-meter'
 import { MenuPreviewFrame } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-frame'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
-import { MemberRow } from '@/app/workspace/[workspaceId]/settings/components/member-list/member-list'
-import { SegmentedMeter } from '@/app/workspace/[workspaceId]/settings/components/segmented-meter/segmented-meter'
 
 const MEMBERS = [
   { name: 'Morgan', email: 'morgan@example.com', role: 'Owner' },

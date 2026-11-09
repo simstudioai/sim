@@ -36,12 +36,12 @@ const workflowStateBridges = [
   ['@/stores/variables/store', 'lib/data/shims/workflow-state/variables-store.ts'],
 ] as const
 const bridgedImporters = [
-  'app/workspace/providers/socket-provider.tsx',
-  'app/workspace/[workspaceId]/home/hooks/use-chat.ts',
+  'components/workspace-providers/socket-provider.tsx',
+  'hooks/mothership-chat/use-chat.ts',
   'lib/mothership/tools/client/run-tool-execution.ts',
-  'app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution.ts',
+  'components/workflow-editor/utils/workflow-execution.ts',
   'stores/execution/store.ts',
-  'app/workspace/[workspaceId]/home/hooks/stream/stream-helpers.ts',
+  'hooks/mothership-chat/stream/helpers.ts',
   'stores/operation-queue/store.ts',
 ] as const
 

@@ -3,23 +3,23 @@
 import { useRef, useState } from 'react'
 import { Button, cn, Tooltip } from '@sim/emcn-legacy'
 import { Mic, Paperclip, Plus, Slash, X } from '@sim/emcn-legacy/icons'
+import {
+  type AgentGroupItem,
+  AgentGroupView,
+} from '@/components/mothership-chat/message-content/components/agent-group/agent-group-view'
+import {
+  parseQuestionAnswerMessage,
+  QuestionDisplay,
+} from '@/components/mothership-chat/message-content/components/question'
+import type { QuestionItem } from '@/components/mothership-chat/message-content/components/special-tags'
+import { PendingTagIndicator } from '@/components/mothership-chat/message-content/components/special-tags/pending-tag-indicator'
+import { SendButton } from '@/components/mothership-chat/user-input/components/send-button/send-button'
 import { ToolCallStatus } from '@/lib/mothership/chat/types'
 import { HeroChatReply } from '@/app/(landing)/components/hero/components/hero-chat-loop/hero-chat-reply'
 import { HeroToolCallItem } from '@/app/(landing)/components/hero/components/hero-chat-loop/hero-tool-call-item'
 import { HeroChatWelcome } from '@/app/(landing)/components/hero/components/hero-chat-welcome'
 import { HERO_TOOLTIP_OFFSET } from '@/app/(landing)/components/hero/components/hero-platform-loop/sidebar-hotspots'
 import { useElapsedReveal } from '@/app/(landing)/hooks/use-elapsed-reveal'
-import {
-  type AgentGroupItem,
-  AgentGroupView,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
-import {
-  parseQuestionAnswerMessage,
-  QuestionDisplay,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
-import type { QuestionItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
-import { PendingTagIndicator } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/pending-tag-indicator'
-import { SendButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/send-button/send-button'
 
 /** Word-reveal cadence for the streamed reply. */
 const STREAM_WORD_MS = 55

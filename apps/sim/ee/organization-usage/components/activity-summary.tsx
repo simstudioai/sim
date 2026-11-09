@@ -11,8 +11,8 @@ import {
   DashboardMetric,
   formatChartLatency,
 } from '@sim/emcn-legacy'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import type { OrganizationActivitySummary } from '@/lib/api/contracts/organization-activity'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   USAGE_CHAT_COLOR,
   USAGE_OTHER_COLOR,

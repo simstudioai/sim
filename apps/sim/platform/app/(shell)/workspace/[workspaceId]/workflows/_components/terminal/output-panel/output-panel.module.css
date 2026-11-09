@@ -10,16 +10,6 @@
   background: var(--ui-canvas);
 }
 
-/* The drag handle straddles the panel's leading edge without taking layout space. */
-.resizer {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: calc(-1 * var(--spacing-4));
-  z-index: 1;
-  inline-size: var(--spacing-8);
-  cursor: ew-resize;
-}
-
 .header {
   display: flex;
   flex: none;
@@ -45,36 +35,13 @@
   gap: var(--ui-action-gap);
 }
 
-/* The Tables find bar's floating surface, over the top of the output. */
+/* Places the shared find bar over the top of the output. */
 .search {
   position: absolute;
   inset-block-start: calc(var(--spacing-40) + var(--spacing-4));
   inset-inline-end: var(--spacing-8);
   z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-4);
   max-inline-size: calc(100% - var(--spacing-16));
-  padding: var(--spacing-4);
-  border: var(--spacing-stroke-default) solid var(--ui-border);
-  border-radius: var(--radius-menu-shared);
-}
-
-.query {
-  display: flex;
-  flex: 0 1 calc(var(--spacing-192) + var(--spacing-8));
-  min-inline-size: 0;
-}
-
-.count {
-  display: flex;
-  flex: none;
-  justify-content: flex-end;
-  min-inline-size: var(--spacing-64);
-  padding-inline: var(--spacing-4);
-  color: var(--ui-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 .content {

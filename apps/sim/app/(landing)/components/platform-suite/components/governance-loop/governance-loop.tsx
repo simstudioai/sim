@@ -3,13 +3,13 @@
 import { useState } from 'react'
 import { Badge, cn } from '@sim/emcn-legacy'
 import { Building, Download } from '@sim/emcn-legacy/icons'
+import { SegmentedMeter } from '@/components/settings/primitives/segmented-meter/segmented-meter'
 import {
   PLATFORM_LOOP_DESIGN,
   PLATFORM_LOOP_RESET_FADE_MS,
 } from '@/app/(landing)/components/shared/platform-loop-constants'
 import { ResponsiveDesignStage } from '@/app/(landing)/components/shared/responsive-design-stage'
 import { useMotionSafeCycle } from '@/app/(landing)/hooks/use-motion-safe-cycle'
-import { SegmentedMeter } from '@/app/workspace/[workspaceId]/settings/components/segmented-meter/segmented-meter'
 
 /** The organization's monthly budget and where spend stands against it. */
 const BUDGET = 6_000

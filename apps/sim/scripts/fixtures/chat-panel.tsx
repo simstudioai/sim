@@ -1,16 +1,13 @@
 import { lazy, StrictMode, Suspense, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ChatPanelContent, ChatPanelLayout } from '@/components/mothership-chat/chat-panel-layout'
 import {
   activateBrowserScope,
   migrateBrowserScope,
   openUrlInNewBrowserTab,
   reportBrowserPanelBounds,
 } from '@/lib/browser-agent/transport'
-import {
-  ChatPanelContent,
-  ChatPanelLayout,
-} from '@/app/workspace/[workspaceId]/home/components/chat-panel-layout'
-import { useMothershipResize } from '@/app/workspace/[workspaceId]/home/hooks/use-mothership-resize'
+import { useMothershipResize } from '@/hooks/mothership-chat/use-mothership-resize'
 import { useChatPanelStore } from '@/stores/chat-panel/store'
 
 const LazyContent = lazy(async () => ({ default: ChatPanelContent }))

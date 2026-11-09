@@ -4,12 +4,12 @@ import { useState } from 'react'
 import { ChipConfirmModal, ChipModalTabs, toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+} from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { ScimSection } from '@/ee/scim/components/scim-section'
 import { RequireSsoSection } from '@/ee/sso/components/require-sso-section'
 import { SsoProviderList } from '@/ee/sso/components/sso-provider-list'

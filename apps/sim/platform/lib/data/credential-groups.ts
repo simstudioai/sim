@@ -3,9 +3,13 @@ import {
   getOrganizationAccountsContract,
   getOrganizationAccountWorkspaceAccessContract,
   listOrganizationAccountPeopleContract,
+  listOrganizationAccountPeopleQuerySchema,
 } from '@/lib/api/contracts/organization-accounts'
+import { getOrganizationAccountWorkspaceAccess } from '@/lib/credential-groups/application/organization-access'
+import { listOrganizationAccountPeople } from '@/lib/credential-groups/application/organization-account-management'
+import { getOrganizationAccountsSettings } from '@/lib/credential-groups/application/organization-accounts'
 import type { CredentialGroupsData } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/model'
-import { serverRequestJson } from '@/platform/lib/data/server-request'
+import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
 import { credentialGroupCatalog } from '@/platform/lib/integrations/metadata.generated'
 
 /** Fetch only the active view. The organization contract decides which integrations are available. */
@@ -14,7 +18,12 @@ export async function readCredentialGroups(
   tab: string,
   query: Record<string, string | string[] | undefined>
 ): Promise<CredentialGroupsData> {
-  const settings = await serverRequestJson(getOrganizationAccountsContract, { params: { id } })
+  const { principal } = await requireSessionViewer()
+  const input = { organizationId: id }
+  const settings = await asRouteResponse(
+    getOrganizationAccountsContract,
+    await getOrganizationAccountsSettings.execute({ principal, input })
+  )
   const group = settings.credentialGroup
   const oauth = new Set([
     ...settings.availableProviders,
@@ -29,18 +38,27 @@ export async function readCredentialGroups(
   )
   const access =
     group && settings.canManage && tab === 'workspace-access'
-      ? await serverRequestJson(getOrganizationAccountWorkspaceAccessContract, { params: { id } })
+      ? await asRouteResponse(
+          getOrganizationAccountWorkspaceAccessContract,
+          await getOrganizationAccountWorkspaceAccess.execute({ principal, input })
+        )
       : null
   const filter = query['credential-group-people']
   const people =
     group && settings.canManage && tab === 'people'
-      ? await serverRequestJson(listOrganizationAccountPeopleContract, {
-          params: { id },
-          query: {
-            search: typeof filter === 'string' ? filter : undefined,
-            cursor: typeof query.cursor === 'string' ? query.cursor : undefined,
-          },
-        })
+      ? await asRouteResponse(
+          listOrganizationAccountPeopleContract,
+          await listOrganizationAccountPeople.execute({
+            principal,
+            input: {
+              ...input,
+              ...listOrganizationAccountPeopleQuerySchema.parse({
+                search: typeof filter === 'string' ? filter : undefined,
+                cursor: typeof query.cursor === 'string' ? query.cursor : undefined,
+              }),
+            },
+          })
+        )
       : null
   return {
     canManage: settings.canManage,

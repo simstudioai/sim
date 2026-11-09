@@ -1,7 +1,7 @@
 'use client'
 
+import { WorkflowComparisonModal } from '@/components/workflow-editor/workflow-diff'
 import type { ForkWorkflowComparison } from '@/lib/api/contracts/workspace-fork'
-import { WorkflowComparisonModal } from '@/app/workspace/[workspaceId]/w/components/workflow-diff'
 import { useDeploymentVersionState } from '@/hooks/queries/workflows'
 
 /** Pins the last synced and proposed deployment identities within one source workflow. */

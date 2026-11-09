@@ -134,3 +134,14 @@ textarea.input {
 .textareaFrame[data-default-size="large"] {
   block-size: calc(3 * var(--spacing-80));
 }
+.switchField {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-inline-size: 0;
+  gap: var(--ui-row-gap);
+  color: var(--ui-ink);
+}
+.switchField > label {
+  min-inline-size: 0;
+}

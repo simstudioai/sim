@@ -1,11 +1,11 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { AttachedFilesList } from '@/components/mothership-chat/user-input/components/attached-files-list/attached-files-list'
+import { DropOverlay } from '@/components/mothership-chat/user-input/components/drop-overlay/drop-overlay'
 import { ASSISTANT_IMAGE_ACCEPT_ATTRIBUTE } from '@/lib/uploads/shared/assistant-images'
 import { MOTHERSHIP_ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import type { ConversationComposerProps } from '@/app/_organization-conversation/composer/use-composer'
-import { AttachedFilesList } from '@/app/workspace/[workspaceId]/home/components/user-input/components/attached-files-list/attached-files-list'
-import { DropOverlay } from '@/app/workspace/[workspaceId]/home/components/user-input/components/drop-overlay/drop-overlay'
 
 interface ComposerAttachmentsProps {
   files: ConversationComposerProps['files']

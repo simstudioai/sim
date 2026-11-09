@@ -102,7 +102,7 @@ The chip family is the canonical chrome: `ChipInput`, `ChipTextarea`, `ChipModal
 - **Leading icon** → `icon` prop (rendered 14px in `--text-icon`).
 - **Trailing buttons** (reveal/copy/fetch) → `endAdornment`.
 - **Inner-input styling** (e.g. `font-mono`, number-spinner reset) → `inputClassName` (ChipInput only). See `ee/whitelabeling/components/whitelabeling-settings.tsx`.
-- **`ChipModalField` controls take NO className.** Pass `title`/`value`/`onChange`/`error`/`hint`/`required`/`flush`. The field owns label, control, and error/hint rendering. See `app/workspace/[workspaceId]/skills/components/skill-modal/skill-modal.tsx`.
+- **`ChipModalField` controls take NO className.** Pass `title`/`value`/`onChange`/`error`/`hint`/`required`/`flush`. The field owns label, control, and error/hint rendering. See `components/skills/skill-modal/skill-modal.tsx`.
 
 ### What className MAY carry
 
@@ -115,6 +115,6 @@ Layout/sizing ONLY: `flex-1`, `w-full`, `w-[Npx]`, `min-w-0`, `max-w-*`, margins
 - **Header/footer**: horizontal gutter `px-4` (header `pt-3`; footer `px-4 pt-2 pb-2`, tinted bar).
 - **Every body field MUST be a `ChipModalField`** — NEVER hand-roll a field row (raw `<div>` + hand-rolled `<p>`/`<label>` title + bare `ChipInput`/`ChipTextarea`). WHY: body `px-2` + field `px-2` = effective `px-4`, exactly matching the `px-4` header/footer. A hand-rolled row skips the field gutter, sits at `px-2`, and is visibly misaligned. Inline errors go through the `error` prop, not a hand-rolled `<p>`.
 - **Uncovered controls** (`ChipCombobox`, `ChipSelect`, `ChipDatePicker`, `ChipTimePicker`, `ChipButtonGroup`, arbitrary JSX) → `ChipModalField type='custom'` with a `title`. It still applies the `px-2` gutter and renders the canonical `Label`, so it stays aligned. Never drop such a control into a raw `<div>`, and never add a body-level wrapper `<div>` with a custom `gap-*` that fights `gap-4`.
-- **Page section rhythm** (integrations/skills/settings): muted `text-small` label + `mt-[9px] mb-3 h-px bg-[var(--border)]` divider, sections stacked `gap-7`. Reuse `SettingsSection` (`app/workspace/[workspaceId]/settings/components/settings-section/settings-section.tsx`) rather than re-deriving it.
+- **Page section rhythm** (integrations/skills/settings): muted `text-small` label + `mt-[9px] mb-3 h-px bg-[var(--border)]` divider, sections stacked `gap-7`. Reuse `SettingsSection` (`components/settings/primitives/settings-section/settings-section.tsx`) rather than re-deriving it.
 
 When a standalone labeled field outside a `ChipModal` needs the same look (e.g. `SkillImport`), match the field rhythm by hand: `flex flex-col gap-[9px]`, muted label, `ChipInput`/`ChipTextarea` control, `text-caption` error below.

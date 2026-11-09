@@ -7,6 +7,18 @@ import { prosemirrorJSONToYDoc, yDocToProsemirrorJSON } from '@tiptap/y-tiptap'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
+import { createMarkdownEditorExtensions } from '@/components/file-viewer/rich-markdown-editor/editor-extensions'
+import { createMarkdownContentExtensions } from '@/components/file-viewer/rich-markdown-editor/extensions'
+import {
+  applyFrontmatter,
+  postProcessSerializedMarkdown,
+  splitFrontmatter,
+} from '@/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import {
+  editorNormalForm,
+  parseMarkdownToDoc,
+  serializeMarkdownBody,
+} from '@/components/file-viewer/rich-markdown-editor/markdown-parse'
 import {
   applyMarkdownToYDoc,
   markdownToYDoc,
@@ -14,18 +26,6 @@ import {
   yDocToMarkdown,
 } from '@/lib/collab-doc/converter'
 import { COLLAB_DOC_FIELD } from '@/lib/collab-doc/field'
-import { createMarkdownEditorExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/editor-extensions'
-import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
-import {
-  applyFrontmatter,
-  postProcessSerializedMarkdown,
-  splitFrontmatter,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
-import {
-  editorNormalForm,
-  parseMarkdownToDoc,
-  serializeMarkdownBody,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 
 /** Representative markdown covering the custom-fidelity constructs (tables, code, lists, marks). */
 const SAMPLES = [
