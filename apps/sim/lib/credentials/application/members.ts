@@ -15,12 +15,14 @@ import {
   credentialUserOperations,
 } from '@/lib/credentials/application/operations'
 import {
+  type CredentialMemberGrant,
   type CredentialMemberPageInput,
   leaveCredentialMembership,
   listCredentialMembers,
   listCredentialMembershipsForUser,
   listCredentialMembersPage,
   removeCredentialMember,
+  setCredentialMembers,
   upsertCredentialMember,
 } from '@/lib/credentials/members'
 import { isWorkspaceCapabilityWithheld } from '@/lib/permission-groups/capability-assertions'
@@ -101,6 +103,43 @@ export const upsertCredentialMemberUseCase = defineAuthorizedCredentialUseCase({
       workspace_id: context.workspaceId,
     })
   },
+})
+
+export interface SetCredentialMembersInput extends CredentialMemberResourceInput {
+  /** Every explicit grant the credential should hold afterwards; anyone else's is revoked. */
+  members: readonly CredentialMemberGrant[]
+}
+
+/**
+ * Replaces a shared credential's explicit grants in one transaction, as the credential page's
+ * access table proposes them: one invalid person applies nothing, and the change records one audit.
+ */
+export const setCredentialMembersUseCase = defineAuthorizedCredentialUseCase({
+  operation: credentialOperations.setMembers,
+  resolveContext: ({ input }: { input: SetCredentialMembersInput }) =>
+    resolveCredentialApplicationContext(input),
+  async execute({ principal, input, context }) {
+    requireManageableCredentialType(principal, context.credential)
+    return setCredentialMembers({
+      credential: context.credential,
+      actorUserId: requirePrincipalSubjectUserId(principal),
+      members: input.members,
+    })
+  },
+  projectAudit: ({ context, result }) =>
+    result.added.length || result.roleChanged.length || result.removed.length
+      ? {
+          action: AuditAction.CREDENTIAL_MEMBERS_UPDATED,
+          resourceType: AuditResourceType.CREDENTIAL,
+          resourceId: context.credential.id,
+          description: 'Changed credential access',
+          metadata: {
+            added: result.added,
+            roleChanged: result.roleChanged,
+            removed: result.removed,
+          },
+        }
+      : [],
 })
 
 export interface RemoveCredentialMemberInput extends CredentialMemberResourceInput {

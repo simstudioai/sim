@@ -445,6 +445,12 @@ export const upsertWorkspaceCredentialMemberBodySchema = z.object({
   role: workspaceCredentialRoleSchema.default('member'),
 })
 
+export const setWorkspaceCredentialMembersBodySchema = z.object({
+  members: z
+    .array(z.object({ userId: z.string().min(1), role: workspaceCredentialRoleSchema }))
+    .max(1000),
+})
+
 export const removeWorkspaceCredentialMemberQuerySchema = z.object({
   userId: z.string().min(1),
 })
@@ -595,6 +601,18 @@ export const upsertWorkspaceCredentialMemberContract = defineRouteContract({
       success: z.literal(true),
       member: workspaceCredentialMemberSchema.optional(),
     }),
+  },
+})
+
+/** Replaces a credential's explicit grants with the list the access table proposes, atomically. */
+export const setWorkspaceCredentialMembersContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/credentials/[id]/members',
+  params: credentialIdParamsSchema,
+  body: setWorkspaceCredentialMembersBodySchema,
+  response: {
+    mode: 'json',
+    schema: z.object({ success: z.literal(true) }),
   },
 })
 
