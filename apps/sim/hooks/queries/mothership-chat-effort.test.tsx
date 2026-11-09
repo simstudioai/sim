@@ -12,6 +12,7 @@ vi.mock('next/navigation', () => nextNavigationMock)
 
 import { ToastProvider } from '@sim/emcn-legacy'
 import type { MothershipEffort } from '@/lib/mothership/model-options'
+import { ToastSink } from '@/app/_shell/toast-sink'
 import { useSetMothershipChatEffort } from '@/hooks/queries/mothership-chats'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 
@@ -52,6 +53,7 @@ beforeEach(async () => {
     root.render(
       <QueryClientProvider client={new QueryClient()}>
         <ToastProvider>
+          <ToastSink />
           <EffortPicker
             onReady={(next) => {
               pick = next
