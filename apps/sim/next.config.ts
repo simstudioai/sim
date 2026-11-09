@@ -232,6 +232,8 @@ const nextConfig: NextConfig = {
      */
     useTypeScriptCli: true,
     preloadEntriesOnStart: false,
+    /** The app has several root layouts, so unmatched URLs render `app/global-not-found.tsx`. */
+    globalNotFound: true,
     /**
      * Under Turbopack this is not a no-op: the list feeds
      * `side_effect_free_packages` and is force-appended to `transpiledPackages`,

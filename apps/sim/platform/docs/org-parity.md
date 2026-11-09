@@ -121,7 +121,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Links | Row opens `sim/<name>` on the main app | Links | Done | "links: create, find, open, edit and delete" |
 | Links | Row menu: Open, Copy link, Edit, Delete by `canEdit` | Links | Done | "links: create, find, open, edit and delete" |
 | Links | Create and edit: variable default, normalized name, 409 on the field, access, Learn more | Links | Done | "links: create, find, open, edit and delete". 409 and Learn more have no live check |
-| Links | `?create=<name>` deep link from an unknown `sim/<name>` | `app/sim/[[...path]]` | Done | "an unknown sim/ link opens the editor" |
+| Links | `?create=<name>` deep link from an unknown `sim/<name>` | `app/(site)/sim/[[...path]]` | Done | "an unknown sim/ link opens the editor" |
 | Links | Delete confirm with error | Links | Done | "links: create, find, open, edit and delete". The error path has no live check |
 | Links | Install Sim for Chrome | Links | Unverified | No live check yet. Hosted only, same gate. Current staging has no shortcuts modal or bookmark export |
 | Links | Copy or create from a chat source card | `source-card` | Open | Chat owner |
@@ -201,7 +201,7 @@ Every row runs on live data through `lib/data/members.ts`. Proof quotes a test i
 | Invite from Members and the org menu, role choice, format and self rejection, advisory seat check, success summary | `invite-modal.tsx` | Done | "a partial invite failure" |
 | Partial invite failure retains only the failed addresses, with reasons | `invite-modal.tsx` | Done | "a partial invite failure" |
 | Invite's workspace picker and External membership | `invite-modal.tsx` | Legacy | Only offered from a workspace entry, and none exists on this surface |
-| Invite acceptance | `app/invite/[id]` | Legacy | Stays at `/invite` by decision |
+| Invite acceptance | `app/(site)/invite/[id]` | Legacy | Stays at `/invite` by decision |
 | My pending invitations | `pending-invitations/` | Legacy | Workspace header only; not on the organization surface today |
 | No-organization recovery and create organization | `no-organization-view.tsx` | Legacy | Unreachable here: the surface requires membership |
 
@@ -270,8 +270,8 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Workspace error, not found and access denied | `[workspaceId]/error.tsx`, `not-found.tsx`, `workspace-access-denied.tsx` | Unverified | No live check yet. `workspace/[workspaceId]/error.tsx` and `not-found.tsx`; an inaccessible workspace reads as not found |
 | Unsaved settings guard on links and sign out | `settings-navigation-guard.tsx`, `settings-guarded-link.tsx` | Unverified | No live check yet. `lib/data/settings-guard`, `settings-leave-guard.tsx`, `requestLeave` |
 | Unsaved settings guard on browser back and forward | `use-settings-browser-navigation.ts` | Unverified | No live check yet. `lib/data/settings-guard`, the same hook as legacy |
-| Branded metadata and whitelabel theme | `app/layout.tsx` | Open | Settings owner, with White-labeling |
-| Analytics and telemetry, including `docs_opened` and `slack_community_opened` | `app/layout.tsx`, `organization-sidebar.tsx` | Open | No PostHog provider is mounted here, so the help menu sends no events |
+| Branded metadata and whitelabel theme | `app/_shell/site-root-layout.tsx` | Open | Settings owner, with White-labeling |
+| Analytics and telemetry, including `docs_opened` and `slack_community_opened` | `app/_shell/site-root-layout.tsx`, `organization-sidebar.tsx` | Open | No PostHog provider is mounted here, so the help menu sends no events |
 | Error and success toasts | `@sim/emcn` `toast` | Unverified | No live check yet. Foundation: `shared/toast.ts`, `useToastNotices` |
 | Collapse toggle | `organization-sidebar.tsx` | Done | "Mod+B collapses the sidebar" |
 | Collapse persisted, no flash | `stores/sidebar/store.ts` | Done | "Mod+B collapses the sidebar" |

@@ -18,7 +18,7 @@ import {
   startOrganizationAccountConnectionContract,
   startOrganizationSlackConfigurationContract,
 } from '@/lib/api/contracts/organization-accounts'
-import { buildConnectCompletePath } from '@/app/desktop/connect/validation'
+import { buildConnectCompletePath } from '@/app/(site)/desktop/connect/validation'
 
 const STORAGE_KEY = 'sim:desktop-source-connect'
 const contextSchema = z.object({
