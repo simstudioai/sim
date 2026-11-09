@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { AccessBoundary } from '@/app/(product)/_components/workspace/access-required/access-boundary'
 import { FileView } from '@/app/(product)/_components/workspace/files/file-view/file-view'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import type { ProductPageProps } from '@/platform/lib/route-props'
@@ -14,5 +15,9 @@ export default async function Page({
 }: ProductPageProps<{ workspaceId: string; fileId: string }>) {
   if (resolvePlatformMode() !== 'live') notFound()
   const { workspaceId, fileId } = await params
-  return <FileView key={fileId} workspaceId={workspaceId} fileId={fileId} />
+  return (
+    <AccessBoundary workspaceId={workspaceId} gate='hideFilesTab' current='files' layout='fill'>
+      <FileView key={fileId} workspaceId={workspaceId} fileId={fileId} />
+    </AccessBoundary>
+  )
 }

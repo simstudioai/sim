@@ -78,6 +78,7 @@ import {
   triggerFileDownload,
   useCreateWorkspaceFile,
   useDeleteWorkspaceFile,
+  useInFlightUploadsStore,
   usePinnedWorkspaceFiles,
   useRenameWorkspaceFile,
   useUploadWorkspaceFile,
@@ -224,7 +225,7 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
   useWorkspaceFilesRoom(workspaceId)
   const foldersQuery = useWorkspaceFileFolders(workspaceId)
   const folders = foldersQuery.data ?? EMPTY_FOLDERS
-  const foldersResolved = foldersQuery.isSuccess && !foldersQuery.isPlaceholderData
+  const foldersResolved = foldersQuery.data !== undefined && !foldersQuery.isPlaceholderData
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
   const descendants = useMemo(() => descendantIndex(folders), [folders])
   const [folderId, setFolderId] = useFolderParam(foldersResolved ? folderById : null)
@@ -545,9 +546,14 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
         setProgress({ done: 0, total: 0, percent: 0 })
       }
     }
-    uploadQueue.current = uploadQueue.current.then(batch).catch((error: unknown) => {
-      toast.error(getErrorMessage(error, 'Failed to upload files'))
-    })
+    // Counted from the moment it queues, since the batch runs on after this page unmounts.
+    const release = useInFlightUploadsStore.getState().begin()
+    uploadQueue.current = uploadQueue.current
+      .then(batch)
+      .catch((error: unknown) => {
+        toast.error(getErrorMessage(error, 'Failed to upload files'))
+      })
+      .finally(release)
     return uploadQueue.current
   }
 
@@ -1038,12 +1044,15 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
     </ControlBar>
   )
 
-  const read: WorkspaceRead = fileList.isError
+  const failedRead = [fileList, foldersQuery].find(
+    (query) => query.isError && query.data === undefined
+  )
+  const read: WorkspaceRead = failedRead
     ? {
         status: 'error',
         message: 'Files could not be loaded.',
-        retrying: fileList.isFetching,
-        onRetry: () => void fileList.refetch(),
+        retrying: failedRead.isFetching,
+        onRetry: () => void failedRead.refetch(),
       }
     : !access.settled ||
         (!access.hidden && (fileList.isPending || !foldersResolved || !preferences.isReady))
@@ -1076,12 +1085,7 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
   return (
     <LiveWorkspacePage workspaceId={workspaceId} current='files' controls={controls} read={read}>
       {access.hidden ? (
-        <AccessRequired
-          workspaceId={workspaceId}
-          gate='hideFilesTab'
-          refreshing={access.refreshing}
-          onRefresh={access.refresh}
-        />
+        <AccessRequired workspaceId={workspaceId} gate='hideFilesTab' onRefresh={access.refresh} />
       ) : (
         <div
           className={styles.browser}

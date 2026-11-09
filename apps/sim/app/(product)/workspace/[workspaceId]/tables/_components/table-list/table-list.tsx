@@ -162,7 +162,7 @@ export function TableList({ workspaceId }: TableListProps) {
   const membersQuery = useWorkspaceMembersQuery(workspaceId)
   const foldersQuery = useFolders(workspaceId, { resourceType: 'table' })
   const folders = foldersQuery.data ?? EMPTY_FOLDERS
-  const foldersResolved = foldersQuery.isSuccess && !foldersQuery.isPlaceholderData
+  const foldersResolved = foldersQuery.data !== undefined && !foldersQuery.isPlaceholderData
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
   const memberById = useMemo(
     () => new Map((membersQuery.data ?? []).map((member) => [member.userId, member])),
@@ -760,12 +760,15 @@ export function TableList({ workspaceId }: TableListProps) {
     </ControlBar>
   )
 
-  const read: WorkspaceRead = tablesQuery.isError
+  const failedRead = [tablesQuery, foldersQuery].find(
+    (query) => query.isError && query.data === undefined
+  )
+  const read: WorkspaceRead = failedRead
     ? {
         status: 'error',
         message: 'Tables could not be loaded.',
-        retrying: tablesQuery.isFetching,
-        onRetry: () => void tablesQuery.refetch(),
+        retrying: failedRead.isFetching,
+        onRetry: () => void failedRead.refetch(),
       }
     : !access.settled ||
         (!access.hidden && (tablesQuery.isPending || !foldersResolved || !preferences.isReady))
@@ -797,12 +800,7 @@ export function TableList({ workspaceId }: TableListProps) {
   return (
     <LiveWorkspacePage workspaceId={workspaceId} current='tables' controls={controls} read={read}>
       {access.hidden ? (
-        <AccessRequired
-          workspaceId={workspaceId}
-          gate='hideTablesTab'
-          refreshing={access.refreshing}
-          onRefresh={access.refresh}
-        />
+        <AccessRequired workspaceId={workspaceId} gate='hideTablesTab' onRefresh={access.refresh} />
       ) : (
         <ResourceTable
           label='Tables'

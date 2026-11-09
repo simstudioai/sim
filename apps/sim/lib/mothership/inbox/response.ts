@@ -5,6 +5,7 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { replaceUntilStable } from '@/lib/mothership/inbox/format'
 import type { InboxTask } from '@/lib/mothership/inbox/types'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 const logger = createLogger('InboxResponse')
@@ -12,6 +13,8 @@ const logger = createLogger('InboxResponse')
 interface InboxResponseContext {
   inboxProviderId: string | null
   workspaceId: string
+  /** The workspace's organization; an organization-less workspace's chat opens through its legacy URL. */
+  organizationId: string | null
 }
 
 /**
@@ -30,9 +33,11 @@ export async function sendInboxResponse(
     return null
   }
 
-  const chatUrl = inboxTask.chatId
-    ? `${getBaseUrl()}/workspace/${ctx.workspaceId}/chat/${inboxTask.chatId}`
-    : `${getBaseUrl()}/workspace/${ctx.workspaceId}/home`
+  const routes = ctx.organizationId ? organizationRoutes(ctx.organizationId) : null
+  const chatPath = inboxTask.chatId
+    ? (routes?.chat(inboxTask.chatId) ?? `/workspace/${ctx.workspaceId}/chat/${inboxTask.chatId}`)
+    : (routes?.home ?? `/workspace/${ctx.workspaceId}/home`)
+  const chatUrl = `${getBaseUrl()}${chatPath}`
 
   const brandName = getBrandConfig().name
 

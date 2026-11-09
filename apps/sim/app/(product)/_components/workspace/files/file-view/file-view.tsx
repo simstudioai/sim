@@ -9,7 +9,7 @@ import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter } from 'next/navigation'
+import { notFound, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import {
   FileDocAvatars,
@@ -23,7 +23,7 @@ import {
   isTextEditable,
 } from '@/components/file-viewer/file-viewer'
 import type { FileStreamProps, PreviewMode } from '@/components/file-viewer/types'
-import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
+import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import { ShareModal } from '@/app/(product)/_components/workspace/files/share-modal/share-modal'
@@ -127,10 +127,7 @@ export function FileView({ workspaceId, fileId, stream }: FileViewProps) {
   const record = useWorkspaceFileRecord(workspaceId, fileId)
   const recordState = workspaceFileRecordState(record)
   const file = record.data ?? null
-  const [{ new: isNewFile, folderId: folderIdParam }, setFilesParams] = useQueryStates(
-    filesParsers,
-    filesUrlKeys
-  )
+  const [{ new: isNewFile }, setFilesParams] = useQueryStates(filesParsers, filesUrlKeys)
   /** `?new=1` is read once: it opens the editor for a file just created, then leaves the URL. */
   const [composing] = useState(isNewFile)
   const { data: folders } = useWorkspaceFileFolders(workspaceId)
@@ -142,7 +139,8 @@ export function FileView({ workspaceId, fileId, stream }: FileViewProps) {
   const saveRef = useRef<(() => Promise<void>) | null>(null)
   const discardRef = useRef<(() => void) | null>(null)
   const downloadSourceRef = useRef<FileDownloadSource | null>(null)
-  const leavingRef = useRef(false)
+  /** A file this page just deleted reads as missing until the list it returns to opens. */
+  const [leaving, setLeaving] = useState(false)
 
   const [chosenMode, setChosenMode] = useState<PreviewMode | null>(null)
   const [isDirty, setIsDirty] = useState(false)
@@ -155,17 +153,6 @@ export function FileView({ workspaceId, fileId, stream }: FileViewProps) {
   useEffect(() => {
     if (isNewFile) void setFilesParams({ new: null }, { history: 'replace', scroll: false })
   }, [isNewFile, setFilesParams])
-
-  useEffect(() => {
-    if (access.hideFiles && !embedded) router.replace(workspaceEntry(workspaceId))
-  }, [access.hideFiles, embedded, router, workspaceId])
-
-  /** An id naming no live file falls back to the list; a chat panel tab says so instead. */
-  useEffect(() => {
-    if (recordState === 'missing' && !leavingRef.current && !embedded) {
-      router.replace(filesListHref(workspaceId, folderIdParam))
-    }
-  }, [recordState, embedded, router, workspaceId, folderIdParam])
 
   useSettingsUnsavedGuard({
     isDirty,
@@ -315,6 +302,15 @@ export function FileView({ workspaceId, fileId, stream }: FileViewProps) {
     </ControlBar>
   )
 
+  if (recordState === 'missing' && !embedded && !leaving) notFound()
+  if (recordState === 'missing' && embedded)
+    return (
+      <WorkspaceEmpty
+        title='File not found'
+        description='This file may have been deleted or moved.'
+      />
+    )
+
   return (
     <FileDocRoomProvider>
       <LiveWorkspacePage
@@ -323,26 +319,18 @@ export function FileView({ workspaceId, fileId, stream }: FileViewProps) {
         layout='fill'
         controls={controls}
         read={
-          recordState === 'found' ||
-          recordState === 'failed' ||
-          (embedded && recordState === 'missing')
-            ? { status: 'ready' }
-            : { status: 'pending' }
+          recordState === 'failed'
+            ? {
+                status: 'error',
+                message: getErrorMessage(record.error, 'This file could not be loaded.'),
+                retrying: record.isFetching,
+                onRetry: () => void record.refetch(),
+              }
+            : recordState === 'found'
+              ? { status: 'ready' }
+              : { status: 'pending' }
         }
       >
-        {recordState === 'failed' && (
-          <WorkspaceEmpty
-            title='Could not load this file'
-            description={getErrorMessage(record.error, 'Try again in a moment.')}
-            action={{ label: 'Try again', onClick: () => void record.refetch() }}
-          />
-        )}
-        {embedded && recordState === 'missing' && (
-          <WorkspaceEmpty
-            title='File not found'
-            description='This file may have been deleted or moved.'
-          />
-        )}
         {file && (
           <FileViewer
             key={file.id}
@@ -393,11 +381,11 @@ export function FileView({ workspaceId, fileId, stream }: FileViewProps) {
         confirmLabel='Delete'
         pendingLabel='Deleting…'
         onConfirm={async (target) => {
-          leavingRef.current = true
+          setLeaving(true)
           try {
             await deleteFile.mutateAsync({ workspaceId, fileId: target.id })
           } catch (error) {
-            leavingRef.current = false
+            setLeaving(false)
             throw error
           }
           setIsDirty(false)

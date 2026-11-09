@@ -10,6 +10,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { parseAsString, useQueryStates } from 'nuqs'
 import { toast } from '@/lib/toast/sink'
+import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import {
   descendantIndex,
@@ -82,6 +83,7 @@ import {
   useUpdateWorkflow,
   useUserPermissionsContext,
   useWorkflows,
+  useWorkspaceWorkflowsRoom,
   type WorkflowMetadata,
 } from '@/platform/lib/data/workflows'
 import { platformHref } from '@/platform/lib/navigation'
@@ -188,6 +190,7 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
   const canAdmin = permissions.canAdmin
 
   const workflowsQuery = useWorkflows(workspaceId)
+  useWorkspaceWorkflowsRoom(workspaceId)
   const allWorkflows = workflowsQuery.data ?? EMPTY_WORKFLOWS
   const workflows = useMemo(
     () => allWorkflows.filter((workflow) => workflow.workspaceId === workspaceId),
@@ -195,7 +198,7 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
   )
   const foldersQuery = useFolders(workspaceId, { resourceType: 'workflow' })
   const folders = foldersQuery.data ?? EMPTY_FOLDERS
-  const foldersResolved = foldersQuery.isSuccess && !foldersQuery.isPlaceholderData
+  const foldersResolved = foldersQuery.data !== undefined && !foldersQuery.isPlaceholderData
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
   const folderMap = useMemo(() => Object.fromEntries(folderById), [folderById])
   const workflowById = useMemo(
@@ -751,6 +754,34 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
   const hrefFor = (id: string | null) => folderHref(pathname, searchParams, id)
   const createBlocked = !canEdit || currentLocked
 
+  usePageCommands(
+    createBlocked
+      ? []
+      : [
+          {
+            id: 'workflows-new-workflow',
+            label: 'New workflow',
+            run: () => {
+              if (!ops.isCreatingWorkflow) ops.createWorkflow(folderId)
+            },
+          },
+          {
+            id: 'workflows-new-folder',
+            label: 'New folder',
+            run: () => {
+              if (!ops.isCreatingFolder) void createFolderIn(folderId)
+            },
+          },
+          {
+            id: 'workflows-import',
+            label: 'Import',
+            run: () => {
+              if (!ops.isImporting) fileInput.current?.click()
+            },
+          },
+        ]
+  )
+
   const newWorkflowAction: MenuAction = {
     id: 'new-workflow',
     label: 'New workflow',
@@ -829,12 +860,15 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
     </ControlBar>
   )
 
-  const read: WorkspaceRead = workflowsQuery.isError
+  const failedRead = [workflowsQuery, foldersQuery].find(
+    (query) => query.isError && query.data === undefined
+  )
+  const read: WorkspaceRead = failedRead
     ? {
         status: 'error',
         message: 'Workflows could not be loaded.',
-        retrying: workflowsQuery.isFetching,
-        onRetry: () => void workflowsQuery.refetch(),
+        retrying: failedRead.isFetching,
+        onRetry: () => void failedRead.refetch(),
       }
     : workflowsQuery.isPending ||
         workflowsQuery.isPlaceholderData ||

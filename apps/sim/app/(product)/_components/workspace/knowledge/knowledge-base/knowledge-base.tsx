@@ -11,7 +11,7 @@ import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { notFound, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import {
   type PageCommand,
@@ -76,6 +76,7 @@ import {
   useKnowledgeAccess,
   useKnowledgeBase,
   useKnowledgeBaseDocuments,
+  useKnowledgeBaseRecord,
   useTagDefinitionsQuery,
   useUpdateDocument,
   useUpdateKnowledgeBase,
@@ -169,6 +170,7 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
   const tagFilters = activeTagFilters(tagEntries)
 
   const base = useKnowledgeBase(knowledgeBaseId)
+  const record = useKnowledgeBaseRecord(knowledgeBaseId)
   const knowledgeBase = base.knowledgeBase
   useCaptureWhenReady(
     'knowledge_base_opened',
@@ -645,6 +647,15 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
   })
   const deletingDocument = rowsData.find((document) => document.id === deletingId)
 
+  if (record.missing && !embedded) notFound()
+  if (record.missing)
+    return (
+      <WorkspaceEmpty
+        title='Knowledge base not found'
+        description='This knowledge base may have been deleted or moved.'
+      />
+    )
+
   return (
     <>
       <LiveWorkspacePage
@@ -652,76 +663,66 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
         current='knowledge'
         layout='fill'
         controls={controls}
+        read={record.read}
       >
-        {base.error && !knowledgeBase ? (
-          <WorkspaceEmpty
-            title='Knowledge base not found'
-            description='It may have been deleted or moved.'
-            action={{
-              label: 'All knowledge bases',
-              href: knowledgeListHref(workspaceId, null, search),
-            }}
-          />
-        ) : (
-          <div className={styles.frame}>
-            <div className={styles.split}>
-              <div
-                ref={documentsColumn}
-                className={styles.documents}
-                data-scroll-axis='vertical'
-                role='region'
-                aria-label='Documents'
-              >
-                {documentsRead ?? (
-                  <ResourceTable
-                    label='Documents'
-                    columns={COLUMNS}
-                    rows={rows}
-                    rowActions={rowActions}
-                    backgroundActions={[
-                      {
-                        id: 'new-documents',
-                        label: 'New documents',
-                        disabled: !canEdit,
-                        onSelect: () => setUploading(true),
-                      },
-                    ]}
-                    selection={canEdit ? selection : undefined}
-                    bulkActions={bulkActions}
-                    bulkCount={allSelected ? total : undefined}
-                    find={{ query: highlight, activeId: null }}
-                  />
-                )}
-                {!list.error && pageCount > 1 && (
-                  <div className={styles.paging}>
-                    <Pagination
-                      label='Document pages'
-                      page={Math.min(page, pageCount)}
-                      pageCount={pageCount}
-                      onPageChange={(next) => {
-                        resetSelection()
-                        documentsViewport.current?.scrollTo({ top: 0 })
-                        void setFilters({ page: next })
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-              {knowledgeBase && connectorsQuery.status !== 'pending' && (
-                <ConnectorsRail
-                  workspaceId={workspaceId}
-                  knowledgeBaseId={knowledgeBaseId}
-                  isSearchIndex={Boolean(knowledgeBase.isSearchIndex)}
-                  connectors={connectors}
-                  error={connectorsQuery.error}
-                  onRetry={() => void connectorsQuery.refetch()}
-                  canEdit={canEdit}
-                  onOpen={setOpenConnectorId}
+        <div className={styles.frame}>
+          <div className={styles.split}>
+            <div
+              ref={documentsColumn}
+              className={styles.documents}
+              data-scroll-axis='vertical'
+              role='region'
+              aria-label='Documents'
+            >
+              {documentsRead ?? (
+                <ResourceTable
+                  label='Documents'
+                  columns={COLUMNS}
+                  rows={rows}
+                  rowActions={rowActions}
+                  backgroundActions={[
+                    {
+                      id: 'new-documents',
+                      label: 'New documents',
+                      disabled: !canEdit,
+                      onSelect: () => setUploading(true),
+                    },
+                  ]}
+                  selection={canEdit ? selection : undefined}
+                  bulkActions={bulkActions}
+                  bulkCount={allSelected ? total : undefined}
+                  find={{ query: highlight, activeId: null }}
                 />
               )}
+              {!list.error && pageCount > 1 && (
+                <div className={styles.paging}>
+                  <Pagination
+                    label='Document pages'
+                    page={Math.min(page, pageCount)}
+                    pageCount={pageCount}
+                    onPageChange={(next) => {
+                      resetSelection()
+                      documentsViewport.current?.scrollTo({ top: 0 })
+                      void setFilters({ page: next })
+                    }}
+                  />
+                </div>
+              )}
             </div>
+            {knowledgeBase && connectorsQuery.status !== 'pending' && (
+              <ConnectorsRail
+                workspaceId={workspaceId}
+                knowledgeBaseId={knowledgeBaseId}
+                isSearchIndex={Boolean(knowledgeBase.isSearchIndex)}
+                connectors={connectors}
+                error={connectorsQuery.error}
+                onRetry={() => void connectorsQuery.refetch()}
+                canEdit={canEdit}
+                onOpen={setOpenConnectorId}
+              />
+            )}
           </div>
-        )}
+        </div>
       </LiveWorkspacePage>
 
       <BaseTagsModal open={tagsOpen} onOpenChange={setTagsOpen} knowledgeBaseId={knowledgeBaseId} />

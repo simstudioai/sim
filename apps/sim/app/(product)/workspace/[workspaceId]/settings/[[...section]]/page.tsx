@@ -22,6 +22,9 @@ export async function generateMetadata({
   return { title: key ? workspaceSettingTitle(key) : 'Settings' }
 }
 
+/** Rendered per request: a build must never prerender a viewer's page. */
+export const dynamic = 'force-dynamic'
+
 function matchesSubpath(patterns: readonly string[] | undefined, subpath: readonly string[]) {
   return Boolean(
     patterns?.some((pattern) => {

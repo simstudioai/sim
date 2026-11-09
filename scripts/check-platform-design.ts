@@ -443,6 +443,7 @@ const seamHelpers = new Set([
   'components/tables/types',
   'components/tables/utils',
   'hooks/use-workspace-tables-room',
+  'hooks/use-workspace-workflows-room',
   'components/tables/list/search-params',
   'components/workflow-editor/components/panel/components/copilot/components/user-input/hooks/use-file-attachments',
   'blocks/custom/overlay',

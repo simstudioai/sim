@@ -183,8 +183,8 @@ export function useBillingSection(organization: PlatformOrganization) {
     showSubscription: paid || enterprise,
     /** The viewer's own credit usage, which Enterprise manages out of band. */
     showCreditUsage: !enterprise,
-    /** Organization limit emails go to admins who have not turned them off. */
-    showUsageNotifications: !personal && !free && !enterprise && isOrgAdminRole(billing?.userRole),
+    /** The 80% usage email is a personal plan's, as legacy offered it only on personal billing. */
+    showUsageNotifications: personal && !free && !enterprise,
     periodEndLabel: billing?.cancelAtPeriodEnd ? 'Access until' : 'Next billing date',
     periodEnd: billing?.billingPeriodEnd
       ? formatCalendarDate(billing.billingPeriodEnd.slice(0, 10), 'full')

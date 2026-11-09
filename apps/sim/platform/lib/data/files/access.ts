@@ -23,6 +23,5 @@ export function useFileAccess(workspaceId: string) {
     /** `null` allows every method. */
     allowedShareAuthTypes: config.allowedFileShareAuthTypes,
     disablePublicSharing: config.disablePublicFileSharing,
-    hideFiles: config.hideFilesTab,
   }
 }

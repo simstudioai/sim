@@ -55,16 +55,17 @@ export function useWorkspaceSettings(workspaceId: string) {
     discovery.isPending ||
     forking.isLoading ||
     (inbox.isPending && inbox.fetchStatus !== 'idle')
-  const status: 'pending' | 'error' | 'ready' = host.isError
-    ? 'error'
-    : pending
-      ? 'pending'
-      : 'ready'
+  // A permission group that cannot be read would list the sections it withholds, so it fails too.
+  const failed = host.isError || (policy.isError && !config)
+  const status: 'pending' | 'error' | 'ready' = failed ? 'error' : pending ? 'pending' : 'ready'
   return {
     status,
     hostContext,
     groups,
-    retry: () => void host.refetch(),
+    retry: () => {
+      if (host.isError) void host.refetch()
+      if (policy.isError) void policy.refetch()
+    },
     section: (key: WorkspaceSettingsKey): WorkspaceSetting | undefined =>
       groups.flatMap((group) => group.items).find((item) => item.key === key),
     /** The request a restricted section offers, and whether the organization takes requests now. */

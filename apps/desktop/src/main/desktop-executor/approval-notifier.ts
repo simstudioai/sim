@@ -57,9 +57,13 @@ export function createApprovalNotifier(deps: ApprovalNotifierDeps) {
           silent: !preferences.notificationSounds,
         })
         if (!notification) return
+        const chat = `chat/${encodeURIComponent(item.chatId)}`
+        // A workspace chat from before the organization cutover redirects to its organization's.
         const route = item.organizationId
-          ? `/o/${encodeURIComponent(item.organizationId)}/chat/${encodeURIComponent(item.chatId)}`
-          : undefined
+          ? `/o/${encodeURIComponent(item.organizationId)}/${chat}`
+          : item.workspaceId
+            ? `/workspace/${encodeURIComponent(item.workspaceId)}/${chat}`
+            : undefined
         notification.on('click', () => deps.openRoute(route))
         notification.show()
         shown.set(item.toolCallId, notification)
