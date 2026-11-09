@@ -756,6 +756,7 @@ const seamHelpers = new Set([
   'stores/workflows/subblock/store',
   'stores/workflows/utils',
   'stores/workflows/workflow/store',
+  'stores/workflows/state-port/connect-stores',
   'tools/params',
   'triggers/registry',
   // The block editor's sub-block logic, re-exported by `lib/data/workflow-editor` for its inputs.
@@ -1498,25 +1499,13 @@ function resolveSource(file: string, specifier: string): string | null {
 /**
  * Walks what the seam actually bundles, past the modules it names directly. A `.tsx` under `@/app`
  * or `@/components` is legacy UI riding in behind a hook, and so is any import of the legacy EMCN
- * barrel. The walk skips a workflow state module where a bridged importer names it, as the zone's
- * webpack config does. The
- * workflow seam is walked under its own exception; every other seam must reach neither the block, tool
- * or trigger registry nor legacy views. A server-only module is not walked from: it never reaches a
- * browser bundle.
+ * barrel. The workflow seam is walked under its own exception; every other seam must reach neither
+ * the block, tool or trigger registry nor legacy views, which holds the real workflow stores behind
+ * `stores/workflows/state-port`. A server-only module is not walked from: it never reaches a browser
+ * bundle.
  */
 function checkSeamClosure() {
   if (!existsSync(path.join(app, dataSeam))) return
-  const config = 'platform/next.config.ts'
-  const configSource = existsSync(path.join(app, config)) ? read(config) : ''
-  /** The requests a named array in `next.config.ts` lists, or the files it names. */
-  const configList = (name: string, pattern: RegExp) => {
-    const body =
-      configSource.match(new RegExp(`const ${name} = \\[([\\s\\S]*?)\\] as const`))?.[1] ?? ''
-    return new Set([...body.matchAll(pattern)].map(([, value]) => value))
-  }
-  // Replaced only where these importers name them, so other importers still reach the real module.
-  const bridged = configList('workflowStateBridges', /\['(@\/[^']+)', 'lib\/data\/shims\//g)
-  const bridgedImporters = configList('bridgedImporters', /'([^']+\.tsx?)'/g)
   const roots = [...files(dataSeam)].filter(
     (file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file) && !isServerOnly(file)
   )
@@ -1534,7 +1523,6 @@ function checkSeamClosure() {
     const queue = [...seeds]
     for (let file = queue.pop(); file; file = queue.pop()) {
       for (const specifier of runtimeImports(file)) {
-        if (bridgedImporters.has(file) && bridged.has(specifier)) continue
         // Logic modules name glyphs from the legacy icon set (block configs, table column types,
         // enrichments). Icons are not chrome, and zone views never import them directly.
         if (specifier === '@sim/emcn-legacy/icons') continue

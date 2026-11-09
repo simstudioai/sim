@@ -2,6 +2,10 @@
 
 import { SocketProvider } from '@/components/workspace-providers/socket-provider'
 import { useSession } from '@/lib/auth/client'
+import { connectWorkflowStores } from '@/stores/workflows/state-port/connect-stores'
+
+// The socket provider and chat read workflow state through its port; every workspace page hosts them.
+connectWorkflowStores()
 
 interface WorkspaceRootLayoutProps {
   children: React.ReactNode

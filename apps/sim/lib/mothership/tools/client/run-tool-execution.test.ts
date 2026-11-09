@@ -93,7 +93,7 @@ vi.mock('@/hooks/use-execution-stream', () => ({
   SSEStreamInterruptedError: MockSSEStreamInterruptedError,
 }))
 
-vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
+vi.mock('@/stores/workflows/state-port', () => workflowRegistryStoreMock)
 
 import {
   bindRunToolToExecution,

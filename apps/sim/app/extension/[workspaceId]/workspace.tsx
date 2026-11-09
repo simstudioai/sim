@@ -19,6 +19,10 @@ import {
   useWorkspaceHostContextQuery,
   WORKSPACE_HOST_CONTEXT_STALE_TIME,
 } from '@/hooks/queries/workspace-host'
+import { connectWorkflowStores } from '@/stores/workflows/state-port/connect-stores'
+
+// The extension chat reads and runs workflows through the workflow state port.
+connectWorkflowStores()
 
 interface ExtensionWorkspaceProps {
   workspaceId: string

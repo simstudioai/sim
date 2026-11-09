@@ -211,8 +211,8 @@ import {
 import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
 import type { ChatContext } from '@/stores/panel'
 import { useTableViewPinStore } from '@/stores/table/view-pin/store'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
+import { useWorkflowRegistry } from '@/stores/workflows/state-port'
 
 export interface SendMessageOptions {
   /**
