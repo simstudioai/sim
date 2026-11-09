@@ -27,6 +27,12 @@
 /apps/sim/hooks/mothership-chat/stream/ @simstudioai/mothership
 /apps/sim/hooks/queries/tasks.ts @simstudioai/mothership
 
+# EMCN is frozen: only the design owner changes the shared design system or its surface snapshot
+# (`bun run check:emcn-surface`). Listed before the dependency rules, which still own package.json.
+/packages/emcn/ @emir-karabeg
+/packages/emcn-platform/ @emir-karabeg
+/scripts/emcn-surface.json @emir-karabeg
+
 # Dependency manifests and package-manager config. Any change here — adding,
 # removing, or bumping a dependency, or altering install/security settings —
 # requires review to guard against supply-chain risk. (CODEOWNERS gates file
