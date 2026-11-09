@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import type { Page } from '@playwright/test'
 import { createDeferred } from '@sim/testing/helpers/deferred'
+import { generateId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import type { z } from 'zod'
 import type { listSlackSearchResponseSchema } from '@/lib/api/contracts/knowledge/slack'
@@ -663,6 +664,98 @@ export async function settingsChecks() {
       })
     },
     { allow: [/500 POST .*sso\/register/] }
+  )
+  await check(
+    'Single sign-on: a pending Save holds the form and the page, and a failed one keeps the draft',
+    async () => {
+      await withSession(ADMIN, async ({ page }) => {
+        const bodies: unknown[] = []
+        const answerFirst = createDeferred<void>()
+        await page.route('**/api/auth/sso/register', async (route) => {
+          bodies.push(route.request().postDataJSON())
+          if (bodies.length === 1) await answerFirst.promise
+          await route.fulfill({ status: 503, json: { error: 'Stubbed: no identity provider' } })
+        })
+        await page.goto(settingsUrl('sso'))
+        const providerId = page.getByRole('combobox', { name: 'Provider ID', exact: true })
+        await providerId.click()
+        await page.getByRole('combobox', { name: 'Select or enter a provider ID' }).fill('e2e-oidc')
+        await page.keyboard.press('Escape')
+        const issuer = page.getByRole('textbox', { name: 'Issuer URL' })
+        await issuer.fill('https://idp.org-redesign.test')
+        await page.getByRole('textbox', { name: 'Domain', exact: true }).fill('org-redesign.test')
+        const clientId = page.getByRole('textbox', { name: 'Client ID', exact: true })
+        await clientId.fill('e2e-client')
+        const secret = page.getByRole('textbox', { name: 'Client secret' })
+        await secret.focus()
+        await secret.fill('e2e-secret')
+        await page.getByRole('button', { name: 'Save', exact: true }).click()
+        await expect.poll(() => bodies.length).toBe(1)
+        await expect(page.getByRole('button', { name: 'Saving…', exact: true })).toBeDisabled()
+        await expect(issuer).toBeDisabled()
+
+        // Submitting again, or leaving for another section, does nothing while the first is out.
+        await issuer.evaluate((field) => field.closest('form')?.requestSubmit())
+        const general = page
+          .getByRole('navigation', { name: 'Settings', exact: true })
+          .getByRole('link', { name: 'General', exact: true })
+        await general.click()
+        await pageTurn(page)
+        assert.equal(bodies.length, 1, 'A second Save went out while the first was pending')
+        await expect(page).toHaveURL(settingsUrl('sso'))
+        await expect(dialog(page, 'Unsaved changes')).toHaveCount(0)
+
+        answerFirst.resolve()
+        await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled()
+        await expect(clientId).toHaveValue('e2e-client')
+        // The failed draft is still a draft: leaving now asks first.
+        await general.click()
+        const unsaved = dialog(page, 'Unsaved changes')
+        await unsaved.getByRole('button', { name: 'Keep editing' }).click()
+        await expect(unsaved).toHaveCount(0)
+        await page.getByRole('button', { name: 'Save', exact: true }).click()
+        await expect.poll(() => bodies.length).toBe(2)
+      })
+    },
+    { allow: [/503 POST .*sso\/register/] }
+  )
+  await check('Directory provisioning: an issued token holds the page until its modal closes', () =>
+    withRestore(
+      () => sql`delete from scim_connection where organization_id = ${ORGANIZATION_ID}`,
+      async () => {
+        await sql`insert into scim_connection (id, organization_id, status)
+          values (${generateId()}, ${ORGANIZATION_ID}, 'active')`
+        await withSession(ADMIN, async ({ page }) => {
+          const prompts: string[] = []
+          page.on('dialog', (prompt) => {
+            prompts.push(prompt.type())
+            void prompt.dismiss()
+          })
+          await page.goto(`${settingsUrl('sso')}?tab=provisioning`)
+          const issued = page.waitForResponse(
+            (response) =>
+              response.request().method() === 'POST' &&
+              pathOf(response.url()).endsWith('/scim/credentials')
+          )
+          await page.getByRole('button', { name: 'Issue token', exact: true }).click()
+          assert.equal((await issued).status(), 201)
+          const modal = dialog(page, 'Credential issued')
+          await expect(modal).toBeVisible()
+
+          // The token is shown once: a reload while it is on screen asks before losing it.
+          await page.evaluate(() => {
+            setTimeout(() => location.reload())
+          })
+          await expect.poll(() => prompts).toEqual(['beforeunload'])
+          await expect(modal).toBeVisible()
+
+          await modal.getByRole('button', { name: 'Done', exact: true }).click()
+          await expect(modal).toHaveCount(0)
+          await page.reload()
+          assert.deepEqual(prompts, ['beforeunload'], 'A dismissed token still held the page')
+        })
+      }
+    )
   )
   await check('Members: a role change writes, and writes back', () =>
     withRestore(
