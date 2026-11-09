@@ -18,7 +18,7 @@ import type { SimLinkSort } from '@/lib/sim-links/validation'
 import type { SortDirection } from '@/lib/url-state'
 import { SIM_LINKS_STALE_TIME, simLinkKeys } from '@/hooks/queries/utils/sim-link-keys'
 
-export function simLinksQueryOptions(
+function simLinksQueryOptions(
   organizationId: string,
   search: string,
   sort: SimLinkSort,

@@ -17,7 +17,7 @@ export const reportDir = path.dirname(
 )
 
 /** The main app the suite runs against, as `playwright.config.ts` points its `baseURL`. */
-export const liveOrigin = () => new URL(process.env.PLATFORM_LIVE_ORIGIN ?? 'http://localhost:3000')
+const liveOrigin = () => new URL(process.env.PLATFORM_LIVE_ORIGIN ?? 'http://localhost:3000')
 
 /** The administrator most specs act as. */
 export const adminEmail = () => requireEnv('PLATFORM_LIVE_EMAIL')

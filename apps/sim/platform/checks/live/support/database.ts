@@ -60,7 +60,7 @@ export async function seedPerson(
  * workspaces they own with every grant on them, so nothing they left behind changes what a later
  * check reads.
  */
-export async function removePerson(person: SeededPerson) {
+async function removePerson(person: SeededPerson) {
   await withLiveDatabase(async (sql) => {
     await sql`delete from organization where kind = 'personal' and id in (
       select organization_id from member where user_id = ${person.id})`
