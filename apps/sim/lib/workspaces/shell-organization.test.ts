@@ -72,7 +72,7 @@ describe("an organization-less workspace's legacy URLs", () => {
     ['home', '/o/viewer-org/home'],
     ['chat/chat-1', '/o/viewer-org/chat/chat-1'],
     ['skills', '/o/viewer-org/integrations?tab=skills&workspace=ws-1'],
-    ['integrations', '/o/viewer-org/integrations'],
+    ['integrations', '/o/viewer-org/integrations?workspace=ws-1'],
     ['upgrade?reason=credits', '/o/viewer-org/settings/billing/plans?reason=credits'],
   ])("send /workspace/ws-1/%s to the viewer's organization", async (path, target) => {
     checkWorkspaceAccess.mockResolvedValue(access(null))

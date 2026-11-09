@@ -4,6 +4,7 @@ import {
   billingSubscriptionMock,
   billingSubscriptionMockFns,
 } from '@sim/testing/mocks/billing-subscription.mock'
+import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FeatureFlagsConfig } from '@/lib/core/config/feature-flags'
 
@@ -18,6 +19,7 @@ vi.mock('@/lib/permissions/super-user', () => ({ isPlatformAdmin: mocks.platform
 vi.mock('@/lib/organizations/surface', () => ({ resolveOrganizationLanding: mocks.landing }))
 vi.mock('@/lib/billing/core/subscription', () => billingSubscriptionMock)
 vi.mock('@/lib/billing/core/access', () => billingAccessMock)
+vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
 
 import {
   forgetKnowledgeAccessAvailability,
