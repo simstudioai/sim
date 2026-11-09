@@ -31,6 +31,7 @@ import {
   onBrowserAddToChat,
   onBrowserAppearanceThemeChanged,
   onBrowserDownloadsState,
+  onBrowserFillAvailability,
   onBrowserFindClose,
   onBrowserFindOpen,
   onBrowserFindResult,
@@ -40,11 +41,14 @@ import {
   reportBrowserTheme,
   sendBrowserPanelAction,
   setBrowserPanelOccluded,
+  showBrowserCredentialChooser,
+  showBrowserDownloadInFolder,
   showBrowserDownloadsMenu,
   showBrowserToolbarMenu,
   stopBrowserFind,
   supportsAtomicBrowserPanelOcclusion,
 } from '@/lib/browser-agent/transport'
+import { getDesktopBridge } from '@/lib/desktop'
 import {
   loadDesktopBrowserAppearanceTheme,
   resolveDesktopAppearanceTheme,
@@ -54,7 +58,6 @@ import { addMothershipContexts } from '@/lib/mothership/events'
 import {
   type BrowserPageIssueCopy,
   browserPageIssueCopy,
-  resolveUrlBarInput,
 } from '@/platform/lib/data/browser-page-issue'
 import { useSurfaceTheme } from '@/platform/lib/data/surface-theme'
 import { useBrowserSessionStore } from '@/stores/browser-session/store'
@@ -120,6 +123,36 @@ function permissionCopy(request: PermissionRequest): { title: string; descriptio
     description: `Allowing gives this page access to your ${devices} until it navigates. Block if you did not expect this request.`,
   }
 }
+
+/** Aggregate byte progress for the toolbar rail; unknown-size downloads are ignored. */
+function aggregateDownloadPercent(downloads: BrowserDownloadInfo[]): number | null {
+  const measurable = downloads.filter(
+    (download) => download.state === 'progressing' && download.totalBytes > 0
+  )
+  const total = measurable.reduce((sum, download) => sum + download.totalBytes, 0)
+  if (total <= 0) return null
+  const received = measurable.reduce((sum, download) => sum + download.receivedBytes, 0)
+  return Math.min(100, Math.max(0, Math.round((received / total) * 100)))
+}
+
+/** Compact, stable byte labels for the right edge of a download row. */
+function formatDownloadBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB'] as const
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const value = bytes / 1024 ** exponent
+  return `${value >= 10 || exponent === 0 ? Math.round(value) : value.toFixed(1)} ${units[exponent]}`
+}
+
+function downloadDetail(download: BrowserDownloadInfo): string {
+  if (download.state === 'progressing' && download.totalBytes > 0) {
+    return `${formatDownloadBytes(download.receivedBytes)} / ${formatDownloadBytes(download.totalBytes)}`
+  }
+  return formatDownloadBytes(Math.max(download.receivedBytes, download.totalBytes))
+}
+
+/** How long the toolbar shows a check after a download finishes. */
+const DOWNLOAD_COMPLETED_FLASH_MS = 1_200
 
 /** Re-report unchanged bounds before the main-process visibility lease expires. */
 const PANEL_HEARTBEAT_INTERVAL_MS = 1_000
@@ -235,8 +268,22 @@ export function useBrowserPanel({ scopeId, visible, onSettings }: BrowserPanelOp
   /** Whether the host is actually on screen; the tab can stay mounted while hidden. */
   const [panelVisible, setPanelVisible] = useState(false)
   const [find, setFind] = useState<BrowserPanelFind>({ open: false, result: null })
-  const { snapshot, snapshotLayer, onSnapshotError, shouldKeepNativeHidden } =
-    useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible, getHostRect)
+  const {
+    activeOverlay,
+    requestOverlay,
+    closeOverlay,
+    snapshot,
+    snapshotLayer,
+    onSnapshotError,
+    shouldKeepNativeHidden,
+  } = useBrowserPanelOcclusion(scopeId, activeTabId, panelVisible, getHostRect)
+  const requestSuggestions = useCallback(
+    () => void requestOverlay('suggestions', () => {}),
+    [requestOverlay]
+  )
+  const closeSuggestions = useCallback(() => void closeOverlay('suggestions'), [closeOverlay])
+  const [fillAvailable, setFillAvailable] = useState(false)
+  useEffect(() => onBrowserFillAvailability(setFillAvailable, scopeId), [scopeId])
   const onSettingsRef = useRef(onSettings)
   onSettingsRef.current = onSettings
   const [panelElement, setPanelElement] = useState<HTMLDivElement | null>(null)
@@ -276,16 +323,43 @@ export function useBrowserPanel({ scopeId, visible, onSettings }: BrowserPanelOp
   )
 
   const [downloads, setDownloads] = useState<BrowserDownloadInfo[]>([])
+  const downloadsRef = useRef<BrowserDownloadInfo[]>([])
+  /** A download finished since the list was last opened. */
+  const [unviewedCompletion, setUnviewedCompletion] = useState(false)
+  /** Briefly true after a download finishes, while the toolbar shows a check. */
+  const [justCompleted, setJustCompleted] = useState(false)
   useEffect(() => {
     let active = true
+    let flashTimer: number | null = null
+    downloadsRef.current = []
     setDownloads([])
+    setUnviewedCompletion(false)
+    setJustCompleted(false)
     void loadBrowserDownloads(scopeId).then((state) => {
-      if (active) setDownloads(state.downloads)
+      if (!active) return
+      downloadsRef.current = state.downloads
+      setDownloads(state.downloads)
     })
-    const unsubscribe = onBrowserDownloadsState((state) => setDownloads(state.downloads), scopeId)
+    const unsubscribe = onBrowserDownloadsState((state) => {
+      const prior = new Map(downloadsRef.current.map((download) => [download.id, download.state]))
+      const completed = state.downloads.some(
+        (download) => download.state === 'completed' && prior.get(download.id) !== 'completed'
+      )
+      downloadsRef.current = state.downloads
+      setDownloads(state.downloads)
+      if (!completed) return
+      setUnviewedCompletion(true)
+      setJustCompleted(true)
+      if (flashTimer !== null) window.clearTimeout(flashTimer)
+      flashTimer = window.setTimeout(() => {
+        flashTimer = null
+        setJustCompleted(false)
+      }, DOWNLOAD_COMPLETED_FLASH_MS)
+    }, scopeId)
     return () => {
       active = false
       unsubscribe()
+      if (flashTimer !== null) window.clearTimeout(flashTimer)
     }
   }, [scopeId])
 
@@ -509,8 +583,23 @@ export function useBrowserPanel({ scopeId, visible, onSettings }: BrowserPanelOp
 
   const permissionShown =
     visible && permission && permission.requestId !== answeredPermission ? permission : null
+  const inProgress = downloads.filter((download) => download.state === 'progressing').length
+  /** Runs a menu action once the menu's overlay has handed the page back. */
+  const afterMenuClose = (action: () => void) => () => void closeOverlay('toolbar').then(action)
   return {
     page,
+    /** Whether the host is on screen; the tab stays mounted while hidden. */
+    panelVisible,
+    /** Sim draws its own start or issue view, so there is no native page to cover. */
+    rendererPage: hasRendererPage,
+    /** A permission or page prompt owns the panel, so no list may hang over it. */
+    blocked: Boolean(permission || pageState?.prompt),
+    /** The address bar list's lease on the captured frame. */
+    suggestionsOverlay: {
+      open: activeOverlay === 'suggestions',
+      request: requestSuggestions,
+      close: closeSuggestions,
+    },
     /** A permission prompt waiting on the reader, with its question. */
     permission: permissionShown
       ? {
@@ -550,23 +639,67 @@ export function useBrowserPanel({ scopeId, visible, onSettings }: BrowserPanelOp
     back: () => sendBrowserPanelAction('back', {}, scopeId),
     forward: () => sendBrowserPanelAction('forward', {}, scopeId),
     reload: () => sendBrowserPanelAction('reload', {}, scopeId),
-    navigate: (raw: string) => {
-      if (raw.trim()) sendBrowserPanelAction('navigate', { url: resolveUrlBarInput(raw) }, scopeId)
-    },
-    /** This chat's recent downloads; the list itself is the shell's native menu, above the page. */
+    /** Navigates to an address the address bar already resolved. */
+    navigateTo: (url: string) => sendBrowserPanelAction('navigate', { url }, scopeId),
+    /**
+     * This chat's recent downloads. The list opens in Sim once the page is swapped for its captured
+     * frame; when that handshake fails, the shell's native list opens instead.
+     */
     downloads: downloads.length
       ? {
-          inProgress: downloads.filter((download) => download.state === 'progressing').length,
-          open: (anchor: HTMLElement) => {
-            const rect = anchor.getBoundingClientRect()
-            showBrowserDownloadsMenu({ x: rect.left, y: rect.bottom }, scopeId)
+          inProgress,
+          percent: inProgress ? aggregateDownloadPercent(downloads) : null,
+          justCompleted,
+          unviewed: unviewedCompletion,
+          rows: downloads.map((download) => ({
+            id: download.id,
+            filename: download.filename,
+            state: download.state,
+            detail: downloadDetail(download),
+          })),
+          open: activeOverlay === 'downloads',
+          onOpenChange: (open: boolean, anchor: HTMLElement | null) => {
+            if (!open) {
+              void closeOverlay('downloads')
+              return
+            }
+            setUnviewedCompletion(false)
+            void requestOverlay('downloads', () => {
+              const rect = anchor?.getBoundingClientRect()
+              if (rect) showBrowserDownloadsMenu({ x: rect.left, y: rect.bottom }, scopeId)
+            })
           },
+          /** Reveals a completed download in Finder or the platform's file manager. */
+          reveal: (id: string) => void showBrowserDownloadInFolder(id, scopeId),
         }
       : null,
-    /** Opens the shell's native toolbar menu, which draws above the page with no capture. */
-    openMenu: (anchor: HTMLElement) => {
-      const rect = anchor.getBoundingClientRect()
-      showBrowserToolbarMenu({ x: rect.left, y: rect.bottom }, scopeId)
+    /**
+     * The browser menu in Sim, as legacy drew it; when the page cannot be swapped for its captured
+     * frame, the shell's native menu opens instead.
+     */
+    menu: {
+      open: activeOverlay === 'toolbar',
+      onOpenChange: (open: boolean, anchor: HTMLElement | null) => {
+        if (!open) {
+          void closeOverlay('toolbar')
+          return
+        }
+        void requestOverlay('toolbar', () => {
+          const rect = anchor?.getBoundingClientRect()
+          if (rect) showBrowserToolbarMenu({ x: rect.left, y: rect.bottom }, scopeId)
+        })
+      },
+      afterClose: afterMenuClose,
+      fillAvailable,
+      canImport: Boolean(getDesktopBridge()?.browserImport?.importFromChrome),
+      zoom: (action: 'zoom-in' | 'zoom-out' | 'zoom-reset') =>
+        sendBrowserPanelAction(action, {}, scopeId),
+      /** The shell's account chooser needs the click's live gesture and an on-screen anchor. */
+      fillPassword: (anchor: HTMLElement | null) => {
+        const rect = anchor?.getBoundingClientRect()
+        if (rect) showBrowserCredentialChooser({ x: rect.left, y: rect.bottom }, scopeId)
+      },
+      settings: (query: string) => onSettingsRef.current(query),
     },
     openFind,
     search: (query: string, forward: boolean, newSession: boolean) => {

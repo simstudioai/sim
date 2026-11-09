@@ -6,27 +6,13 @@ import { Modal } from '@sim/emcn/modal'
 import { InlineNotice } from '@sim/emcn/status'
 import { toast } from '@/lib/toast/sink'
 import { Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { IMPORT_ERROR_MESSAGES } from '@/platform/lib/data/browser-sign-in'
 import {
   type BrowserChromeImportResult,
-  type BrowserImportError,
   type BrowserImportProfile,
   getDesktopBridge,
   useBrowserImportProfiles,
 } from '@/platform/lib/data/desktop'
-
-const IMPORT_ERROR_MESSAGES: Record<BrowserImportError, string> = {
-  'unsupported-platform': 'Importing from another browser is only supported on macOS.',
-  'chrome-not-found': 'Could not find that browser profile.',
-  'keychain-unavailable':
-    'Sim needs your permission to read that browser’s saved data. Allow the Keychain prompt and try again.',
-  'profile-unreadable':
-    'Could not read that browser’s data. Try quitting the other browser, then import again.',
-  'unsupported-schema': 'That browser stores its data in a format Sim cannot read yet.',
-  'nothing-imported': 'Nothing from that profile could be imported.',
-  'vault-unavailable':
-    'This device cannot store passwords securely, so saved passwords were not imported.',
-  unknown: 'Could not import from that browser.',
-}
 
 /** Counts only what landed; importing a cookie does not guarantee a signed-in session. */
 function importSummary({ cookies, passwords }: BrowserChromeImportResult): string | null {

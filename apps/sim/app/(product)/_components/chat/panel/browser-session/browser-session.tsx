@@ -3,10 +3,16 @@
 import { useRef, useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { Input } from '@sim/emcn/field/inputs'
+import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
+import { AddressBar } from '@/app/(product)/_components/chat/panel/browser-session/address-bar'
 import styles from '@/app/(product)/_components/chat/panel/browser-session/browser-session.module.css'
+import {
+  ContinueSignInNotice,
+  continueSignInActions,
+} from '@/app/(product)/_components/chat/panel/browser-session/continue-sign-in'
+import { DownloadsMenu } from '@/app/(product)/_components/chat/panel/browser-session/downloads-menu'
 import {
   AppLaunchNotice,
   PageDialogModal,
@@ -15,6 +21,7 @@ import {
 } from '@/app/(product)/_components/chat/panel/browser-session/page-prompts'
 import { FindBar } from '@/app/(product)/_components/find-bar/find-bar'
 import { useBrowserPanel } from '@/platform/lib/data/browser-panel'
+import { useContinueSignIn } from '@/platform/lib/data/browser-sign-in'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
@@ -37,9 +44,63 @@ export function BrowserSession({ scopeId, visible }: BrowserSessionProps) {
     visible,
     onSettings: (query) => router.push(`${surfaceHref(scope, '/settings/browser')}${query}`),
   })
-  const { page, find, snapshot } = browser
+  const { page, find, snapshot, menu } = browser
+  const signIn = useContinueSignIn(scopeId, page?.url)
   const [query, setQuery] = useState('')
   const findInput = useRef<HTMLInputElement>(null)
+  const menuAnchor = useRef<HTMLSpanElement>(null)
+  const menuActions = (): MenuAction[] => [
+    {
+      id: 'find',
+      label: 'Find in Page',
+      shortcut: '⌘F',
+      onSelect: menu.afterClose(browser.openFind),
+    },
+    ...continueSignInActions(signIn, menu.afterClose),
+    {
+      id: 'zoom-in',
+      label: 'Zoom In',
+      shortcut: '⌘+',
+      separatorBefore: true,
+      onSelect: menu.afterClose(() => menu.zoom('zoom-in')),
+    },
+    {
+      id: 'zoom-out',
+      label: 'Zoom Out',
+      shortcut: '⌘−',
+      onSelect: menu.afterClose(() => menu.zoom('zoom-out')),
+    },
+    {
+      id: 'zoom-reset',
+      label: 'Actual Size',
+      shortcut: '⌘0',
+      onSelect: menu.afterClose(() => menu.zoom('zoom-reset')),
+    },
+    {
+      id: 'fill-password',
+      label: 'Fill Saved Password',
+      separatorBefore: true,
+      disabled: !menu.fillAvailable,
+      onSelect: menu.afterClose(() => menu.fillPassword(menuAnchor.current)),
+    },
+    {
+      id: 'passwords',
+      label: 'Passwords',
+      onSelect: menu.afterClose(() => menu.settings('?browserView=passwords')),
+    },
+    {
+      id: 'import-passwords',
+      label: 'Import Passwords',
+      disabled: !menu.canImport,
+      onSelect: menu.afterClose(() => menu.settings('?browserImport=1')),
+    },
+    {
+      id: 'browser-settings',
+      label: 'Browser Settings',
+      separatorBefore: true,
+      onSelect: menu.afterClose(() => menu.settings('')),
+    },
+  ]
   const image = snapshot && (
     <img
       ref={snapshot.ref}
@@ -77,44 +138,25 @@ export function BrowserSession({ scopeId, visible }: BrowserSessionProps) {
           disabled={!page}
           onClick={browser.reload}
         />
-        <form
-          key={page?.url ?? ''}
-          className={styles.address}
-          onSubmit={(event) => {
-            event.preventDefault()
-            const value = new FormData(event.currentTarget).get('address')
-            if (typeof value === 'string') browser.navigate(value)
-            if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
-          }}
-        >
-          <Input
-            label='Search Google or enter a URL'
-            name='address'
-            defaultValue={page?.blank ? '' : (page?.url ?? '')}
-            placeholder='Search Google or enter a URL'
-            spellCheck={false}
-            autoComplete='off'
+        <AddressBar browser={browser} />
+        {browser.downloads && <DownloadsMenu downloads={browser.downloads} />}
+        <span ref={menuAnchor} className={styles.menu}>
+          <ActionMenu
+            label='Browser menu'
+            icon='I108'
+            triggerSize='bar'
+            align='end'
+            open={menu.open}
+            onOpenChange={(open) => menu.onOpenChange(open, menuAnchor.current)}
+            actions={menuActions}
           />
-        </form>
-        {browser.downloads && (
-          <IconButton
-            label={
-              browser.downloads.inProgress
-                ? `Downloads, ${browser.downloads.inProgress} in progress`
-                : 'Downloads'
-            }
-            icon='I049'
-            size='bar'
-            onClick={(event) => browser.downloads?.open(event.currentTarget)}
-          />
-        )}
-        <IconButton
-          label='Browser menu'
-          icon='I108'
-          size='bar'
-          onClick={(event) => browser.openMenu(event.currentTarget)}
-        />
+        </span>
       </div>
+      {(signIn.pending || signIn.hintVisible) && (
+        <div className={styles.notice}>
+          <ContinueSignInNotice signIn={signIn} />
+        </div>
+      )}
       {browser.launchNotice && (
         <div className={styles.notice}>
           <AppLaunchNotice

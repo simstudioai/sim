@@ -19,6 +19,47 @@
   flex: 1;
   min-inline-size: 0;
 }
+/* A host's imported favicon, sized as the row's glyph. */
+.favicon {
+  flex: none;
+  inline-size: var(--ui-icon-size);
+  block-size: var(--ui-icon-size);
+  border-radius: var(--radius-1);
+}
+.suggestionHost {
+  color: var(--ui-secondary);
+}
+.menu,
+.downloads {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+/* A finished download nobody has looked at yet. */
+.downloads[data-unviewed] {
+  color: var(--ui-icon-active);
+}
+/* Aggregate byte progress along the button's foot while downloads run. */
+.downloadProgress {
+  position: absolute;
+  inset-inline: var(--spacing-6);
+  inset-block-end: var(--spacing-4);
+  block-size: var(--spacing-0-5);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--ui-divider);
+  pointer-events: none;
+  appearance: none;
+}
+.downloadProgress::-webkit-progress-bar {
+  background: var(--ui-divider);
+}
+.downloadProgress::-webkit-progress-value {
+  border-radius: var(--radius-full);
+  background: var(--ui-ink);
+  transition: inline-size var(--ui-motion-position) ease;
+}
 /* A page's request to open another app, beneath the toolbar and outside the live page. */
 .notice {
   flex: none;

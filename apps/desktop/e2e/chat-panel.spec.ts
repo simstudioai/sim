@@ -19,6 +19,7 @@ const SIM_DIR = fileURLToPath(new URL('../../sim/', import.meta.url))
  */
 const FIXTURE_SOURCE = `import { StrictMode, useEffect, useState } from 'react'
 import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   AppRouterContext,
   type AppRouterInstance,
@@ -35,6 +36,8 @@ import { ResourcePanels } from '@/app/(product)/_components/chat/panel/resource-
 import { useMothershipResize } from '@/hooks/mothership-chat/use-mothership-resize'
 import { SurfaceScopeProvider } from '@/platform/lib/surface-scope'
 import { useChatPanelStore } from '@/stores/chat-panel/store'
+
+const queryClient = new QueryClient()
 
 const router: AppRouterInstance = {
   bfcacheId: 'fixture',
@@ -99,6 +102,7 @@ function ChatPanelFixture() {
   const [narrow, setNarrow] = useState(false)
   useEffect(() => initBrowserAgentTransport(), [])
   return (
+    <QueryClientProvider client={queryClient}>
     <AppRouterContext.Provider value={router}>
       <SurfaceScopeProvider routePrefix='/o/fixture-organization'>
         <PlatformSurface theme='dark' canvas>
@@ -148,6 +152,7 @@ function ChatPanelFixture() {
         </PlatformSurface>
       </SurfaceScopeProvider>
     </AppRouterContext.Provider>
+    </QueryClientProvider>
   )
 }
 
