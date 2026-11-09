@@ -57,9 +57,9 @@
       }
     },
     "app/(product)/o/[organizationId]/integrations/[providerId]/page.tsx": {
-      "modules": 2736,
+      "modules": 2792,
       "gateways": {
-        "apps/sim/app/(product)/o/[organizationId]/integrations/_components/integrations-page/live-integrations-route.tsx": 2530,
+        "apps/sim/app/(product)/o/[organizationId]/integrations/_components/integrations-page/live-integrations-route.tsx": 2584,
         "apps/sim/blocks/registry-maps.ts": 941,
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,
@@ -83,9 +83,9 @@
       }
     },
     "app/(product)/o/[organizationId]/integrations/page.tsx": {
-      "modules": 2736,
+      "modules": 2792,
       "gateways": {
-        "apps/sim/app/(product)/o/[organizationId]/integrations/_components/integrations-page/live-integrations-route.tsx": 2530,
+        "apps/sim/app/(product)/o/[organizationId]/integrations/_components/integrations-page/live-integrations-route.tsx": 2584,
         "apps/sim/blocks/registry-maps.ts": 941,
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,

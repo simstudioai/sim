@@ -1,15 +1,12 @@
 import 'server-only'
+import { isPlatformFixtureServer } from '@/lib/core/config/platform-fixtures'
 
 type PlatformMode = 'fixture' | 'live'
 
 /**
- * Where this server's data comes from, read once per request by each server entry. Example data
- * is a design preview for the development server only: it renders with no login, so a production
- * build serves live data whatever its environment says. Live reads run the application's use
- * cases in process.
+ * Where this server's data comes from, read once per request by each server entry. Live reads run
+ * the application's use cases in process; example data is the development server's design preview.
  */
 export function resolvePlatformMode(): PlatformMode {
-  return process.env.NODE_ENV !== 'production' && process.env.SIM_PLATFORM_FIXTURES === '1'
-    ? 'fixture'
-    : 'live'
+  return isPlatformFixtureServer() ? 'fixture' : 'live'
 }

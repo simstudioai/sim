@@ -6,8 +6,6 @@ import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 import { SHELL_SCOPE_HEADER } from '@/lib/navigation/shell-scope'
 import { config, proxy, resolveApiCorsPolicy } from '@/proxy'
 
-vi.mock('server-only', () => ({}))
-
 setEnv({
   NEXT_PUBLIC_APP_URL: 'https://app.sim.test',
   SIM_MCP_URL: 'https://mcp.sim.test/mcp',
@@ -313,10 +311,6 @@ describe('signed-in login with an OAuth authorize callback', () => {
 })
 
 describe('signed-out product visit', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
-
   const signedOutVisit = (pathname: string) =>
     proxy(new NextRequest(`https://app.sim.test${pathname}`))
 

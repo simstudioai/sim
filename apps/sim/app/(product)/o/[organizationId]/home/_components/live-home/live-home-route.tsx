@@ -1,8 +1,8 @@
 import { HydrationBoundary } from '@tanstack/react-query'
 import { redirect } from 'next/navigation'
 import { LiveHome } from '@/app/(product)/o/[organizationId]/home/_components/live-home/live-home'
-import { resolveHomeHandoff, resolveHomeRedirect } from '@/platform/lib/data/organization-model'
-import { prefetchHome } from '@/platform/lib/data/prefetch-home'
+import { resolveHomeRedirect } from '@/platform/lib/data/organization-model'
+import { prefetchHome, resolveHomeHandoff } from '@/platform/lib/data/prefetch-home'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
 interface LiveHomeRouteProps {

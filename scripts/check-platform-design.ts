@@ -238,6 +238,8 @@ const serverSeamHelpers = new Set([
   'lib/auth/session-response',
   'lib/billing/application/organization-billing/get-organization-billing-summary',
   'lib/core/application/organization-authorization',
+  // The example-data rule the proxy also reads, so a fixture server needs no sign-in.
+  'lib/core/config/platform-fixtures',
   'lib/core/utils/deadline',
   'lib/credential-groups/application/organization-access',
   'lib/credential-groups/application/organization-account-management',
