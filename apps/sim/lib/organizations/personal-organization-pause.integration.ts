@@ -12,7 +12,10 @@ vi.hoisted(() => {
   process.env.PAUSE_PERSONAL_ORGANIZATIONS = 'true'
 })
 
-import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
+import {
+  createPersonalOrganization,
+  provisionPersonalOrganization,
+} from '@/lib/organizations/provision-personal'
 import { getWorkspaceCreationPolicy } from '@/lib/workspaces/policy'
 
 const userIds: string[] = []
@@ -45,6 +48,13 @@ describe('personal organizations paused', () => {
     const userId = await createUser()
 
     expect(await createPersonalOrganization(userId)).toBeNull()
+    expect(await db.select().from(member).where(eq(member.userId, userId))).toEqual([])
+  })
+
+  it('reports a backfilled user as paused, not missing, and writes nothing', async () => {
+    const userId = await createUser()
+
+    expect(await provisionPersonalOrganization(userId)).toEqual({ status: 'paused' })
     expect(await db.select().from(member).where(eq(member.userId, userId))).toEqual([])
   })
 

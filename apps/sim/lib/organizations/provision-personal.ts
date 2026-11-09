@@ -7,6 +7,7 @@ import {
   acquireOrganizationMutationLock,
   acquireUserBillingIdentityLock,
 } from '@/lib/billing/organizations/membership'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import type { DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
@@ -27,6 +28,8 @@ export type ProvisionPersonalOrganizationResult =
     }
   /** Already in a team: their organization-less workspaces stay where they are. */
   | { status: 'team-member'; organizationId: string }
+  /** The `pause-personal-organizations` flag is on: nothing was written. */
+  | { status: 'paused' }
   | { status: 'user-missing' }
 
 /**
@@ -40,7 +43,8 @@ export type ProvisionPersonalOrganizationResult =
  * locks, the organization lock and the user's billing-identity lock in the order every attach
  * path uses, re-reads membership under them, and only ever attaches rows still without an
  * organization. A workspace whose Project also holds another owner's environment cannot move
- * without that environment and is reported in `skippedWorkspaceIds` instead.
+ * without that environment and is reported in `skippedWorkspaceIds` instead. While the
+ * `pause-personal-organizations` flag is on it writes nothing and reports `paused`.
  *
  * Attaching changes no payer: a personal organization's workspaces bill their billed account
  * exactly as before, so no storage ledger, subscription or limit moves.
@@ -48,6 +52,7 @@ export type ProvisionPersonalOrganizationResult =
 export async function provisionPersonalOrganization(
   userId: string
 ): Promise<ProvisionPersonalOrganizationResult> {
+  if (await isFeatureEnabled('pause-personal-organizations')) return { status: 'paused' }
   const candidates = await db
     .select({ id: workspace.id })
     .from(workspace)
@@ -188,11 +193,14 @@ async function attachUnassignedWorkspacesTx(
  * owner, and nothing else: workspaces they already own stay organization-less (they open in this
  * organization's shell, billed as before) until the backfill or an explicit flow attaches them.
  * One short transaction under the user's billing-identity lock, re-checking membership there, so
- * concurrent calls create one organization (`member_user_id_unique` backs it). Returns the
- * organization they belong to afterwards, or null when the user no longer exists.
+ * concurrent calls create one organization (`member_user_id_unique` backs it), and none while the
+ * `pause-personal-organizations` flag is on. Returns the organization they belong to afterwards,
+ * or null when they belong to none.
  */
 export async function createPersonalOrganization(userId: string): Promise<string | null> {
-  await db.transaction((tx) => createPersonalOrganizationTx(tx, userId))
+  if (!(await isFeatureEnabled('pause-personal-organizations'))) {
+    await db.transaction((tx) => createPersonalOrganizationTx(tx, userId))
+  }
   return resolveOrganizationLanding(userId, null)
 }
 

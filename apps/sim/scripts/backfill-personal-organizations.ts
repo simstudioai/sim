@@ -75,6 +75,8 @@ interface BackfillReport {
   attachedWorkspaces: number
   skippedWorkspaceIds: string[]
   teamMembers: number
+  /** Users reached after the `pause-personal-organizations` flag turned on mid-run, left untouched. */
+  paused: number
   failures: Array<{ userId: string; error: string }>
   lastCursor: string | null
 }
@@ -171,6 +173,7 @@ async function main(): Promise<void> {
     attachedWorkspaces: 0,
     skippedWorkspaceIds: [],
     teamMembers: 0,
+    paused: 0,
     failures: [],
     lastCursor: options.after,
   }
@@ -205,6 +208,8 @@ async function main(): Promise<void> {
             report.skippedWorkspaceIds.push(...result.skippedWorkspaceIds)
           } else if (result.status === 'team-member') {
             report.teamMembers += 1
+          } else if (result.status === 'paused') {
+            report.paused += 1
           }
         } catch (error) {
           report.failures.push({ userId, error: getErrorMessage(error) })
@@ -222,6 +227,7 @@ async function main(): Promise<void> {
         provisioned: report.provisioned,
         created: report.created,
         attachedWorkspaces: report.attachedWorkspaces,
+        paused: report.paused,
         failures: report.failures.length,
       })
     }
@@ -238,6 +244,7 @@ async function main(): Promise<void> {
     created: report.created,
     attachedWorkspaces: report.attachedWorkspaces,
     skippedWorkspaces: report.skippedWorkspaceIds.length,
+    paused: report.paused,
     failures: report.failures.length,
     lastCursor: report.lastCursor,
   })

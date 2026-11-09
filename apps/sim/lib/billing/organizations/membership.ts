@@ -58,6 +58,7 @@ import {
 } from '@/lib/billing/webhooks/subscription-sync'
 import { type ForbiddenDetailCode, ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import { revokeWorkspaceCredentialMembershipsTx } from '@/lib/credentials/access'
@@ -1397,6 +1398,7 @@ export async function removeUserFromOrganization(
       }
     }
 
+    const personalOrganizationsPaused = await isFeatureEnabled('pause-personal-organizations')
     const result = await withInvitationSafeOrganizationAccessMutation(
       { userId, organizationId, scope: 'all' },
       async (tx, { workspaceIds, invitationIds }) => {
@@ -1436,7 +1438,7 @@ export async function removeUserFromOrganization(
         }
         await enqueueMemoryCleanup(tx, [{ kind: 'organization_member', organizationId, userId }])
         /** Nobody is left without an organization: the person leaves into their own. */
-        await createPersonalOrganizationTx(tx, userId)
+        if (!personalOrganizationsPaused) await createPersonalOrganizationTx(tx, userId)
 
         if (!skipBillingLogic) {
           await enqueueOutboxEvent(tx, MEMBER_BILLING_RECONCILIATION_EVENT_TYPE, {

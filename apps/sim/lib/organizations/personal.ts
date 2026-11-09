@@ -32,7 +32,6 @@ import { generateId } from '@sim/utils/id'
 import { and, asc, eq, getTableName, inArray, type SQL, sql } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
-import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { enqueuePersonalOrganizationAuditTx } from '@/lib/organizations/lifecycle-audit'
@@ -81,17 +80,16 @@ function personalOrganizationName(row: { name: string | null; email: string }): 
 
 /**
  * Creates the personal organization of a user who belongs to no organization, with them as owner.
- * Returns null, writing nothing, when they already belong to one, no longer exist, or the
- * `pause-personal-organizations` flag is on to roll the release back: then nothing creates one
- * (signup, the product shell, leaving a team, the backfill). Takes the user's billing-identity
- * lock, the fence every membership change holds.
+ * Returns null, writing nothing, when they already belong to one or no longer exist. Callers check
+ * the `pause-personal-organizations` flag before opening their transaction: while it is on to roll
+ * the release back, nothing creates one (signup, the product shell, leaving a team, the backfill).
+ * Takes the user's billing-identity lock, the fence every membership change holds.
  */
 export async function createPersonalOrganizationTx(
   tx: DbTransaction,
   userId: string,
   organizationId = `org_${generateId()}`
 ): Promise<string | null> {
-  if (await isFeatureEnabled('pause-personal-organizations')) return null
   await acquireUserBillingIdentityLock(tx, userId)
   const [existing] = await tx
     .select({ id: member.id })
