@@ -6,6 +6,9 @@ import { isHiddenUnder } from '@/blocks/visibility/context'
 import { getToolMetadata, type ToolMetadata } from '@/tools/metadata'
 import { getLatestToolIds } from '@/tools/tool-ids'
 
+/** Metadata with the display fields every registered tool declares (`ToolConfig` requires them). */
+type ExposedToolMetadata = ToolMetadata & { name: string; description: string }
+
 export interface ExposedIntegrationToolOwner {
   service: string
   blockType: string
@@ -24,7 +27,7 @@ export interface ExposedIntegrationTool extends ExposedIntegrationToolOwner {
    * executable registry. Code that builds schemas from the executable config looks it up by
    * `toolId`.
    */
-  config: ToolMetadata
+  config: ExposedToolMetadata
   /** Service directory name, e.g. "gmail". */
   service: string
   /** Operation stem within the service (used for the VFS path filename), e.g. "read". */
@@ -84,14 +87,18 @@ export function getExposedIntegrationTools(): ExposedIntegrationTool[] {
   for (const toolId of getLatestToolIds()) {
     const baseName = stripVersionSuffix(toolId)
     const owners = toolToBlocks.get(toolId) ?? toolToBlocks.get(baseName)
-    const config = getToolMetadata(toolId)
-    if (!owners || owners.length === 0 || !config) continue
+    const metadata = getToolMetadata(toolId)
+    if (!owners || owners.length === 0 || !metadata) continue
+    const { name, description } = metadata
+    if (name === undefined || description === undefined) {
+      throw new Error(`Generated metadata for ${toolId} lacks its name or description`)
+    }
     const owner = owners.find((candidate) => !candidate.preview) ?? owners[0]
     const prefix = `${owner.service}_`
     const operation = baseName.startsWith(prefix) ? baseName.slice(prefix.length) : baseName
     exposed.push({
       toolId,
-      config,
+      config: { ...metadata, name, description },
       service: owner.service,
       operation,
       blockType: owner.blockType,

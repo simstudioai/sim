@@ -8,7 +8,7 @@ import { isUpgradeReason, UPGRADE_REASON_PARAM } from '@/lib/billing/upgrade-rea
 import { resolveRolledOutOrganizationId } from '@/lib/navigation/resolve-app-entry'
 import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
-import { resolveLiveLanding } from '@/platform/lib/data/landing'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
 import { workspaceEntry, workspacePath } from '@/platform/lib/workspace-navigation'
 
@@ -84,10 +84,16 @@ export async function resolveWorkspaceEntry(
     }
   }
   if (creationPolicy && !creationPolicy.canCreate) {
-    if (await resolveForwardOrganizationId(principal.userId, activeOrganizationId)) {
+    const forwardOrganizationId = await resolveForwardOrganizationId(
+      principal.userId,
+      activeOrganizationId
+    )
+    if (forwardOrganizationId) {
+      // The organization's own root picks the first page the viewer has there.
+      const scope = { routePrefix: `/o/${forwardOrganizationId}` }
       return {
         kind: 'redirect',
-        href: query.redirect === 'settings' ? '/settings' : await resolveLiveLanding(),
+        href: surfaceHref(scope, query.redirect === 'settings' ? '/settings' : ''),
       }
     }
     return { kind: 'blocked', policy: creationPolicy }

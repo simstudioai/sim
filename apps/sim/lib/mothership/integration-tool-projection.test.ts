@@ -59,7 +59,12 @@ import {
 } from '@/lib/integrations/tool-projection'
 import { getToolMetadata } from '@/tools/metadata'
 
-vi.mocked(getToolMetadata).mockImplementation((id) => ({ id, params: {} }))
+vi.mocked(getToolMetadata).mockImplementation((id) => ({
+  id,
+  name: id,
+  description: '',
+  params: {},
+}))
 
 function toolIds(config: Parameters<typeof projectIntegrationToolsForViewer>[1]): string[] {
   return projectIntegrationToolsForViewer(null, config)

@@ -33,7 +33,12 @@ import {
 } from '@/lib/integrations/tool-catalog'
 import { getToolMetadata } from '@/tools/metadata'
 
-vi.mocked(getToolMetadata).mockImplementation((id) => ({ id, params: {} }))
+vi.mocked(getToolMetadata).mockImplementation((id) => ({
+  id,
+  name: id,
+  description: '',
+  params: {},
+}))
 
 const allowAllOwners = () => true
 const allowAllTools = () => true

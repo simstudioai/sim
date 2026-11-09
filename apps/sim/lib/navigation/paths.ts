@@ -40,9 +40,6 @@ export function organizationRoutes(organizationId: string) {
     search: `${root}/search`,
     searchChat: (chatId: string) => `${root}/search/chat/${chatId}`,
     integrations: `${root}/integrations`,
-    accountToolPermissions: (credentialId: string) =>
-      `${root}/integrations/accounts/${encodeURIComponent(credentialId)}`,
-    benchmark: `${root}/benchmark`,
     memberSecrets: `${root}/integrations/secrets`,
     simLinks: `${root}/settings/links`,
     people: `${root}/people`,

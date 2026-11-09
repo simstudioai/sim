@@ -38,7 +38,7 @@ export function resolveLiveDestinations(organization: PlatformOrganization): She
     id: 'benchmark',
     label: 'Benchmark',
     icon: 'I046',
-    value: surfaceHref(organization, '/benchmark'),
+    value: `/benchmark?${new URLSearchParams({ organization: organization.organization.id })}`,
   } as const
   return [
     ...(mothershipAvailable && canBuild ? [home] : []),
