@@ -113,6 +113,8 @@ const serverSeamHelpers: ReasonedAllowlist = {
   'lib/core/config/platform-fixtures':
     "The fixture build's inlined switch, which `lib/data/mode.ts` reads",
   'lib/core/utils/deadline': 'withinDeadline, the budget server-read holds a first-paint read to',
+  'lib/core/orchestration/types':
+    "asOrchestrationError, which reads a legacy credential link's not found or forbidden as not found",
   'lib/credential-groups/application/organization-access':
     "The account workspace-access use case behind Connected accounts' route",
   'lib/credential-groups/application/organization-account-management':
@@ -158,8 +160,6 @@ const serverSeamHelpers: ReasonedAllowlist = {
     "The integration access verdict a workspace's Integrations directory reads from that policy",
   'lib/credentials/application/crud':
     'getWorkspaceCredentialUseCase, which sends a legacy credential link to its app page',
-  'lib/credentials/application/presentation':
-    "toWorkspaceCredential, the credential route's presenter that server read checks against",
 }
 /**
  * Host modules every Platform file may import, views included, because the product shares them with

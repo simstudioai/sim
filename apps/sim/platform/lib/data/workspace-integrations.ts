@@ -1,10 +1,9 @@
 import 'server-only'
 import type { DehydratedState } from '@tanstack/react-query'
-import { getWorkspaceCredentialContract } from '@/lib/api/contracts/credentials'
 import { listWorkspacesContract } from '@/lib/api/contracts/workspaces'
 import { listWorkspaceApps } from '@/lib/catalog/application/list-workspace-apps'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { getWorkspaceCredentialUseCase } from '@/lib/credentials/application/crud'
-import { toWorkspaceCredential } from '@/lib/credentials/application/presentation'
 import { resolveIntegrationAccess } from '@/lib/integrations/access'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { readIntegrationLinks } from '@/platform/lib/data/integration-links'
@@ -154,17 +153,23 @@ export async function resolveIntegrationsSection(
   }
 }
 
-/** The provider of a workspace credential a legacy link names, read as its route reads it. */
+/**
+ * The provider of a workspace credential a legacy link names, `null` for one the viewer cannot read
+ * (deleted, or not shared with them), which the link answers as not found, as its route does.
+ */
 async function readCredentialProvider(credentialId: string, workspaceId: string) {
   const { principal } = await requireSessionViewer()
-  const { credential, access } = await getWorkspaceCredentialUseCase.execute({
-    principal,
-    input: { credentialId, assertedWorkspaceId: workspaceId },
-  })
-  const response = await asRouteResponse(getWorkspaceCredentialContract, {
-    credential: toWorkspaceCredential(credential, access),
-  })
-  return response.credential?.providerId ?? null
+  try {
+    const { credential } = await getWorkspaceCredentialUseCase.execute({
+      principal,
+      input: { credentialId, assertedWorkspaceId: workspaceId },
+    })
+    return credential.providerId
+  } catch (error) {
+    const code = asOrchestrationError(error)?.code
+    if (code === 'not_found' || code === 'forbidden') return null
+    throw error
+  }
 }
 
 /** An Integrations page with the query it was asked for. */
