@@ -91,7 +91,7 @@ interface TriggeredMenuProps {
   align?: 'start' | 'end'
   heading?: string
   search?: { label: string; value: string; onValueChange: (value: string) => void }
-  triggerSize?: 'small' | 'bar' | 'row' | 'compact'
+  triggerSize?: 'small' | 'row' | 'compact'
   triggerVariant?: 'secondary' | 'quiet'
   tooltip?: boolean
   /** A short visible trigger, such as a count, which `label` then names for assistive technology. */

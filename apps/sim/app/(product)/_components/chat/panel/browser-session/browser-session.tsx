@@ -116,35 +116,21 @@ export function BrowserSession({ scopeId, visible }: BrowserSessionProps) {
   return (
     <div ref={browser.panelRef} className={styles.session}>
       <div className={styles.toolbar}>
-        <IconButton
-          label='Back'
-          icon='I093'
-          size='bar'
-          disabled={!page?.canGoBack}
-          onClick={browser.back}
-        />
+        <IconButton label='Back' icon='I093' disabled={!page?.canGoBack} onClick={browser.back} />
         <IconButton
           label='Forward'
           icon='I093'
-          size='bar'
           mirrored
           disabled={!page?.canGoForward}
           onClick={browser.forward}
         />
-        <IconButton
-          label='Reload page'
-          icon='I065'
-          size='bar'
-          disabled={!page}
-          onClick={browser.reload}
-        />
+        <IconButton label='Reload page' icon='I065' disabled={!page} onClick={browser.reload} />
         <AddressBar browser={browser} />
         {browser.downloads && <DownloadsMenu downloads={browser.downloads} />}
         <span ref={menuAnchor} className={styles.menu}>
           <ActionMenu
             label='Browser menu'
             icon='I108'
-            triggerSize='bar'
             align='end'
             open={menu.open}
             onOpenChange={(open) => menu.onOpenChange(open, menuAnchor.current)}

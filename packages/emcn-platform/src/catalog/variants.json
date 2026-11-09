@@ -38,7 +38,6 @@
   },
   "IconButton": {
     "size": {
-      "bar": [],
       "inline": [],
       "row": [],
       "small": [
@@ -91,8 +90,7 @@
     "defaultSize": {
       "regular": [],
       "expanded": ["C0350", "C0353"],
-      "large": [],
-      "line": []
+      "large": []
     }
   },
   "Modal": {
