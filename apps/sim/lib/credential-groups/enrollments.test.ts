@@ -13,6 +13,7 @@ import {
 } from '@sim/testing/mocks/credential-groups-providers.mock'
 import { emailMailerMock } from '@sim/testing/mocks/email-mailer.mock'
 import { setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
+import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
 import { eq, ilike, inArray, isNull } from 'drizzle-orm'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,6 +24,7 @@ const { adapter } = vi.hoisted(() => ({
   },
 }))
 
+vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
 vi.mock('@/components/emails/credential-groups/render', () => ({
   renderCredentialGroupInvitationEmail: vi.fn(),
 }))

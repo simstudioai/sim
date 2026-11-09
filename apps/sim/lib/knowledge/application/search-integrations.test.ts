@@ -19,6 +19,7 @@ import {
   knowledgeContextsMock,
   knowledgeContextsMockFns,
 } from '@sim/testing/mocks/knowledge-contexts.mock'
+import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
 import {
   permissionGroupsResolveMock,
   permissionGroupsResolveMockFns,
@@ -30,6 +31,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const hoisted = vi.hoisted(() => ({
   source: vi.fn(),
 }))
+vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
 vi.mock('@/lib/credential-groups/service', () => credentialGroupsServiceMock)
 vi.mock('@/lib/credential-groups/scoped-availability', () => credentialGroupsAvailabilityMock)
 vi.mock('@/lib/sim-search/live/service-sources', () => ({ loadLiveServiceSource: hoisted.source }))

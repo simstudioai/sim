@@ -11,6 +11,7 @@ import {
   knowledgeAvailabilityMockFns,
 } from '@sim/testing/mocks/knowledge-availability.mock'
 import { knowledgeContextsMock } from '@sim/testing/mocks/knowledge-contexts.mock'
+import { payerOrganizationMock } from '@sim/testing/mocks/payer-organization.mock'
 import {
   permissionGroupsResolveMock,
   permissionGroupsResolveMockFns,
@@ -26,6 +27,7 @@ const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
   update: vi.fn(),
 }))
+vi.mock('@/lib/billing/core/payer-organization', () => payerOrganizationMock)
 vi.mock('@sim/audit', () => auditMock)
 vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 vi.mock('@/lib/knowledge/access/availability', () => knowledgeAvailabilityMock)

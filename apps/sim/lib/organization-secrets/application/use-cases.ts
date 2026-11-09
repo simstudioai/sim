@@ -15,6 +15,7 @@ import {
   secretSourceModeSchema,
 } from '@/lib/organization-secrets/validation'
 import { defineOrganizationConfigurationUseCase } from '@/lib/organizations/application/authorized-configuration-use-case'
+import { requireTeamOrganization } from '@/lib/organizations/team-only'
 
 interface OrganizationInput {
   organizationId: string
@@ -39,13 +40,16 @@ export const readOrganizationSecretSource = defineOrganizationConfigurationUseCa
 
 export const configureOrganizationSecretSource = defineOrganizationConfigurationUseCase({
   operation: organizationSecretOperations.configureSource,
-  execute: async ({ input }: { input: OrganizationInput & ConfigureSecretSourceBody }) => ({
-    source: await repository.configureSecretSource(
-      input.organizationId,
-      input.sourceId,
-      secretSourceModeSchema.parse(input.mode)
-    ),
-  }),
+  execute: async ({ input }: { input: OrganizationInput & ConfigureSecretSourceBody }) => {
+    await requireTeamOrganization(input.organizationId, 'Generic Secrets')
+    return {
+      source: await repository.configureSecretSource(
+        input.organizationId,
+        input.sourceId,
+        secretSourceModeSchema.parse(input.mode)
+      ),
+    }
+  },
   projectAudit: ({ result }) => ({
     action: AuditAction.ENVIRONMENT_UPDATED,
     resourceType: AuditResourceType.ENVIRONMENT,

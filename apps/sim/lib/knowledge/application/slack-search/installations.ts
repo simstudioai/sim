@@ -22,6 +22,7 @@ import { resolveKnowledgeOrganizationContext } from '@/lib/knowledge/application
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { loadSlackSearchCredential } from '@/lib/knowledge/application/slack-search/repository'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
+import { requireTeamOrganization } from '@/lib/organizations/team-only'
 import {
   resolveSlackAppCredentials,
   slackBotCredentialVersion,
@@ -129,6 +130,7 @@ export const configureSlackSearchInstallation = defineAuthorizedKnowledgeUseCase
     resolveKnowledgeOrganizationContext(input),
   async execute({ input, context }) {
     await requireOrganizationSearchAvailable(context.organizationId)
+    await requireTeamOrganization(context.organizationId, 'Slack Search')
     const secret = input.enabled
       ? await loadSlackSearchCredential(input.credentialId, context.organizationId)
       : undefined

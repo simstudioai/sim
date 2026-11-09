@@ -3,9 +3,10 @@
 Every account outside a team gets a personal organization (`organization.kind = 'personal'`)
 that holds its personal workspaces. The release that introduces it must roll out in this order.
 
-1. **Migrations** `0455_personal_organizations` (adds `organization.kind`, default `team`) and
-   `0456_personal_organization_team_settings` (refuses team configuration on personal
-   organizations). Both are additive; the previous release keeps working against them.
+1. **Migrations** `0455_personal_organizations` (adds `organization.kind`, default `team`),
+   `0456_personal_organization_team_settings` and `0457_personal_organization_team_only_tables`
+   (refuse team configuration, and organization rows that could not follow a person into a team,
+   on personal organizations). All are additive; the previous release keeps working against them.
 2. **Every process on the new release, fully rolled out**: the app, background workers and
    Trigger.dev tasks. Deploy workers and tasks with or before the app, never after it.
 3. **Then** run `scripts/backfill-personal-organizations.ts` (dry run first, then `--apply`).
