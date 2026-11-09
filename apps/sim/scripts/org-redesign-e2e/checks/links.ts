@@ -102,7 +102,7 @@ export async function linksChecks() {
         await expect(
           row.getByText(NAMED_LINKS.restricted.description, { exact: true }).first()
         ).toBeVisible()
-        await expect(row.getByText('Restricted', { exact: true })).toBeVisible()
+        await expect(row.getByText(/^Restricted · /)).toBeVisible()
         const columns = await page.getByRole('columnheader').allInnerTexts()
         assert(!columns.join().includes('Created by'), `Columns ${columns}`)
         const [nameCell, list] = [
@@ -392,11 +392,15 @@ export async function linksChecks() {
     async () => {
       await withSession(MEMBER, async ({ page }) => {
         const hold = createDeferred<void>()
+        const requested = createDeferred<void>()
         const isLinksPayload = (address: URL) =>
           address.pathname === org.simLinks && address.searchParams.has('_rsc')
-        // Only the click's own read: the router shows the loading state from what a prefetch delivered.
+        // Only the click's own read: a prefetch delivers the route, and the click's read holds it.
         await page.route(isLinksPayload, async (route) => {
-          if (route.request().headers()['next-router-prefetch'] === undefined) await hold.promise
+          if (route.request().headers()['next-router-prefetch'] === undefined) {
+            requested.resolve()
+            await hold.promise
+          }
           await route.continue()
         })
         const prefetched = routePrefetched(page, isLinksPayload)
@@ -407,9 +411,20 @@ export async function linksChecks() {
         await entry.hover()
         await prefetched()
         await entry.click()
-        await expect(page.getByRole('status', { name: 'Loading links' })).toBeVisible()
-        await expect(page.getByRole('button', { name: 'New link', exact: true })).toBeVisible()
-        hold.resolve()
+        // Loading paints nothing (platform/AGENTS.md): General stays on screen until Links' read lands.
+        await requested.promise
+        await pageTurn(page)
+        const linksHeading = page.getByRole('heading', { level: 1, name: 'Links', exact: true })
+        try {
+          await expect(
+            page.getByRole('heading', { level: 1, name: 'General', exact: true })
+          ).toBeVisible()
+          await expect(linksHeading).toHaveCount(0)
+          await expect(page.getByRole('status', { name: /loading/i })).toHaveCount(0)
+        } finally {
+          hold.resolve()
+        }
+        await expect(linksHeading).toBeVisible()
         await expect(rowFor(page, NAMED_LINKS.handbook.name)).toBeVisible()
       })
       await withSession(MEMBER, async ({ page }) => {

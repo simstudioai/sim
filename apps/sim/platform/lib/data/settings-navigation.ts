@@ -25,6 +25,7 @@ const LIVE_SETTINGS = [
       { key: 'whitelabeling', title: 'White-labeling', icon: 'I036' },
       { key: 'recently-deleted', title: 'Recently deleted', icon: 'I053' },
       { key: 'requests', title: 'Requests', icon: 'I073' },
+      { key: 'links', title: 'Links', icon: 'I041' },
     ],
   },
   {
@@ -75,8 +76,15 @@ export function previewSettingsSections(
   return LIVE_SETTINGS.flatMap((group): readonly LiveSetting[] => group.items)
     .map((item) => item.key)
     .filter((key) => {
-      // The desktop app's own settings and self-hosting sit outside the organization's gates.
-      if (key === 'desktop' || key === 'browser' || key === 'terminal' || key === 'self-host')
+      // The desktop app's own settings and self-hosting sit outside the organization's gates, and
+      // Links follows its rollout flag rather than a plan.
+      if (
+        key === 'desktop' ||
+        key === 'browser' ||
+        key === 'terminal' ||
+        key === 'self-host' ||
+        key === 'links'
+      )
         return false
       if (key === 'admin' || key === 'mothership') return organization.navFlags.platformAdmin
       return (
@@ -94,6 +102,7 @@ export function previewSettingsSections(
 function isVisible(entry: LiveSetting, organization: PlatformOrganization): boolean {
   if ('desktop' in entry) return true
   if (entry.key === 'self-host') return !organization.deployment.hosted
+  if (entry.key === 'links') return organization.navFlags.simLinks
   const platformOnly = entry.key === 'admin' || entry.key === 'mothership'
   return (
     (!platformOnly || organization.navFlags.platformAdmin) &&
@@ -123,7 +132,6 @@ export function resolveSettingsNavigation(organization: PlatformOrganization): S
 /** The section at `key` when this viewer may see it and this app renders it. */
 export function resolveLiveSetting(key: string, organization: PlatformOrganization) {
   if (key === 'keyboard-shortcuts') return { key, title: 'Keyboard shortcuts' } as const
-  if (key === 'links' && organization.navFlags.simLinks) return { key, title: 'Links' } as const
   const entry = LIVE_SETTINGS.flatMap((group): readonly LiveSetting[] => group.items).find(
     (item) => item.key === key
   )
@@ -141,7 +149,6 @@ export function settingsPageTitle([key = 'general', segment]: readonly string[])
   if (key === 'integrations' && segment === 'sources') return 'Search source'
   if (key === 'integrations' && segment === 'providers') return 'Integration'
   if (key === 'keyboard-shortcuts') return 'Keyboard shortcuts'
-  if (key === 'links') return 'Links'
   return (
     LIVE_SETTINGS.flatMap((group): readonly LiveSetting[] => group.items).find(
       (item) => item.key === key

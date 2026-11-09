@@ -28,6 +28,7 @@ import {
   url,
   withRestore,
   withSession,
+  withTableHidden,
 } from '@/scripts/org-redesign-e2e/harness'
 import {
   accountChip,
@@ -55,7 +56,14 @@ export const SETTINGS_FOR_ADMIN = [
   'search-slack',
 ]
 
-const MEMBER_SETTINGS = ['General', 'Members', 'Recently deleted', 'Requests', 'Search MCP']
+const MEMBER_SETTINGS = [
+  'General',
+  'Members',
+  'Recently deleted',
+  'Requests',
+  'Links',
+  'Search MCP',
+]
 const ADMIN_SETTINGS = [
   'General',
   'Subscription',
@@ -65,6 +73,7 @@ const ADMIN_SETTINGS = [
   'White-labeling',
   'Recently deleted',
   'Requests',
+  'Links',
   'Audit logs',
   'Permission groups',
   'Single sign-on',
@@ -234,8 +243,13 @@ async function organizationSectionChecks() {
           bots: [],
         })
       })
-      await page.goto(settingsUrl('search-slack'))
-      await expect(page.getByText('Ridgeline Slack', { exact: true })).toBeVisible()
+      // The section seeds its list on the server; with that read refused, the page gives the seed
+      // up and the browser's read, which this check answers, fills it instead.
+      await withTableHidden('slack_search_installation', async (restore) => {
+        await page.goto(settingsUrl('search-slack'))
+        await expect(page.getByText('Ridgeline Slack', { exact: true })).toBeVisible()
+        await restore()
+      })
       await expect(page.getByText('Enabled', { exact: true })).toBeVisible()
       const actions = page.getByRole('button', { name: 'Sim Search actions', exact: true })
       await actions.click()
@@ -410,12 +424,14 @@ export async function settingsChecks() {
     await withSession(ADMIN, async ({ page }) => {
       await page.goto(settingsUrl('recently-deleted'))
       await expect(page.getByPlaceholder('Search deleted chats')).toBeVisible()
-      await expect(page.getByText(ADMIN_CHATS.deleted.title)).toBeVisible()
+      // The app navigation stays mounted, hidden, behind Settings', and lists the chat once restored.
+      const deleted = page.getByRole('main').getByText(ADMIN_CHATS.deleted.title)
+      await expect(deleted).toBeVisible()
       await page
         .getByRole('button', { name: /Restore/ })
         .first()
         .click()
-      await expect(page.getByText(ADMIN_CHATS.deleted.title)).toHaveCount(0)
+      await expect(deleted).toHaveCount(0)
     })
   })
   await check('Requests and Search MCP render for a member', async () => {
