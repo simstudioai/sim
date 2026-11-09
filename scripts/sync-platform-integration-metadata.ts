@@ -24,10 +24,8 @@ import {
   getManagedMcpConnector,
   MANAGED_MCP_CONNECTOR_IDS,
 } from '../apps/sim/lib/credential-groups/managed-mcp-connectors'
-import {
-  CREDENTIAL_GROUP_PROVIDER_IDS,
-  getCredentialGroupProviderService,
-} from '../apps/sim/lib/credential-groups/providers'
+import { CREDENTIAL_GROUP_PROVIDER_IDS } from '../apps/sim/lib/credential-groups/provider-ids'
+import { getCredentialGroupProviderService } from '../apps/sim/lib/credential-groups/providers'
 import { SLACK_SEARCH_USER_SCOPES } from '../apps/sim/lib/credential-groups/slack-managed-user-scopes'
 import { getCanonicalScopesForProvider, getScopeDescription } from '../apps/sim/lib/oauth/utils'
 import {
