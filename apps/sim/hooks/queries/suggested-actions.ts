@@ -3,7 +3,8 @@ import { requestJson } from '@/lib/api/client/request'
 import { getSuggestedActionCatalogContract } from '@/lib/api/contracts/suggested-actions'
 
 const suggestedActionKeys = {
-  catalog: () => ['suggested-actions', 'catalog'] as const,
+  all: ['suggested-actions'] as const,
+  catalog: () => [...suggestedActionKeys.all, 'catalog'] as const,
 }
 
 /** The block template catalog Home's suggested actions sample from; it changes only on deploy. */

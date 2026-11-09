@@ -2,6 +2,7 @@
  * Legacy's logs-dashboard segment selection: which time segments of which workflows the reader
  * picked, and the runs, errors and latency of only those segments.
  */
+import { omit } from '@sim/utils/object'
 
 /** A pick's gesture: a plain click, Cmd/Ctrl-click, or Shift-click. */
 export type SegmentPickMode = 'single' | 'toggle' | 'range'
@@ -42,9 +43,7 @@ export function pickSegment(
     const next = current.includes(index)
       ? current.filter((picked) => picked !== index)
       : [...current, index].sort((left, right) => left - right)
-    const others = Object.fromEntries(
-      Object.entries(selection.segments).filter(([id]) => id !== workflowId)
-    )
+    const others = omit(selection.segments, [workflowId])
     return {
       segments: next.length ? { ...others, [workflowId]: next } : others,
       anchors: { ...selection.anchors, [workflowId]: index },

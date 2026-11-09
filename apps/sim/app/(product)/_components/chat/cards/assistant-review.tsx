@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { Input, TextArea } from '@sim/emcn/field/inputs'
 import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
+import { omit } from '@sim/utils/object'
 import styles from '@/app/(product)/_components/chat/cards/cards.module.css'
 import { useChatCards } from '@/app/(product)/_components/chat/message/message-segments'
 import type {
@@ -267,9 +268,7 @@ export function AssistantReview({ turnId }: { turnId: string }) {
               disabled={pending || status === 'error'}
               saving={saving?.ids.includes(action.id) ? saving.decision : null}
               onEdit={(name, value) => {
-                setErrors((current) =>
-                  Object.fromEntries(Object.entries(current).filter(([id]) => id !== action.id))
-                )
+                setErrors((current) => omit(current, [action.id]))
                 setEdits((current) => ({
                   ...current,
                   [action.id]: { ...current[action.id], [name]: value },

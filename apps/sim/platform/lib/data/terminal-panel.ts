@@ -19,6 +19,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { Terminal } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   loadDesktopTerminalAppearance,
   loadDesktopTerminalThemeProfiles,
@@ -70,7 +71,7 @@ function attachWebglRenderer(terminal: Terminal): (() => void) | null {
     return () => webgl.dispose()
   } catch (error) {
     logger.warn('Terminal WebGL unavailable; using the slower DOM renderer', {
-      error: error instanceof Error ? error.message : String(error),
+      error: getErrorMessage(error),
     })
     return null
   }
@@ -360,7 +361,7 @@ export function useTerminalView({
         .catch((error: unknown) => {
           logger.warn('Could not read terminal scrollback; the panel will start empty', {
             terminalId,
-            error: error instanceof Error ? error.message : String(error),
+            error: getErrorMessage(error),
           })
           return ''
         })
