@@ -100,6 +100,17 @@ test('a member who cannot build lands on Search, not an error', async ({ page })
   await expect(page.getByRole('textbox', { name: 'Search' })).toBeVisible()
 })
 
+test('a member who cannot build lands on Search from a deep link to a new chat or a saved workspace Home', async ({
+  page,
+}) => {
+  await signIn(page, memberEmail(), liveRoute('/search'))
+  for (const deepLink of [liveRoute('/chat/new'), '/workspace/platform-live-workspace-main/home']) {
+    await page.goto(deepLink)
+    await expect(page, deepLink).toHaveURL(liveRoutePattern('/search', '(?:\\?|$)'))
+    await expect(page.getByRole('textbox', { name: 'Search' })).toBeVisible()
+  }
+})
+
 test.describe('Home for the seeded administrator', () => {
   test('greets the member by first name', async ({ page }) => {
     await signInAsAdmin(page, liveRoute('/home'))

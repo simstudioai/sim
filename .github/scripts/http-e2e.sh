@@ -198,6 +198,8 @@ platform_live_environment() {
   export PLATFORM_LIVE_OFF_ORGANIZATION_ID=platform-live-organization-off
   export PLATFORM_LIVE_OFF_EMAIL=odessa@platform-live.test
   export PLATFORM_LIVE_ORCHESTRATOR=1
+  # The scripted agent's gated tool answers to this text (`scripted-agent.ts`).
+  export PLATFORM_LIVE_APPROVAL_PROMPT='Run the approval probe'
   # Checks seed their own sessions and rows there and put back what they change, so the shared seed
   # stays as it was. The secret signs those sessions' cookies, as the app's sign-in does.
   export PLATFORM_LIVE_DATABASE_URL="$DATABASE_URL"

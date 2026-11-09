@@ -11,7 +11,14 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
  * that quotes it. A count asked to `ignore steering` finishes without applying any, so each one it
  * held is `not_applied`. Every disposition is durable: re-sending a steering id reads it again, and
  * `/disposition` reads it without sending (`unknown` for an id a live run never received).
+ *
+ * A message containing {@link APPROVAL_PROBE} calls a tool the turn asks the user to approve, then
+ * pauses at a checkpoint, as the worker does: Sim holds the call behind its approval card and
+ * resumes the turn through `/api/tools/resume` once the user decides, and the resumed leg finishes.
+ * `.github/scripts/http-e2e.sh` hands the same text to the chat spec as
+ * `PLATFORM_LIVE_APPROVAL_PROMPT`.
  */
+const APPROVAL_PROBE = 'Run the approval probe'
 const port = Number(process.argv[2])
 if (!port) throw new Error('usage: scripted-agent.ts <port>')
 
@@ -34,9 +41,14 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
   return raw ? JSON.parse(raw) : {}
 }
 
-function streamTurn(body: Record<string, unknown>, response: ServerResponse) {
+function streamTurn(body: Record<string, unknown>, response: ServerResponse, resumed = false) {
   const message = typeof body.message === 'string' ? body.message : ''
-  const streamId = typeof body.messageId === 'string' ? body.messageId : `${Date.now()}`
+  const streamId =
+    typeof body.messageId === 'string'
+      ? body.messageId
+      : typeof body.streamId === 'string'
+        ? body.streamId
+        : `${Date.now()}`
   const chatId = typeof body.chatId === 'string' ? body.chatId : undefined
   let seq = 0
   let answerLength = 0
@@ -99,6 +111,35 @@ function streamTurn(body: Record<string, unknown>, response: ServerResponse) {
     closeSteerings()
   })
   emit('session', { kind: 'start' })
+  if (resumed) {
+    emit('text', { channel: 'assistant', text: 'The approval probe has its answer.' })
+    finish()
+    return
+  }
+  if (message.includes(APPROVAL_PROBE)) {
+    const toolCallId = `toolu_live_${streamId}`
+    emit('tool', {
+      phase: 'call',
+      toolCallId,
+      toolName: 'platform_live_approval_probe',
+      executor: 'sim',
+      mode: 'async',
+      arguments: {},
+      ui: { simExecutable: true },
+      status: 'awaiting_approval',
+    })
+    emit('run', {
+      kind: 'checkpoint_pause',
+      checkpointId: `checkpoint-${streamId}`,
+      executionId: `execution-${streamId}`,
+      runId: `run-${streamId}`,
+      pendingToolCallIds: [toolCallId],
+    })
+    open = false
+    closeSteerings()
+    response.end()
+    return
+  }
   if (!message.includes('Count slowly')) {
     emit('text', { channel: 'assistant', text: 'Hello from the scripted agent.' })
     finish()
@@ -124,6 +165,10 @@ createServer((request, response) => {
       const path = new URL(request.url ?? '/', 'http://agent').pathname
       if (path === '/api/mothership' || path === '/api/copilot') {
         streamTurn(body, response)
+        return
+      }
+      if (path === '/api/tools/resume') {
+        streamTurn(body, response, true)
         return
       }
       if (path === '/api/streams/steer/v2/disposition') {
