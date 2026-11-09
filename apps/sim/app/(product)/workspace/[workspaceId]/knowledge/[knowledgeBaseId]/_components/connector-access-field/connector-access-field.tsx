@@ -7,13 +7,14 @@ import { DetailsField } from '@sim/emcn/field/details-field'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import Link from 'next/link'
-import { workspacePath } from '@/lib/navigation/paths'
 import styles from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/connector-access-field/connector-access-field.module.css'
 import {
   type ConnectorAccessMode,
   type ConnectorMeta,
   useConnectorAccessField,
 } from '@/platform/lib/data/knowledge/connectors'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 const CONNECTED_MEMBERS = '__connected_members__'
 
@@ -100,6 +101,7 @@ export function ConnectorAccessField({
   footer,
   onSetupNavigate,
 }: ConnectorAccessFieldProps) {
+  const surface = useSurfaceScope()
   const field = useConnectorAccessField({
     workspaceId,
     connectorConfig,
@@ -120,7 +122,8 @@ export function ConnectorAccessField({
       : accessMode === 'workspace'
         ? 'Everyone in this workspace can search these documents.'
         : undefined
-  const slackSetupHref = workspacePath(workspaceId, 'settings/credential-groups')
+  /** The organization's Slack app, where the credential group members connect through lives. */
+  const slackSetupHref = surfaceHref(surface, '/settings/search-slack')
 
   return (
     <DetailsField label={label}>
