@@ -1,6 +1,6 @@
 # Workspace UI
 
-Open [a workspace](http://localhost:3125/workspace/it/dashboards?state=full) on a fixture-enabled Platform server, or a seeded workspace on a live one. A workspace row in the sidebar, a command-search result and a workspace in the chat panel all open the workspace: Dashboard on example data, Workflows on live data, as legacy opens a workspace. The organization sidebar stays as it is and marks the workspace's row current, as it marks Integrations; only the page on the right changes.
+Open [a workspace](http://localhost:3000/workspace/it/dashboards?state=full) on a development server started with `SIM_PLATFORM_FIXTURES=1`, or a seeded workspace on a live one. A workspace row in the sidebar, a command-search result and a workspace in the chat panel all open the workspace: Dashboard on example data, Workflows on live data, as legacy opens a workspace. The organization sidebar stays as it is and marks the workspace's row current, as it marks Integrations; only the page on the right changes.
 
 | Route under `/workspace/[workspaceId]` | UI owner |
 | --- | --- |
@@ -17,7 +17,8 @@ Open [a workspace](http://localhost:3125/workspace/it/dashboards?state=full) on 
 | `tests`, `tests/[name]` | Live only, behind the `workflow-tests` flag. The workspace's workflow tests with Run all, and a test's latest or chosen run in the Logs run-details anatomy. |
 | `settings`, `settings/[section]`, `settings/secrets/[credentialId]` | Live only. The workspace's Settings: its sections beside their navigation. Example data keeps the tab empty. |
 | `upgrade` | Redirects to the plan picker, `/settings/billing/plans`, keeping `reason`. |
-| `files/[fileId]/view` | Legacy's standalone viewer; redirects to `files/[fileId]`. |
+| `home`, `chat/[chatId]`, `integrations`, `skills`, `access-requests` | Live only. Moved legacy URLs: each page authorizes the workspace, then redirects permanently to its organization's page through `lib/navigation/legacy-redirects.ts` (the Settings route does the same for organization section keys). |
+| `files/[fileId]/view`, `w/*`, `task/[chatId]` | Moved legacy URLs, redirected statically in `next.config.ts`. |
 
 The bare `/workspace` opens the viewer's last active workspace, or a workflow `redirect_workflow` names, honoring `redirect=upgrade|settings`; a viewer with no workspace goes to the organization's landing, sees why one cannot be created, or gets a first workspace created (`lib/data/workspace-entry.ts`). A workspace page that fails or is missing renders the workspace's own `error.tsx` and `not-found.tsx`, which do not say whether an inaccessible workspace exists.
 
@@ -25,7 +26,7 @@ The bare `/workspace` opens the viewer's last active workspace, or a workflow `r
 
 ## Workspace pages
 
-Dashboard, Issues, Changelog and Logs are one family of Platform pages, styled from Home and Integrations. [Dashboard](http://localhost:3125/workspace/it/dashboards?state=full), [Issues](http://localhost:3125/workspace/it/issues?state=full), [Changelog](http://localhost:3125/workspace/it/changelog?state=full) and [Logs](http://localhost:3125/workspace/it/logs?state=full) open on any fixture workspace; `?state=stress` exercises the extremes and `?state=empty` every empty state.
+Dashboard, Issues, Changelog and Logs are one family of Platform pages, styled from Home and Integrations. [Dashboard](http://localhost:3000/workspace/it/dashboards?state=full), [Issues](http://localhost:3000/workspace/it/issues?state=full), [Changelog](http://localhost:3000/workspace/it/changelog?state=full) and [Logs](http://localhost:3000/workspace/it/logs?state=full) open on any fixture workspace; `?state=stress` exercises the extremes and `?state=empty` every empty state.
 
 - **Frame.** `WorkspacePage` puts the workspace name and description in the Integrations heading, the four pages in DestinationTabs and the tab's ControlBar beneath them, at the same positions as the integration center. Issues' search field fills the bar's leading edge; elsewhere the choices lead, each at its text width as Home's period is. Logs has no search: its status, trigger, workflow, folder and period choices lead (a custom period adds its range picker), and the Runs/Dashboard view, Export and sort end the bar. Like Home's controls, the bar's surfaces stay inside the column and their text is inset, so a leading choice lines up with the tab labels above it. The page is at least the viewport tall, so an empty state centers in the space below the controls.
 - **Rows.** Lists follow Paper's rows and the shared recipes. Issue groups take Integrations' group title with a chevron; an issue row is a caption ID, a one-line title and a right-aligned date (IssueRow). Log rows put duration, Compute Units and start time on the right (RunRow). Changelog entries take ActivityRow's title, detail and meta roles in Paper's ChangeEntry order: title and time, the description, then the contributor with the ticket at the end of the row, under the time. The dashboard's typed table is EMCN DataTable.

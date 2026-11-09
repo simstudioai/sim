@@ -1,6 +1,6 @@
 # Sim App Scope
 
-For `platform/**`, use [the Platform design contract](platform/AGENTS.md) and `$implement-platform`. Modern Auth surfaces follow [shared EMCN ownership](../../packages/emcn/AGENTS.md) and [the system guide](../../packages/emcn/README.md). Legacy styling rules apply only to unreplaced consumers of the legacy library.
+For `platform/**` and `app/(product)/**`, use [the Platform design contract](platform/AGENTS.md) and `$implement-platform`. Modern Auth surfaces follow [shared EMCN ownership](../../packages/emcn/AGENTS.md) and [the system guide](../../packages/emcn/README.md). Legacy styling rules apply only to unreplaced consumers of the legacy library.
 
 Applies to `apps/sim/**` on top of the root [AGENTS.md](/AGENTS.md), which holds the repo-wide rules. Before editing in an area, read its rule file under `.claude/rules/`:
 
@@ -8,7 +8,7 @@ Applies to `apps/sim/**` on top of the root [AGENTS.md](/AGENTS.md), which holds
 - React Query hooks and server prefetch: `sim-queries.md`
 - `'use client'` server boundary, app/worker runtime env, feature folder layout: `sim-architecture.md`
 - Components, hooks, stores, imports: `sim-components.md`, `sim-hooks.md`, `sim-stores.md`, `sim-imports.md`
-- Styling and emcn chrome, UI copy, settings pages: `sim-styling.md`, `sim-ui-copy.md`, `sim-settings-pages.md` (workspace), `sim-platform-views.md` (organization views)
+- Styling and emcn chrome, UI copy, settings pages: `sim-styling.md`, `sim-ui-copy.md`, `sim-settings-pages.md` (account and self-hosted settings), `sim-platform-views.md` (Platform organization and workspace views)
 - URL state, list and menu order, caching: `sim-url-state.md`, `sim-list-ordering.md`, `sim-caching.md`
 - Tools, blocks, triggers: `sim-integrations.md`; isolated-vm sandbox worker: `sim-sandbox.md`
 - Anything that returns stored file, run-file, knowledge or table content to Chat: `sim-content-delivery.md`
