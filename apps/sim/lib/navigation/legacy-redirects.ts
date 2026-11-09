@@ -113,6 +113,16 @@ function withQuery(path: string, query: URLSearchParams): string {
   return search ? `${path}?${search}` : path
 }
 
+/**
+ * The legacy query with the workspace it was scoped to: an organization without member-scoped
+ * accounts lists that workspace's apps and credentials on its Integrations page.
+ */
+function inWorkspace(query: URLSearchParams, workspaceId: string): URLSearchParams {
+  const scoped = new URLSearchParams(query)
+  scoped.set('workspace', workspaceId)
+  return scoped
+}
+
 function skillsUrl(organizationId: string, workspaceId: string, resource: string | null): string {
   const query = new URLSearchParams({ tab: 'skills', workspace: workspaceId })
   if (resource) query.set('resource', resource)
@@ -138,11 +148,12 @@ export function mapLegacyWorkspaceUrl({
   if (head === 'skills' && rest.length === 0)
     return skillsUrl(organizationId, workspaceId, query.get('skillId'))
   if (head === 'skills' && rest.length === 1) return skillsUrl(organizationId, workspaceId, rest[0])
-  if (head === 'integrations' && rest.length === 0) return withQuery(routes.integrations, query)
+  if (head === 'integrations' && rest.length === 0)
+    return withQuery(routes.integrations, inWorkspace(query, workspaceId))
   if (head === 'integrations' && rest.length === 2 && rest[0] === 'connected')
-    return withQuery(routes.account(rest[1]), query)
+    return withQuery(routes.account(rest[1]), inWorkspace(query, workspaceId))
   if (head === 'integrations' && rest.length === 1)
-    return withQuery(routes.integration(rest[0]), query)
+    return withQuery(routes.integration(rest[0]), inWorkspace(query, workspaceId))
   if (head === 'upgrade' && rest.length === 0) {
     const reason = query.get('reason')
     const plans = routes.settingsSection('billing/plans')

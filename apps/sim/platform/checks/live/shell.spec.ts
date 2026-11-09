@@ -86,7 +86,7 @@ test('navigation lists what the surface grants, and leaves for legacy routes in 
     Home: surface.mothershipAvailable && surface.canBuild,
     Search: surface.searchAccess.memberScoped,
     People: surface.navFlags.people,
-    Integrations: surface.searchAccess.memberScoped,
+    Integrations: true,
     Benchmark: surface.navFlags.benchmark,
   }
   for (const [label, visible] of Object.entries(granted)) {

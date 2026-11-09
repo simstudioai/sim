@@ -19,9 +19,10 @@ import {
 
 /**
  * The live Skills tab and the skill it opens. Skills belong to a workspace, so the tab lists one
- * workspace's skills at a time, starting with the viewer's first workspace.
+ * workspace's skills at a time, starting with the viewer's first workspace. A page that chooses the
+ * workspace for every tab passes it as `pageWorkspaceId`, and the tab then offers no choice of its own.
  */
-export function useLiveSkills(): { tab: SkillsTab; detail: ReactNode } {
+export function useLiveSkills(pageWorkspaceId?: string): { tab: SkillsTab; detail: ReactNode } {
   const pathname = usePathname()
   const search = useSearchParams()
   const [view, setView] = useQueryStates(
@@ -29,8 +30,9 @@ export function useLiveSkills(): { tab: SkillsTab; detail: ReactNode } {
     { history: 'replace', shallow: true }
   )
   const workspaces = useOrderedWorkspacesQuery()
-  const workspace =
-    workspaces.data?.find((item) => item.id === view.workspace) ?? workspaces.data?.[0]
+  const workspace = pageWorkspaceId
+    ? workspaces.data?.find((item) => item.id === pageWorkspaceId)
+    : (workspaces.data?.find((item) => item.id === view.workspace) ?? workspaces.data?.[0])
   const onSkills = view.tab === 'skills'
   const skills = useSkills(onSkills && workspace ? workspace.id : '')
   const listed = skills.isPlaceholderData ? undefined : skills.data
@@ -52,7 +54,7 @@ export function useLiveSkills(): { tab: SkillsTab; detail: ReactNode } {
     void setView({ resource: null, resourceTab: null }, { history: 'push', scroll: false })
 
   const tab: SkillsTab = {
-    filter: workspace && (
+    filter: !pageWorkspaceId && workspace && (
       <ChoiceMenu
         label='Workspace'
         value={workspace.id}

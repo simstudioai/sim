@@ -1,6 +1,6 @@
 # Integration center
 
-`/integrations` at the organization root is the member-facing management surface for Apps, Skills, MCPs and Credentials. Home and eligible organization workspace entry points navigate here rather than mounting another copy. A standalone workspace, or a viewer without the organization's Search access, retains the existing workspace credential route until an authorized replacement exists. Organization approval and source administration remain in Settings. Entering from a workspace must not silently turn a personal credential into an organization or workspace credential.
+`/integrations` at the organization root is the member-facing management surface for Apps, Skills, MCPs and Credentials. Home and eligible organization workspace entry points navigate here rather than mounting another copy. An organization without member-scoped accounts, personal ones included, serves the same page over the viewer's workspace credentials and skills, one workspace at a time (`workspace` in the URL): the apps the workspace's integration access policy allows, judged on the server, connected through the shared OAuth and service-account dialogs. Only the member-scoped parts (Search sources, connected accounts and their tool permissions, Generic Secrets, credential groups) stay Enterprise. Organization approval and source administration remain in Settings. Entering from a workspace must not silently turn a personal credential into an organization or workspace credential.
 
 ## Product structure
 
@@ -45,7 +45,7 @@ The custom Slack bot connection keeps its provider-specific setup in `slack-bot-
 
 On live data the center serves Apps, Skills and Credentials. Skills are workspace-scoped, as legacy scopes them: a workspace choice in the control bar (`workspace` in the URL) picks whose skills are listed, created, edited and shared with editors; built-in skills are read-only.
 
-The organization center is the canonical destination. Workspace navigation resolves the workspace host and the viewer's organization eligibility before linking or redirecting there; it never uses the session's unrelated active organization or silently changes credential scope. Preserve the existing route for viewers who cannot use the organization center, rather than trapping them behind an unavailable page. Paper references and historical documentation do not justify another Platform workspace management surface. The browser and Electron use the same renderer.
+The organization center is the canonical destination. Workspace navigation resolves the workspace host and the viewer's organization eligibility before linking or redirecting there; it never uses the session's unrelated active organization or silently changes credential scope. Every viewer can use the organization center: legacy workspace Integrations and Skills URLs redirect there with their workspace. Paper references and historical documentation do not justify another Platform workspace management surface. The browser and Electron use the same renderer.
 
 ## Verification
 
