@@ -22,7 +22,7 @@ import {
 } from '@sim/db/schema'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 import { getOrganizationBillingSummary } from '@/lib/billing/application/organization-billing/get-organization-billing-summary'
 import {
@@ -38,6 +38,7 @@ import {
   removeUserFromOrganization,
 } from '@/lib/billing/organizations/membership'
 import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
+import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import { provisionPersonalOrganization } from '@/lib/organizations/provision-personal'
 import { deleteUserAccount, getAccountDeletionPlan } from '@/lib/users/account-deletion'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
@@ -322,6 +323,55 @@ describe('personal organization provisioning', () => {
       (row) => row.userId === collaboratorId
     )
     expect(collaborator).toMatchObject({ isExternal: false, permissionType: 'write' })
+  })
+})
+
+describe('chats in a personal organization', () => {
+  it('lists the workspace chats a person already had, on their own and shared workspaces, in their organization', async () => {
+    const ownerId = await createUser()
+    const guestId = await createUser()
+    const own = await createLegacyPersonalWorkspace(ownerId, 'Own')
+    const shared = await createLegacyPersonalWorkspace(guestId, 'Shared')
+    const revoked = await createLegacyPersonalWorkspace(guestId, 'Revoked')
+    const now = new Date()
+    for (const entityId of [shared, revoked]) {
+      await db.insert(permissions).values({
+        id: generateId(),
+        userId: ownerId,
+        entityType: 'workspace',
+        entityId,
+        permissionType: 'write',
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+    const chats = await db
+      .insert(copilotChats)
+      .values(
+        [own, shared, revoked].map((workspaceId) => ({
+          userId: ownerId,
+          workspaceId,
+          type: 'mothership' as const,
+          title: workspaceId,
+        }))
+      )
+      .returning({ id: copilotChats.id, workspaceId: copilotChats.workspaceId })
+    await db
+      .delete(permissions)
+      .where(and(eq(permissions.entityId, revoked), eq(permissions.userId, ownerId)))
+
+    const provisioned = await provisionPersonalOrganization(ownerId)
+    if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
+    const listed = await listMothershipChats(ownerId, {
+      organizationId: provisioned.organizationId,
+    })
+
+    expect(listed.map((chat) => chat.id).sort()).toEqual(
+      chats
+        .filter((chat) => chat.workspaceId !== revoked)
+        .map((chat) => chat.id)
+        .sort()
+    )
   })
 })
 

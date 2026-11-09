@@ -1,10 +1,57 @@
 import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
-import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm'
+import { copilotChats, member, permissions, workspace } from '@sim/db/schema'
+import { and, desc, eq, exists, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { MothershipChat, MothershipChatScope } from '@/lib/api/contracts/mothership-chats'
 import { conversationModeSelection } from '@/lib/mothership/chat/intent'
 import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-liveness'
+
+/**
+ * The viewer's workspace chats on workspaces they can still open (an explicit grant, or admin of
+ * the workspace's organization), wherever those workspaces sit.
+ */
+function openableWorkspaceChat(userId: string): SQL {
+  return and(
+    isNotNull(copilotChats.workspaceId),
+    exists(
+      db
+        .select({ id: workspace.id })
+        .from(workspace)
+        .where(
+          and(
+            eq(workspace.id, copilotChats.workspaceId),
+            isNull(workspace.archivedAt),
+            or(
+              exists(
+                db
+                  .select({ id: permissions.id })
+                  .from(permissions)
+                  .where(
+                    and(
+                      eq(permissions.userId, userId),
+                      eq(permissions.entityType, 'workspace'),
+                      eq(permissions.entityId, workspace.id)
+                    )
+                  )
+              ),
+              exists(
+                db
+                  .select({ id: member.id })
+                  .from(member)
+                  .where(
+                    and(
+                      eq(member.userId, userId),
+                      eq(member.organizationId, workspace.organizationId),
+                      inArray(member.role, ['owner', 'admin'])
+                    )
+                  )
+              )
+            )
+          )
+        )
+    )
+  ) as SQL
+}
 
 /**
  * Lists a user's mothership (home) chats for a workspace as the contract wire
@@ -12,6 +59,11 @@ import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-livenes
  * sidebar prefetch. Performs no auth or workspace-access checks — callers
  * enforce access before invoking. Reconciles stale live-stream markers and
  * normalizes timestamps to ISO strings to honor the wire contract.
+ *
+ * An organization's list also holds the viewer's workspace chats: a person belongs to one
+ * organization, and every workspace they can open renders in it (`readWorkspaceShell`), so their
+ * workspace chats, from before organization chats and on organization-less or guest workspaces
+ * alike, open from it. The caller has authorized the viewer's membership of that organization.
  *
  * `scope` selects between live chats (`active`, the default) and soft-deleted
  * chats (`archived`, surfaced in Recently Deleted). Archived chats skip
@@ -40,7 +92,10 @@ export async function listMothershipChats(
         eq(copilotChats.userId, userId),
         typeof owner === 'string'
           ? eq(copilotChats.workspaceId, owner)
-          : eq(copilotChats.organizationId, owner.organizationId),
+          : or(
+              eq(copilotChats.organizationId, owner.organizationId),
+              openableWorkspaceChat(userId)
+            ),
         eq(copilotChats.type, 'mothership'),
         sql`${copilotChats.config}->'benchmark' IS NULL`,
         scope === 'archived' ? isNotNull(copilotChats.deletedAt) : isNull(copilotChats.deletedAt)
