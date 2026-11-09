@@ -1585,20 +1585,57 @@ try {
           WebSocket: typeof WebSocket
           tracks: MediaStreamTrack[]
           sockets: WebSocket[]
+          fetch: typeof fetch
+          observer: MutationObserver
+          /** Timestamped startup steps, page errors, and notification text seen inside the app frame. */
+          log: string[]
         }
       }
       await frame().evaluate(() => {
+        const log: string[] = []
+        const note = (event: string) => log.push(`${Math.round(performance.now())} ${event}`)
         const probe = {
           getUserMedia: navigator.mediaDevices.getUserMedia,
           WebSocket: window.WebSocket,
           tracks: [] as MediaStreamTrack[],
           sockets: [] as WebSocket[],
+          fetch: window.fetch,
+          observer: new MutationObserver(() => {
+            const notices = document.querySelector('[aria-label="Notifications"]')?.textContent
+            if (notices && log.at(-1) !== `notices ${notices}`) note(`notices ${notices}`)
+          }),
+          log,
         }
         ;(window as VoiceCaptureWindow).__voiceCaptureProbe = probe
+        probe.observer.observe(document.body, { childList: true, subtree: true })
+        window.addEventListener('error', (event) => note(`error ${event.message}`))
+        window.addEventListener('unhandledrejection', (event) =>
+          note(`unhandledrejection ${String(event.reason)}`)
+        )
+        window.fetch = Object.assign(async (input: RequestInfo | URL, init?: RequestInit) => {
+          const url = input instanceof Request ? input.url : String(input)
+          if (!url.includes('/api/speech/token')) return probe.fetch.call(window, input, init)
+          note('token-request')
+          try {
+            const response = await probe.fetch.call(window, input, init)
+            note(`token-response ${response.status}`)
+            return response
+          } catch (error) {
+            note(`token-failed ${String(error)}`)
+            throw error
+          }
+        }, probe.fetch)
         navigator.mediaDevices.getUserMedia = async (constraints) => {
-          const stream = await probe.getUserMedia.call(navigator.mediaDevices, constraints)
-          probe.tracks.push(...stream.getTracks())
-          return stream
+          note('getUserMedia')
+          try {
+            const stream = await probe.getUserMedia.call(navigator.mediaDevices, constraints)
+            probe.tracks.push(...stream.getTracks())
+            note('getUserMedia-resolved')
+            return stream
+          } catch (error) {
+            note(`getUserMedia-rejected ${error instanceof Error ? error.name : String(error)}`)
+            throw error
+          }
         }
         window.WebSocket = class extends probe.WebSocket {
           constructor(url: string | URL, protocols?: string | string[]) {
@@ -1614,6 +1651,11 @@ try {
             tracks: probe?.tracks.map((track) => track.readyState) ?? [],
             sockets: probe?.sockets.map((socket) => socket.readyState) ?? [],
           }
+        })
+      const captureLog = () =>
+        frame().evaluate(() => {
+          const probe = (window as VoiceCaptureWindow).__voiceCaptureProbe
+          return { installed: Boolean(probe), log: probe?.log ?? [] }
         })
       const microphone = await browserContext.newCDPSession(shell)
       const setMicrophonePermission = async (setting: 'granted' | 'denied') => {
@@ -1740,6 +1782,7 @@ try {
         await screenshot('microphone-after-send')
       } finally {
         voiceDiagnostics.push({ event: 'capture-finally', ...(await captureState()) })
+        voiceDiagnostics.push({ event: 'frame-log', ...(await captureLog()) })
         connectionGate.resolve()
         tokenGate.resolve()
         await frame().evaluate(() => {
@@ -1748,6 +1791,8 @@ try {
           if (!probe) return
           navigator.mediaDevices.getUserMedia = probe.getUserMedia
           window.WebSocket = probe.WebSocket
+          window.fetch = probe.fetch
+          probe.observer.disconnect()
           probe.tracks.forEach((track) => track.stop())
           probeWindow.__voiceCaptureProbe = undefined
         })
