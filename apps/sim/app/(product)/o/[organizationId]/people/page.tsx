@@ -5,7 +5,7 @@ import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
 export const metadata: Metadata = { title: 'People' }
 
-/** The mode and the gate are per-request; a build must not freeze the answer. */
+/** The gate is per-request; a build must not freeze the answer. */
 export const dynamic = 'force-dynamic'
 
 export default async function Page() {

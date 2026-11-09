@@ -6,7 +6,7 @@ import type { ProductPageProps } from '@/platform/lib/route-props'
 
 export const metadata: Metadata = { title: 'File' }
 
-/** The mode is per-request; a build must not freeze the answer. */
+/** Rendered per request: a build must never prerender a viewer's page. */
 export const dynamic = 'force-dynamic'
 
 export default async function Page({

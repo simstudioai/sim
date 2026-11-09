@@ -1,9 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
-import { IssueRoute } from '@/app/(product)/workspace/[workspaceId]/issues/_components/issues-route/issues-route'
-import { loadWorkspaceIssue } from '@/platform/fixtures'
-import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref, readScenario } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
 import { withIssueListView } from '@/platform/lib/workspace-views'
@@ -20,17 +17,28 @@ export default async function Page({
   searchParams,
 }: ProductPageProps<{ workspaceId: string; issueId: string }>) {
   const [{ workspaceId, issueId }, query] = await Promise.all([params, searchParams])
-  if (resolvePlatformMode() === 'live') notFound()
-  const issue = await loadWorkspaceIssue(
-    readScenario(query.state),
-    workspaceId,
-    decodeURIComponent(issueId)
-  )
-  if (!issue) notFound()
-  const search = { get: (key: string) => (typeof query[key] === 'string' ? query[key] : null) }
-  const back = {
-    href: withIssueListView(platformHref(workspacePath(workspaceId, 'issues'), search), query),
-    label: 'Issues',
+  // Inlined at build time, so a normal build carries neither this branch nor the example data.
+  if (process.env.SIM_PLATFORM_FIXTURES === '1') {
+    const [{ IssueRoute }, { loadWorkspaceIssue }] = await Promise.all([
+      import(
+        '@/app/(product)/workspace/[workspaceId]/issues/_components/issues-route/issues-route'
+      ),
+      import('@/platform/fixtures'),
+    ])
+    const issue = await loadWorkspaceIssue(
+      readScenario(query.state),
+      workspaceId,
+      decodeURIComponent(issueId)
+    )
+    if (issue) {
+      const search = { get: (key: string) => (typeof query[key] === 'string' ? query[key] : null) }
+      const back = {
+        href: withIssueListView(platformHref(workspacePath(workspaceId, 'issues'), search), query),
+        label: 'Issues',
+      }
+      return <IssueRoute issue={issue} back={back} />
+    }
   }
-  return <IssueRoute issue={issue} back={back} />
+  // Issues have no backend yet, so live workspaces neither list nor open them.
+  notFound()
 }

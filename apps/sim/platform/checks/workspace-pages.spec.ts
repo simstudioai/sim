@@ -307,10 +307,9 @@ test('a run opens its trace and selected step, with its execution ID among its f
   const rows = main(page).getByRole('list', { name: 'Runs' }).getByRole('listitem')
   await expect(rows).toHaveCount(50)
   await rows.nth(4).getByRole('link').click()
-  // The development server renders a run's payload on this first client navigation, past ten seconds.
   await expect(
     main(page).getByRole('heading', { level: 1, name: /^Run [0-9a-f]{8}$/ })
-  ).toBeVisible({ timeout: 30_000 })
+  ).toBeVisible()
   const executionId = new URL(page.url()).pathname.split('/').at(-1) ?? ''
   const runFacts = main(page).getByLabel('Run facts')
   await expect(runFacts.locator('dd', { hasText: new RegExp(`^${executionId}$`) })).toBeVisible()

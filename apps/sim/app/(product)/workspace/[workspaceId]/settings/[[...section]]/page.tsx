@@ -7,8 +7,6 @@ import {
   WorkspaceSettings,
 } from '@/app/(product)/workspace/[workspaceId]/settings/_components/workspace-settings/workspace-settings'
 import { WorkspaceSettingsSection } from '@/app/(product)/workspace/[workspaceId]/settings/_components/workspace-settings-section/workspace-settings-section'
-import { loadWorkspaceSummary } from '@/platform/fixtures'
-import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import {
   DEFAULT_WORKSPACE_SETTING,
   isWorkspaceSettingsKey,
@@ -41,7 +39,9 @@ export default async function Page({
   searchParams,
 }: ProductPageProps<{ workspaceId: string; section?: string[] }>) {
   const [{ workspaceId, section: path = [] }, query] = await Promise.all([params, searchParams])
-  if (resolvePlatformMode() !== 'live') {
+  // Inlined at build time, so a normal build carries neither this branch nor the example data.
+  if (process.env.SIM_PLATFORM_FIXTURES === '1') {
+    const { loadWorkspaceSummary } = await import('@/platform/fixtures')
     const workspace = await loadWorkspaceSummary(readScenario(query.state), workspaceId)
     if (!workspace) notFound()
     return <WorkspaceSettings workspace={workspace} />

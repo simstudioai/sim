@@ -11,7 +11,7 @@ bun run --cwd apps/sim dev
 SIM_PLATFORM_FIXTURES=1 bun run --cwd apps/sim dev
 ```
 
-Fixture mode exists only on a development server: a production build serves live data whatever its environment says. The fixture organization is `sim`. Open [Home](http://localhost:3000/o/sim/home), [Chat](http://localhost:3000/o/sim/chat/weekly-review?state=full), [Settings](http://localhost:3000/o/sim/settings), or [Integrations](http://localhost:3000/o/sim/integrations?state=full). `?state=empty|full|stress` selects the fixture on any of them. `?theme=light|dark|system` selects the product appearance. Product navigation preserves these choices; nothing writes examples to storage. The URL cannot activate the server flag. A different worktree is a different copy of the code; stop temporary test servers after verification.
+Fixture mode is chosen when the app is compiled, so restart the development server to switch it: a normal build serves live data whatever its environment says. The fixture organization is `sim`. Open [Home](http://localhost:3000/o/sim/home), [Chat](http://localhost:3000/o/sim/chat/weekly-review?state=full), [Settings](http://localhost:3000/o/sim/settings), or [Integrations](http://localhost:3000/o/sim/integrations?state=full). `?state=empty|full|stress` selects the fixture on any of them. `?theme=light|dark|system` selects the product appearance. Product navigation preserves these choices; nothing writes examples to storage. The URL cannot activate the server flag. A different worktree is a different copy of the code; stop temporary test servers after verification.
 
 Settings uses the same organization catalog and section components in fixture and live routes. [General](http://localhost:3000/o/sim/settings/general?state=full) includes Privacy and Account details; [Sources](http://localhost:3000/o/sim/settings/integrations?state=full) is the administrator's Search source inventory. The [integration center](docs/integration-center.md) is the member-facing management surface for Apps, Skills, MCPs and Credentials. Settings examples are loaded only by the server's fixture flag. Their edits belong to the browser session; no account, credential, organization policy or subscription is changed by preview interactions.
 
@@ -25,12 +25,12 @@ A workspace row, a command-search result or a workspace in the chat panel opens 
 
 ## Data modes
 
-`resolvePlatformMode()` (`lib/data/mode.ts`) decides each server entry once:
+The build decides the mode: `next.config.ts` inlines `SIM_PLATFORM_FIXTURES` into every bundle (`lib/core/config/platform-fixtures.ts`), and a normal build compiles every fixture branch away.
 
 | Mode | When | Data |
 | --- | --- | --- |
-| `fixture` | A development server (`NODE_ENV !== 'production'`) with `SIM_PLATFORM_FIXTURES=1` | Example scenarios, no sign-in |
-| `live` | Everything else, including every production build | The viewer's real organization, read in process through the main app's use cases |
+| `fixture` | A development server or build started with `SIM_PLATFORM_FIXTURES=1`; never deployed | Example scenarios, no sign-in |
+| `live` | Everything else, including every deployed build | The viewer's real organization, read in process through the main app's use cases |
 
 The product shares the main app's origin, session cookie, `/api` and security headers. `proxy.ts` tells the shell which organization or workspace a request opens; see [Product root and shell](AGENTS.md#product-root-and-shell). Moved legacy URLs redirect permanently, statically in `next.config.ts` or, when the destination needs the workspace's organization, through `lib/navigation/legacy-redirects.ts`.
 
@@ -98,7 +98,7 @@ bun run --cwd apps/desktop build
 bun run --cwd apps/sim test:platform:desktop
 ```
 
-The fixture suites (`checks/playwright.config.ts`, `checks/desktop/playwright.config.ts`) start `next dev` with `SIM_PLATFORM_FIXTURES=1` on their own ports. To run them against a development server you already started with fixtures on, set `PLATFORM_E2E_ORIGIN`; nothing else is started or stopped. Supply `PLATFORM_REPORT_PATH` or `PLATFORM_DESKTOP_REPORT_PATH` to save JSON, failure screenshots and traces.
+The fixture suites (`checks/playwright.config.ts`, `checks/desktop/playwright.config.ts`) serve a fixture production build with `next start` on their own ports, as CI does with the build its `fixture-build` job makes. Build one first with `SIM_PLATFORM_FIXTURES=1 bun run --cwd apps/sim build`. To run them against a fixture server you already started, set `PLATFORM_E2E_ORIGIN`; nothing else is started or stopped. A development server compiles each route on its first visit, which a check's deadline does not allow for, so prefer the build. Supply `PLATFORM_REPORT_PATH` or `PLATFORM_DESKTOP_REPORT_PATH` to save JSON, failure screenshots and traces.
 
 `bun run --cwd apps/sim test:platform:live` runs `checks/live/` against a production build and database you have started (`PLATFORM_LIVE_ORIGIN`, and the accounts `checks/live/session.ts` reads). `.github/scripts/http-e2e.sh platform-live` boots that stack the way CI does. Supply `PLATFORM_LIVE_REPORT_PATH` to save its JSON report.
 

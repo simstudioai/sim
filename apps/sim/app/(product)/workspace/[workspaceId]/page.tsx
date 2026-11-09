@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { workspaceRootHref } from '@/platform/lib/workspace-navigation'
 
-/** The mode is per-request; a build must not freeze the answer. */
+/** Rendered per request: a build must never prerender a viewer's page. */
 export const dynamic = 'force-dynamic'
 
 /** A workspace's bare URL opens its home tab; the live shell answers a document load the same way. */

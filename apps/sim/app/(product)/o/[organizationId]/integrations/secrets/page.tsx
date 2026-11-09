@@ -1,19 +1,19 @@
 import type { Metadata } from 'next'
-import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import type { ProductPageProps } from '@/platform/lib/route-props'
 
 export const metadata: Metadata = { title: 'Generic Secrets' }
 
 export default async function Page({ searchParams }: ProductPageProps<{ organizationId: string }>) {
-  // Loaded only behind its mode, so a fixture server never evaluates the data seam.
-  if (resolvePlatformMode() === 'live') {
-    const { LiveMemberSecretsRoute } = await import(
-      '@/app/(product)/o/[organizationId]/integrations/_components/member-secrets/live-member-secrets-route'
+  // Inlined at build time, so a normal build carries neither this branch nor the example data.
+  if (process.env.SIM_PLATFORM_FIXTURES === '1') {
+    const { IntegrationsRoute } = await import(
+      '@/app/(product)/o/[organizationId]/integrations/_components/fixtures/integrations-page/integrations-route'
     )
-    return <LiveMemberSecretsRoute searchParams={await searchParams} />
+    return <IntegrationsRoute section='secrets' searchParams={searchParams} />
   }
-  const { IntegrationsRoute } = await import(
-    '@/app/(product)/o/[organizationId]/integrations/_components/fixtures/integrations-page/integrations-route'
+  // Loaded only here, so a fixture build never evaluates the data seam.
+  const { LiveMemberSecretsRoute } = await import(
+    '@/app/(product)/o/[organizationId]/integrations/_components/member-secrets/live-member-secrets-route'
   )
-  return <IntegrationsRoute section='secrets' searchParams={searchParams} />
+  return <LiveMemberSecretsRoute searchParams={await searchParams} />
 }

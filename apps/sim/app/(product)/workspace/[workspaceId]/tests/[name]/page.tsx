@@ -4,7 +4,7 @@ import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
 export const metadata: Metadata = { title: 'Test' }
 
-/** The mode is per-request; a build must not freeze the answer. */
+/** Rendered per request: a build must never prerender a viewer's page. */
 export const dynamic = 'force-dynamic'
 
 export default async function Page({
