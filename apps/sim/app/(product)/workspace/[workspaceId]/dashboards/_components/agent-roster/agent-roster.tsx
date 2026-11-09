@@ -1,5 +1,5 @@
 import { ActivityRow } from '@sim/emcn/activity-row'
-import type { AgentRosterItem } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+import type { AgentRosterItem } from '@/app/(product)/_components/workspace/workspace-session/model'
 import styles from '@/app/(product)/workspace/[workspaceId]/dashboards/_components/agent-roster/agent-roster.module.css'
 
 interface AgentRosterProps {

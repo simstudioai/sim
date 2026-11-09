@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { FILE_DOC_EVENTS, type FileDocPresence } from '@sim/realtime-protocol/file-doc'
 import { type QueryFilters, useQueryClient } from '@tanstack/react-query'
 import { Awareness } from 'y-protocols/awareness'
 import * as Y from 'yjs'
@@ -10,25 +11,21 @@ import { getUserColor } from '@/lib/workspaces/colors'
 import { workspaceFileMetadataFilter } from '@/hooks/queries/utils/workspace-file-cache'
 import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-keys'
 
-/** The live collaboration binding the editor wires into TipTap's Collaboration
- * (the {@link Y.Doc}) and CollaborationCaret (the awareness). */
-export interface FileDocCollaboration {
-  /** Bound to TipTap's Collaboration extension (created synchronously at mount). */
+/** A collaborator in the open file, from the server-authenticated roster. */
+interface FileDocRosterPeer {
+  userId: string
+  userName: string
+  avatarUrl: string | null
+}
+
+/** The live binding the editor wires into TipTap's Collaboration and CollaborationCaret. */
+interface FileDocCollaboration {
   doc: Y.Doc
-  /** Bound to CollaborationCaret (via `{ awareness }`); relayed by the provider. */
   awareness: Awareness
-  /**
-   * The realtime provider, or `null` until the socket is available. `doc` and
-   * `awareness` exist before it connects, so the editor can bind immediately; the
-   * provider is consumed for its readiness signal (`synced`) and fatal `join-error`.
-   */
+  /** `null` until the socket is available; `doc` and `awareness` exist before it connects. */
   provider: FileDocProvider | null
   canWrite: boolean
-  /**
-   * The local caret identity published to awareness: `name`/`color` for CollaborationCaret,
-   * and `clientId` so the caret activity extension can tag each caret node (see
-   * caret-presence.ts).
-   */
+  /** The local caret identity published to awareness; the avatar roster comes from the server. */
   user: { name: string; color: string; clientId: number | undefined }
 }
 
@@ -37,21 +34,20 @@ interface UseFileDocCollaborationParams {
   fileId: string
   userId: string
   userName: string
-  /**
-   * Whether to establish collaboration. Decided once at editor mount — only for a
-   * live, readable, non-streaming workspace document. When `false` the hook
-   * returns `null` and the editor stays fully local.
-   */
+  /** Decided once at editor mount: only a live, readable workspace document collaborates. */
   enabled: boolean
   onWriteAccessLost?: () => void
+  /** Receives the other people in the file, for the page's avatar stack. */
+  reportPeers: (peers: FileDocRosterPeer[]) => void
 }
 
+/** Teardown waits a tick, so a StrictMode remount keeps the doc the editor froze at mount. */
+const TEARDOWN_DELAY_MS = 0
+
 /**
- * Owns the per-file Yjs document, awareness, and {@link FileDocProvider} for
- * collaborative editing. The document + awareness are created once (this hook
- * lives inside an editor that is keyed by file id, so one instance == one file)
- * and are the stable objects TipTap binds to; the provider connects them to the
- * realtime relay over the shared socket. Returns `null` while disabled.
+ * Owns the per-file Yjs document, awareness and {@link FileDocProvider} for collaborative editing.
+ * The document and awareness are created once and stay stable for the editor's life; the provider
+ * connects them to the realtime relay over the shared socket. Returns `null` while disabled.
  */
 export function useFileDocCollaboration({
   workspaceId,
@@ -60,32 +56,22 @@ export function useFileDocCollaboration({
   userName,
   enabled,
   onWriteAccessLost,
+  reportPeers,
 }: UseFileDocCollaborationParams): FileDocCollaboration | null {
   const { socket } = useSocket()
   const queryClient = useQueryClient()
   const onWriteAccessLostRef = useRef(onWriteAccessLost)
   onWriteAccessLostRef.current = onWriteAccessLost
+  const reportPeersRef = useRef(reportPeers)
+  reportPeersRef.current = reportPeers
 
-  // The Y.Doc + Awareness are the editor's authoritative binding — created once
-  // and stable for the hook's life (see sim-react-performance: lazy-init ref).
   const docRef = useRef<Y.Doc | null>(null)
   const awarenessRef = useRef<Awareness | null>(null)
-  // Created ONCE and kept stable for the whole editor lifetime. The editor freezes these into
-  // its extension set at mount (`useEditor` fixes extensions at creation), so the instances the
-  // provider binds MUST stay byte-identical to what the editor holds — never destroyed-and-
-  // recreated mid-life. If a StrictMode dev remount destroyed them, the still-mounted editor
-  // would keep the dead doc while the provider synced a fresh one, and a joining peer would see a
-  // blank document. Teardown is therefore deferred to a REAL unmount only (see below).
   if (enabled && docRef.current === null) {
     docRef.current = new Y.Doc()
     awarenessRef.current = new Awareness(docRef.current)
   }
 
-  // Destroy the doc + awareness on a REAL unmount only. `Awareness` runs a setInterval to expire
-  // stale peers, so it MUST be destroyed or that timer leaks for every file ever opened. But a
-  // StrictMode dev remount fires this cleanup and then re-runs the setup synchronously after — so
-  // we SCHEDULE the teardown and the remount cancels it, keeping the frozen instances alive. A
-  // genuine unmount has no remount, so the scheduled teardown runs on the next tick.
   const pendingTeardownRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     if (pendingTeardownRef.current !== null) {
@@ -96,7 +82,7 @@ export function useFileDocCollaboration({
       pendingTeardownRef.current = setTimeout(() => {
         awarenessRef.current?.destroy()
         docRef.current?.destroy()
-      }, 0)
+      }, TEARDOWN_DELAY_MS)
     }
   }, [])
 
@@ -104,11 +90,9 @@ export function useFileDocCollaboration({
   const [canWrite, setCanWrite] = useState(false)
 
   useEffect(() => {
-    if (!enabled || !socket) return
-    // Non-null: both refs are set during render before any effect runs, and are never destroyed
-    // (see above), so this always binds the same doc/awareness the editor froze at mount.
-    const doc = docRef.current as Y.Doc
-    const awareness = awarenessRef.current as Awareness
+    const doc = docRef.current
+    const awareness = awarenessRef.current
+    if (!enabled || !socket || !doc || !awareness) return
     const fileProvider = new FileDocProvider(socket, fileId, doc, awareness, {
       owner: { entityType: 'workspace', entityId: workspaceId },
       userId,
@@ -134,26 +118,39 @@ export function useFileDocCollaboration({
     }
   }, [enabled, socket, fileId, workspaceId, userId, queryClient])
 
-  // The client id rides in the awareness `user` payload so the caret `render` (which only
-  // receives `user`) can tag each caret node for the activity-driven name label (see
-  // caret-presence.ts). `doc.clientID` is stable for the doc's life, so reading it from the
-  // ref needs no memo dep.
+  useEffect(() => {
+    if (!enabled || !socket) return
+    const handlePresence = (data: FileDocPresence) => {
+      if (data.fileId !== fileId) return
+      const byUser = new Map<string, FileDocRosterPeer>()
+      for (const peer of data.users) {
+        if (peer.socketId === socket.id || byUser.has(peer.userId)) continue
+        byUser.set(peer.userId, {
+          userId: peer.userId,
+          userName: peer.userName,
+          avatarUrl: peer.avatarUrl,
+        })
+      }
+      reportPeersRef.current([...byUser.values()])
+    }
+    const handleDisconnect = () => reportPeersRef.current([])
+    socket.on(FILE_DOC_EVENTS.PRESENCE, handlePresence)
+    socket.on('disconnect', handleDisconnect)
+    return () => {
+      socket.off(FILE_DOC_EVENTS.PRESENCE, handlePresence)
+      socket.off('disconnect', handleDisconnect)
+      reportPeersRef.current([])
+    }
+  }, [enabled, socket, fileId])
+
   const user = useMemo(
     () => ({ name: userName, color: getUserColor(userId), clientId: docRef.current?.clientID }),
     [userName, userId]
   )
 
-  return useMemo(
-    () =>
-      enabled
-        ? {
-            doc: docRef.current as Y.Doc,
-            awareness: awarenessRef.current as Awareness,
-            provider,
-            canWrite,
-            user,
-          }
-        : null,
-    [enabled, provider, canWrite, user]
-  )
+  return useMemo(() => {
+    const doc = docRef.current
+    const awareness = awarenessRef.current
+    return enabled && doc && awareness ? { doc, awareness, provider, canWrite, user } : null
+  }, [enabled, provider, canWrite, user])
 }

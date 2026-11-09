@@ -274,6 +274,15 @@ export async function switchTerminal(
   await bridge()?.switchTerminal(terminalId, scopeId, options)
 }
 
+/** Moves a shell in the desktop's list, which restore and the agent read back in that order. */
+export async function reorderTerminal(
+  terminalId: string,
+  targetIndex: number,
+  scopeId = currentTerminalScopeId()
+): Promise<void> {
+  await bridge()?.reorderTerminal?.(terminalId, targetIndex, scopeId)
+}
+
 export async function closeTerminal(
   terminalId: string,
   scopeId = currentTerminalScopeId()

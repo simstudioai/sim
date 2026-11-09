@@ -1,5 +1,9 @@
+import {
+  HIDDEN_FROM_TOOLBAR_BLOCK_TYPES,
+  REGISTERED_BLOCK_NAMES,
+} from '@/lib/block-metadata/names.generated'
 import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
-import { getBlock } from '@/blocks/registry'
+import { resolveOverlayBlock } from '@/blocks/custom/overlay'
 
 /**
  * The universal workflow entry point. Every retired entry point resolves to it,
@@ -7,6 +11,20 @@ import { getBlock } from '@/blocks/registry'
  * are exempt.
  */
 const UNIVERSAL_ENTRY_POINT = 'start_trigger'
+
+const HIDDEN_FROM_TOOLBAR: ReadonlySet<string> = new Set(HIDDEN_FROM_TOOLBAR_BLOCK_TYPES)
+
+/**
+ * `getBlock(blockType)?.hideFromToolbar === true`, answered from the generated registry metadata
+ * so access decisions never load the block registry: a registered type by its own key, then its
+ * dash-to-underscore form, then the custom-block overlay, in `getBlock`'s order.
+ */
+function isHiddenFromToolbar(blockType: string): boolean {
+  for (const type of [blockType, blockType.replace(/-/g, '_')]) {
+    if (Object.hasOwn(REGISTERED_BLOCK_NAMES, type)) return HIDDEN_FROM_TOOLBAR.has(type)
+  }
+  return resolveOverlayBlock(blockType)?.hideFromToolbar === true
+}
 
 /**
  * Block types that bypass permission-group access control entirely.
@@ -37,8 +55,7 @@ const UNIVERSAL_ENTRY_POINT = 'start_trigger'
  */
 export function isBlockTypeAccessControlExempt(blockType: string): boolean {
   if (blockType === UNIVERSAL_ENTRY_POINT) return true
-  const block = getBlock(blockType)
-  if (block?.hideFromToolbar !== true) return false
+  if (!isHiddenFromToolbar(blockType)) return false
   const successor = resolveAccessControlBlockType(blockType)
   return successor === blockType || successor === UNIVERSAL_ENTRY_POINT
 }

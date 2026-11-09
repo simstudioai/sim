@@ -6,8 +6,8 @@ import type {
   IssueOutcome,
   IssueState,
   IssuesData,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
-import { useIssueDecisions } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
+} from '@/app/(product)/_components/workspace/workspace-session/model'
+import { useIssueDecisions } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import {
   type IssueDecision,
   IssueDetails,

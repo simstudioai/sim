@@ -1,44 +1,38 @@
 'use client'
 
-import { memo, useState } from 'react'
-import {
-  PREVIEW_LOADING_OVERLAY,
-  UnsupportedPreview,
-} from '@/components/file-viewer/preview-shared'
+import { useState } from 'react'
+import { UnsupportedPreview } from '@/components/file-viewer/preview-shared'
 import { ZoomablePreview } from '@/components/file-viewer/zoomable-preview'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useFileContentSource } from '@/hooks/use-file-content-source'
 
-export const ImagePreview = memo(function ImagePreview({ file }: { file: WorkspaceFileRecord }) {
+interface ImagePreviewProps {
+  file: WorkspaceFileRecord
+  onDownload?: () => void
+}
+
+/**
+ * An image at 25–400% zoom. `preview` lets the server substitute a renderable JPEG for a HEIC; a
+ * derivative it declined, or corrupt bytes, fall back to the download offer. A content write mints
+ * a new storage key, and the viewer keys this by it, so a replaced image starts over.
+ */
+export function ImagePreview({ file, onDownload }: ImagePreviewProps) {
   const source = useFileContentSource()
-  /** `v` busts the browser cache across content writes; `preview` lets the server
-   *  substitute a renderable JPEG for a HEIC. */
+  const [failed, setFailed] = useState(false)
   const serveUrl = source.buildUrl(file.key, {
     version: Number(new Date(file.updatedAt)) || file.size,
     preview: true,
   })
-
-  const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
-
-  /** A derivative the server declined to build, or corrupt bytes — show the download
-   *  fallback rather than a broken image. Content writes mint a new storage key, so
-   *  the parent's `key={file.key}` resets this. */
-  if (status === 'error') return <UnsupportedPreview name={file.name} />
-
+  if (failed) return <UnsupportedPreview name={file.name} onDownload={onDownload} />
   return (
-    <div className='relative flex min-h-0 flex-1 flex-col'>
-      <ZoomablePreview className='flex flex-1' contentClassName='size-full'>
-        <img
-          src={serveUrl}
-          alt={file.name}
-          className='max-h-full max-w-full select-none rounded-md object-contain'
-          draggable={false}
-          loading='eager'
-          onLoad={() => setStatus('loaded')}
-          onError={() => setStatus('error')}
-        />
-      </ZoomablePreview>
-      {status === 'loading' && PREVIEW_LOADING_OVERLAY}
-    </div>
+    <ZoomablePreview>
+      <img
+        src={serveUrl}
+        alt={file.name}
+        draggable={false}
+        loading='eager'
+        onError={() => setFailed(true)}
+      />
+    </ZoomablePreview>
   )
-})
+}

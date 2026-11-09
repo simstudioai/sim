@@ -40,7 +40,7 @@ When you `lazy(() => import(...))` a component to keep it out of a route's initi
 // ✓ Good — deep lazy import + no barrel edge left behind
 const DashboardEmbed = lazy(() =>
   import(
-    '@/app/(product)/workspace/[workspaceId]/_components/rich-markdown-editor/dashboard-embed'
+    '@/components/file-viewer/rich-markdown-editor/dashboard-embed'
   ).then((module) => ({ default: module.DashboardEmbed }))
 )
 // (and remove any `export { DashboardEmbed } from './dashboard-embed'` from a barrel)

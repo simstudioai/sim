@@ -1,7 +1,7 @@
 import type {
   IssueGroup,
   IssueState,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+} from '@/app/(product)/_components/workspace/workspace-session/model'
 
 export const ISSUE_GROUPS: readonly { id: IssueGroup; label: string; initiallyOpen: boolean }[] = [
   { id: 'review', label: 'Needs review', initiallyOpen: true },

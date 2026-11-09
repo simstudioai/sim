@@ -6,7 +6,7 @@ import { Input } from '@sim/emcn/field/inputs'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { StatusText } from '@sim/emcn/status'
-import { useMinuteClock } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/rename-dialog'
+import { useMinuteClock } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/versions/versions.module.css'
 import {
   type DeploymentVersion,

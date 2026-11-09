@@ -1,30 +1,19 @@
-import { describe, expect, it, type vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   isAccessControlAllowlistRow,
   isBlockTypeAccessControlExempt,
 } from '@/lib/permission-groups/block-access'
-import { getBlock } from '@/blocks/registry'
-
-const mockGetBlock = getBlock as unknown as ReturnType<typeof vi.fn>
-
-interface FakeBlock {
-  hideFromToolbar?: boolean
-  sunset?: { status: 'legacy' | 'deprecated'; replacedBy?: string }
-}
+import { registerBlockOverlayResolver } from '@/blocks/custom/overlay'
+import type { BlockConfig } from '@/blocks/types'
 
 /**
- * Only `hideFromToolbar` is read from here: the successor half of the decision
- * comes from the generated map, so every id used below is a real one whose real
- * successor the assertion depends on.
+ * Both halves of the decision come from the generated registry metadata (hidden types and
+ * successors), so every id below is a real one whose real config the assertion depends on.
  */
-function registry(blocks: Record<string, FakeBlock>) {
-  mockGetBlock.mockImplementation((type: string) => blocks[type])
-}
+afterEach(() => registerBlockOverlayResolver(null))
 
 describe('isBlockTypeAccessControlExempt', () => {
   it('exempts the universal entry point', () => {
-    registry({})
-
     expect(isBlockTypeAccessControlExempt('start_trigger')).toBe(true)
   })
 
@@ -33,11 +22,6 @@ describe('isBlockTypeAccessControlExempt', () => {
    * naming only the current version used to be satisfied by the retired one.
    */
   it('does not exempt a superseded block, which is judged as its successor', () => {
-    registry({
-      slack: { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'slack_v2' } },
-      slack_v2: {},
-    })
-
     expect(isBlockTypeAccessControlExempt('slack')).toBe(false)
   })
 
@@ -47,8 +31,6 @@ describe('isBlockTypeAccessControlExempt', () => {
    * not have rescued.
    */
   it('exempts a retired block with no successor', () => {
-    registry({ thinking: { hideFromToolbar: true } })
-
     expect(isBlockTypeAccessControlExempt('thinking')).toBe(true)
   })
 
@@ -58,17 +40,23 @@ describe('isBlockTypeAccessControlExempt', () => {
    * allowlist — breaking every saved workflow that still carries one.
    */
   it('exempts a retired entry point, whose successor is the universal one', () => {
-    registry({
-      starter: { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'start_trigger' } },
-      manual_trigger: {
-        hideFromToolbar: true,
-        sunset: { status: 'legacy', replacedBy: 'start_trigger' },
-      },
-      start_trigger: {},
-    })
-
     expect(isBlockTypeAccessControlExempt('starter')).toBe(true)
     expect(isBlockTypeAccessControlExempt('manual_trigger')).toBe(true)
+  })
+
+  /** A disabled custom block is hidden from the toolbar and has no successor, as `getBlock` reads it. */
+  it('exempts a disabled custom block from the overlay, and not an enabled one', () => {
+    const blocks: Record<string, Partial<BlockConfig>> = {
+      custom_off: { type: 'custom_off', hideFromToolbar: true },
+      custom_on: { type: 'custom_on', hideFromToolbar: false },
+    }
+    registerBlockOverlayResolver({
+      get: (type) => blocks[type] as BlockConfig | undefined,
+      all: () => [],
+    })
+
+    expect(isBlockTypeAccessControlExempt('custom_off')).toBe(true)
+    expect(isBlockTypeAccessControlExempt('custom_on')).toBe(false)
   })
 })
 
@@ -81,19 +69,12 @@ describe('isAccessControlAllowlistRow', () => {
    * the integration the admin had just denied.
    */
   it('is not a row for a superseded block, which has no row of its own', () => {
-    registry({
-      slack: { hideFromToolbar: true, sunset: { status: 'legacy', replacedBy: 'slack_v2' } },
-      slack_v2: {},
-    })
-
     expect(isAccessControlAllowlistRow('slack')).toBe(false)
     expect(isBlockTypeAccessControlExempt('slack')).toBe(false)
   })
 
   /** Exempt block types are decided by no row at all. */
   it('is not a row for an exempt block', () => {
-    registry({ thinking: { hideFromToolbar: true }, start_trigger: {} })
-
     expect(isAccessControlAllowlistRow('thinking')).toBe(false)
     expect(isAccessControlAllowlistRow('start_trigger')).toBe(false)
   })

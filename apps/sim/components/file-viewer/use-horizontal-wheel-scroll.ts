@@ -1,21 +1,13 @@
 'use client'
 
 import { useCallback, useRef } from 'react'
-import { bindPreviewHorizontalWheel } from '@sim/emcn-legacy'
+import { bindHorizontalWheel } from '@/components/file-viewer/preview-wheel'
 
-/**
- * Ref callback that gives a preview scroll container horizontal wheel scrolling.
- *
- * The tabular previews render a table wider than its frame, and a mouse whose wheel
- * reports only `deltaY` has no native way to reach the overflow short of dragging the
- * scrollbar. Binding is done through a ref callback rather than an effect so the
- * listener attaches with the node and detaches when React passes `null`.
- */
+/** A ref for a table frame wider than its viewport, so a mouse wheel with Shift reaches it. */
 export function useHorizontalWheelScroll() {
   const unbindRef = useRef<(() => void) | null>(null)
-
-  return useCallback((node: HTMLDivElement | null) => {
+  return useCallback((element: HTMLDivElement | null) => {
     unbindRef.current?.()
-    unbindRef.current = node ? bindPreviewHorizontalWheel(node) : null
+    unbindRef.current = element ? bindHorizontalWheel(element) : null
   }, [])
 }

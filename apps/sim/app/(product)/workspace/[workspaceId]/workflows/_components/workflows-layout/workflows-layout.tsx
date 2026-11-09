@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useEffect } from 'react'
-import { getCustomBlockTile } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/block-tile/custom-block-tile'
+import { getCustomBlockTile } from '@/app/(product)/_components/workspace/workflows/canvas/block-tile/custom-block-tile'
 import {
   buildCustomBlockConfig,
   hydrateClientCustomBlocks,

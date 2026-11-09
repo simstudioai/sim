@@ -7,7 +7,7 @@ import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { StatusText } from '@sim/emcn/status'
 import { formatDuration } from '@sim/utils/formatting'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { BlockTile } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/block-tile/block-tile'
+import { BlockTile } from '@/app/(product)/_components/workspace/workflows/canvas/block-tile/block-tile'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/terminal/log-list/log-list.module.css'
 import {
   type ConsoleEntry,

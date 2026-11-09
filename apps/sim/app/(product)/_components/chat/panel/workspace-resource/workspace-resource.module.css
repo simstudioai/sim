@@ -1,0 +1,23 @@
+.resource {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+/* A workflow's read-only canvas fills the tab. */
+.canvas {
+  display: flex;
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+.notice {
+  padding: var(--spacing-14);
+}
+.list {
+  display: grid;
+  gap: var(--ui-list-gap);
+  padding: var(--spacing-14);
+}

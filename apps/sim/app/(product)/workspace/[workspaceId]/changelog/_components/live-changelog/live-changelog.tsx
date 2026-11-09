@@ -1,6 +1,6 @@
 'use client'
 
-import { AccessBoundary } from '@/app/(product)/workspace/[workspaceId]/_components/access-required/access-boundary'
+import { AccessBoundary } from '@/app/(product)/_components/workspace/access-required/access-boundary'
 import { ChangelogFeed } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-feed/changelog-feed'
 import { useLiveChangelog } from '@/platform/lib/data/changelog'
 

@@ -10,21 +10,21 @@ import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
-import { ListEnd } from '@/app/(product)/workspace/[workspaceId]/_components/list-end/list-end'
+import { ListEnd } from '@/app/(product)/_components/workspace/list-end/list-end'
 import {
   useNewChatHref,
   WorkspaceEmpty,
   WorkspacePage,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
+} from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
 import type {
   IssueSummary,
   IssuesData,
   WorkspaceRead,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+} from '@/app/(product)/_components/workspace/workspace-session/model'
 import {
   useOpenGroups,
   useRevealedCount,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
+} from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import styles from '@/app/(product)/workspace/[workspaceId]/issues/_components/issue-list/issue-list.module.css'
 import {
   ISSUE_GROUPS,

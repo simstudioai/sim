@@ -8,8 +8,8 @@ import {
   formatTick,
   formatUnit,
   niceMaximum,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/format'
-import type { DashboardUnit } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+} from '@/app/(product)/_components/workspace/workspace-session/format'
+import type { DashboardUnit } from '@/app/(product)/_components/workspace/workspace-session/model'
 import styles from '@/app/(product)/workspace/[workspaceId]/dashboards/_components/grouped-bars/grouped-bars.module.css'
 
 interface GroupedBarsProps {

@@ -4,11 +4,13 @@ import {
   type InfiniteData,
   keepPreviousData,
   type QueryClient,
+  skipToken,
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type DashboardStatsResponse,
@@ -149,6 +151,17 @@ export async function fetchLogDetail(
     signal,
   })
   return data
+}
+
+/** One log row by its id; a 404 is an answer, so it is not retried. */
+export function useLogDetail(workspaceId: string, logId: string | undefined) {
+  return useQuery({
+    queryKey: logKeys.detail(workspaceId, logId),
+    queryFn: logId ? ({ signal }) => fetchLogDetail(logId, workspaceId, signal) : skipToken,
+    staleTime: LOG_DETAIL_STALE_TIME,
+    retry: (failureCount, error) =>
+      !(isApiClientError(error) && error.status === 404) && failureCount < 3,
+  })
 }
 
 interface UseLogsListOptions {

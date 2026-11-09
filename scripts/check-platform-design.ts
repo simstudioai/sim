@@ -69,7 +69,7 @@ const read = (file: string) => readFileSync(path.join(app, file), 'utf8')
  * tokens, declared once in `workflow-canvas/canvas-tokens.module.css`. Chrome around the canvas
  * (menus, panels, dialogs, the toolbar) lives outside this folder and keeps every rule.
  */
-const WORKFLOW_CANVAS = `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/canvas/`
+const WORKFLOW_CANVAS = `${PRODUCT_ROUTES}_components/workspace/workflows/canvas/`
 const WORKFLOW_CANVAS_RULES: ReadonlySet<string> = new Set([
   'consumer-style',
   'focus-style',
@@ -269,12 +269,18 @@ const serverSeamHelpers = new Set([
  */
 /**
  * Host modules the product shares with the rest of the app: one toast sink, one desktop tool
- * lifetime, and the app's path builders.
+ * lifetime, the app's path builders, and the file viewer with the markdown editor and dashboard
+ * panel it renders, which the public share page also renders. They draw only with shared EMCN.
  */
 const platformHostModules: ReadonlySet<string> = new Set([
   'lib/toast/sink',
   'hooks/mothership-chat/desktop-tool-lifetimes',
   'lib/navigation/paths',
+  'components/file-viewer/file-viewer',
+  'components/file-viewer/collaboration/file-doc-room',
+  'components/file-viewer/types',
+  'components/file-viewer/rich-markdown-editor/rich-markdown-field',
+  'components/dashboard-panel/dashboard-panel',
 ])
 const isServerOnly = (file: string) => /^import 'server-only'$/m.test(read(file))
 /** A seam module that runs only on the server, or a test, which no bundle includes. */
@@ -310,50 +316,8 @@ const seamHelpers = new Set([
   'lib/organizations/search-params',
   'lib/organizations/integrations-search-params',
   'components/find-bar/use-find-shortcut',
-  'components/file-viewer/csv-import',
-  'components/file-viewer/file-category',
-  'components/file-viewer/mermaid-theme',
-  'components/file-viewer/rich-markdown-editor/block-mover',
-  'components/file-viewer/rich-markdown-editor/code-block-schema',
-  'components/file-viewer/rich-markdown-editor/code-highlight',
-  'components/file-viewer/rich-markdown-editor/collaboration/caret-presence',
-  'components/file-viewer/rich-markdown-editor/collaboration/file-collaboration',
-  'components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider',
-  'components/file-viewer/rich-markdown-editor/collaboration/readiness',
-  'components/file-viewer/rich-markdown-editor/detect-language',
-  'components/file-viewer/rich-markdown-editor/extensions',
-  'components/file-viewer/rich-markdown-editor/find/find-extension',
-  'components/file-viewer/rich-markdown-editor/heading-anchors',
-  'components/file-viewer/rich-markdown-editor/image-drag-move',
-  'components/file-viewer/rich-markdown-editor/image-node',
-  'components/file-viewer/rich-markdown-editor/image-paste',
-  'components/file-viewer/rich-markdown-editor/image-schema',
-  'components/file-viewer/rich-markdown-editor/image-upload',
-  'components/file-viewer/rich-markdown-editor/image-target',
-  'components/file-viewer/rich-markdown-editor/keymap',
-  'components/file-viewer/rich-markdown-editor/markdown-fidelity',
-  'components/file-viewer/rich-markdown-editor/markdown-parse',
-  'components/file-viewer/rich-markdown-editor/markdown-paste',
-  'components/file-viewer/rich-markdown-editor/mention/mention',
-  'components/file-viewer/rich-markdown-editor/mention/mention-node',
-  'components/file-viewer/rich-markdown-editor/mention/mention-store',
-  'components/file-viewer/rich-markdown-editor/mention/types',
-  'components/file-viewer/rich-markdown-editor/menus/use-bubble-menu-floating',
-  'components/file-viewer/rich-markdown-editor/menus/use-editor-toolbar',
-  'components/file-viewer/rich-markdown-editor/menus/use-suggestion-keyboard',
-  'components/file-viewer/rich-markdown-editor/normalize-content',
   'components/file-viewer/rich-markdown-editor/paste-admission',
-  'components/file-viewer/rich-markdown-editor/raw-markdown-snippet-schema',
   'components/file-viewer/rich-markdown-editor/round-trip-safety',
-  'components/file-viewer/rich-markdown-editor/suggestion-plugin-keys',
-  'components/file-viewer/rich-markdown-editor/table',
-  'components/file-viewer/rich-markdown-editor/title-heading',
-  'components/file-viewer/rich-markdown-editor/use-editor-editable',
-  'components/file-viewer/text-editor-paste',
-  'components/file-viewer/use-doc-preview-binary',
-  'components/file-viewer/use-editable-file-content',
-  'components/file-viewer/use-selection-copy-bridge',
-  'components/file-viewer/xlsx-preview-data',
   'hooks/use-workspace-files-room',
   'components/file-viewer/search-params',
   'components/file-viewer/untitled-title',

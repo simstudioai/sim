@@ -15,10 +15,8 @@ export default async function Page({
   if (resolvePlatformMode() !== 'live') notFound()
   const [{ workspaceId, tableId }, { TableRoute }, { AccessBoundary }] = await Promise.all([
     params,
-    import(
-      '@/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/table-route/table-route'
-    ),
-    import('@/app/(product)/workspace/[workspaceId]/_components/access-required/access-boundary'),
+    import('@/app/(product)/_components/workspace/tables/table-route/table-route'),
+    import('@/app/(product)/_components/workspace/access-required/access-boundary'),
   ])
   return (
     <AccessBoundary workspaceId={workspaceId} gate='hideTablesTab' current='tables' layout='canvas'>

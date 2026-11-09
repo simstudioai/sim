@@ -10,10 +10,10 @@ import { DirectoryHeading } from '@/app/(product)/_components/resource-directory
 import {
   DetailSection,
   DetailSplit,
-} from '@/app/(product)/workspace/[workspaceId]/_components/detail-split/detail-split'
+} from '@/app/(product)/_components/workspace/detail-split/detail-split'
+import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
+import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import { WorkspaceChanges } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-changes/workspace-changes'
-import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
-import { useViewerTimeZone } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import styles from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-details/changelog-details.module.css'
 import { platformHref } from '@/platform/lib/navigation'
 import { formatTimestamp } from '@/platform/shared/time'

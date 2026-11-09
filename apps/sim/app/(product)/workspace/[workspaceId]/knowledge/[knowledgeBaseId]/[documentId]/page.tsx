@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { AccessBoundary } from '@/app/(product)/workspace/[workspaceId]/_components/access-required/access-boundary'
+import { AccessBoundary } from '@/app/(product)/_components/workspace/access-required/access-boundary'
 import { DocumentView } from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/document-view/document-view'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import type { ProductPageProps } from '@/platform/lib/route-props'

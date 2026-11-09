@@ -2,7 +2,7 @@
 
 import type { ComponentType, SVGProps } from 'react'
 import { Icon, type IconName } from '@sim/emcn/icon'
-import { BlockTile } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/block-tile/block-tile'
+import { BlockTile } from '@/app/(product)/_components/workspace/workflows/canvas/block-tile/block-tile'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/tool-input/tool-input.module.css'
 
 interface ToolMarkProps {

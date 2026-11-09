@@ -14,8 +14,8 @@ import {
 import { Icon } from '@sim/emcn/icon'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { StatusText } from '@sim/emcn/status'
-import { BlockTile } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/block-tile/block-tile'
-import { humanizeBlockName } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-block/humanize-block-name'
+import { BlockTile } from '@/app/(product)/_components/workspace/workflows/canvas/block-tile/block-tile'
+import { humanizeBlockName } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/humanize-block-name'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/compare-versions/compare-versions.module.css'
 import { FieldChangeRow } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/compare-versions/field-change-row'
 import {

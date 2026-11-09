@@ -378,6 +378,15 @@ export async function openUrlInNewBrowserTab(
   return state?.activeTabId ?? null
 }
 
+/** Moves a page in the desktop's tab list, which restore and the agent read back in that order. */
+export function reorderBrowserTab(
+  tabId: string,
+  targetIndex: number,
+  scopeId = currentBrowserScopeId()
+): void {
+  bridge()?.reorderTab?.(tabId, targetIndex, scopeId)
+}
+
 /** Mirrors Sim's raw light/dark/system preference into embedded pages. */
 export function reportBrowserTheme(theme: BrowserTheme): void {
   bridge()?.setTheme(theme)

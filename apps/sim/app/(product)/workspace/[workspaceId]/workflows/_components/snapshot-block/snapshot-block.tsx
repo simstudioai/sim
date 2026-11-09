@@ -14,16 +14,16 @@ import { Disclosure } from '@sim/emcn/disclosure'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
 import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
+import { FindBar } from '@sim/emcn/find-bar'
 import { type MenuAction, PointActionMenu } from '@sim/emcn/menu/action-menu'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { ReactFlowProvider } from '@xyflow/react'
-import { FindBar } from '@/app/(product)/_components/find-bar/find-bar'
 import {
   type MetadataField,
   MetadataFields,
-} from '@/app/(product)/workspace/[workspaceId]/_components/metadata-fields/metadata-fields'
-import { SpanInspector } from '@/app/(product)/workspace/[workspaceId]/_components/span-inspector/span-inspector'
-import { PreviewScope } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/preview-scope'
+} from '@/app/(product)/_components/workspace/metadata-fields/metadata-fields'
+import { SpanInspector } from '@/app/(product)/_components/workspace/span-inspector/span-inspector'
+import { PreviewScope } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-preview/preview-scope'
 import {
   SubBlock,
   type SubBlockValues,

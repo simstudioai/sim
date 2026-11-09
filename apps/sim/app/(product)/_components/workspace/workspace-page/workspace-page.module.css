@@ -1,0 +1,93 @@
+.page,
+.body {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: var(--ui-product-section-gap);
+}
+.page {
+  box-sizing: border-box;
+  min-block-size: 100%;
+  padding-block: var(--ui-page-heading-inset) var(--ui-page-inset-block);
+}
+.body {
+  flex: 1;
+}
+.toolbar {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-content-gap);
+}
+.empty {
+  display: grid;
+  flex: 1;
+  place-items: center;
+  min-block-size: var(--spacing-320);
+}
+.empty > * {
+  inline-size: min(100%, var(--container-440));
+}
+/* A bounded tab: the heading, tabs and controls hold their place and the content below scrolls itself. */
+.page[data-bounded] {
+  block-size: 100%;
+  min-block-size: 0;
+  padding-block-end: 0;
+}
+.fillContent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+/* A working surface keeps the column's heading and controls and takes the pane's full width below them. */
+.canvasPage {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+.canvasChrome {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: var(--ui-product-section-gap);
+  padding-block: var(--ui-page-heading-inset) var(--ui-product-section-gap);
+}
+.canvasContent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+/* A page shown in a chat panel tab: its controls above content bounded to the tab. */
+.embedded {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+  gap: var(--ui-content-gap);
+  padding-block-start: var(--ui-content-gap);
+}
+.embeddedControls {
+  min-inline-size: 0;
+  padding-inline: var(--spacing-14);
+}
+.embeddedContent {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+.embeddedScroll {
+  overflow: auto;
+  padding-inline: var(--spacing-14);
+  gap: var(--ui-product-section-gap);
+}
+.embeddedInset {
+  padding-inline: var(--spacing-14);
+}

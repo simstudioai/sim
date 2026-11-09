@@ -14,7 +14,7 @@ import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
-import { AccessRequired } from '@/app/(product)/workspace/[workspaceId]/_components/access-required/access-required'
+import { AccessRequired } from '@/app/(product)/_components/workspace/access-required/access-required'
 import {
   descendantIndex,
   folderLocation,
@@ -30,7 +30,7 @@ import {
   selectionName,
   sortEntries,
   splitRowIds,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/folder-tree'
+} from '@/app/(product)/_components/workspace/resource-table/folder-tree'
 import {
   filterActions,
   filterSummary,
@@ -39,27 +39,27 @@ import {
   type ListPreference,
   noResults,
   sortActions,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/list-menus'
+} from '@/app/(product)/_components/workspace/resource-table/list-menus'
 import {
   RenameDialog,
   useMinuteClock,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/rename-dialog'
+} from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import {
   OwnerCell,
   type ResourceColumn,
   type ResourceRow,
   ResourceTable,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/resource-table'
+} from '@/app/(product)/_components/workspace/resource-table/resource-table'
 import {
   type RowMove,
   useResourceDrag,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/use-resource-drag'
-import { useResourceSelection } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/use-resource-selection'
+} from '@/app/(product)/_components/workspace/resource-table/use-resource-drag'
+import { useResourceSelection } from '@/app/(product)/_components/workspace/resource-table/use-resource-selection'
 import {
   LiveWorkspacePage,
   WorkspaceEmpty,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
-import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+} from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
+import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
 import {
   type ResourceFolder,
   SEARCH_DEBOUNCE_MS,

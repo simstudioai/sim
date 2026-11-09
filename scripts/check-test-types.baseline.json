@@ -581,9 +581,6 @@
   "apps/sim/components/file-viewer/rich-markdown-editor/dirty-on-open.test.ts": {
     "TS2578": 2
   },
-  "apps/sim/components/file-viewer/rich-markdown-editor/image-resize.test.tsx": {
-    "TS2345": 1
-  },
   "apps/sim/components/file-viewer/rich-markdown-editor/keymap.test.ts": {
     "TS2345": 1
   },

@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
-import { BlockTile } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/block-tile/block-tile'
+import { BlockTile } from '@/app/(product)/_components/workspace/workflows/canvas/block-tile/block-tile'
 import { useWorkflowOutputOptions } from '@/platform/lib/data/workflow-editor/selectors'
 
 interface OutputPickerProps {

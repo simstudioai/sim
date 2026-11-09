@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { FileView } from '@/app/(product)/workspace/[workspaceId]/files/[fileId]/_components/file-view/file-view'
+import { FileView } from '@/app/(product)/_components/workspace/files/file-view/file-view'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import type { ProductPageProps } from '@/platform/lib/route-props'
 

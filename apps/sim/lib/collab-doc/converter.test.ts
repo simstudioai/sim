@@ -115,7 +115,6 @@ describe('collab-doc converter', () => {
       const editor = new Editor({
         extensions: createMarkdownEditorExtensions({
           placeholder: '',
-          embeds: true,
           collaboration: {
             doc,
             awareness,

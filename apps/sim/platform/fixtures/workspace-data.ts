@@ -13,7 +13,7 @@ import type {
   IssueSummary,
   StatusText,
   WorkspaceSummary,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+} from '@/app/(product)/_components/workspace/workspace-session/model'
 import type { Scenario } from '@/platform/fixtures'
 import { FIXTURE_NOW } from '@/platform/fixtures/clock'
 import nina from '@/platform/fixtures/media/attendee-1.jpg'

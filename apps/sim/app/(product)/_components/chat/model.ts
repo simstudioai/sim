@@ -167,8 +167,10 @@ export interface PlatformResource {
   type: string
   title: string
   workspaceId?: string
-  /** A legacy URL for a kind the Platform does not render in the panel. */
+  /** Where the resource opens in its workspace, or beside the organization's Home. */
   href?: string
+  /** A log addressed by its run before the log row's id is known. */
+  executionId?: string
   active?: boolean
   /** The retrieval a Search tab holds; runs under the current reader's permissions. */
   search?: SearchResource

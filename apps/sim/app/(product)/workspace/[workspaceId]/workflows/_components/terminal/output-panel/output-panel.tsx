@@ -14,8 +14,8 @@ import {
 import { IconButton } from '@sim/emcn/button'
 import { ControlRow } from '@sim/emcn/button/control-row'
 import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
+import { FindBar } from '@sim/emcn/find-bar'
 import { ActionMenu, type MenuAction, PointActionMenu } from '@sim/emcn/menu/action-menu'
-import { FindBar } from '@/app/(product)/_components/find-bar/find-bar'
 import { ResizeHandle } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/resize-handle/resize-handle'
 import { AgentThinking } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/terminal/agent-thinking/agent-thinking'
 import {
