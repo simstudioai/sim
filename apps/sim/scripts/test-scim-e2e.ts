@@ -9,6 +9,7 @@ import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
+import { organizationRoutes } from '@/lib/navigation/paths'
 
 /**
  * Exercises a running local app and a disposable local PostgreSQL database.
@@ -422,7 +423,7 @@ async function run() {
             .addCookies([
               { name: 'better-auth.session_token', value: primary.cookie, url: baseUrl.origin },
             ])
-          await page.goto(new URL(`/o/${primary.orgId}/people`, baseUrl).href, {
+          await page.goto(new URL(organizationRoutes(primary.orgId).people, baseUrl).href, {
             waitUntil: 'domcontentloaded',
             timeout: 180_000,
           })
@@ -544,10 +545,11 @@ async function run() {
           await page.route(statusUrl, (route) =>
             route.fulfill({ status: 503, json: { error: 'Unavailable' } })
           )
-          await page.goto(
-            new URL(`/o/${primary.orgId}/people?focus=${aliceMemberId}`, baseUrl).href
-          )
-          const openSync = page.getByRole('button', { name: 'Directory sync', exact: true })
+          const focused = new URL(organizationRoutes(primary.orgId).people, baseUrl)
+          focused.searchParams.set('focus', aliceMemberId)
+          await page.goto(focused.href)
+          // A chart with no reporting lines repeats the header's action in its empty state.
+          const openSync = page.getByRole('button', { name: 'Directory sync', exact: true }).first()
           await openSync.click()
           await page.getByRole('heading', { name: 'Directory sync', level: 1 }).waitFor()
           await page.getByRole('button', { name: 'Retry', exact: true }).waitFor()

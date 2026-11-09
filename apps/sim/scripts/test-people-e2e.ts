@@ -9,6 +9,7 @@ import { generateId, generateShortId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
+import { organizationRoutes } from '@/lib/navigation/paths'
 
 /**
  * Exercises the People page's API over real HTTP against a running local app (with
@@ -95,6 +96,13 @@ async function person(member: Member, memberId: string) {
     chain: { memberId: string }[]
     reports: { memberId: string }[]
   }
+}
+
+/** The People page of `orgId` on the local app, with its view state in the query. */
+function peopleUrl(orgId: string, query: Record<string, string> = {}): string {
+  const url = new URL(organizationRoutes(orgId).people, baseUrl)
+  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, value)
+  return url.href
 }
 
 async function profileRow(memberId: string) {
@@ -561,8 +569,8 @@ async function run() {
           .addCookies([
             { name: 'better-auth.session_token', value: lead.cookie, url: baseUrl.origin },
           ])
-        const path = `/o/${teamOrg}/people`
-        await page.goto(new URL(path, baseUrl).href, {
+        const path = organizationRoutes(teamOrg).people
+        await page.goto(peopleUrl(teamOrg), {
           waitUntil: 'domcontentloaded',
           timeout: 180_000,
         })
@@ -731,14 +739,14 @@ async function run() {
             )
         )
         await expect(page.getByRole('button', { name: 'Explore Lena Ali' })).toBeVisible()
-        await page.goto(new URL(`${path}?search=Amara`, baseUrl).href)
+        await page.goto(peopleUrl(teamOrg, { search: 'Amara' }))
         await directorySearch.fill('')
         await page.waitForURL(
           (url) => url.searchParams.get('view') === 'directory' && !url.searchParams.get('search')
         )
         await expect(viewTab('Directory')).toHaveAttribute('aria-current', 'page')
         await viewTab('Org chart').click()
-        await page.goto(new URL(`${path}?focus=${unlinked.memberId}`, baseUrl).href)
+        await page.goto(peopleUrl(teamOrg, { focus: unlinked.memberId }))
         await page.getByText('No reporting lines for Rae Dunn').waitFor()
         await page.getByRole('button', { name: 'Explore a team' }).click()
         await expect(focused('Maya Chen')).toBeVisible()
@@ -750,7 +758,7 @@ async function run() {
           .addCookies([
             { name: 'better-auth.session_token', value: outsider.cookie, url: baseUrl.origin },
           ])
-        await empty.goto(new URL(`/o/${outsider.orgId}/people`, baseUrl).href)
+        await empty.goto(peopleUrl(outsider.orgId))
         await empty.getByText('Bring your organization into view', { exact: true }).waitFor()
         await empty.screenshot({ path: join(screenshotDir, 'empty-chart.png') })
         await empty.getByRole('button', { name: 'Connect Okta', exact: true }).waitFor()
@@ -777,7 +785,7 @@ async function run() {
           .addCookies([
             { name: 'better-auth.session_token', value: lead.cookie, url: baseUrl.origin },
           ])
-        await mobile.goto(new URL(`${path}?view=directory`, baseUrl).href, {
+        await mobile.goto(peopleUrl(teamOrg, { view: 'directory' }), {
           waitUntil: 'domcontentloaded',
         })
         // A report's row also holds this name, in its manager cell, which a phone keeps hidden.
@@ -785,7 +793,7 @@ async function run() {
           .getByRole('row')
           .filter({ has: mobile.getByRole('link', { name: /^Amara Cole/ }) })
         await expect(mobileRow.getByText(/^Reports to /)).toBeVisible({ timeout: 120_000 })
-        await mobile.goto(new URL(path, baseUrl).href, { waitUntil: 'domcontentloaded' })
+        await mobile.goto(peopleUrl(teamOrg), { waitUntil: 'domcontentloaded' })
         await mobile
           .getByRole('link', { name: 'View profile for Maya Chen' })
           .waitFor({ timeout: 120_000 })
@@ -847,7 +855,7 @@ async function run() {
         await page.route(/\/people\?.*scope=roots/, (route) =>
           route.fulfill({ json: { people: [], nextCursor: null, selectedDepartment: null } })
         )
-        await page.goto(new URL(`/o/${teamOrg}/people`, baseUrl).href)
+        await page.goto(peopleUrl(teamOrg))
         await page.getByLabel('Browse top-level teams').click()
         await expect(page.getByText('No top-level teams with reporting lines yet')).toBeVisible()
         await page.keyboard.press('Escape')
@@ -872,7 +880,7 @@ async function run() {
         preview.release()
         await expect(sheet.getByText('Import refused')).toBeVisible()
 
-        await page.goto(new URL(`/o/${teamOrg}/people?panel=sync`, baseUrl).href)
+        await page.goto(peopleUrl(teamOrg, { panel: 'sync' }))
         await page.getByRole('button', { name: 'Disconnect Okta', exact: true }).click()
         const confirming = page.getByRole('dialog', { name: 'Disconnect directory' })
         const disconnect = held()
@@ -880,8 +888,12 @@ async function run() {
           if (route.request().method() === 'DELETE') await disconnect.gate
           await route.continue()
         })
-        await confirming.getByRole('button', { name: 'Disconnect', exact: true }).click()
-        await expect(confirming.getByRole('button', { name: 'Disconnecting…' })).toBeVisible()
+        const confirm = confirming.getByRole('button', { name: 'Disconnect', exact: true })
+        await confirm.click()
+        await expect(confirming.locator('[aria-busy="true"]')).toBeAttached()
+        await expect(confirm).toBeDisabled()
+        await page.keyboard.press('Escape')
+        await expect(confirming).toBeVisible()
         disconnect.release()
         await expect(confirming).toHaveCount(0)
       } finally {
@@ -914,7 +926,7 @@ async function run() {
             )
           })
           await page.clock.install()
-          await page.goto(new URL(`/o/${teamOrg}/people?panel=sync`, baseUrl).href)
+          await page.goto(peopleUrl(teamOrg, { panel: 'sync' }))
           await page.getByRole('button', { name: 'Update connection' }).click()
           const token = page
             .getByRole('dialog', { name: 'Update Okta credentials' })
