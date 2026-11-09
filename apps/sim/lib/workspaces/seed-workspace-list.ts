@@ -3,8 +3,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import type { QueryClient } from '@tanstack/react-query'
 import { listWorkspacesContract } from '@/lib/api/contracts/workspaces'
 import { listWorkspacesForViewer } from '@/lib/workspaces/list'
+import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
 import { normalizeWorkspacesResponse } from '@/hooks/queries/utils/workspace-list-query'
-import { workspaceKeys } from '@/hooks/queries/workspace'
 
 const logger = createLogger('WorkspaceListPrefetch')
 

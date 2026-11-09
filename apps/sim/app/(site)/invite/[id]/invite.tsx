@@ -23,7 +23,7 @@ import { useInvitationDetails } from '@/hooks/queries/invitations'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { refreshSessionQuery } from '@/hooks/queries/session'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
-import { workspaceKeys } from '@/hooks/queries/workspace'
+import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
 import { clearUserData } from '@/stores'
 
 const logger = createLogger('InviteById')

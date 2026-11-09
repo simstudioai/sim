@@ -32,7 +32,7 @@ import { backgroundWorkKeys } from '@/ee/workspace-forking/hooks/background-work
 import { deploymentKeys } from '@/hooks/queries/utils/deployment-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
-import { workspaceKeys } from '@/hooks/queries/workspace'
+import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 
 export type ForkDirection = 'push' | 'pull'

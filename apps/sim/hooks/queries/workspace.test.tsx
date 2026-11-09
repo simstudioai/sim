@@ -20,12 +20,9 @@ import {
   deletePinnedItemContract,
   recordWorkspaceVisitContract,
 } from '@/lib/api/contracts'
-import {
-  useRecordWorkspaceVisit,
-  useToggleWorkspacePin,
-  useWorkspacePermissionsQuery,
-  workspaceKeys,
-} from '@/hooks/queries/workspace'
+import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
+import { useToggleWorkspacePin, useWorkspacePermissionsQuery } from '@/hooks/queries/workspace'
+import { useRecordWorkspaceVisit } from '@/hooks/queries/workspace-visit'
 
 const mockRequestJson = apiClientRequestMockFns.mockRequestJson
 

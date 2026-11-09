@@ -161,11 +161,11 @@
       }
     },
     "app/(product)/o/[organizationId]/search/chat/[id]/page.tsx": {
-      "modules": 3318,
+      "modules": 3390,
       "gateways": {
-        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route.tsx": 3316,
+        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route.tsx": 3387,
         "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface.tsx": 1330,
-        "apps/sim/app/(product)/_components/chat/live/live-chat.tsx": 1133,
+        "apps/sim/app/(product)/_components/chat/live/live-chat.tsx": 1187,
         "apps/sim/app/(product)/_components/chat/panel/resource-panels.tsx": 810,
         "apps/sim/app/(product)/_components/chat/panel/workspace-resource/workspace-resource.tsx": 794,
         "apps/sim/triggers/registry.ts": 555,
@@ -174,11 +174,11 @@
       }
     },
     "app/(product)/o/[organizationId]/search/page.tsx": {
-      "modules": 3318,
+      "modules": 3390,
       "gateways": {
-        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route.tsx": 3316,
+        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route.tsx": 3387,
         "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface.tsx": 1330,
-        "apps/sim/app/(product)/_components/chat/live/live-chat.tsx": 1133,
+        "apps/sim/app/(product)/_components/chat/live/live-chat.tsx": 1187,
         "apps/sim/app/(product)/_components/chat/panel/resource-panels.tsx": 810,
         "apps/sim/app/(product)/_components/chat/panel/workspace-resource/workspace-resource.tsx": 794,
         "apps/sim/triggers/registry.ts": 555,

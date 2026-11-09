@@ -11,7 +11,7 @@ import {
 } from '@/lib/api/contracts'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { type ApiKeyScope, apiKeysKeys, apiKeysQueryOptions } from '@/hooks/queries/api-key-list'
-import { workspaceKeys } from '@/hooks/queries/workspace'
+import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
 import { workspaceHostKeys } from '@/hooks/queries/workspace-host'
 
 export type { CreatedApiKey }

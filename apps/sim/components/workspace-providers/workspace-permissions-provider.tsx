@@ -7,11 +7,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useSocket } from '@/components/workspace-providers/socket-provider'
 import { toast } from '@/lib/toast/sink'
-import {
-  useWorkspacePermissionsQuery,
-  type WorkspacePermissions,
-  workspaceKeys,
-} from '@/hooks/queries/workspace'
+import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
+import { useWorkspacePermissionsQuery, type WorkspacePermissions } from '@/hooks/queries/workspace'
 import { useStableFlag } from '@/hooks/use-stable-flag'
 import { useUserPermissions, type WorkspaceUserPermissions } from '@/hooks/use-user-permissions'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'

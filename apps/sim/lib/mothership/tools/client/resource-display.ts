@@ -22,7 +22,7 @@ import {
   isWorkspaceFileRecordKey,
 } from '@/hooks/queries/utils/workspace-file-cache'
 import { workspaceFilesKeys } from '@/hooks/queries/utils/workspace-file-keys'
-import { workspaceKeys } from '@/hooks/queries/workspace'
+import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
 import { workspaceFileFolderKeys } from '@/hooks/queries/workspace-file-folders'
 
 export interface ToolResourceContext {

@@ -31,7 +31,7 @@ import { organizationKeys } from '@/hooks/queries/organization'
 import { refreshSessionQuery } from '@/hooks/queries/session'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
-import { workspaceKeys } from '@/hooks/queries/workspace'
+import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
 
 const invitationKeys = {
   all: ['invitations'] as const,

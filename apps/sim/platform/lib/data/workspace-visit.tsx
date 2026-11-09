@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useSession } from '@/lib/auth/client'
-import { useRecordWorkspaceVisit } from '@/hooks/queries/workspace'
+import { useRecordWorkspaceVisit } from '@/hooks/queries/workspace-visit'
 
 /**
  * Records the viewer's visit each time a live workspace opens, as the legacy workspace layout did,

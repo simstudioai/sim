@@ -34,7 +34,7 @@ import {
 } from '@/hooks/queries/utils/organization-keys'
 import { organizationUsageKeys } from '@/hooks/queries/utils/organization-usage-keys'
 import { subscriptionKeys } from '@/hooks/queries/utils/subscription-keys'
-import { workspaceKeys } from '@/hooks/queries/workspace'
+import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
 
 const invitationListsKey = ['invitations', 'list'] as const
 

@@ -1012,8 +1012,12 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
     !sharedNamesDesignSystemType
   )
     report('shared-import', file, `platform/shared may only import itself: ${specifier}`)
+  // The e2e scripts share the Platform checks' browser helpers; neither ships to users.
+  const scriptTakesCheckHelper =
+    file.startsWith('scripts/') && target !== null && target.startsWith(`${platform}checks/`)
   if (
     (target &&
+      !scriptTakesCheckHelper &&
       (((target === 'platform' || inPlatformTree(target)) && !inPlatform) ||
         (inPlatform &&
           !inPlatformTree(target) &&
@@ -1028,6 +1032,11 @@ function checkImport(file: string, specifier: string, dynamic = false, typesOnly
       !(workflowSeam.test(file) && workflowSeamPackages.test(specifier)) &&
       // Tests take the repo's shared mocks, which never ship.
       !(/\.test\.tsx?$/.test(file) && /^@sim\/testing(?:\/|$)/.test(specifier)) &&
+      // The browser checks seed their own rows through the test database helpers.
+      !(
+        file.startsWith(`${platform}checks/`) &&
+        /^@sim\/(?:testing|db\/testing)(?:\/|$)/.test(specifier)
+      ) &&
       !(
         file === `${PRODUCT_ROUTES}_components/desktop/desktop-host.tsx` &&
         specifier === '@sim/desktop-bridge'
