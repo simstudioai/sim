@@ -62,7 +62,6 @@ function ActionCard({ action, edits, error, disabled, saving, onEdit, onDecide }
             variant='muted'
             size='compact'
             disabled={disabled}
-            aria-label={`${editing ? 'Finish editing' : 'Edit'} ${action.title}`}
             onClick={() => setEditing((value) => !value)}
           >
             {editing ? 'Done' : 'Edit'}
@@ -117,18 +116,11 @@ function ActionCard({ action, edits, error, disabled, saving, onEdit, onDecide }
           variant='primary'
           size='compact'
           disabled={disabled || inactive || !action.account}
-          aria-label={`Allow ${action.title}`}
           onClick={() => onDecide('allow')}
         >
           {saving === 'allow' ? 'Saving…' : 'Allow'}
         </Button>
-        <Button
-          variant='muted'
-          size='compact'
-          disabled={disabled}
-          aria-label={`Cancel ${action.title}`}
-          onClick={() => onDecide('skip')}
-        >
+        <Button variant='muted' size='compact' disabled={disabled} onClick={() => onDecide('skip')}>
           {saving === 'skip' ? 'Saving…' : 'Cancel'}
         </Button>
       </div>
