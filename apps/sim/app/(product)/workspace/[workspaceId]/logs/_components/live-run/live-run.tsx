@@ -9,6 +9,7 @@ import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { DetailSplit } from '@/app/(product)/workspace/[workspaceId]/_components/detail-split/detail-split'
+import { useRevealOnReturn } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import { RunDetails } from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-details/run-details'
 import { useLiveRun, useRunCommands, useRunNeighbors } from '@/platform/lib/data/logs'
 import { platformHref } from '@/platform/lib/navigation'
@@ -31,14 +32,17 @@ function ownsArrowKeys(target: EventTarget | null) {
 /**
  * Legacy's run-to-run keys: with a run open, ArrowUp and ArrowDown (without Cmd or Ctrl) open the
  * previous or next run in the list's order, replacing the URL, and stepping past the last run read
- * so far reads the next page first. Previous and Next buttons beside the run do the same.
+ * so far reads the next page first. Previous and Next buttons beside the run do the same. Returning
+ * to the list scrolls it to the run stepped to.
  */
 function useRunSteps(workspaceId: string, executionId: string) {
   const router = useRouter()
   const search = useSearchParams()
   const [view] = useQueryStates(runListParams)
   const neighbors = useRunNeighbors(workspaceId, executionId, view)
-  const open = (id: string) =>
+  const revealOnReturn = useRevealOnReturn()
+  const open = (id: string) => {
+    revealOnReturn(id)
     router.replace(
       withRunListView(
         platformHref(workspacePath(workspaceId, `logs/${encodeURIComponent(id)}`), search),
@@ -46,6 +50,7 @@ function useRunSteps(workspaceId: string, executionId: string) {
       ),
       { scroll: false }
     )
+  }
   const canPrevious = neighbors.previous !== undefined
   const canNext = neighbors.next !== undefined || (neighbors.hasMore && !neighbors.loadingMore)
   const previous = () => {
