@@ -26,6 +26,8 @@
         "trigger.config.ts",
         // Playwright discovers the Platform browser checks.
         "platform/checks/**/*.spec.ts",
+        // The desktop check's config names its global setup by path.
+        "platform/checks/desktop/warm-routes.ts",
         // Started by .github/scripts/http-e2e.sh as the live suite's scripted worker.
         "platform/checks/live/support/scripted-agent.ts",
         "background/**/*.ts",

@@ -17,6 +17,7 @@ export default defineConfig({
   timeout: 120_000,
   reporter: [['list'], ['json', { outputFile: report }]],
   outputDir: path.join(path.dirname(report), 'artifacts'),
+  globalSetup: path.join(__dirname, 'warm-routes.ts'),
   webServer: process.env.PLATFORM_E2E_ORIGIN
     ? undefined
     : {
