@@ -157,9 +157,11 @@ function findRouteReach(): Finding[] {
 async function loadAppPostcssPlugins(): Promise<AcceptedPlugin[]> {
   const require = createRequire(path.join(APP, 'package.json'))
   const { default: config } = await import(path.join(APP, 'postcss.config.mjs'))
-  return Object.entries(config.plugins as Record<string, object>).map(([name, options]) =>
-    require(name)(options)
-  )
+  // As Next loads them: a plugin with no options is used as exported, an object or a creator.
+  return Object.entries(config.plugins as Record<string, object>).map(([name, options]) => {
+    const plugin = require(name)
+    return Object.keys(options).length === 0 ? plugin : plugin(options)
+  })
 }
 
 if (import.meta.main) {

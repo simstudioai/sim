@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
@@ -6,10 +6,6 @@ import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
 /** Failure mode: a stray env serves example data, with no login, from a production build. */
 describe('resolvePlatformMode', () => {
-  afterEach(() => {
-    vi.unstubAllEnvs()
-  })
-
   it('never serves fixtures from a production build', () => {
     vi.stubEnv('NODE_ENV', 'production')
     vi.stubEnv('SIM_PLATFORM_FIXTURES', '1')

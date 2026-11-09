@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation'
-import { organizationRoutes } from '@/lib/navigation/paths'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 
 /** An organization's bare URL opens the first page the viewer has there. */
 export default async function Page({ params }: { params: Promise<{ organizationId: string }> }) {
   const { organizationId } = await params
-  if (resolvePlatformMode() !== 'live') redirect(organizationRoutes(organizationId).home)
+  if (resolvePlatformMode() !== 'live')
+    redirect(surfaceHref({ routePrefix: `/o/${organizationId}` }, '/home'))
   const [{ readOrganizationSurface }, { organizationLandingPath }] = await Promise.all([
     import('@/platform/lib/data/surface'),
     import('@/platform/lib/data/landing'),
