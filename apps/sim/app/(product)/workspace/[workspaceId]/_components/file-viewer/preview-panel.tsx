@@ -6,10 +6,10 @@ import { DataTable } from '@/app/(product)/workspace/[workspaceId]/_components/f
 import { MermaidDiagram } from '@/app/(product)/workspace/[workspaceId]/_components/file-preview/mermaid-diagram'
 import { useResolvedTheme } from '@/app/(product)/workspace/[workspaceId]/_components/file-preview/use-resolved-theme'
 import { ZoomablePreview } from '@/app/(product)/workspace/[workspaceId]/_components/file-preview/zoomable-preview'
-import { ChartPreview } from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/chart-preview'
-import styles from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/preview-panel.module.css'
-import { resolvePreviewType } from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/preview-type'
-import { useHorizontalWheelScroll } from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/use-horizontal-wheel-scroll'
+import { ChartPreview } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/chart-preview'
+import styles from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/preview-panel.module.css'
+import { resolvePreviewType } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/preview-type'
+import { useHorizontalWheelScroll } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/use-horizontal-wheel-scroll'
 import { CSV_PREVIEW_MAX_ROWS, useWorkspaceFileBinary } from '@/platform/lib/data/files'
 import {
   compileSimPage,

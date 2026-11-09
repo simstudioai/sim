@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Icon } from '@sim/emcn/icon'
-import styles from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/media-preview.module.css'
+import styles from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/media-preview.module.css'
 import {
   PreviewError,
   resolvePreviewError,
   UnsupportedPreview,
-} from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/preview-shared'
+} from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/preview-shared'
 import {
   resolveMediaMimeType,
   useFileContentSource,

@@ -8,6 +8,7 @@ export type {
   WorkflowTestRecord,
 } from '@/lib/api/contracts/workflow-tests'
 export {
+  useRefreshWorkflowTest,
   useRunWorkflowTests,
   useWorkflowTest,
   useWorkflowTestRun,

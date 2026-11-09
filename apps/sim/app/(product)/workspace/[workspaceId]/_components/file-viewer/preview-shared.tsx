@@ -3,7 +3,7 @@
 import { Component, type ReactNode } from 'react'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
-import styles from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/preview-shared.module.css'
+import styles from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/preview-shared.module.css'
 
 function fileExtension(name: string): string {
   const dot = name.lastIndexOf('.')

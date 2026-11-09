@@ -4,11 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { toError } from '@sim/utils/errors'
 import { PreviewToolbar } from '@/app/(product)/workspace/[workspaceId]/_components/file-preview/preview-toolbar'
 import { bindWheelZoom } from '@/app/(product)/workspace/[workspaceId]/_components/file-preview/preview-wheel'
-import styles from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/pptx-preview.module.css'
+import styles from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/pptx-preview.module.css'
 import {
   PreviewError,
   resolvePreviewError,
-} from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/preview-shared'
+} from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/preview-shared'
 import { useDocPreviewBinary, type WorkspaceFileRecord } from '@/platform/lib/data/files'
 import { openSimPptxViewer, type SimPptxViewerHandle } from '@/platform/lib/data/files/pptx'
 

@@ -19,18 +19,18 @@ import type { editor as MonacoEditorTypes } from 'monaco-editor'
 import dynamic from 'next/dynamic'
 import { toast } from '@/lib/toast/sink'
 import { useResolvedTheme } from '@/app/(product)/workspace/[workspaceId]/_components/file-preview/use-resolved-theme'
-import { FileSaveConflict } from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/file-save-conflict'
+import { FileSaveConflict } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/file-save-conflict'
 import {
   defineSurfaceTheme,
   surfaceMonoFont,
-} from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/monaco-theme'
-import { PreviewError } from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/preview-shared'
-import { resolvePreviewType } from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/preview-type'
-import styles from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/text-editor.module.css'
+} from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/monaco-theme'
+import { PreviewError } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/preview-shared'
+import { resolvePreviewType } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/preview-type'
+import styles from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/text-editor.module.css'
 import type {
   FileEditingProps,
   PreviewMode,
-} from '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/types'
+} from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/types'
 import {
   assessTextEditorPaste,
   buildFileSelectionLabel,
@@ -48,9 +48,9 @@ import { isSimPageSource } from '@/platform/lib/data/files/preview'
 
 const PreviewPanel = dynamic(
   () =>
-    import(
-      '@/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/preview-panel'
-    ).then((module) => module.PreviewPanel),
+    import('@/app/(product)/workspace/[workspaceId]/_components/file-viewer/preview-panel').then(
+      (module) => module.PreviewPanel
+    ),
   { ssr: false }
 )
 
@@ -212,6 +212,8 @@ function resolveMonacoLanguage(file: { type: string; name: string }): string {
 
 interface TextEditorProps extends FileEditingProps {
   previewMode: PreviewMode
+  /** Receives why a save was refused. */
+  onSaveError?: (error: unknown) => void
 }
 
 /**
@@ -227,6 +229,7 @@ export function TextEditor({
   autoFocus,
   onDirtyChange,
   onSaveStatusChange,
+  onSaveError,
   saveRef,
   downloadSourceRef,
   discardRef,
@@ -262,6 +265,7 @@ export function TextEditor({
     canEdit,
     onDirtyChange,
     onSaveStatusChange,
+    onSaveError,
     saveRef,
     discardRef,
   })

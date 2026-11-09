@@ -285,13 +285,13 @@
       "modules": 567,
       "gateways": {
         "apps/sim/app/(product)/workspace/[workspaceId]/files/[fileId]/_components/file-view/file-view.tsx": 565,
-        "apps/sim/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/file-viewer.tsx": 284,
-        "apps/sim/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 157,
+        "apps/sim/app/(product)/workspace/[workspaceId]/_components/file-viewer/file-viewer.tsx": 284,
+        "apps/sim/app/(product)/workspace/[workspaceId]/_components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 157,
         "apps/sim/platform/lib/data/files/markdown/index.ts": 91,
         "apps/sim/hooks/queries/kb/knowledge.ts": 61,
         "apps/sim/lib/api/contracts/index.ts": 54,
         "apps/sim/hooks/queries/kb/connectors.ts": 43,
-        "apps/sim/app/(product)/workspace/[workspaceId]/files/_components/file-viewer/pptx-preview.tsx": 41
+        "apps/sim/app/(product)/workspace/[workspaceId]/_components/file-viewer/pptx-preview.tsx": 41
       }
     },
     "app/(product)/workspace/[workspaceId]/files/page.tsx": {
@@ -477,16 +477,16 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/tests/[name]/page.tsx": {
-      "modules": 2005,
+      "modules": 2339,
       "gateways": {
-        "apps/sim/platform/lib/data/workspace-tab-flags.ts": 1850,
-        "apps/sim/platform/lib/data/server-read.ts": 1356,
-        "apps/sim/lib/auth/index.ts": 1354,
-        "apps/sim/blocks/registry.ts": 947,
-        "apps/sim/blocks/registry-maps.ts": 943,
+        "apps/sim/platform/lib/data/workspace-tab-flags.ts": 1802,
+        "apps/sim/platform/lib/data/server-read.ts": 1351,
+        "apps/sim/blocks/registry.ts": 945,
+        "apps/sim/blocks/registry-maps.ts": 941,
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,
-        "apps/sim/lib/webhooks/providers/index.ts": 96
+        "apps/sim/app/(product)/workspace/[workspaceId]/tests/_components/test-details/test-details.tsx": 415,
+        "apps/sim/app/(product)/workspace/[workspaceId]/tests/_components/test-source/test-source.tsx": 334
       }
     },
     "app/(product)/workspace/[workspaceId]/tests/page.tsx": {
@@ -526,6 +526,19 @@
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/editor/editor-panel/editor-panel.tsx": 179,
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/editor/sub-block/sub-block.tsx": 156,
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-canvas/workflow-canvas-constants.ts": 149
+      }
+    },
+    "app/(product)/workspace/[workspaceId]/workflows/[workflowId]/versions/[version]/page.tsx": {
+      "modules": 1717,
+      "gateways": {
+        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/run-snapshot/version-snapshot.tsx": 1712,
+        "apps/sim/triggers/registry.ts": 597,
+        "apps/sim/blocks/registry.ts": 377,
+        "apps/sim/blocks/registry-maps.ts": 375,
+        "apps/sim/platform/lib/data/workflows/index.ts": 339,
+        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview.tsx": 51,
+        "apps/sim/triggers/plane/index.ts": 46,
+        "apps/sim/components/workflow-editor/hooks/use-workflow-execution.ts": 39
       }
     },
     "app/(product)/workspace/[workspaceId]/workflows/layout.tsx": {

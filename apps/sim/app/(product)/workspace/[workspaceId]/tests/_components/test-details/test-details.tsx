@@ -6,7 +6,7 @@ import { DataTable, MetricGroup } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { InlineNotice, StatusTag } from '@sim/emcn/status'
-import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
@@ -32,6 +32,7 @@ import {
   type WorkflowTestDetail,
 } from '@/platform/lib/data/workflow-tests'
 import { platformHref } from '@/platform/lib/navigation'
+import { TEST_RETURN_PARAM } from '@/platform/shared/test-return'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 type RunDetail = NonNullable<WorkflowTestDetail['latestRun']>
@@ -40,6 +41,14 @@ type CaseResult = NonNullable<RunDetail['report']>['tests'][number]
 
 /** How often a running clock advances. */
 const ELAPSED_TICK_MS = 1000
+
+const TestSource = dynamic(
+  () =>
+    import(
+      '@/app/(product)/workspace/[workspaceId]/tests/_components/test-source/test-source'
+    ).then((module) => module.TestSource),
+  { ssr: false }
+)
 
 /** A case's name under its file's one top-level describe. */
 function caseName(path: readonly string[]) {
@@ -93,6 +102,32 @@ function freshness(
   }
 }
 
+/**
+ * The workflow frozen as the run executed it, returning here: a deployed version as deployed, a
+ * draft as the run snapshot recorded it. A deleted workflow, or a draft run with no recorded
+ * execution, has nothing to open.
+ */
+function frozenWorkflowHref(
+  workspaceId: string,
+  testName: string,
+  workflow: RunDetail['ranAgainst'][number],
+  search: Parameters<typeof platformHref>[1]
+) {
+  if (workflow.name === null) return undefined
+  const path = workflow.draft
+    ? workflow.executionId === null
+      ? null
+      : `workflows/runs/${encodeURIComponent(workflow.executionId)}`
+    : workflow.version === null
+      ? null
+      : `workflows/${encodeURIComponent(workflow.workflowId)}/versions/${workflow.version}`
+  if (path === null) return undefined
+  return platformHref(
+    `${workspacePath(workspaceId, path)}?${TEST_RETURN_PARAM}=${encodeURIComponent(testName)}`,
+    search
+  )
+}
+
 /** The time since a run started, advancing while it goes. */
 function useElapsed(startedAt: string | null) {
   const [now, setNow] = useState(() => Date.now())
@@ -112,7 +147,8 @@ interface TestDetailsProps {
 /**
  * One test's results in one run, the latest unless the run menu chose another: totals, freshness,
  * every case and the workflows it ran against. A running latest run shows live. Run runs it again
- * against the deployed workflows; the test's source opens in Files, which edits it.
+ * against the deployed workflows. The test's source opens beside the results in the Files editor;
+ * Run waits while it holds unsaved edits. A workflow it ran against opens frozen at that version.
  */
 export function TestDetails({ workspaceId, name }: TestDetailsProps) {
   const searchParams = useSearchParams()
@@ -130,6 +166,9 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
   const run = viewedRunId ? (chosen.data ?? null) : (detail?.latestRun ?? null)
   const running = run?.status === 'running'
   const elapsed = useElapsed(running && run ? run.startedAt : null)
+  const [sourceOpen, setSourceOpen] = useState(false)
+  const [sourceDirty, setSourceDirty] = useState(false)
+  const unsaved = sourceOpen && sourceDirty
 
   const back = {
     href: platformHref(workspacePath(workspaceId, 'tests'), searchParams),
@@ -148,7 +187,7 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
 
   if (!detail)
     return (
-      <DetailSplit back={back} label={`${name} results`} railLabel='Test facts' read={read}>
+      <DetailSplit back={back} label={`${name} results`} railLabel='Test source' read={read}>
         {null}
       </DetailSplit>
     )
@@ -206,14 +245,11 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
         variant='quiet'
         size='compact'
         icon='I036'
-        render={
-          <Link
-            href={platformHref(
-              `${workspacePath(workspaceId, 'files')}/${encodeURIComponent(detail.test.fileId)}`,
-              searchParams
-            )}
-          />
-        }
+        selected={sourceOpen}
+        onClick={() => {
+          setSourceOpen((open) => !open)
+          setSourceDirty(false)
+        }}
       >
         {canEdit ? 'Edit' : 'View source'}
       </Button>
@@ -221,7 +257,8 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
         variant='secondary'
         size='compact'
         icon='play'
-        disabled={!canEdit || busy}
+        disabled={!canEdit || busy || unsaved}
+        disabledReason={unsaved && !busy ? 'The test has unsaved changes.' : undefined}
         onClick={() =>
           runTests.mutate(
             { version: 'deployed', names: [name] },
@@ -229,7 +266,7 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
           )
         }
       >
-        {busy ? 'Running…' : 'Run'}
+        {busy ? 'Running…' : unsaved ? 'Unsaved' : 'Run'}
       </Button>
     </>
   )
@@ -239,7 +276,19 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
       back={back}
       actions={actions}
       label={`${detail.test.title} results`}
-      railLabel='Test facts'
+      rail={
+        sourceOpen && (
+          <TestSource
+            workspaceId={workspaceId}
+            name={name}
+            fileId={detail.test.fileId}
+            canEdit={canEdit}
+            onDirtyChange={setSourceDirty}
+          />
+        )
+      }
+      railKind='inspector'
+      railLabel='Test source'
       read={read}
     >
       <DirectoryHeading
@@ -312,13 +361,7 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
               cells: {
                 state: workflow.stale ? <StatusTag label='Out of date' intent='warning' /> : null,
               },
-              href:
-                workflow.name === null
-                  ? undefined
-                  : platformHref(
-                      `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(workflow.workflowId)}`,
-                      searchParams
-                    ),
+              href: frozenWorkflowHref(workspaceId, name, workflow, searchParams),
             }))}
           />
         </DetailSection>
