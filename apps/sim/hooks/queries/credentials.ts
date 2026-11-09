@@ -6,6 +6,7 @@ import type { ContractBodyInput, ContractQueryInput } from '@/lib/api/contracts'
 import {
   createCredentialDraftContract,
   createWorkspaceCredentialContract,
+  deleteWorkspaceCredentialContract,
   getSecretReferencesContract,
   getSecretUsageContract,
   getWorkspaceCredentialContract,
@@ -210,6 +211,30 @@ export function useUpdateWorkspaceCredential(workspaceId?: string) {
         queryClient.invalidateQueries({
           queryKey: OAUTH_CREDENTIALS_KEY,
         }),
+        invalidateSelectorQueries(queryClient),
+      ]),
+  })
+}
+
+/** Deletes a workspace credential, disconnecting the account from every workflow that uses it. */
+export function useDeleteWorkspaceCredential(workspaceId?: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (credentialId: string) => {
+      return requestJson(deleteWorkspaceCredentialContract, {
+        params: { id: credentialId },
+        query: { workspaceId },
+      })
+    },
+    onSettled: (_data, _error, credentialId) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.detail(credentialId) }),
+        queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: OAUTH_CREDENTIALS_KEY }),
+        queryClient.invalidateQueries({ queryKey: environmentKeys.all }),
+        queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() }),
         invalidateSelectorQueries(queryClient),
       ]),
   })

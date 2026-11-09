@@ -66,6 +66,10 @@ interface IntegrationCenterProps {
   library?: ResourceLibrary
   skills?: SkillsTab
   settled?: boolean
+  /** The choice every tab lists within, such as the workspace whose credentials and skills it shows. */
+  scopeFilter?: ReactNode
+  /** What the Apps tab reads with nothing connected or available yet. */
+  appsEmptyDescription?: string
 }
 
 const RESOURCE_KIND = { skills: 'skill', mcps: 'mcp', credentials: 'credential' } as const
@@ -83,6 +87,8 @@ export function IntegrationCenter({
   library,
   skills,
   settled = true,
+  scopeFilter,
+  appsEmptyDescription = 'Apps available to your organization appear here.',
 }: IntegrationCenterProps) {
   const pathname = usePathname()
   const router = useRouter()
@@ -257,6 +263,7 @@ export function IntegrationCenter({
               />
             }
           >
+            {scopeFilter}
             {current === 'apps' ? (
               <ChoiceMenu
                 label='App filter'
@@ -387,7 +394,7 @@ export function IntegrationCenter({
                 {term
                   ? 'Try a different name or clear your filters.'
                   : current === 'apps'
-                    ? 'Apps available to your organization appear here.'
+                    ? appsEmptyDescription
                     : liveSkills
                       ? 'Skills in this workspace appear here.'
                       : 'Your personal and shared connections appear here.'}

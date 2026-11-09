@@ -14,7 +14,7 @@ export default async function Page({
     const { LiveIntegrationsRoute } = await import(
       '@/app/(product)/o/[organizationId]/integrations/_components/integrations-page/live-integrations-route'
     )
-    return <LiveIntegrationsRoute section={section} />
+    return <LiveIntegrationsRoute section={section} searchParams={await searchParams} />
   }
   const { IntegrationsRoute } = await import(
     '@/app/(product)/o/[organizationId]/integrations/_components/fixtures/integrations-page/integrations-route'

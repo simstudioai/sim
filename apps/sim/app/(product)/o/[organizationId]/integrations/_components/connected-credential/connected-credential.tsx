@@ -8,6 +8,8 @@ import type { IntegrationAccount } from '@/platform/shared/integrations'
 
 interface CredentialRow extends IntegrationAccount {
   href: string
+  /** What the row reads beneath its name; the credential ID when blank. */
+  description?: string
 }
 
 interface ConnectedCredentialProps {

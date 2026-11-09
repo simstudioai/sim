@@ -29,9 +29,9 @@ import { workspaceResourcePath } from '@/lib/resources/urls'
  * Real browser coverage of the product shell and its pages against a running local app and
  * disposable PostgreSQL.
  * Requires MOBILE_E2E_BASE_URL, MOBILE_E2E_DATABASE_URL, MOBILE_E2E_AUTH_SECRET,
- * and MOBILE_E2E_REPORT_PATH. The app must run with KNOWLEDGE_MEMBER_ACCESS and CREDENTIAL_GROUPS,
- * which the organization Integrations page requires. Native launches require installed Playwright
- * browsers.
+ * and MOBILE_E2E_REPORT_PATH. The app runs without KNOWLEDGE_MEMBER_ACCESS and CREDENTIAL_GROUPS,
+ * so the seeded personal organization proves Integrations and Skills need neither. Native launches
+ * require installed Playwright browsers.
  * PLAYWRIGHT_WEBKIT_WS_ENDPOINT uses the pinned loopback WebKit server instead.
  * MOBILE_E2E_BROWSER and MOBILE_E2E_VIEWPORT narrow a diagnostic rerun.
  * MOBILE_E2E_SHARD (index/count, one-based) partitions all viewports across CI jobs.
@@ -678,6 +678,31 @@ async function exerciseViewport(
         }
       })
     }
+
+    await check(
+      `${prefix}/a personal organization manages workspace apps and skills in Integrations`,
+      page,
+      async () => {
+        const center = page.getByRole('region', { name: 'Organization integrations', exact: true })
+        // Legacy's workspace Skills URL lands on the organization's Skills tab for that workspace.
+        await withDocumentNavigation(page, organization.integrations, () =>
+          page.goto(workspacePath(workspaceId, 'skills'), { waitUntil: 'commit' })
+        )
+        await expect
+          .poll(() => new URL(page.url()).pathname, { timeout: 120_000 })
+          .toBe(organization.integrations)
+        await expect(center.getByRole('button', { name: 'Create skill', exact: true })).toBeVisible(
+          {
+            timeout: 120_000,
+          }
+        )
+        await expect(center.getByRole('button', { name: /^Workspace:/ })).toBeVisible()
+        await visit(page, organization.integrations, center.getByRole('searchbox'))
+        await expect(center.getByRole('link', { name: 'Skills', exact: true })).toBeVisible()
+        await expect(center.getByRole('link', { name: 'Credentials', exact: true })).toBeVisible()
+        await expectNoOverflow(page)
+      }
+    )
 
     if (viewport.name === 'desktop') {
       await check(`${prefix}/a saved draft returns after a reload`, page, async () => {

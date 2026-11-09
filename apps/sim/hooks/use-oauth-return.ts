@@ -289,13 +289,24 @@ async function verifyOAuthChatAttempt(queryClient: QueryClient, attemptId: strin
  * - `workflow`: Redirect to the specific workflow. The workflow page picks up the context.
  * - `kb-connectors`: Redirect to the KB page. The KB page picks up the context.
  */
-export function useOAuthReturnRouter() {
+export function useOAuthReturnRouter(options?: {
+  /**
+   * The scope the page connects credentials in, when it is not the route's own: an organization's
+   * Integrations page that manages one workspace's credentials returns those connections here.
+   */
+  scope?: { workspaceId: string }
+}) {
   const router = useRouter()
   const params = useParams()
   const queryClient = useQueryClient()
-  const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
-  const organizationId =
-    typeof params.organizationId === 'string' ? params.organizationId : undefined
+  const explicitWorkspaceId = options?.scope?.workspaceId
+  const workspaceId =
+    explicitWorkspaceId ?? (typeof params.workspaceId === 'string' ? params.workspaceId : undefined)
+  const organizationId = explicitWorkspaceId
+    ? undefined
+    : typeof params.organizationId === 'string'
+      ? params.organizationId
+      : undefined
   const handledRef = useRef(false)
   const chatAttemptHandledRef = useRef(false)
 

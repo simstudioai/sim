@@ -261,6 +261,13 @@ const serverSeamHelpers = new Set([
   'lib/workspaces/list',
   'lib/workspaces/seed-workspace-list',
   'lib/workspaces/shell-organization',
+  // A workspace's Integrations directory: the access policy its pickers apply, judged on the server
+  // from the permission group, deployment availability and block visibility routes' own reads.
+  'lib/core/config/block-visibility',
+  'lib/integrations/access',
+  'lib/integrations/application/read-availability',
+  'lib/permission-groups/application/read-user-config',
+  'lib/permissions/super-user',
 ])
 /**
  * Application modules every Platform file may import, views included, because the Platform and the
@@ -631,6 +638,7 @@ const seamHelpers = new Set([
   'lib/core/utils/urls',
   'lib/core/utils/validation',
   'lib/credential-groups/managed-mcp-connectors',
+  'lib/credential-groups/member-access',
   'lib/credential-groups/member-integrations',
   'lib/favicon/url',
   'lib/help-links',

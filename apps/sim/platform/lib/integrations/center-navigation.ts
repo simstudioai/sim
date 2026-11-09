@@ -22,6 +22,13 @@ export const skillWorkspaceParams = {
   workspace: parseAsString,
 }
 
+const serializeWorkspace = createSerializer(skillWorkspaceParams)
+
+/** Keeps the page's workspace on a link within an organization's Integrations. */
+export function withIntegrationsWorkspace(href: string, workspace: string | null) {
+  return serializeWorkspace(href, { workspace })
+}
+
 export const resourceDetailParams = {
   resourceTab: parseAsStringLiteral(['details', 'access']).withDefault('details'),
 }

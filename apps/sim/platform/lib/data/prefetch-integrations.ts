@@ -3,7 +3,7 @@ import { type DehydratedState, dehydrate, type QueryClient } from '@tanstack/rea
 import { listSearchIntegrationsContract } from '@/lib/api/contracts/knowledge/search-integrations'
 import { getOrganizationAccountsContract } from '@/lib/api/contracts/organization-accounts'
 import { getOrganizationAccountsSettings } from '@/lib/credential-groups/application/organization-accounts'
-import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations'
+import { canReadMemberIntegrations } from '@/lib/credential-groups/member-access'
 import { listSearchIntegrations } from '@/lib/knowledge/application/search-integrations'
 import {
   ORGANIZATION_ACCOUNTS_STALE_TIME,

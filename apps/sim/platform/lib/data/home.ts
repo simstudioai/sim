@@ -5,10 +5,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryState } from 'nuqs'
 import { useSession } from '@/lib/auth/client'
 import { addCalendarDays, getBrowserTimezone } from '@/lib/core/utils/timezone'
-import {
-  canReadMemberIntegrations,
-  memberIntegrationEntries,
-} from '@/lib/credential-groups/member-integrations'
+import { canReadMemberIntegrations } from '@/lib/credential-groups/member-access'
+import { memberIntegrationEntries } from '@/lib/credential-groups/member-integrations'
 import { hasSearchIntegrationReady } from '@/lib/credential-groups/search-readiness'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
