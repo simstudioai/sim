@@ -8,12 +8,14 @@ import { InlineNotice } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { PageColumn, PageOverflow } from '@sim/emcn-platform/page-column'
 import styles from '@/app/(product)/_components/chat/conversation/conversation.module.css'
+import { useChatFind } from '@/app/(product)/_components/chat/find/use-chat-find'
 import { ResponseMessage } from '@/app/(product)/_components/chat/message/response-message'
 import { UserMessage } from '@/app/(product)/_components/chat/message/user-message'
 import type { ChatRuntime, PlatformTurn } from '@/app/(product)/_components/chat/model'
 import { ChatPanelTrigger } from '@/app/(product)/_components/chat/panel/chat-panels'
 import { MessageComposer } from '@/app/(product)/_components/composer/message-composer'
 import type { ComposerController } from '@/app/(product)/_components/composer/model'
+import { FindBar } from '@/app/(product)/_components/find-bar/find-bar'
 import { ChatRuntimeProvider } from '@/app/(product)/_components/session/chat-runtime'
 
 /** A settled turn keeps its identity, so only the streaming one renders per chunk. */
@@ -58,25 +60,26 @@ export function Conversation({ runtime, composer, placeholders, header }: Conver
   const running = status === 'sending' || status === 'reconnecting'
   const last = turns.at(-1)
   const thread = useRef<HTMLDivElement>(null)
+  const find = useChatFind({ chatId, threadRef: thread, viewportRef: viewport })
   // A new turn always comes into view, and scrolling back up is what stops it following.
   useLayoutEffect(() => {
     setEarlier(false)
     const el = viewport.current
     if (el) el.scrollTop = el.scrollHeight
   }, [chatId, last?.id])
-  // A stream grows the last turn without changing its id, so follow the thread's size.
+  // A stream grows the last turn without changing its id, so follow the thread's size; find holds it still.
   useLayoutEffect(() => {
     const el = viewport.current
-    if (earlier || !el || !thread.current) return
+    if (earlier || find.isOpen || !el || !thread.current) return
     const observer = new ResizeObserver(() => {
       el.scrollTop = el.scrollHeight
     })
     observer.observe(thread.current)
     return () => observer.disconnect()
-  }, [earlier])
+  }, [earlier, find.isOpen])
   return (
     <ChatRuntimeProvider runtime={runtime}>
-      <div className={styles.chat}>
+      <div className={styles.chat} ref={find.containerRef} onKeyDown={find.onKeyDown}>
         <header className={styles.header} data-desktop-drag=''>
           {header ?? (
             <h1 data-type='T039'>
@@ -85,6 +88,20 @@ export function Conversation({ runtime, composer, placeholders, header }: Conver
           )}
           <ChatPanelTrigger />
         </header>
+        {find.isOpen && (
+          <div className={styles.find}>
+            <FindBar
+              label='Find in chat'
+              query={find.query}
+              onQueryChange={find.onQueryChange}
+              inputRef={find.inputRef}
+              results={find.results}
+              canStep={find.canStep}
+              onStep={find.step}
+              onClose={find.close}
+            />
+          </div>
+        )}
         <div
           className={styles.reading}
           role='region'

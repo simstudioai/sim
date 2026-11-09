@@ -11,6 +11,10 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* Marks searchable prose without becoming a box, so its blocks keep the answer's gap. */
+.findable {
+  display: contents;
+}
 .answer p strong {
   font-weight: var(--font-weight-medium);
 }

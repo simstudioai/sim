@@ -25,19 +25,24 @@ interface ResponseMessageProps {
 function ResponsePart({ part }: { part: PlatformPart }) {
   switch (part.kind) {
     case 'prose':
-      return part.paragraphs ? (
-        part.paragraphs.map(({ lead, text }) => (
-          <p key={text} data-type='T048'>
-            {lead && (
-              <>
-                <strong>{lead}</strong>{' '}
-              </>
-            )}
-            {text}
-          </p>
-        ))
-      ) : (
-        <MessageSegments segments={part.segments ?? []} />
+      // Marks the prose that Find in chat searches.
+      return (
+        <div className={styles.findable} data-chat-find=''>
+          {part.paragraphs ? (
+            part.paragraphs.map(({ lead, text }) => (
+              <p key={text} data-type='T048'>
+                {lead && (
+                  <>
+                    <strong>{lead}</strong>{' '}
+                  </>
+                )}
+                {text}
+              </p>
+            ))
+          ) : (
+            <MessageSegments segments={part.segments ?? []} />
+          )}
+        </div>
       )
     case 'activity':
       return (
