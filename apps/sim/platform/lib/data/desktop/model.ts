@@ -9,7 +9,6 @@ export type DesktopPreferences = Awaited<ReturnType<DesktopApi['settings']['getP
 export type DesktopPreferenceKey = Parameters<DesktopApi['settings']['setPreference']>[0]
 export type DesktopZoomPercent = DesktopPreferences['browserDefaultZoom']
 export type DesktopAppearanceTheme = DesktopPreferences['browserTheme']
-export type TerminalAppearanceTheme = DesktopPreferences['terminalTheme']
 export type TerminalThemeProfile = Awaited<
   ReturnType<NonNullable<DesktopApi['terminalThemes']>['listProfiles']>
 >[number]

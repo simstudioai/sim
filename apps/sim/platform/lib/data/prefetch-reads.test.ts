@@ -90,7 +90,6 @@ const SESSION = { user: { id: 'viewer' }, session: { id: 'session-1' } } as NonN
 >
 
 beforeEach(() => {
-  vi.clearAllMocks()
   vi.mocked(getSession).mockResolvedValue(SESSION)
   mocks.accounts.mockResolvedValue(ACCOUNTS)
   mocks.integrations.mockResolvedValue([])

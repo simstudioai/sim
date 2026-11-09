@@ -9,7 +9,7 @@ import { transferWorkspaceProjects } from '@/lib/projects/membership'
 const logger = createLogger('PersonalOrganizationDissolve')
 
 /** The user's personal organization, or null when they have none (or belong to a team). */
-export async function getPersonalOrganizationId(
+async function getPersonalOrganizationId(
   userId: string,
   executor: DbOrTx = db
 ): Promise<string | null> {
