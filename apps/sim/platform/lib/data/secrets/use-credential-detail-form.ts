@@ -159,6 +159,8 @@ export function useCredentialDetailForm({
   ])
 
   return {
+    displayNameDraft: values.displayName,
+    setDisplayNameDraft: (displayName: string) => updateDraft({ displayName }),
     descriptionDraft: values.description,
     setDescriptionDraft: (description: string) => updateDraft({ description }),
     unredactedDraft: values.unredacted,

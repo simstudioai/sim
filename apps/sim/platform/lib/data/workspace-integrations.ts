@@ -82,14 +82,16 @@ export async function readWorkspaceApps(workspaceId: string): Promise<WorkspaceA
       access: (blockType) => resolveIntegrationAccess(blockType, policy),
       oauthAvailable: (providerId) => oauth.get(providerId.toLowerCase()),
     })
-    return app ? [{ ...app, example: entry.example }] : []
+    return app
+      ? [{ ...app, example: entry.example, skills: entry.skills, templates: entry.templates }]
+      : []
   })
 }
 
 /** The directory's apps, without the copy only a detail page shows. */
 export function toAppSummaries(apps: readonly WorkspaceAppDetail[]): WorkspaceApp[] {
   return apps.map((detail) => {
-    const { example, ...app } = detail
+    const { example, skills, templates, ...app } = detail
     return app
   })
 }

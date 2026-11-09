@@ -11,6 +11,10 @@ import { Switch } from '@sim/emcn/switch'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { useQueryState } from 'nuqs'
 import {
+  AddPeopleModal,
+  CredentialMembers,
+} from '@/app/(product)/_components/credential-members/credential-members'
+import {
   DetailHeader,
   FieldStack,
   SectionStack,
@@ -21,10 +25,6 @@ import {
   secretUsageTabParam,
   secretUsageTabUrlKeys,
 } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/search-params'
-import {
-  AddPeopleModal,
-  SecretMembers,
-} from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/secret-members'
 import { SecretReferences } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/secret-references'
 import { SecretUsage } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/secret-usage'
 import { SecretValueInput } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/secret-value-input'
@@ -255,7 +255,7 @@ export function SecretDetail({ workspaceId, credentialId, onBack }: SecretDetail
         />
       )}
       {!isPersonal && (
-        <SecretMembers
+        <CredentialMembers
           credentialId={credential.id}
           credentialName={credential.displayName}
           isAdmin={isAdmin}

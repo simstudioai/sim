@@ -3,10 +3,11 @@ import type { CredentialConnection } from '@/platform/lib/integrations/credentia
 
 /**
  * What the viewer may do with an app in one workspace, as the workspace's integration access policy
- * decides it: `available` connects, `unconfigured` is listed but this deployment cannot connect it.
- * An app the permission group restricts is not listed at all.
+ * decides it: `available` connects, `unconfigured` is listed but this deployment cannot connect it,
+ * and `restricted` is one the permission group withholds but the viewer may request access to. An
+ * app the policy denies outright is not listed at all.
  */
-type WorkspaceAppAccess = 'available' | 'unconfigured'
+type WorkspaceAppAccess = 'available' | 'unconfigured' | 'restricted'
 
 /** One connection method the deployment can complete, in the catalog's projection. */
 export type WorkspaceAppConnection = Pick<
@@ -17,6 +18,8 @@ export type WorkspaceAppConnection = Pick<
 /** An app of a workspace's Integrations directory: catalog metadata and the viewer's verdict. */
 export interface WorkspaceApp {
   id: string
+  /** The block type the access policy judges and an access request names. */
+  type: string
   /** The legacy workspace page's URL segment, which older links still name. */
   slug: string
   name: string
@@ -33,6 +36,10 @@ export interface WorkspaceApp {
 /** What the detail page adds for the one app it shows. */
 export interface WorkspaceAppDetail extends WorkspaceApp {
   example: string
+  /** Suggested skills a workspace can add for this app. */
+  skills: IntegrationCatalogEntry['skills']
+  /** Agent templates whose prompt opens in Chat. */
+  templates: IntegrationCatalogEntry['templates']
 }
 
 /** The verdicts one catalog projection reads, already resolved for the viewer and workspace. */
@@ -47,18 +54,21 @@ export interface WorkspaceAppVerdicts {
 const CONNECTABLE_KINDS: ReadonlySet<CredentialConnection['kind']> = new Set([
   'oauth',
   'service_account',
+  'personal_token',
 ])
 
 /**
  * Projects a catalog entry for a workspace's directory, or `null` when the viewer may not see it.
- * A restricted app is hidden, as pickers hide it; an unconfigured one lists with no way to connect.
+ * A denied app is hidden, as pickers hide it; a requestable one lists as `restricted` and an
+ * unconfigured one lists, neither with a way to connect.
  */
 export function projectWorkspaceApp(
   entry: IntegrationCatalogEntry,
   verdicts: WorkspaceAppVerdicts
 ): WorkspaceApp | null {
-  const verdict = verdicts.access(entry.type)
-  if (verdict !== 'available' && verdict !== 'unconfigured') return null
+  const answer = verdicts.access(entry.type)
+  if (answer === 'denied') return null
+  const verdict: WorkspaceAppAccess = answer === 'requestable' ? 'restricted' : answer
   const connections =
     verdict === 'available'
       ? entry.connections.filter(
@@ -70,6 +80,7 @@ export function projectWorkspaceApp(
       : []
   return {
     id: entry.id,
+    type: entry.type,
     slug: entry.slug,
     name: entry.name,
     description: entry.description,
@@ -95,6 +106,8 @@ export interface WorkspaceConnectedCredential {
   providerId: string | null
   displayName: string
   description: string | null
+  /** The immutable host a GitLab personal token connects to. */
+  instanceUrl?: string
 }
 
 /** Credential kinds an app connects; secrets belong to workspace Settings. */

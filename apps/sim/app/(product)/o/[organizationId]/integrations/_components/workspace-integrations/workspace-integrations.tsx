@@ -1,9 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
+import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
 import { IntegrationCenter } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-center/integration-center'
 import {
   IntegrationsHeading,
@@ -11,7 +13,10 @@ import {
 } from '@/app/(product)/o/[organizationId]/integrations/_components/integrations-page/integrations-page'
 import { useLiveSkills } from '@/app/(product)/o/[organizationId]/integrations/_components/live-skills/live-skills'
 import { QueryFailure } from '@/app/(product)/o/[organizationId]/integrations/_components/query-failure/query-failure'
-import { WorkspaceIntegrationDetails } from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-integration-details/workspace-integration-details'
+import {
+  RestrictedIntegration,
+  WorkspaceIntegrationDetails,
+} from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-integration-details/workspace-integration-details'
 import { defaultIntegrationPaths } from '@/platform/lib/data/integrations'
 import {
   useWorkspaceConnections,
@@ -54,7 +59,9 @@ export function WorkspaceIntegrations({
   detail,
 }: WorkspaceIntegrationsProps) {
   const params = useSearchParams()
+  const router = useRouter()
   const view = useWorkspaceIntegrationsView()
+  const [requested, setRequested] = useState<WorkspaceApp | null>(null)
   const workspace = workspaces.find((item) => item.id === workspaceId)
   const connections = useWorkspaceConnections(workspace?.id)
   const skills = useLiveSkills(workspace?.id)
@@ -79,7 +86,9 @@ export function WorkspaceIntegrations({
         }
       >
         {failure}
-        {workspace ? (
+        {workspace && detail.access === 'restricted' ? (
+          <RestrictedIntegration app={detail} workspaceId={workspace.id} />
+        ) : workspace ? (
           <WorkspaceIntegrationDetails
             key={`${workspace.id}:${detail.id}`}
             app={detail}
@@ -94,6 +103,7 @@ export function WorkspaceIntegrations({
               await connections.disconnect(credentialId)
               if (view.account === credentialId) view.clearAccount()
             }}
+            onLeave={view.clearAccount}
           />
         ) : (
           <EmptyState title='Create a workspace to connect apps.' />
@@ -105,6 +115,17 @@ export function WorkspaceIntegrations({
   if (skills.detail) return <IntegrationsPage>{skills.detail}</IntegrationsPage>
 
   const summaries: AppSummary[] = apps.map((app) => {
+    if (app.access === 'restricted')
+      return {
+        id: app.id,
+        providerId: app.id,
+        href: appHref(app.id),
+        name: app.name,
+        description: app.description,
+        category: app.category,
+        connected: false,
+        requestAccess: () => setRequested(app),
+      }
     const connected = credentials ? appCredentials(app, credentials) : []
     return {
       id: app.id,
@@ -124,7 +145,10 @@ export function WorkspaceIntegrations({
   const secretCredentials: AppSummary[] = (credentials ?? []).flatMap((credential) => {
     if (!SECRET_CREDENTIAL_TYPES.has(credential.type)) return []
     const app = apps.find(
-      (item) => credential.providerId && item.credentialProviders.includes(credential.providerId)
+      (item) =>
+        item.access !== 'restricted' &&
+        credential.providerId &&
+        item.credentialProviders.includes(credential.providerId)
     )
     if (!app) return []
     return [
@@ -175,6 +199,20 @@ export function WorkspaceIntegrations({
           )
         }
       />
+      {requested && workspace && (
+        <RequestAccessModal
+          key={requested.id}
+          scope={{ kind: 'workspace', workspaceId: workspace.id }}
+          target={{ kind: 'integration', id: requested.type }}
+          label={requested.name}
+          onViewRequest={(requestId) =>
+            router.push(
+              workspacePath(workspace.id, `settings/requests?${new URLSearchParams({ requestId })}`)
+            )
+          }
+          onClose={() => setRequested(null)}
+        />
+      )}
     </IntegrationsPage>
   )
 }

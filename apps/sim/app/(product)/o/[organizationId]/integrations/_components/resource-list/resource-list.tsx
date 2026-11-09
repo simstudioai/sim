@@ -43,6 +43,18 @@ function AppEntry({ app, onNavigate }: AppEntryProps) {
       : usage
         ? `Used by ${usage.label}`
         : app.description
+  const leading = <BrandMark providerId={app.providerId ?? app.id} icon={app.icon} />
+  if (app.requestAccess)
+    return (
+      <ActivityRow
+        onOpen={app.requestAccess}
+        leading={leading}
+        title={app.name}
+        detail={app.description}
+        textMetadata='Restricted'
+        showChevron={false}
+      />
+    )
   return (
     <ActivityRow
       href={app.href}
@@ -50,7 +62,7 @@ function AppEntry({ app, onNavigate }: AppEntryProps) {
         event.preventDefault()
         onNavigate(app.href)
       }}
-      leading={<BrandMark providerId={app.providerId ?? app.id} icon={app.icon} />}
+      leading={leading}
       title={app.name}
       detail={detail}
       detailContent={

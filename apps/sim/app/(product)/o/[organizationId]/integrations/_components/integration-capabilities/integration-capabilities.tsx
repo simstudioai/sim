@@ -32,7 +32,6 @@ export function IntegrationCapabilities({
   onRemove,
 }: IntegrationCapabilitiesProps) {
   const [skill, setSkill] = useState<CatalogSkill | null>(null)
-  const preparePrompt = useHomePrompt()
   const installed = new Map(
     data.resources.flatMap((resource) =>
       resource.kind === 'skill' && resource.source?.providerId === providerId
@@ -60,34 +59,7 @@ export function IntegrationCapabilities({
           </ul>
         </section>
       )}
-      {catalog.templates.length > 0 && (
-        <section className={styles.section} aria-label='Agent templates'>
-          <h2 data-type='T093'>
-            <CountedLabel label='Agent templates' count={catalog.templates.length} />
-          </h2>
-          <ul className={styles.links}>
-            {catalog.templates.map((entry) => (
-              <ActivityRow
-                key={`${entry.title}:${entry.prompt}`}
-                title={entry.title}
-                detail={entry.prompt}
-                leading={
-                  <Stack
-                    label='Integrations used'
-                    items={entry.integrations.map((integration) => ({
-                      id: integration.id,
-                      label: integration.name,
-                      content: <Icon providerId={integration.id} label={integration.name} />,
-                    }))}
-                  />
-                }
-                disabled={!preparePrompt}
-                onOpen={() => preparePrompt?.(entry.prompt)}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
+      <IntegrationTemplates templates={catalog.templates} />
       {skill && (
         <ResourceEditor
           key={selected?.id ?? skill.name}
@@ -108,5 +80,43 @@ export function IntegrationCapabilities({
         />
       )}
     </>
+  )
+}
+
+interface IntegrationTemplatesProps {
+  templates: IntegrationCatalogEntry['templates']
+}
+
+/** An app's agent templates; choosing one opens its full prompt in the Home draft. */
+export function IntegrationTemplates({ templates }: IntegrationTemplatesProps) {
+  const preparePrompt = useHomePrompt()
+  if (!templates.length) return null
+  return (
+    <section className={styles.section} aria-label='Agent templates'>
+      <h2 data-type='T093'>
+        <CountedLabel label='Agent templates' count={templates.length} />
+      </h2>
+      <ul className={styles.links}>
+        {templates.map((entry) => (
+          <ActivityRow
+            key={`${entry.title}:${entry.prompt}`}
+            title={entry.title}
+            detail={entry.prompt}
+            leading={
+              <Stack
+                label='Integrations used'
+                items={entry.integrations.map((integration) => ({
+                  id: integration.id,
+                  label: integration.name,
+                  content: <Icon providerId={integration.id} label={integration.name} />,
+                }))}
+              />
+            }
+            disabled={!preparePrompt}
+            onOpen={() => preparePrompt?.(entry.prompt)}
+          />
+        ))}
+      </ul>
+    </section>
   )
 }

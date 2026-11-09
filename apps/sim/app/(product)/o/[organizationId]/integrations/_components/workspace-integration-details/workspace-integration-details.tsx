@@ -3,17 +3,21 @@
 import { useState } from 'react'
 import { Button, Chip } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { TextField } from '@sim/emcn/field'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
-import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import { OAuthConnectModal } from '@/app/(product)/_components/oauth-connect-modal/oauth-connect-modal'
+import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
 import { ServiceAccountModal } from '@/app/(product)/_components/service-account-modal/service-account-modal'
 import { ConnectedCredential } from '@/app/(product)/o/[organizationId]/integrations/_components/connected-credential/connected-credential'
+import { WorkspaceCapabilities } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-capabilities/workspace-capabilities'
 import { IntegrationIdea } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-idea/integration-idea'
 import { ProviderHeading } from '@/app/(product)/o/[organizationId]/integrations/_components/provider-heading/provider-heading'
+import { WorkspaceCredentialDetails } from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-credential-details/workspace-credential-details'
+import { PersonalTokenModal } from '@/app/(product)/o/[organizationId]/integrations/_components/workspace-integration-details/personal-token-modal'
 import { hasServiceAccountForm, type ResourceScope } from '@/platform/lib/data/credentials'
 import {
   appCredentials,
@@ -33,12 +37,52 @@ interface WorkspaceIntegrationDetailsProps {
   accountHref: (credentialId: string) => string
   pending: boolean
   onDisconnect: (credentialId: string) => Promise<unknown>
+  /** Back to the app once the viewer leaves the open credential. */
+  onLeave: () => void
+}
+
+interface RestrictedIntegrationProps {
+  app: WorkspaceAppDetail
+  workspaceId: string
+}
+
+/** Why a restricted app cannot be used, with legacy's Request access through the shared dialog. */
+export function RestrictedIntegration({ app, workspaceId }: RestrictedIntegrationProps) {
+  const router = useRouter()
+  const [requesting, setRequesting] = useState(false)
+  return (
+    <>
+      <ProviderHeading name={app.name} description={app.description} providerId={app.id} />
+      <EmptyState
+        title='Access required'
+        description='Your organization restricts this integration. Ask an administrator for access.'
+        action={
+          <Button variant='secondary' size='compact' onClick={() => setRequesting(true)}>
+            Request access
+          </Button>
+        }
+      />
+      {requesting && (
+        <RequestAccessModal
+          scope={{ kind: 'workspace', workspaceId }}
+          target={{ kind: 'integration', id: app.type }}
+          label={app.name}
+          onViewRequest={(requestId) =>
+            router.push(
+              workspacePath(workspaceId, `settings/requests?${new URLSearchParams({ requestId })}`)
+            )
+          }
+          onClose={() => setRequesting(false)}
+        />
+      )}
+    </>
+  )
 }
 
 /**
  * One app in a workspace, as legacy's workspace integration page served it: connect a credential
- * through the methods this deployment can complete, open a connected one, and reconnect or
- * disconnect it. The workspace owns every credential connected here.
+ * through the methods this deployment can complete, open a connected one to rename, share,
+ * reconnect or disconnect it, and add the app's suggested skills or start from its templates.
  */
 export function WorkspaceIntegrationDetails({
   app,
@@ -50,7 +94,9 @@ export function WorkspaceIntegrationDetails({
   accountHref,
   pending,
   onDisconnect,
+  onLeave,
 }: WorkspaceIntegrationDetailsProps) {
+  const [replacingTokenId, setReplacingTokenId] = useState<string | null>(null)
   const [connecting, setConnecting] = useState<WorkspaceAppConnection | null>(null)
   const [reconnectingId, setReconnectingId] = useState<string | null>(null)
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null)
@@ -59,8 +105,12 @@ export function WorkspaceIntegrationDetails({
   const selected = accountId ? connected.find((credential) => credential.id === accountId) : null
   const reconnecting = connected.find((credential) => credential.id === reconnectingId)
   const disconnecting = connected.find((credential) => credential.id === disconnectingId)
+  const replacingToken = connected.find((credential) => credential.id === replacingTokenId)
   const methods = app.connections.filter(
-    (connection) => connection.kind === 'oauth' || hasServiceAccountForm(connection.providerId)
+    (connection) =>
+      connection.kind === 'oauth' ||
+      connection.kind === 'personal_token' ||
+      hasServiceAccountForm(connection.providerId)
   )
   const oauthFor = (providerId: string | null) =>
     app.connections.find(
@@ -132,20 +182,29 @@ export function WorkspaceIntegrationDetails({
           action={<Chip href={integrationHref}>View integration</Chip>}
         />
       ) : selected ? (
-        <ContentTabs
-          label='Credential details'
+        <WorkspaceCredentialDetails
+          workspaceId={workspaceId}
+          credentialId={selected.id}
+          appName={app.name}
+          onLeft={onLeave}
           actions={
             <>
               <Button
                 variant='quiet'
                 size='compact'
-                disabled={pending || !oauthFor(selected.providerId)}
+                disabled={
+                  pending || (selected.type !== 'personal_token' && !oauthFor(selected.providerId))
+                }
                 disabledReason={
-                  oauthFor(selected.providerId)
+                  selected.type === 'personal_token' || oauthFor(selected.providerId)
                     ? undefined
                     : `Disconnect this account and connect ${app.name} again to replace it`
                 }
-                onClick={() => setReconnectingId(selected.id)}
+                onClick={() =>
+                  selected.type === 'personal_token'
+                    ? setReplacingTokenId(selected.id)
+                    : setReconnectingId(selected.id)
+                }
               >
                 Reconnect
               </Button>
@@ -160,22 +219,6 @@ export function WorkspaceIntegrationDetails({
               </Button>
             </>
           }
-          current='details'
-          onSelect={() => undefined}
-          items={[
-            {
-              id: 'details',
-              label: 'Details',
-              content: (
-                <TextField
-                  label='Credential ID'
-                  placeholder='Credential ID'
-                  value={selected.id}
-                  viewOnly
-                />
-              ),
-            },
-          ]}
         />
       ) : connected.length > 0 ? (
         <ConnectedCredential
@@ -215,7 +258,27 @@ export function WorkspaceIntegrationDetails({
           docsUrl={app.docsUrl}
         />
       )}
-      {connecting && connecting.kind !== 'oauth' && (
+      {!accountId && (
+        <WorkspaceCapabilities
+          workspaceId={workspaceId}
+          skills={app.skills}
+          templates={app.templates}
+        />
+      )}
+      {connecting?.kind === 'personal_token' && (
+        <PersonalTokenModal workspaceId={workspaceId} onClose={() => setConnecting(null)} />
+      )}
+      {replacingToken && (
+        <PersonalTokenModal
+          workspaceId={workspaceId}
+          replacing={{
+            credentialId: replacingToken.id,
+            instanceUrl: replacingToken.instanceUrl,
+          }}
+          onClose={() => setReplacingTokenId(null)}
+        />
+      )}
+      {connecting?.kind === 'service_account' && (
         <ServiceAccountModal
           open
           onOpenChange={(open) => {
