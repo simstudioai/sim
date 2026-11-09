@@ -4,8 +4,9 @@
  * or an external collaborator on a team's workspace, sent to an organization surface they are not
  * a member of (access denied); an account outside every organization answering not found on its
  * own workspaces; on-demand provisioning attaching existing workspaces (a payer change during a
- * rolling deploy, owed only to the backfill); and concurrent first page loads creating two
- * personal organizations.
+ * rolling deploy, owed only to the backfill); concurrent first page loads creating two
+ * personal organizations; and the surface read rendering an organization the URL names that the
+ * viewer does not belong to, or their landing organization in place of one they do.
  */
 import { db } from '@sim/db'
 import {
@@ -17,10 +18,13 @@ import {
   userStats,
   workspace,
 } from '@sim/db/schema'
+import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
+import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
+import { readOrganizationSurface } from '@/lib/organizations/application/surface'
 import {
   ensureUserOrganization,
   provisionPersonalOrganization,
@@ -28,6 +32,20 @@ import {
 } from '@/lib/organizations/provision-personal'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
 import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/shell-organization'
+
+// The surface's navigation flags read rollout configuration, which says nothing about whose
+// organization a viewer may read.
+vi.mock('@/lib/organizations/surface-flags', () => ({
+  resolveOrganizationSurfaceFlags: async () => ({ flags: {}, benchmarkEnabled: false }),
+}))
+vi.mock('@/lib/people/feature-flag', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/people/feature-flag')>()),
+  canBrowsePeople: async () => false,
+}))
+vi.mock('@/lib/sim-links/feature-flag', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/sim-links/feature-flag')>()),
+  isSimLinksEnabled: async () => false,
+}))
 
 const userIds: string[] = []
 
@@ -235,5 +253,47 @@ describe('on-demand personal organization provisioning', () => {
     expect(await membershipsOf(ownerId)).toEqual([
       { organizationId: teamId, role: 'owner', kind: 'team' },
     ])
+  })
+})
+
+describe('the organization surface a shell renders', () => {
+  it('refuses an organization the viewer does not belong to', async () => {
+    const viewerId = await createUser()
+    const ownerId = await createUser()
+    await ensureUserOrganization(viewerId)
+    const { organizationId: othersId } = await createOrganizationWithOwner({
+      ownerUserId: ownerId,
+      name: 'Others',
+      slug: `others-${generateId()}`.toLowerCase(),
+    })
+
+    await expect(
+      readOrganizationSurface.execute({
+        principal: createSessionPrincipal({ userId: viewerId }),
+        input: { organizationId: othersId },
+      })
+    ).rejects.toBeInstanceOf(OrganizationMembershipNotFoundError)
+  })
+
+  it('reads the organization the viewer names over the one they land in', async () => {
+    const viewerId = await createUser()
+    const ownerId = await createUser()
+    const landingId = await ensureUserOrganization(viewerId)
+    const { organizationId: teamId } = await createOrganizationWithOwner({
+      ownerUserId: ownerId,
+      name: 'Team',
+      slug: `team-${generateId()}`.toLowerCase(),
+    })
+    await db
+      .insert(member)
+      .values({ id: generateId(), userId: viewerId, organizationId: teamId, role: 'member' })
+
+    const surface = await readOrganizationSurface.execute({
+      principal: createSessionPrincipal({ userId: viewerId }),
+      input: { organizationId: teamId },
+    })
+
+    expect(surface.organization.id).toBe(teamId)
+    expect(surface.organization.id).not.toBe(landingId)
   })
 })
