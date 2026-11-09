@@ -26,12 +26,14 @@ export default async function WorkspaceLayout({ children, params }: WorkspaceLay
     { WorkspaceRealtime },
     { readWorkspaceTabFlags },
     { WorkspaceVisit },
+    { UploadGuard },
   ] = await Promise.all([
     params,
     import('@/platform/lib/data/shell-scope'),
     import('@/platform/lib/data/realtime'),
     import('@/platform/lib/data/workspace-tab-flags'),
     import('@/platform/lib/data/workspace-visit'),
+    import('@/platform/lib/data/upload-guard'),
   ])
   const organizationId = await readWorkspaceShellOrganizationId(workspaceId)
   if (!organizationId) notFound()
@@ -39,6 +41,7 @@ export default async function WorkspaceLayout({ children, params }: WorkspaceLay
     <ShellOrganizationGuard organizationId={organizationId}>
       <WorkspaceSession mode='live' tabFlags={await readWorkspaceTabFlags()}>
         <WorkspaceVisit workspaceId={workspaceId} />
+        <UploadGuard />
         <WorkspaceRealtime>{children}</WorkspaceRealtime>
       </WorkspaceSession>
     </ShellOrganizationGuard>
