@@ -1681,7 +1681,6 @@ async function createAndUploadTableImport(params: {
   mapping?: CsvHeaderMapping
   createColumns?: string[]
   timezone: string
-  onCreated?: (importId: string) => void
   onProgress?: (percent: number) => void
 }) {
   const created = await requestJson(createTableImportResourceContract, {
@@ -1695,7 +1694,6 @@ async function createAndUploadTableImport(params: {
     },
   })
   const { session, uploadToken, transfer } = created.data
-  params.onCreated?.(session.id)
   if (params.source.type === 'workspace_file') return session
   if (!params.file || !uploadToken || !transfer) {
     throw new Error('Upload-backed table import returned no upload session')
@@ -1739,7 +1737,6 @@ interface ImportFileAsTableParams {
   workspaceId: string
   fileId: string
   fileName: string
-  onCreated?: (importId: string) => void
 }
 
 /**
@@ -1753,7 +1750,7 @@ export function useImportFileAsTable() {
   const queryClient = useQueryClient()
   const timezone = useTimezone()
   return useMutation({
-    mutationFn: async ({ workspaceId, fileId, fileName, onCreated }: ImportFileAsTableParams) => {
+    mutationFn: async ({ workspaceId, fileId, fileName }: ImportFileAsTableParams) => {
       const imported = await createAndUploadTableImport({
         workspaceId,
         source: { type: 'workspace_file', fileId },
@@ -1765,7 +1762,6 @@ export function useImportFileAsTable() {
           ),
         },
         timezone,
-        onCreated,
       })
       return { tableId: imported.tableId, importId: imported.id }
     },

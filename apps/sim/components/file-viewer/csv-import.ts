@@ -6,7 +6,6 @@ import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import { toast } from '@/lib/toast/sink'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { useImportFileAsTable } from '@/hooks/queries/tables'
-import { useImportTrayStore } from '@/stores/table/import-tray/store'
 
 export type CsvImportFileDescriptor = Pick<WorkspaceFileRecord, 'id' | 'key' | 'name'>
 
@@ -31,7 +30,6 @@ export function useCsvTruncationImport(
   const importAsTable = useCallback(() => {
     if (importingRef.current) return
     importingRef.current = true
-    let importId: string | null = null
     toast.success(`Importing "${file.name}" as a table`, {
       description: 'This runs in the background.',
       action: {
@@ -40,23 +38,10 @@ export function useCsvTruncationImport(
       },
     })
     importFile.mutate(
-      {
-        workspaceId,
-        fileId: file.id,
-        fileName: file.name,
-        onCreated: (createdImportId) => {
-          importId = createdImportId
-          useImportTrayStore.getState().startUpload({
-            uploadId: createdImportId,
-            workspaceId,
-            title: file.name,
-          })
-        },
-      },
+      { workspaceId, fileId: file.id, fileName: file.name },
       {
         onSettled: () => {
           importingRef.current = false
-          if (importId) useImportTrayStore.getState().endUpload(importId)
         },
       }
     )
