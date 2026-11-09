@@ -87,7 +87,8 @@ describe('Admin API with personal organizations', () => {
           {
             headers,
           }
-        )
+        ),
+        {}
       )
       const body = (await response.json()) as { data: Array<{ id: string; kind: string }> }
       return body.data
@@ -126,7 +127,8 @@ describe('Admin API with personal organizations', () => {
         method: 'POST',
         headers,
         body: JSON.stringify({ name: 'Admin Team', ownerId: userId }),
-      })
+      }),
+      {}
     )
 
     expect(response.status).toBe(200)

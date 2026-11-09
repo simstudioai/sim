@@ -204,7 +204,7 @@ const adminV1TransferOwnershipResultSchema = z.object({
 })
 
 /** Lists team organizations unless `kind=personal` asks for the personal ones. */
-export const adminV1ListOrganizationsQuerySchema = adminV1PaginationQuerySchema.extend({
+const adminV1ListOrganizationsQuerySchema = adminV1PaginationQuerySchema.extend({
   kind: adminV1OrganizationKindSchema.default('team'),
 })
 

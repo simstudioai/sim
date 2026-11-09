@@ -309,7 +309,7 @@ const ORGANIZATION_BOUND_CONTENT: ReadonlyArray<{ table: PgTable; organizationId
 ]
 
 /** Rows each table moved into the target or had deleted, keyed by table name. */
-export type OrganizationContentCounts = Record<string, number>
+type OrganizationContentCounts = Record<string, number>
 
 async function countedTx(tx: DbTransaction, statement: SQL): Promise<number> {
   const [{ count }] = await tx.execute<{ count: number }>(

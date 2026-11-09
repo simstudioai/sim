@@ -130,7 +130,7 @@ export async function revertPersonalOrganization(
         .from(organization)
         .where(and(eq(organization.id, organizationId), eq(organization.kind, 'personal')))
         .for('update')
-      if (!locked) return { status: 'gone' }
+      if (!locked) return { status: 'gone' } as const
 
       const detachedWorkspaceIds = await detachPersonalOrganizationWorkspacesTx(tx, organizationId)
       await releasePersonalOrganizationInvitationsTx(tx, organizationId)
