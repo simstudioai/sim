@@ -14,11 +14,8 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('server-only', () => ({}))
 vi.mock('next/headers', () => ({ headers: async () => new Headers(), cookies: async () => ({}) }))
 vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@/lib/workspaces/shell-organization', () => ({
-  resolveWorkspaceShellOrganizationId: vi.fn(),
-}))
-vi.mock('@/lib/organizations/provision-personal', () => ({
-  resolveOrProvisionLandingOrganization: vi.fn(),
+vi.mock('@/platform/lib/data/shell-scope', () => ({
+  readWorkspaceShellOrganizationId: vi.fn(),
 }))
 
 import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
