@@ -667,10 +667,14 @@ export async function homeChecks() {
   await check('a /skill or @mention sent before its list lands waits for the list', async () => {
     await withSession(ADMIN, async ({ page }) => {
       const skillsHeld = createDeferred<void>()
-      await page.route(/\/api\/skills/, async (route) => {
-        await skillsHeld.promise
-        await route.continue()
-      })
+      // The product reads every skill in one organization-wide mentions read.
+      await page.route(
+        /\/api\/organizations\/[^/]+\/mentions\?(?=.*family=skills)/,
+        async (route) => {
+          await skillsHeld.promise
+          await route.continue()
+        }
+      )
       const sends = captureRequests(
         page,
         (request) => request.method() === 'POST' && request.url().endsWith('/api/mothership/chat')
@@ -690,7 +694,7 @@ export async function homeChecks() {
     })
     await withSession(ADMIN, async ({ page }) => {
       const listsHeld = createDeferred<void>()
-      await page.route(/\/api\/(workflows|table|knowledge)/, async (route) => {
+      await page.route(/\/api\/organizations\/[^/]+\/mentions/, async (route) => {
         await listsHeld.promise
         await route.continue()
       })

@@ -14,12 +14,14 @@ import {
   ChatCardsProvider,
 } from '@/app/(product)/_components/chat/message/message-segments'
 import { ResourcePanels } from '@/app/(product)/_components/chat/panel/resource-panels'
+import { GetStarted } from '@/app/(product)/_components/get-started/get-started'
 import { LiveSearchTab } from '@/app/(product)/_components/search/live-search-tab'
 import { SearchTabProvider } from '@/app/(product)/_components/search/search-results-host'
 import { useLiveChatRuntime } from '@/platform/lib/data/chat'
 import { useLiveComposer } from '@/platform/lib/data/chat-composer'
 import { usePanelResources } from '@/platform/lib/data/chat-panel'
 import { useChatRestore, useViewerId } from '@/platform/lib/data/chat-restore'
+import { useAssistantGetStarted } from '@/platform/lib/data/home'
 import { useOrganization } from '@/platform/lib/data/organization'
 import type { SummaryRequest } from '@/platform/lib/data/search-summary'
 
@@ -32,6 +34,12 @@ const CARDS: ChatCards = {
 const PLACEHOLDERS = {
   agent: CHAT_PLACEHOLDERS,
   assistant: { ...CHAT_PLACEHOLDERS, first: 'Ask about your company’s knowledge…' },
+}
+
+/** Mounted only while the Assistant landing is in view, so its reads wait for it. */
+function AssistantGetStarted() {
+  const steps = useAssistantGetStarted()
+  return steps.length > 0 && <GetStarted steps={steps} />
 }
 
 interface LiveChatProps {
@@ -85,7 +93,12 @@ function LiveConversation({
             placeholders={PLACEHOLDERS[destination]}
             header={header}
             landing={
-              destination === 'assistant' && <h1 data-type='T076'>Ask {organization.name}</h1>
+              destination === 'assistant' && (
+                <>
+                  <h1 data-type='T076'>Ask {organization.name}</h1>
+                  {!hasChat && searchView !== 'search' && <AssistantGetStarted />}
+                </>
+              )
             }
           />
         </ResourcePanels>

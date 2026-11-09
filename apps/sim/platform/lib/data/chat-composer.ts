@@ -403,6 +403,7 @@ export function useLiveComposer({
     references,
     referencesLoading,
     skillsLoading,
+    skillList: assistant ? undefined : mentions.skillList,
     skills,
     onPickerOpen: () => setPickerOpened(true),
     onReferenceSearch: setReferenceSearch,

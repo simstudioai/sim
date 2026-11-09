@@ -8,6 +8,7 @@ import {
   type MentionRow,
 } from '@/lib/api/contracts/organization-mentions'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import type { ComposerController } from '@/app/(product)/_components/composer/model'
 import {
   type MentionRequest,
   useMentionsFollowMutations,
@@ -250,12 +251,18 @@ export function useMentionInventory(enabled: boolean, organizationId: string, se
     enabled,
     organizationId
   )
+  const skillList: ComposerController['skillList'] = skills.data
+    ? 'landed'
+    : skills.isError
+      ? 'failed'
+      : 'pending'
   return {
     references: grouped(suggestions.data?.rows),
     referencesLoading:
       enabled && (suggestions.isPending || search.trim() !== query || suggestions.isFetching),
     skills: grouped(skills.data?.rows).flatMap(({ items }) => items),
     skillsLoading: enabled && skills.isPending,
+    skillList,
     browse: grouped(rows),
     browseMore,
     onBrowseWorkspace,
