@@ -11,6 +11,7 @@ import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
 import { workflowKeys } from '@/hooks/queries/utils/workflow-keys'
 import { useOperationQueueStore } from '@/stores/operation-queue/store'
+import { registerUserDataReset } from '@/stores/user-data-reset-registry'
 import { useVariablesStore } from '@/stores/variables/store'
 import type { Variable } from '@/stores/variables/types'
 import type { HydrationState, WorkflowRegistry } from '@/stores/workflows/registry/types'
@@ -424,4 +425,20 @@ export const useWorkflowRegistry = create<WorkflowRegistry>()(
     }),
     { name: 'workflow-registry' }
   )
+)
+
+registerUserDataReset('workflow-registry', () =>
+  useWorkflowRegistry.setState({
+    activeWorkflowId: null,
+    error: null,
+    hydration: {
+      phase: 'idle',
+      workspaceId: null,
+      workflowId: null,
+      requestId: null,
+      error: null,
+    },
+    clipboard: null,
+    pendingSelection: null,
+  })
 )

@@ -5,6 +5,7 @@ import { devtools } from 'zustand/middleware'
 import { getBlock } from '@/blocks'
 import type { SubBlockConfig } from '@/blocks/types'
 import { populateTriggerFieldsFromConfig } from '@/hooks/use-trigger-config-aggregation'
+import { registerUserDataReset } from '@/stores/user-data-reset-registry'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import type { SubBlockStore, SubBlockValue } from '@/stores/workflows/subblock/types'
 import { isTriggerValid } from '@/triggers'
@@ -214,3 +215,5 @@ export const useSubBlockStore = create<SubBlockStore>()(
     },
   }))
 )
+
+registerUserDataReset('workflow-subblock', () => useSubBlockStore.setState({ workflowValues: {} }))

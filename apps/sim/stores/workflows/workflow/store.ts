@@ -20,6 +20,7 @@ import {
   isDynamicHandleSubblock,
 } from '@/lib/workflows/dynamic-handle-topology'
 import { normalizeName } from '@/executor/constants'
+import { registerUserDataReset } from '@/stores/user-data-reset-registry'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import {
   clearClonedWebhookPath,
@@ -1343,4 +1344,15 @@ export const useWorkflowStore = create<WorkflowStore>()(
     }),
     { name: 'workflow-store' }
   )
+)
+
+registerUserDataReset('workflow-store', () =>
+  useWorkflowStore.setState({
+    currentWorkflowId: null,
+    blocks: {},
+    edges: [],
+    loops: {},
+    parallels: {},
+    lastSaved: Date.now(),
+  })
 )

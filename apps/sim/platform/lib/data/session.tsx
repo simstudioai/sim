@@ -2,13 +2,13 @@
 
 import { type ReactNode, useMemo } from 'react'
 import { createLogger } from '@sim/logger'
-import { clearBrowserUserData } from '@/lib/auth/browser-storage'
 import { signOut, useSession } from '@/lib/auth/client'
 import { SessionContext, type SessionHookResult } from '@/lib/auth/session-context'
 import { useSessionExpiry } from '@/lib/auth/session-expiry'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { useStopImpersonating } from '@/hooks/queries/admin-users'
 import { useSessionQuery } from '@/hooks/queries/session'
+import { clearUserData } from '@/stores'
 
 const logger = createLogger('PlatformSession')
 
@@ -30,18 +30,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 }
 
 /**
- * Signs out, clears this viewer's browser storage, then leaves for login. Returns false without
- * navigating when sign-out fails: the cookies survive, so login would bounce straight back. Leaving
- * the document is what resets this app's in-memory state, which the legacy reset cannot reach.
+ * Signs out while clearing what this viewer holds in the tab (`clearUserData`: running desktop
+ * tools stop at once, then stores, the query cache and browser storage), then leaves for login.
+ * The clear runs alongside the request, not after it, so a desktop tool never outlives a sign-out
+ * that hangs. Returns false without navigating when sign-out fails: the cookies survive, so login
+ * would bounce straight back.
  */
 export async function signOutAndLeave(loginUrl: string): Promise<boolean> {
-  try {
-    await signOut()
-  } catch (error) {
-    logger.error('Failed to sign out', { error })
+  const [signedOut] = await Promise.allSettled([signOut(), clearUserData()])
+  if (signedOut.status === 'rejected') {
+    logger.error('Failed to sign out', { error: signedOut.reason })
     return false
   }
-  clearBrowserUserData()
   window.location.assign(loginUrl)
   return true
 }
@@ -65,8 +65,8 @@ export function useImpersonation() {
     stopping: stopImpersonating.isPending || stopImpersonating.isSuccess,
     stop: () =>
       stopImpersonating.mutate(undefined, {
-        onSuccess: () => {
-          clearBrowserUserData({ preserveRecentImpersonations: true })
+        onSuccess: async () => {
+          await clearUserData({ preserveRecentImpersonations: true })
           window.location.assign(APP_ENTRY_PATH)
         },
       }),

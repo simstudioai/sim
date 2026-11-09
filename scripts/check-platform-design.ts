@@ -633,6 +633,9 @@ const seamHelpers = new Set([
   'lib/url-state',
   'lib/workspaces/permissions/role-lock',
   'stores/settings/dirty/store',
+  // The identity-boundary reset sign-out and account deletion share with the legacy app: stops
+  // running desktop tools, then loads the store reset lazily.
+  'stores',
   // Workspace Secrets and BYOK settings: the secrets editor's row helpers and record writes,
   // credential-sharing email resolution and the provider brand glyphs.
   'components/icons',
