@@ -1,11 +1,13 @@
 import 'server-only'
-import { notFound } from 'next/navigation'
-import { followProductRoute, productLocation } from '@/platform/lib/data/route-resolution'
-import { readOrganizationSurface } from '@/platform/lib/data/surface'
+import { notFound, permanentRedirect } from 'next/navigation'
+import { mapLegacyWorkspaceUrl } from '@/lib/navigation/legacy-redirects'
+import { searchParamsQuery } from '@/lib/navigation/paths'
+import { readWorkspaceShellOrganizationId } from '@/platform/lib/data/shell-scope'
 
 /**
- * The body of every page that serves a moved workspace URL: the route table answers it with a
- * permanent redirect to the page in the organization the workspace renders in, and a workspace the
+ * The body of every page that serves a moved workspace URL: the route table's legacy workspace rule
+ * (`mapLegacyWorkspaceUrl`, which `resolveProductRedirect` runs for the same path) answers with a
+ * permanent redirect to the page in the organization the workspace renders in. A workspace the
  * viewer cannot open, or a path with no new home, is not found, so a private workspace's
  * organization never shows.
  */
@@ -14,10 +16,12 @@ export async function redirectLegacyWorkspaceUrl(
   segments: readonly string[],
   searchParams: Record<string, string | string[] | undefined>
 ): Promise<never> {
-  const surface = await readOrganizationSurface()
-  if (surface.status === 'ok') {
-    const pathname = ['', 'workspace', workspaceId, ...segments].map(encodeURIComponent).join('/')
-    await followProductRoute(surface.organization, productLocation(pathname, searchParams))
-  }
-  notFound()
+  const target = mapLegacyWorkspaceUrl({
+    workspaceId,
+    segments,
+    query: searchParamsQuery(searchParams),
+    organizationId: await readWorkspaceShellOrganizationId(workspaceId),
+  })
+  if (!target) notFound()
+  permanentRedirect(target)
 }
