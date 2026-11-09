@@ -66,6 +66,7 @@ import type {
 import { homeDayParam } from '@/platform/shared/home-params'
 import { isRefusal } from '@/platform/shared/query-view'
 import { MINUTE_MS } from '@/platform/shared/time'
+import { useOrganizationHomeStore } from '@/stores/organization-home/store'
 
 /** Long enough to fit the 7, 30 and 90 day chart windows in one read of daily buckets. */
 const ACTIVITY_DAYS = 90
@@ -352,6 +353,37 @@ function useHomeGetStarted(
 /** Whether this render is past hydration, which Home's clock-dependent markup waits for. */
 export function useHomeHydrated(): boolean {
   return useHydrated()
+}
+
+const NO_WIDGETS: readonly HomeWidget[] = []
+
+function isHomeWidget(widget: string): widget is HomeWidget {
+  return widget === 'Activity' || widget === 'Email' || widget === 'Calendar'
+}
+
+export interface HiddenHomeWidgets {
+  hiddenWidgets: readonly HomeWidget[]
+  setWidgetHidden: (widget: HomeWidget, hidden: boolean) => void
+}
+
+/**
+ * The viewer's Customize Home choices in this organization, kept in this browser across reloads under
+ * the legacy Home's key and cleared with the viewer's other data on sign-out. Null until the session
+ * names the viewer.
+ */
+export function useHiddenHomeWidgets(): HiddenHomeWidgets | null {
+  const organizationId = useOrganization().organization.id
+  const userId = useSession().data?.user?.id
+  const viewer = userId ? `${userId}:${organizationId}` : null
+  const stored = useOrganizationHomeStore((state) =>
+    viewer ? state.hiddenWidgets[viewer] : undefined
+  )
+  const setWidgetHidden = useOrganizationHomeStore((state) => state.setWidgetHidden)
+  if (!viewer) return null
+  return {
+    hiddenWidgets: stored?.filter(isHomeWidget) ?? NO_WIDGETS,
+    setWidgetHidden: (widget, hidden) => setWidgetHidden(viewer, widget, hidden),
+  }
 }
 
 function firstNameOf(user: { name?: string | null; email?: string | null } | null | undefined) {

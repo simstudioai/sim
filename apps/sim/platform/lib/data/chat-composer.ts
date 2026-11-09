@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import { useQueries } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { useFileAttachments } from '@/components/workflow-editor/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { useSession } from '@/lib/auth/client'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
-import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { BrowserStorage, MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import type { FileAttachmentForApi } from '@/lib/mothership/chat/types'
 import {
   MOTHERSHIP_EFFORT_OPTIONS,
@@ -49,7 +50,7 @@ import { attachmentKind } from '@/platform/lib/data/chat-model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useStartSearch } from '@/platform/lib/data/search'
-import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
+import { readDraft, useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import {
   useMothershipEffortStore,
   useMothershipPlanEffortStore,
@@ -57,6 +58,8 @@ import {
 import type { ChatContext } from '@/stores/panel'
 
 const ASSISTANT_ACCEPT = 'image/*'
+/** Where the legacy organization chat remembered the viewer's last mode. */
+const LEGACY_CHAT_MODE_STORAGE = 'organization-chat-mode'
 
 function contextId(context: ChatContext, index: number): string {
   return `context:${index}:${context.kind}:${context.label}`
@@ -137,6 +140,24 @@ function useComposerSettings(
 }
 
 /**
+ * Before Home and Search's Assistant kept separate drafts, both kept one unsent draft under the `new`
+ * slot, owned by whichever mode the viewer last chose. Returns that key when it holds a draft for
+ * this composer's mode, so the draft moves here instead of being stranded.
+ */
+function legacySharedDraftKey(
+  userId: string,
+  organizationId: string,
+  { assistant, canBuild }: { assistant: boolean; canBuild: boolean }
+): string | null {
+  const key = `${userId}:organization:${organizationId}:new`
+  if (!useMothershipDraftsStore.getState().drafts[key]) return null
+  const persisted = toRecord(BrowserStorage.getItem<unknown>(LEGACY_CHAT_MODE_STORAGE, null))
+  const modes = toRecord(toRecord(persisted.state).modes)
+  const legacyAssistant = !canBuild || modes[`${userId}:${organizationId}`] === 'assistant'
+  return legacyAssistant === assistant ? key : null
+}
+
+/**
  * A draft persisted per viewer and chat through the legacy drafts store, with uploads through the
  * legacy attachment hook, so a reload and the upload rules behave the same.
  */
@@ -146,17 +167,31 @@ export function useLiveComposer({
   chatId,
   onPlanChange,
 }: ComposerOptions & { onPlanChange?: (active: boolean) => void }): ComposerController {
-  const { organization } = useOrganization()
+  const { organization, canBuild } = useOrganization()
   const { data: session } = useSession()
   const userId = session?.user?.id
   const assistant = requestMode === 'assistant'
   const key = `${userId}:organization:${organization.id}:${draftKey}`
   const [initialKey] = useState(key)
-  const saved = useMothershipDraftsStore((state) => state.drafts[key] ?? state.drafts[initialKey])
-  const [initial] = useState(() => useMothershipDraftsStore.getState().drafts[key])
+  const [legacyKey] = useState(() =>
+    chatId || !userId
+      ? null
+      : legacySharedDraftKey(userId, organization.id, {
+          assistant,
+          canBuild,
+        })
+  )
+  const saved = useMothershipDraftsStore((state) =>
+    readDraft(state.drafts, legacyKey ? [key, initialKey, legacyKey] : [key, initialKey])
+  )
+  const [initial] = useState(() =>
+    readDraft(useMothershipDraftsStore.getState().drafts, legacyKey ? [key, legacyKey] : [key])
+  )
   useEffect(() => {
-    if (initialKey !== key) useMothershipDraftsStore.getState().migrateDraft(initialKey, key)
-  }, [initialKey, key])
+    const store = useMothershipDraftsStore.getState()
+    if (legacyKey) store.migrateDraft(legacyKey, initialKey)
+    if (initialKey !== key) store.migrateDraft(initialKey, key)
+  }, [initialKey, key, legacyKey])
   const [pickerOpened, setPickerOpened] = useState(false)
   const inventoryEnabled = !assistant && pickerOpened
   const { references, skills, referencesLoading, skillsLoading } = useOrganizationInventory(

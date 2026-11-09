@@ -56,6 +56,7 @@ export function Sidebar({
   const scope = useSurfaceScope()
   const sidebarHeader = useRef<HTMLDivElement>(null)
   const sidebarFooter = useRef<HTMLElement>(null)
+  const cancelWarm = useRef<(() => void) | null>(null)
   const preferences = useInterfacePreferences()
   const accountPhoto = preferences?.picture ?? data?.user.image
   const accountName = preferences?.profileName ?? data?.user.name ?? ''
@@ -74,6 +75,7 @@ export function Sidebar({
             organization={data?.organization}
             actions={actions.organization}
             onSettings={() => navigate(surfaceHref(scope, '/settings/members'))}
+            onOpen={() => actions.warmSettings?.('members')}
           />
         )}
         {toolbar}
@@ -90,21 +92,34 @@ export function Sidebar({
               <div className={styles.group}>
                 {destinations
                   .filter((item) => item.id !== 'settings')
-                  .map((item) => (
-                    <ContextActionMenu
-                      key={item.id}
-                      label={`Actions for ${item.label}`}
-                      actions={linkMenuActions(item.value)}
-                    >
-                      <Chip
-                        href={platformHref(item.value, search)}
-                        selected={pathname === item.value || pathname.startsWith(`${item.value}/`)}
-                        icon={item.icon}
+                  .map((item) => {
+                    const selected =
+                      pathname === item.value || pathname.startsWith(`${item.value}/`)
+                    return (
+                      <ContextActionMenu
+                        key={item.id}
+                        label={`Actions for ${item.label}`}
+                        actions={linkMenuActions(item.value)}
                       >
-                        {item.label}
-                      </Chip>
-                    </ContextActionMenu>
-                  ))}
+                        <div
+                          className={styles.destination}
+                          onPointerEnter={() => {
+                            if (selected) return
+                            cancelWarm.current = actions.warmDestination?.(item.id) ?? null
+                          }}
+                          onPointerLeave={() => cancelWarm.current?.()}
+                        >
+                          <Chip
+                            href={platformHref(item.value, search)}
+                            selected={selected}
+                            icon={item.icon}
+                          >
+                            {item.label}
+                          </Chip>
+                        </div>
+                      </ContextActionMenu>
+                    )
+                  })}
               </div>
               <WorkspacesSection
                 data={data}
@@ -141,6 +156,7 @@ export function Sidebar({
               image={accountPhoto}
               onSettings={() => navigate(surfaceHref(scope, '/settings'))}
               onSignOut={actions.signOut}
+              onOpen={() => actions.warmSettings?.('general')}
             />
           ) : (
             <IdentityButton

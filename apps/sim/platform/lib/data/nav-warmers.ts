@@ -13,8 +13,8 @@ import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useNavWarmers as useSharedNavWarmers } from '@/platform/shared/nav-warmers'
 
 /**
- * @public Ready for the sidebar's destination rows, which have no pointer handler yet: `schedule` on
- * enter, `cancel` on leave, `warmSettings` when a menu holding a Settings entry opens.
+ * Backs the live shell's `warmDestination` and `warmSettings`: a sidebar destination row schedules on
+ * pointer enter and cancels on leave; the organization and account menus warm Settings as they open.
  */
 export function useNavWarmers() {
   const organization = useOrganization()

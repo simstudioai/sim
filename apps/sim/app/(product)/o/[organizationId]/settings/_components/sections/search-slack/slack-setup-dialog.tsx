@@ -7,40 +7,45 @@ import { Disclosure } from '@sim/emcn/disclosure'
 import { TextField } from '@sim/emcn/field'
 import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal, MultiStepModal } from '@sim/emcn/modal'
+import { InlineNotice } from '@sim/emcn/status'
 import {
   FieldStack,
   Muted,
   Preformatted,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
-import type { SlackSearchInstallationView } from '@/platform/lib/data/settings-slack'
-
-export interface SetupTarget {
-  mode: 'shared' | 'custom'
-  previous?: SlackSearchInstallationView
-}
-
-export interface ManifestView {
-  manifest: string
-  createAppUrl: string
-}
+import type { SetupTarget, SlackSetupFlow } from '@/platform/lib/data/slack-search-model'
 
 interface SlackSetupDialogProps {
   target: SetupTarget
-  manifest: ManifestView
-  onClose: () => void
-  onConnect: () => void
+  flow: SlackSetupFlow
 }
 
-export function SlackSetupDialog({ target, manifest, onClose, onConnect }: SlackSetupDialogProps) {
+function ManifestFailure({ flow }: { flow: SlackSetupFlow }) {
+  if (!flow.manifestError) return null
+  return (
+    <>
+      <InlineNotice intent='danger' message={flow.manifestError} />
+      <div>
+        <Button size='compact' disabled={flow.retrying} onClick={flow.retryManifest}>
+          Retry
+        </Button>
+      </div>
+    </>
+  )
+}
+
+export function SlackSetupDialog({ target, flow }: SlackSetupDialogProps) {
   const [botToken, setBotToken] = useState('')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [signingSecret, setSigningSecret] = useState('')
   const editing = Boolean(target.previous)
+  const appId = flow.existingAppId
   function change(open: boolean) {
-    if (!open) onClose()
+    if (!open && !flow.pending) flow.close()
   }
-  if (target.mode === 'shared')
+  if (target.mode === 'shared') {
+    const unavailable = Boolean(flow.manifest) && !flow.sharedAvailable
     return (
       <Modal
         open
@@ -48,9 +53,20 @@ export function SlackSetupDialog({ target, manifest, onClose, onConnect }: Slack
         title='Install the Sim Search app'
         description='Add Sim Search to your Slack workspace to ask questions and get answers from your connected sources.'
         confirmLabel='Continue with Slack'
-        onConfirm={onConnect}
-      />
+        confirmDisabled={!flow.manifest || unavailable}
+        pending={flow.pending}
+        onConfirm={flow.installShared}
+      >
+        {unavailable && (
+          <InlineNotice
+            intent='danger'
+            message='Sim Search installation is unavailable. Try again.'
+          />
+        )}
+        <ManifestFailure flow={flow} />
+      </Modal>
     )
+  }
   const placeholder = editing ? 'Leave blank to keep the saved value' : undefined
   return (
     <MultiStepModal
@@ -58,42 +74,51 @@ export function SlackSetupDialog({ target, manifest, onClose, onConnect }: Slack
       onOpenChange={change}
       title='Set up Sim Search in Slack'
       confirmLabel='Connect app'
-      onConfirm={onConnect}
+      pending={flow.pending}
+      onConfirm={() => flow.connect({ botToken, clientId, clientSecret, signingSecret })}
       steps={[
         {
-          title: editing ? 'Update Slack app' : 'Create Slack app',
-          description: editing
+          title: appId ? 'Update Slack app' : 'Create Slack app',
+          description: appId
             ? 'In your Slack app, open App Manifest, replace the JSON, and save changes.'
             : 'Create the Slack app with this manifest. Select your workspace, review the configuration, and click Create.',
+          continueDisabled: !flow.manifest,
           content: (
             <FieldStack>
-              <Button
-                size='compact'
-                render={
-                  <a
-                    aria-label={editing ? 'Open app settings' : 'Create Slack app'}
-                    href={
-                      target.previous
-                        ? `https://api.slack.com/apps/${encodeURIComponent(target.previous.appId)}`
-                        : manifest.createAppUrl
+              {flow.manifest && (
+                <>
+                  <Button
+                    size='compact'
+                    render={
+                      <a
+                        aria-label={appId ? 'Open app settings' : 'Create Slack app'}
+                        href={
+                          appId
+                            ? `https://api.slack.com/apps/${encodeURIComponent(appId)}`
+                            : flow.manifest.createAppUrl
+                        }
+                        target='_blank'
+                        rel='noopener noreferrer'
+                      >
+                        {appId ? 'Open app settings' : 'Create Slack app'}
+                      </a>
                     }
-                    target='_blank'
-                    rel='noopener noreferrer'
                   >
-                    {editing ? 'Open app settings' : 'Create Slack app'}
-                  </a>
-                }
-              >
-                {editing ? 'Open app settings' : 'Create Slack app'}
-              </Button>
-              {editing && (
-                <Disclosure
-                  label='App manifest'
-                  actions={<CopyButton label='Copy app manifest' text={manifest.manifest} />}
-                >
-                  <Preformatted>{manifest.manifest}</Preformatted>
-                </Disclosure>
+                    {appId ? 'Open app settings' : 'Create Slack app'}
+                  </Button>
+                  {appId && (
+                    <Disclosure
+                      label='App manifest'
+                      actions={
+                        <CopyButton label='Copy app manifest' text={flow.manifest.manifest} />
+                      }
+                    >
+                      <Preformatted>{flow.manifest.manifest}</Preformatted>
+                    </Disclosure>
+                  )}
+                </>
               )}
+              <ManifestFailure flow={flow} />
             </FieldStack>
           ),
         },

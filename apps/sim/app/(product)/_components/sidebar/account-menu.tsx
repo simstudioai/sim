@@ -13,9 +13,17 @@ interface AccountMenuProps {
   image?: string | null
   onSettings: () => void
   onSignOut: () => void
+  onOpen?: () => void
 }
 
-export function AccountMenu({ anchor, name, image, onSettings, onSignOut }: AccountMenuProps) {
+export function AccountMenu({
+  anchor,
+  name,
+  image,
+  onSettings,
+  onSignOut,
+  onOpen,
+}: AccountMenuProps) {
   const [open, setOpen] = useState(false)
   return (
     <AnchoredPopover
@@ -23,7 +31,10 @@ export function AccountMenu({ anchor, name, image, onSettings, onSignOut }: Acco
       label='Account menu'
       anchor={anchor}
       open={open}
-      onOpenChange={(next) => setOpen(next)}
+      onOpenChange={(next) => {
+        if (next) onOpen?.()
+        setOpen(next)
+      }}
       trigger={(button) => (
         <IdentityButton
           render={button}

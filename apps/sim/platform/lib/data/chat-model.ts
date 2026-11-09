@@ -41,6 +41,7 @@ import {
   getWaitCountdownTitle,
 } from '@/lib/mothership/tools/display'
 import type {
+  ChatSource,
   PlatformCredentialRequest,
   PlatformLane,
   PlatformLaneItem,
@@ -304,8 +305,28 @@ function toLane(
 /** A settled message never changes, so a long transcript re-parses only the turn in progress. */
 const SETTLED_TURNS = new WeakMap<
   ChatMessage,
-  { pairing: string; parts: PlatformPart[]; copyText: string }
+  { pairing: string; parts: PlatformPart[]; copyText: string; sources: ChatSource[] }
 >()
+
+/**
+ * Every distinct document the answer's own prose cites, in first-cited order: the same text its
+ * inline citations come from, so lane scratch work and every fetched result stay out.
+ */
+function citedSources(segments: readonly MessageSegment[]): ChatSource[] {
+  const byUrl = new Map<string, ChatSource>()
+  for (const segment of segments) {
+    if (segment.type !== 'text') continue
+    for (const part of parseSpecialTags(segment.content, false).segments) {
+      if (part.type !== 'source' || byUrl.has(part.data.url)) continue
+      byUrl.set(part.data.url, {
+        url: part.data.url,
+        title: part.data.title || part.data.siteName || part.data.url,
+        site: part.data.siteName,
+      })
+    }
+  }
+  return [...byUrl.values()]
+}
 
 function toParts(
   segments: MessageSegment[],
@@ -567,9 +588,11 @@ export function toPlatformTurns(
     const settled = SETTLED_TURNS.get(message)
     let parts: PlatformPart[]
     let copyText = ''
+    let sources: ChatSource[] = []
     if (!live && settled?.pairing === pairingKey) {
       parts = settled.parts
       copyText = settled.copyText
+      sources = settled.sources
     } else {
       const cited = resolveMessageCitations(
         blocks,
@@ -585,7 +608,8 @@ export function toPlatformTurns(
       parts = toParts(segments, message, live, now, pairing)
       if (!live) {
         copyText = getOrchestratorMessageText(blocks, message.content)
-        SETTLED_TURNS.set(message, { pairing: pairingKey, parts, copyText })
+        sources = citedSources(segments)
+        SETTLED_TURNS.set(message, { pairing: pairingKey, parts, copyText, sources })
       }
     }
     const stopped = parts.some((part) => part.kind === 'stopped')
@@ -602,6 +626,7 @@ export function toPlatformTurns(
         userQuery: lastUserText,
         endsWithInteraction: endsWithInteraction(parts),
         forkable: isPersisted(message.id),
+        ...(sources.length ? { sources } : {}),
       })
     )
   })

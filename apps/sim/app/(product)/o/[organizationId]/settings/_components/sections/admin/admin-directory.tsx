@@ -9,11 +9,7 @@ import { Modal } from '@sim/emcn/modal'
 import { Pagination } from '@sim/emcn/pagination'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { StatusTag } from '@sim/emcn/status'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs'
-import { toast } from '@/lib/toast/sink'
+import { InlineNotice, StatusTag } from '@sim/emcn/status'
 import {
   ActionRow,
   FieldStack,
@@ -21,68 +17,34 @@ import {
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { AddUserDialog } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/add-user-dialog'
-import type {
-  AdminExample,
-  DirectoryUser,
-} from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/model'
+import {
+  ADMIN_PAGE_SIZE,
+  useDirectorySearch,
+} from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/directory-search'
+import type { AdminConsole, DirectoryUser } from '@/platform/lib/data/admin-model'
 
-const SEARCH_PARAMS = {
-  q: parseAsString.withDefault(''),
-  offset: parseAsInteger.withDefault(0),
-} as const
-const PAGE_SIZE = 20
 type UserAction = 'Ban' | 'Promote' | 'Demote'
 
 interface AdminDirectoryProps {
-  example: AdminExample | null
-  onEdit: (next: AdminExample) => void
+  directory: AdminConsole['directory']
   onImpersonate: (user: DirectoryUser) => void
-  manageHref: string
 }
 
-export function AdminDirectory({
-  example,
-  onEdit,
-  onImpersonate,
-  manageHref,
-}: AdminDirectoryProps) {
-  const router = useRouter()
-  const [{ q, offset }, setSearch] = useQueryStates(SEARCH_PARAMS, {
-    history: 'replace',
-    clearOnDefault: true,
-  })
+export function AdminDirectory({ directory, onImpersonate }: AdminDirectoryProps) {
+  const [{ q, offset }, setSearch] = useDirectorySearch()
   const [adding, setAdding] = useState(false)
   const [pending, setPending] = useState<{ id: string; action: UserAction }>()
   const [reason, setReason] = useState('')
-  const pendingUser = example?.users.find((user) => user.id === pending?.id)
-  const results =
-    q && example
-      ? example.users.filter(
-          (user) => user.id === q || user.email.toLowerCase().includes(q.toLowerCase())
-        )
-      : []
-  const pages = Math.ceil(results.length / PAGE_SIZE)
-  const page = Math.min(Math.max(1, Math.floor(offset / PAGE_SIZE) + 1), Math.max(1, pages))
-  const rows = q
-    ? results.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
-    : (example?.recent.flatMap((id) => example.users.filter((user) => user.id === id)) ?? [])
+  const results = q ? directory.results : undefined
+  const rows = q ? (results?.users ?? []) : directory.recent
+  const pendingUser = rows.find((user) => user.id === pending?.id)
+  const pages = Math.ceil((results?.total ?? 0) / ADMIN_PAGE_SIZE)
+  const page = Math.floor(offset / ADMIN_PAGE_SIZE) + 1
 
-  function changeUser(user: DirectoryUser) {
-    if (example)
-      onEdit({ ...example, users: example.users.map((row) => (row.id === user.id ? user : row)) })
-  }
-  function addUser(user: DirectoryUser) {
-    if (!example) return
-    if (example.users.some((existing) => existing.email.toLowerCase() === user.email))
-      throw new Error('A user with this email already exists.')
-    onEdit({ ...example, users: [...example.users, user] })
-    void setSearch({ q: user.email, offset: 0 })
-  }
   function confirmAction() {
     if (!pendingUser || !pending) return
-    if (pending.action === 'Ban')
-      changeUser({ ...pendingUser, banned: true, banReason: reason.trim() })
-    else changeUser({ ...pendingUser, role: pending.action === 'Promote' ? 'admin' : 'user' })
+    if (pending.action === 'Ban') return directory.ban(pendingUser, reason.trim())
+    return directory.setRole(pendingUser, pending.action === 'Promote' ? 'admin' : 'user')
   }
   const action = pending?.action
   return (
@@ -91,100 +53,111 @@ export function AdminDirectory({
         <DirectorySearch
           key={q}
           initial={q}
-          onSearch={(term) => {
-            if (example) void setSearch({ q: term, offset: 0 })
-            else
-              router.push(term ? `${manageHref}?${new URLSearchParams({ q: term })}` : manageHref)
-          }}
-          onAdd={example ? () => setAdding(true) : undefined}
-          manageHref={manageHref}
+          searching={directory.searching}
+          onSearch={(term) => void setSearch({ q: term || null, offset: null })}
+          onAdd={() => setAdding(true)}
         />
-        {example && (
-          <>
-            {q && rows.length === 0 && <EmptyState title='No users found.' />}
-            {rows.length > 0 && (
-              <div>
-                {!q && <Muted>Recently impersonated</Muted>}
-                {rows.map((user) => (
-                  <SettingsRow
-                    key={user.id}
-                    field
-                    label={user.name || '—'}
-                    description={user.email}
-                  >
-                    <ActionRow>
-                      <StatusTag
-                        label={user.role}
-                        intent={user.role === 'admin' ? 'info' : 'neutral'}
-                      />
-                      <StatusTag
-                        label={user.banned ? 'Banned' : 'Active'}
-                        intent={user.banned ? 'danger' : 'success'}
-                      />
-                      {user.id !== example.operatorId && (
-                        <>
-                          <Button size='compact' onClick={() => onImpersonate(user)}>
-                            Impersonate
-                          </Button>
-                          <ActionMenu
-                            label={`${user.email} actions`}
-                            icon='I108'
-                            align='end'
-                            actions={[
-                              {
-                                id: 'reset',
-                                label: 'Reset password',
-                                onSelect: () =>
-                                  toast.success(`Password reset requested for ${user.email}.`),
-                              },
-                              {
-                                id: 'role',
-                                label: user.role === 'admin' ? 'Demote' : 'Promote',
-                                destructive: user.role === 'admin',
-                                onSelect: () =>
-                                  setPending({
-                                    id: user.id,
-                                    action: user.role === 'admin' ? 'Demote' : 'Promote',
-                                  }),
-                              },
-                              user.banned
-                                ? {
-                                    id: 'unban',
-                                    label: 'Unban',
-                                    onSelect: () =>
-                                      changeUser({ ...user, banned: false, banReason: undefined }),
-                                  }
-                                : {
-                                    id: 'ban',
-                                    label: 'Ban',
-                                    separatorBefore: true,
-                                    destructive: true,
-                                    onSelect: () => {
-                                      setReason('')
-                                      setPending({ id: user.id, action: 'Ban' })
-                                    },
+        {directory.error && <InlineNotice intent='danger' message={directory.error} />}
+        {directory.warning && <InlineNotice intent='warning' message={directory.warning} />}
+        {directory.status && <Muted>{directory.status}</Muted>}
+        {q && results && rows.length === 0 && <EmptyState title='No users found.' />}
+        {rows.length > 0 && (
+          <div>
+            {!q && <Muted>Recently impersonated</Muted>}
+            {rows.map((user) => {
+              const busy = directory.busy(user.id)
+              return (
+                <SettingsRow key={user.id} field label={user.name || '—'} description={user.email}>
+                  <ActionRow>
+                    <StatusTag
+                      label={user.role}
+                      intent={user.role === 'admin' ? 'info' : 'neutral'}
+                    />
+                    <StatusTag
+                      label={user.banned ? 'Banned' : 'Active'}
+                      intent={user.banned ? 'danger' : 'success'}
+                    />
+                    {user.id !== directory.operatorId && (
+                      <>
+                        <Button
+                          size='compact'
+                          disabled={directory.impersonating || busy}
+                          onClick={() => onImpersonate(user)}
+                        >
+                          Impersonate
+                        </Button>
+                        <ActionMenu
+                          label={`${user.email} actions`}
+                          icon='I108'
+                          align='end'
+                          actions={[
+                            {
+                              id: 'reset',
+                              label: 'Reset password',
+                              disabled: busy,
+                              onSelect: () => directory.resetPassword(user),
+                            },
+                            {
+                              id: 'role',
+                              label: user.role === 'admin' ? 'Demote' : 'Promote',
+                              destructive: user.role === 'admin',
+                              disabled: busy,
+                              onSelect: () =>
+                                setPending({
+                                  id: user.id,
+                                  action: user.role === 'admin' ? 'Demote' : 'Promote',
+                                }),
+                            },
+                            user.banned
+                              ? {
+                                  id: 'unban',
+                                  label: 'Unban',
+                                  disabled: busy,
+                                  onSelect: () => directory.unban(user),
+                                }
+                              : {
+                                  id: 'ban',
+                                  label: 'Ban',
+                                  separatorBefore: true,
+                                  destructive: true,
+                                  disabled: busy,
+                                  onSelect: () => {
+                                    setReason('')
+                                    setPending({ id: user.id, action: 'Ban' })
                                   },
-                            ]}
-                          />
-                        </>
-                      )}
-                    </ActionRow>
-                  </SettingsRow>
-                ))}
-              </div>
-            )}
-            {pages > 1 && (
-              <Pagination
-                label='User search pages'
-                page={page}
-                pageCount={pages}
-                onPageChange={(next) => void setSearch({ offset: (next - 1) * PAGE_SIZE })}
-              />
-            )}
+                                },
+                          ]}
+                        />
+                      </>
+                    )}
+                  </ActionRow>
+                </SettingsRow>
+              )
+            })}
+          </div>
+        )}
+        {q && pages > 1 && (
+          <>
+            <Muted>{`Page ${page} of ${pages} (${results?.total ?? 0} users)`}</Muted>
+            <Pagination
+              label='User search pages'
+              page={page}
+              pageCount={pages}
+              disabled={directory.searching}
+              onPageChange={(next) => void setSearch({ offset: (next - 1) * ADMIN_PAGE_SIZE })}
+            />
           </>
         )}
       </FieldStack>
-      {adding && <AddUserDialog onClose={() => setAdding(false)} onAdd={addUser} />}
+      {adding && (
+        <AddUserDialog
+          onClose={() => setAdding(false)}
+          onAdd={async (input) => {
+            const email = await directory.addUser(input)
+            void setSearch({ q: email, offset: null })
+          }}
+        />
+      )}
       {pending && pendingUser && (
         <Modal
           variant={action === 'Ban' ? 'form' : 'confirm'}
@@ -221,12 +194,12 @@ export function AdminDirectory({
 
 interface DirectorySearchProps {
   initial: string
+  searching: boolean
   onSearch: (term: string) => void
-  onAdd?: () => void
-  manageHref: string
+  onAdd: () => void
 }
 
-function DirectorySearch({ initial, onSearch, onAdd, manageHref }: DirectorySearchProps) {
+function DirectorySearch({ initial, searching, onSearch, onAdd }: DirectorySearchProps) {
   const [input, setInput] = useState(initial)
   return (
     <form
@@ -245,15 +218,11 @@ function DirectorySearch({ initial, onSearch, onAdd, manageHref }: DirectorySear
           />
         }
       >
-        <Button size='compact' submit variant='primary'>
-          Search
+        <Button size='compact' submit variant='primary' disabled={searching}>
+          {searching ? 'Searching…' : 'Search'}
         </Button>
-        <Button
-          size='compact'
-          render={onAdd ? undefined : <Link href={manageHref}>Manage users</Link>}
-          onClick={onAdd}
-        >
-          {onAdd ? 'Add user' : 'Manage users'}
+        <Button size='compact' onClick={onAdd}>
+          Add user
         </Button>
       </SectionToolbar>
     </form>
