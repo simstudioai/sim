@@ -164,7 +164,7 @@
   },
   "apps/sim/app/api/folders/route.test.ts": {
     "TS2352": 1,
-    "TS2554": 5
+    "TS2554": 4
   },
   "apps/sim/app/api/guardrails/mask-batch/route.test.ts": {
     "TS2554": 2
