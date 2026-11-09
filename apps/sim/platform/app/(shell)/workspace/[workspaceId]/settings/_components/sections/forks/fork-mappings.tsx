@@ -300,8 +300,9 @@ function MappingEntry({
       {canEditConfigured && (
         <div className={styles.entryEnd}>
           <Button
-            variant='secondary'
+            variant='quiet'
             size='compact'
+            selected={showConfigured}
             onClick={() => setShowConfigured((value) => !value)}
           >
             {showConfigured ? 'Done editing' : 'Edit configuration'}

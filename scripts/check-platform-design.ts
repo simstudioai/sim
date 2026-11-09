@@ -410,7 +410,6 @@ const seamHelpers = new Set([
   'ee/workspace-forking/hooks/use-forking-available',
   'ee/workspace-forking/hooks/workspace-fork',
   'ee/workspace-forking/lib/promote/sync-blockers',
-  'lib/settings/search-params',
   'lib/webhooks/trigger-url',
   'enrichments/registry',
   'enrichments/types',
