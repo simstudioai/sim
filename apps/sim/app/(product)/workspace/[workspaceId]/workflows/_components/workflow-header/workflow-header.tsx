@@ -404,7 +404,14 @@ export function WorkflowActions({ workspaceId, workflowId }: WorkflowHeaderProps
 
   return (
     <>
-      <ActionMenu label='Workflow actions' actions={menu} icon='I108' align='end' tooltip />
+      <ActionMenu
+        label='Workflow actions'
+        actions={menu}
+        icon='I108'
+        triggerSize='bar'
+        align='end'
+        tooltip
+      />
       <DeployButton workspaceId={workspaceId} workflowId={workflowId} />
       <Button
         size='compact'

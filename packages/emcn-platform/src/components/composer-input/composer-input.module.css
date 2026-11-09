@@ -1,8 +1,16 @@
+/*
+ * A long draft scrolls in place. On a phone, scrolling past its end stays with the draft rather
+ * than moving the page beneath the keyboard; on wider layouts it hands off to the page.
+ */
 .viewport {
   min-inline-size: 0;
   max-block-size: min(24dvh, var(--container-208));
   overflow-y: auto;
-  overscroll-behavior: contain;
+}
+@media (max-width: 48rem) {
+  .viewport {
+    overscroll-behavior: contain;
+  }
 }
 .field {
   position: relative;
