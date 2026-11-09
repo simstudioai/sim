@@ -70,7 +70,7 @@
       }
     },
     "app/(product)/o/[organizationId]/integrations/accounts/[credentialId]/page.tsx": {
-      "modules": 2137,
+      "modules": 2136,
       "gateways": {
         "apps/sim/app/(product)/o/[organizationId]/integrations/_components/tool-permissions/live-account-tools-route.tsx": 2135,
         "apps/sim/platform/lib/data/surface.ts": 1819,

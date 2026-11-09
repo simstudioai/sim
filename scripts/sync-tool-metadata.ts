@@ -20,10 +20,16 @@
  *   tools/generated/tool-ids.ts        every registered tool id
  *   tools/generated/tool-metadata.ts   id -> { name, description, version, params, oauth }
  *   tools/generated/tool-outputs.ts    id -> outputs
+ *   tools/generated/assistant-tool-effects.ts
+ *                                      name -> Assistant review effect
  *
  * Ids are their own artifact because resolving a possibly-unversioned tool name
  * needs only the key set, and an existence check needs nothing more — so those
  * callers load ~100 KB instead of ~4 MB.
+ *
+ * The Assistant effects are their own artifact because every chat surface asks
+ * whether a tool call is Assistant-reviewed, and the shell that mounts the
+ * composer on every product route must not pay ~4 MB of params to answer it.
  *
  * Each artifact holds its data as one JSON string parsed at runtime — see
  * `serialize()` for why an imported `.json` or an object literal is not viable
@@ -36,6 +42,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { compareStrings, stripVersionSuffix } from '@sim/utils/string'
 import { deriveHostedApiKeySupport } from '../apps/sim/tools/hosted-api-key'
 import { tools } from '../apps/sim/tools/registry'
 import { getLatestToolIds, hasToolId } from '../apps/sim/tools/tool-ids'
@@ -48,6 +55,7 @@ const GENERATED_DIR = resolve(ROOT, 'apps/sim/tools/generated')
 const IDS_PATH = resolve(GENERATED_DIR, 'tool-ids.ts')
 const METADATA_PATH = resolve(GENERATED_DIR, 'tool-metadata.ts')
 const OUTPUTS_PATH = resolve(GENERATED_DIR, 'tool-outputs.ts')
+const ASSISTANT_EFFECTS_PATH = resolve(GENERATED_DIR, 'assistant-tool-effects.ts')
 
 /**
  * Fields copied into `tool-metadata.ts`. Every one must be plain data.
@@ -184,6 +192,8 @@ function build(registry: ToolRecord) {
     if (tool.outputs !== undefined) outputs[toolId] = tool.outputs
   }
 
+  const assistantEffects = assistantEffectsByName(registry)
+
   const offenders: string[] = []
   findFunctionPaths(metadata, 'metadata', offenders)
   findFunctionPaths(outputs, 'outputs', offenders)
@@ -216,8 +226,35 @@ function build(registry: ToolRecord) {
       'toolOutputs',
       '/** Declared output shapes for every built-in tool, keyed by tool id. */'
     ),
+    assistantEffects: serializeValue(
+      assistantEffects,
+      'assistantToolEffects',
+      '/** Assistant review effect of every tool name that resolves to an Assistant-reviewed tool. */',
+      "Record<string, 'read' | 'write'>"
+    ),
     toolCount: Object.keys(metadata).length,
   }
+}
+
+/**
+ * Keys every name `getToolMetadata(name)?.assistant` answers for: each reviewed id, plus each
+ * unversioned name that resolves onto a reviewed newest version (`gmail_send` ->
+ * `gmail_send_v2`). Sorted so the artifact is stable.
+ */
+function assistantEffectsByName(registry: ToolRecord): Record<string, 'read' | 'write'> {
+  const effects: Record<string, 'read' | 'write'> = {}
+  for (const toolId of Object.keys(registry).sort()) {
+    const effect = registry[toolId]?.assistant?.effect
+    if (effect) effects[toolId] = effect
+  }
+  for (const latestId of Object.keys(getLatestVersionTools(registry))) {
+    const baseName = stripVersionSuffix(latestId)
+    const effect = registry[latestId]?.assistant?.effect
+    if (effect && baseName !== latestId && !Object.hasOwn(registry, baseName)) {
+      effects[baseName] = effect
+    }
+  }
+  return Object.fromEntries(Object.entries(effects).sort(([a], [b]) => compareStrings(a, b)))
 }
 
 /**
@@ -314,15 +351,22 @@ function assertResolverParity() {
 
 async function main() {
   const checkOnly = process.argv.includes('--check')
-  const { ids, metadata, outputs, toolCount } = build(tools as ToolRecord)
+  const { ids, metadata, outputs, assistantEffects, toolCount } = build(tools as ToolRecord)
 
   if (checkOnly) {
-    const [existingIds, existingMetadata, existingOutputs] = await Promise.all([
-      readFile(IDS_PATH, 'utf8').catch(() => null),
-      readFile(METADATA_PATH, 'utf8').catch(() => null),
-      readFile(OUTPUTS_PATH, 'utf8').catch(() => null),
-    ])
-    if (existingIds !== ids || existingMetadata !== metadata || existingOutputs !== outputs) {
+    const [existingIds, existingMetadata, existingOutputs, existingAssistantEffects] =
+      await Promise.all([
+        readFile(IDS_PATH, 'utf8').catch(() => null),
+        readFile(METADATA_PATH, 'utf8').catch(() => null),
+        readFile(OUTPUTS_PATH, 'utf8').catch(() => null),
+        readFile(ASSISTANT_EFFECTS_PATH, 'utf8').catch(() => null),
+      ])
+    if (
+      existingIds !== ids ||
+      existingMetadata !== metadata ||
+      existingOutputs !== outputs ||
+      existingAssistantEffects !== assistantEffects
+    ) {
       throw new Error('Generated tool metadata is stale. Run: bun run generate:tool-metadata')
     }
     assertResolverParity()
@@ -335,6 +379,7 @@ async function main() {
     writeFile(IDS_PATH, ids, 'utf8'),
     writeFile(METADATA_PATH, metadata, 'utf8'),
     writeFile(OUTPUTS_PATH, outputs, 'utf8'),
+    writeFile(ASSISTANT_EFFECTS_PATH, assistantEffects, 'utf8'),
   ])
   console.log(`✓ wrote tool metadata for ${toolCount} tools`)
 }
