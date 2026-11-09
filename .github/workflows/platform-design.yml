@@ -108,6 +108,7 @@ jobs:
       - run: bun run --cwd apps/sim build:platform
         env:
           NEXT_BUILD_SKIP_TYPE_CHECK: '1'
+          NODE_OPTIONS: '--no-warnings --max-old-space-size=6144'
       - run: bun run --cwd apps/sim test:platform:desktop
         env:
           PLATFORM_DESKTOP_REPORT_PATH: ${{ runner.temp }}/platform-desktop/report.json

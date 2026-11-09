@@ -5,13 +5,13 @@ import { Chip, toast } from '@sim/emcn-legacy'
 import { Check, Plus } from '@sim/emcn-legacy/icons'
 import { usePostHog } from 'posthog-js/react'
 import { captureEvent } from '@/lib/posthog/client'
+import { isSkillNameConflictError } from '@/lib/skills/authoring'
 import { SkillTile } from '@/app/workspace/[workspaceId]/components/skill-tile'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
 } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
-import { isSkillNameConflictError } from '@/app/workspace/[workspaceId]/skills/components/utils'
 import type { SuggestedSkill } from '@/blocks/types'
 import { useCreateSkill, useSkills } from '@/hooks/queries/skills'
 

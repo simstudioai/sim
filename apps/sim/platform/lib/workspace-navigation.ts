@@ -1,6 +1,12 @@
 /** Where a server's data comes from, as far as the workspace pages are concerned. */
 export type WorkspaceDataMode = 'fixture' | 'live'
 
+/** An organization rollout flag a tab needs on, resolved on the server with the surface. */
+type WorkspaceTabFlag = 'workflow-tests'
+
+/** The rollout flags the tabs depend on; a flag left out is off. */
+export type WorkspaceTabFlags = Readonly<Partial<Record<WorkspaceTabFlag, boolean>>>
+
 /**
  * The workspace's pages, in tab order, with the data modes the zone serves each from. A page with
  * no live adapter yet is fixture-only; a page built on live data alone has no fixtures.
@@ -14,18 +20,24 @@ const WORKSPACE_TABS = [
   { section: 'files', label: 'Files', modes: ['live'] },
   { section: 'knowledge', label: 'Knowledge bases', modes: ['live'] },
   { section: 'workflows', label: 'Workflows', modes: ['live'] },
+  { section: 'tests', label: 'Tests', modes: ['live'], flag: 'workflow-tests' },
   { section: 'settings', label: 'Settings', modes: ['fixture', 'live'] },
 ] as const satisfies readonly {
   section: string
   label: string
   modes: readonly WorkspaceDataMode[]
+  flag?: WorkspaceTabFlag
 }[]
 
 export type WorkspaceTab = (typeof WORKSPACE_TABS)[number]['section']
 
-/** The tabs a server in `mode` serves, in order. */
-export function workspaceTabs(mode: WorkspaceDataMode) {
-  return WORKSPACE_TABS.filter((tab) => (tab.modes as readonly WorkspaceDataMode[]).includes(mode))
+/** The tabs a server in `mode` serves, in order, leaving out a tab whose rollout flag is off. */
+export function workspaceTabs(mode: WorkspaceDataMode, flags: WorkspaceTabFlags = {}) {
+  return WORKSPACE_TABS.filter(
+    (tab) =>
+      (tab.modes as readonly WorkspaceDataMode[]).includes(mode) &&
+      (!('flag' in tab) || flags[tab.flag] === true)
+  )
 }
 
 /** The page a workspace opens on: Dashboard on example data, Workflows on live data, as legacy does. */

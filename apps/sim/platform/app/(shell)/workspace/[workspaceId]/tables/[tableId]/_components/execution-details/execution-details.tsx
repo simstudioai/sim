@@ -8,17 +8,18 @@ import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { formatDuration } from '@sim/utils/formatting'
 import { isRecordLike } from '@sim/utils/object'
+import {
+  type MetadataField,
+  MetadataFields,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/metadata-fields/metadata-fields'
 import { useViewerTimeZone } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/execution-details/execution-details.module.css'
-import {
-  type Fact,
-  Facts,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/execution-details/facts'
 import { Payload } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/execution-details/payload'
 import { findLeafErrorSpan } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/execution-details/trace'
 import { TraceView } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/execution-details/trace-view'
 import {
   SidePanel,
+  SidePanelNote,
   SidePanelSection,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/side-panel/side-panel'
 import { platformUrl } from '@/platform/lib/data/base-path'
@@ -218,7 +219,7 @@ function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProp
     ? (outputError ?? leafError?.errorMessage ?? 'This run failed.')
     : null
 
-  const facts: Fact[] = [
+  const facts: MetadataField[] = [
     { id: 'level', label: 'Level', value: LEVEL_LABEL[log.status ?? ''] ?? 'Info' },
     {
       id: 'workflow',
@@ -279,7 +280,7 @@ function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProp
           }
         />
       )}
-      <Facts label='Run facts' facts={facts} />
+      <MetadataFields label='Run facts' fields={facts} />
       {isWorkflowExecutionLog && workflowInput && traceShown && (
         <Payload label='Workflow input' data={workflowInput} />
       )}
@@ -356,9 +357,7 @@ function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProp
   const trace = traceSpans?.length ? (
     <TraceView traceSpans={traceSpans} runCostDollars={log.cost?.total} />
   ) : log.executionData ? (
-    <p className={styles.note} data-type='T060'>
-      No trace data available for this run
-    </p>
+    <SidePanelNote>No trace data available for this run</SidePanelNote>
   ) : null
 
   return (

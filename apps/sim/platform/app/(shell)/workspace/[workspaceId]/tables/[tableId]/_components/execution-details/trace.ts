@@ -158,7 +158,7 @@ export function findSpan(spans: TraceSpan[], id: string | null): TraceSpan | nul
   return null
 }
 
-export function spanMatchesQuery(span: TraceSpan, query: string): boolean {
+function spanMatchesQuery(span: TraceSpan, query: string): boolean {
   if (!query) return true
   return getDisplayName(span).toLowerCase().includes(query.toLowerCase())
 }

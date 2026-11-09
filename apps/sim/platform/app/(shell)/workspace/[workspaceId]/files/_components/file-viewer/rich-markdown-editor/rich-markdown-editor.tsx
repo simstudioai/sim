@@ -19,6 +19,7 @@ import { isChangeOrigin } from '@tiptap/extension-collaboration'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
+import { FindBar } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/find-bar/find-bar'
 import { EditorBubbleMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/bubble-menu'
 import { createMarkdownEditorExtensions } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/editor-extensions'
 import {
@@ -34,7 +35,6 @@ import { useEditorMentions } from '@/platform/app/(shell)/workspace/[workspaceId
 import { useReportFileDocPeers } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/collaboration/file-doc-room'
 import { FileSaveConflict } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/file-save-conflict'
 import { PreviewError } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/preview-shared'
-import { FindBar } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/find-bar'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/rich-markdown-editor.module.css'
 import { useMarkdownFind } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/rich-markdown-editor/use-markdown-find'
 import { TextEditor } from '@/platform/app/(shell)/workspace/[workspaceId]/files/_components/file-viewer/text-editor'
@@ -934,7 +934,32 @@ function LoadedRichMarkdownEditor({
           )}
         </div>
       )}
-      {find.isOpen && <FindBar find={find} canReplace={isEditable} />}
+      {find.isOpen && (
+        <div className={styles.findFrame}>
+          <FindBar
+            label='Find in document'
+            query={find.query}
+            onQueryChange={find.setQuery}
+            inputRef={find.inputRef}
+            results={{ index: find.currentIndex, count: find.count, truncated: find.truncated }}
+            onStep={(direction) => (direction > 0 ? find.next() : find.prev())}
+            onClose={find.close}
+            replace={
+              isEditable
+                ? {
+                    value: find.replacement,
+                    onChange: find.setReplacement,
+                    onReplace: find.replaceCurrent,
+                    onReplaceAll: find.replaceAll,
+                    replaceAllDisabledReason: find.truncated
+                      ? 'Narrow the search to replace all'
+                      : undefined,
+                  }
+                : undefined
+            }
+          />
+        </div>
+      )}
       <div ref={containerRef} className={styles.scroller} data-editable={isEditable || undefined}>
         {editor && (
           <EditorBubbleMenu

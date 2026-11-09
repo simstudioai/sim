@@ -43,6 +43,8 @@ New skill, MCP, sharing and credential editor interactions are UI work. Their ex
 
 The custom Slack bot connection keeps its provider-specific setup in `slack-bot-connection/`: bot identity, generated capability choices, optional slash commands, Slack setup instructions, bot token and signing secret. Reconnect preserves the credential and workspace identity and does not edit the existing manifest. Secret inputs stay inside the mounted dialog and are cleared after its metadata-only callback succeeds or on dismissal. A deployable app manifest and creation link require an authorized service to reserve the credential ID and supply public callback URLs; the fixture flow shows the setup guide and permission review without fabricating those URLs or claiming an installation succeeded.
 
+On live data the center serves Apps, Skills and Credentials. Skills are workspace-scoped, as legacy scopes them: a workspace choice in the control bar (`workspace` in the URL) picks whose skills are listed, created, edited and shared with editors; built-in skills are read-only.
+
 The organization center is the canonical destination. Workspace navigation resolves the workspace host and the viewer's organization eligibility before linking or redirecting there; it never uses the session's unrelated active organization or silently changes credential scope. Preserve the existing route for viewers who cannot use the organization center, rather than trapping them behind an unavailable page. Paper references and historical documentation do not justify another Platform workspace management surface. The browser and Electron use the same renderer.
 
 ## Verification

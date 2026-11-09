@@ -15,11 +15,12 @@ import {
 import { Button } from '@sim/emcn/button'
 import { Checkbox } from '@sim/emcn/checkbox'
 import { EmptyState } from '@sim/emcn/empty-state'
-import type { MenuAction } from '@sim/emcn/menu/action-menu'
+import { type MenuAction, PointActionMenu } from '@sim/emcn/menu/action-menu'
 import { getErrorMessage } from '@sim/utils/errors'
 import { assessTextPaste, formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useSearchParams } from 'next/navigation'
+import { FindBar } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/find-bar/find-bar'
 import type { ColumnConfig } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/column-config/column-config'
 import { enrichmentMark } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/column-types/enrichment-marks'
 import { ColumnDropdown } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/column-dropdown'
@@ -34,16 +35,11 @@ import {
 } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/column-menus'
 import { DataRow } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/data-row'
 import { ExpandedCell } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/expanded-cell'
-import { FindBar } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/find-bar'
 import { GroupHeader } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/group-header'
 import {
   inlineStyle,
   inlineStyles,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/inline-style'
-import {
-  type GridMenu,
-  PointMenu,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/point-menu'
 import { RemoteSelections } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/remote-selections'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/table-grid.module.css'
 import { useTable } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/use-table'
@@ -127,6 +123,16 @@ import {
 import { platformHref, publicAssetPath } from '@/platform/lib/navigation'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { toast } from '@/platform/shared/toast'
+
+/** A menu the grid opens at a viewport point: under a header, or where a cell was right-clicked. */
+interface GridMenu {
+  label: string
+  x: number
+  y: number
+  actions: readonly MenuAction[] | (() => readonly MenuAction[])
+}
+
+const NO_GRID_ACTIONS: readonly MenuAction[] = []
 
 const EMPTY_RUNNING_BY_ROW: Readonly<Record<string, number>> = Object.freeze({})
 const EMPTY_FIND_MATCHES: readonly TableFindMatch[] = Object.freeze([])
@@ -4760,6 +4766,7 @@ export function TableGrid({
           }),
       }
     : null
+  const gridMenu = cellMenu ?? headerMenu
 
   if (!isLoadingTable && !tableData) {
     return (
@@ -4791,22 +4798,31 @@ export function TableGrid({
     >
       <div className={styles.viewport}>
         {findOpen && (
-          <FindBar
-            query={findQuery}
-            onQueryChange={setFindQuery}
-            onNext={handleFindNext}
-            onPrev={handleFindPrev}
-            onSubmit={handleFindSubmit}
-            onClose={handleFindClose}
-            isStale={trimmedFindQuery !== submittedQuery}
-            canNavigate={findResultsAreCurrent}
-            count={findMatches.length}
-            // Clamped: a background refetch of the same term can shrink the match set under a
-            // cursor the reader already paged, and an unclamped index reads "8 of 5".
-            currentIndex={Math.min(currentMatchIndex, Math.max(0, findMatches.length - 1))}
-            truncated={findData?.truncated ?? false}
-            inputRef={findInputRef}
-          />
+          <div className={styles.findFrame}>
+            <FindBar
+              label='Find in table'
+              query={findQuery}
+              onQueryChange={setFindQuery}
+              inputRef={findInputRef}
+              results={
+                trimmedFindQuery === submittedQuery &&
+                (findMatches.length > 0 || findResultsAreCurrent)
+                  ? {
+                      // Clamped: a background refetch of the same term can shrink the match set
+                      // under a cursor the reader already paged, and an unclamped index reads "8 of 5".
+                      index: Math.min(currentMatchIndex, Math.max(0, findMatches.length - 1)),
+                      count: findMatches.length,
+                      truncated: findData?.truncated ?? false,
+                    }
+                  : undefined
+              }
+              canStep={findMatches.length > 0 && findResultsAreCurrent}
+              onStep={(direction) => (direction > 0 ? handleFindNext() : handleFindPrev())}
+              onClose={handleFindClose}
+              pending={trimmedFindQuery !== submittedQuery}
+              onCommit={handleFindSubmit}
+            />
+          </div>
         )}
         <div
           ref={scrollRef}
@@ -5097,8 +5113,10 @@ export function TableGrid({
           )}
         </div>
       </div>
-      <PointMenu
-        menu={cellMenu ?? headerMenu}
+      <PointActionMenu
+        label={gridMenu?.label ?? 'Table actions'}
+        point={gridMenu}
+        actions={gridMenu?.actions ?? NO_GRID_ACTIONS}
         onClose={() => {
           closeContextMenu()
           closeHeaderMenu()

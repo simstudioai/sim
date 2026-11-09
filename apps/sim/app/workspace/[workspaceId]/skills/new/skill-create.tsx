@@ -8,6 +8,12 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import {
+  isSkillNameConflictError,
+  type ParsedSkill,
+  parseSkillMarkdown,
+  validateSkillName,
+} from '@/lib/skills/authoring'
+import {
   CredentialDetailHeading,
   CredentialDetailLayout,
   UnsavedChangesModal,
@@ -19,12 +25,6 @@ import {
   SkillFields,
 } from '@/app/workspace/[workspaceId]/skills/components/skill-fields'
 import { SkillImportButton } from '@/app/workspace/[workspaceId]/skills/components/skill-import'
-import {
-  isSkillNameConflictError,
-  type ParsedSkill,
-  parseSkillMarkdown,
-  validateSkillName,
-} from '@/app/workspace/[workspaceId]/skills/components/utils'
 import { useCreateSkill } from '@/hooks/queries/skills'
 
 const logger = createLogger('SkillCreate')

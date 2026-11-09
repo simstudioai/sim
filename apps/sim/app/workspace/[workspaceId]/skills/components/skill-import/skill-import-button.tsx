@@ -3,11 +3,7 @@
 import { useRef, useState } from 'react'
 import { Chip, Loader, toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  type ParsedSkill,
-  readSkillFile,
-  SKILL_IMPORT_ACCEPT,
-} from '@/app/workspace/[workspaceId]/skills/components/utils'
+import { type ParsedSkill, readSkillFile, SKILL_IMPORT_ACCEPT } from '@/lib/skills/authoring'
 
 interface SkillImportButtonProps {
   onImport: (data: ParsedSkill) => void

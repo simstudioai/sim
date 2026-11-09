@@ -7,15 +7,6 @@
   border-inline-start: var(--spacing-stroke-hairline) solid var(--ui-border);
   background: var(--ui-canvas);
 }
-/* The drag handle straddles the panel's leading edge without taking layout space. */
-.resizer {
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: calc(-1 * var(--spacing-4));
-  z-index: 1;
-  inline-size: var(--spacing-8);
-  cursor: ew-resize;
-}
 .tabs {
   display: flex;
   flex: none;
@@ -42,8 +33,5 @@
     min-inline-size: 100%;
     border-inline-start: none;
     border-block-start: var(--spacing-stroke-hairline) solid var(--ui-border);
-  }
-  .resizer {
-    display: none;
   }
 }
