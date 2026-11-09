@@ -6,11 +6,10 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
-import { InlineNotice } from '@sim/emcn/status'
+import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { ConnectionPrompt } from '@sim/emcn-platform/connection-prompt'
 import { HomeSection } from '@/app/(product)/_components/home-section/home-section'
 import styles from '@/app/(product)/o/[organizationId]/home/_components/connected-widget/connected-widget.module.css'
-import { RetryButton } from '@/app/(product)/o/[organizationId]/home/_components/retry-button/retry-button'
 import type { HomeAccountView, HomeWidgetActions, HomeWidgetState } from '@/platform/shared/home'
 
 const DISCONNECT_NOTICE =
@@ -59,11 +58,11 @@ function AccountNotices({ accounts, onReconnect, onRetry }: AccountNoticesProps)
       )
     if (account.problem === 'unavailable')
       return (
-        <InlineNotice
+        <FailureNotice
           key={account.id}
           intent='warning'
           message={`${account.label} could not be reached.`}
-          action={<RetryButton onRetry={onRetry} />}
+          onRetry={onRetry}
         />
       )
     if (account.problem === 'not_offered')
@@ -154,10 +153,10 @@ export function ConnectedWidget<T>({
         />
       )}
       {state.status === 'error' && (
-        <InlineNotice
-          intent='warning'
+        <FailureNotice
           message={`Your ${noun} could not load.`}
-          action={<RetryButton retrying={state.retrying} onRetry={actions.retry} />}
+          retrying={state.retrying}
+          onRetry={actions.retry}
         />
       )}
       {state.status === 'ready' && (

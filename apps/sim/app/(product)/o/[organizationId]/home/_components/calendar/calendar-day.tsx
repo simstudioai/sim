@@ -5,9 +5,8 @@ import { AvatarGroup } from '@sim/emcn/avatar'
 import { Button, IconButton } from '@sim/emcn/button'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
-import { InlineNotice } from '@sim/emcn/status'
+import { FailureNotice } from '@sim/emcn/status'
 import styles from '@/app/(product)/o/[organizationId]/home/_components/calendar/calendar-day.module.css'
-import { RetryButton } from '@/app/(product)/o/[organizationId]/home/_components/retry-button/retry-button'
 import type { CalendarMeeting, HomeCalendarDay } from '@/platform/shared/home'
 import { formatCalendarDate, formatClockTime, formatTimeRange } from '@/platform/shared/time'
 
@@ -140,11 +139,7 @@ export function CalendarDay({ calendar, onDayChange, onReturnToToday, onRetry }:
         </div>
       </div>
       {calendar.status === 'error' && (
-        <InlineNotice
-          intent='warning'
-          message='This day could not load.'
-          action={<RetryButton onRetry={onRetry} />}
-        />
+        <FailureNotice message='This day could not load.' onRetry={onRetry} />
       )}
       {calendar.status !== 'error' && (
         <div

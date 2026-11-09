@@ -3,7 +3,7 @@ import { Avatar } from '@sim/emcn/avatar'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { ScrollArea } from '@sim/emcn/scroll-area'
-import { InlineNotice } from '@sim/emcn/status'
+import { FailureNotice } from '@sim/emcn/status'
 import { useSearchParams } from 'next/navigation'
 import { HomeSection } from '@/app/(product)/_components/home-section/home-section'
 import styles from '@/app/(product)/o/[organizationId]/home/_components/activity-list/activity-list.module.css'
@@ -11,7 +11,6 @@ import type {
   AttentionItem,
   EmailItem,
 } from '@/app/(product)/o/[organizationId]/home/_components/model'
-import { RetryButton } from '@/app/(product)/o/[organizationId]/home/_components/retry-button/retry-button'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
@@ -94,20 +93,16 @@ export function AttentionList({ state, asOf, onRetry }: AttentionListProps) {
   return (
     <HomeSection title='Needs your attention'>
       {state.status === 'error' && (
-        <InlineNotice
-          intent='warning'
+        <FailureNotice
           message='This could not load.'
-          action={<RetryButton retrying={state.retrying} onRetry={onRetry} />}
+          retrying={state.retrying}
+          onRetry={onRetry}
         />
       )}
       {state.status === 'ready' && (
         <>
           {state.partial && (
-            <InlineNotice
-              intent='warning'
-              message='Some items could not load.'
-              action={<RetryButton onRetry={onRetry} />}
-            />
+            <FailureNotice intent='warning' message='Some items could not load.' onRetry={onRetry} />
           )}
           {state.items.length > 0 ? (
             <div className={styles.viewport}>

@@ -7,9 +7,8 @@ import { ChartTooltip } from '@sim/emcn/chart/tooltip'
 import { usePlotInspection } from '@sim/emcn/chart/use-plot-inspection'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
-import { InlineNotice } from '@sim/emcn/status'
+import { FailureNotice } from '@sim/emcn/status'
 import styles from '@/app/(product)/o/[organizationId]/home/_components/activity-chart/activity-chart.module.css'
-import { RetryButton } from '@/app/(product)/o/[organizationId]/home/_components/retry-button/retry-button'
 import type { ActivityPoint, HomeActivityState } from '@/platform/shared/home'
 import { DAY_MS, formatCalendarDate } from '@/platform/shared/time'
 
@@ -143,10 +142,10 @@ export function HomeActivityChart({
         )}
       </header>
       {state.status === 'error' && (
-        <InlineNotice
-          intent='warning'
+        <FailureNotice
           message='This chart could not load.'
-          action={<RetryButton retrying={state.retrying} onRetry={onRetry} />}
+          retrying={state.retrying}
+          onRetry={onRetry}
         />
       )}
       {ready && (

@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
-import { InlineNotice } from '@sim/emcn/status'
+import { FailureNotice } from '@sim/emcn/status'
 import { PageColumn, PageOverflow } from '@sim/emcn-platform/page-column'
 import { RecentItems } from '@sim/emcn-platform/recent-items'
 import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
@@ -23,7 +23,6 @@ import type {
   HomeActions,
   HomeView,
 } from '@/app/(product)/o/[organizationId]/home/_components/model'
-import { RetryButton } from '@/app/(product)/o/[organizationId]/home/_components/retry-button/retry-button'
 
 const WIDGETS: readonly HomeWidget[] = ['Activity', 'Email', 'Calendar']
 /**
@@ -123,12 +122,10 @@ export function HomeDashboard({
           <PlatformSurface theme='system'>
             <div className={styles.sections}>
               {view.recents.status === 'error' && (
-                <InlineNotice
-                  intent='warning'
+                <FailureNotice
                   message='Recents could not load.'
-                  action={
-                    <RetryButton retrying={view.recents.retrying} onRetry={actions.retryRecents} />
-                  }
+                  retrying={view.recents.retrying}
+                  onRetry={actions.retryRecents}
                 />
               )}
               {view.recents.status === 'ready' && view.recents.items.length > 0 && (
