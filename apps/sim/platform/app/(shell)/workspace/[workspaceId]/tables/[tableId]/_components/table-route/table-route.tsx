@@ -182,7 +182,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
       toast.error(message, {
         action: {
           label: 'Upgrade',
-          onClick: () => router.push(platformHref('/settings/billing', search)),
+          onClick: () => router.push(platformHref('/settings/billing/plans?reason=tables', search)),
         },
       })
     },

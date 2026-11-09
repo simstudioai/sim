@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
+import { DataTable } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { SelectField, TextField } from '@sim/emcn/field'
 import { ListField } from '@sim/emcn/field/list-field'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
-import { OverflowText } from '@sim/emcn/overflow-text'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/knowledge/_components/base-tags-modal/base-tags-modal.module.css'
 import {
   FIELD_TYPE_LABELS,
@@ -27,6 +27,12 @@ type FieldType = (typeof SUPPORTED_FIELD_TYPES)[number]
 type View = { kind: 'list' } | { kind: 'create' } | { kind: 'documents'; tagId: string }
 
 const LIST: View = { kind: 'list' }
+
+const TAG_COLUMNS = [
+  { key: 'name', label: 'Name', kind: 'text', primary: true },
+  { key: 'type', label: 'Type', kind: 'text' },
+  { key: 'documents', label: 'Documents', kind: 'number' },
+] as const
 
 function documentCount(count: number) {
   return `${count.toLocaleString()} document${count === 1 ? '' : 's'}`
@@ -208,54 +214,44 @@ export function BaseTagsModal({ open, onOpenChange, knowledgeBaseId }: BaseTagsM
               description='Create a tag to organize and filter documents.'
             />
           ) : (
-            <ul className={styles.list} aria-label='Tags'>
-              {tags.map((tag) => {
-                const count = usageFor(tag).documentCount
-                const type = FIELD_TYPE_LABELS[tag.fieldType] ?? tag.fieldType
-                return (
-                  <li key={tag.id} className={styles.row}>
-                    <button
-                      type='button'
-                      className={styles.open}
-                      aria-label={`${tag.displayName}, ${type}, ${documentCount(count)}`}
-                      onClick={() => showDocuments(tag)}
-                    >
-                      <span className={styles.name} data-type='T060'>
-                        <OverflowText text={tag.displayName}>{tag.displayName}</OverflowText>
-                      </span>
-                      <span className={styles.secondary} data-type='T060'>
-                        {type}
-                      </span>
-                      <span className={styles.count} data-type='T060'>
-                        {documentCount(count)}
-                      </span>
-                    </button>
-                    <ActionMenu
-                      label={`${tag.displayName} options`}
-                      icon='I108'
-                      align='end'
-                      actions={[
-                        {
-                          id: 'documents',
-                          label: 'View documents',
-                          onSelect: () => showDocuments(tag),
+            <DataTable
+              title='Tags'
+              titleHidden
+              columns={TAG_COLUMNS}
+              rows={tags.map((tag) => ({
+                id: tag.id,
+                values: {
+                  name: tag.displayName,
+                  type: FIELD_TYPE_LABELS[tag.fieldType] ?? tag.fieldType,
+                  documents: usageFor(tag).documentCount,
+                },
+                onOpen: () => showDocuments(tag),
+                action: (
+                  <ActionMenu
+                    label={`${tag.displayName} options`}
+                    icon='I108'
+                    align='end'
+                    actions={[
+                      {
+                        id: 'documents',
+                        label: 'View documents',
+                        onSelect: () => showDocuments(tag),
+                      },
+                      {
+                        id: 'delete',
+                        label: 'Delete tag',
+                        destructive: true,
+                        separatorBefore: true,
+                        onSelect: () => {
+                          void usage.refetch()
+                          setDeleting(tag)
                         },
-                        {
-                          id: 'delete',
-                          label: 'Delete tag',
-                          destructive: true,
-                          separatorBefore: true,
-                          onSelect: () => {
-                            void usage.refetch()
-                            setDeleting(tag)
-                          },
-                        },
-                      ]}
-                    />
-                  </li>
-                )
-              })}
-            </ul>
+                      },
+                    ]}
+                  />
+                ),
+              }))}
+            />
           )}
         </Modal>
       )}

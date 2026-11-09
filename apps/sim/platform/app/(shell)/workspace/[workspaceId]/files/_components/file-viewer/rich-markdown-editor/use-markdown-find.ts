@@ -16,7 +16,7 @@ import { toast } from '@/platform/shared/toast'
 /** The class the find plugin puts on the active match. */
 const ACTIVE_MATCH_SELECTOR = "[class~='rich-find-match-active']"
 
-export interface MarkdownFindController {
+interface MarkdownFindController {
   isOpen: boolean
   query: string
   count: number

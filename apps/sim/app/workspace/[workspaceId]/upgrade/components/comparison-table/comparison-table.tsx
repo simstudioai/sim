@@ -2,13 +2,13 @@
 import { chipVariants, cn } from '@sim/emcn-legacy'
 import { Check } from '@sim/emcn-legacy/icons'
 import { SlackIcon } from '@/components/icons'
-import { BillingPeriodToggle } from '@/app/workspace/[workspaceId]/upgrade/components/billing-period-toggle/billing-period-toggle'
 import {
   type CellValue,
   COMPARISON_SECTIONS,
   PLAN_COLUMNS,
   type PlanName,
-} from '@/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data'
+} from '@/lib/billing/plan-comparison'
+import { BillingPeriodToggle } from '@/app/workspace/[workspaceId]/upgrade/components/billing-period-toggle/billing-period-toggle'
 
 /** Maps a cell-icon identifier to its brand icon component. */
 const CELL_ICONS = { slack: SlackIcon } as const

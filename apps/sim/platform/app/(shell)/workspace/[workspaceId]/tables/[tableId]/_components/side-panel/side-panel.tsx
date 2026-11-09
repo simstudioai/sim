@@ -69,3 +69,16 @@ export function SidePanelSection({ title, children }: SidePanelSectionProps) {
     </section>
   )
 }
+
+interface SidePanelNoteProps {
+  children: ReactNode
+}
+
+/** Supporting copy in the panel body, such as an empty result or what a section does not need. */
+export function SidePanelNote({ children }: SidePanelNoteProps) {
+  return (
+    <p className={styles.note} data-type='T060'>
+      {children}
+    </p>
+  )
+}

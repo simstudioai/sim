@@ -1,9 +1,8 @@
 'use client'
 
-import { Fragment, type RefObject, useEffect, useRef } from 'react'
+import { type ComponentProps, Fragment, type RefObject, useEffect, useRef } from 'react'
 import { Popover } from '@base-ui/react/popover'
-import type { IconName } from '@sim/emcn/catalog/icon-geometry'
-import { Icon } from '@sim/emcn/icon'
+import { Icon, type IconName } from '@sim/emcn/icon'
 import popup from '@sim/emcn/menu/popup.shared.module.css'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import styles from '#platform/components/composer-input/suggestions.module.css'
@@ -11,9 +10,11 @@ import styles from '#platform/components/composer-input/suggestions.module.css'
 interface SuggestionItem {
   name: string
   group: string
-  icon: IconName
+  icon?: IconName
   providerId?: string
   workspaceName?: string
+  /** A keyboard shortcut, shown at the row's end as a menu shows one. */
+  shortcut?: string
 }
 
 interface ComposerSuggestionsProps {
@@ -25,9 +26,13 @@ interface ComposerSuggestionsProps {
   onHighlight: (index: number) => void
   onSelect: (index: number) => void
   onDismiss: () => void
-  anchor: RefObject<HTMLSpanElement | null>
-  input: RefObject<HTMLTextAreaElement | null>
+  /** Where the trigger sits: an element in the field, or a virtual rect such as an editor caret's. */
+  anchor: ComponentProps<typeof Popover.Positioner>['anchor']
+  /** The still-focused field driving the list: a textarea, or a rich text editor's root. */
+  input: RefObject<HTMLElement | null>
   grouped: boolean
+  /** Opens above the anchor, as a composer at the window's foot does, or below it inline. */
+  side?: 'top' | 'bottom'
 }
 
 /** A listbox controlled from a still-focused, multiline editor. */
@@ -43,6 +48,7 @@ export function ComposerSuggestions({
   anchor,
   input,
   grouped,
+  side = 'top',
 }: ComposerSuggestionsProps) {
   const list = useRef<HTMLDivElement>(null)
   const edges = useScrollEdges('vertical', { viewport: list })
@@ -57,7 +63,8 @@ export function ComposerSuggestions({
       open
       modal={false}
       onOpenChange={(open, details) => {
-        if (!open && details.event.target !== input.current) onDismiss()
+        const target = details.event.target
+        if (!open && !(target instanceof Node && input.current?.contains(target))) onDismiss()
       }}
     >
       <Popover.Portal container={container}>
@@ -65,7 +72,7 @@ export function ComposerSuggestions({
           className={popup.positioner}
           anchor={anchor}
           align='start'
-          side='top'
+          side={side}
           sideOffset={8}
           collisionPadding={8}
           positionMethod='fixed'
@@ -100,13 +107,18 @@ export function ComposerSuggestions({
                     {item.providerId ? (
                       <Icon providerId={item.providerId} />
                     ) : (
-                      <Icon name={item.icon} />
+                      item.icon && <Icon name={item.icon} />
                     )}
                     <span className={popup.label}>{item.name}</span>
                     {item.workspaceName && (
                       <span className={styles.detail} data-type='T052'>
                         {item.workspaceName}
                       </span>
+                    )}
+                    {item.shortcut && (
+                      <kbd className={styles.detail} data-type='T052'>
+                        {item.shortcut}
+                      </kbd>
                     )}
                   </div>
                 </Fragment>

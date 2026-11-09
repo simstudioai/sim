@@ -9,10 +9,7 @@ import { LRUCache } from 'lru-cache'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { parse } from 'tldts'
-import {
-  resolveSelectOptions,
-  SelectPill,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/select-field/select-field'
+import { resolveSelectOptions } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/select-field/select-field'
 import { InlineEditor } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/inline-editors'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/table-grid.module.css'
 import { useKnowledgeBasesQuery } from '@/platform/lib/data/knowledge'
@@ -409,7 +406,7 @@ function CellRender({ kind, isEditing }: CellRenderProps): ReactElement | null {
       return (
         <span className={styles.pills}>
           {kind.options.length > 0 ? (
-            kind.options.map((option) => <SelectPill key={option.id} option={option} />)
+            kind.options.map((option) => <StatusTag key={option.id} label={option.name} />)
           ) : (
             <span className={styles.placeholderText}>None</span>
           )}

@@ -1,13 +1,14 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useState } from 'react'
+import { SwitchField } from '@sim/emcn/field'
 import { AutofillDecoys } from '@sim/emcn/field/autofill-decoys'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
-import { Switch } from '@sim/emcn/switch'
 import { isPlainRecord, omit } from '@sim/utils/object'
 import { LongInput } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/long-input/long-input'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/mcp-dynamic-args/mcp-dynamic-args.module.css'
 import { ShortInput } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/short-input/short-input'
+import { RangeRow } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/slider-input/range-row'
 import {
   resolvePreviewContextValue,
   type SubBlockConfig,
@@ -228,7 +229,6 @@ export function McpDynamicArgs({
   const clearDraft = (paramName: string) =>
     setInvalidJsonDrafts((prev) => (paramName in prev ? omit(prev, [paramName]) : prev))
 
-  const switchIdPrefix = useId()
   const renderParameterInput = (paramName: string, paramSchema: JsonSchemaProperty) => {
     const value = currentArgs[paramName]
     const label = formatParameterLabel(paramName)
@@ -236,22 +236,12 @@ export function McpDynamicArgs({
     switch (getInputType(paramSchema)) {
       case 'switch':
         return (
-          <div className={styles.toggle} data-disabled={disabled || isPreview || undefined}>
-            <Switch
-              id={`${switchIdPrefix}-${paramName}`}
-              label={label}
-              checked={!!value}
-              onCheckedChange={(checked) => updateParameter(paramName, checked)}
-              disabled={disabled || isPreview}
-            />
-            <label
-              htmlFor={`${switchIdPrefix}-${paramName}`}
-              className={styles.toggleLabel}
-              data-type='T060'
-            >
-              {label}
-            </label>
-          </div>
+          <SwitchField
+            label={label}
+            checked={!!value}
+            disabled={disabled || isPreview}
+            onCheckedChange={(checked) => updateParameter(paramName, checked)}
+          />
         )
 
       case 'dropdown': {
@@ -286,25 +276,15 @@ export function McpDynamicArgs({
         const currentValue =
           value === undefined || value === null ? minValue : finiteOr(value, minValue)
         return (
-          <div className={styles.slider}>
-            <input
-              type='range'
-              className={styles.range}
-              aria-label={label}
-              min={minValue}
-              max={maxValue}
-              step={isInteger ? 1 : 0.1}
-              value={currentValue}
-              disabled={disabled || isPreview}
-              onChange={(event) => {
-                const next = Number(event.target.value)
-                updateParameter(paramName, isInteger ? Math.round(next) : next)
-              }}
-            />
-            <span className={styles.sliderValue} data-type='T052'>
-              {isInteger ? Math.round(currentValue).toString() : currentValue.toFixed(1)}
-            </span>
-          </div>
+          <RangeRow
+            label={label}
+            min={minValue}
+            max={maxValue}
+            value={currentValue}
+            integer={isInteger}
+            disabled={disabled || isPreview}
+            onValueChange={(next) => updateParameter(paramName, next)}
+          />
         )
       }
 
