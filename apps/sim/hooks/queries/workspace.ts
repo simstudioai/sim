@@ -232,7 +232,10 @@ export function useToggleWorkspacePin() {
   })
 }
 
-type CreateWorkspaceParams = Pick<ContractBodyInput<typeof createWorkspaceContract>, 'name'>
+type CreateWorkspaceParams = Pick<
+  ContractBodyInput<typeof createWorkspaceContract>,
+  'name' | 'organizationId'
+>
 
 /**
  * Creates a new workspace.
@@ -243,8 +246,8 @@ export function useCreateWorkspace() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ name }: CreateWorkspaceParams) => {
-      const data = await requestJson(createWorkspaceContract, { body: { name } })
+    mutationFn: async ({ name, organizationId }: CreateWorkspaceParams) => {
+      const data = await requestJson(createWorkspaceContract, { body: { name, organizationId } })
       return data.workspace
     },
     onSuccess: (newWorkspace) => {

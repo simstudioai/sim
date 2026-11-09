@@ -8,8 +8,12 @@ import {
   useUpdateWorkspace,
 } from '@/hooks/queries/workspace'
 
-/** The legacy sidebar's workspace mutations. `hrefFor` names where a workspace opens. */
+/**
+ * The legacy sidebar's workspace mutations. A new workspace lands in the shell's organization;
+ * `hrefFor` names where a workspace opens.
+ */
 export function useWorkspaceActions(
+  organizationId: string,
   hrefFor: (workspaceId: string) => string
 ): Omit<ShellWorkspaceActions, 'retry'> {
   const { mutateAsync: createWorkspace } = useCreateWorkspace()
@@ -17,7 +21,7 @@ export function useWorkspaceActions(
   const { mutate: togglePin } = useToggleWorkspacePin()
   return {
     async create(name) {
-      const workspace = await createWorkspace({ name })
+      const workspace = await createWorkspace({ name, organizationId })
       return hrefFor(workspace.id)
     },
     async rename(workspaceId, name) {

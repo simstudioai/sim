@@ -106,8 +106,8 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   try {
     const parsed = await parseRequest(createWorkspaceContract, req, {})
     if (!parsed.success) return parsed.response
-    const { name, skipDefaultWorkflow } = parsed.data.body
-    const activeOrganizationId = getActiveOrganizationId(session)
+    const { name, skipDefaultWorkflow, organizationId } = parsed.data.body
+    const activeOrganizationId = organizationId ?? getActiveOrganizationId(session)
     let creationPolicy = await getWorkspaceCreationPolicy({
       userId: session.user.id,
       activeOrganizationId,

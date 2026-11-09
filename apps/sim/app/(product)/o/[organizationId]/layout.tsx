@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { notFound, redirect } from 'next/navigation'
 import { SurfaceUnavailable } from '@/app/(product)/_components/shell-gate/shell-gate'
-import { ShellOrganizationGuard } from '@/app/(product)/_components/shell-organization-guard/shell-organization-guard'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
 interface OrganizationLayoutProps {
@@ -27,9 +26,5 @@ export default async function OrganizationLayout({ children, params }: Organizat
   if (surface.status !== 'ok') return <SurfaceUnavailable />
   const gate = resolveOrganizationGate(surface.organization)
   if (gate) redirect(gate)
-  return (
-    <ShellOrganizationGuard organizationId={surface.organization.organization.id}>
-      {children}
-    </ShellOrganizationGuard>
-  )
+  return children
 }

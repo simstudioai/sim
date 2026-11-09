@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { notFound } from 'next/navigation'
-import { ShellOrganizationGuard } from '@/app/(product)/_components/shell-organization-guard/shell-organization-guard'
 import { WorkspaceSession } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
@@ -14,8 +13,7 @@ export const dynamic = 'force-dynamic'
 
 /**
  * Authorizes the workspace the URL names: a workspace the viewer cannot open is not found, so its
- * organization never shows. It renders in its organization's shell, an organization-less one in the
- * viewer's own; a workspace in another organization than the shell's reloads.
+ * organization never shows. It renders in the viewer's one organization's shell.
  */
 export default async function WorkspaceLayout({ children, params }: WorkspaceLayoutProps) {
   if (resolvePlatformMode() !== 'live')
@@ -35,15 +33,12 @@ export default async function WorkspaceLayout({ children, params }: WorkspaceLay
     import('@/platform/lib/data/workspace-visit'),
     import('@/platform/lib/data/upload-guard'),
   ])
-  const organizationId = await readWorkspaceShellOrganizationId(workspaceId)
-  if (!organizationId) notFound()
+  if (!(await readWorkspaceShellOrganizationId(workspaceId))) notFound()
   return (
-    <ShellOrganizationGuard organizationId={organizationId}>
-      <WorkspaceSession mode='live' tabFlags={await readWorkspaceTabFlags()}>
-        <WorkspaceVisit workspaceId={workspaceId} />
-        <UploadGuard />
-        <WorkspaceRealtime>{children}</WorkspaceRealtime>
-      </WorkspaceSession>
-    </ShellOrganizationGuard>
+    <WorkspaceSession mode='live' tabFlags={await readWorkspaceTabFlags()}>
+      <WorkspaceVisit workspaceId={workspaceId} />
+      <UploadGuard />
+      <WorkspaceRealtime>{children}</WorkspaceRealtime>
+    </WorkspaceSession>
   )
 }
