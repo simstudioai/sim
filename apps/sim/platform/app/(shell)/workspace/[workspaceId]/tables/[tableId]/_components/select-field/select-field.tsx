@@ -31,19 +31,6 @@ export function selectedOptionIds(column: ColumnDefinition, value: unknown): str
   return resolveSelectOptions(column, value).map((o) => o.id)
 }
 
-interface SelectPillProps {
-  option: SelectOption
-}
-
-/** One option as a neutral pill that clips its name to the space it is given. */
-export function SelectPill({ option }: SelectPillProps) {
-  return (
-    <span className={styles.pill} data-type='T052' title={option.name}>
-      {option.name}
-    </span>
-  )
-}
-
 interface SelectValueEditorProps {
   column: ColumnDefinition
   value: unknown

@@ -6,6 +6,10 @@ import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { useActiveSearchTarget } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import { isWorkflowSearchTargetForField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
+import {
+  ItemCard,
+  ItemList,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/item-card/item-card'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/selector-input/selector-input.module.css'
 import { selectorPickerSearch } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/selector-input/selector-list-footer'
 import { ShortInput } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/short-input/short-input'
@@ -253,23 +257,30 @@ export function SelectorCombobox({
           disabled={!interactive}
         />
         {selectedValues.length > 0 && (
-          <ul className={styles.chosen} aria-label={`Selected ${label.toLowerCase()}`}>
+          <ItemList label={`Selected ${label.toLowerCase()}`}>
             {selectedValues.map((id) => (
-              <li key={id} className={styles.chosenRow}>
-                <span className={styles.chosenLabel} data-type='T052'>
-                  {selectedLabels[id]}
-                </span>
-                {interactive && (
-                  <IconButton
-                    label={`Remove ${selectedLabels[id]}`}
-                    icon='I105'
-                    size='row'
-                    onClick={() => setStoreValue(selectedValues.filter((value) => value !== id))}
-                  />
-                )}
+              <li key={id}>
+                <ItemCard
+                  name={selectedLabels[id]}
+                  title={selectedLabels[id] ?? id}
+                  expandable={false}
+                  expanded={false}
+                  actions={
+                    interactive && (
+                      <IconButton
+                        label={`Remove ${selectedLabels[id]}`}
+                        icon='I105'
+                        size='compact'
+                        onClick={() =>
+                          setStoreValue(selectedValues.filter((value) => value !== id))
+                        }
+                      />
+                    )
+                  }
+                />
               </li>
             ))}
-          </ul>
+          </ItemList>
         )}
       </div>
     )

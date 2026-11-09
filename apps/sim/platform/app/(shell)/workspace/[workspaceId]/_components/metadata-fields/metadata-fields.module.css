@@ -19,7 +19,29 @@
 }
 .field dd {
   display: flex;
+  align-items: center;
   min-inline-size: 0;
+  gap: var(--ui-action-gap);
   color: var(--ui-ink);
   font-variant-numeric: tabular-nums;
+}
+.link {
+  display: flex;
+  min-inline-size: 0;
+  color: var(--ui-ink);
+  text-decoration: none;
+}
+.link:hover {
+  text-decoration: underline;
+}
+.link:focus-visible {
+  outline: var(--spacing-stroke-focus) solid var(--ui-ink);
+  outline-offset: var(--spacing-2);
+  border-radius: var(--radius-item);
+}
+/* The copy action extends into the row's block margin, so it adds no height to the value line. */
+.action {
+  display: inline-flex;
+  flex: none;
+  margin-block: calc(-1 * var(--spacing-4));
 }

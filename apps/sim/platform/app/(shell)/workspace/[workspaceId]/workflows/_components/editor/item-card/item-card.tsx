@@ -1,10 +1,11 @@
 'use client'
 
 import type { DragEvent, MouseEvent, ReactNode } from 'react'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/tool-input.module.css'
+import { Icon, type IconName } from '@sim/emcn/icon'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/item-card/item-card.module.css'
 
-/** Native drag-and-drop wiring that lets a card move within the tool list. */
-interface ToolCardDrag {
+/** Native drag-and-drop wiring that lets a card move within its list. */
+interface ItemCardDrag {
   draggable: boolean
   dragging: boolean
   dropTarget: boolean
@@ -14,22 +15,26 @@ interface ToolCardDrag {
   onDrop: (event: DragEvent<HTMLDivElement>) => void
 }
 
-interface ToolCardProps {
-  mark: ReactNode
-  /** The tool's name, possibly with the workflow-search match marked. */
+interface ItemCardProps {
+  /** A quiet interface glyph before the name, for an item with no mark of its own. */
+  icon?: IconName
+  /** The item's own mark, such as a tool's brand tile, before its name. */
+  mark?: ReactNode
+  /** The item's name, possibly with the workflow-search match marked. */
   name: ReactNode
   /** The plain name, which names the header action for assistive technology. */
   title: string
   badges?: ReactNode
-  actions: ReactNode
+  actions?: ReactNode
   /** Whether the card has a body to open. */
   expandable: boolean
   expanded: boolean
   /** The header's action: toggles the body, or edits a custom tool that has none. */
   onActivate?: () => void
-  /** The tool is set to None, so the model never calls it. */
+  /** The item is inactive, such as a tool set to None, which the model never calls. */
   muted?: boolean
-  drag: ToolCardDrag
+  /** Moves the card within its list; a card in a fixed list leaves it out. */
+  drag?: ItemCardDrag
   children?: ReactNode
 }
 
@@ -41,8 +46,12 @@ function stopHeaderToggle(event: MouseEvent) {
   event.stopPropagation()
 }
 
-/** One selected tool: its identity row with status and actions, over its settings when open. */
-export function ToolCard({
+/**
+ * One chosen item in a field: a selected tool, skill, resource or uploaded file. Its identity row
+ * carries status and actions, over the item's settings when it has any and is open.
+ */
+export function ItemCard({
+  icon,
   mark,
   name,
   title,
@@ -54,9 +63,14 @@ export function ToolCard({
   muted,
   drag,
   children,
-}: ToolCardProps) {
+}: ItemCardProps) {
   const identity = (
     <>
+      {icon && (
+        <span className={styles.glyph}>
+          <Icon name={icon} />
+        </span>
+      )}
       {mark}
       <span className={styles.name} data-type='T060'>
         {name}
@@ -66,14 +80,14 @@ export function ToolCard({
   return (
     <div
       className={styles.card}
-      data-draggable={drag.draggable || undefined}
-      data-dragging={drag.dragging || undefined}
-      data-drop-target={drag.dropTarget || undefined}
-      draggable={drag.draggable}
-      onDragStart={drag.onDragStart}
-      onDragEnd={drag.onDragEnd}
-      onDragOver={drag.onDragOver}
-      onDrop={drag.onDrop}
+      data-draggable={drag?.draggable || undefined}
+      data-dragging={drag?.dragging || undefined}
+      data-drop-target={drag?.dropTarget || undefined}
+      draggable={drag?.draggable}
+      onDragStart={drag?.onDragStart}
+      onDragEnd={drag?.onDragEnd}
+      onDragOver={drag?.onDragOver}
+      onDrop={drag?.onDrop}
     >
       <div
         role='presentation'
@@ -100,11 +114,29 @@ export function ToolCard({
         )}
         {badges}
         <span className={styles.fill} />
-        <span role='presentation' className={styles.headerActions} onClick={stopHeaderToggle}>
-          {actions}
-        </span>
+        {actions && (
+          <span role='presentation' className={styles.headerActions} onClick={stopHeaderToggle}>
+            {actions}
+          </span>
+        )}
       </div>
       {expanded && <div className={styles.body}>{children}</div>}
     </div>
+  )
+}
+
+interface ItemListProps {
+  /** Names the list for assistive technology, as "Selected channels". */
+  label: string
+  /** One `<li>` per chosen item, each holding an {@link ItemCard}. */
+  children: ReactNode
+}
+
+/** The stack of a field's chosen items. */
+export function ItemList({ label, children }: ItemListProps) {
+  return (
+    <ul className={styles.list} aria-label={label}>
+      {children}
+    </ul>
   )
 }

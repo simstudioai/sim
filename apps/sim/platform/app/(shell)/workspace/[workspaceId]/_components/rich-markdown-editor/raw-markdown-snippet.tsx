@@ -1,5 +1,6 @@
 'use client'
 
+import { StatusTag } from '@sim/emcn/status'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/node-views.module.css'
@@ -15,8 +16,8 @@ function RawBlockView({ node }: ReactNodeViewProps) {
   return (
     <NodeViewWrapper>
       <div className={styles.rawBlock}>
-        <span className={styles.rawBadge} data-type='T052' contentEditable={false}>
-          {BLOCK_BADGE_LABEL[node.type.name] ?? 'Raw'}
+        <span className={styles.rawBadge} contentEditable={false}>
+          <StatusTag label={BLOCK_BADGE_LABEL[node.type.name] ?? 'Raw'} />
         </span>
         <div className={styles.rawSource}>
           <NodeViewContent<'span'> as='span' />

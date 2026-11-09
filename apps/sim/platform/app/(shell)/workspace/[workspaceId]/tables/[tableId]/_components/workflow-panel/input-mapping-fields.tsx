@@ -1,8 +1,10 @@
 'use client'
 
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
-import { SidePanelSection } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/side-panel/side-panel'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/workflow-panel/workflow-panel.module.css'
+import {
+  SidePanelNote,
+  SidePanelSection,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/side-panel/side-panel'
 import {
   type ColumnDefinition,
   getColumnId,
@@ -35,9 +37,7 @@ export function InputMappingFields({
   return (
     <SidePanelSection title='Workflow inputs'>
       {namedFields.length === 0 ? (
-        <p className={styles.note} data-type='T060'>
-          This workflow has no Start block inputs.
-        </p>
+        <SidePanelNote>This workflow has no Start block inputs.</SidePanelNote>
       ) : (
         namedFields.map((field) => (
           <SearchableSelect

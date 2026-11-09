@@ -2,8 +2,11 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-inline-size: 0;
-  gap: var(--ui-list-gap);
+  margin: 0;
   margin-inline: calc(-1 * var(--ui-row-inset));
+  padding: 0;
+  gap: var(--ui-list-gap);
+  list-style: none;
   container: trace / inline-size;
 }
 .row {
@@ -80,6 +83,9 @@ button.disclosure:hover {
   min-inline-size: 0;
   color: var(--ui-ink);
 }
+.name[data-failed] {
+  color: var(--control-danger);
+}
 .duration {
   color: var(--ui-secondary);
   text-align: end;
@@ -134,11 +140,13 @@ button.disclosure:hover {
     content: "";
   }
 }
+/* Too narrow for a timeline column: the bar runs beneath the name and duration instead. */
 @container trace (width < 28rem) {
   .target {
     grid-template-columns: var(--spacing-16) minmax(0, 1fr) var(--spacing-56);
+    row-gap: var(--spacing-4);
   }
   .timeline {
-    display: none;
+    grid-column: 2 / -1;
   }
 }

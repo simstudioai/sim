@@ -2,13 +2,13 @@
 
 import { memo, useState } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { PointActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { useReactFlow } from '@xyflow/react'
 import { useShallow } from 'zustand/react/shallow'
 import { CANVAS_VIEWPORT_OPTIONS } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/canvas/workflow-canvas/workflow-canvas-constants'
 import { useRegisterGlobalCommands } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/global-commands/global-commands'
-import { PointerMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/pointer-menu/pointer-menu'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/workflow-controls/workflow-controls.module.css'
 import {
   createCommand,
@@ -129,10 +129,9 @@ export const WorkflowControls = memo(function WorkflowControls() {
         </Tooltip>
       </div>
 
-      <PointerMenu
+      <PointActionMenu
         label='Canvas controls actions'
-        isOpen={contextMenu !== null}
-        position={contextMenu ?? { x: 0, y: 0 }}
+        point={contextMenu}
         onClose={() => setContextMenu(null)}
         actions={() => [
           {

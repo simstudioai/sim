@@ -5,66 +5,10 @@
   min-inline-size: 0;
 }
 
-.labelRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--ui-action-gap);
-  min-block-size: var(--spacing-24);
-  margin-block: calc((var(--spacing-18) - var(--spacing-24)) / 2);
-}
-
-.label {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--spacing-4);
-  min-inline-size: 0;
-  color: var(--ui-ink);
-  white-space: nowrap;
-}
-
 .invalid {
   display: inline-flex;
   align-self: center;
   color: var(--control-danger);
-}
-
-.labelActions {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--ui-action-gap);
-  min-inline-size: 0;
-}
-
-.wand {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  gap: var(--ui-action-gap);
-  min-inline-size: 0;
-  max-inline-size: var(--spacing-320);
-}
-
-.wandInput {
-  flex: 1;
-  min-inline-size: 0;
-  block-size: var(--spacing-24);
-  padding-inline: var(--spacing-8);
-  border: var(--spacing-stroke-default) solid var(--ui-border);
-  border-radius: var(--radius-control);
-  background: var(--ui-reading);
-  color: var(--ui-ink);
-}
-
-.wandInput::placeholder {
-  color: var(--ui-secondary);
-  opacity: 1;
-}
-
-.wandInput:disabled {
-  color: var(--ui-secondary);
 }
 
 .unknown {

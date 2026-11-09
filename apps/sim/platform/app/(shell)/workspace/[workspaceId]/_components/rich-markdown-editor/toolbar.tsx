@@ -2,6 +2,7 @@
 
 import type { PointerEvent, ReactNode, Ref } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
+import { Input } from '@sim/emcn/field/inputs'
 import type { IconName } from '@sim/emcn/icon'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { Tooltip } from '@sim/emcn/tooltip'
@@ -91,34 +92,19 @@ export function ToolbarButton({
         onClick={onClick}
       />
     )
-  if (pressed === undefined) {
-    const action = (
-      <Button
-        variant='quiet'
-        size='compact'
-        aria-label={shortcut ? `${label} (${shortcut})` : undefined}
-        disabled={disabled}
-        onClick={onClick}
-      >
-        {label}
-      </Button>
-    )
-    return shortcut ? <Tooltip label={`${label} (${shortcut})`}>{action}</Tooltip> : action
-  }
-  const button = (
-    <button
-      type='button'
-      className={styles.toggle}
-      data-type='T060'
-      aria-pressed={pressed}
+  const action = (
+    <Button
+      variant='quiet'
+      size='compact'
+      selected={pressed}
       aria-label={shortcut ? `${label} (${shortcut})` : undefined}
       disabled={disabled}
       onClick={onClick}
     >
       {label}
-    </button>
+    </Button>
   )
-  return shortcut ? <Tooltip label={`${label} (${shortcut})`}>{button}</Tooltip> : button
+  return shortcut ? <Tooltip label={`${label} (${shortcut})`}>{action}</Tooltip> : action
 }
 
 /** A hairline between groups of toolbar commands. */
@@ -157,9 +143,7 @@ export function ToolbarMenu({ label, triggerText, actions }: ToolbarMenuProps) {
   )
 }
 
-interface ToolbarInputProps {
-  label: string
-  placeholder: string
+interface LinkUrlInputProps {
   value: string
   onChange: (value: string) => void
   onCommit: () => void
@@ -168,29 +152,21 @@ interface ToolbarInputProps {
   readOnly?: boolean
 }
 
-/** A flush field inside a floating toolbar, such as the link URL. */
-function ToolbarInput({
-  label,
-  placeholder,
+/**
+ * The inline link field the selection toolbar and the link hover card share. Enter applies the link
+ * and Escape cancels; a key that composes text (an IME candidate) stays with the field.
+ */
+export function LinkUrlInput({
   value,
   onChange,
   onCommit,
   onCancel,
   inputRef,
   readOnly = false,
-}: ToolbarInputProps) {
+}: LinkUrlInputProps) {
   return (
-    <input
-      ref={inputRef}
-      aria-label={label}
-      type='text'
-      inputMode='url'
-      value={value}
-      readOnly={readOnly}
-      className={styles.input}
-      data-type='T060'
-      placeholder={placeholder}
-      onChange={(event) => onChange(event.target.value)}
+    <span
+      className={styles.link}
       onKeyDown={(event) => {
         if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) {
           event.stopPropagation()
@@ -204,39 +180,18 @@ function ToolbarInput({
           onCancel()
         }
       }}
-    />
-  )
-}
-
-interface LinkUrlInputProps {
-  value: string
-  onChange: (value: string) => void
-  onCommit: () => void
-  onCancel: () => void
-  inputRef: Ref<HTMLInputElement>
-  readOnly?: boolean
-}
-
-/** The inline link field the selection toolbar and the link hover card share. */
-export function LinkUrlInput({
-  value,
-  onChange,
-  onCommit,
-  onCancel,
-  inputRef,
-  readOnly,
-}: LinkUrlInputProps) {
-  return (
-    <ToolbarInput
-      label='Link URL'
-      placeholder='Paste or type a link…'
-      value={value}
-      onChange={onChange}
-      onCommit={onCommit}
-      onCancel={onCancel}
-      inputRef={inputRef}
-      readOnly={readOnly}
-    />
+    >
+      <Input
+        label='Link URL'
+        type='text'
+        inputMode='url'
+        placeholder='Paste or type a link…'
+        value={value}
+        onChange={onChange}
+        readOnly={readOnly}
+        inputRef={inputRef}
+      />
+    </span>
   )
 }
 

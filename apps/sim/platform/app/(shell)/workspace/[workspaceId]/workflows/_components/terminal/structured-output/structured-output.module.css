@@ -28,7 +28,12 @@
   min-block-size: var(--spacing-app-chip);
   margin-inline: calc(-1 * var(--ui-row-inset));
   padding-inline: var(--ui-row-inset);
+  border: 0;
   border-radius: var(--ui-control-radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -53,10 +58,6 @@
   display: inline-flex;
   flex: none;
   color: var(--ui-secondary);
-}
-
-.chevron[data-collapsed] > svg {
-  transform: rotate(-90deg);
 }
 
 .children {

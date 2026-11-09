@@ -2,8 +2,7 @@
 
 import { type DragEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Breadcrumbs } from '@sim/emcn/breadcrumbs'
-import { Button, IconButton } from '@sim/emcn/button'
-import { Input } from '@sim/emcn/field/inputs'
+import { Button } from '@sim/emcn/button'
 import { Icon, type IconName } from '@sim/emcn/icon'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
@@ -14,6 +13,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePageCommands } from '@/platform/app/(shell)/_components/command-menu/page-commands'
 import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
+import { FindBar } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/find-bar/find-bar'
 import {
   descendantIndex,
   folderLocation,
@@ -1082,60 +1082,21 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
         >
           {findOpen && (
             <div className={styles.findFrame}>
-              <div
-                role='search'
-                className={styles.find}
-                aria-label='Find in files'
-                data-material='floating'
-                data-elevation='menu'
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault()
-                    step(event.shiftKey ? -1 : 1)
-                  } else if (event.key === 'Escape') {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    closeFind()
-                  }
+              <FindBar
+                label='Find in files'
+                query={findQuery}
+                onQueryChange={(value) => {
+                  setFindQuery(value)
+                  setFindIndex(0)
                 }}
-              >
-                <span className={styles.findInput}>
-                  <Input
-                    label='Find in files'
-                    placeholder='Find in files'
-                    value={findQuery}
-                    onChange={(value) => {
-                      setFindQuery(value)
-                      setFindIndex(0)
-                    }}
-                    inputRef={findInput}
-                    autoComplete='off'
-                    spellCheck={false}
-                  />
-                </span>
-                <span className={styles.findCount} data-type='T060' role='status'>
-                  {needle
-                    ? findMatches.length
-                      ? `${Math.min(findIndex, findMatches.length - 1) + 1} of ${findMatches.length}`
-                      : 'No matches'
-                    : ''}
-                </span>
-                <IconButton
-                  label='Previous match'
-                  icon='I023'
-                  size='compact'
-                  disabled={!findMatches.length}
-                  onClick={() => step(-1)}
-                />
-                <IconButton
-                  label='Next match'
-                  icon='I102'
-                  size='compact'
-                  disabled={!findMatches.length}
-                  onClick={() => step(1)}
-                />
-                <IconButton label='Close find' icon='I105' size='compact' onClick={closeFind} />
-              </div>
+                inputRef={findInput}
+                results={{
+                  index: Math.min(findIndex, Math.max(0, findMatches.length - 1)),
+                  count: findMatches.length,
+                }}
+                onStep={step}
+                onClose={closeFind}
+              />
             </div>
           )}
           <ResourceTable
