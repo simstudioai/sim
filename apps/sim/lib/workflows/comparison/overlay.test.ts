@@ -2,13 +2,13 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { getPreviewBlockDimensions } from '@/components/workflow-editor/preview/components/preview-workflow/preview-dimensions'
 import {
   generateWorkflowDiffSummary,
   type WorkflowDiffSummary,
 } from '@/lib/workflows/comparison/compare'
 import { buildWorkflowDiffOverlay } from '@/lib/workflows/comparison/overlay'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
-import { getPreviewBlockDimensions } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow/preview-dimensions'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 /** Overlay only reads position, data and ids; the cast keeps the fixtures short. */

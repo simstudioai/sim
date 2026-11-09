@@ -3,10 +3,7 @@
 import { useState } from 'react'
 import { ChipDropdown, ChipInput } from '@sim/emcn-legacy'
 import { Building, Search } from '@sim/emcn-legacy/icons'
-import {
-  MemberRow,
-  MemberSection,
-} from '@/app/workspace/[workspaceId]/settings/components/member-list/member-list'
+import { MemberRow, MemberSection } from '@/components/settings/primitives/member-list/member-list'
 
 const MEMBERS = [
   { name: 'Morgan', email: 'morgan@example.com', role: 'owner' },

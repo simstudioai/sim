@@ -21,14 +21,14 @@ import { BookOpen, Download, HelpCircle, LogOut, Settings } from '@sim/emcn-lega
 import { useRouter } from 'next/navigation'
 import { SlackIcon } from '@/components/icons'
 import { SettingsIntentLink } from '@/components/settings/settings-intent-link'
-import { signOutAndRedirect } from '@/lib/auth/sign-out'
-import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
-import { getUserColor } from '@/lib/workspaces/colors'
-import { SidebarTooltip } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-tooltip'
+import { SidebarTooltip } from '@/components/workspace-sidebar/components/sidebar-tooltip'
 import {
   SIDEBAR_ITEM_GAP_CLASS,
   SIDEBAR_RAIL_CHIP_CLASS,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+} from '@/components/workspace-sidebar/constants'
+import { signOutAndRedirect } from '@/lib/auth/sign-out'
+import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
+import { getUserColor } from '@/lib/workspaces/colors'
 import { useUserProfile } from '@/hooks/queries/user-profile'
 import {
   desktopUpdateActionLabel,

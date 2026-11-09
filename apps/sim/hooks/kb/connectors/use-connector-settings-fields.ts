@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useServiceAccountConnectTarget } from '@/components/integrations/connect-service-account-modal'
 import type { ConnectorAccessMode } from '@/lib/api/contracts/knowledge/connectors'
 import { type ResourceScope, resourceScopeFields } from '@/lib/core/resource-scope'
 import { asServiceAccountProviderId } from '@/lib/credentials/service-account-provider-ids'
@@ -16,7 +17,6 @@ import {
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import { liveSearchSourceMeta } from '@/lib/sim-search/live/source-settings'
 import type { SourceSelectionLabel, SourceSelectionLabels } from '@/lib/sim-search/source-identity'
-import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 import type { GitLabPermissionForm } from '@/connectors/gitlab/permission-config/use-permission-form'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'

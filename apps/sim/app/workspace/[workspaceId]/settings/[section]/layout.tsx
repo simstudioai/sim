@@ -2,8 +2,8 @@ import { notFound, redirect } from 'next/navigation'
 import {
   SettingsHeaderProvider,
   SettingsHeaderShell,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
-import { resolveSettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
+} from '@/components/settings/primitives/settings-header/settings-header'
+import { resolveSettingsSection } from '@/components/settings/workspace-navigation'
 
 /**
  * Legacy settings sections kept as redirects so old links and bookmarks still work.

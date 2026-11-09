@@ -1,7 +1,7 @@
 'use client'
 
-import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
-import { useFileDocOthers } from './file-doc-room-context'
+import { useFileDocOthers } from '@/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
+import { PresenceAvatars } from '@/components/presence/presence-avatars'
 
 /**
  * Avatar stack of the collaborators currently in the open file — the `useOthers` avatar

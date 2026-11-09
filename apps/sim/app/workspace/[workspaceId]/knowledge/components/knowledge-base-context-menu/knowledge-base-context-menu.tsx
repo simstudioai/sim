@@ -21,9 +21,9 @@ import {
   TagIcon,
   Trash,
 } from '@sim/emcn-legacy/icons'
-import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
-import { renderMoveOptions } from '@/app/workspace/[workspaceId]/components/folders'
-import { selectionActionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
+import type { MoveOptionNode } from '@/components/folders'
+import { renderMoveOptions } from '@/components/folders'
+import { selectionActionLabel } from '@/components/resource/selection-label'
 
 interface KnowledgeBaseContextMenuProps {
   isOpen: boolean

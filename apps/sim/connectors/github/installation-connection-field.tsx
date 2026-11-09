@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import { Chip, ChipCombobox, ChipModalError, ChipModalField } from '@sim/emcn-legacy'
 import { Plus } from '@sim/emcn-legacy/icons'
+import { SettingsQueryErrorState } from '@/components/settings/primitives/settings-empty-state'
 import type { Credential } from '@/lib/oauth'
-import { SettingsQueryErrorState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 
 interface GitHubInstallationConnectionFieldProps {
   installations: Credential[]

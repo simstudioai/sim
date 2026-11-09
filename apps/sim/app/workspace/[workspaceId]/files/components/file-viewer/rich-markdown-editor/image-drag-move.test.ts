@@ -2,9 +2,9 @@
 import { Editor } from '@tiptap/core'
 import { NodeSelection } from '@tiptap/pm/state'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
+import { createMarkdownContentExtensions } from '@/components/file-viewer/rich-markdown-editor/extensions'
+import { isImageNode } from '@/components/file-viewer/rich-markdown-editor/image-node'
 import { dispatchEditorDrop } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drop.test-helpers'
-import { isImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
 
 const editors: Editor[] = []
 afterEach(() => {

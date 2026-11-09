@@ -21,13 +21,13 @@ import {
   Table as TableIcon,
   Workflow,
 } from '@sim/emcn-legacy/icons'
-import { HeroWorkflowStage } from '@/app/(landing)/components/hero/components/hero-platform-loop/hero-workflow-stage'
-import type { LeadRecord } from '@/app/(landing)/tables/components/tables-records-preview/data'
-import { TablesRecordsTable } from '@/app/(landing)/tables/components/tables-records-preview/tables-records-table'
 import {
   RESOURCE_HEADER_CLASSES,
   RESOURCE_TAB_ICON_CLASS,
-} from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+} from '@/components/mothership-chat/mothership-view/components/resource-tabs/resource-tab-controls'
+import { HeroWorkflowStage } from '@/app/(landing)/components/hero/components/hero-platform-loop/hero-workflow-stage'
+import type { LeadRecord } from '@/app/(landing)/tables/components/tables-records-preview/data'
+import { TablesRecordsTable } from '@/app/(landing)/tables/components/tables-records-preview/tables-records-table'
 
 export type HeroResourceId = 'workflow' | 'table' | 'brief'
 

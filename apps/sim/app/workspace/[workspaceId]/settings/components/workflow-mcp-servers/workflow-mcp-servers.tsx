@@ -28,6 +28,17 @@ import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
 import { McpIcon } from '@/components/icons'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
+import { RowActionsMenu } from '@/components/settings/primitives/row-actions-menu'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { SettingsField } from '@/components/settings/primitives/settings-field'
+import type { SettingsAction } from '@/components/settings/primitives/settings-header/settings-header'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/components/settings/primitives/settings-resource-row'
+import { CreateApiKeyModal } from '@/components/settings/sections/api-keys/components'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   mcpServerIdParam,
@@ -35,17 +46,6 @@ import {
   serverTabParam,
   serverTabUrlKeys,
 } from '@/lib/settings/search-params'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { CreateApiKeyModal } from '@/app/workspace/[workspaceId]/settings/components/api-keys/components'
-import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsField } from '@/app/workspace/[workspaceId]/settings/components/settings-field'
-import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import {
-  RESOURCE_LIST_STACK,
-  SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { CreateWorkflowMcpServerModal } from '@/app/workspace/[workspaceId]/settings/components/workflow-mcp-servers/components'
 import { useApiKeys } from '@/hooks/queries/api-keys'
 import { useCreateMcpServer } from '@/hooks/queries/mcp'

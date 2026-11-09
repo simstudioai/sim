@@ -1,13 +1,13 @@
 'use client'
 
 import { ChipCopyInput } from '@sim/emcn-legacy'
-import { SettingsPanel } from '@/components/settings/settings-panel'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+} from '@/components/settings/primitives/settings-empty-state'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
+import { SettingsPanel } from '@/components/settings/settings-panel'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { SessionPolicySettings } from '@/ee/session-policy/components/session-policy-settings'
 import { useOrganizationNetwork } from '@/hooks/queries/organization-network'
 

@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { cn } from '@sim/emcn-legacy'
-import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { RESOURCE_HEADER_CLASSES } from '@/components/mothership-chat/mothership-view/components/resource-tabs/resource-tab-controls'
 import type { OrganizationSearchState } from '@/platform/embedded/lib/data/organization-search'
 
 interface SearchFrameProps {

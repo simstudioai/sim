@@ -66,11 +66,11 @@ vi.mock('@/components/settings/navigation', () => ({
 beforeAll(() => setEnvFlags({ isHosted: true }))
 afterAll(resetEnvFlagsMock)
 
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
+vi.mock('@/components/workspace-providers/workspace-host-provider', () => ({
   useWorkspaceHostContext: () => mocks.hostContext.current,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
+vi.mock('@/components/workspace-providers/workspace-permissions-provider', () => ({
   useUserPermissionsContext: () => ({}),
 }))
 
@@ -78,7 +78,7 @@ vi.mock('@/hooks/use-settings-search', () => ({
   useSettingsSearch: () => ['', vi.fn()],
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/settings/components/settings-panel', () => ({
+vi.mock('@/components/settings/primitives/settings-panel', () => ({
   SettingsPanel: ({
     children,
     actions,

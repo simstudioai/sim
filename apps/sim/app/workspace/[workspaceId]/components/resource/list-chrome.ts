@@ -10,9 +10,9 @@ import {
   Table,
   Upload,
 } from '@sim/emcn-legacy/icons'
-import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
-import type { ChromeActionSpec } from '@/app/workspace/[workspaceId]/components/resource/components/resource-chrome-fallback'
-import type { ResourceColumn } from '@/app/workspace/[workspaceId]/components/resource/resource'
+import { FOLDERED_RESOURCE_HEADERS } from '@/components/folders/foldered-resources'
+import type { ChromeActionSpec } from '@/components/resource/components/resource-chrome-fallback'
+import type { ResourceColumn } from '@/components/resource/resource'
 
 interface ListChrome {
   title: string

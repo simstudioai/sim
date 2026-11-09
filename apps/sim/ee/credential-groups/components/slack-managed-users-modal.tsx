@@ -12,8 +12,8 @@ import {
 } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { SlackIcon } from '@/components/icons'
+import { ConnectSlackBotModal } from '@/components/integrations/connect-slack-bot-modal/connect-slack-bot-modal'
 import { SlackSearchSetupWizard } from '@/components/integrations/slack-search-setup-wizard'
-import { ConnectSlackBotModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-slack-bot-modal/connect-slack-bot-modal'
 import {
   type SlackManagedUsersSetupOptions,
   useSlackManagedUsersSetup,

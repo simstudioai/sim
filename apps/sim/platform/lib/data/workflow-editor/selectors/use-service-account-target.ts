@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
+import { useServiceAccountConnectTarget } from '@/components/integrations/connect-service-account-modal/use-service-account-connect'
 import { getServiceConfigByServiceId } from '@/lib/oauth/utils'
-import { useServiceAccountConnectTarget } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal/use-service-account-connect'
 
 type ServiceAccountProviderId = Parameters<
   typeof useServiceAccountConnectTarget

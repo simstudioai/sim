@@ -13,8 +13,8 @@ import {
 } from '@sim/emcn-legacy'
 import { TriangleAlert } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import type { GetForkResourcesResponse } from '@/lib/api/contracts/workspace-fork'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   FileKindRow,
   ResourceKindRow,

@@ -1,13 +1,13 @@
 import type { ComponentType } from 'react'
 import { getIntegrationTypesForOAuthServiceId } from '@sim/deployment-config/integration-availability'
 import { INTEGRATION_METADATA } from '@sim/deployment-config/integration-metadata'
+import { BrandTile } from '@/components/resource-tile'
 import {
   getManagedMcpConnectorBgColor,
   type ManagedMcpConnectorId,
 } from '@/lib/credential-groups/managed-mcp-connectors'
 import type { CredentialGroupProvider } from '@/lib/credential-groups/providers'
 import { blockTypeToIconMap } from '@/lib/integrations/icon-mapping'
-import { BrandTile } from '@/app/workspace/[workspaceId]/components/resource-tile'
 
 const INTEGRATION_BY_TYPE = new Map(INTEGRATION_METADATA.map((entry) => [entry.type, entry]))
 

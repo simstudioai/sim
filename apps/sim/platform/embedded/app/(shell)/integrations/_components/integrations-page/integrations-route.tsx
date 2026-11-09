@@ -4,6 +4,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { FailureNotice } from '@sim/emcn/status'
 import { LoadingRows, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { useQueryStates } from 'nuqs'
+import { SavedSearchCredentialModal } from '@/components/integrations/saved-search-credential-modal'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import {
@@ -12,7 +13,6 @@ import {
   integrationViewParsers,
   serializeIntegrationView,
 } from '@/lib/organizations/integrations-search-params'
-import { SavedSearchCredentialModal } from '@/app/workspace/[workspaceId]/integrations/components/saved-search-credential-modal'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useDesktopOAuthConnectListener, useOAuthReturnRouter } from '@/hooks/use-oauth-return'
 import { IntegrationDetails } from '@/platform/embedded/app/(shell)/integrations/_components/integration-details/integration-details'

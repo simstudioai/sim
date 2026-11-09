@@ -2,7 +2,7 @@ import {
   compareSortableResources,
   type SortableResource,
   sortResources,
-} from '@/app/workspace/[workspaceId]/components/folders'
+} from '@/components/folders'
 
 /** One row of the Files list, before it becomes a `ResourceRow`. */
 export type FileListEntry<Folder, File> =

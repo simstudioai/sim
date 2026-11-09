@@ -1,3 +1,18 @@
+export { resolveFileCategory } from '@/components/file-viewer/file-category'
+export {
+  filesBrowserListParams,
+  filesFilterParsers,
+  filesFilterUrlKeys,
+  filesListPreferenceConfig,
+  filesParsers,
+  filesSortParams,
+  filesUrlKeys,
+} from '@/components/file-viewer/search-params'
+export { assessTextEditorPaste } from '@/components/file-viewer/text-editor-paste'
+export { DEFAULT_UNTITLED_NAME } from '@/components/file-viewer/untitled-title'
+export { useDocPreviewBinary } from '@/components/file-viewer/use-doc-preview-binary'
+export { useEditableFileContent } from '@/components/file-viewer/use-editable-file-content'
+export { useSelectionCopyBridge } from '@/components/file-viewer/use-selection-copy-bridge'
 export type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 export { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 export { useDeploymentShape } from '@/lib/core/config/deployment-shape'
@@ -29,22 +44,6 @@ export { formatFileSize } from '@/lib/uploads/utils/file-size'
 export { normalizeMimeType } from '@/lib/uploads/utils/mime'
 export { fileBrowserTypeLabel } from '@/lib/workspace-files/browser'
 export { SIM_PAGE_CONTENT_TYPE } from '@/lib/workspace-files/page-content-type'
-export { resolveFileCategory } from '@/app/workspace/[workspaceId]/files/components/file-viewer/file-category'
-export { assessTextEditorPaste } from '@/app/workspace/[workspaceId]/files/components/file-viewer/text-editor-paste'
-export { useDocPreviewBinary } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-doc-preview-binary'
-export { useEditableFileContent } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-editable-file-content'
-export { useSelectionCopyBridge } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-selection-copy-bridge'
-export { useWorkspaceFilesRoom } from '@/app/workspace/[workspaceId]/files/hooks/use-workspace-files-room'
-export {
-  filesBrowserListParams,
-  filesFilterParsers,
-  filesFilterUrlKeys,
-  filesListPreferenceConfig,
-  filesParsers,
-  filesSortParams,
-  filesUrlKeys,
-} from '@/app/workspace/[workspaceId]/files/search-params'
-export { DEFAULT_UNTITLED_NAME } from '@/app/workspace/[workspaceId]/files/untitled-title'
 export { usePinnedWorkspaceFiles } from '@/hooks/queries/pinned-workspace-files'
 export { useFileShare, useUpsertFileShare } from '@/hooks/queries/public-shares'
 export { useSimLinksForUrl } from '@/hooks/queries/sim-links'
@@ -67,6 +66,7 @@ export {
   FileContentSourceProvider,
   useFileContentSource,
 } from '@/hooks/use-file-content-source'
+export { useWorkspaceFilesRoom } from '@/hooks/use-workspace-files-room'
 export type { ChatContext } from '@/stores/panel'
 export { useFileAccess } from './access'
 export { useAddToChat } from './add-to-chat'

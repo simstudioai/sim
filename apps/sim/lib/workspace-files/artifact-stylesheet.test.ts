@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildHtmlPreviewDocument } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-panel'
+import { buildHtmlPreviewDocument } from '@/components/file-viewer/preview-panel'
 
 const MARKED =
   '<!DOCTYPE html><html><head><meta name="sim-artifact"><title>T</title></head><body><div class="page"></div></body></html>'

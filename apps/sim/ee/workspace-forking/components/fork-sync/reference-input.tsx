@@ -2,11 +2,11 @@
 
 import { useRef, useState } from 'react'
 import { ChipInput, ChipTextarea } from '@sim/emcn-legacy'
-import { EnvVarDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
+import { EnvVarDropdown } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/env-var-dropdown'
 import {
   checkTagTrigger,
   TagDropdown,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+} from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { checkEnvVarTrigger } from '@/hooks/use-env-var-suggestions'
 
 interface ReferenceInputProps {

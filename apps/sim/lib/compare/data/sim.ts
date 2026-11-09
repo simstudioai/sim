@@ -285,7 +285,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/%5BworkspaceId%5D/files/components/share-modal/share-modal.tsx',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/components/share-modal/share-modal.tsx',
             label: 'Sim codebase: file share modal (password/email/SSO modes)',
             asOf: '2026-07-08',
           },
@@ -318,7 +318,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx',
             label: 'Sim codebase: rich markdown editor',
             asOf: '2026-07-02',
           },
@@ -357,7 +357,7 @@ export const simProfile: CompetitorProfile = {
             asOf: '2026-07-08',
           },
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/%5BworkspaceId%5D/settings/navigation.ts',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/components/settings/workspace-navigation.ts',
             label: 'Sim codebase: Custom blocks nav entry (Enterprise/self-hosted gating)',
             asOf: '2026-07-08',
           },

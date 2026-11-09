@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { TestDetail } from '@/app/workspace/[workspaceId]/tests/components'
+import { TestDetail } from '@/components/workflow-tests'
 
 export const metadata: Metadata = { title: 'Test', robots: { index: false } }
 

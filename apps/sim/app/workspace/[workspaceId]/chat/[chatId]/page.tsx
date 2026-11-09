@@ -1,10 +1,10 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { HomeFallback } from '@/components/mothership-chat/home-fallback'
 import { getSession } from '@/lib/auth'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { Home } from '@/app/workspace/[workspaceId]/home/home'
-import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 
 export const metadata: Metadata = {
   title: 'Chat',

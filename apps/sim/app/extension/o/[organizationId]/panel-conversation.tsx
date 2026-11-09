@@ -3,18 +3,18 @@
 import { type ReactNode, useRef } from 'react'
 import { ChipModal, ChipModalHeader } from '@sim/emcn-legacy'
 import { AssistantActionReviewProvider } from '@/components/assistant-actions'
+import { ComposerScrollArea } from '@/components/mothership-chat/composer-scroll-area'
+import { HomeFallback } from '@/components/mothership-chat/home-fallback'
+import { SearchIntegrationConnection } from '@/components/mothership-chat/message-content/components/special-tags/search-integration-connection'
+import { MothershipChat } from '@/components/mothership-chat/mothership-chat'
+import { SourcesResourceContent } from '@/components/mothership-chat/mothership-view/components/resource-content/components/sources-resource-content'
+import type { ModelSelectorOptions } from '@/components/mothership-chat/user-input/components/model-selector'
 import type { ChatRequestMode } from '@/lib/mothership/chat/types'
 import {
   useConversationGate,
   useOrganizationConversation,
 } from '@/app/_organization-conversation/use-organization-conversation'
 import { PanelComposer } from '@/app/extension/o/[organizationId]/panel-composer'
-import { ComposerScrollArea } from '@/app/workspace/[workspaceId]/home/components/composer-scroll-area'
-import { SearchIntegrationConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/search-integration-connection'
-import { MothershipChat } from '@/app/workspace/[workspaceId]/home/components/mothership-chat'
-import { SourcesResourceContent } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/sources-resource-content'
-import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
-import { HomeFallback } from '@/app/workspace/[workspaceId]/home/home-fallback'
 import type { PrepareChatSubmission } from '@/hooks/use-composer-submission'
 
 interface PanelConversationProps {

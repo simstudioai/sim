@@ -1,7 +1,7 @@
 'use client'
 
 import { useSession } from '@/lib/auth/client'
-import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
+import { useRestoredChatEntry } from '@/hooks/mothership-chat/use-restored-chat-entry'
 
 const CHAT_PATHS = { agent: /^\/chat\/[^/]+$/, assistant: /^\/search\/chat\/[^/]+$/ }
 

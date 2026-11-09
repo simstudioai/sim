@@ -6,7 +6,7 @@ import type {
   SendPayload,
 } from '@/lib/mothership/chat/types'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
-import { sendPayload } from '@/app/workspace/[workspaceId]/home/hooks/send-payload'
+import { sendPayload } from '@/hooks/mothership-chat/send-payload'
 import type { ChatContext } from '@/stores/panel'
 
 const logger = createLogger('MothershipEvents')

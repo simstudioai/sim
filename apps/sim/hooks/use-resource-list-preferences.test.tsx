@@ -5,7 +5,7 @@ import { act } from 'react'
 import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { filesListPreferenceConfig } from '@/app/workspace/[workspaceId]/files/search-params'
+import { filesListPreferenceConfig } from '@/components/file-viewer/search-params'
 import { useResourceListPreferences } from '@/hooks/use-resource-list-preferences'
 import {
   RESOURCE_LIST_PREFERENCES_STORAGE_KEY,

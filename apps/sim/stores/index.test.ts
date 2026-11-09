@@ -13,7 +13,7 @@ vi.mock('@/stores/reset-all-stores', () => {
   return { resetAllStores: mockResetAllStores }
 })
 
-import { desktopToolSession } from '@/app/workspace/[workspaceId]/home/hooks/desktop-tool-lifetimes'
+import { desktopToolSession } from '@/hooks/mothership-chat/desktop-tool-lifetimes'
 import { clearUserData, RECENT_IMPERSONATIONS_STORAGE_KEY } from '@/stores'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 

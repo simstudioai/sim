@@ -5,8 +5,21 @@ import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn-legacy'
 import { ArrowLeft, Plus } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { ConnectOAuthModal } from '@/components/connect-oauth-modal'
 import { EmptyState } from '@/components/empty-state/empty-state'
+import { ConnectPersonalTokenModal } from '@/components/integrations/connect-personal-token-modal'
+import {
+  ConnectServiceAccountModal,
+  useServiceAccountConnectTarget,
+} from '@/components/integrations/connect-service-account-modal'
+import { IntegrationTile } from '@/components/integrations/integrations-showcase'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { RESOURCE_TILE_BASE } from '@/components/resource-tile'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/components/settings/primitives/settings-resource-row'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import {
   blockTypeToIconMap,
@@ -16,28 +29,15 @@ import {
 } from '@/lib/integrations'
 import { isIntegrationPermitted } from '@/lib/integrations/access'
 import { credentialProviderMatchesService } from '@/lib/oauth'
-import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
-import { RESOURCE_TILE_BASE } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { IntegrationBlockDetailFallback } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-block-detail-fallback'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'
-import { ConnectPersonalTokenModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-personal-token-modal'
-import {
-  ConnectServiceAccountModal,
-  useServiceAccountConnectTarget,
-} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationSection } from '@/app/workspace/[workspaceId]/integrations/components/integration-section'
-import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
 import {
   CONNECT_MODE,
   resolveAvailableConnectMode,
 } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useScrollRestoration } from '@/app/workspace/[workspaceId]/integrations/hooks/use-scroll-restoration'
-import {
-  RESOURCE_LIST_STACK,
-  SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import {

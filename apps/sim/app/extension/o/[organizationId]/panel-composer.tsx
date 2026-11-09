@@ -11,6 +11,11 @@ import {
   Tooltip,
 } from '@sim/emcn-legacy'
 import { ArrowUp, Paperclip, Plus, Slash, StopFilled } from '@sim/emcn-legacy/icons'
+import { InputToolbar } from '@/components/mothership-chat/user-input/components/input-toolbar'
+import { MicButton } from '@/components/mothership-chat/user-input/components/mic-button/mic-button'
+import { MicrophonePermissionHelp } from '@/components/mothership-chat/user-input/components/microphone-permission-help/microphone-permission-help'
+import type { ModelSelectorOptions } from '@/components/mothership-chat/user-input/components/model-selector'
+import { PromptEditor } from '@/components/mothership-chat/user-input/components/prompt-editor'
 import {
   COMPOSER_FIELD_HEIGHT_CLASSES,
   ComposerAttachments,
@@ -19,11 +24,6 @@ import {
   useComposer,
 } from '@/app/_organization-conversation/composer'
 import { inter } from '@/app/_styles/fonts/inter/inter'
-import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
-import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
-import { MicrophonePermissionHelp } from '@/app/workspace/[workspaceId]/home/components/user-input/components/microphone-permission-help/microphone-permission-help'
-import type { ModelSelectorOptions } from '@/app/workspace/[workspaceId]/home/components/user-input/components/model-selector'
-import { PromptEditor } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 
 interface PanelComposerProps extends ConversationComposerProps {
   attachments?: ReactNode

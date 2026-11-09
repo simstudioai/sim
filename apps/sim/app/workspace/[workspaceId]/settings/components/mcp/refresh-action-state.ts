@@ -1,6 +1,6 @@
 import type { MutationStatus } from '@tanstack/react-query'
+import type { SettingsAction } from '@/components/settings/primitives/settings-header/settings-header'
 import type { RefreshMcpServerResult } from '@/lib/api/contracts/mcp'
-import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 
 interface RefreshActionStateInput {
   mutationStatus: MutationStatus

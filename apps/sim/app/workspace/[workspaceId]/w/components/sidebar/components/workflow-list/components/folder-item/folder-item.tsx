@@ -16,12 +16,12 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useRouter } from 'next/navigation'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
+import { ContextMenu } from '@/components/workspace-sidebar/components/workflow-list/components/context-menu/context-menu'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { buildDragResources, createSidebarDragGhost } from '@/lib/workflows/sidebar'
 import { generateSubfolderName } from '@/lib/workspaces/naming'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SidebarRowAction } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
-import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
   useFolderExpand,
@@ -30,15 +30,6 @@ import {
   useSidebarListContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
-import {
-  useCanDelete,
-  useDeleteFolder,
-  useDeleteSelection,
-  useDuplicateFolder,
-  useDuplicateSelection,
-  useExportFolder,
-  useExportSelection,
-} from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCreateFolder, useFolderMap, useUpdateFolder } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import {
@@ -48,6 +39,15 @@ import {
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useCreateWorkflow } from '@/hooks/queries/workflows'
 import { useContextMenu } from '@/hooks/use-context-menu'
+import {
+  useCanDelete,
+  useDeleteFolder,
+  useDeleteSelection,
+  useDuplicateFolder,
+  useDuplicateSelection,
+  useExportFolder,
+  useExportSelection,
+} from '@/hooks/workflow-actions'
 import { useFolderStore } from '@/stores/folders/store'
 import type { FolderTreeNode } from '@/stores/folders/types'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'

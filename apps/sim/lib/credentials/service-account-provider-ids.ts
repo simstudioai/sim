@@ -1,3 +1,4 @@
+import type { ServiceAccountProviderId } from '@/components/integrations/connect-service-account-modal'
 import {
   getClientCredentialAccountDescriptor,
   isClientCredentialAccountProviderId,
@@ -13,7 +14,6 @@ import {
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
-import type { ServiceAccountProviderId } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 
 /**
  * Narrows a runtime provider-id string to the {@link ServiceAccountProviderId}

@@ -3,7 +3,7 @@ export {
   caretColorSlot,
   createCaretActivityExtension,
   renderCaret,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/caret-presence'
-export { FileCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration'
-export { isCollabReady } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/readiness'
+} from '@/components/file-viewer/rich-markdown-editor/collaboration/caret-presence'
+export { FileCollaboration } from '@/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration'
+export { isCollabReady } from '@/components/file-viewer/rich-markdown-editor/collaboration/readiness'
 export { useFileDocCollaboration } from './use-file-doc-collaboration'

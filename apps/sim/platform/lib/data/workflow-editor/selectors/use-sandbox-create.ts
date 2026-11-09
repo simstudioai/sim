@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { SandboxCliToolId, SandboxDependencyIssue } from '@/lib/api/contracts/sandboxes'
 import {
   emptyDraft,
   extractIssues,
   type SandboxDraft,
   type SandboxLanguage,
   toSubmittedLines,
-} from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
+} from '@/components/settings/sections/sandboxes/utils'
+import type { SandboxCliToolId, SandboxDependencyIssue } from '@/lib/api/contracts/sandboxes'
 import { type Sandbox, useCreateSandbox, useSandboxes } from '@/hooks/queries/sandboxes'
 import { useUserPermissionsContext } from '@/platform/lib/data/workflow-editor'
 

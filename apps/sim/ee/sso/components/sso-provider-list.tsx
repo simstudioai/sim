@@ -1,13 +1,13 @@
 'use client'
 
 import { ChipTag } from '@sim/emcn-legacy'
-import type { SsoProviderView } from '@/lib/api/contracts/auth'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
 import {
   RESOURCE_LIST_STACK,
   SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+} from '@/components/settings/primitives/settings-resource-row'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
+import type { SsoProviderView } from '@/lib/api/contracts/auth'
 
 interface SsoProviderListProps {
   providers: SsoProviderView[]

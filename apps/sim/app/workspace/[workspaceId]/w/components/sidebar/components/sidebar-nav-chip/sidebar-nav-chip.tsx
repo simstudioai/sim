@@ -3,7 +3,7 @@
 import { forwardRef } from 'react'
 import { Chip, ChipLink, cn } from '@sim/emcn-legacy'
 import { Lock } from '@sim/emcn-legacy/icons'
-import { SIDEBAR_RAIL_CHIP_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
+import { SIDEBAR_RAIL_CHIP_CLASS } from '@/components/workspace-sidebar/constants'
 
 export interface SidebarNavItemData {
   id: string

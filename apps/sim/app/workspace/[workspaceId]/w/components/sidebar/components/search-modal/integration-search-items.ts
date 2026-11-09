@@ -1,10 +1,10 @@
 import type { ComponentType } from 'react'
+import type { IntegrationSearchItem } from '@/components/workspace-sidebar/components/search-modal/utils'
 import { blockTypeToIconMap, INTEGRATIONS, resolveCredentialDisplay } from '@/lib/integrations'
 import {
   CONNECT_MODE,
   CONNECT_QUERY_PARAM,
 } from '@/app/workspace/[workspaceId]/integrations/connect-route'
-import type { IntegrationSearchItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import type { WorkspaceCredential } from '@/hooks/queries/credentials'
 
 /** Fallback brand color for credentials whose integration metadata cannot be resolved. */

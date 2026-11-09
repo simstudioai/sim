@@ -4,11 +4,11 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { chipVariants, cn, OverflowText, RowActions, rowActionsGroupClass } from '@sim/emcn-legacy'
 import { Lock, MoreHorizontal } from '@sim/emcn-legacy/icons'
 import Link from 'next/link'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
+import { ContextMenu } from '@/components/workspace-sidebar/components/workflow-list/components/context-menu/context-menu'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/mothership/resource-types'
 import { buildDragResources, createSidebarDragGhost } from '@/lib/workflows/sidebar'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { SidebarRowAction } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
-import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/avatars/avatars'
 import {
@@ -16,15 +16,6 @@ import {
   useItemRename,
   useSidebarListContext,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import {
-  useCanDelete,
-  useDeleteSelection,
-  useDeleteWorkflow,
-  useDuplicateSelection,
-  useDuplicateWorkflow,
-  useExportSelection,
-  useExportWorkflow,
-} from '@/app/workspace/[workspaceId]/w/hooks'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import {
@@ -34,6 +25,15 @@ import {
 import { getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { useUpdateWorkflow } from '@/hooks/queries/workflows'
 import { useContextMenu } from '@/hooks/use-context-menu'
+import {
+  useCanDelete,
+  useDeleteSelection,
+  useDeleteWorkflow,
+  useDuplicateSelection,
+  useDuplicateWorkflow,
+  useExportSelection,
+  useExportWorkflow,
+} from '@/hooks/workflow-actions'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 

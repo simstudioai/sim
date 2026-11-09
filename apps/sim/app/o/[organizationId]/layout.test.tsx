@@ -19,7 +19,7 @@ const {
   mockUseMothershipChatEvents: vi.fn(),
 }))
 
-vi.mock('@/app/workspace/providers/socket-provider', () => ({
+vi.mock('@/components/workspace-providers/socket-provider', () => ({
   SocketProvider: ({ children }: { children: import('react').ReactNode }) => children,
 }))
 vi.mock('@/hooks/use-mothership-chat-events', () => ({
@@ -59,7 +59,7 @@ vi.mock('@/platform/embedded/app/(shell)/_components/sidebar/sidebar', () => ({
   Sidebar: () => null,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
+vi.mock('@/components/workspace-chrome', () => ({
   WorkspaceChrome: mockWorkspaceChrome,
   WorkspaceViewport: ({ children }: { children: ReactNode }) => children,
 }))

@@ -1,4 +1,4 @@
-export { useOAuthChipConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/use-oauth-chip-connection'
+export { useOAuthChipConnection } from '@/components/mothership-chat/message-content/components/special-tags/use-oauth-chip-connection'
 export {
   CredentialWorkspaceProvider,
   useCredentialWorkspace,

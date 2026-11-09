@@ -1,11 +1,11 @@
 'use client'
 
 import { Chip } from '@sim/emcn-legacy'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import {
   ORGANIZATION_USAGE_OVERVIEW_ROW_LIMIT,
   type OrganizationUsageOverview,
 } from '@/lib/api/contracts/organization-usage'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { UsageConsumers } from '@/ee/organization-usage/components/usage-consumers'
 import type { UsageTab } from '@/ee/organization-usage/constants'
 import { truncateBreakdown } from '@/ee/organization-usage/format'

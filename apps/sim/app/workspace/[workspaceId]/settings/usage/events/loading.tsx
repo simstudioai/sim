@@ -2,7 +2,7 @@
 
 import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { useParams, useRouter } from 'next/navigation'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
 
 export default function UsageEventsLoading() {
   const router = useRouter()

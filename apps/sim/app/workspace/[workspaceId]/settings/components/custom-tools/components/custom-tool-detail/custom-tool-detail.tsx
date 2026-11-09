@@ -5,7 +5,6 @@ import { ChipConfirmModal, toast } from '@sim/emcn-legacy'
 import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import {
   CUSTOM_TOOL_DELETE_CONFIRM_TEXT,
   CustomToolCodeField,
@@ -18,9 +17,10 @@ import {
   useCodeGeneration,
   useSchemaGeneration,
   validateCustomToolSchema,
-} from '@/app/workspace/[workspaceId]/components/custom-tool-editor'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+} from '@/components/custom-tool-editor'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { CustomToolDefinition } from '@/hooks/queries/custom-tools'
 import {
   useCreateCustomTool,

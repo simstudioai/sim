@@ -3,8 +3,8 @@
 import { Button } from '@sim/emcn/button'
 import { FailureNotice } from '@sim/emcn/status'
 import { ConnectionPrompt } from '@sim/emcn-platform/connection-prompt'
+import { SavedSearchCredentialModal } from '@/components/integrations/saved-search-credential-modal'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
-import { SavedSearchCredentialModal } from '@/app/workspace/[workspaceId]/integrations/components/saved-search-credential-modal'
 import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
 
 interface SearchConnectionRequestProps {

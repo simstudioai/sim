@@ -4,11 +4,11 @@ import { useState } from 'react'
 import { ChipConfirmModal } from '@sim/emcn-legacy'
 import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { useQueryState } from 'nuqs'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import { forkSyncDirectionParam, forkSyncDirectionUrlKeys } from '@/lib/settings/search-params'
 import { buildWebhookTriggerUrl } from '@/lib/webhooks/trigger-url'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { ForkSyncView } from '@/ee/workspace-forking/components/fork-sync/fork-sync-view'
 import {
   ARCHIVED_PREVIEW_LIMIT,

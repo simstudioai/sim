@@ -1,3 +1,26 @@
+export {
+  CODE_PLACEHOLDER,
+  extractSchemaParameters,
+  FUNCTION_NAME_LOCKED,
+  SCHEMA_PLACEHOLDER,
+  type SchemaParameter,
+  validateCustomToolSchema,
+} from '@/components/custom-tool-editor/custom-tool-schema'
+export {
+  useCodeGeneration,
+  useSchemaGeneration,
+} from '@/components/custom-tool-editor/use-custom-tool-generation'
+export {
+  clearDependentToolParams,
+  getParamsForToolOperation,
+} from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
+export {
+  isAgentToolBlock,
+  isCoreAgentToolBlock,
+  isCustomToolAlreadySelected,
+  isMcpToolAlreadySelected,
+  isWorkflowAlreadySelected,
+} from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/tool-input/utils'
 export { getManagedMcpConnectorIcon } from '@/lib/credential-groups/managed-mcp-connector-icons'
 export { MCP_SERVER_ADVANCED_TOOL_TYPE } from '@/lib/mcp/shared'
 export {
@@ -28,29 +51,6 @@ export {
   getAgentToolUsageControlMode,
   resolveAgentToolUsageControl,
 } from '@/lib/workflows/tool-input/usage-control'
-export {
-  CODE_PLACEHOLDER,
-  extractSchemaParameters,
-  FUNCTION_NAME_LOCKED,
-  SCHEMA_PLACEHOLDER,
-  type SchemaParameter,
-  validateCustomToolSchema,
-} from '@/app/workspace/[workspaceId]/components/custom-tool-editor/custom-tool-schema'
-export {
-  useCodeGeneration,
-  useSchemaGeneration,
-} from '@/app/workspace/[workspaceId]/components/custom-tool-editor/use-custom-tool-generation'
-export {
-  clearDependentToolParams,
-  getParamsForToolOperation,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
-export {
-  isAgentToolBlock,
-  isCoreAgentToolBlock,
-  isCustomToolAlreadySelected,
-  isMcpToolAlreadySelected,
-  isWorkflowAlreadySelected,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/utils'
 export { isCustomBlockType } from '@/blocks/custom/build-config'
 export { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 export { getAllBlocks } from '@/blocks/registry'

@@ -1,11 +1,11 @@
 'use client'
 
 import { useMemo } from 'react'
-import type { ForkDependentReconfig } from '@/lib/api/contracts/workspace-fork'
 import {
   buildWorkflowReferenceScope,
   WorkflowReferenceScopeProvider,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/workflow-reference-scope'
+} from '@/components/workflow-editor/hooks/workflow-reference-scope'
+import type { ForkDependentReconfig } from '@/lib/api/contracts/workspace-fork'
 import { ReferenceInput } from '@/ee/workspace-forking/components/fork-sync/reference-input'
 import { useWorkflowState } from '@/hooks/queries/workflows'
 

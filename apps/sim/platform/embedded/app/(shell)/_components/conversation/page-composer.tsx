@@ -6,6 +6,9 @@ import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { cn } from '@sim/emcn-legacy'
 import hostBridge from '@sim/emcn-platform/styles/host-bridge.module.css'
 import { Surface } from '@sim/emcn-platform/surface'
+import { InputToolbar } from '@/components/mothership-chat/user-input/components/input-toolbar'
+import { MicButton } from '@/components/mothership-chat/user-input/components/mic-button/mic-button'
+import { PromptEditor } from '@/components/mothership-chat/user-input/components/prompt-editor'
 import {
   COMPOSER_FIELD_HEIGHT_CLASSES,
   ComposerAttachments,
@@ -13,9 +16,6 @@ import {
   type ConversationComposerProps,
   useComposer,
 } from '@/app/_organization-conversation/composer'
-import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
-import { MicButton } from '@/app/workspace/[workspaceId]/home/components/user-input/components/mic-button/mic-button'
-import { PromptEditor } from '@/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor'
 import { useAnimatedPlaceholder } from '@/hooks/use-animated-placeholder'
 import conversationStyles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 import {

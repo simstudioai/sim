@@ -11,8 +11,8 @@ import {
 } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { useWorkspacePermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
 import { partitionSettledFailures, resolveAddEmail } from '@/lib/workspaces/sharing'
-import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { MEMBER_ROLE_OPTIONS, type MemberRole } from './member-role-options'
 
 const logger = createLogger('AddPeopleModal')

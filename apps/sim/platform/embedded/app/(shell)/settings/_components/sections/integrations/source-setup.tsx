@@ -8,11 +8,11 @@ import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { ConnectOAuthModal } from '@/components/connect-oauth-modal'
+import { ConnectServiceAccountModal } from '@/components/integrations/connect-service-account-modal'
 import type { ConnectorData } from '@/lib/api/contracts/knowledge/connectors'
 import type { ResourceScope } from '@/lib/core/resource-scope'
 import { getCanonicalScopesForProvider } from '@/lib/oauth'
-import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
-import { ConnectServiceAccountModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { useAddConnectorForm } from '@/hooks/kb/connectors/use-add-connector-form'
 import {
   ActionRow,

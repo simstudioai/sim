@@ -4,18 +4,18 @@ import { Chip, ChipSwitch, ChipTag } from '@sim/emcn-legacy'
 import { Lock } from '@sim/emcn-legacy/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/components/settings/primitives/settings-empty-state'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/components/settings/primitives/settings-resource-row'
 import { SettingsPanel } from '@/components/settings/settings-panel'
 import type { AccessRequestScope } from '@/lib/api/contracts/access-requests'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import {
-  SettingsEmptyState,
-  SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import {
-  RESOURCE_LIST_STACK,
-  SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { MyAccessRequestDetails } from '@/ee/access-requests/components/my-access-request-details'
 import { OrganizationAccessRequests } from '@/ee/access-requests/components/organization-access-requests'
 import { RequestAccessAction } from '@/ee/access-requests/components/request-access-action'

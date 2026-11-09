@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Surface } from '@sim/emcn-platform/surface'
-import { RESOURCE_HEADER_CLASSES } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-tabs/resource-tab-controls'
+import { RESOURCE_HEADER_CLASSES } from '@/components/mothership-chat/mothership-view/components/resource-tabs/resource-tab-controls'
 import styles from '@/platform/embedded/app/(shell)/_components/conversation/conversation.module.css'
 import composerStyles from '@/platform/embedded/app/(shell)/_components/conversation/page-composer.module.css'
 

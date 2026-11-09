@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
+import type { SettingsSection } from '@/components/settings/workspace-navigation'
 import { prefetchCurrentUserSettings } from '@/lib/settings/prefetch-current-user-settings'
-import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 
 export interface SettingsSectionPrefetchContext {
   workspaceId: string

@@ -1,5 +1,24 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
+import type { AgentGroupItem } from '@/components/mothership-chat/message-content/components/agent-group/agent-group-view'
+import { splitMainLane } from '@/components/mothership-chat/message-content/components/agent-group/lane-activity'
+import {
+  getActivityHeaderTool,
+  getActivityStatusTool,
+  getCompletedActivityLabel,
+  getInProgressActivityLabel,
+  withoutRetriedSearchFailures,
+} from '@/components/mothership-chat/message-content/components/agent-group/tool-activity-labels'
+import { parseQuestionAnswerMessage } from '@/components/mothership-chat/message-content/components/question/answers'
+import {
+  type AgentGroupSegment,
+  deriveThinkingLabel,
+  getOrchestratorMessageText,
+  type MessageSegment,
+  parseBlocks,
+} from '@/components/mothership-chat/message-content/parse-blocks'
+import { resolveMessageCitations } from '@/components/mothership-chat/message-content/resolve-citations'
+import { isToolDone } from '@/components/mothership-chat/message-content/tool-status'
 import { isSafeHttpUrl } from '@/lib/core/utils/urls'
 import { searchConnectionTargetSchema } from '@/lib/knowledge/search/connection-target'
 import {
@@ -21,25 +40,6 @@ import {
   getToolStatusDisplayTitle,
   getWaitCountdownTitle,
 } from '@/lib/mothership/tools/display'
-import type { AgentGroupItem } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group-view'
-import { splitMainLane } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/lane-activity'
-import {
-  getActivityHeaderTool,
-  getActivityStatusTool,
-  getCompletedActivityLabel,
-  getInProgressActivityLabel,
-  withoutRetriedSearchFailures,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-activity-labels'
-import { parseQuestionAnswerMessage } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question/answers'
-import {
-  type AgentGroupSegment,
-  deriveThinkingLabel,
-  getOrchestratorMessageText,
-  type MessageSegment,
-  parseBlocks,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/parse-blocks'
-import { resolveMessageCitations } from '@/app/workspace/[workspaceId]/home/components/message-content/resolve-citations'
-import { isToolDone } from '@/app/workspace/[workspaceId]/home/components/message-content/tool-status'
 import type {
   PlatformCredentialRequest,
   PlatformLane,
