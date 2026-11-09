@@ -73,14 +73,8 @@ const CODE_FIRST_VARIANTS: ReasonedAllowlist = {
 const LOADING_COPY_OWNERS: ReasonedAllowlist = {
   [`${PRODUCT_ROUTES}_components/composer/message-composer.tsx`]:
     "Emir's composer: the @ menu names its pending list while the draft keeps focus and typing",
-  [`${PRODUCT_ROUTES}_components/workspace/access-required/access-required.tsx`]:
-    'Predates the synonyms: the access-updated empty state names its permission refresh',
   [`${ORGANIZATION_ROUTES}integrations/_components/slack-search-actions/slack-search-actions.tsx`]:
     "Predates the synonyms: the Check connection button's pending label lacks its ellipsis",
-  [`${ORGANIZATION_ROUTES}people/_components/import/import-modal.tsx`]:
-    'Predates the synonyms: the import notice names the file read before its preview paints',
-  [`${ORGANIZATION_ROUTES}settings/_components/sections/connected-accounts/slack-member-setup.tsx`]:
-    'Predates the synonyms: the Sim Search app field names its installation check',
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/document-view/document-view.tsx`]:
     "The document editor's save status reports a write, not a pending read",
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/chat-tab/chat-tab.tsx`]:
@@ -889,8 +883,8 @@ const LIVE_ONLY_ROUTES: ReasonedAllowlist = {
 }
 /** Views that branch on fixture mode, which only pages, layouts, registries and fixtures may. */
 const FIXTURE_BRANCH_VIEWS: ReasonedAllowlist = {
-  [`${PRODUCT_ROUTES}_components/product-session.tsx`]:
-    'The product session holds the fixture or live data the shell renders',
+  ['platform/lib/navigation.ts']:
+    'platformHref keeps fixture scenario params on links only in a fixture build, inlined at build time',
   [`${PRODUCT_ROUTES}_components/product-shell.tsx`]:
     'The one product shell picks the fixture or live session around every page',
   [`${ORGANIZATION_ROUTES}settings/_components/live-settings/live-settings-route.tsx`]:
@@ -923,8 +917,6 @@ const FAILURE_COPY_OWNERS: ReasonedAllowlist = {
     "The sidebar section's own failure row carries its Retry",
   [`${PRODUCT_ROUTES}_components/sidebar/workspaces-section.tsx`]:
     "The sidebar section's own failure row carries its Retry",
-  [`${PRODUCT_ROUTES}_components/workspace/files/file-view/file-view.tsx`]:
-    'Predates the rule: a file that failed to load fills the page with its empty state',
   [`${PRODUCT_ROUTES}_components/workspace/tables/workflow-panel/workflow-panel.tsx`]:
     'Predates the rule: the workflow panel names its failed read inline',
   [`${PRODUCT_ROUTES}_components/workspace/workflows/canvas/workflow-canvas/workflow-canvas.tsx`]:
@@ -946,23 +938,10 @@ const FAILURE_COPY_OWNERS: ReasonedAllowlist = {
 const ASCII_ELLIPSIS_COPY: ReasonedAllowlist = granted(
   'Predates copy-ellipsis: replace each ... in its copy with …',
   [
-    `${PRODUCT_ROUTES}_components/access-requests/my-requests.tsx`,
-    `${PRODUCT_ROUTES}_components/access-requests/review-requests.tsx`,
-    `${PRODUCT_ROUTES}_components/credential-members/credential-members.tsx`,
-    `${PRODUCT_ROUTES}_components/links-page/links-frame.tsx`,
     `${PRODUCT_ROUTES}_components/sidebar/support-modal.tsx`,
-    `${PRODUCT_ROUTES}_components/workspace/access-required/access-required.tsx`,
     `${PRODUCT_ROUTES}_components/workspace/workflows/canvas/connection-block-selector/connection-block-selector.tsx`,
     `${PRODUCT_ROUTES}_components/workspace/workflows/canvas/workflow-block/block-view.tsx`,
     `${PRODUCT_ROUTES}_components/workspace/workflows/search-replace/replacement-controls.tsx`,
-    `${ORGANIZATION_ROUTES}_components/secrets-editor/secrets-editor.tsx`,
-    `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/add-members-modal.tsx`,
-    `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/group-detail.tsx`,
-    `${ORGANIZATION_ROUTES}settings/_components/sections/access-control/permission-rows.tsx`,
-    `${ORGANIZATION_ROUTES}settings/_components/sections/audit-logs/audit-logs-section.tsx`,
-    `${ORGANIZATION_ROUTES}settings/_components/sections/browser/passwords-view.tsx`,
-    `${ORGANIZATION_ROUTES}settings/_components/sections/data-drains/data-drains-section.tsx`,
-    `${ORGANIZATION_ROUTES}settings/_components/sections/data-retention/policy-detail.tsx`,
     `${PRODUCT_ROUTES}workspace/[workspaceId]/_components/create-mcp-server-modal/create-mcp-server-modal.tsx`,
     `${PRODUCT_ROUTES}workspace/[workspaceId]/_components/generate-prompt/generate-prompt.tsx`,
     `${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/api-keys/api-keys-section.tsx`,

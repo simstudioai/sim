@@ -1345,7 +1345,7 @@
         }
       },
       "./layout/use-compact-viewport": {
-        "names": ["isCompactViewport", "useCompactViewport"],
+        "names": ["useCompactViewport"],
         "props": {}
       },
       "./lib/cn": {
@@ -1638,7 +1638,6 @@
               "warning-triangle",
               "workflow-x"
             ],
-            "keepOpen": ["false", "true"],
             "label": null,
             "onSelect": null,
             "selected": ["false", "true"],
@@ -1873,8 +1872,7 @@
               "warning-triangle",
               "workflow-x"
             ],
-            "label": null,
-            "onOpen": null
+            "label": null
           },
           "VisibilityMenu": {
             "label": null,
@@ -2640,7 +2638,6 @@
             "current": null,
             "label": null,
             "onRemove": null,
-            "onReorder": null,
             "onSelect": null,
             "renderHeader": null,
             "tabs": null
@@ -3101,8 +3098,6 @@
             "children": null,
             "detached": ["false", "true"],
             "embedded": ["false", "true"],
-            "systemFont": ["false", "true"],
-            "systemMono": ["false", "true"],
             "theme": ["dark", "light", "system"]
           }
         }
