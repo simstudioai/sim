@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { defineConfig } from '@playwright/test'
-import { FIXTURE_PORT, FIXTURES_OFF_PORT, productionServer } from './routes'
+import { FIXTURE_PORT, FIXTURES_OFF_PORT, productionServer } from '@/platform/checks/routes'
 
 const appRoot = path.resolve(__dirname, '../..')
 const report = process.env.PLATFORM_REPORT_PATH ?? 'test-results/platform/report.json'
