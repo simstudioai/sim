@@ -44,6 +44,7 @@ import {
   getWaitCountdownTitle,
 } from '@/lib/mothership/tools/display'
 import type {
+  ChatSource,
   PlatformCredentialRequest,
   PlatformLane,
   PlatformLaneItem,
@@ -305,8 +306,6 @@ function toLane(
   }
 }
 
-type CitedSource = NonNullable<Extract<PlatformTurn, { role: 'assistant' }>['sources']>[number]
-
 /** Where a source lives, who wrote it and when it changed, in the order a result row reads them. */
 function sourceMeta(source: SourceTagData): string {
   const updatedAt = source.updatedAt ? new Date(source.updatedAt) : null
@@ -323,8 +322,8 @@ function sourceMeta(source: SourceTagData): string {
  * Each document the answer's own prose cites, once by URL in first-cited order. Text a lane folds
  * into its agent group is scratch work, so only the top-level text segments count.
  */
-function citedSources(segments: readonly MessageSegment[]): CitedSource[] {
-  const byUrl = new Map<string, CitedSource>()
+function citedSources(segments: readonly MessageSegment[]): ChatSource[] {
+  const byUrl = new Map<string, ChatSource>()
   for (const segment of segments) {
     if (segment.type !== 'text') continue
     for (const part of parseSpecialTags(segment.content, false).segments) {
@@ -344,7 +343,7 @@ function citedSources(segments: readonly MessageSegment[]): CitedSource[] {
 /** A settled message never changes, so a long transcript re-parses only the turn in progress. */
 const SETTLED_TURNS = new WeakMap<
   ChatMessage,
-  { pairing: string; parts: PlatformPart[]; copyText: string; sources: CitedSource[] }
+  { pairing: string; parts: PlatformPart[]; copyText: string; sources: ChatSource[] }
 >()
 
 function toParts(
@@ -611,7 +610,7 @@ export function toPlatformTurns(
     const settled = SETTLED_TURNS.get(message)
     let parts: PlatformPart[]
     let copyText = ''
-    let sources: CitedSource[] | undefined
+    let sources: ChatSource[] = []
     if (!live && settled?.pairing === pairingKey) {
       parts = settled.parts
       copyText = settled.copyText
@@ -649,7 +648,7 @@ export function toPlatformTurns(
         userQuery: lastUserText,
         endsWithInteraction: endsWithInteraction(parts),
         forkable: isPersisted(message.id),
-        sources,
+        ...(sources.length ? { sources } : {}),
       })
     )
   })

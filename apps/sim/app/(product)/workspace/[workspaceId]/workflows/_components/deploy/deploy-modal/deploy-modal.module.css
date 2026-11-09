@@ -1,6 +1,6 @@
-/* A tab's content, spaced as the Integrations details tabs space theirs. */
+/* A tab's content keeps the dialog's field rhythm; the tabs already space it from their row. */
 .pane {
   display: grid;
   min-inline-size: 0;
-  gap: var(--ui-widget-content-gap);
+  gap: var(--ui-section-gap);
 }

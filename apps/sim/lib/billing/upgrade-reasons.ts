@@ -80,12 +80,12 @@ export function isUpgradeReason(value: string | null | undefined): value is Upgr
 }
 
 /**
- * Build a link to the workspace upgrade page, optionally tagged with the reason
- * that sent the user there so the page can swap its header.
+ * Build a link to the plans of the viewer's organization, through the account-scoped `/upgrade`
+ * entry, optionally tagged with the reason that sent the user there so the page can swap its
+ * header. Every workspace the viewer opens renders in that organization.
  */
-export function buildUpgradeHref(workspaceId: string, reason?: UpgradeReason): string {
-  const base = `/workspace/${workspaceId}/upgrade`
-  return reason ? `${base}?${UPGRADE_REASON_PARAM}=${reason}` : base
+export function buildUpgradeHref(reason?: UpgradeReason): string {
+  return reason ? `/upgrade?${UPGRADE_REASON_PARAM}=${reason}` : '/upgrade'
 }
 
 /**

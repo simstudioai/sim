@@ -3,7 +3,7 @@
 import { type MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Icon } from '@sim/emcn/icon'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
-import { StatusTag } from '@sim/emcn/status'
+import { StatusText } from '@sim/emcn/status'
 import { formatDuration } from '@sim/utils/formatting'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { BlockTile } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/block-tile/block-tile'
@@ -49,7 +49,7 @@ interface RowStatusProps {
 
 /** A row's end: Running while it runs, then canceled or its duration. */
 function RowStatus({ isRunning, isCanceled, durationMs }: RowStatusProps) {
-  if (isRunning) return <StatusTag label='Running' intent='success' />
+  if (isRunning) return <StatusText label='Running' intent='info' live />
   return (
     <span className={styles.duration} data-type='T052'>
       {isCanceled ? 'canceled' : (formatDuration(durationMs, { precision: 2 }) ?? '-')}

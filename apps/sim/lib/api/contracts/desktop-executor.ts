@@ -68,6 +68,8 @@ const desktopInboxApprovalSchema = z.object({
   toolName: z.string().min(1),
   chatId: z.string().min(1),
   chatTitle: z.string().nullable(),
+  /** The organization of an organization chat, whose page a notification opens. */
+  organizationId: z.string().nullable(),
   workspaceId: z.string().nullable(),
   /** A short description of what the call would do, such as the command to run. */
   summary: z.string().nullable(),

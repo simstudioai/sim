@@ -28,6 +28,23 @@ function DirectoryCell({ value }: DirectoryCellProps) {
   return <span data-type='T043'>{value || '—'}</span>
 }
 
+interface PersonSummaryProps {
+  department: string | null
+  location: string | null
+  manager: string | undefined
+}
+
+/** What the table's hidden columns would say, under the person, so a narrow table loses nothing. */
+function PersonSummary({ department, location, manager }: PersonSummaryProps) {
+  const place = [location, manager && `Reports to ${manager}`].filter(Boolean).join(' · ')
+  return (
+    <span className={styles.summary} data-type='T052'>
+      {department && <span className={styles.summaryDepartment}>{department}</span>}
+      {place && <span>{place}</span>}
+    </span>
+  )
+}
+
 interface PeopleDirectoryProps {
   organizationId: string
 }
@@ -43,7 +60,16 @@ export function PeopleDirectory({ organizationId }: PeopleDirectoryProps) {
         id: person.memberId,
         values: {},
         cells: {
-          person: <PersonIdentity person={person} />,
+          person: (
+            <span className={styles.personCell}>
+              <PersonIdentity person={person} />
+              <PersonSummary
+                department={person.department}
+                location={person.location}
+                manager={person.manager?.name}
+              />
+            </span>
+          ),
           department: <DirectoryCell value={person.department} />,
           location: <DirectoryCell value={person.location} />,
           manager: <DirectoryCell value={person.manager?.name} />,

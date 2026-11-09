@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/client'
@@ -30,9 +30,11 @@ import {
   useSearchHistory,
 } from '@/hooks/queries/search-history'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
+import { useHydrated } from '@/hooks/use-hydrated'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSummaryQueue } from '@/platform/lib/data/search-summary'
+import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 
 type SearchSourceRow = SearchResultsData['rows'][number]
 
@@ -105,7 +107,7 @@ function useSearchResults({
     empty: status === 'ready' && data?.retrieval.status === 'complete' && documents.length === 0,
     noApps:
       !isFetching && data?.live && accounts.length === 0
-        ? { href: organizationRoutes(organization.organization.id).settingsSection('integrations') }
+        ? { href: organizationRoutes(organization.organization.id).integrations }
         : undefined,
     someAppsUnavailable: accounts.some((account) =>
       ['unavailable', 'timeout', 'rate_limited', 'reconnect'].includes(account.status)
@@ -118,6 +120,17 @@ function useSearchResults({
   }
 }
 
+/** The keys Search keeps unsent text under: the Assistant's question, and the field's draft per query. */
+function searchDraftKeys(userId: string, organizationId: string) {
+  const prefix = `${userId}:organization:${organizationId}`
+  const latest = `${prefix}:search`
+  return {
+    latest,
+    assistant: `${prefix}:search-assistant`,
+    query: (query: string) => `${latest}:query:${encodeURIComponent(query)}`,
+  }
+}
+
 /** Everything the Search route reads: the URL, the query, the viewer's history and the mode. */
 export function useSearchSurface(chatId: string | undefined) {
   const organization = useOrganization()
@@ -126,6 +139,10 @@ export function useSearchSurface(chatId: string | undefined) {
   const { data: session } = useSession()
   const userId = session?.user?.id ?? ''
   const queryClient = useQueryClient()
+  const router = useRouter()
+  const routes = organizationRoutes(organizationId)
+  const pathname = usePathname()
+  const hasConversation = Boolean(chatId) || pathname.startsWith(`${routes.search}/chat/`)
   const [params, setParams] = useQueryStates(
     { ...organizationSearchParsers, ...searchFilterParsers },
     organizationSearchUrlKeys
@@ -137,16 +154,26 @@ export function useSearchSurface(chatId: string | undefined) {
     [userId, storageKey]
   )
   const hasSearchParams = Boolean(query || source || updated !== 'any')
+  const routeMode = urlMode ?? (hasConversation ? 'assistant' : hasSearchParams ? 'search' : null)
   const mode: 'search' | 'assistant' = !assistantAvailable
     ? 'search'
-    : (urlMode ?? (chatId ? 'assistant' : hasSearchParams ? 'search' : (remembered ?? 'search')))
+    : (routeMode ?? remembered ?? 'search')
+  useEffect(() => {
+    if (!assistantAvailable || !userId) return
+    if (routeMode) {
+      BrowserStorage.setItem(storageKey, routeMode)
+      return
+    }
+    // Pin the mode to this history entry so Back survives a later preference change.
+    void setParams({ mode: remembered === 'assistant' ? 'assistant' : 'search' })
+  }, [assistantAvailable, userId, routeMode, remembered, storageKey, setParams])
   const [assistantStarted, setAssistantStarted] = useState(mode === 'assistant')
   if (mode === 'assistant' && !assistantStarted) setAssistantStarted(true)
   const setMode = (next: string) => {
-    const value = next === 'assistant' ? 'assistant' : 'search'
-    if (userId) BrowserStorage.setItem(storageKey, value)
-    void setParams({ mode: value }, { history: 'push' })
+    void setParams({ mode: next === 'assistant' ? 'assistant' : 'search' }, { history: 'push' })
   }
+  const [conversationInstance, setConversationInstance] = useState(0)
+  const [startingNew, startNewTransition] = useTransition()
   const [searchedAt] = useState(() => Date.now())
   const filters = searchFiltersFromParams({ source, updated, from, to }, searchedAt)
   const scope = useMemo<ResourceScope>(
@@ -212,10 +239,29 @@ export function useSearchSurface(chatId: string | undefined) {
         queryKey: knowledgeKeys.searchQuery(resourceScopeKey(scope), query.trim(), userId),
       })
     },
-    clear: () => {
+    newLabel: mode === 'assistant' ? 'New chat' : 'New search',
+    canStartNew: hasConversation || (mode === 'search' && Boolean(query.trim())),
+    startingNew,
+    /** A fresh conversation or search in the current mode, dropping its unsent text. */
+    startNew: () => {
       summaries.clear()
-      void setParams({ q: '', source: null, updated: 'any', from: null, to: null })
+      const { clearDraft } = useMothershipDraftsStore.getState()
+      if (userId) {
+        const drafts = searchDraftKeys(userId, organizationId)
+        if (mode === 'assistant') clearDraft(drafts.assistant)
+        else {
+          clearDraft(drafts.latest)
+          clearDraft(drafts.query(''))
+        }
+      }
+      startNewTransition(() => {
+        setConversationInstance((current) => current + 1)
+        router.push(assistantAvailable ? `${routes.search}?mode=${mode}` : routes.search, {
+          scroll: false,
+        })
+      })
     },
+    conversationInstance,
     results: {
       ...results,
       filters: {
@@ -272,6 +318,65 @@ export function useSearchSurface(chatId: string | undefined) {
       openSource: (url: string) => window.open(url, '_blank', 'noopener,noreferrer'),
       clear: () => clearHistory.mutate(),
     },
+  }
+}
+
+interface SearchFieldOptions {
+  /** The committed query the field opened on; its edits are kept apart from other queries'. */
+  query: string
+  searching: boolean
+  onSubmit: (value: string) => void
+  onStop: () => void
+}
+
+/**
+ * Search's field: an editable draft kept per committed query, so a reload, Back to an earlier query
+ * or a return to the same one restores what was typed. Input waits for hydration, then takes focus.
+ */
+export function useSearchField({ query, searching, onSubmit, onStop }: SearchFieldOptions) {
+  const organization = useOrganization()
+  const { data: session } = useSession()
+  const userId = session?.user?.id ?? ''
+  const hydrated = useHydrated()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const drafts = searchDraftKeys(userId, organization.organization.id)
+  const latest = useMothershipDraftsStore((state) => state.drafts[drafts.latest])
+  const owner = query || latest?.searchQuery || ''
+  const draftKey = drafts.query(owner)
+  const saved = useMothershipDraftsStore((state) => state.drafts[draftKey])
+  const stored = saved?.text ?? (latest?.searchQuery === owner ? latest.text : query)
+  // Server markup knows only the URL, so the saved draft appears once the page is interactive.
+  const value = hydrated && userId ? stored : query
+  useEffect(() => {
+    if (hydrated) inputRef.current?.focus()
+  }, [hydrated])
+  const setValue = (text: string) => {
+    if (!userId) return
+    const { setDraft } = useMothershipDraftsStore.getState()
+    const payload = { text, searchQuery: owner }
+    setDraft(draftKey, payload)
+    setDraft(drafts.latest, payload)
+  }
+  const submit = (text = value) => {
+    const next = text.trim()
+    if (!next || (searching && next === query.trim())) return
+    const { clearDraft } = useMothershipDraftsStore.getState()
+    if (next === value.trim()) {
+      clearDraft(draftKey)
+      if (latest?.searchQuery === owner) clearDraft(drafts.latest)
+    }
+    clearDraft(drafts.query(next))
+    onSubmit(next)
+  }
+  return {
+    inputRef,
+    hydrated,
+    value,
+    setValue,
+    submit,
+    canSubmit: hydrated && value.trim().length > 0,
+    /** The field's action: Stop while this query runs, otherwise Search. */
+    submitOrStop: () => (searching ? onStop() : submit()),
   }
 }
 

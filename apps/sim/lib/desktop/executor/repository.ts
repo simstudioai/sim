@@ -235,6 +235,7 @@ export async function listDesktopInboxRows(identity: Omit<DesktopDeviceIdentity,
         persistSeq: copilotAsyncToolCalls.persistSeq,
         chatId: copilotRuns.chatId,
         chatTitle: copilotChats.title,
+        chatOrganizationId: copilotChats.organizationId,
         workspaceId: copilotRuns.workspaceId,
       })
       .from(copilotRuns)

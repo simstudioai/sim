@@ -191,7 +191,7 @@ export type PeoplePickerScope = 'roots' | 'members'
 /** What differs in a surface's picker: when a typed term takes effect and what no result says. */
 interface PeoplePickerHost {
   useSettledTerm: (term: string) => string
-  emptyMessage?: (scope: PeoplePickerScope | undefined, term: string) => string
+  emptyMessage: (scope: PeoplePickerScope | undefined, term: string) => string
 }
 
 /** Paginated directory search for the chart's pickers and for choosing a manager. */
@@ -234,7 +234,7 @@ export function usePeoplePicker(
       error: waiting ? undefined : query.error?.message,
       onLoadMore: () => void query.fetchNextPage(),
       onRetry: () => void query.refetch(),
-      emptyMessage: host.emptyMessage?.(scope, term),
+      emptyMessage: host.emptyMessage(scope, term),
     },
   }
 }

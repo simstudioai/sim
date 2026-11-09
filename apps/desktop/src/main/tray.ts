@@ -204,7 +204,10 @@ export function addTrayEnvironmentSubscript(
     scaleFactor: TRAY_ICON_SCALE_FACTOR,
   })
 }
-const CHATS_API_PATH = '/api/copilot/chats'
+/** The viewer's organization surface; with no organization named, the one they land in. */
+const SURFACE_API_PATH = '/api/organizations/surface'
+/** The organization's chats, most recent first, as the web app's sidebar lists them. */
+const CHATS_API_PATH = '/api/mothership/chats'
 
 /**
  * Chat status for the menu dot, mirroring the sidebar's semantics:
@@ -216,7 +219,8 @@ export type RecentChatStatus = 'active' | 'unread' | 'none'
 export interface RecentChat {
   id: string
   title: string
-  workspaceId: string
+  /** The chat's page in the web app. */
+  route: string
   status: RecentChatStatus
 }
 
@@ -242,22 +246,33 @@ function deriveChatStatus(chat: {
   return updatedAt > lastSeenAt ? 'unread' : 'none'
 }
 
+/** The organization id of a `GET /api/organizations/surface` response, or null for any other shape. */
+function parseOrganizationId(payload: unknown): string | null {
+  if (typeof payload !== 'object' || payload === null) return null
+  const organization = (payload as { organization?: unknown }).organization
+  if (typeof organization !== 'object' || organization === null) return null
+  const id = (organization as { id?: unknown }).id
+  return typeof id === 'string' && id ? id : null
+}
+
 /**
- * Extracts tray-usable chats from the /api/copilot/chats response. Chats
- * without a workspace id are dropped — the deep link needs one — and the
- * response is already sorted by recency server-side.
+ * Extracts tray-usable chats from the organization's chat list
+ * (`GET /api/mothership/chats?organizationId=`), already sorted by recency server-side. Each opens
+ * at its page in the organization: Search for an assistant chat, Chat otherwise.
  */
 export function parseRecentChats(
   payload: unknown,
+  organizationId: string,
   limit: number = RECENT_CHATS_TOTAL
 ): RecentChat[] {
   if (typeof payload !== 'object' || payload === null) {
     return []
   }
-  const chats = (payload as { chats?: unknown }).chats
+  const chats = (payload as { data?: unknown }).data
   if (!Array.isArray(chats)) {
     return []
   }
+  const organization = `/o/${encodeURIComponent(organizationId)}`
   const result: RecentChat[] = []
   for (const chat of chats) {
     if (result.length >= limit) {
@@ -266,18 +281,15 @@ export function parseRecentChats(
     if (typeof chat !== 'object' || chat === null) {
       continue
     }
-    const { id, title, workspaceId } = chat as {
-      id?: unknown
-      title?: unknown
-      workspaceId?: unknown
-    }
-    if (typeof id !== 'string' || !id || typeof workspaceId !== 'string' || !workspaceId) {
+    const { id, title, mode } = chat as { id?: unknown; title?: unknown; mode?: unknown }
+    if (typeof id !== 'string' || !id) {
       continue
     }
+    const page = mode === 'assistant' ? 'search/chat' : 'chat'
     result.push({
       id,
       title: typeof title === 'string' && title.trim() ? title.trim() : 'Untitled chat',
-      workspaceId,
+      route: `${organization}/${page}/${encodeURIComponent(id)}`,
       status: deriveChatStatus(chat as Record<string, unknown>),
     })
   }
@@ -323,10 +335,6 @@ function statusDotImage(status: RecentChatStatus): NativeImage | undefined {
   return status === 'active' ? dotImages.active : dotImages.unread
 }
 
-export function chatRoute(chat: RecentChat): string {
-  return `/workspace/${chat.workspaceId}/chat/${chat.id}`
-}
-
 export interface TrayDeps {
   partition: () => string
   appOrigin: () => string
@@ -343,7 +351,7 @@ function chatMenuItem(chat: RecentChat, deps: TrayDeps): MenuItemConstructorOpti
     label,
     accessibilityLabel: statusLabel ? `${label}, ${statusLabel}` : label,
     ...(icon ? { icon } : {}),
-    click: () => deps.openMainWindow(chatRoute(chat)),
+    click: () => deps.openMainWindow(chat.route),
   }
 }
 
@@ -419,20 +427,37 @@ export function installTray(deps: TrayDeps): TrayHandle | null {
 
   const fetchRecentChats = async (): Promise<RecentChat[]> => {
     const ses = session.fromPartition(deps.partition())
-    const response = await ses.fetch(`${deps.appOrigin()}${CHATS_API_PATH}`, {
-      credentials: 'include',
-      signal: AbortSignal.timeout(CHATS_FETCH_TIMEOUT_MS),
-    })
+    const read = (path: string) =>
+      ses.fetch(`${deps.appOrigin()}${path}`, {
+        credentials: 'include',
+        signal: AbortSignal.timeout(CHATS_FETCH_TIMEOUT_MS),
+      })
     // Signed out is an ANSWER, not a failure: the correct list for no user is
     // empty. Throwing here would fall into the catch below and leave the
     // previous user's chat titles in the menu until someone signed back in.
-    if (response.status === 401 || response.status === 403) {
+    const signedOut = (response: { status: number }) =>
+      response.status === 401 || response.status === 403
+    const surface = await read(SURFACE_API_PATH)
+    if (signedOut(surface)) {
+      return []
+    }
+    if (!surface.ok) {
+      throw new Error(`organization fetch failed: ${surface.status}`)
+    }
+    const organizationId = parseOrganizationId(await surface.json())
+    if (!organizationId) {
+      throw new Error('organization fetch returned no organization')
+    }
+    const response = await read(
+      `${CHATS_API_PATH}?${new URLSearchParams({ organizationId, scope: 'active' })}`
+    )
+    if (signedOut(response)) {
       return []
     }
     if (!response.ok) {
       throw new Error(`chats fetch failed: ${response.status}`)
     }
-    return parseRecentChats(await response.json())
+    return parseRecentChats(await response.json(), organizationId)
   }
 
   const replaceCachedChats = (chats: RecentChat[]) => {

@@ -22,8 +22,8 @@ interface ResponseActionsProps {
 }
 
 export function ResponseActions({ turn }: ResponseActionsProps) {
-  const { copyText: text, sentAt, sources } = turn
-  const { rate, fork } = useChatHandlers()
+  const { copyText: text, sentAt } = turn
+  const { rate, fork, viewSources } = useChatHandlers()
   const [feedback, setFeedback] = useState<Rating | null>(null)
   const [rating, setRating] = useState<Rating | null>(null)
   return (
@@ -48,7 +48,12 @@ export function ResponseActions({ turn }: ResponseActionsProps) {
             onClick={() => void fork(turn.id)}
           />
         )}
-        {sources && sources.length > 0 && <MessageSources sources={sources} />}
+        {turn.sources && (
+          <MessageSources
+            sources={turn.sources}
+            onViewAll={viewSources && (() => viewSources(turn.id, turn.requestId))}
+          />
+        )}
         {sentAt !== undefined && <MessageTime sentAt={sentAt} />}
       </div>
       <Modal

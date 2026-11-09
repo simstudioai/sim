@@ -8,6 +8,7 @@
  */
 
 import { act } from 'react'
+import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -21,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   search: { isFetching: false },
 }))
 
+vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('nuqs', () => ({
   useQueryStates: () => [
     mocks.params,
@@ -175,7 +177,7 @@ describe('Summarize on a search result', () => {
     act(() => result.current.results.onSummarize?.(row))
     mocks.params.mode = 'search'
     rerender()
-    act(() => result.current.clear())
+    act(() => result.current.startNew())
     mocks.params.mode = 'assistant'
     rerender()
     expect(result.current.pendingSummary).toBeUndefined()

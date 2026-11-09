@@ -827,7 +827,7 @@ export function useCreateTableRow({
       if (handleTableLockRejection(error, queryClient, tableId, { silent: suppressErrorToast }))
         return
       if (suppressErrorToast) return
-      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables')))
+      notifyRowWriteError(error, () => router.push(buildUpgradeHref('tables')))
     },
     onSettled: () => {
       // `reconcileCreatedRow` (onSuccess) is the source of truth for the rows
@@ -1013,7 +1013,7 @@ export function useBatchCreateTableRows({ workspaceId, tableId }: RowMutationCon
     },
     onError: (error) => {
       if (handleTableLockRejection(error, queryClient, tableId)) return
-      notifyRowWriteError(error, () => router.push(buildUpgradeHref(workspaceId, 'tables')))
+      notifyRowWriteError(error, () => router.push(buildUpgradeHref('tables')))
     },
     onSettled: () => {
       invalidateRowCount(queryClient, tableId)

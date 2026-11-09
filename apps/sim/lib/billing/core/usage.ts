@@ -879,7 +879,7 @@ export async function maybeSendUsageThresholdEmail(params: {
     const isFreeUser = params.planName === 'Free'
 
     const upgradeCreditsLink = params.workspaceId
-      ? `${baseUrl}${buildUpgradeHref(params.workspaceId, 'credits')}`
+      ? `${baseUrl}${buildUpgradeHref('credits')}`
       : `${baseUrl}${APP_ENTRY_PATH}`
     /** Organization usage is billed in the organization's settings; a user's on their account. */
     const billingSettingsLink =

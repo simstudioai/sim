@@ -107,6 +107,7 @@ import { executeTerminalToolOnClient } from '@/lib/mothership/tools/client/termi
 import { setCurrentChatTraceparent } from '@/lib/mothership/tools/client/trace-context'
 import { isWorkflowToolName } from '@/lib/mothership/tools/client-executed-tools'
 import { isNativeFileTool, isUserLocalVfsToolCall } from '@/lib/mothership/tools/local-filesystem'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { chatUrl } from '@/hooks/mothership-chat/chat-url'
 import {
@@ -1405,16 +1406,11 @@ export function useChat(
         if (onChatIdResolvedRef.current) {
           onChatIdResolvedRef.current(chatId)
         } else {
-          window.history.replaceState(
-            null,
-            '',
+          // A workspace chat has no page of its own; its surface keeps its URL.
+          const url =
             getChatUrlRef.current?.(chatId) ??
-              chatUrl(
-                organizationId ? { organizationId } : workspaceId!,
-                chatId,
-                requestModeRef.current
-              )
-          )
+            (organizationId ? chatUrl(organizationId, chatId, requestModeRef.current) : undefined)
+          if (url) window.history.replaceState(null, '', url)
         }
       }
       if (options?.invalidateList) {
@@ -3580,8 +3576,8 @@ export function useChat(
           title: 'Task complete',
           body: 'Sim finished responding.',
           route: organizationId
-            ? `/o/${organizationId}/chat/${completedChatId}`
-            : `/workspace/${workspaceId}/chat/${completedChatId}`,
+            ? organizationRoutes(organizationId).chat(completedChatId)
+            : undefined,
         })
       }
       reconcileTerminalPreviewSessions()

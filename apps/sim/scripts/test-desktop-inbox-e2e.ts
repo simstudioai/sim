@@ -569,6 +569,7 @@ async function run() {
         toolName: 'terminal',
         chatId: chat.chatId,
         chatTitle: 'Deploy',
+        organizationId: null,
         workspaceId: desktop.workspaceId,
         summary: 'npm run deploy',
       }

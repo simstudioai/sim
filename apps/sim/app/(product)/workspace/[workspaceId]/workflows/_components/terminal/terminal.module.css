@@ -66,14 +66,7 @@
   align-items: center;
   gap: var(--ui-action-gap);
 }
-
-.empty {
-  display: flex;
-  flex: 1;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding: var(--spacing-24);
-  color: var(--ui-secondary);
-  text-align: center;
+/* Lands the empty state's text on the panel title's text edge. */
+.emptyFrame {
+  padding-inline: var(--ui-row-inset);
 }

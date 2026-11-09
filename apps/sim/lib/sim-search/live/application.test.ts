@@ -30,6 +30,7 @@ const mocks = vi.hoisted(() => ({
   destroyPool: vi.fn(),
   requiresEveryTerm: vi.fn(),
   preview: vi.fn(),
+  shellOrganization: vi.fn(async () => 'workspace-org'),
 }))
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 vi.mock('@/lib/sim-search/live/service-session', () => ({
@@ -56,6 +57,9 @@ vi.mock('@/lib/sim-search/live/coda-mcp', () => ({
   readCodaMcp: vi.fn(),
 }))
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
+vi.mock('@/lib/workspaces/shell-organization', () => ({
+  resolveWorkspaceShellOrganizationId: mocks.shellOrganization,
+}))
 vi.mock('@/lib/knowledge/application/contexts', () => knowledgeContextsMock)
 vi.mock('@/lib/sim-search/live/accounts', () => ({
   listLiveAccounts: mocks.accounts,
@@ -678,7 +682,7 @@ describe('authorized live retrieval', () => {
     expect(result.retrieval.status).toBe('partial')
     expect(result.live?.accounts).toEqual([])
     expect(result.live?.guidance).toMatch(
-      /^Nothing was searched: you have no connected sources here\. Connect your accounts at \S*\/workspace\/workspace\/integrations,/
+      /^Nothing was searched: you have no connected sources here\. Connect your accounts at \S*\/o\/workspace-org\/integrations,/
     )
   })
   it('names the filtered source when only other sources are connected', async () => {

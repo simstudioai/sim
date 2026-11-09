@@ -155,7 +155,13 @@
 }
 .sources {
   display: grid;
-  gap: var(--ui-list-gap);
+  gap: var(--ui-stack-gap);
+  justify-items: start;
   inline-size: min(var(--container-440), calc(100vw - var(--spacing-32)));
   padding: var(--ui-row-block) var(--ui-row-inset);
+}
+.sourceList {
+  display: grid;
+  gap: var(--ui-list-gap);
+  justify-self: stretch;
 }

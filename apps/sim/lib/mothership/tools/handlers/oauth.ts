@@ -10,7 +10,13 @@ import type {
   ToolExecutionContext,
   ToolExecutionResult,
 } from '@/lib/mothership/tool-executor/types'
-import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import {
+  APP_ENTRY_PATH,
+  organizationRoutes,
+  workspaceEntry,
+  workspacePath,
+} from '@/lib/navigation/paths'
+import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/shell-organization'
 
 export async function executeOAuthGetAuthLink(
   rawParams: Record<string, unknown>,
@@ -84,14 +90,20 @@ export async function executeOAuthGetAuthLink(
         },
       }
     }
-    const callbackURL =
-      context.chatOrganizationId && context.chatId
-        ? `${baseUrl}/o/${context.chatOrganizationId}/chat/${context.chatId}`
+    // A workspace chat opens in the organization its workspace renders in for this user.
+    const chatOrganizationId = context.chatId
+      ? (context.chatOrganizationId ??
+        (context.workflowId
+          ? null
+          : await resolveWorkspaceShellOrganizationId(workspaceId, context.userId)))
+      : null
+    const callbackURL = `${baseUrl}${
+      context.chatId && chatOrganizationId
+        ? organizationRoutes(chatOrganizationId).chat(context.chatId)
         : context.workflowId
-          ? `${baseUrl}/workspace/${workspaceId}/workflows/${context.workflowId}`
-          : context.chatId
-            ? `${baseUrl}/workspace/${workspaceId}/chat/${context.chatId}`
-            : `${baseUrl}/workspace/${workspaceId}`
+          ? workspacePath(workspaceId, `workflows/${context.workflowId}`)
+          : workspaceEntry(workspaceId)
+    }`
     const authorizeUrl = new URL(`${baseUrl}/api/auth/oauth2/authorize`)
     authorizeUrl.searchParams.set('providerId', result.providerId)
     authorizeUrl.searchParams.set('workspaceId', workspaceId)

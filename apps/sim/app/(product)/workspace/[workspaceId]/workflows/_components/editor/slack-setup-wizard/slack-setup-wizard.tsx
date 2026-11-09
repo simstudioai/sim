@@ -5,7 +5,7 @@ import { Button } from '@sim/emcn/button'
 import { TextField } from '@sim/emcn/field'
 import { SecretField } from '@sim/emcn/field/value-fields'
 import { MultiStepModal } from '@sim/emcn/modal'
-import { InlineNotice, StatusTag } from '@sim/emcn/status'
+import { InlineNotice, StatusText } from '@sim/emcn/status'
 import { ExecutionSteps } from '@sim/emcn-platform/execution-steps'
 import { CapabilityCheckbox } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/slack-setup-wizard/capability-checkbox'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/slack-setup-wizard/slack-setup-wizard.module.css'
@@ -286,7 +286,10 @@ function CredentialStatus({ label, saved }: CredentialStatusProps) {
   return (
     <div className={styles.statusRow}>
       <span data-type='T043'>{label}</span>
-      <StatusTag label={saved ? 'Saved' : 'Not saved yet'} intent={saved ? 'success' : 'neutral'} />
+      <StatusText
+        label={saved ? 'Saved' : 'Not saved yet'}
+        intent={saved ? 'success' : 'neutral'}
+      />
     </div>
   )
 }

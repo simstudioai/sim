@@ -49,6 +49,8 @@ export function organizationRoutes(organizationId: string) {
     search: `${root}/search`,
     searchChat: (chatId: string) => `${root}/search/chat/${chatId}`,
     integrations: `${root}/integrations`,
+    integration: (providerId: string) => `${root}/integrations/${encodeURIComponent(providerId)}`,
+    accessRequests: `${root}/access-requests`,
     memberSecrets: `${root}/integrations/secrets`,
     simLinks: `${root}/settings/links`,
     people: `${root}/people`,
@@ -61,6 +63,8 @@ export function organizationRoutes(organizationId: string) {
     searchSource: (connectorId: string) =>
       `${root}/settings/integrations/sources/${encodeURIComponent(connectorId)}`,
     settingsSection: (section: string) => `${root}/settings/${section}`,
+    /** A new chat; `chat` opens an existing one. */
+    newChat: `${root}/chat`,
     chat: (chatId: string) => `${root}/chat/${chatId}`,
   } as const
 }

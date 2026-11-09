@@ -151,9 +151,12 @@ export type PlatformTurn =
       endsWithInteraction?: boolean
       /** A persisted id, so the turn can be forked from. */
       forkable?: boolean
-      /** The documents the answer cites, once each in first-cited order; lane work cites none. */
-      sources?: readonly SourceRowData[]
+      /** The documents its answer cites, once each in first-cited order; lane work cites none. */
+      sources?: readonly ChatSource[]
     }
+
+/** A document an answer cites, in the row shape Search results share. */
+export type ChatSource = SourceRowData
 
 type ChatRuntimeStatus = 'idle' | 'loading' | 'sending' | 'reconnecting'
 
@@ -169,6 +172,8 @@ export interface PlatformResource {
   active?: boolean
   /** The retrieval a Search tab holds; runs under the current reader's permissions. */
   search?: SearchResource
+  /** What a Sources tab lists: the documents one answer cited. */
+  sources?: readonly ChatSource[]
 }
 
 /** Cross-turn tool-permission progress, so only one card offers the bulk action. */
@@ -249,6 +254,8 @@ export interface ChatRuntime {
   }) => Promise<void>
   fork?: (turnId: string) => Promise<void>
   openResource?: (ref: { type: string; id: string; title: string; workspaceId?: string }) => void
+  /** Opens every source an answer cited in the panel. */
+  viewSources?: (turnId: string, requestId?: string) => void
   /** Returns the terminal to Sim after a handoff. Absent outside the desktop host. */
   finishTerminalHandoff?: (terminalId: string) => void
 }

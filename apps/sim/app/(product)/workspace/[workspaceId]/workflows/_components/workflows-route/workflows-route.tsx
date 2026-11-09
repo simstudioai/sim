@@ -778,16 +778,18 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
         />
       }
       trail={
-        <Breadcrumbs
-          label='Location'
-          items={folderTrail({
-            rootLabel: ROOT_LABEL,
-            chain,
-            hrefFor,
-            currentActions: currentFolder && folderActions(currentFolder, false),
-            drop: drag.crumb,
-          })}
-        />
+        chain.length > 0 && (
+          <Breadcrumbs
+            label='Location'
+            items={folderTrail({
+              rootLabel: ROOT_LABEL,
+              chain,
+              hrefFor,
+              currentActions: currentFolder && folderActions(currentFolder, false),
+              drop: drag.crumb,
+            })}
+          />
+        )
       }
     >
       <ActionMenu

@@ -1,5 +1,3 @@
-'use client'
-
 const userDataResets = new Map<string, () => void>()
 
 /** Registers a loaded client store for authenticated identity resets. */
