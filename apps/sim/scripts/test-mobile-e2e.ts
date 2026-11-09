@@ -17,9 +17,13 @@ import { generateId, generateShortId } from '@sim/utils/id'
 import { toRecord } from '@sim/utils/object'
 import { makeSignature } from 'better-auth/crypto'
 import postgres from 'postgres'
+import { isPathOrDescendant, organizationRoutes } from '@/lib/navigation/paths'
+import { workspaceResourcePath } from '@/lib/resources/urls'
+import { workspaceEntry, workspacePath } from '@/platform/lib/workspace-navigation'
 
 /**
- * Real browser coverage against a running local app and disposable PostgreSQL.
+ * Real browser coverage of the product shell and its pages against a running local app and
+ * disposable PostgreSQL.
  * Requires MOBILE_E2E_BASE_URL, MOBILE_E2E_DATABASE_URL, MOBILE_E2E_AUTH_SECRET,
  * and MOBILE_E2E_REPORT_PATH. Native launches require installed Playwright browsers.
  * PLAYWRIGHT_WEBKIT_WS_ENDPOINT uses the pinned loopback WebKit server instead.
@@ -68,6 +72,7 @@ assert(authSecret.length >= 32, 'Use a local Better Auth secret of at least 32 c
 
 const sql = postgres(databaseUrl.toString(), { max: 2 })
 const ownerId = generateId()
+const organizationId = generateId()
 const workspaceId = generateId()
 const folderId = generateId()
 const workflowId = generateId()
@@ -77,12 +82,22 @@ const tableId = generateId()
 const tableRowId = generateId()
 const publicChatIdentifier = `mobile-e2e-${generateId()}`
 const folderName = 'Mobile E2E folder'
+const workspaceName = 'Mobile E2E workspace'
+const organization = organizationRoutes(organizationId)
+const filesPath = workspacePath(workspaceId, 'files')
+const logsPath = workspacePath(workspaceId, 'logs')
+const tablePath = workspaceResourcePath(workspaceId, 'table', tableId)
+const workflowPath = workspaceResourcePath(workspaceId, 'workflow', workflowId)
+/** The EMCN compact control (`--spacing-app-control-sm`), the face every workflow action keeps. */
+const COMPACT_CONTROL_HEIGHT = 28
+/** The shell swaps its sidebar for the navigation drawer at `48rem` and below. */
+const COMPACT_NAVIGATION_WIDTH = 768
 const startedAt = new Date().toISOString()
 const checks: CheckResult[] = []
 const screenshots: string[] = []
 const httpErrors: { browser: string; status: number; path: string }[] = []
 /**
- * Every document load mounts the workspace socket provider, which mints one realtime token from a
+ * Every workspace page load mounts the shared realtime socket, which mints one realtime token from a
  * route capped at 30 per minute per client IP. The suite loads well over 30 documents a minute, all
  * from loopback, so that route's own rate-limit response is expected here; it is recorded apart
  * from `httpErrors` and must still carry `Retry-After`, and each browser must mint at least once.
@@ -113,7 +128,48 @@ const viewports = [
   { name: 'desktop', width: 1440, height: 1000, touch: false },
   { name: 'wide-desktop', width: 1920, height: 1080, touch: false },
 ] as const
-const routes = ['home', 'files', 'tables', 'knowledge', 'logs', 'integrations', 'settings/general']
+interface SurfaceRoute {
+  name: string
+  path: string
+  /** What the page shows once its data arrives. */
+  content: (page: Page) => Locator
+}
+
+const routes: SurfaceRoute[] = [
+  { name: 'home', path: organization.home, content: (page) => homeComposer(page) },
+  {
+    name: 'files',
+    path: filesPath,
+    content: (page) => page.getByText(folderName, { exact: true }),
+  },
+  {
+    name: 'tables',
+    path: workspacePath(workspaceId, 'tables'),
+    content: (page) => page.getByText('Mobile E2E table', { exact: true }),
+  },
+  {
+    name: 'knowledge',
+    path: workspacePath(workspaceId, 'knowledge'),
+    content: (page) =>
+      page.getByText('Upload documents to give your agents a memory they can search.', {
+        exact: true,
+      }),
+  },
+  { name: 'logs', path: logsPath, content: (page) => runLink(page) },
+  {
+    name: 'integrations',
+    path: organization.integrations,
+    content: (page) =>
+      page
+        .getByRole('region', { name: 'Organization integrations', exact: true })
+        .getByRole('searchbox', { name: /^Search / }),
+  },
+  {
+    name: 'settings',
+    path: organization.settings,
+    content: (page) => page.getByRole('button', { name: /^Theme:/ }),
+  },
+]
 const selectedViewport = process.env.MOBILE_E2E_VIEWPORT
 assert(!selectedBrowser || ['chromium', 'webkit'].includes(selectedBrowser), 'Unknown browser')
 assert(
@@ -234,10 +290,14 @@ async function seed(): Promise<string> {
     await tx`insert into "user" (id, name, email, normalized_email, email_verified, created_at, updated_at)
       values (${ownerId}, 'Mobile E2E', ${email}, ${email}, true, now(), now())`
     await tx`insert into user_stats (id, user_id) values (${generateId()}, ${ownerId})`
-    await tx`insert into project (id, name, owner_id)
-      values (${workspaceId}, 'Mobile E2E project', ${ownerId})`
-    await tx`insert into workspace (id, project_id, name, owner_id, billed_account_user_id)
-      values (${workspaceId}, ${workspaceId}, 'Mobile E2E workspace', ${ownerId}, ${ownerId})`
+    await tx`insert into organization (id, name, slug, kind, created_at, updated_at)
+      values (${organizationId}, 'Mobile E2E organization', ${`personal-${ownerId.toLowerCase()}`}, 'personal', now(), now())`
+    await tx`insert into member (id, user_id, organization_id, role)
+      values (${generateId()}, ${ownerId}, ${organizationId}, 'owner')`
+    await tx`insert into project (id, name, organization_id, owner_id)
+      values (${workspaceId}, 'Mobile E2E project', ${organizationId}, ${ownerId})`
+    await tx`insert into workspace (id, project_id, name, owner_id, organization_id, billed_account_user_id)
+      values (${workspaceId}, ${workspaceId}, ${workspaceName}, ${ownerId}, ${organizationId}, ${ownerId})`
     await tx`insert into permissions (id, user_id, entity_type, entity_id, permission_type)
       values (${generateId()}, ${ownerId}, 'workspace', ${workspaceId}, 'admin')`
     await tx`insert into session (id, token, user_id, expires_at, created_at, updated_at)
@@ -265,8 +325,9 @@ async function seed(): Promise<string> {
       (id, workflow_id, workspace_id, execution_id, state_snapshot_id, level, status, trigger, started_at, ended_at, total_duration_ms, execution_data)
       values (${generateId()}, ${workflowId}, ${workspaceId}, ${generateId()}, ${snapshotId}, 'info', 'completed', 'manual', now() - interval '1 second', now(), 1000,
         ${tx.json({ finalOutput: { result: 'Mobile E2E complete' }, workflowInput: {}, traceSpans: [] })})`
-    await tx`insert into copilot_chats (id, user_id, workspace_id, type, title, resources)
-      values (${chatId}, ${ownerId}, ${workspaceId}, 'mothership', 'Mobile E2E conversation',
+    await tx`insert into copilot_chats (id, user_id, organization_id, type, title, config, resources)
+      values (${chatId}, ${ownerId}, ${organizationId}, 'mothership', 'Mobile E2E conversation',
+        ${tx.json({ conversationMode: 'agent' })},
         ${tx.json([{ type: 'table', id: tableId, title: 'Mobile E2E table', workspaceId }])})`
     const messages = [
       { role: 'user', content: 'Show the project summary and working files.' },
@@ -285,17 +346,59 @@ async function seed(): Promise<string> {
   return encodeURIComponent(`${sessionToken}.${await makeSignature(sessionToken, authSecret)}`)
 }
 
-/**
- * The rendered workspace content shell. While a streamed page is still arriving, React parks the
- * next segment's markup, shell included, in a hidden `<div id="S:n">` until it swaps it in, so the
- * class alone can match a second, hidden copy.
- */
-function contentShell(page: Page): Locator {
-  return page.locator('.workspace-content-shell').filter({ visible: true })
+function compactNavigation(width: number): boolean {
+  return width <= COMPACT_NAVIGATION_WIDTH
 }
 
-async function visit(page: Page, route: string) {
-  const path = `/workspace/${workspaceId}/${route}`
+function sidebar(page: Page): Locator {
+  return page.getByRole('complementary', { name: 'Platform sidebar', exact: true })
+}
+
+/** The shell's opener: it opens the drawer at narrow widths and expands a collapsed sidebar. */
+function openNavigation(page: Page): Locator {
+  return page.getByRole('button', { name: 'Expand sidebar', exact: true })
+}
+
+function homeComposer(page: Page): Locator {
+  return page.getByRole('textbox', {
+    name: 'Ask about your business, or give Sim something to do…',
+    exact: true,
+  })
+}
+
+function runLink(page: Page): Locator {
+  return page
+    .getByRole('list', { name: 'Runs', exact: true })
+    .getByRole('link', { name: /^Mobile E2E workflow, / })
+}
+
+function folderActions(page: Page): Locator {
+  return page.getByRole('button', { name: `Actions for ${folderName}`, exact: true })
+}
+
+/** React Flow's wrapper, the workflow editor's canvas. */
+function workflowCanvas(page: Page): Locator {
+  return page.getByRole('main').getByRole('application')
+}
+
+/**
+ * The shell's content pane, which holds every page: the outermost scroll viewport outside the
+ * sidebar and its drawer. Pages render no shared landmark, so this reads the pane by the
+ * `data-scroll-axis` the shell's edge-fade measurement sets on it. React parks a streamed segment
+ * in a hidden `<div id="S:n">`, so only a pane with a size counts.
+ */
+async function contentPaneBounds(page: Page) {
+  return page.evaluate(() => {
+    for (const element of document.querySelectorAll('[data-scroll-axis]')) {
+      if (element.closest('aside, dialog')) continue
+      const { x, y, width, height } = element.getBoundingClientRect()
+      if (width > 0 && height > 0) return { x, y, width, height }
+    }
+    return null
+  })
+}
+
+async function visit(page: Page, path: string, content?: Locator) {
   const [response] = await Promise.all([
     page.waitForResponse(
       (response) =>
@@ -306,25 +409,10 @@ async function visit(page: Page, route: string) {
       page.goto(path, { waitUntil: 'commit', timeout: 360_000 })
     ),
   ])
-  assert(response.status() < 400, `Could not load ${route}: ${response.status()}`)
-  assert(
-    new URL(page.url()).pathname.startsWith(`/workspace/${workspaceId}/`),
-    'Session was rejected'
-  )
-  await expect(contentShell(page)).toBeVisible()
+  assert(response.status() < 400, `Could not load ${path}: ${response.status()}`)
+  assert(isPathOrDescendant(new URL(page.url()).pathname, path), 'Session was rejected')
+  await expect.poll(async () => (await contentPaneBounds(page)) !== null).toBe(true)
   await expect(page.getByText('Application error', { exact: false })).toHaveCount(0)
-  const contentByRoute: Record<string, Locator> = {
-    home: page.getByRole('textbox', { name: 'Message', exact: true }),
-    files: page.getByText(folderName, { exact: true }),
-    tables: page.getByText('Mobile E2E table', { exact: true }),
-    knowledge: page.getByText('Upload documents to give your agents a memory they can search.', {
-      exact: true,
-    }),
-    logs: page.getByRole('row').filter({ hasText: 'Mobile E2E workflow' }),
-    integrations: page.getByPlaceholder('Search integrations...', { exact: true }),
-    'settings/general': page.getByRole('button', { name: 'Theme', exact: true }),
-  }
-  const content = contentByRoute[route]
   if (content) await expect(content).toBeVisible({ timeout: 120_000 })
 }
 
@@ -368,12 +456,9 @@ async function expectNoOverflow(page: Page) {
       }
     )
     .toBeLessThanOrEqual(1)
-  const shell = await contentShell(page).boundingBox()
-  assert(shell && shell.width > 0 && shell.x >= -1, 'The content must have usable horizontal space')
-  assert(
-    shell.x + shell.width <= (page.viewportSize()?.width ?? 0) + 1,
-    'Content extends offscreen'
-  )
+  const pane = await contentPaneBounds(page)
+  assert(pane && pane.width > 0 && pane.x >= -1, 'The content must have usable horizontal space')
+  assert(pane.x + pane.width <= (page.viewportSize()?.width ?? 0) + 1, 'Content extends offscreen')
 }
 
 /** Exercises native visual-viewport recovery without another layout resize. */
@@ -441,16 +526,9 @@ async function expectVisualViewportRecovery(page: Page, surface: string, targets
   }
 }
 
-async function expectDesktopPreference(context: BrowserContext, page: Page) {
+async function expectDesktopPreference(context: BrowserContext) {
   const cookie = (await context.cookies()).find((entry) => entry.name === 'sidebar_collapsed')
   assert.equal(cookie?.value, '0', 'Mobile navigation must preserve desktop expansion preference')
-  assert.equal(
-    await page.evaluate(
-      () => JSON.parse(localStorage.getItem('sidebar-state') ?? '{}').state?.sidebarWidth
-    ),
-    400,
-    'Mobile navigation must preserve the saved desktop width'
-  )
 }
 
 async function exerciseViewport(
@@ -494,10 +572,6 @@ async function exerciseViewport(
         {
           origin: baseUrl.origin,
           localStorage: [
-            {
-              name: 'sidebar-state',
-              value: JSON.stringify({ state: { sidebarWidth: 400 }, version: 0 }),
-            },
             {
               name: 'panel-state',
               value: JSON.stringify({
@@ -577,27 +651,24 @@ async function exerciseViewport(
   const prefix = `${browserName}/${viewport.name}`
   const initialFailures = checks.filter((result) => result.status === 'failed').length
   try {
+    const compact = compactNavigation(viewport.width)
     for (const route of routes) {
-      await check(`${prefix}/${route} fits the screen`, page, async () => {
-        await visit(page, route)
+      await check(`${prefix}/${route.name} fits the screen`, page, async () => {
+        await visit(page, route.path, route.content(page))
         await expectNoOverflow(page)
-        if (viewport.width < 768) {
-          await expect(
-            page.getByRole('button', { name: 'Open navigation', exact: true })
-          ).toBeVisible()
-          await expect(page.getByRole('complementary', { name: 'Workspace sidebar' })).toBeHidden()
+        if (compact) {
+          await expect(openNavigation(page)).toBeVisible()
+          await expect(sidebar(page)).toBeHidden()
         } else {
-          await expect(
-            page.getByRole('button', { name: 'Open navigation', exact: true })
-          ).toBeHidden()
-          await expect(page.getByRole('complementary', { name: 'Workspace sidebar' })).toBeVisible()
+          await expect(openNavigation(page)).toBeHidden()
+          await expect(sidebar(page)).toBeVisible()
         }
         if (
           viewport.name === 'phone' ||
           viewport.name === 'desktop' ||
-          (viewport.name === 'wide-desktop' && route === 'home')
+          (viewport.name === 'wide-desktop' && route.name === 'home')
         ) {
-          await capture(page, `${browserName}-${viewport.name}-${route.replaceAll('/', '-')}`)
+          await capture(page, `${browserName}-${viewport.name}-${route.name}`)
         }
       })
     }
@@ -607,13 +678,13 @@ async function exerciseViewport(
         const draft = 'A draft saved before reloading'
         const storedDrafts = () =>
           page.evaluate(() => localStorage.getItem('mothership-drafts:v1') ?? '')
-        await visit(page, 'home')
-        const composer = page.getByRole('textbox', { name: 'Message', exact: true })
+        const composer = homeComposer(page)
+        await visit(page, organization.home, composer)
         await composer.fill(draft)
         await expect.poll(storedDrafts).toContain(draft)
         const pageErrorCount = pageErrors.length
         const nativeErrorCount = nativeErrors.length
-        await visit(page, 'home')
+        await visit(page, organization.home, composer)
         await expect(composer).toHaveValue(draft)
         assert.deepEqual(
           [...pageErrors.slice(pageErrorCount), ...nativeErrors.slice(nativeErrorCount)],
@@ -629,8 +700,8 @@ async function exerciseViewport(
           `${prefix}/${width}px draft scroll boundaries preserve the surrounding page`,
           page,
           async () => {
-            await visit(page, 'home')
-            const composer = page.getByRole('textbox', { name: 'Message', exact: true })
+            const composer = homeComposer(page)
+            await visit(page, organization.home, composer)
             const heading = page.getByRole('heading', { level: 1 })
             const readScroll = () =>
               composer.evaluate((element) => {
@@ -685,7 +756,7 @@ async function exerciseViewport(
               await settle()
               const after = await heading.boundingBox()
               assert(after)
-              if (width < 768) {
+              if (compactNavigation(width)) {
                 assert(
                   Math.abs(after.y - before.y) <= 1,
                   'Scrolling past a mobile draft must not move Home'
@@ -712,47 +783,57 @@ async function exerciseViewport(
       }
     }
 
-    if (viewport.width < 768) {
+    if (compact) {
       await check(
         `${prefix}/navigation opens, dismisses, and preserves desktop preferences`,
         page,
         async () => {
-          await visit(page, 'files')
-          const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' })
-          const openNavigation = page.getByRole('button', { name: 'Open navigation', exact: true })
-          await openNavigation.focus()
+          await visit(page, filesPath, folderActions(page))
+          const navigation = sidebar(page)
+          const opener = openNavigation(page)
+          await opener.focus()
           const modifier = await page.evaluate(() =>
             /Mac|iPhone|iPod|iPad/i.test(navigator.userAgent) ? 'Meta' : 'Control'
           )
           await page.keyboard.press(`${modifier}+b`)
-          await expectContained(page, sidebar)
-          await expectDesktopPreference(context, page)
+          await expectContained(page, navigation)
+          await expectDesktopPreference(context)
           await page.keyboard.press(`${modifier}+b`)
-          await expect(sidebar).toBeHidden()
-          await expectDesktopPreference(context, page)
-          await openNavigation.tap()
-          await expectContained(page, sidebar)
+          await expect(navigation).toBeHidden()
+          await expectDesktopPreference(context)
+          await opener.tap()
+          await expectContained(page, navigation)
           if (viewport.name === 'phone') await capture(page, `${browserName}-phone-navigation`)
-          await sidebar.getByRole('link', { name: 'New chat', exact: true }).tap()
-          await expect(page).toHaveURL(`${baseUrl.origin}/workspace/${workspaceId}/home`, {
+          await navigation.getByRole('link', { name: 'Home', exact: true }).tap()
+          await expect(page).toHaveURL((url) => url.pathname === organization.home, {
             timeout: 120_000,
           })
-          await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible()
-          await expect(sidebar).toBeHidden()
-          await page.getByRole('button', { name: 'Open navigation', exact: true }).tap()
-          await page.getByRole('button', { name: 'Close navigation', exact: true }).tap()
-          await expect(sidebar).toBeHidden()
-          await page.getByRole('button', { name: 'Open navigation', exact: true }).tap()
-          await sidebar.getByRole('link', { name: 'Files', exact: true }).tap()
-          await expect(page).toHaveURL(new RegExp(`/workspace/${workspaceId}/files`), {
+          await expect(homeComposer(page)).toBeVisible()
+          await expect(navigation).toBeHidden()
+          await opener.tap()
+          await navigation.getByRole('button', { name: 'Collapse sidebar', exact: true }).tap()
+          await expect(navigation).toBeHidden()
+          await opener.tap()
+          await navigation
+            .getByRole('region', { name: 'Workspaces', exact: true })
+            .getByRole('link', { name: workspaceName, exact: true })
+            .tap()
+          await expect(page).toHaveURL(
+            (url) => isPathOrDescendant(url.pathname, workspaceEntry(workspaceId)),
+            { timeout: 120_000 }
+          )
+          await expect(navigation).toBeHidden()
+          await page
+            .getByRole('navigation', { name: `${workspaceName} pages`, exact: true })
+            .getByRole('link', { name: 'Files', exact: true })
+            .tap()
+          await expect(page).toHaveURL((url) => url.pathname === filesPath, {
             timeout: 120_000,
           })
-          await expect(sidebar).toBeHidden()
-          await expect(contentShell(page)).toBeVisible()
-          await expect(
-            page.getByRole('button', { name: `Actions for ${folderName}`, exact: true })
-          ).toBeVisible({ timeout: 120_000 })
-          await expectDesktopPreference(context, page)
+          await expect(navigation).toBeHidden()
+          await expect(folderActions(page)).toBeVisible({ timeout: 120_000 })
+          await expectNoOverflow(page)
+          await expectDesktopPreference(context)
         }
       )
 
@@ -760,11 +841,8 @@ async function exerciseViewport(
         `${prefix}/touch row actions open without hover or a right click`,
         page,
         async () => {
-          await visit(page, 'files')
-          const actions = page.getByRole('button', {
-            name: `Actions for ${folderName}`,
-            exact: true,
-          })
+          const actions = folderActions(page)
+          await visit(page, filesPath, actions)
           await expectContained(page, actions)
           await actions.tap()
           await expect(page.getByRole('menuitem', { name: 'Rename', exact: true })).toBeVisible()
@@ -775,18 +853,18 @@ async function exerciseViewport(
     }
 
     await check(
-      `${prefix}/dialog remains reachable with desktop sidebar and panel widths saved`,
+      `${prefix}/dialog remains reachable with desktop sidebar and panel preferences saved`,
       page,
       async () => {
-        await visit(page, 'knowledge')
+        await visit(page, workspacePath(workspaceId, 'knowledge'))
         const newBase = page.getByRole('button', { name: 'New base', exact: true }).first()
         await expect(newBase).toBeEnabled({ timeout: 120_000 })
         await newBase.click()
-        const dialog = page.getByRole('dialog', { name: 'Create Knowledge Base', exact: true })
+        const dialog = page.getByRole('dialog', { name: 'New knowledge base', exact: true })
         await expectContained(page, dialog)
         const field = dialog.getByPlaceholder('Enter knowledge base name')
         await field.fill('Mobile E2E draft')
-        if (viewport.touch && viewport.width < 768) {
+        if (viewport.touch && compact) {
           assert.equal(
             await field.evaluate((element) => getComputedStyle(element).fontSize),
             '16px'
@@ -808,28 +886,40 @@ async function exerciseViewport(
         ).toBeEnabled()
       }
     )
+
+    const chatComposer = page.getByRole('textbox', { name: 'Ask a follow-up…', exact: true })
+    const chatPanel = page.getByRole('complementary', { name: 'Chat panel', exact: true })
+    const openChatPanel = page.getByRole('button', { name: 'Open chat panel', exact: true })
+    const closeChatPanel = page.getByRole('button', { name: 'Close chat panel', exact: true })
+    /** The chat sets its panel beside the conversation only when the content pane exceeds 48rem. */
+    const chatSideBySide = async () => {
+      const pane = await contentPaneBounds(page)
+      assert(pane, 'The content pane must be measurable')
+      return pane.width > COMPACT_NAVIGATION_WIDTH
+    }
+    const openChatResources = async () => {
+      await visit(page, organization.chat(chatId))
+      await expect(page.getByRole('button', { name: /^(Open|Close) chat panel$/ })).toBeVisible({
+        timeout: 120_000,
+      })
+      const summary = page.getByText('Mobile project summary', { exact: false })
+      await expect
+        .poll(async () => (await summary.isVisible()) || (await closeChatPanel.isVisible()), {
+          timeout: 120_000,
+        })
+        .toBe(true)
+      return summary
+    }
+
     await check(
       `${prefix}/chat and resources adapt without losing an unsent draft`,
       page,
       async () => {
-        await visit(page, `chat/${chatId}`)
-        await expect(
-          page.getByRole('button', {
-            name: /^(Expand resource view|Collapse resource view|Back to chat)$/,
-          })
-        ).toBeVisible()
-        const backToChat = page.getByRole('button', { name: 'Back to chat', exact: true })
-        const summary = page.getByText('Mobile project summary', { exact: false })
-        await expect
-          .poll(async () => (await summary.isVisible()) || (await backToChat.isVisible()), {
-            timeout: 120_000,
-          })
-          .toBe(true)
+        const summary = await openChatResources()
         await expect(summary).toBeVisible()
         await expectNoOverflow(page)
-        const composer = page.getByRole('textbox', { name: 'Message', exact: true })
-        await composer.fill('Keep this draft')
-        if (viewport.width < 768) {
+        await chatComposer.fill('Keep this draft')
+        if (compact) {
           const send = page.getByRole('button', { name: 'Send message', exact: true })
           await expectContained(page, send)
           const bounds = await send.boundingBox()
@@ -845,16 +935,14 @@ async function exerciseViewport(
               })),
             })}`
           )
-          await composer.press('Enter')
-          await expect(composer).toHaveValue('Keep this draft\n')
+          await chatComposer.press('Enter')
+          await expect(chatComposer).toHaveValue('Keep this draft\n')
         }
-        const expand = page.getByRole('button', { name: 'Expand resource view', exact: true })
-        if (await expand.isVisible()) await expand.click()
-        const resource = page.locator('[data-mothership-panel]')
-        await expectContained(page, resource)
-        await expect(resource.locator(`[data-row-id="${tableRowId}"][data-col="0"]`)).toBeVisible({
-          timeout: 120_000,
-        })
+        if (await openChatPanel.isVisible()) await openChatPanel.click()
+        await expectContained(page, chatPanel)
+        const resource = chatPanel.getByRole('link', { name: 'Open Mobile E2E table', exact: true })
+        await expect(resource).toBeVisible({ timeout: 120_000 })
+        await expect(resource).toHaveAttribute('href', tablePath)
         await expectNoOverflow(page)
         if (
           viewport.name === 'phone' ||
@@ -864,32 +952,83 @@ async function exerciseViewport(
         ) {
           await capture(page, `${browserName}-${viewport.name}-resources`)
         }
-        if (viewport.width < 768) {
-          await expect(composer).toBeHidden()
-          await expectContained(page, backToChat)
-          await backToChat.click()
-        } else {
-          await expectContained(page, composer)
-          const composerBounds = await composer.boundingBox()
-          const resourceBounds = await resource.boundingBox()
+        if (await chatSideBySide()) {
+          await expectContained(page, chatComposer)
+          const composerBounds = await chatComposer.boundingBox()
+          const resourceBounds = await chatPanel.boundingBox()
           assert(composerBounds && resourceBounds)
           assert(
             composerBounds.x + composerBounds.width <= resourceBounds.x,
             'Wide screens must retain side-by-side chat and resources'
           )
+          await closeChatPanel.click()
+        } else {
+          await expect(chatComposer).toBeHidden()
+          await expectContained(page, closeChatPanel)
+          await closeChatPanel.click()
+        }
+        await expect(chatPanel).toBeHidden()
+        await expect(chatComposer).toHaveValue(compact ? 'Keep this draft\n' : 'Keep this draft')
+        if (
+          viewport.name === 'phone' ||
+          viewport.name === 'android' ||
+          viewport.name === 'desktop' ||
+          viewport.name === 'wide-desktop'
+        ) {
+          await capture(page, `${browserName}-${viewport.name}-chat`)
+        }
+        if (browserName === 'chromium' && viewport.name === 'phone') {
+          await expectVisualViewportRecovery(page, 'composer', [
+            chatComposer,
+            page.getByRole('button', { name: 'Send message', exact: true }),
+          ])
+        }
+        if (compact) {
+          await page.setViewportSize({
+            width: viewport.width,
+            height: Math.min(400, Math.round(viewport.height * 0.65)),
+          })
+          await chatComposer.focus()
+          await expectContained(page, chatComposer)
+          await expectContained(
+            page,
+            page.getByRole('button', { name: 'Send message', exact: true })
+          )
+          await page.setViewportSize({ width: viewport.width, height: viewport.height })
+        }
+        await chatComposer.fill('')
+        if (!viewport.touch) {
+          await chatComposer.press('Enter')
+          await expect(chatComposer).toHaveValue('')
+          await chatComposer.press('Shift+Enter')
+          await expect(chatComposer).toHaveValue('\n')
+          await chatComposer.fill('')
+        }
+        const rows =
+          await sql`select count(*)::int as count from copilot_messages where chat_id = ${chatId}`
+        assert.equal(rows[0]?.count, 2, 'Mobile Enter must not send a message')
+      }
+    )
+
+    if (viewport.name === 'desktop' || viewport.name === 'wide-desktop') {
+      await check(
+        `${prefix}/chat resources resize within their accessible range`,
+        page,
+        async () => {
+          await openChatResources()
+          if (await openChatPanel.isVisible()) await openChatPanel.click()
+          await expectContained(page, chatPanel)
+          assert(await chatSideBySide(), 'Wide screens must set resources beside the chat')
+          const divider = page.getByRole('separator', {
+            name: 'Resize resource view',
+            exact: true,
+          })
           try {
-            if (viewport.name === 'tablet') {
-              await page.setViewportSize({ width: 768, height: viewport.height })
-            }
-            const divider = page.getByRole('separator', {
-              name: 'Resize resource view',
-              exact: true,
-            })
             for (const key of ['Home', 'End']) {
               await divider.press(key)
               await expect(async () => {
                 const measurement = await divider.evaluate((element) => {
-                  const panel = document.querySelector('[data-mothership-panel]')
+                  const panel = document.querySelector('aside[aria-label="Chat panel"]')
                   if (!panel) throw new Error('Resource panel is unavailable')
                   return {
                     width: panel.getBoundingClientRect().width,
@@ -908,59 +1047,15 @@ async function exerciseViewport(
                   `The resize value must describe the visible panel: ${JSON.stringify(measurement)}`
                 )
               }).toPass({ timeout: 20_000 })
-              await expectContained(page, composer)
+              await expectContained(page, chatComposer)
               await expectNoOverflow(page)
             }
           } finally {
-            if (viewport.name === 'tablet') {
-              await page.setViewportSize({ width: viewport.width, height: viewport.height })
-            }
+            await closeChatPanel.click()
           }
-          await page.getByRole('button', { name: 'Collapse resource view', exact: true }).click()
         }
-        await expect(composer).toHaveValue(
-          viewport.width < 768 ? 'Keep this draft\n' : 'Keep this draft'
-        )
-        if (
-          viewport.name === 'phone' ||
-          viewport.name === 'android' ||
-          viewport.name === 'desktop' ||
-          viewport.name === 'wide-desktop'
-        ) {
-          await capture(page, `${browserName}-${viewport.name}-chat`)
-        }
-        if (browserName === 'chromium' && viewport.name === 'phone') {
-          await expectVisualViewportRecovery(page, 'composer', [
-            composer,
-            page.getByRole('button', { name: 'Send message', exact: true }),
-          ])
-        }
-        if (viewport.width < 768) {
-          await page.setViewportSize({
-            width: viewport.width,
-            height: Math.min(400, Math.round(viewport.height * 0.65)),
-          })
-          await composer.focus()
-          await expectContained(page, composer)
-          await expectContained(
-            page,
-            page.getByRole('button', { name: 'Send message', exact: true })
-          )
-          await page.setViewportSize({ width: viewport.width, height: viewport.height })
-        }
-        await composer.fill('')
-        if (!viewport.touch) {
-          await composer.press('Enter')
-          await expect(composer).toHaveValue('')
-          await composer.press('Shift+Enter')
-          await expect(composer).toHaveValue('\n')
-          await composer.fill('')
-        }
-        const rows =
-          await sql`select count(*)::int as count from copilot_messages where chat_id = ${chatId}`
-        assert.equal(rows[0]?.count, 2, 'Mobile Enter must not send a message')
-      }
-    )
+      )
+    }
 
     if (viewport.name === 'android') {
       await check(
@@ -1022,13 +1117,15 @@ async function exerciseViewport(
         `${prefix}/desktop sidebar collapse and expansion preserve its width`,
         page,
         async () => {
-          await visit(page, 'files')
-          const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' })
-          await sidebar.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
-          await expect.poll(async () => (await sidebar.boundingBox())?.width).toBeLessThan(100)
-          await sidebar.getByRole('button', { name: 'Expand sidebar', exact: true }).click()
-          await expect.poll(async () => (await sidebar.boundingBox())?.width).toBe(400)
-          await expectDesktopPreference(context, page)
+          await visit(page, filesPath, folderActions(page))
+          const navigation = sidebar(page)
+          const width = (await navigation.boundingBox())?.width
+          assert(width, 'The expanded sidebar must have a width')
+          await navigation.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
+          await expect(navigation).toBeHidden()
+          await openNavigation(page).click()
+          await expect.poll(async () => (await navigation.boundingBox())?.width).toBe(width)
+          await expectDesktopPreference(context)
           await expectNoOverflow(page)
         }
       )
@@ -1039,9 +1136,8 @@ async function exerciseViewport(
         `${prefix}/table edits persist and configuration panels remain reachable by touch`,
         page,
         async () => {
-          await visit(page, `tables/${tableId}`)
           const cell = page.locator(`[data-row-id="${tableRowId}"][data-col="0"]`)
-          await expect(cell).toBeVisible({ timeout: 120_000 })
+          await visit(page, tablePath, cell)
           await cell.tap()
           const editor = page.getByRole('dialog', { name: 'Expanded view of Note', exact: true })
           await expect(editor).toHaveCount(0)
@@ -1071,51 +1167,84 @@ async function exerciseViewport(
             page.reload({ waitUntil: 'commit', timeout: 360_000 })
           )
           await expect(cell).toHaveText(value, { timeout: 120_000 })
+          /** A configuration panel takes the grid's whole row on a phone instead of squeezing beside it. */
+          const expectFillsRow = (panel: Locator) =>
+            expect
+              .poll(() =>
+                panel.evaluate((element) => {
+                  const row = element.parentElement?.getBoundingClientRect().width ?? 0
+                  return Math.abs(element.getBoundingClientRect().width - row)
+                })
+              )
+              .toBeLessThanOrEqual(1)
           await page.getByRole('button', { name: 'Column options', exact: true }).first().tap()
           await expectContained(page, page.getByRole('menu'))
           await page.getByRole('menuitem', { name: 'Edit column', exact: true }).tap()
-          const columnConfig = page.getByRole('dialog', { name: 'Configure column', exact: true })
+          const columnConfig = page.getByRole('complementary', {
+            name: 'Configure column',
+            exact: true,
+          })
           await expectContained(page, columnConfig)
-          await expect
-            .poll(async () => (await columnConfig.boundingBox())?.width)
-            .toBe(viewport.width)
+          await expectFillsRow(columnConfig)
           await capture(page, `${browserName}-phone-column-config`)
           await columnConfig.getByRole('button', { name: 'Close', exact: true }).tap()
-          await expect(columnConfig).not.toBeInViewport()
-          for (const [name, dialogName] of [
-            ['Workflow', 'Configure workflow'],
+          await expect(columnConfig).toBeHidden()
+          for (const [name, panelName] of [
+            ['Workflow', 'Add workflow'],
             ['Enrichments', 'Enrichments'],
           ] as const) {
             await page.getByRole('button', { name: 'New column', exact: true }).first().tap()
             await page.getByRole('menuitem', { name, exact: true }).tap()
-            const configuration = page.getByRole('dialog', { name: dialogName, exact: true })
+            const configuration = page.getByRole('complementary', { name: panelName, exact: true })
             await expectContained(page, configuration)
-            await expect
-              .poll(async () => (await configuration.boundingBox())?.width)
-              .toBe(viewport.width)
+            await expectFillsRow(configuration)
             await capture(page, `${browserName}-phone-${name.toLowerCase()}-config`)
             await configuration.getByRole('button', { name: 'Close', exact: true }).tap()
-            await expect(configuration).not.toBeInViewport()
+            await expect(configuration).toBeHidden()
           }
           await expectNoOverflow(page)
         }
       )
 
-      await check(`${prefix}/log details fill the phone and can be dismissed`, page, async () => {
-        await visit(page, 'logs')
-        await page.getByRole('row').filter({ hasText: 'Mobile E2E workflow' }).click()
-        const details = page.getByLabel('Log details sidebar', { exact: true })
-        await expectContained(page, details)
-        await expect.poll(async () => (await details.boundingBox())?.width).toBe(viewport.width)
-        await expect(
-          page.getByRole('separator', { name: 'Resize log details panel', exact: true })
-        ).toBeHidden()
-        await expect(details.getByText('Workflow Output', { exact: true })).toBeVisible({
+      await check(`${prefix}/run details fill the phone and can be dismissed`, page, async () => {
+        await visit(page, logsPath, runLink(page))
+        await runLink(page).tap()
+        await expect(page).toHaveURL(
+          (url) => url.pathname.startsWith(`${logsPath}/`) && url.pathname !== `${logsPath}/`,
+          { timeout: 120_000 }
+        )
+        const trace = page.getByRole('region', { name: /^Run \S+ trace$/ })
+        const step = page.getByRole('complementary', { name: 'Selected step', exact: true })
+        await expect(trace).toBeVisible({ timeout: 120_000 })
+        await expect(step.getByText('Mobile E2E complete', { exact: false })).toBeVisible({
           timeout: 120_000,
         })
-        await capture(page, `${browserName}-phone-log-details`)
-        await details.getByRole('button', { name: 'Close', exact: true }).tap()
-        await expect(details).not.toBeInViewport()
+        await expect
+          .poll(
+            async () => {
+              const reading = await trace.boundingBox()
+              const rail = await step.boundingBox()
+              return Boolean(
+                reading &&
+                  rail &&
+                  reading.x >= -1 &&
+                  reading.x + reading.width <= viewport.width + 1 &&
+                  rail.x + rail.width <= viewport.width + 1 &&
+                  rail.y >= reading.y + reading.height - 1
+              )
+            },
+            { message: 'A phone must stack the step beneath the run, inside the screen' }
+          )
+          .toBe(true)
+        await expectNoOverflow(page)
+        await capture(page, `${browserName}-phone-run-details`)
+        await page
+          .getByRole('navigation', { name: 'Logs navigation', exact: true })
+          .getByRole('link', { name: 'Logs', exact: true })
+          .tap()
+        await expect(page).toHaveURL((url) => url.pathname === logsPath, { timeout: 120_000 })
+        await expect(trace).toHaveCount(0)
+        await expect(runLink(page)).toBeVisible({ timeout: 120_000 })
       })
 
       await check(`${prefix}/standalone settings sections remain accessible`, page, async () => {
@@ -1151,77 +1280,96 @@ async function exerciseViewport(
         `${prefix}/rotation restores desktop sidebar and preserves navigation`,
         page,
         async () => {
-          await visit(page, 'files')
-          const sidebar = page.getByRole('complementary', { name: 'Workspace sidebar' })
+          await visit(page, filesPath, folderActions(page))
+          const navigation = sidebar(page)
+          let width: number | undefined
           if (viewport.name === 'tablet') {
-            await sidebar.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
-            await expect.poll(async () => (await sidebar.boundingBox())?.width).toBeLessThan(100)
-            await sidebar.getByRole('button', { name: 'Expand sidebar', exact: true }).click()
-            await expectDesktopPreference(context, page)
+            width = (await navigation.boundingBox())?.width
+            assert(width, 'The expanded sidebar must have a width')
+            await navigation.getByRole('button', { name: 'Collapse sidebar', exact: true }).click()
+            await expect(navigation).toBeHidden()
+            await openNavigation(page).click()
+            await expectDesktopPreference(context)
           }
           await page.setViewportSize({ width: 1440, height: 1000 })
-          await expect(sidebar).toBeVisible()
-          await expect.poll(async () => (await sidebar.boundingBox())?.width).toBe(400)
-          await expectDesktopPreference(context, page)
+          await expect(navigation).toBeVisible()
+          const desktopWidth = (await navigation.boundingBox())?.width
+          assert(desktopWidth, 'The restored sidebar must have a width')
+          if (width) assert.equal(desktopWidth, width, 'The sidebar keeps one width')
+          await expectDesktopPreference(context)
           await page.setViewportSize({ width: viewport.width, height: viewport.height })
-          if (viewport.width < 768) await expect(sidebar).toBeHidden()
-          else await expect(sidebar).toBeVisible()
-          await expectDesktopPreference(context, page)
+          if (compact) await expect(navigation).toBeHidden()
+          else await expect(navigation).toBeVisible()
+          await expectDesktopPreference(context)
           await expectNoOverflow(page)
         }
       )
       if (viewport.name === 'phone') {
-        await check(`${prefix}/workflow controls open and return to the canvas`, page, async () => {
-          await visit(page, `w/${workflowId}`)
-          await expect(page.locator('.react-flow')).toBeVisible({ timeout: 120_000 })
-          const panel = page.getByRole('complementary', { name: 'Workflow panel', exact: true })
-          await expect(panel).toBeHidden()
-          await capture(page, `${browserName}-${viewport.name}-workflow-canvas`)
-          await page.getByRole('button', { name: 'Workflow', exact: true }).tap()
-          await expectContained(page, panel)
-          await capture(page, `${browserName}-${viewport.name}-workflow-panel`)
-          await page.getByRole('button', { name: 'Back to canvas', exact: true }).tap()
-          await expect(panel).toBeHidden()
-          await expect
-            .poll(async () => {
-              const canvas = await page.locator('.react-flow').boundingBox()
-              const content = await contentShell(page).boundingBox()
-              return canvas && content ? canvas.width / content.width : 0
+        await check(
+          `${prefix}/workflow canvas and panel share the phone and unlock`,
+          page,
+          async () => {
+            const canvas = workflowCanvas(page)
+            await visit(page, workflowPath, canvas)
+            const panel = page.getByRole('complementary', { name: 'Workflow panel', exact: true })
+            await capture(page, `${browserName}-${viewport.name}-workflow-canvas`)
+            await expectContained(page, canvas)
+            await expectContained(page, panel)
+            await capture(page, `${browserName}-${viewport.name}-workflow-panel`)
+            await expect
+              .poll(async () => {
+                const canvasBounds = await canvas.boundingBox()
+                const panelBounds = await panel.boundingBox()
+                const content = await contentPaneBounds(page)
+                return canvasBounds && panelBounds && content
+                  ? panelBounds.y >= canvasBounds.y + canvasBounds.height - 1 &&
+                      canvasBounds.width / content.width > 0.95
+                  : false
+              })
+              .toBe(true)
+            await sql`update workflow set locked = true where id = ${workflowId}`
+            await withDocumentNavigation(page, page.url(), () =>
+              page.reload({ waitUntil: 'commit', timeout: 360_000 })
+            )
+            const notifications = page.getByRole('region', {
+              name: 'Notification stack',
+              exact: true,
             })
-            .toBeGreaterThan(0.95)
-          await sql`update workflow set locked = true where id = ${workflowId}`
-          await withDocumentNavigation(page, page.url(), () =>
-            page.reload({ waitUntil: 'commit', timeout: 360_000 })
-          )
-          const notifications = page.getByLabel('Notifications', { exact: true })
-          await expect(notifications).toContainText('This workflow is locked', {
-            timeout: 120_000,
-          })
-          await expectContained(page, notifications)
-          const unlock = notifications.getByRole('button', {
-            name: 'Unlock Workflow',
-            exact: true,
-          })
-          await expectContained(page, unlock)
-          await capture(page, `${browserName}-phone-workflow-notification`)
-          const [unlocked] = await Promise.all([
-            page.waitForResponse(
-              (response) =>
-                response.request().method() === 'PUT' &&
-                new URL(response.url()).pathname === `/api/workflows/${workflowId}`,
-              { timeout: 120_000 }
-            ),
-            unlock.tap(),
-          ])
-          assert.equal(unlocked.status(), 200, 'Unlocking the workflow must succeed over HTTP')
-          await expect
-            .poll(async () => {
-              const rows = await sql`select locked from workflow where id = ${workflowId}`
-              return rows[0]?.locked
+            const notice = notifications.getByRole('article', {
+              name: 'This workflow is locked',
+              exact: true,
             })
-            .toBe(false)
-          await expectNoOverflow(page)
-        })
+            const showAll = notifications.getByRole('button', { name: /^Notifications?\b/ })
+            await expect
+              .poll(async () => (await notice.isVisible()) || (await showAll.isVisible()), {
+                timeout: 120_000,
+              })
+              .toBe(true)
+            // The tray minimizes a notice it has shown once nobody engages with it.
+            if (!(await notice.isVisible())) await showAll.tap()
+            await expectContained(page, notice)
+            const unlock = notice.getByRole('button', { name: 'Unlock Workflow', exact: true })
+            await expectContained(page, unlock)
+            await capture(page, `${browserName}-phone-workflow-notification`)
+            const [unlocked] = await Promise.all([
+              page.waitForResponse(
+                (response) =>
+                  response.request().method() === 'PUT' &&
+                  new URL(response.url()).pathname === `/api/workflows/${workflowId}`,
+                { timeout: 120_000 }
+              ),
+              unlock.tap(),
+            ])
+            assert.equal(unlocked.status(), 200, 'Unlocking the workflow must succeed over HTTP')
+            await expect
+              .poll(async () => {
+                const rows = await sql`select locked from workflow where id = ${workflowId}`
+                return rows[0]?.locked
+              })
+              .toBe(false)
+            await expectNoOverflow(page)
+          }
+        )
       }
     }
 
@@ -1230,22 +1378,24 @@ async function exerciseViewport(
         `${prefix}/workflow uses compact phone controls and regular desktop panels`,
         page,
         async () => {
-          await visit(page, `w/${workflowId}`)
-          const canvas = page.locator('.react-flow:visible')
-          await expect(canvas).toBeVisible({ timeout: 120_000 })
+          const canvas = workflowCanvas(page)
+          await visit(page, workflowPath, canvas)
           const panel = page.getByRole('complementary', { name: 'Workflow panel', exact: true })
-          if (viewport.width < 768) {
-            await page.getByRole('button', { name: 'Workflow', exact: true }).tap()
-          }
           await expectContained(page, panel)
-          const actions = panel.getByRole('button', { name: 'Workflow actions', exact: true })
-          const run = panel.getByRole('button', { name: 'Run', exact: true })
-          const deploy = panel.getByRole('button', { name: 'Deploy', exact: true })
+          const editor = page.getByRole('main')
+          const actions = editor.getByRole('button', { name: 'Workflow actions', exact: true })
+          // The control bar precedes the panel, whose toolbar lists blocks by name.
+          const run = editor.getByRole('button', { name: 'Run', exact: true }).first()
+          const deploy = editor.getByRole('button', { name: 'Deploy', exact: true }).first()
           for (const control of [actions, run, deploy]) {
+            await expectContained(page, control)
             const bounds = await control.boundingBox()
-            assert(bounds && bounds.height === 30, 'Workflow action faces must stay compact')
+            assert(
+              bounds && bounds.height === COMPACT_CONTROL_HEIGHT,
+              `Workflow action faces must stay compact: ${JSON.stringify(bounds)}`
+            )
           }
-          if (viewport.width < 768) {
+          if (compact) {
             const bounds = await actions.boundingBox()
             assert(bounds)
             await page.touchscreen.tap(bounds.x + bounds.width / 2, bounds.y - 5)
@@ -1261,9 +1411,6 @@ async function exerciseViewport(
               canvasBounds.width > 0 && canvasBounds.x + canvasBounds.width <= panelBounds.x + 1,
               'Regular views must keep the canvas beside the workflow panel'
             )
-            await expect(
-              page.getByRole('button', { name: 'Back to canvas', exact: true })
-            ).toBeHidden()
           }
           await expectNoOverflow(page)
           await capture(page, `${browserName}-${viewport.name}-workflow-regular-layout`)
@@ -1327,14 +1474,22 @@ try {
       await tx`delete from workspace where id = ${workspaceId}`
       await tx`delete from project where id = ${workspaceId} and owner_id = ${ownerId}`
       await tx`delete from workflow_execution_snapshots where id = ${snapshotId}`
+      await tx`delete from organization where id = ${organizationId}`
       await tx`delete from "user" where id = ${ownerId}`
     })
     const [remaining] = await sql`select
       exists(select 1 from "user" where id = ${ownerId}) as owner,
+      exists(select 1 from organization where id = ${organizationId}) as organization,
       exists(select 1 from workspace where id = ${workspaceId}) as workspace,
       exists(select 1 from project where id = ${workspaceId}) as project,
       exists(select 1 from workflow_execution_snapshots where id = ${snapshotId}) as snapshot`
-    assert.deepEqual(remaining, { owner: false, workspace: false, project: false, snapshot: false })
+    assert.deepEqual(remaining, {
+      owner: false,
+      organization: false,
+      workspace: false,
+      project: false,
+      snapshot: false,
+    })
   })
   await sql.end()
   await check('same-origin HTTP responses succeed', undefined, async () => {
