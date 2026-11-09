@@ -3,7 +3,7 @@ import { SettingsLeaveGuard } from '@/app/(product)/_components/session-state/se
 import { SETTINGS_SECTIONS } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { SettingsScreen } from '@/app/(product)/o/[organizationId]/settings/_components/settings-screen/settings-screen'
 import { resolveLegacyRequestLink } from '@/platform/lib/data/legacy-request-link'
-import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { resolveLiveSetting } from '@/platform/lib/data/settings-navigation'
 
 interface LiveSettingsRouteProps {
@@ -41,9 +41,11 @@ export async function LiveSettingsRoute({
         params.append(name, item)
     }
     if (key === 'privacy' || key === 'authorized-apps') params.set('view', key)
-    redirect(`/settings/${aliases[key]}${params.size ? `?${params}` : ''}`)
+    redirect(
+      `${surfaceHref(organization, `/settings/${aliases[key]}`)}${params.size ? `?${params}` : ''}`
+    )
   }
-  const requestLink = !subpath.length && resolveLegacyRequestLink(key, query)
+  const requestLink = !subpath.length && resolveLegacyRequestLink(organization, key, query)
   if (requestLink) {
     if (!resolveLiveSetting('requests', organization)) notFound()
     redirect(requestLink)

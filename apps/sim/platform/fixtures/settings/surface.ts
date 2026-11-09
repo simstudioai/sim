@@ -1,5 +1,5 @@
 import 'server-only'
-import type { Scenario } from '@/platform/fixtures'
+import { FIXTURE_ORGANIZATION_ID, FIXTURE_ROUTE_PREFIX, type Scenario } from '@/platform/fixtures'
 import { settingsScenarios } from '@/platform/fixtures/settings-data'
 import { shellScenarios } from '@/platform/fixtures/shell-data'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
@@ -25,9 +25,8 @@ export function settingsSurface(scenario: Scenario, plan: PreviewPlan): Platform
   const enterprise = plan === 'enterprise'
   const platformAdmin = scenario === 'stress'
   const surface: Omit<PlatformOrganization, 'settingsSections'> = {
-    organization: { ...organization, id: 'sim', slug: 'sim', logo: null },
-    legacyOrigin: '',
-    routePrefix: '',
+    organization: { ...organization, id: FIXTURE_ORGANIZATION_ID, slug: 'sim', logo: null },
+    routePrefix: FIXTURE_ROUTE_PREFIX,
     viewer: {
       role: 'owner',
       isAdmin: true,

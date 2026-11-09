@@ -13,8 +13,10 @@ import {
   DirectoryHeading,
   DirectoryPage,
 } from '@/app/(product)/_components/resource-directory/resource-directory'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { usePlanHost, usePlanPicker } from '@/platform/lib/data/plans'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface PlanPickerProps {
   organizationId: string
@@ -25,7 +27,8 @@ interface PlanPickerProps {
 /** The organization's plans, reached from Billing's Explore plans and from usage-limit prompts. */
 export function PlanPicker({ organizationId, header }: PlanPickerProps) {
   const search = useSearchParams()
-  const billingHref = platformHref('/settings/billing', search)
+  const scope = useSurfaceScope()
+  const billingHref = platformHref(surfaceHref(scope, '/settings/billing'), search)
   const host = usePlanHost(organizationId)
   return (
     <DirectoryPage>

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
 import { useOrganization } from '@/platform/lib/data/organization'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -29,7 +30,8 @@ interface TroubleshootTarget {
  * only where the viewer can start an agent chat.
  */
 export function useTroubleshootRun() {
-  const { organization, deployment, mothershipAvailable, canBuild } = useOrganization()
+  const surface = useOrganization()
+  const { organization, deployment, mothershipAvailable, canBuild } = surface
   const router = useRouter()
   return {
     available: deployment.chatEnabled && mothershipAvailable && canBuild,
@@ -47,7 +49,7 @@ export function useTroubleshootRun() {
         { message, contexts: [context], requestMode: 'agent' },
         { organizationId: organization.id }
       )
-      if (stored) router.push('/chat')
+      if (stored) router.push(surfaceHref(surface, '/chat'))
     },
   }
 }

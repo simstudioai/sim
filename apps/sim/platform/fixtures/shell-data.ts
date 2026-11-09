@@ -1,9 +1,12 @@
 import 'server-only'
 import type { ShellData } from '@/app/(product)/_components/model'
-import type { Scenario } from '@/platform/fixtures'
+import { FIXTURE_ROUTE_PREFIX, type Scenario } from '@/platform/fixtures'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { workspaceHomePath } from '@/platform/lib/workspace-navigation'
 
 type ShellDetails = Omit<ShellData, 'chats'>
+
+const scope = { routePrefix: FIXTURE_ROUTE_PREFIX }
 
 const leadEnrichment = { id: 'lead-enrichment', name: 'Lead enrichment' }
 const accountReview = { id: 'account-review', name: 'Account review', folder: 'Operations' }
@@ -50,7 +53,7 @@ const full: ShellDetails = {
       description: 'Approval requested in Wiki',
       icon: 'I082',
       unread: true,
-      href: '/home',
+      href: surfaceHref(scope, '/home'),
     },
     {
       id: 'connection',
@@ -58,7 +61,7 @@ const full: ShellDetails = {
       description: 'Connection expired',
       icon: 'I084',
       unread: true,
-      href: '/integrations/salesforce',
+      href: surfaceHref(scope, '/integrations/salesforce'),
     },
     {
       id: 'renewal',
@@ -66,7 +69,7 @@ const full: ShellDetails = {
       description: 'Due tomorrow at 9:00 AM',
       icon: 'I046',
       unread: false,
-      href: '/chat/weekly-review',
+      href: surfaceHref(scope, '/chat/weekly-review'),
     },
   ],
   notifications: [
@@ -76,7 +79,7 @@ const full: ShellDetails = {
       description: 'Customer operations and international onboarding',
       icon: 'I072',
       action: 'Open',
-      href: '/home',
+      href: surfaceHref(scope, '/home'),
     },
     {
       id: 'sync',
@@ -84,7 +87,7 @@ const full: ShellDetails = {
       description: '128 of 360 documents',
       icon: 'I014',
       action: 'View',
-      href: '/home',
+      href: surfaceHref(scope, '/home'),
     },
   ],
 }

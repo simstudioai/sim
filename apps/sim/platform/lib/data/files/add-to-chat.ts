@@ -4,6 +4,7 @@ import { useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from '@/lib/auth/client'
 import { useOrganization } from '@/platform/lib/data/organization'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import type { ChatContext } from '@/stores/panel'
 
@@ -13,7 +14,8 @@ import type { ChatContext } from '@/stores/panel'
  * the `home` key of the viewer's organization (see `useLiveComposer`).
  */
 export function useAddToChat(): (context: ChatContext) => void {
-  const { organization } = useOrganization()
+  const surface = useOrganization()
+  const { organization } = surface
   const { data: session } = useSession()
   const router = useRouter()
   const userId = session?.user?.id
@@ -24,8 +26,8 @@ export function useAddToChat(): (context: ChatContext) => void {
       const store = useMothershipDraftsStore.getState()
       const current = store.drafts[key] ?? { text: '' }
       store.setDraft(key, { ...current, contexts: [...(current.contexts ?? []), context] })
-      router.push('/chat')
+      router.push(surfaceHref(surface, '/chat'))
     },
-    [userId, organization.id, router]
+    [userId, organization.id, router, surface]
   )
 }

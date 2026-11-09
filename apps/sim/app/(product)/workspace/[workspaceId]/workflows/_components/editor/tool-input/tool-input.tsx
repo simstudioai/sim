@@ -105,7 +105,7 @@ import {
   useWorkspaceCredential,
   getMcpToolIssue as validateMcpTool,
 } from '@/platform/lib/data/workflow-editor/tool-input'
-import { platformHref, publicAssetPath } from '@/platform/lib/navigation'
+import { platformHref } from '@/platform/lib/navigation'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 const UNSUPPORTED_CUSTOM_TOOL_MESSAGE = 'Custom tools are not supported by this block yet'
@@ -710,7 +710,7 @@ export const ToolInput = memo(function ToolInput({
   const openMcpSettings = (serverId: string | undefined) => {
     const base = workspacePath(workspaceId, 'settings/mcp')
     const href = serverId ? `${base}?mcpServerId=${encodeURIComponent(serverId)}` : base
-    window.open(publicAssetPath(platformHref(href, search)), '_blank', 'noopener')
+    window.open(platformHref(href, search), '_blank', 'noopener')
   }
 
   const getParamActiveSearchTarget = (

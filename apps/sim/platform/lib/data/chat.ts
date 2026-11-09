@@ -23,11 +23,11 @@ import {
   useMarkMothershipChatRead,
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
-import { platformUrl } from '@/platform/lib/data/base-path'
 import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { isRunningWait, toPlatformTurns } from '@/platform/lib/data/chat-model'
 import { useAssistantReview } from '@/platform/lib/data/chat-review'
 import { useOrganization } from '@/platform/lib/data/organization'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { type SummaryRequest, useSendSummary } from '@/platform/lib/data/search-summary'
 import { plural } from '@/platform/shared/plural'
 import { useToolPermissionStore } from '@/stores/tool-permission/store'
@@ -78,10 +78,6 @@ function useMessageClock(chatId: string | undefined) {
   }
 }
 
-function isNewChatRoute(pathname: string): boolean {
-  return pathname === '/chat' || pathname === '/search'
-}
-
 interface LiveChatOptions {
   chatId?: string
   requestMode: ChatRequestMode
@@ -99,11 +95,13 @@ interface LiveChatOptions {
 export function useLiveChatRuntime({
   chatId,
   requestMode,
-  chatPath = (id) => `/chat/${id}`,
+  chatPath,
   summaryRequest,
   onSummaryConsumed,
 }: LiveChatOptions) {
-  const { organization, canBuild } = useOrganization()
+  const surface = useOrganization()
+  const { organization, canBuild } = surface
+  const pathFor = chatPath ?? ((id: string) => surfaceHref(surface, `/chat/${id}`))
   const organizationId = organization.id
   const router = useRouter()
   const controller = useResourcePanelController()
@@ -111,7 +109,8 @@ export function useLiveChatRuntime({
   const chat = useChat({ organizationId }, chatId, {
     ...getMothershipUseChatOptions({
       requestMode,
-      isNewChatRoute,
+      isNewChatRoute: (pathname) =>
+        pathname === surfaceHref(surface, '/chat') || pathname === surfaceHref(surface, '/search'),
       getChatUrl: (id) => {
         // An Assistant chat keeps its Search view state; a Build chat keeps only its open resource.
         const resource = controller.activeResourceState[0]
@@ -121,7 +120,7 @@ export function useLiveChatRuntime({
             : resource
               ? `?resource=${encodeURIComponent(resource)}`
               : ''
-        return platformUrl(`${chatPath(id)}${query}`)
+        return `${pathFor(id)}${query}`
       },
       onResourceEvent: controller.onResourceEvent,
       activeResourceState: controller.activeResourceState,
@@ -305,7 +304,7 @@ export function useLiveChatRuntime({
       if (result.failedFileCopies) {
         toast.warning(`${plural(result.failedFileCopies, 'file')} could not be copied to the fork`)
       }
-      router.push(chatPath(result.id))
+      router.push(pathFor(result.id))
     },
   }
   return { runtime, chat, panel, controller }

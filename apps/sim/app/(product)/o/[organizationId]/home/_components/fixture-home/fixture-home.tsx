@@ -14,7 +14,9 @@ import type {
   HomeData,
   HomeView,
 } from '@/app/(product)/o/[organizationId]/home/_components/model'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import type {
   HomeCalendarDay,
   HomeConnectOption,
@@ -75,6 +77,7 @@ interface FixtureHomeProps {
 export function FixtureHome({ data, recentLinks }: FixtureHomeProps) {
   const router = useRouter()
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const preferences = useInterfacePreferences()
   const { recents, removeRecent } = useRecentHistory(recentLinks)
   const [dayOffset, setDayOffset] = useState(0)
@@ -119,7 +122,7 @@ export function FixtureHome({ data, recentLinks }: FixtureHomeProps) {
   const actions: HomeActions = {
     email: widgetActions('Email'),
     calendar: widgetActions('Calendar'),
-    openEmail: () => router.push(platformHref('/home', search)),
+    openEmail: () => router.push(platformHref(surfaceHref(scope, '/home'), search)),
     changeDay: (delta) => setDayOffset((offset) => offset + delta),
     returnToToday: () => setDayOffset(0),
     retryAttention: () => {},

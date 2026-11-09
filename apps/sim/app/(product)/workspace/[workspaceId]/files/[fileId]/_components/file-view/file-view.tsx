@@ -49,7 +49,6 @@ import {
 import { useWorkspaceFileFolders } from '@/platform/lib/data/folders'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { folderChain } from '@/platform/lib/folder-chain'
-import { publicAssetPath } from '@/platform/lib/navigation'
 import { workspaceEntry, workspacePath } from '@/platform/lib/workspace-navigation'
 
 interface FileViewProps {
@@ -214,9 +213,7 @@ export function FileView({ workspaceId, fileId }: FileViewProps) {
   }, [file])
 
   const copyLink = useCallback(() => {
-    void copy(
-      `${window.location.origin}${publicAssetPath(`/workspace/${workspaceId}/files/${fileId}`)}`
-    )
+    void copy(`${window.location.origin}/workspace/${workspaceId}/files/${fileId}`)
   }, [copy, workspaceId, fileId])
 
   const folderById = useMemo(

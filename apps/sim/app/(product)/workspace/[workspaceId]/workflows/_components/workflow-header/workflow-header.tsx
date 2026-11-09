@@ -13,6 +13,7 @@ import { RequestAccessModal } from '@/app/(product)/_components/request-access-m
 import { CANVAS_VIEWPORT_OPTIONS } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-canvas/workflow-canvas-constants'
 import { DeployButton } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/deploy-button/deploy-button'
 import { useRegisterGlobalCommands } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/global-commands/global-commands'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { getMyAccessRequestHref } from '@/platform/lib/data/requests'
 import {
   createCommand,
@@ -43,6 +44,7 @@ import {
   type WorkflowFolder,
 } from '@/platform/lib/data/workflows'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 const logger = createLogger('WorkflowHeader')
 
@@ -254,6 +256,7 @@ export function WorkflowTrail({ workspaceId, workflowId }: WorkflowHeaderProps) 
 export function WorkflowActions({ workspaceId, workflowId }: WorkflowHeaderProps) {
   const router = useRouter()
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const { billingEnabled } = useDeploymentShape()
   const { data: session } = useSession()
   const { data: hostContext } = useWorkspaceHostContextQuery(workspaceId)
@@ -300,7 +303,8 @@ export function WorkflowActions({ workspaceId, workflowId }: WorkflowHeaderProps
         message: usageGate?.message ?? null,
         scope: usageGate?.scope ?? null,
       })
-      if (action.type === 'manage-billing') router.push(platformHref('/settings/billing', search))
+      if (action.type === 'manage-billing')
+        router.push(platformHref(surfaceHref(scope, '/settings/billing'), search))
       else toast.error(action.message)
       return
     }

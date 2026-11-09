@@ -35,9 +35,11 @@ import {
   useWorkspaceCreationPolicy,
   useWorkspacesQuery,
 } from '@/platform/lib/data/forks'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 
 /** The sync page carries the mapping editors, which reach the block registry: loaded when opened. */
@@ -72,6 +74,7 @@ function lineagePartnerNames(
 export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionProps) {
   const router = useRouter()
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const { canMutate } = useWorkspaceSettingsSection(workspaceId, 'forks')
   const { billingEnabled } = useDeploymentShape()
   const { data: workspaces } = useWorkspacesQuery()
@@ -272,7 +275,8 @@ export default function ForksSection({ workspaceId }: WorkspaceSettingsSectionPr
           sourceWorkspaceName={workspaceName || 'Workspace'}
           canFork={creationPolicy?.canCreate ?? true}
           onUpgrade={() => {
-            if (billingEnabled) router.push(platformHref('/settings/billing/plans', search))
+            if (billingEnabled)
+              router.push(platformHref(surfaceHref(scope, '/settings/billing/plans'), search))
           }}
           onClose={() => setForking(false)}
         />

@@ -121,7 +121,7 @@ import {
   useUpdateWorkflowGroup,
   type WorkflowGroup,
 } from '@/platform/lib/data/tables'
-import { platformHref, publicAssetPath } from '@/platform/lib/navigation'
+import { platformHref } from '@/platform/lib/navigation'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 /** A menu the grid opens at a viewport point: under a header, or where a cell was right-clicked. */
@@ -746,7 +746,7 @@ export function TableGrid({
   const handleViewWorkflow = useCallback(
     (workflowId: string) => {
       const path = `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(workflowId)}`
-      window.open(publicAssetPath(platformHref(path, search)), '_blank', 'noopener,noreferrer')
+      window.open(platformHref(path, search), '_blank', 'noopener,noreferrer')
     },
     [workspaceId, search]
   )

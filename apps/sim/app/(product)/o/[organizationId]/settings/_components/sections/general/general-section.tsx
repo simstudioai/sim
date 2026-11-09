@@ -9,17 +9,23 @@ import {
 } from '@/app/(product)/o/[organizationId]/settings/_components/sections/account/account-section'
 import PreferencesSection from '@/app/(product)/o/[organizationId]/settings/_components/sections/preferences/preferences-section'
 import PrivacySection from '@/app/(product)/o/[organizationId]/settings/_components/sections/privacy/privacy-section'
+import { type SurfaceScope, surfaceHref } from '@/platform/lib/data/organization-model'
 
 type GeneralView = 'privacy' | 'authorized-apps' | 'organization-accounts'
 
-function generalHref(query: SettingsSectionProps['query'], view?: GeneralView) {
+function generalHref(
+  scope: SurfaceScope,
+  query: SettingsSectionProps['query'],
+  view?: GeneralView
+) {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(query)) {
     if (key === 'view' || value === undefined) continue
     for (const item of Array.isArray(value) ? value : [value]) params.append(key, item)
   }
   if (view) params.set('view', view)
-  return params.size ? `/settings/general?${params}` : '/settings/general'
+  const path = surfaceHref(scope, '/settings/general')
+  return params.size ? `${path}?${params}` : path
 }
 
 export default function GeneralSection(props: SettingsSectionProps) {
@@ -30,7 +36,7 @@ export default function GeneralSection(props: SettingsSectionProps) {
       <>
         <DetailHeader
           backLabel='General'
-          backHref={generalHref(query)}
+          backHref={generalHref(organization, query)}
           title='Privacy'
           description='Control what Sim collects about how you use it.'
         />
@@ -51,7 +57,7 @@ export default function GeneralSection(props: SettingsSectionProps) {
       <AccountSettingsSubview
         organization={organization}
         view={view}
-        backHref={generalHref(query)}
+        backHref={generalHref(organization, query)}
       />
     )
   }
@@ -60,7 +66,10 @@ export default function GeneralSection(props: SettingsSectionProps) {
       <PreferencesSection fixture={fixture} />
       <SettingsSection title='Privacy'>
         <SettingsRow label='Privacy settings'>
-          <Button size='compact' render={<Link href={generalHref(query, 'privacy')} />}>
+          <Button
+            size='compact'
+            render={<Link href={generalHref(organization, query, 'privacy')} />}
+          >
             Manage
           </Button>
         </SettingsRow>
@@ -68,8 +77,8 @@ export default function GeneralSection(props: SettingsSectionProps) {
       <AccountSettingsRows
         fixture={fixture}
         organization={organization}
-        authorizedAppsHref={generalHref(query, 'authorized-apps')}
-        organizationAccountsHref={generalHref(query, 'organization-accounts')}
+        authorizedAppsHref={generalHref(organization, query, 'authorized-apps')}
+        organizationAccountsHref={generalHref(organization, query, 'organization-accounts')}
       />
     </>
   )

@@ -23,9 +23,6 @@ import {
   SidePanelNote,
   SidePanelSection,
 } from '@/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/side-panel/side-panel'
-import { platformUrl } from '@/platform/lib/data/base-path'
-import { useOrganization } from '@/platform/lib/data/organization'
-import { legacyRoutes } from '@/platform/lib/data/organization-model'
 import {
   apportionCredits,
   BASE_EXECUTION_CHARGE,
@@ -183,7 +180,6 @@ interface ExecutionContentProps {
 
 function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProps) {
   const timeZone = useViewerTimeZone()
-  const organization = useOrganization()
   const troubleshoot = useTroubleshootRun()
   const [tab, setTab] = useState<LogTab>('overview')
 
@@ -226,9 +222,7 @@ function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProp
       label: log.trigger === 'mothership' ? 'Job' : 'Workflow',
       value: workflowLabel(log),
       href: workflowId
-        ? platformUrl(
-            `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(workflowId)}`
-          )
+        ? `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(workflowId)}`
         : undefined,
     },
     { id: 'trigger', label: 'Trigger', value: log.trigger ? triggerLabel(log.trigger) : 'None' },
@@ -373,7 +367,7 @@ function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProp
             tooltip
             onClick={() =>
               window.open(
-                `${legacyRoutes(organization).workspace(workspaceId)}/logs?executionId=${encodeURIComponent(executionId)}`,
+                `${workspacePath(workspaceId, 'logs')}?executionId=${encodeURIComponent(executionId)}`,
                 '_blank',
                 'noopener,noreferrer'
               )

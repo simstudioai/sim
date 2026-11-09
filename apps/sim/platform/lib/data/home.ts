@@ -10,6 +10,7 @@ import {
   memberIntegrationEntries,
 } from '@/lib/credential-groups/member-integrations'
 import { hasSearchIntegrationReady } from '@/lib/credential-groups/search-readiness'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import type { HomeWidget } from '@/app/(product)/_components/model'
 import type {
@@ -51,11 +52,7 @@ import {
 } from '@/platform/lib/data/home-model'
 import { useIntegrationActions } from '@/platform/lib/data/integrations'
 import { useOrganization } from '@/platform/lib/data/organization'
-import {
-  legacyRoutes,
-  type PlatformOrganization,
-  surfaceHref,
-} from '@/platform/lib/data/organization-model'
+import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { wallClockMinute } from '@/platform/shared/calendar-meeting'
 import type {
   HomeAccountView,
@@ -291,7 +288,7 @@ function useHomeAttention(
     })),
     requests: requests.data?.requests ?? [],
     reconnect,
-    requestsHref: legacyRoutes(organization).settingsSection('requests'),
+    requestsHref: organizationRoutes(organizationId).settingsSection('requests'),
   })
   const failed = integrations.failure === 'failed' || chats.isError || reviewFailed
   const pending =
@@ -327,7 +324,7 @@ function useHomeGetStarted(
   const shown = enabled && organization.searchAccess.memberScoped
   const canUseSearchMcp = shown && viewer.canUseSearchMcp
   const authorized = useHasSearchAuthorization(canUseSearchMcp)
-  const routes = legacyRoutes(organization)
+  const routes = organizationRoutes(organization.organization.id)
   const steps: HomeGetStartedStep[] = []
   if (shown && viewer.canConnectSearchIntegrations && connectedAccountsAvailable) {
     steps.push({

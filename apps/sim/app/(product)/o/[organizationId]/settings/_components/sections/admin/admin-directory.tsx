@@ -10,6 +10,8 @@ import { Pagination } from '@sim/emcn/pagination'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { StatusTag } from '@sim/emcn/status'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs'
 import { toast } from '@/lib/toast/sink'
 import {
@@ -44,6 +46,7 @@ export function AdminDirectory({
   onImpersonate,
   manageHref,
 }: AdminDirectoryProps) {
+  const router = useRouter()
   const [{ q, offset }, setSearch] = useQueryStates(SEARCH_PARAMS, {
     history: 'replace',
     clearOnDefault: true,
@@ -90,11 +93,8 @@ export function AdminDirectory({
           initial={q}
           onSearch={(term) => {
             if (example) void setSearch({ q: term, offset: 0 })
-            else {
-              const destination = new URL(manageHref)
-              if (term) destination.searchParams.set('q', term)
-              window.location.assign(destination.href)
-            }
+            else
+              router.push(term ? `${manageHref}?${new URLSearchParams({ q: term })}` : manageHref)
           }}
           onAdd={example ? () => setAdding(true) : undefined}
           manageHref={manageHref}
@@ -250,7 +250,7 @@ function DirectorySearch({ initial, onSearch, onAdd, manageHref }: DirectorySear
         </Button>
         <Button
           size='compact'
-          render={onAdd ? undefined : <a href={manageHref}>Manage users</a>}
+          render={onAdd ? undefined : <Link href={manageHref}>Manage users</Link>}
           onClick={onAdd}
         >
           {onAdd ? 'Add user' : 'Manage users'}

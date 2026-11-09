@@ -45,6 +45,7 @@ import {
   WorkflowPanel,
 } from '@/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/workflow-panel/workflow-panel'
 import { useFolderMap } from '@/platform/lib/data/folders'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSocket } from '@/platform/lib/data/realtime'
 import {
   type BlockedTableAction,
@@ -85,6 +86,7 @@ import {
 } from '@/platform/lib/data/tables'
 import { folderChain } from '@/platform/lib/folder-chain'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 /** Blocked-action notices carry a button, so they linger past the default. */
@@ -171,6 +173,7 @@ interface TableRouteProps {
 export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
   const router = useRouter()
   const search = useSearchParams()
+  const surfaceScope = useSurfaceScope()
   const permissions = useWorkspaceUserPermissions(workspaceId)
   const canEdit = permissions.canEdit
   const canAdmin = permissions.canAdmin
@@ -182,7 +185,13 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
       toast.error(message, {
         action: {
           label: 'Upgrade',
-          onClick: () => router.push(platformHref('/settings/billing/plans?reason=tables', search)),
+          onClick: () =>
+            router.push(
+              platformHref(
+                surfaceHref(surfaceScope, '/settings/billing/plans?reason=tables'),
+                search
+              )
+            ),
         },
       })
     },

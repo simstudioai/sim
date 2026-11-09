@@ -36,10 +36,7 @@ export default function PrivacySection({ organization, fixture }: SettingsSectio
         </SettingsRow>
       </SavedSettingsSection>
       {organization.deployment.hosted && (
-        <CookiePreferences
-          fixture={fixture}
-          policyHref={`${organization.legacyOrigin}/cookie-policy`}
-        />
+        <CookiePreferences fixture={fixture} policyHref='/cookie-policy' />
       )}
     </>
   )

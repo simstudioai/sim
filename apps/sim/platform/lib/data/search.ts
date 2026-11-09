@@ -15,6 +15,7 @@ import {
   UPDATED_WINDOWS,
 } from '@/lib/mothership/chat/search-params'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import {
   organizationSearchParsers,
   organizationSearchUrlKeys,
@@ -31,7 +32,7 @@ import {
 } from '@/hooks/queries/search-history'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useOrganization } from '@/platform/lib/data/organization'
-import { legacyRoutes } from '@/platform/lib/data/organization-model'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSummaryQueue } from '@/platform/lib/data/search-summary'
 
 const NO_FILTERS: WorkspaceSearchFilters = {}
@@ -103,7 +104,7 @@ function useSearchResults({
     empty: status === 'ready' && data?.retrieval.status === 'complete' && documents.length === 0,
     noApps:
       !isFetching && data?.live && accounts.length === 0
-        ? { href: legacyRoutes(organization).settingsSection('integrations') }
+        ? { href: organizationRoutes(organization.organization.id).settingsSection('integrations') }
         : undefined,
     someAppsUnavailable: accounts.some((account) =>
       ['unavailable', 'timeout', 'rate_limited', 'reconnect'].includes(account.status)
@@ -299,6 +300,6 @@ export function useStartSearch(): ((query: string) => void) | null {
   if (!organization.searchAccess.memberScoped) return null
   return (query) => {
     record.mutate({ kind: 'query', query })
-    router.push(`/search?${new URLSearchParams({ q: query })}`)
+    router.push(`${surfaceHref(organization, '/search')}?${new URLSearchParams({ q: query })}`)
   }
 }

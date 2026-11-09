@@ -17,7 +17,9 @@ import {
   useInboxTaskFilters,
   useInboxTasks,
 } from '@/platform/lib/data/inbox'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 const STATUS_OPTIONS = [
@@ -68,6 +70,7 @@ interface InboxTaskListProps {
 /** Email tasks this workspace received; a finished one opens its chat. */
 export function InboxTaskList({ workspaceId, address }: InboxTaskListProps) {
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const filters = useInboxTaskFilters()
   const tasks = useInboxTasks(workspaceId, { status: filters.status })
   const now = Date.now()
@@ -135,7 +138,7 @@ export function InboxTaskList({ workspaceId, address }: InboxTaskListProps) {
                 title={task.subject}
                 detail={detail}
                 textMetadata={metadata}
-                href={platformHref(`/chat/${task.chatId}`, search)}
+                href={platformHref(surfaceHref(scope, `/chat/${task.chatId}`), search)}
               />
             ) : (
               <ActivityRow

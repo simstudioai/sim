@@ -17,11 +17,9 @@ import {
   MOTHERSHIP_VIEWS,
   useMothershipView,
 } from '@/platform/lib/data/mothership-admin'
-import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
 
 interface MothershipPanelProps {
-  organization: PlatformOrganization
   referenceTime: number
 }
 
@@ -30,7 +28,7 @@ function lastWeek(referenceTime: number) {
   return { start: minute(referenceTime - 7 * 86400000), end: minute(referenceTime) }
 }
 
-export function MothershipPanel({ organization, referenceTime }: MothershipPanelProps) {
+export function MothershipPanel({ referenceTime }: MothershipPanelProps) {
   const { tab, env, change } = useMothershipView()
   const actions = useFixtureSettingsActions()
   const [range, setRange] = useState(() => lastWeek(actions?.referenceTime ?? referenceTime))
@@ -86,7 +84,7 @@ export function MothershipPanel({ organization, referenceTime }: MothershipPanel
           )}
         </>
       )}
-      {tab === 'licenses' && <MothershipLicenses key={env} env={env} organization={organization} />}
+      {tab === 'licenses' && <MothershipLicenses key={env} env={env} />}
       {tab === 'byok' && <MothershipByok />}
     </SectionStack>
   )

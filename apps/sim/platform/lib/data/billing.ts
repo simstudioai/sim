@@ -37,8 +37,7 @@ import { useUpdateOrganizationUsageLimit } from '@/hooks/queries/organization'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import { useInvoices, useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { useSettingsUnsavedGuard } from '@/hooks/use-settings-unsaved-guard'
-import { platformUrl } from '@/platform/lib/data/base-path'
-import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
 import { queryView } from '@/platform/shared/query-view'
 import { formatCalendarDate, formatInstantDate } from '@/platform/shared/time'
@@ -118,7 +117,9 @@ export function useBillingSection(organization: PlatformOrganization) {
   const state = billing?.subscriptionState
   const weeklyRefresh = getPlanWeeklyRefreshDollars(plan) * (billing?.totalSeats || 1)
   const upgradeHref =
-    !fixture && billing?.upgradeWorkspaceId ? platformUrl('/settings/billing/plans') : null
+    !fixture && billing?.upgradeWorkspaceId
+      ? surfaceHref(organization, '/settings/billing/plans')
+      : null
 
   function openPortal() {
     if (fixture || !canManage) return

@@ -32,8 +32,10 @@ import {
 } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/source-connections'
 import { SourceRow } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/source-row'
 import { SecretSettings } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/source-secrets'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSettingsFixtureDraft } from '@/platform/lib/data/settings-providers'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 type Editor = { type: 'add' | 'secrets' | 'slack' } | { type: 'policy' | 'remove'; id: string }
 interface SourcesViewProps {
@@ -44,8 +46,10 @@ interface SourcesViewProps {
 export function SourcesView({ initial, subpath }: SourcesViewProps) {
   const { data, update } = useSettingsFixtureDraft('integrations', initial)
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const router = useRouter()
-  const href = (suffix = '') => platformHref(`/settings/integrations${suffix}`, search)
+  const href = (suffix = '') =>
+    platformHref(surfaceHref(scope, `/settings/integrations${suffix}`), search)
   const [query, setQuery] = useState('')
   const [editor, setEditor] = useState<Editor | null>(
     search.get('connectedAccounts') === 'slack' ? { type: 'slack' } : null
@@ -134,7 +138,11 @@ export function SourcesView({ initial, subpath }: SourcesViewProps) {
               >
                 <Button
                   size='compact'
-                  render={<Link href={platformHref(`/integrations/${app.id}`, search)} />}
+                  render={
+                    <Link
+                      href={platformHref(surfaceHref(scope, `/integrations/${app.id}`), search)}
+                    />
+                  }
                 >
                   {app.account ? 'Manage account' : 'Connect'}
                 </Button>

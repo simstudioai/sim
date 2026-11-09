@@ -6,6 +6,7 @@ import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { AdminDirectory } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/admin-directory'
@@ -84,7 +85,10 @@ export function AdminPanel({
                   }
                 />
               ) : (
-                <Button size='compact' render={<a href={manageHref}>Manage admin settings</a>}>
+                <Button
+                  size='compact'
+                  render={<Link href={manageHref}>Manage admin settings</Link>}
+                >
                   {settings.superUserModeEnabled ? 'Manage · On' : 'Manage · Off'}
                 </Button>
               )}
@@ -99,7 +103,9 @@ export function AdminPanel({
                 <Button
                   size='compact'
                   disabled={!benchmarkHref}
-                  render={benchmarkHref ? <a href={benchmarkHref}>Open benchmarks</a> : undefined}
+                  render={
+                    benchmarkHref ? <Link href={benchmarkHref}>Open benchmarks</Link> : undefined
+                  }
                 >
                   Open benchmarks
                 </Button>
@@ -122,7 +128,7 @@ export function AdminPanel({
                 ) : (
                   <Button
                     size='compact'
-                    render={<a href={manageHref}>Manage admin settings</a>}
+                    render={<Link href={manageHref}>Manage admin settings</Link>}
                   >{`Change · ${ENVIRONMENTS.find((item) => item.value === settings.mothershipEnvironment)?.label ?? settings.mothershipEnvironment}`}</Button>
                 )}
               </SettingsRow>

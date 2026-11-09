@@ -7,6 +7,7 @@ import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billin
 import { getDesktopBridge } from '@/lib/desktop'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { formatCredentialSubmissionMessage } from '@/lib/mothership/chat/special-tags'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import type { PlatformCredentialRequest } from '@/app/(product)/_components/chat/model'
 import {
@@ -21,7 +22,7 @@ import {
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
 import { useOrganization } from '@/platform/lib/data/organization'
-import { legacyRoutes } from '@/platform/lib/data/organization-model'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 
 /** The card's workspace target, read by the connection hooks in place of a workspace route. */
 export const CredentialWorkspaceProvider = CredentialWorkspaceContext.Provider
@@ -189,7 +190,7 @@ export function useSecretSaver(items: readonly PlatformCredentialRequest[]) {
 }
 
 export function useIntegrationsHref(): string {
-  return legacyRoutes(useOrganization()).settingsSection('integrations')
+  return organizationRoutes(useOrganization().organization.id).settingsSection('integrations')
 }
 
 /** Where a usage refusal sends this viewer, or who they need to ask. */
@@ -202,8 +203,8 @@ export function useUsageLink(action: string) {
     upgrade,
     href: hosted
       ? upgrade
-        ? '/settings/billing/plans?reason=credits'
-        : '/settings/billing'
+        ? surfaceHref(organization, '/settings/billing/plans?reason=credits')
+        : surfaceHref(organization, '/settings/billing')
       : upgrade
         ? buildHostedUpgradeUrl()
         : HOSTED_BILLING_SETTINGS_URL,

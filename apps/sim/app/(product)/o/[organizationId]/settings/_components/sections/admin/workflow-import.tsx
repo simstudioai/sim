@@ -6,6 +6,7 @@ import { TextField } from '@sim/emcn/field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { InlineNotice } from '@sim/emcn/status'
 import { generateId } from '@sim/utils/id'
+import Link from 'next/link'
 import {
   ActionRow,
   FieldStack,
@@ -103,7 +104,7 @@ export function WorkflowImport({
         </form>
       ) : (
         <SettingsRow label='Import a workflow and its copilot chats into a target workspace.'>
-          <Button size='compact' render={<a href={manageHref}>Open workflow importer</a>}>
+          <Button size='compact' render={<Link href={manageHref}>Open workflow importer</Link>}>
             Open workflow importer
           </Button>
         </SettingsRow>

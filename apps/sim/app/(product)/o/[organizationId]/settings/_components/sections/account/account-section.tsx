@@ -61,7 +61,6 @@ export function AccountSettingsSubview({
 }
 
 function SignedInRows({
-  organization,
   fixture,
   authorizedAppsHref,
   organizationAccountsHref,
@@ -99,14 +98,12 @@ function SignedInRows({
           disabled={fixture || signingOut}
           onClick={() => {
             setSigningOut(true)
-            void signOutAndLeave(`${organization.legacyOrigin}/login?fromLogout=true`).then(
-              (left) => {
-                if (!left) {
-                  setSigningOut(false)
-                  toast.error('Failed to sign out. Please try again.')
-                }
+            void signOutAndLeave('/login?fromLogout=true').then((left) => {
+              if (!left) {
+                setSigningOut(false)
+                toast.error('Failed to sign out. Please try again.')
               }
-            )
+            })
           }}
         >
           Sign out
@@ -138,12 +135,7 @@ function SignedInRows({
         onConfirm={() => (email && !fixture ? resetPassword(email) : undefined)}
       />
       {dialog === 'delete' && email && (
-        <DeleteAccount
-          email={email}
-          legacyOrigin={organization.legacyOrigin}
-          fixture={fixture}
-          onClose={() => setDialog(null)}
-        />
+        <DeleteAccount email={email} fixture={fixture} onClose={() => setDialog(null)} />
       )}
     </>
   )
@@ -160,7 +152,7 @@ export function AccountSettingsRows(props: AccountSettingsRowsProps) {
             size='compact'
             render={
               <a
-                href={`${organization.legacyOrigin}/?home`}
+                href='/?home'
                 aria-label='Open home page'
                 target='_blank'
                 rel='noopener noreferrer'

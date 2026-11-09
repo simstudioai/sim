@@ -3,8 +3,10 @@
 import { CommandPalette } from '@sim/emcn/command-palette'
 import { OverlayDialog } from '@sim/emcn/modal/overlay-dialog'
 import { useRegisteredPageCommands } from '@/app/(product)/_components/command-menu/page-commands'
-import { PLATFORM_DESTINATIONS } from '@/app/(product)/_components/destinations'
+import { platformDestinations } from '@/app/(product)/_components/destinations'
 import type { ShellChat, ShellData } from '@/app/(product)/_components/model'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 import type { ShellDestination } from '@/platform/shared/shell'
 
@@ -26,8 +28,9 @@ export function CommandMenu({
   navigate,
   chats,
   workspaces,
-  destinations = PLATFORM_DESTINATIONS,
+  destinations,
 }: CommandMenuProps) {
+  const scope = useSurfaceScope()
   const pageCommands = useRegisteredPageCommands()
   return (
     <OverlayDialog label='Search' presentation='command' open={open} onClose={onClose}>
@@ -50,7 +53,7 @@ export function CommandMenu({
               value: `${COMMAND_PREFIX}${item.id}`,
             })),
           },
-          { items: destinations },
+          { items: destinations ?? platformDestinations(scope) },
           {
             label: 'Workspaces',
             items: workspaces.map((item) => ({
@@ -64,7 +67,7 @@ export function CommandMenu({
             items: chats.map((item) => ({
               id: item.id,
               label: item.title,
-              value: item.href ?? `/chat/${item.id}`,
+              value: item.href ?? surfaceHref(scope, `/chat/${item.id}`),
             })),
           },
         ]}

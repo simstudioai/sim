@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
+import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
 import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
-import { useOrganization } from '@/platform/lib/data/organization'
-import { legacyRoutes } from '@/platform/lib/data/organization-model'
-import { publicAssetPath } from '@/platform/lib/navigation'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 /** One scope of secret names offered after `{{`: the workspace's or the viewer's own. */
@@ -38,7 +36,6 @@ export function useEnvVarSuggestions({
   onClose,
   workspaceId,
 }: EnvVarSuggestionsOptions) {
-  const organization = useOrganization()
   const { data: personalEnv = {} } = usePersonalEnvironment()
   const { data: workspaceEnvData } = useWorkspaceEnvironment(workspaceId ?? '')
 
@@ -83,8 +80,8 @@ export function useEnvVarSuggestions({
       })
     }
     const settingsHref = workspaceId
-      ? publicAssetPath(workspacePath(workspaceId, 'settings/secrets'))
-      : legacyRoutes(organization).workspaceSettings
+      ? workspacePath(workspaceId, 'settings/secrets')
+      : WORKSPACE_SETTINGS_PATH
     window.open(settingsHref, '_blank', 'noopener,noreferrer')
     onClose?.()
   }

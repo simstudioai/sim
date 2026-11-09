@@ -9,6 +9,7 @@ import { CopyField } from '@sim/emcn/field/value-fields'
 import { DatePicker } from '@sim/emcn/picker/date-picker'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
+import Link from 'next/link'
 import {
   ActionRow,
   FieldStack,
@@ -16,10 +17,10 @@ import {
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import {
   type LicenseDraft,
+  licenseGeneratorHref,
   type MothershipEnv,
   useLicenseList,
 } from '@/platform/lib/data/mothership-admin'
-import { legacyRoutes, type PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
 import { formatCalendarDate, formatTimestamp } from '@/platform/shared/time'
@@ -115,10 +116,9 @@ function LicenseForm({ generate }: LicenseFormProps) {
 
 interface LicensesProps {
   env: MothershipEnv
-  organization: PlatformOrganization
 }
 
-export function MothershipLicenses({ env, organization }: LicensesProps) {
+export function MothershipLicenses({ env }: LicensesProps) {
   const list = useLicenseList(env)
   const actions = useFixtureSettingsActions()
   return (
@@ -133,9 +133,7 @@ export function MothershipLicenses({ env, organization }: LicensesProps) {
           >
             <Button
               size='compact'
-              render={
-                <a href={legacyRoutes(organization).mothershipLicenses(env)}>Generate license</a>
-              }
+              render={<Link href={licenseGeneratorHref(env)}>Generate license</Link>}
             >
               Generate license
             </Button>

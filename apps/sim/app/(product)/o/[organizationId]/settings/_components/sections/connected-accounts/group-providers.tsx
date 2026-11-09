@@ -25,7 +25,9 @@ import type {
   CredentialProvider,
   DatabricksConfiguration,
 } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface GroupProvidersProps {
   databricks?: DatabricksConfiguration
@@ -120,6 +122,7 @@ export function GroupProviders({
     parseAsString.withDefault('')
   )
   const params = useSearchParams()
+  const scope = useSurfaceScope()
   const [team, setTeam] = useState<string | null>(null)
   const slackTeams = data.slackTeams ?? []
   const selectedTeam = team ?? (slackTeams.length === 1 ? slackTeams[0] : null)
@@ -280,7 +283,11 @@ export function GroupProviders({
                 description='Verify member permissions. Members will need to reconnect if their app or permissions change.'
               />
             )}
-            <Button render={<Link href={platformHref('/settings/search-slack', params)} />}>
+            <Button
+              render={
+                <Link href={platformHref(surfaceHref(scope, '/settings/search-slack'), params)} />
+              }
+            >
               {selectedTeam ? 'Manage Sim Search app' : 'Install Sim Search'}
             </Button>
           </FieldStack>

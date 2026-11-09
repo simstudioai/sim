@@ -7,6 +7,12 @@ import type { PreviewPlan } from '@/platform/lib/navigation'
 
 export type Scenario = 'empty' | 'full' | 'stress'
 
+/** The example organization's id. */
+export const FIXTURE_ORGANIZATION_ID = 'sim'
+
+/** The example organization's `routePrefix`: its routes live under `/o/sim`. */
+export const FIXTURE_ROUTE_PREFIX = `/o/${FIXTURE_ORGANIZATION_ID}`
+
 export interface PreviewData {
   collections: {
     recent: RecentItem[]

@@ -84,7 +84,7 @@ import {
   useWorkflows,
   type WorkflowMetadata,
 } from '@/platform/lib/data/workflows'
-import { platformHref, publicAssetPath } from '@/platform/lib/navigation'
+import { platformHref } from '@/platform/lib/navigation'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 const ROOT_LABEL = 'Workflows'
@@ -595,7 +595,7 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
         label: 'Open in new tab',
         icon: 'I037',
         // A new window takes the URL as written, so it needs the base path the router adds.
-        onSelect: () => void window.open(publicAssetPath(editorHref(workflow.id)), '_blank'),
+        onSelect: () => void window.open(editorHref(workflow.id), '_blank'),
       },
       {
         id: 'rename',

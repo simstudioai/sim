@@ -12,6 +12,7 @@ import {
   IntegrationsPage as PageFrame,
 } from '@/app/(product)/o/[organizationId]/integrations/_components/integrations-page/integrations-page'
 import { ProviderHeading } from '@/app/(product)/o/[organizationId]/integrations/_components/provider-heading/provider-heading'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import type { IntegrationCatalogEntry } from '@/platform/lib/integrations/catalog-model'
 import type { AppSummary, IntegrationCenterData } from '@/platform/lib/integrations/center-model'
 import {
@@ -26,6 +27,7 @@ import {
   type IntegrationsData,
   memberIntegrationHref,
 } from '@/platform/lib/integrations/fixture-model'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface IntegrationsPageProps {
   data: IntegrationsData | null
@@ -44,6 +46,7 @@ export function IntegrationsPage({ data, center, section, catalog }: Integration
 
 function IntegrationsContent({ data, center, section, catalog }: IntegrationsPageProps) {
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const { integrations, save } = useOrganizationIntegrations(data)
   const library = useIntegrationCenterResources(center)
   const item = integrations.find((entry) => entry.providerId === section)
@@ -71,7 +74,10 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
     connected: true,
     scope: credentialSharing(credential),
     href: serializeCredential(
-      memberIntegrationHref(`/integrations/${encodeURIComponent(credential.appId)}`, search),
+      memberIntegrationHref(
+        surfaceHref(scope, `/integrations/${encodeURIComponent(credential.appId)}`),
+        search
+      ),
       { credential: credential.id, credentialFrom: 'credentials' }
     ),
   }))
@@ -79,7 +85,10 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
     <PageFrame
       back={
         (item && !center) || secrets
-          ? { href: memberIntegrationHref('/integrations', search), label: 'Integrations' }
+          ? {
+              href: memberIntegrationHref(surfaceHref(scope, '/integrations'), search),
+              label: 'Integrations',
+            }
           : undefined
       }
     >
@@ -90,14 +99,17 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
               key={item.providerId}
               integration={item}
               backHrefs={{
-                integrations: memberIntegrationHref('/integrations', search),
-                credentials: serializeCredential(memberIntegrationHref('/integrations', search), {
-                  ...clearCredentialView,
-                  credential: null,
-                }),
+                integrations: memberIntegrationHref(surfaceHref(scope, '/integrations'), search),
+                credentials: serializeCredential(
+                  memberIntegrationHref(surfaceHref(scope, '/integrations'), search),
+                  {
+                    ...clearCredentialView,
+                    credential: null,
+                  }
+                ),
                 app: serializeCredential(
                   memberIntegrationHref(
-                    `/integrations/${encodeURIComponent(item.providerId)}`,
+                    surfaceHref(scope, `/integrations/${encodeURIComponent(item.providerId)}`),
                     search
                   ),
                   { ...clearCredentialView, credential: null }
@@ -135,7 +147,10 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
             name: integration.name,
             description: integration.description,
             category: integration.category ?? 'Other',
-            href: memberIntegrationHref(`/integrations/${integration.providerId}`, search),
+            href: memberIntegrationHref(
+              surfaceHref(scope, `/integrations/${integration.providerId}`),
+              search
+            ),
             connected:
               integration.credentials.length > 0 ||
               manualCredentials.some((credential) => credential.appId === integration.providerId),
@@ -173,7 +188,10 @@ function IntegrationsContent({ data, center, section, catalog }: IntegrationsPag
                         ? ('shared' as const)
                         : ('personal' as const),
                     connected: true,
-                    href: memberIntegrationHref('/integrations/secrets', search),
+                    href: memberIntegrationHref(
+                      surfaceHref(scope, '/integrations/secrets'),
+                      search
+                    ),
                   },
                 ]
               : []),

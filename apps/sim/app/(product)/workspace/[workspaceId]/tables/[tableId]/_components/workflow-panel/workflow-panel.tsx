@@ -25,7 +25,6 @@ import {
 } from '@/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/workflow-panel/outputs'
 import { RunAfterField } from '@/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/workflow-panel/run-after-field'
 import styles from '@/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/workflow-panel/workflow-panel.module.css'
-import { platformUrl } from '@/platform/lib/data/base-path'
 import {
   type AddWorkflowGroupBodyInput,
   type ColumnDefinition,
@@ -482,9 +481,7 @@ function WorkflowPanelForm({
                 trailingIcon='I037'
                 onClick={() =>
                   window.open(
-                    platformUrl(
-                      `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(selectedWorkflowId)}`
-                    ),
+                    `${workspacePath(workspaceId, 'workflows')}/${encodeURIComponent(selectedWorkflowId)}`,
                     '_blank',
                     'noopener,noreferrer'
                   )

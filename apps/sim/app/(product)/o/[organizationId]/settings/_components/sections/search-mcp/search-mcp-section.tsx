@@ -12,6 +12,7 @@ import {
   Preformatted,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
+import { getBaseUrl } from '@/platform/lib/data/mcp'
 
 const CLIENTS = [
   {
@@ -86,9 +87,7 @@ function ConnectionInstructions({ endpoint, client }: ConnectionInstructionsProp
 
 export default function SearchMcpSection({ organization }: SettingsSectionProps) {
   const [client, setClient] = useState<(typeof CLIENTS)[number]>(CLIENTS[0])
-  const origin =
-    organization.legacyOrigin || (typeof window === 'undefined' ? '' : window.location.origin)
-  const endpoint = `${origin}/api/mcp/search/organizations/${encodeURIComponent(organization.organization.id)}`
+  const endpoint = `${getBaseUrl()}/api/mcp/search/organizations/${encodeURIComponent(organization.organization.id)}`
   return (
     <SettingsSection title='Connection'>
       {organization.viewer.canUseSearchMcp ? (

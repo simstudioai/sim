@@ -21,6 +21,7 @@ import {
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { InviteTeammatesModal } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/teammates/invite-teammates-modal'
 import styles from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/teammates/teammates.module.css'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import {
   useCancelWorkspaceInvitation,
   useDeploymentShape,
@@ -37,6 +38,7 @@ import {
 } from '@/platform/lib/data/teammates'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { formatInstantDate } from '@/platform/shared/time'
 
 const ROLE_OPTIONS = [
@@ -101,6 +103,7 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
   )
   const router = useRouter()
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const { copy } = useClipboard()
   const { billingEnabled } = useDeploymentShape()
   const [searchTerm, setSearchTerm] = useSettingsSearch()
@@ -154,7 +157,10 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
 
   const handleInvite = () => {
     if (isInvitationsDisabled) {
-      if (billingEnabled) router.push(platformHref('/settings/billing/plans?reason=seats', search))
+      if (billingEnabled)
+        router.push(
+          platformHref(surfaceHref(scope, '/settings/billing/plans?reason=seats'), search)
+        )
       return
     }
     setInviting(true)

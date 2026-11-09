@@ -9,7 +9,6 @@ import { useAccountDeletion } from '@/platform/lib/data/account'
 
 interface DeleteAccountProps {
   email: string
-  legacyOrigin: string
   fixture?: true
   onClose: () => void
 }
@@ -18,8 +17,8 @@ interface DeleteAccountProps {
  * Names every workspace that goes, every workspace that changes hands, and, when the account cannot
  * be deleted yet, what has to happen first. Retyping the account's email is the only guard.
  */
-export function DeleteAccount({ email, legacyOrigin, fixture, onClose }: DeleteAccountProps) {
-  const deletion = useAccountDeletion(email, legacyOrigin)
+export function DeleteAccount({ email, fixture, onClose }: DeleteAccountProps) {
+  const deletion = useAccountDeletion(email)
   const [confirmation, setConfirmation] = useState('')
   const blocked = deletion.blockers.length > 0
   return (

@@ -13,7 +13,6 @@ import styles from '@/app/(product)/o/[organizationId]/people/_components/person
 import { PersonModal } from '@/app/(product)/o/[organizationId]/people/_components/person/person-modal'
 import { PersonIdentity } from '@/app/(product)/o/[organizationId]/people/_components/person-identity/person-identity'
 import { usePeoplePath, usePeopleViewer, usePersonProfile } from '@/platform/lib/data/people'
-import { publicAssetPath } from '@/platform/lib/navigation'
 import {
   type Person,
   type PersonSummary,
@@ -156,9 +155,7 @@ export function PersonProfile({ organizationId, memberId }: PersonProfileProps) 
             <Button
               icon={copied ? 'I072' : 'I006'}
               onClick={() =>
-                void copy(
-                  `${window.location.origin}${publicAssetPath(personHref(peoplePath, memberId))}`
-                )
+                void copy(`${window.location.origin}${personHref(peoplePath, memberId)}`)
               }
             >
               {copied ? 'Copied' : 'Copy profile link'}

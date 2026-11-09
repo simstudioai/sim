@@ -5,6 +5,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/members/members.module.css'
 import type { useMembers } from '@/platform/lib/data/members'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { plural } from '@/platform/shared/plural'
 
 interface SeatsOverviewProps {
@@ -12,6 +14,7 @@ interface SeatsOverviewProps {
 }
 
 export function SeatsOverview({ seats }: SeatsOverviewProps) {
+  const scope = useSurfaceScope()
   if (seats.status === 'pending') return null
   if (seats.status === 'error')
     return (
@@ -31,7 +34,11 @@ export function SeatsOverview({ seats }: SeatsOverviewProps) {
           label='No active Team subscription'
           description='Purchase a Team plan to invite teammates to this organization.'
         >
-          <Button render={<Link href='/settings/billing' />} variant='primary' size='compact'>
+          <Button
+            render={<Link href={surfaceHref(scope, '/settings/billing')} />}
+            variant='primary'
+            size='compact'
+          >
             View plans
           </Button>
         </SettingsRow>

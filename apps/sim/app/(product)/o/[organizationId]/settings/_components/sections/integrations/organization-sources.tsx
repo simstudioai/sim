@@ -6,6 +6,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import Link from 'next/link'
 import { SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { SearchSource } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/model'
 import { SourceRow } from '@/app/(product)/o/[organizationId]/settings/_components/sections/integrations/source-row'
@@ -42,7 +43,7 @@ export function OrganizationSources({
               label={app.name}
               description={app.account ?? 'No account connected'}
             >
-              <Button size='compact' render={<a href={manageHref}>Manage</a>}>
+              <Button size='compact' render={<Link href={manageHref}>Manage</Link>}>
                 Manage
               </Button>
             </SettingsRow>

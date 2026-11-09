@@ -24,7 +24,9 @@ import { IssueComparison } from '@/app/(product)/workspace/[workspaceId]/issues/
 import styles from '@/app/(product)/workspace/[workspaceId]/issues/_components/issue-details/issue-details.module.css'
 import { ISSUE_STATE_LABEL } from '@/app/(product)/workspace/[workspaceId]/issues/_components/issue-list/issue-state'
 import { SourceExcerpt } from '@/app/(product)/workspace/[workspaceId]/issues/_components/source-excerpt/source-excerpt'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatTimestamp } from '@/platform/shared/time'
 
@@ -64,6 +66,7 @@ const CONFIRM = {
  */
 export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) {
   const search = useSearchParams()
+  const scope = useSurfaceScope()
   const timeZone = useViewerTimeZone()
   const [pending, setPending] = useState<IssueDecision | null>(null)
   const [confirming, setConfirming] = useState<'deny' | 'cancel' | null>(null)
@@ -121,7 +124,14 @@ export function IssueDetails({ issue, actions, back, read }: IssueDetailsProps) 
           size='compact'
           disabled={busy}
           render={
-            <Link href={href(`/integrations/${encodeURIComponent(issue.blockedBy.providerId)}`)} />
+            <Link
+              href={href(
+                surfaceHref(
+                  scope,
+                  `/integrations/${encodeURIComponent(issue.blockedBy.providerId)}`
+                )
+              )}
+            />
           }
         >
           Reconnect integration

@@ -4,7 +4,7 @@ import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
 import { useSearchParams } from 'next/navigation'
 import styles from '@/app/(product)/workspace/[workspaceId]/_components/workspace-changes/workspace-changes.module.css'
-import { isAbsoluteHref, platformHref } from '@/platform/lib/navigation'
+import { platformHref } from '@/platform/lib/navigation'
 import type { WorkspaceChange } from '@/platform/shared/workspace-records'
 
 interface WorkspaceChangesProps {
@@ -36,7 +36,7 @@ export function WorkspaceChanges({ title = 'Workspace changes', changes }: Works
               title={change.name}
               detail={change.type}
               leading={leading}
-              href={isAbsoluteHref(change.href) ? change.href : platformHref(change.href, search)}
+              href={platformHref(change.href, search)}
             />
           ) : (
             <ActivityRow

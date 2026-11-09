@@ -61,7 +61,6 @@ import {
   useUrlSort,
 } from '@/platform/lib/data/knowledge'
 import { folderChain } from '@/platform/lib/folder-chain'
-import { publicAssetPath } from '@/platform/lib/navigation'
 
 /** Chunk search feels snappier than the shared window, as it does on the legacy page. */
 const SEARCH_DEBOUNCE_MS = 200
@@ -375,9 +374,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
           label: 'Open in new tab',
           onSelect: () =>
             window.open(
-              publicAssetPath(
-                documentHref(workspaceId, knowledgeBaseId, documentId, search, target.id)
-              ),
+              documentHref(workspaceId, knowledgeBaseId, documentId, search, target.id),
               '_blank',
               'noopener'
             ),

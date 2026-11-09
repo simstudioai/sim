@@ -12,7 +12,9 @@ import type {
   EmailItem,
 } from '@/app/(product)/o/[organizationId]/home/_components/model'
 import { RetryButton } from '@/app/(product)/o/[organizationId]/home/_components/retry-button/retry-button'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
+import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import type { HomeListState } from '@/platform/shared/home'
 import { formatRelativeTime } from '@/platform/shared/time'
 
@@ -59,6 +61,7 @@ function AttentionRow({
   asOf: number
   search: ReturnType<typeof useSearchParams>
 }) {
+  const scope = useSurfaceScope()
   const leading = <Icon name={row.icon} />
   const metadata = relativeTime(row.occurredAt, asOf)
   return row.onOpen ? (
@@ -75,7 +78,7 @@ function AttentionRow({
       title={row.title}
       detail={row.detail}
       textMetadata={metadata}
-      href={platformHref(row.href ?? '/home', search)}
+      href={platformHref(row.href ?? surfaceHref(scope, '/home'), search)}
     />
   )
 }

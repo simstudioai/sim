@@ -1,5 +1,6 @@
 export type { SsoProviderView } from '@/lib/api/contracts/auth'
 export type { OrganizationDomain } from '@/lib/api/contracts/organization'
+export { getBaseUrl } from '@/lib/core/utils/urls'
 export { SSO_TRUSTED_PROVIDERS } from '@/ee/sso/constants'
 export {
   useAddOrganizationDomain,
@@ -34,4 +35,4 @@ export {
   validateSsoProviderForm,
 } from '@/ee/sso/lib/provider-form'
 export { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
-export { useSsoOrigin, useSsoSettingsParams } from './params'
+export { useSsoSettingsParams } from './params'
