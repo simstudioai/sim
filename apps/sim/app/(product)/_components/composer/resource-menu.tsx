@@ -25,7 +25,10 @@ interface ResourceMenuProps {
   onUploadFolder?: () => void
   /** Whether a workspace itself is a pick, first in its submenu; the chat panel opens none. */
   selectWorkspaces?: boolean
-  /** Whether an opened workspace's families have arrived, so an empty submenu says it has none. */
+  /**
+   * Whether an opened workspace's families have arrived, so an empty submenu says it has none.
+   * Until then it opens no panel.
+   */
   workspaceLoaded?: (workspaceId: string) => boolean
 }
 
@@ -113,21 +116,16 @@ function browseRows(
       select,
       moreFor && ((group) => moreFor(workspace.id, group))
     )
-    const placeholder: MenuAction = {
-      id: `${workspace.id}:empty`,
-      label: workspaceLoaded?.(workspace.id) ? 'No resources' : 'Loading…',
-      disabled: true,
-    }
-    const [first, ...rest] = [
-      ...(selectWorkspaces ? [selection(workspace, select)] : []),
-      ...families,
-    ]
+    const rows = [...(selectWorkspaces ? [selection(workspace, select)] : []), ...families]
+    const empty: MenuAction[] = workspaceLoaded?.(workspace.id)
+      ? [{ id: `${workspace.id}:empty`, label: 'No resources', disabled: true }]
+      : []
     return {
       id: workspace.id,
       label: workspace.name,
       icon: workspace.icon,
       onOpen: openWorkspace && (() => openWorkspace(workspace.id)),
-      children: first ? [first, ...rest] : [placeholder],
+      children: rows.length > 0 ? rows : empty,
     }
   })
   return [...workspaceRows, ...familyRows(byWorkspace.get(undefined) ?? [], select)]

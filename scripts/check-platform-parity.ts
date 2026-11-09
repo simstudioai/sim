@@ -17,7 +17,15 @@ import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
 
-const STATUSES = new Set(['Done', 'Done, not copied', 'Unverified', 'Legacy', 'Hidden', 'Open'])
+const STATUSES = new Set([
+  'Done',
+  'Done, not copied',
+  'Unverified',
+  'Legacy',
+  'Hidden',
+  'Open',
+  'Declined',
+])
 const HEADERS = new Set([
   'Domain|Capability|Legacy source|Status|Proof or reason',
   'Capability|Legacy source|Status|Proof or reason',
