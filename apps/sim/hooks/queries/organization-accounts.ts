@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react'
 import { generateId } from '@sim/utils/id'
 import {
   isServer,
+  type QueryClient,
   queryOptions,
   useInfiniteQuery,
   useMutation,
@@ -136,13 +137,8 @@ export function useDisconnectPersonalOrganizationAccount() {
     onSuccess: async (_data, { organizationId }) => {
       await Promise.all([
         resetOrganizationSearchAccess(queryClient, organizationId),
-        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+        invalidateOrganizationAccounts(queryClient, organizationId),
         queryClient.invalidateQueries({ queryKey: personalSearchIntegrationKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
-        invalidateSelectorQueries(queryClient),
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.detail(organizationId),
-        }),
         queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.personal() }),
       ])
       router.refresh()
@@ -202,19 +198,28 @@ export function useUpdateOrganizationAccounts() {
       }),
     onSuccess: (_, { organizationId }) =>
       Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.detail(organizationId),
-        }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
-        invalidateSelectorQueries(queryClient),
+        invalidateOrganizationAccounts(queryClient, organizationId),
         queryClient.invalidateQueries({
           queryKey: slackSearchKeys.organizationManifests(organizationId),
         }),
         queryClient.invalidateQueries({ queryKey: slackSearchKeys.list(organizationId) }),
       ]),
   })
+}
+
+/**
+ * Everything an organization's account configuration feeds: its accounts, their workspace access,
+ * people and setup, the viewer's personal credentials, the managed MCP catalog and the credential
+ * selectors. Every mutation of that configuration invalidates this one list.
+ */
+export function invalidateOrganizationAccounts(queryClient: QueryClient, organizationId: string) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.detail(organizationId) }),
+    queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
+    queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
+    queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
+    invalidateSelectorQueries(queryClient),
+  ])
 }
 
 /** Everything a newly connected account changes, including what Search can now reach. */
