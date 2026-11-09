@@ -8,7 +8,6 @@ import {
   type MentionRow,
 } from '@/lib/api/contracts/organization-mentions'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import type { ComposerController } from '@/app/(product)/_components/composer/model'
 import {
   type MentionRequest,
   useMentionsFollowMutations,
@@ -126,6 +125,9 @@ const FAMILY_BY_GROUP = new Map(
 )
 
 /** Mention rows as the pickers list them, in groups by family. */
+/** Whether the `/` list has landed, which a message naming a `/skill` waits for. */
+export type SkillListStatus = 'pending' | 'landed' | 'failed'
+
 export function grouped(rows: readonly MentionRow[] | undefined) {
   const groups = new Map<string, MentionReference[]>()
   for (const row of rows ?? []) {
@@ -251,11 +253,7 @@ export function useMentionInventory(enabled: boolean, organizationId: string, se
     enabled,
     organizationId
   )
-  const skillList: ComposerController['skillList'] = skills.data
-    ? 'landed'
-    : skills.isError
-      ? 'failed'
-      : 'pending'
+  const skillList: SkillListStatus = skills.data ? 'landed' : skills.isError ? 'failed' : 'pending'
   return {
     references: grouped(suggestions.data?.rows),
     referencesLoading:

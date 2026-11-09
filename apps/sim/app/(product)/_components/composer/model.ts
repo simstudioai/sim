@@ -1,5 +1,6 @@
 import type { DragEvent } from 'react'
 import type { IconName } from '@sim/emcn/catalog/icon-geometry'
+import type { SkillListStatus } from '@/platform/lib/data/chat-mentions'
 import type { ChatContext, FileAttachmentForApi } from '@/platform/lib/data/chat-types'
 
 export interface ChatAttachment {
@@ -134,7 +135,7 @@ export interface ComposerController extends ComposerInventory {
    * Whether the `/` list has landed, for a host that reads it after the composer opens. A message
    * naming a `/skill` waits while it is pending, so the name is sent as the skill and not as text.
    */
-  skillList?: 'pending' | 'landed' | 'failed'
+  skillList?: SkillListStatus
   /** Tells the host a picker opened, which is when it reads the inventories behind them. */
   onPickerOpen?: () => void
   /** What follows an `@` as it is typed, which the host searches by. */
