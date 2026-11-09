@@ -3,7 +3,6 @@
 import { useRef, useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { Input } from '@sim/emcn/field/inputs'
 import { FindBar } from '@sim/emcn/find-bar'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { useRouter } from 'next/navigation'
