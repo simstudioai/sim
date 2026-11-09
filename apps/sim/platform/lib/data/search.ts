@@ -21,9 +21,8 @@ import {
   organizationSearchUrlKeys,
 } from '@/lib/organizations/search-params'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
-import { toast } from '@/lib/toast/sink'
 import type { PlatformResource } from '@/app/(product)/_components/chat/model'
-import type { SearchResultsData, SearchSourceRow } from '@/app/(product)/_components/search/model'
+import type { SearchResultsData } from '@/app/(product)/_components/search/model'
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 import {
   useClearSearchHistory,
@@ -34,6 +33,8 @@ import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSummaryQueue } from '@/platform/lib/data/search-summary'
+
+type SearchSourceRow = SearchResultsData['rows'][number]
 
 const NO_FILTERS: WorkspaceSearchFilters = {}
 /** A tab without a retrieval address runs nothing: an empty query never enables the read. */
@@ -111,9 +112,6 @@ function useSearchResults({
     ),
     partial: !data?.live && data?.retrieval.status === 'partial',
     rows,
-    onCopyLink: (row) => {
-      navigator.clipboard.writeText(row.url).catch(() => toast.error('Unable to copy link'))
-    },
     onOpen: (row) => onRecordSource?.(row),
     // A row's document stops being what it read as while its results may still change.
     onSummarize: isFetching ? undefined : onSummarize,
