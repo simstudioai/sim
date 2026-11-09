@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import { project, workspace } from '@sim/db/schema'
 import { asc, eq, inArray, or } from 'drizzle-orm'
+import { resolvePayerOrganizationId } from '@/lib/billing/core/payer-organization'
 import type { ProjectStorageOwnerSnapshot } from '@/lib/billing/storage/context'
 import {
   type ChangeProjectStoragePayerParams,
@@ -82,7 +83,9 @@ async function planProjectDeletion(
 ): Promise<ProjectDeletionDecision> {
   const survivors = members.filter((row) => !doomed.has(row.id))
   if (!survivors.length) {
-    return record.organizationId || record.ownerId !== userId
+    /** A personal organization's Project is the owner's own, as an organization-less one was. */
+    const teamOwned = (await resolvePayerOrganizationId(executor, record.organizationId)) !== null
+    return teamOwned || record.ownerId !== userId
       ? { blocker: 'Account deletion cannot remove another owner’s Project' }
       : { remove: true }
   }

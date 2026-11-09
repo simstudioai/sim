@@ -53,14 +53,17 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       .where(
         and(
           eq(member.userId, session.user.id),
-          or(eq(member.role, 'owner'), eq(member.role, 'admin'))
+          or(eq(member.role, 'owner'), eq(member.role, 'admin')),
+          eq(organization.kind, 'team')
         )
       )
 
+    /** A personal organization is no team membership: its owner may still start or join one. */
     const anyMembership = await db
       .select({ id: member.id })
       .from(member)
-      .where(eq(member.userId, session.user.id))
+      .innerJoin(organization, eq(member.organizationId, organization.id))
+      .where(and(eq(member.userId, session.user.id), eq(organization.kind, 'team')))
       .limit(1)
 
     return NextResponse.json({
@@ -105,13 +108,15 @@ export const POST = withRouteHandler(async (request: Request) => {
       organizationSlug = parsedBody.data.slug
     }
 
+    /** A personal organization becomes the new team in place, so only a team membership counts. */
     const existingOrgMembership = await db
       .select({
         organizationId: member.organizationId,
         role: member.role,
       })
       .from(member)
-      .where(eq(member.userId, user.id))
+      .innerJoin(organization, eq(member.organizationId, organization.id))
+      .where(and(eq(member.userId, user.id), eq(organization.kind, 'team')))
       .limit(1)
 
     const existingAdminMembership =

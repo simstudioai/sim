@@ -1,6 +1,7 @@
 import {
   knowledgeBase,
   member,
+  organization,
   permissionGroup,
   simLink,
   ssoProvider,
@@ -12,7 +13,10 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
 
-/** Organization references survive even when their creator no longer has a membership row. */
+/**
+ * Organization references survive even when their creator no longer has a membership row. A
+ * personal organization has no one to hand anything to: its content leaves with it.
+ */
 export async function listSharedResourceOrganizationIdsForUser(executor: DbOrTx, userId: string) {
   const rows = await executor.execute<{ organizationId: string }>(sql`
     SELECT DISTINCT "organizationId" FROM (
@@ -22,7 +26,9 @@ export async function listSharedResourceOrganizationIdsForUser(executor: DbOrTx,
         WHERE ${workspaceFiles.userId} = ${userId} AND ${workspaceFiles.workspaceId} IS NULL
       UNION ALL SELECT ${permissionGroup.organizationId} FROM ${permissionGroup} WHERE ${permissionGroup.createdBy} = ${userId}
       UNION ALL SELECT ${ssoProvider.organizationId} FROM ${ssoProvider} WHERE ${ssoProvider.userId} = ${userId}
-    ) owned WHERE "organizationId" IS NOT NULL ORDER BY "organizationId"
+    ) owned
+    JOIN ${organization} ON ${organization.id} = owned."organizationId" AND ${organization.kind} = 'team'
+    ORDER BY "organizationId"
   `)
   return rows.map((row) => row.organizationId)
 }
@@ -138,9 +144,11 @@ export async function listLeftoverSimLinkOrganizationIdsForUser(
   const rows = await executor
     .selectDistinct({ organizationId: simLink.organizationId })
     .from(simLink)
+    .innerJoin(organization, eq(organization.id, simLink.organizationId))
     .where(
       and(
         eq(simLink.createdBy, userId),
+        eq(organization.kind, 'team'),
         excludedOrganizationIds.length > 0
           ? notInArray(simLink.organizationId, excludedOrganizationIds)
           : undefined

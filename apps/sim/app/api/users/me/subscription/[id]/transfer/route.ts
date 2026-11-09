@@ -71,13 +71,21 @@ export const POST = withRouteHandler(
         }
 
         const [org] = await tx
-          .select({ id: organization.id })
+          .select({ id: organization.id, kind: organization.kind })
           .from(organization)
           .where(eq(organization.id, organizationId))
           .for('update')
 
         if (!org) {
           return { kind: 'error', status: 404, error: 'Organization not found' }
+        }
+        /** A personal organization bills its owner personally; a plan on it would never apply. */
+        if (org.kind === 'personal') {
+          return {
+            kind: 'error',
+            status: 400,
+            error: 'A subscription cannot be transferred to a personal organization.',
+          }
         }
 
         const [mem] = await tx
