@@ -75,7 +75,7 @@ export default function GeneralSection(props: SettingsSectionProps) {
         </SettingsRow>
       </SettingsSection>
       <AccountSettingsRows
-        fixture={fixture}
+        actionsUnavailable={fixture}
         organization={organization}
         authorizedAppsHref={generalHref(organization, query, 'authorized-apps')}
         organizationAccountsHref={generalHref(organization, query, 'organization-accounts')}

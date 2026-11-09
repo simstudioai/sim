@@ -879,28 +879,22 @@ const LIVE_ONLY_ROUTES: ReasonedAllowlist = {
 }
 /** Views that branch on fixture mode, which only pages, layouts, registries and fixtures may. */
 const FIXTURE_BRANCH_VIEWS: ReasonedAllowlist = {
-  ['platform/lib/navigation.ts']:
+  'platform/lib/navigation.ts':
     'platformHref keeps fixture scenario params on links only in a fixture build, inlined at build time',
   [`${PRODUCT_ROUTES}_components/product-shell.tsx`]:
     'The one product shell picks the fixture or live session around every page',
-  [`${ORGANIZATION_ROUTES}settings/_components/live-settings/live-settings-route.tsx`]:
-    "Predates the rule: the settings route guards only a fixture's local drafts on leave",
-  [`${ORGANIZATION_ROUTES}settings/_components/sections/account/account-section.tsx`]:
-    'Predates the rule: account actions are disabled in the fixture preview',
-  [`${ORGANIZATION_ROUTES}settings/_components/sections/account/delete-account.tsx`]:
-    'Predates the rule: account deletion is disabled in the fixture preview',
   [`${ORGANIZATION_ROUTES}settings/_components/sections/preferences/preferences-section.tsx`]:
-    'Predates the rule: fixture preferences read the theme from the URL',
+    'A client view below a server section, which cannot pass it the fixture theme (the URL) and read-only profile as callbacks',
   [`${ORGANIZATION_ROUTES}settings/_components/sections/privacy/cookie-preferences.tsx`]:
-    'Predates the rule: fixture cookie categories render without a session',
+    'The consent runtime loads only here, lazily; its fixture variant reads session choices without that runtime',
   'platform/lib/data/billing.ts':
-    'Predates the rule: the billing adapter hides the upgrade link on fixtures',
+    'The billing adapter swaps cancel and restore for the fixture settings context and hides portal and invoice links',
   'platform/lib/data/members.ts':
-    'Predates the rule: the members adapter keeps fixture edits local',
+    'The members adapter leaves to fixture Home and keeps the billing portal unavailable under the fixture settings context',
   'platform/lib/data/settings-providers.tsx':
-    'Predates the rule: the settings providers skip live reads on fixtures',
+    'Owns the fixture settings context itself and its session-lifetime drafts',
   'platform/shared/preferences.ts':
-    'Predates the rule: the preferences model keeps fixture toggles local',
+    'The telemetry setting never touches the browser telemetry preference on a fixture preview',
 }
 /** Live-reachable modules that import fixture code a normal build then evaluates. */
 const FIXTURE_IMPORTS_FROM_LIVE: ReasonedAllowlist = {}

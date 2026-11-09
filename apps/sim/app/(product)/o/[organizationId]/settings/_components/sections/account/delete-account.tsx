@@ -9,7 +9,6 @@ import { useAccountDeletion } from '@/platform/lib/data/account'
 
 interface DeleteAccountProps {
   email: string
-  fixture?: true
   onClose: () => void
 }
 
@@ -17,7 +16,7 @@ interface DeleteAccountProps {
  * Names every workspace that goes, every workspace that changes hands, and, when the account cannot
  * be deleted yet, what has to happen first. Retyping the account's email is the only guard.
  */
-export function DeleteAccount({ email, fixture, onClose }: DeleteAccountProps) {
+export function DeleteAccount({ email, onClose }: DeleteAccountProps) {
   const deletion = useAccountDeletion(email)
   const [confirmation, setConfirmation] = useState('')
   const blocked = deletion.blockers.length > 0
@@ -33,7 +32,7 @@ export function DeleteAccount({ email, fixture, onClose }: DeleteAccountProps) {
       confirmDisabled={
         blocked || deletion.fetching || !deletion.loaded || !deletion.matches(confirmation)
       }
-      onConfirm={() => (fixture ? onClose() : deletion.confirm(confirmation))}
+      onConfirm={() => deletion.confirm(confirmation)}
     >
       {blocked ? (
         <div className={styles.copy}>

@@ -1,7 +1,9 @@
 import { EmptyState } from '@sim/emcn/empty-state'
 import type { Metadata } from 'next'
+import { SettingsLeaveGuard } from '@/app/(product)/_components/session-state/settings-leave-guard'
 import { LiveSettingsRoute } from '@/app/(product)/o/[organizationId]/settings/_components/live-settings/live-settings-route'
 import { SettingsScreen } from '@/app/(product)/o/[organizationId]/settings/_components/settings-screen/settings-screen'
+import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { settingsPageTitle } from '@/platform/lib/data/settings-navigation'
 import { readPreviewPlan, readScenario } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
@@ -40,13 +42,21 @@ export default async function Page({
         profile={profile}
         referenceTime={referenceTime}
       >
+        <SettingsLeaveGuard />
         <LiveSettingsRoute fixture organization={organization} path={path} query={query} />
       </Provider>
     )
   }
   const { readOrganizationSurface } = await import('@/platform/lib/data/surface')
   const surface = await readOrganizationSurface()
-  return surface.status === 'ok' ? (
-    <LiveSettingsRoute organization={surface.organization} path={path} query={query} />
-  ) : null
+  if (surface.status !== 'ok') return null
+  const { followProductRoute, productLocation } = await import(
+    '@/platform/lib/data/route-resolution'
+  )
+  const pathname = surfaceHref(
+    surface.organization,
+    ['/settings', ...path.map(encodeURIComponent)].join('/')
+  )
+  await followProductRoute(surface.organization, productLocation(pathname, query))
+  return <LiveSettingsRoute organization={surface.organization} path={path} query={query} />
 }

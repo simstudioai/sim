@@ -16,7 +16,8 @@ import { useAccountEmail, useResetPasswordAction } from '@/platform/shared/accou
 
 interface AccountSettingsRowsProps {
   organization: PlatformOrganization
-  fixture?: true
+  /** Leaves Reset password, Sign out and Delete account unavailable, where nothing could run them. */
+  actionsUnavailable?: boolean
   authorizedAppsHref: string
   organizationAccountsHref: string
 }
@@ -61,7 +62,7 @@ export function AccountSettingsSubview({
 }
 
 function SignedInRows({
-  fixture,
+  actionsUnavailable,
   authorizedAppsHref,
   organizationAccountsHref,
 }: AccountSettingsRowsProps) {
@@ -88,14 +89,18 @@ function SignedInRows({
         </Button>
       </SettingsRow>
       <SettingsRow label='Reset password' description='Email yourself a password reset link'>
-        <Button size='compact' disabled={!email} onClick={() => setDialog('reset')}>
+        <Button
+          size='compact'
+          disabled={!email || actionsUnavailable}
+          onClick={() => setDialog('reset')}
+        >
           Reset password
         </Button>
       </SettingsRow>
       <SettingsRow label='Sign out' description='End your session on this device'>
         <Button
           size='compact'
-          disabled={fixture || signingOut}
+          disabled={actionsUnavailable || signingOut}
           onClick={() => {
             setSigningOut(true)
             void signOutAndLeave('/login?fromLogout=true').then((left) => {
@@ -117,7 +122,7 @@ function SignedInRows({
           variant='quiet'
           destructive
           size='compact'
-          disabled={!email}
+          disabled={!email || actionsUnavailable}
           onClick={() => setDialog('delete')}
         >
           Delete account
@@ -132,10 +137,10 @@ function SignedInRows({
         title='Reset password'
         confirmLabel='Send reset email'
         description={`A password reset link will be sent to ${email ?? 'your account email'}. Click the link in the email to create a new password.`}
-        onConfirm={() => (email && !fixture ? resetPassword(email) : undefined)}
+        onConfirm={() => (email ? resetPassword(email) : undefined)}
       />
       {dialog === 'delete' && email && (
-        <DeleteAccount email={email} fixture={fixture} onClose={() => setDialog(null)} />
+        <DeleteAccount email={email} onClose={() => setDialog(null)} />
       )}
     </>
   )
@@ -168,7 +173,7 @@ export function AccountSettingsRows(props: AccountSettingsRowsProps) {
       {!organization.navFlags.anonymous && (
         <SignedInRows
           organization={organization}
-          fixture={props.fixture}
+          actionsUnavailable={props.actionsUnavailable}
           authorizedAppsHref={props.authorizedAppsHref}
           organizationAccountsHref={props.organizationAccountsHref}
         />
