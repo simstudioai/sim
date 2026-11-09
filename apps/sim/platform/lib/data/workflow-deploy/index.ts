@@ -87,7 +87,7 @@ export { buildSubBlockValues } from '@/lib/workflows/subblocks/visibility'
 export type { InputFormatField } from '@/lib/workflows/types'
 export { normalizeName, startsWithUuid } from '@/executor/constants'
 export { apiKeysQueryOptions } from '@/hooks/queries/api-key-list'
-export { type CreatedApiKey, useApiKeys, useCreateApiKey } from '@/hooks/queries/api-keys'
+export { useApiKeys } from '@/hooks/queries/api-keys'
 export {
   type AuthType,
   type ChatFormData,
@@ -111,7 +111,6 @@ export {
 export { invalidateDeploymentQueries } from '@/hooks/queries/utils/deployment-keys'
 export {
   useAddWorkflowMcpTool,
-  useCreateWorkflowMcpServer,
   useDeleteWorkflowMcpTool,
   useUpdateWorkflowMcpTool,
   useWorkflowMcpServers,

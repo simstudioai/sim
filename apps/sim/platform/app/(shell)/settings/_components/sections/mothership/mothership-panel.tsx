@@ -8,7 +8,7 @@ import {
   ActionRow,
   SectionStack,
   SectionToolbar,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { MothershipByok } from '@/platform/app/(shell)/settings/_components/sections/mothership/mothership-byok'
 import { MothershipLicenses } from '@/platform/app/(shell)/settings/_components/sections/mothership/mothership-licenses'
 import { MothershipOverview } from '@/platform/app/(shell)/settings/_components/sections/mothership/mothership-overview'
@@ -87,7 +87,7 @@ export function MothershipPanel({ organization, referenceTime }: MothershipPanel
         </>
       )}
       {tab === 'licenses' && <MothershipLicenses key={env} env={env} organization={organization} />}
-      {tab === 'byok' && <MothershipByok organization={organization} />}
+      {tab === 'byok' && <MothershipByok />}
     </SectionStack>
   )
 }

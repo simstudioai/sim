@@ -9,6 +9,9 @@ const LIVE_SETTINGS = [
     items: [
       { key: 'general', title: 'General', icon: 'I116' },
       { key: 'billing', title: 'Subscription', icon: 'I138' },
+      { key: 'desktop', title: 'Desktop', icon: 'I038', desktop: 'settings' },
+      { key: 'browser', title: 'Browser', icon: 'I041', desktop: 'browser' },
+      { key: 'terminal', title: 'Terminal', icon: 'I107', desktop: 'terminal' },
       { key: 'knowledge-graphs', title: 'Knowledge graphs', icon: 'I004' },
     ],
   },
@@ -47,6 +50,7 @@ const LIVE_SETTINGS = [
     items: [
       { key: 'admin', title: 'Admin', icon: 'I116' },
       { key: 'mothership', title: 'Mothership', icon: 'I128' },
+      { key: 'self-host', title: 'Self hosting', icon: 'I104' },
     ],
   },
 ] as const satisfies readonly {
@@ -70,6 +74,9 @@ export function previewSettingsSections(
   return LIVE_SETTINGS.flatMap((group): readonly LiveSetting[] => group.items)
     .map((item) => item.key)
     .filter((key) => {
+      // The desktop app's own settings and self-hosting sit outside the organization's gates.
+      if (key === 'desktop' || key === 'browser' || key === 'terminal' || key === 'self-host')
+        return false
       if (key === 'admin' || key === 'mothership') return organization.navFlags.platformAdmin
       return (
         key === 'general' ||
@@ -84,6 +91,8 @@ export function previewSettingsSections(
 }
 
 function isVisible(entry: LiveSetting, organization: PlatformOrganization): boolean {
+  if ('desktop' in entry) return true
+  if (entry.key === 'self-host') return !organization.deployment.hosted
   const platformOnly = entry.key === 'admin' || entry.key === 'mothership'
   return (
     (!platformOnly || organization.navFlags.platformAdmin) &&
@@ -100,6 +109,7 @@ export function resolveSettingsNavigation(organization: PlatformOrganization): S
         key: entry.key,
         title: entry.title,
         icon: entry.icon,
+        ...('desktop' in entry ? { desktop: entry.desktop } : {}),
       })),
   })).filter((group) => group.items.length > 0)
 }
@@ -120,6 +130,7 @@ export function resolveLiveSetting(key: string, organization: PlatformOrganizati
  */
 export function settingsPageTitle([key = 'general', segment]: readonly string[]): string {
   if (key === 'usage' && segment === 'events') return 'Usage events'
+  if (key === 'billing' && segment === 'credit-usage') return 'Credit usage'
   if (key === 'integrations' && segment === 'secrets') return 'Generic Secrets'
   if (key === 'integrations' && segment === 'sources') return 'Search source'
   if (key === 'integrations' && segment === 'providers') return 'Integration'

@@ -1,0 +1,7 @@
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: var(--ui-action-gap);
+  min-inline-size: 0;
+}

@@ -7,6 +7,7 @@ import {
   invitation,
   invitationWorkspaceGrant,
   member,
+  type OrganizationKind,
   organization,
   permissions,
   user,
@@ -281,6 +282,14 @@ export function isInvitationExpired(inv: Pick<InvitationWithGrants, 'expiresAt'>
 }
 
 /**
+ * A personal organization is no obstacle to joining: it dissolves into the organization the
+ * invitee joins, so every join and externality decision treats its member as belonging nowhere.
+ */
+function teamMembershipOnly<T extends { kind: OrganizationKind }>(membership: T | null): T | null {
+  return membership?.kind === 'team' ? membership : null
+}
+
+/**
  * The organization acceptance will land the invitee's membership in, before the
  * gates that can downgrade the join to external.
  *
@@ -293,10 +302,10 @@ export function isInvitationExpired(inv: Pick<InvitationWithGrants, 'expiresAt'>
  */
 function invitationJoinTargetOrganizationId(
   inv: Pick<InvitationWithGrants, 'kind' | 'organizationId' | 'grants'>,
-  primaryWorkspace: Pick<WorkspaceWithOwner, 'organizationId'> | null
+  primaryWorkspace: Pick<WorkspaceWithOwner, 'teamOrganizationId'> | null
 ): string | null {
   if (inv.kind === 'workspace' && inv.grants.length > 0 && primaryWorkspace) {
-    return primaryWorkspace.organizationId
+    return primaryWorkspace.teamOrganizationId
   }
   return inv.organizationId
 }
@@ -464,7 +473,7 @@ export async function getInvitationJoinPreview(
    * Already in the target organization (nothing changes) or in a different
    * one (acceptance downgrades to external or rejects).
    */
-  const existingMembership = await getUserOrganization(inviteeUserId)
+  const existingMembership = teamMembershipOnly(await getUserOrganization(inviteeUserId))
   const inDifferentOrganization =
     !!existingMembership &&
     (workspaceOrganizationId ? existingMembership.organizationId !== workspaceOrganizationId : true)
@@ -757,7 +766,7 @@ async function getInvitationAcceptanceWorkspaceLockIds(
     isBillingEnabled &&
     inv.membershipIntent !== 'external' &&
     primaryWorkspace !== null &&
-    !primaryWorkspace.organizationId
+    !primaryWorkspace.teamOrganizationId
 
   const billingOwnerWorkspaceIds = billingOwnerCanAttach
     ? (
@@ -950,7 +959,7 @@ async function acceptLockedInvitation(
     shouldJoinOrganization = false
   }
 
-  const existingMembership = await getUserOrganization(input.userId, tx)
+  const existingMembership = teamMembershipOnly(await getUserOrganization(input.userId, tx))
   const inviteeAlreadyInDifferentOrg =
     !!existingMembership &&
     (workspaceOrganizationId ? existingMembership.organizationId !== workspaceOrganizationId : true)

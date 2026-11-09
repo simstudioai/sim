@@ -48,6 +48,8 @@ export interface SettingsNavItem {
   icon: IconName
   /** Absolute when the section stays on the legacy surface. */
   href?: string
+  /** Listed only in the desktop app, when its bridge offers this surface. */
+  desktop?: 'settings' | 'browser' | 'terminal'
 }
 
 export interface SettingsNavGroup {

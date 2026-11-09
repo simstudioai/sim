@@ -66,13 +66,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       let organizationMembership: { id: string; role: 'owner' | 'admin' | 'member' } | undefined
 
       if (includeOrg) {
+        /** A personal organization bills its owner personally; only a team is billing context. */
         const [userMembership] = await db
           .select({
             organizationId: member.organizationId,
             role: member.role,
           })
           .from(member)
-          .where(eq(member.userId, session.user.id))
+          .innerJoin(organizationTable, eq(organizationTable.id, member.organizationId))
+          .where(and(eq(member.userId, session.user.id), eq(organizationTable.kind, 'team')))
           .limit(1)
 
         if (userMembership) {

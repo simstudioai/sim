@@ -7,7 +7,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { useRouter } from 'next/navigation'
-import { SectionStack } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { SectionStack } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { AdminDirectory } from '@/platform/app/(shell)/settings/_components/sections/admin/admin-directory'
 import type {
   AdminExample,

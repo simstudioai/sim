@@ -121,7 +121,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Links | Row opens `sim/<name>` on the main app | Links | Done | "links: create, find, open, edit and delete" |
 | Links | Row menu: Open, Copy link, Edit, Delete by `canEdit` | Links | Done | "links: create, find, open, edit and delete" |
 | Links | Create and edit: variable default, normalized name, 409 on the field, access, Learn more | Links | Done | "links: create, find, open, edit and delete". 409 and Learn more have no live check |
-| Links | `?create=<name>` deep link from an unknown `sim/<name>` | `app/sim/[[...path]]` | Done | "an unknown sim/ link opens the editor" |
+| Links | `?create=<name>` deep link from an unknown `sim/<name>` | `app/(site)/sim/[[...path]]` | Done | "an unknown sim/ link opens the editor" |
 | Links | Delete confirm with error | Links | Done | "links: create, find, open, edit and delete". The error path has no live check |
 | Links | Install Sim for Chrome | Links | Unverified | No live check yet. Hosted only, same gate. Current staging has no shortcuts modal or bookmark export |
 | Links | Copy or create from a chat source card | `source-card` | Open | Chat owner |
@@ -201,7 +201,7 @@ Every row runs on live data through `lib/data/members.ts`. Proof quotes a test i
 | Invite from Members and the org menu, role choice, format and self rejection, advisory seat check, success summary | `invite-modal.tsx` | Done | "a partial invite failure" |
 | Partial invite failure retains only the failed addresses, with reasons | `invite-modal.tsx` | Done | "a partial invite failure" |
 | Invite's workspace picker and External membership | `invite-modal.tsx` | Legacy | Only offered from a workspace entry, and none exists on this surface |
-| Invite acceptance | `app/invite/[id]` | Legacy | Stays at `/invite` by decision |
+| Invite acceptance | `app/(site)/invite/[id]` | Legacy | Stays at `/invite` by decision |
 | My pending invitations | `pending-invitations/` | Legacy | Workspace header only; not on the organization surface today |
 | No-organization recovery and create organization | `no-organization-view.tsx` | Legacy | Unreachable here: the surface requires membership |
 
@@ -270,8 +270,8 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Workspace error, not found and access denied | `[workspaceId]/error.tsx`, `not-found.tsx`, `workspace-access-denied.tsx` | Unverified | No live check yet. `workspace/[workspaceId]/error.tsx` and `not-found.tsx`; an inaccessible workspace reads as not found |
 | Unsaved settings guard on links and sign out | `settings-navigation-guard.tsx`, `settings-guarded-link.tsx` | Unverified | No live check yet. `lib/data/settings-guard`, `settings-leave-guard.tsx`, `requestLeave` |
 | Unsaved settings guard on browser back and forward | `use-settings-browser-navigation.ts` | Unverified | No live check yet. `lib/data/settings-guard`, the same hook as legacy |
-| Branded metadata and whitelabel theme | `app/layout.tsx` | Open | Settings owner, with White-labeling |
-| Analytics and telemetry, including `docs_opened` and `slack_community_opened` | `app/layout.tsx`, `organization-sidebar.tsx` | Open | No PostHog provider is mounted here, so the help menu sends no events |
+| Branded metadata and whitelabel theme | `app/_shell/site-root-layout.tsx` | Open | Settings owner, with White-labeling |
+| Analytics and telemetry, including `docs_opened` and `slack_community_opened` | `app/_shell/site-root-layout.tsx`, `organization-sidebar.tsx` | Open | No PostHog provider is mounted here, so the help menu sends no events |
 | Error and success toasts | `@sim/emcn` `toast` | Unverified | No live check yet. Foundation: `shared/toast.ts`, `useToastNotices` |
 | Collapse toggle | `organization-sidebar.tsx` | Done | "Mod+B collapses the sidebar" |
 | Collapse persisted, no flash | `stores/sidebar/store.ts` | Done | "Mod+B collapses the sidebar" |
@@ -367,6 +367,46 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Home | Plan toggle, composer handoff and server chat id | `organization-conversation.tsx` | Open | Chat lane owns `home-composer` |
 | Home | Workspace status read stays bounded under thousands of time pauses: only the asked workspaces' pauses are read, stopping at the first waiting on a person | `lib/organizations/home/workspace-activity.ts` | Done | `workspace-activity.integration.ts` measures the real plan on real PostgreSQL. No index is needed; a workspace with no match still reads every one of its live pauses |
 
+## Settings: legacy settings homes
+
+Every section of the legacy settings (`components/settings/navigation.ts`, `app/workspace/[workspaceId]/settings/**`) has one home in the zone: organization Settings for what belongs to the viewer, the organization or the deployment, and the workspace's Settings tab for what belongs to one workspace. The workspace tab lists its sections in the organization Settings navigation's pattern, with the legacy sidebar's gates (`lib/data/workspace-settings`).
+
+| Domain | Capability | Legacy source | Status | Proof or reason |
+| --- | --- | --- | --- | --- |
+| Settings home | General | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/general`: org Settings, Account. Existing section; its capabilities are the rows under Settings: personal |
+| Settings home | Desktop | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/desktop`: org Settings, Account, listed only in the desktop app. No live check yet. Ported: preferences, notifications, updates, computer use; refuses without the bridge |
+| Settings home | Browser, passwords | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/browser`: org Settings, Account, listed only in the desktop app. No live check yet. Ported with passwords, import and clearing; `browserView`, `browserImport`, `browserClear` kept |
+| Settings home | Terminal | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/terminal`: org Settings, Account, listed only in the desktop app. No live check yet. Ported: run commands, theme picker, zoom |
+| Settings home | Subscription | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/billing`: org Settings, Account. Existing section; rows under Settings: billing and usage |
+| Settings home | Credit usage | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/billing/credit-usage`: org Settings, a Subscription sub-page. No live check yet. Ported: the glance and the page with period, range, export; shown on non-Enterprise plans because every user now has an organization. Reads the viewer's own usage logs |
+| Settings home | Teammates | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/teammates`: workspace Settings tab. No live check yet. Ported with a workspace invite modal in the section; the zone invite modal only invites to the organization |
+| Settings home | Secrets | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/secrets`: workspace Settings tab. No live check yet. Ported, with pending create requests from the `{{` suggestion |
+| Settings home | Secret details, references and usage | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/secrets/[credentialId]`: workspace Settings tab, a Secrets sub-page. No live check yet. Ported. A reference names the stored field id and a run trigger is text: block titles and icons need the blocks registry |
+| Settings home | BYOK | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/byok`: workspace Settings tab. No live check yet. Ported with organization scope. Nebius and Thinking Machines show the generic mark |
+| Settings home | Sandboxes | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/sandboxes`: workspace Settings tab. No live check yet. Ported with the locked upgrade notice. Managed CLIs lose alias search |
+| Settings home | Custom tools | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/custom-tools`: workspace Settings tab. No live check yet. Ported, sharing the promoted custom tool editor with the workflow editor |
+| Settings home | MCP tools | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/mcp`: workspace Settings tab. No live check yet. Ported with `mcpServerId`. Authorize moved from the list row to the server's details |
+| Settings home | MCP servers | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/workflow-mcp-servers`: workspace Settings tab. No live check yet. Ported with `mcpServerId` and `server-tab` |
+| Settings home | Sim API keys | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/api-keys`: workspace Settings tab. No live check yet. Ported, combined scope, sharing the promoted create dialog with deploy |
+| Settings home | Sim Mailer | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/inbox`: workspace Settings tab. No live check yet. Ported with the locked upgrade notice |
+| Settings home | Recently deleted, workspace items | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/recently-deleted`: workspace Settings tab. Deleted chats stay in org Settings. No live check yet. Ported; restoring a folder opens the Workflows list in it |
+| Settings home | Workspace forks | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/forks`: workspace Settings tab. No live check yet. Ported except Compare in sync and the `<block.output>` picker in custom-block fields, which need the canvas-owned preview and tag dropdown |
+| Settings home | Custom blocks | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/custom-blocks`: workspace Settings tab. No live check yet. Ported. Its chunk bundles the blocks registry for the output picker, as Tables' workflow panel does |
+| Settings home | Requests, workspace scope | `app/workspace/[workspaceId]/settings` | Unverified | `/workspace/[id]/settings/requests`: workspace Settings tab, the shared Requests panel with the workspace scope. No live check yet. Ported; zone access-request links open it |
+| Settings home | Members | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/members`: org Settings. Existing section |
+| Settings home | Credential groups | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/connected-accounts`: org Settings. Existing section |
+| Settings home | Insights and usage events | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/usage`, `/settings/usage/events`: org Settings. Existing section |
+| Settings home | Permission groups | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/access-control`: org Settings. Existing section |
+| Settings home | Audit logs | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/audit-logs`: org Settings. Existing section |
+| Settings home | Single sign-on | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/sso`: org Settings. Existing section |
+| Settings home | Security | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/security`: org Settings. Existing section |
+| Settings home | Data retention | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/data-retention`: org Settings. Existing section |
+| Settings home | Data drains | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/data-drains`: org Settings. Existing section |
+| Settings home | White-labeling | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/whitelabeling`: org Settings. Existing section |
+| Settings home | Admin | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/admin`: org Settings, Platform. Existing section |
+| Settings home | Mothership | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/mothership`: org Settings, Platform. Existing section |
+| Settings home | Self hosting | `app/workspace/[workspaceId]/settings` | Unverified | `/settings/self-host`: org Settings, Platform, on a self-hosted deployment. No live check yet. Ported |
+
 ## Workspace pages
 
 The workspace's Dashboard, Issues, Changelog and Logs are Platform pages with fixture data. Each view takes `data` and a named `actions` interface, so a live adapter in `lib/data` supplies the same props. Until one exists, a live workspace keeps its legacy page. Tables, Files, Knowledge bases and Workflows are live-only ports of the legacy pages; a live workspace opens on Workflows. Their rows were checked by hand against the live stack and legacy on 2026-11-08 and have no committed live check yet.
@@ -393,7 +433,7 @@ The workspace's Dashboard, Issues, Changelog and Logs are Platform pages with fi
 | Workspace | Live workflow view in the deploy modal, API language examples, editor connections panel, canvas error notifications, panel and floating chat, floating variables | `w/[workflowId]/` | Hidden | Removed by product direction |
 | Workspace | Tests list, Run all, test details and run picker | `app/workspace/[workspaceId]/tests/` | Unverified | No live check yet. Behind `workflow-tests` |
 | Workspace | Test source edited beside its results; preview of the exact version a test ran against | `tests/components/test-dashboard.tsx` | Open | Edit opens the file in Files and ran-against rows open the current workflow: the file viewer and canvas preview are route-owned and need promoting first |
-| Workspace | Workspace settings tab | `app/workspace/[workspaceId]/settings/` | Legacy | The tab exists and is empty by product direction; settings stay on the legacy workspace |
+| Workspace | Workspace settings tab: sections, navigation, gates, restricted sections with Request access | `app/workspace/[workspaceId]/settings/` | Unverified | No live check yet. `lib/data/workspace-settings` mirrors the legacy settings sidebar's gates; see Settings: legacy settings homes |
 
 ## Zone
 
@@ -411,4 +451,4 @@ The workspace's Dashboard, Issues, Changelog and Logs are Platform pages with fi
 | Per-organization rollout: `platform-org-ui` reaches a targeted organization by id and no other, on the same deployment, through the real AppConfig client against a fixture of its service | `lib/platform/rollout.ts`, `lib/core/config/feature-flags.ts` | Done | "a targeted organization is handed to the Platform", "an organization outside the rollout stays on /o". No real AppConfig deployment has been read. Each route bundle polls on its own clock, so a change can reach the surface API and `/o` up to a poll apart, and until then `/o` can hand off to a zone that answers 404 |
 | A rollback under an open tab: a client navigation keeps working, because the rollout gate lives in a layout that does not re-render, and a reload's 404 offers a way off the zone | `live-shell.tsx`, `lib/data/landing.ts` | Done | "a rollback under an open tab"; `landing.test.ts` for the root's decision. The 404's home button used to loop back to it |
 | Self-hosted, no zone, no flag: boots, `/o` is served by the main app, `/org` is absent | `next.config.ts`, `lib/platform/rollout.ts` | Done | "a self-hosted deployment with no zone boots", "a self-hosted organization is served by the main app", "a self-hosted deployment has no /org", in the `live (flag-off)` job |
-| A production zone behind a base path with no API origin, or on fixtures, refuses to start | `instrumentation.ts`, `lib/data/mode.ts` | Done | "a production zone with no API origin refuses to start", "a production zone on fixtures refuses to start", "a production zone with an API origin starts", each a real `next start` of the build. `lib/data/startup.ts` exits, because Next only logs a failed `register()` and answers 500 |
+| A production zone behind a base path with no database, or on fixtures, refuses to start | `instrumentation.ts`, `lib/data/mode.ts` | Done | "a production zone with no database refuses to start", "a production zone on fixtures refuses to start", "a production zone with a database starts under the same command", each a real `next start` of the build. `lib/data/startup.ts` exits, because Next only logs a failed `register()` and answers 500 |

@@ -105,6 +105,7 @@ describe('lockWorkspaceCreationContext', () => {
     mockGetUserOrganization.mockResolvedValue({
       organizationId: 'org-1',
       role: 'owner',
+      kind: 'team',
     })
     mockGetOrganizationSubscription.mockResolvedValue(null)
     const tx = dbChainMock.db as unknown as DbOrTx
@@ -129,7 +130,11 @@ describe('lockWorkspaceCreationContext', () => {
     setEnvFlags({ isBillingEnabled: false })
     mockAcquireOrganizationUserMutationLocks.mockResolvedValue(undefined)
     mockAcquirePermissionGroupOrgLock.mockResolvedValue(undefined)
-    mockGetUserOrganization.mockResolvedValue({ organizationId: 'org-1', role: 'admin' })
+    mockGetUserOrganization.mockResolvedValue({
+      organizationId: 'org-1',
+      role: 'admin',
+      kind: 'team',
+    })
     mockGetEntitledOrganizationPermissionConfig.mockResolvedValue(null)
     const tx = {} as DbOrTx
 
@@ -184,6 +189,7 @@ describe('getWorkspaceCreationPolicy', () => {
       organizationId: 'org-1',
       role: 'member',
       memberId: 'member-1',
+      kind: 'team',
     })
     mockIsOrganizationPermissionRegimeActive.mockResolvedValue(true)
     mockGetEntitledOrganizationPermissionConfig.mockResolvedValue({
@@ -210,6 +216,7 @@ describe('getWorkspaceCreationPolicy', () => {
       organizationId: 'org-1',
       role: 'member',
       memberId: 'member-1',
+      kind: 'team',
     })
     mockIsOrganizationPermissionRegimeActive.mockResolvedValue(true)
     mockGetEntitledOrganizationPermissionConfig.mockResolvedValue({
@@ -240,6 +247,7 @@ describe('getWorkspaceCreationPolicy', () => {
       organizationId: 'org-1',
       role: 'member',
       memberId: 'member-1',
+      kind: 'team',
     })
     // Cancelled / past_due Team: no usable organization subscription.
     mockGetOrganizationSubscription.mockResolvedValue({
@@ -262,6 +270,7 @@ describe('getWorkspaceCreationPolicy', () => {
       organizationId: 'org-1',
       role: 'owner',
       memberId: 'member-1',
+      kind: 'team',
     })
     mockGetOrganizationSubscription.mockResolvedValue({
       id: 'sub-1',
@@ -311,6 +320,7 @@ describe('getWorkspaceCreationPolicy', () => {
       organizationId: 'org-1',
       role: 'owner',
       memberId: 'member-1',
+      kind: 'team',
     })
     // A past_due org subscription is not `hasUsableSubscriptionStatus`, so the
     // organization branch does not apply and the personal cap decides.
@@ -355,6 +365,7 @@ describe('getWorkspaceCreationPolicy', () => {
       organizationId: 'org-1',
       role: 'owner',
       memberId: 'member-1',
+      kind: 'team',
     })
     mockGetOrganizationSubscription.mockResolvedValueOnce({
       id: 'sub-1',
@@ -394,6 +405,7 @@ describe('getWorkspaceCreationPolicy', () => {
       organizationId: 'user-org',
       role: 'admin',
       memberId: 'member-1',
+      kind: 'team',
     })
     queueTableRows(workspace, [{ value: 0 }])
 
@@ -414,6 +426,7 @@ describe('getWorkspaceCreationPolicy', () => {
       organizationId: 'org-1',
       role: 'member',
       memberId: 'member-1',
+      kind: 'team',
     })
     mockGetOrganizationSubscription.mockResolvedValueOnce({
       id: 'sub-1',

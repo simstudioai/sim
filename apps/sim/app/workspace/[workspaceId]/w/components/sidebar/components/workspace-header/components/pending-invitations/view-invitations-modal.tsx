@@ -24,8 +24,8 @@ import { SettingsResourceRow } from '@/components/settings/primitives/settings-r
 import type { MyInvitation } from '@/lib/api/contracts/invitations'
 import { getInvitationErrorMessage } from '@/lib/invitations/error-messages'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
-import { InvitationDisclosure } from '@/app/invite/components/invitation-disclosure'
-import { InvitationWorkspaceAccess } from '@/app/invite/components/invitation-workspace-access'
+import { InvitationDisclosure } from '@/app/(site)/invite/components/invitation-disclosure'
+import { InvitationWorkspaceAccess } from '@/app/(site)/invite/components/invitation-workspace-access'
 import {
   useAcceptMyInvitation,
   useDeclineMyInvitation,

@@ -6,7 +6,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { SectionStack } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { SectionStack } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import type { SearchSource } from '@/platform/app/(shell)/settings/_components/sections/integrations/model'
 import { SourceRow } from '@/platform/app/(shell)/settings/_components/sections/integrations/source-row'
 

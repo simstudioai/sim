@@ -339,6 +339,7 @@ export {
   useDeleteWorkflowMutation,
   useDuplicateWorkflowMutation,
   useReorderWorkflows,
+  useRestoreWorkflow,
   useUpdateWorkflow,
   useWorkflowMap,
   useWorkflowStates,

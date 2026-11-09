@@ -213,6 +213,9 @@ describe('workspace payer-change transaction lock ordering', () => {
           table = source
           return chain
         },
+        innerJoin() {
+          return chain
+        },
         where() {
           return chain
         },

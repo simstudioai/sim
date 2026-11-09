@@ -43,7 +43,7 @@ Existing Sim server tools remain subject to their existing authorization and app
    extraction, browser-wide page permission setup, build artifacts, browser verification.
 2. `packages/browser-extension-protocol`: versioned, strictly validated messages and
    immutable page snapshots shared by the extension, app, and server.
-3. `apps/sim/app/extension`: session gate, organization landing, optional workspace picker, app providers,
+3. `apps/sim/app/(site)/extension`: session gate, organization landing, optional workspace picker, app providers,
    real chat components, history and a narrow parent-window bridge.
 4. Existing chat context pipeline: `browser_page` input validation, durable message
    projection, restored context chips, untrusted-content formatting, Assistant admission.

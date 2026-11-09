@@ -5,9 +5,9 @@ import { createRoot } from 'react-dom/client'
 import { isCredentialGroupOAuthFailure } from '@/lib/credential-groups/oauth-completion'
 import { startDesktopSourceBrowser } from '@/lib/desktop/source-browser'
 import { connectDesktopSource } from '@/lib/desktop/source-connect'
-import { CredentialGroupCompletionHandoff } from '@/app/credential-groups/complete/completion-handoff'
-import { SlackCompletion } from '@/app/credential-groups/slack-complete/slack-completion'
-import { SourceCompletion } from '@/app/desktop/connect/source-completion'
+import { CredentialGroupCompletionHandoff } from '@/app/(site)/credential-groups/complete/completion-handoff'
+import { SlackCompletion } from '@/app/(site)/credential-groups/slack-complete/slack-completion'
+import { SourceCompletion } from '@/app/(site)/desktop/connect/source-completion'
 import {
   useConnectOrganizationAccount,
   useOrganizationAccounts,

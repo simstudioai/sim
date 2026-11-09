@@ -1,0 +1,7 @@
+.icon {
+  flex: none;
+  inline-size: var(--spacing-16);
+  block-size: var(--spacing-16);
+  border-radius: var(--radius-2);
+  object-fit: contain;
+}

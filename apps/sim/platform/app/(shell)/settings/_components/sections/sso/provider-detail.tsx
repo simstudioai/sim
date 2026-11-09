@@ -9,7 +9,7 @@ import {
   DetailHeader,
   FieldStack,
   SectionStack,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { ProviderForm } from '@/platform/app/(shell)/settings/_components/sections/sso/provider-form'
 import {
   type SsoProviderView,

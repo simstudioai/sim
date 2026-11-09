@@ -22,7 +22,7 @@ import {
   Muted,
   SectionStack,
   SectionToolbar,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { AddMembersModal } from '@/platform/app/(shell)/settings/_components/sections/access-control/add-members-modal'
 import {
   BlockToolRow,

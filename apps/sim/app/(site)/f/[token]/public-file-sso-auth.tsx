@@ -1,0 +1,97 @@
+'use client'
+
+import { useState } from 'react'
+import { AuthField } from '@sim/emcn-auth/field'
+import { AuthEmailInput } from '@sim/emcn-auth/input'
+import { getErrorMessage } from '@sim/utils/errors'
+import { normalizeEmail } from '@sim/utils/string'
+import { useRouter } from 'next/navigation'
+import { requestJson } from '@/lib/api/client/request'
+import { publicFileSSOContract } from '@/lib/api/contracts/public-shares'
+import { quickValidateEmail } from '@/lib/messaging/email/validation'
+import { AuthSubmitButton } from '@/app/(auth)/components'
+import { PublicFileAuthShell } from '@/app/(site)/f/[token]/public-file-auth-shell'
+
+interface PublicFileSSOAuthProps {
+  token: string
+}
+
+/**
+ * SSO gate for a protected public file share: confirm the email is allow-listed,
+ * then hand off to the global `/sso` flow with this share as the callback. After
+ * sign-in the page gate authorizes via the Sim session.
+ */
+export function PublicFileSSOAuth({ token }: PublicFileSSOAuthProps) {
+  const router = useRouter()
+  const [email, setEmail] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleAuthenticate = async () => {
+    if (!quickValidateEmail(normalizeEmail(email)).isValid) {
+      setError('Please enter a valid email address.')
+      return
+    }
+    setError(null)
+    setIsLoading(true)
+    try {
+      const normalizedEmail = normalizeEmail(email)
+      const { eligible } = await requestJson(publicFileSSOContract, {
+        params: { token },
+        body: { email: normalizedEmail },
+      })
+      if (!eligible) {
+        setError('Email not authorized for this file.')
+        setIsLoading(false)
+        return
+      }
+      const callbackUrl = `/f/${token}`
+      router.push(
+        `/sso?email=${encodeURIComponent(normalizedEmail)}&callbackUrl=${encodeURIComponent(callbackUrl)}`
+      )
+    } catch (err) {
+      setError(getErrorMessage(err, 'Email not authorized for this file.'))
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <PublicFileAuthShell
+      title='SSO Authentication'
+      subtitle='This file requires SSO authentication'
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          handleAuthenticate()
+        }}
+        className='au:flex au:flex-col au:gap-[var(--auth-group-gap)]'
+      >
+        <AuthField htmlFor='email' label='Work email' errors={error ? [error] : undefined}>
+          <AuthEmailInput
+            id='email'
+            name='email'
+            required
+            type='email'
+            placeholder='Enter your work email'
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value)
+              setError(null)
+            }}
+            error={Boolean(error)}
+            disabled={isLoading}
+          />
+        </AuthField>
+
+        <AuthSubmitButton
+          disabled={!email.trim()}
+          loading={isLoading}
+          loadingLabel='Redirecting to SSO…'
+        >
+          Continue with SSO
+        </AuthSubmitButton>
+      </form>
+    </PublicFileAuthShell>
+  )
+}

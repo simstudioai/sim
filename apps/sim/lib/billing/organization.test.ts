@@ -24,11 +24,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockCreateOrganizationWithOwner,
+  mockCreateOrganizationWithOwnerTx,
   mockAttachOwnedWorkspacesToOrganization,
   mockAttachOwnedWorkspacesToOrganizationTx,
   mockAssertNoCompetingEnterpriseIssuance,
 } = vi.hoisted(() => ({
   mockCreateOrganizationWithOwner: vi.fn(),
+  mockCreateOrganizationWithOwnerTx: vi.fn(async () => ({ organizationId: 'org_created' })),
   mockAttachOwnedWorkspacesToOrganization: vi.fn(),
   mockAttachOwnedWorkspacesToOrganizationTx: vi.fn(),
   mockAssertNoCompetingEnterpriseIssuance: vi.fn(),
@@ -44,6 +46,7 @@ vi.mock('@/lib/billing/plan-helpers', () => billingPlanHelpersMock)
 
 vi.mock('@/lib/billing/organizations/create-organization', () => ({
   createOrganizationWithOwner: mockCreateOrganizationWithOwner,
+  createOrganizationWithOwnerTx: mockCreateOrganizationWithOwnerTx,
 }))
 
 vi.mock('@/lib/billing/organizations/membership', () => organizationMembershipMock)
@@ -163,10 +166,11 @@ describe('ensureOrganizationForTeamSubscription', () => {
       })
     ).rejects.toThrow('workspace attachment failed')
 
-    expect(mockAcquireOrganizationMutationLock).toHaveBeenCalledWith(
+    expect(mockCreateOrganizationWithOwnerTx).toHaveBeenCalledWith(
       dbChainMock.db,
-      expect.stringMatching(/^org_/)
+      expect.objectContaining({ ownerUserId: 'owner-1' })
     )
+    expect(mockAcquireOrganizationMutationLock).toHaveBeenCalledWith(dbChainMock.db, 'org_created')
     expect(mockAttachOwnedWorkspacesToOrganizationTx).toHaveBeenCalledWith(
       dbChainMock.db,
       expect.objectContaining({
@@ -174,7 +178,6 @@ describe('ensureOrganizationForTeamSubscription', () => {
         workspaceIds: ['workspace-1'],
       })
     )
-    expect(dbChainMockFns.insert).toHaveBeenCalledTimes(2)
     expect(dbChainMockFns.update).toHaveBeenCalledTimes(1)
     // The helper never starts a nested/global transaction; the outer
     // acceptance transaction owns rollback of every mutation above.

@@ -5,7 +5,7 @@ paths:
   - "apps/sim/lib/landing/**"
   - "apps/sim/content/**"
   - "apps/sim/emails/broadcasts/**"
-  - "apps/sim/app/layout.tsx"
+  - "apps/sim/app/_shell/site-root-layout.tsx"
   - "apps/sim/app/manifest.ts"
   - "apps/sim/app/llms*.txt/**"
   - "apps/sim/app/changelog.xml/**"

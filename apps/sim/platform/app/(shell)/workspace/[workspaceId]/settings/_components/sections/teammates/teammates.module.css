@@ -1,0 +1,5 @@
+.controls {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}

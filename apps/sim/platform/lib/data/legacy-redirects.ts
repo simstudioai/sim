@@ -2,14 +2,15 @@ import 'server-only'
 import { notFound, permanentRedirect, redirect } from 'next/navigation'
 import { getSession } from '@/lib/auth'
 import { mapLegacyWorkspaceUrl } from '@/lib/navigation/legacy-redirects'
-import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
 type PageSearchParams = Record<string, string | string[] | undefined>
 
 /**
- * The body of every page that serves a moved workspace URL. Authorizes the viewer as the workspace
- * layout does, then answers with a permanent redirect, or a 404 for a workspace the viewer cannot
- * open, so a private workspace's organization never shows.
+ * The body of every page that serves a moved workspace URL. Authorizes the viewer's access to the
+ * workspace, then answers with a permanent redirect to its organization's page, or a 404 for a
+ * workspace the viewer cannot open, so a private workspace's organization never shows. The
+ * organization is the workspace's own, personal ones included, not the paying host.
  */
 export async function redirectLegacyWorkspaceUrl(
   workspaceId: string,
@@ -30,12 +31,12 @@ export async function redirectLegacyWorkspaceUrl(
     redirect(`/login?${new URLSearchParams({ callbackUrl })}`)
   }
 
-  const host = await getWorkspaceHostContextForViewer(workspaceId, session.user.id)
+  const access = await checkWorkspaceAccess(workspaceId, session.user.id)
   const target = mapLegacyWorkspaceUrl({
     workspaceId,
     segments,
     query,
-    organizationId: host?.hostOrganizationId ?? null,
+    organizationId: access.hasAccess ? (access.workspace?.organizationId ?? null) : null,
   })
   if (!target) notFound()
   permanentRedirect(target)

@@ -14,7 +14,7 @@ import {
   ActionRow,
   Muted,
   SectionToolbar,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/access-control/permission-rows.module.css'
 import {
   type AccessRequestTarget,

@@ -75,6 +75,8 @@ jobs:
         with:
           provider: github
       - run: bun run --cwd apps/sim build:platform
+        env:
+          NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
       - run: bunx --no-install playwright install --with-deps --only-shell chromium
         working-directory: apps/sim
       - run: bun run --cwd apps/sim test:platform:e2e
@@ -189,6 +191,7 @@ jobs:
         if: matrix.topology == 'zone'
         env:
           SIM_PLATFORM_BASE_PATH: /org
+          NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
         run: bun run --cwd apps/sim build:platform
       - name: Map the hosted app to loopback
         run: printf '127.0.0.1 platform-live.sim.ai\n' | sudo tee -a /etc/hosts

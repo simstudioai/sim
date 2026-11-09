@@ -17,7 +17,7 @@ import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { GlobalCommandsProvider } from '@/lib/global-commands/provider'
 import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
-import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { OrganizationProvider } from '@/lib/organizations/provider'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
@@ -37,9 +37,8 @@ const logger = createLogger('OrganizationLayout')
 
 /**
  * The organization surface: the viewer's own view of one organization, outside
- * any workspace. Requires membership and an available organization chat surface.
- * Non-members get an explicit denial; members outside the rollout retain
- * workspace settings, including when following a saved organization link.
+ * any workspace. Every member reaches it, personal organizations included;
+ * features that need a plan gate themselves. Non-members get an explicit denial.
  */
 export default async function OrganizationLayout({
   children,
@@ -69,13 +68,6 @@ export default async function OrganizationLayout({
   }
   const peopleEnabledLookup = canBrowsePeople(organizationId, context.viewer.role)
   const simLinksEnabledLookup = isSimLinksEnabled(organizationId)
-  if (
-    !context.mothershipAvailable &&
-    !context.searchAccess.memberScoped &&
-    !(await peopleEnabledLookup) &&
-    !(await simLinksEnabledLookup)
-  )
-    redirect(WORKSPACE_SETTINGS_PATH)
 
   const [
     ,

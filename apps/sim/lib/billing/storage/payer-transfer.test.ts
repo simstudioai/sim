@@ -34,6 +34,7 @@ vi.mock('@sim/db/schema', () => ({
   organization: {
     __table: 'organization',
     id: 'organization.id',
+    kind: 'organization.kind',
     storageUsedBytes: 'organization.storageUsedBytes',
   },
   userStats: {
@@ -82,6 +83,20 @@ interface FakeCondition {
   value: string
 }
 
+/** `and(inArray(organization.id, ids), eq(organization.kind, 'team'))` from the payer-organization read. */
+type FakeTeamOrganizationCondition = Array<{ field: string; values?: string[] }>
+
+function readTeamOrganizationIds(
+  condition: unknown,
+  teamOrganizationIds: ReadonlySet<string>
+): Array<{ id: string }> | null {
+  if (!Array.isArray(condition)) return null
+  const ids = (condition as FakeTeamOrganizationCondition).find(
+    (part) => part.field === 'organization.id'
+  )?.values
+  return (ids ?? []).filter((id) => teamOrganizationIds.has(id)).map((id) => ({ id }))
+}
+
 interface FakeWorkspace {
   id: string
   billedAccountUserId: string
@@ -92,6 +107,8 @@ interface FakeWorkspace {
 interface FakeTransferState {
   documentBytes?: number
   organizations?: Record<string, number>
+  /** Team organizations; defaults to every organization with a storage ledger. */
+  teamOrganizationIds?: string[]
   users?: Record<string, number>
   workspace: FakeWorkspace
   workspaceFileBytes?: number
@@ -100,6 +117,7 @@ interface FakeTransferState {
 
 function createFakeTx(state: FakeTransferState) {
   const organizations = new Map(Object.entries(state.organizations ?? {}))
+  const teamOrganizationIds = new Set(state.teamOrganizationIds ?? organizations.keys())
   const users = new Map(Object.entries(state.users ?? {}))
   const locks: string[] = []
   const updates: Array<{ id: string; table: string; values: Record<string, unknown> }> = []
@@ -119,6 +137,13 @@ function createFakeTx(state: FakeTransferState) {
       },
       for() {
         return chain
+      },
+      then(resolve: (value: unknown[]) => unknown, reject: (error: unknown) => unknown) {
+        return Promise.resolve(
+          table === 'organization'
+            ? (readTeamOrganizationIds(condition, teamOrganizationIds) ?? [])
+            : []
+        ).then(resolve, reject)
       },
       async limit() {
         locks.push(`${table}:${condition.value}`)
@@ -197,6 +222,7 @@ interface FakeSqlExpression {
 
 function createFakeBatchTx(state: FakeBatchTransferState) {
   const organizations = new Map(Object.entries(state.organizations ?? {}))
+  const teamOrganizationIds = new Set(organizations.keys())
   const users = new Map(Object.entries(state.users ?? {}))
   const workspaceById = new Map(state.workspaces.map((row) => [row.id, row]))
   const locks: Array<{ ids: string[]; table: string }> = []
@@ -219,6 +245,9 @@ function createFakeBatchTx(state: FakeBatchTransferState) {
     let condition: FakeBatchCondition = { values: [] }
     let lockRecorded = false
     const rows = () => {
+      const teamOrganizations =
+        table === 'organization' ? readTeamOrganizationIds(condition, teamOrganizationIds) : null
+      if (teamOrganizations) return teamOrganizations
       const ids = [...condition.values].sort()
       if (table === 'workspace') {
         return ids.flatMap((id) => {
@@ -419,6 +448,7 @@ describe('changeWorkspaceStoragePayerInTx', () => {
       },
       workspaceFileBytes: 25,
       users: { 'user-source': 50 },
+      teamOrganizationIds: ['missing-org'],
     })
 
     await expect(
