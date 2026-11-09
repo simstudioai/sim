@@ -267,7 +267,7 @@ export function VariablesPanel() {
   return (
     <section className={styles.panel} aria-label='Variables'>
       <header className={styles.header}>
-        <h2 className={styles.title} data-type='T062'>
+        <h2 className={styles.title} data-type='T059'>
           Variables
         </h2>
         <IconButton
