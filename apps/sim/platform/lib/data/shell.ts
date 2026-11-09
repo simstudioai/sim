@@ -110,8 +110,13 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
       appearance: settings.data?.theme,
       organization: organization.organization,
       user: toShellUser(profile.data),
+      // An organization-less personal workspace renders in the viewer's own organization, which
+      // is the only one whose shell they can open, so it is listed beside the organization's.
       workspaces: (workspaces.data ?? [])
-        .filter((workspace) => workspace.organizationId === organizationId)
+        .filter(
+          (workspace) =>
+            workspace.organizationId === organizationId || workspace.organizationId === null
+        )
         .map((workspace) => toShellWorkspace(workspace, pinnedIds.data)),
       chats: (chats.data ?? []).filter(canOpenChat).map((chat) => toShellChat(organization, chat)),
       inbox: [],

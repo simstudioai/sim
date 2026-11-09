@@ -1,5 +1,6 @@
 /**
- * Legacy workspace URLs whose new home needs the workspace's organization. Only a server page can
+ * Legacy workspace URLs whose new home needs the organization the workspace renders in: its own,
+ * or the viewer's landing organization for an organization-less workspace. Only a server page can
  * read that, after authorizing the viewer, so `next.config.ts` cannot redirect them statically.
  * Pure: the page passes the organization it read, and this decides the destination.
  */
@@ -10,7 +11,7 @@ interface LegacyWorkspaceUrl {
   /** The path below `/workspace/{workspaceId}/`, one entry per segment, decoded. */
   segments: readonly string[]
   query: URLSearchParams
-  /** The workspace's organization, or `null` when the viewer cannot open the workspace. */
+  /** The organization the workspace renders in, or `null` when the viewer cannot open it. */
   organizationId: string | null
 }
 
