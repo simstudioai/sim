@@ -129,9 +129,8 @@ describe('package boundary command', () => {
     }
   }, 30_000)
 
-  describe('organization surface seam', () => {
-    const LIB_FILE = 'apps/sim/platform/embedded/lib/data/widget.ts'
-    const VIEW_FILE = 'apps/sim/platform/embedded/app/(shell)/widget/widget.tsx'
+  describe('Platform data seam', () => {
+    const LIB_FILE = 'apps/sim/platform/lib/data/widget.ts'
 
     function withFixture(
       run: (fixture: string, audit: (...args: string[]) => ReturnType<typeof spawnSync>) => void
@@ -140,10 +139,7 @@ describe('package boundary command', () => {
       try {
         mkdirSync(path.join(fixture, 'scripts'))
         mkdirSync(path.join(fixture, 'packages'))
-        mkdirSync(path.join(fixture, 'apps/sim/platform/embedded/lib/data'), { recursive: true })
-        mkdirSync(path.join(fixture, 'apps/sim/platform/embedded/app/(shell)/widget'), {
-          recursive: true,
-        })
+        mkdirSync(path.join(fixture, path.dirname(LIB_FILE)), { recursive: true })
         for (const script of ['check-monorepo-boundaries.ts', 'platform-product-routes.ts']) {
           copyFileSync(path.join(ROOT, 'scripts', script), path.join(fixture, 'scripts', script))
         }
@@ -158,139 +154,15 @@ describe('package boundary command', () => {
       }
     }
 
-    it('keeps platform/embedded/lib from importing a view, even for a type', () => {
+    it('keeps platform/lib from reaching a product route at runtime', () => {
       withFixture((fixture, audit) => {
         const cases = [
-          ["import { Row } from '@/platform/embedded/app/(shell)/row'", false],
-          ["import type { Row } from '@/platform/embedded/app/(shell)/model'", false],
-          ["export { Row } from '../../app/(shell)/row'", false],
-          ["const row = import('@/platform/embedded/app/(shell)/row')", false],
-          ["import { value } from '@/platform/embedded/lib/data/value'", true],
-        ] as const
-        for (const [source, allowed] of cases) {
-          writeFileSync(path.join(fixture, LIB_FILE), `${source}\n`)
-          const result = audit()
-          expect.soft(result.status, `${source}\n${result.stderr}`).toBe(allowed ? 0 : 1)
-          if (!allowed) expect.soft(result.stderr).toContain(`${LIB_FILE}:1`)
-        }
-      })
-    })
-
-    it('keeps platform/embedded/lib from importing a route, even for a type', () => {
-      withFixture((fixture, audit) => {
-        const cases = [
-          ["import { Row } from '@/app/o/[organizationId]/row'", false],
-          ["import type { Row } from '@/app/o/[organizationId]/model'", false],
-          ["export { Row } from '../../../../app/o/[organizationId]/row'", false],
-          ["const row = import('@/app/o/[organizationId]/row')", false],
-          ["import { value } from '@/app/other/value'", true],
-          ["import { value } from '@/lib/organizations/value'", true],
-        ] as const
-        for (const [source, allowed] of cases) {
-          writeFileSync(path.join(fixture, LIB_FILE), `${source}\n`)
-          const result = audit()
-          expect.soft(result.status, `${source}\n${result.stderr}`).toBe(allowed ? 0 : 1)
-          if (!allowed) expect.soft(result.stderr).toContain(`${LIB_FILE}:1`)
-        }
-        writeFileSync(path.join(fixture, LIB_FILE), "import { Row } from '@/app/o/row'\n")
-        audit('--update', '--init')
-        expect(audit().status).toBe(1)
-      })
-    })
-
-    it('keeps the rest of platform from importing a route, even for a type', () => {
-      withFixture((fixture, audit) => {
-        const designFile = 'apps/sim/platform/preview/widget.tsx'
-        mkdirSync(path.join(fixture, 'apps/sim/platform/preview'), { recursive: true })
-        for (const file of [VIEW_FILE, designFile]) {
-          const cases = [
-            ["import { Row } from '@/app/o/[organizationId]/row'", false],
-            ["import type { Row } from '@/app/o/[organizationId]/model'", false],
-            ["const row = import('@/app/o/[organizationId]/row')", false],
-            ["import { Row } from '@/app/other/row'", true],
-          ] as const
-          for (const [source, allowed] of cases) {
-            writeFileSync(path.join(fixture, file), `${source}\n`)
-            const result = audit()
-            expect.soft(result.status, `${source}\n${result.stderr}`).toBe(allowed ? 0 : 1)
-            if (!allowed) expect.soft(result.stderr).toContain(`${file}:1`)
-          }
-          rmSync(path.join(fixture, file))
-        }
-      })
-    })
-
-    it.each([
-      [
-        'apps/sim/platform/app/page.tsx',
-        "import { Row } from '@/platform/embedded/app/(shell)/row'",
-      ],
-      ['apps/sim/platform/app/page.tsx', "import type { Row } from '../embedded/app/(shell)/row'"],
-      ['apps/sim/platform/lib/data/home.ts', "import '@/platform/embedded/lib/data/home'"],
-      ['apps/sim/platform/checks/home.test.ts', "import '@/platform/embedded/lib/data/home'"],
-      ['apps/sim/platform/preview/row.tsx', "import('@/platform/embedded/lib/time')"],
-      [LIB_FILE, "import { home } from '@/platform/lib/data/home'"],
-      [VIEW_FILE, "import type { Home } from '@/platform/app/(shell)/home/model'"],
-      [VIEW_FILE, "import '../../../../lib/data/home'"],
-    ])('keeps the zone and the organization views apart: %s, %s', (file, source) => {
-      withFixture((fixture, audit) => {
-        mkdirSync(path.join(fixture, path.dirname(file)), { recursive: true })
-        writeFileSync(path.join(fixture, file), `${source}\n`)
-        const result = audit()
-        expect(result.status, result.stderr).toBe(1)
-        expect(result.stderr).toContain(`${file}:1`)
-        expect(audit('--update', '--init').status).toBe(0)
-        expect(audit().status).toBe(1)
-      })
-    })
-
-    it.each([
-      [VIEW_FILE, "import { Button } from '@sim/emcn/button'"],
-      [LIB_FILE, "import { time } from '@/platform/embedded/lib/time'"],
-      ['apps/sim/platform/app/page.tsx', "import '@sim/emcn/button'"],
-      ['apps/sim/platform/app/page.tsx', "import '@/platform/lib/data/home'"],
-    ])('allows what the zone and the views each own: %s, %s', (file, source) => {
-      withFixture((fixture, audit) => {
-        mkdirSync(path.join(fixture, path.dirname(file)), { recursive: true })
-        writeFileSync(path.join(fixture, file), `${source}\n`)
-        const result = audit()
-        expect(result.status, result.stderr).toBe(0)
-      })
-    })
-
-    it('keeps platform/lib from reaching a route, or a view at runtime', () => {
-      const zoneLib = 'apps/sim/platform/lib/data/widget.ts'
-      withFixture((fixture, audit) => {
-        mkdirSync(path.join(fixture, path.dirname(zoneLib)), { recursive: true })
-        const cases = [
-          ["import { Row } from '@/app/o/[organizationId]/row'", false],
-          ["import type { Row } from '@/app/o/[organizationId]/model'", false],
-          ["const row = import('@/app/o/[organizationId]/row')", false],
-          ["import { Row } from '@/platform/app/(shell)/row'", false],
-          ["export { Row } from '../../app/(shell)/row'", false],
-          ["const row = import('@/platform/app/(shell)/row')", false],
+          ["import { Row } from '@/app/(product)/o/[organizationId]/home/row'", false],
+          ["export { Row } from '../../../app/(product)/workspace/row'", false],
+          ["const row = import('@/app/(product)/_components/row')", false],
           ["import { value } from '@/platform/lib/data/value'", true],
           ["import { useWidgets } from '@/hooks/queries/widgets'", true],
-        ] as const
-        for (const [source, allowed] of cases) {
-          writeFileSync(path.join(fixture, zoneLib), `${source}\n`)
-          const result = audit()
-          expect.soft(result.status, `${source}\n${result.stderr}`).toBe(allowed ? 0 : 1)
-          if (!allowed) expect.soft(result.stderr).toContain(`${zoneLib}:1`)
-        }
-        writeFileSync(path.join(fixture, zoneLib), "import { Row } from '@/app/o/row'\n")
-        audit('--update', '--init')
-        expect(audit().status).toBe(1)
-      })
-    })
-
-    it('keeps platform/embedded/lib from importing the workspace surface, even for a type', () => {
-      withFixture((fixture, audit) => {
-        const cases = [
-          ["import { Row } from '@/app/workspace/[workspaceId]/row'", false],
-          ["import type { Row } from '@/app/workspace/[workspaceId]/model'", false],
-          ["const row = import('@/app/workspace/providers/row')", false],
-          ["import { value } from '@/hooks/use-value'", true],
+          ["import { Row } from '@/app/(site)/row'", true],
         ] as const
         for (const [source, allowed] of cases) {
           writeFileSync(path.join(fixture, LIB_FILE), `${source}\n`)
@@ -298,97 +170,35 @@ describe('package boundary command', () => {
           expect.soft(result.status, `${source}\n${result.stderr}`).toBe(allowed ? 0 : 1)
           if (!allowed) expect.soft(result.stderr).toContain(`${LIB_FILE}:1`)
         }
+        writeFileSync(path.join(fixture, LIB_FILE), "import { Row } from '@/app/(product)/row'\n")
+        audit('--update', '--init')
+        expect(audit().status).toBe(1)
       })
     })
 
-    it('keeps a view from reading data around platform/embedded/lib/data', () => {
-      withFixture((fixture, audit) => {
-        const cases = [
-          ["import { useWidgets } from '@/hooks/queries/widgets'", false],
-          ["import { useWidgets } from '@/ee/widgets/hooks/widgets'", false],
-          ["export { useWidgets } from '@/ee/widgets/hooks/widgets'", false],
-          ["import { useDeep } from '@/ee/widgets/parts/hooks/deep'", false],
-          ["import { useFlat } from '@/ee/hooks'", false],
-          ["const widgets = import('@/hooks/queries/widgets')", false],
-          ["import { useWidgets } from '../../../../../hooks/queries/widgets'", false],
-          ["import type { Widget } from '@/hooks/queries/widgets'", true],
-          ["import { useWidgets } from '@/platform/embedded/lib/data/widgets'", true],
-          ["import { useDebounce } from '@/hooks/use-debounce'", true],
-          ["import { WIDGET_LABELS } from '@/ee/widgets/labels'", true],
-          ["import { widgetSummary } from '@/ee/widgets/lib/summary'", true],
-          ["import { WIDGET_LIMIT } from '@/ee/widgets/constants'", true],
-          ["import { hooksDoc } from '@/ee/hooks-docs/lib'", true],
-        ] as const
-        for (const [source, allowed] of cases) {
-          writeFileSync(path.join(fixture, VIEW_FILE), `${source}\n`)
-          const result = audit()
-          expect.soft(result.status, `${source}\n${result.stderr}`).toBe(allowed ? 0 : 1)
-          if (!allowed) expect.soft(result.stderr).toContain(`${VIEW_FILE}:1`)
-        }
-      })
-    })
-
-    it('ratchets view edges: a new one fails, and the baseline only shrinks', () => {
+    it('ratchets view types the data layer takes: a new one fails, and the baseline only shrinks', () => {
       withFixture((fixture, audit) => {
         const baselinePath = path.join(fixture, 'scripts/check-monorepo-boundaries.baseline.json')
-        const one = "import { useWidgets } from '@/hooks/queries/widgets'\n"
-        const two = `${one}import { useGears } from '@/ee/gears/hooks/gears'\n`
-
-        writeFileSync(path.join(fixture, VIEW_FILE), two)
-        expect(audit('--update').status).toBe(1)
-        expect(audit('--update', '--init').status).toBe(0)
-        expect(JSON.parse(readFileSync(baselinePath, 'utf8')).viewDataHooks).toEqual({
-          [VIEW_FILE]: 2,
-        })
-        expect(audit().status).toBe(0)
-
-        writeFileSync(
-          path.join(fixture, VIEW_FILE),
-          `${two}import { useCogs } from '@/ee/cogs/hooks/cogs'\n`
-        )
-        expect(audit().status).toBe(1)
-        expect(audit('--update').status).toBe(1)
-        expect(JSON.parse(readFileSync(baselinePath, 'utf8')).viewDataHooks).toEqual({
-          [VIEW_FILE]: 2,
-        })
-
-        writeFileSync(path.join(fixture, VIEW_FILE), one)
-        expect(audit().status).toBe(1)
-        expect(audit('--update').status).toBe(0)
-        expect(JSON.parse(readFileSync(baselinePath, 'utf8')).viewDataHooks).toEqual({
-          [VIEW_FILE]: 1,
-        })
-        expect(audit().status).toBe(0)
-      })
-    })
-
-    it.each([
-      ['platformToRoutes', VIEW_FILE, '@/app/o/[organizationId]/row'],
-      ['platformLibToWorkspace', LIB_FILE, '@/app/workspace/[workspaceId]/row'],
-      ['viewsToWorkspace', VIEW_FILE, '@/app/workspace/[workspaceId]/row'],
-      ['zoneLibToViewTypes', 'apps/sim/platform/lib/data/widget.ts', '@/platform/app/(shell)/row'],
-    ])('ratchets %s: a new edge fails, and the baseline only shrinks', (ratchet, file, target) => {
-      withFixture((fixture, audit) => {
-        mkdirSync(path.join(fixture, path.dirname(file)), { recursive: true })
-        const baselinePath = path.join(fixture, 'scripts/check-monorepo-boundaries.baseline.json')
-        const counts = () => JSON.parse(readFileSync(baselinePath, 'utf8'))[ratchet]
+        const counts = () => JSON.parse(readFileSync(baselinePath, 'utf8')).libToViewTypes
+        const target = '@/app/(product)/_components/model'
         const one = `import type { a } from '${target}'\n`
         const two = `${one}import type { b } from '${target}'\n`
 
-        writeFileSync(path.join(fixture, file), two)
+        writeFileSync(path.join(fixture, LIB_FILE), two)
+        expect(audit().status).toBe(1)
         expect(audit('--update', '--init').status).toBe(0)
-        expect(counts()).toEqual({ [file]: 2 })
+        expect(counts()).toEqual({ [LIB_FILE]: 2 })
         expect(audit().status).toBe(0)
 
-        writeFileSync(path.join(fixture, file), `${two}import type { c } from '${target}'\n`)
+        writeFileSync(path.join(fixture, LIB_FILE), `${two}import type { c } from '${target}'\n`)
         expect(audit().status).toBe(1)
         expect(audit('--update').status).toBe(1)
-        expect(counts()).toEqual({ [file]: 2 })
+        expect(counts()).toEqual({ [LIB_FILE]: 2 })
 
-        writeFileSync(path.join(fixture, file), one)
+        writeFileSync(path.join(fixture, LIB_FILE), one)
         expect(audit().status).toBe(1)
         expect(audit('--update').status).toBe(0)
-        expect(counts()).toEqual({ [file]: 1 })
+        expect(counts()).toEqual({ [LIB_FILE]: 1 })
         expect(audit().status).toBe(0)
       })
     })

@@ -1,11 +1,5 @@
 {
-  "viewDataHooks": {},
-  "platformToRoutes": {
-    "apps/sim/platform/embedded/app/(shell)/search/_components/search-surface/search-surface.tsx": 1
-  },
-  "platformLibToWorkspace": {},
-  "viewsToWorkspace": {},
-  "zoneLibToViewTypes": {
+  "libToViewTypes": {
     "apps/sim/platform/lib/data/admin.ts": 1,
     "apps/sim/platform/lib/data/chat-composer.ts": 2,
     "apps/sim/platform/lib/data/chat-credentials/rows.ts": 1,

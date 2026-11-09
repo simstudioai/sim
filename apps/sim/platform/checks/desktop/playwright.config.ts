@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { defineConfig } from '@playwright/test'
-import { DESKTOP_PORT, desktopOrigin, fixtureUrl, productionServer } from '../routes'
+import { DESKTOP_PORT, productionServer } from '../routes'
 
 const appRoot = path.resolve(__dirname, '../../..')
 const report =
@@ -18,6 +18,6 @@ export default defineConfig({
         command: productionServer(DESKTOP_PORT),
         cwd: appRoot,
         env: { SIM_PLATFORM_FIXTURES: '1' },
-        url: fixtureUrl('/home', desktopOrigin),
+        url: `http://127.0.0.1:${DESKTOP_PORT}/api/health`,
       },
 })

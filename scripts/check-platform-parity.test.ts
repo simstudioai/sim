@@ -4,7 +4,7 @@ import { auditLedger } from './check-platform-parity'
 const HEADER =
   '| Capability | Legacy source | Status | Proof or reason |\n| --- | --- | --- | --- |\n'
 
-function audit(rows: string, run?: Map<string, string>, job?: 'zone' | 'flag-off') {
+function audit(rows: string, run?: Map<string, string>, job?: 'product' | 'self-hosted') {
   return auditLedger({
     ledger: `${HEADER}${rows}`,
     testFiles: new Set(['home.spec.ts', 'home-model.test.ts']),
@@ -47,21 +47,21 @@ describe('auditLedger', () => {
 
   it('holds each live job to its own rows, and neither to the other', () => {
     const title = 'a role change persists and a failed one is reported'
-    const zoneRow = '| Role | x | Done | "a role change persists" |\n'
-    const flagOffRow =
-      '| Role | x | Done | "a role change persists", in the `live (flag-off)` job |\n'
+    const productRow = '| Role | x | Done | "a role change persists" |\n'
+    const selfHostedRow =
+      '| Role | x | Done | "a role change persists", in the `live (self-hosted)` job |\n'
 
-    expect(audit(flagOffRow, new Map(), 'zone')).toEqual([])
-    expect(audit(zoneRow, new Map(), 'flag-off')).toEqual([])
+    expect(audit(selfHostedRow, new Map(), 'product')).toEqual([])
+    expect(audit(productRow, new Map(), 'self-hosted')).toEqual([])
 
-    expect(audit(zoneRow, new Map(), 'zone')[0]).toContain('did not run')
-    expect(audit(flagOffRow, new Map(), 'flag-off')[0]).toContain('did not run')
-    expect(audit(flagOffRow, new Map([[title, 'failed']]), 'flag-off')[0]).toContain('failed')
-    expect(audit(flagOffRow, new Map([[title, 'passed']]), 'flag-off')).toEqual([])
+    expect(audit(productRow, new Map(), 'product')[0]).toContain('did not run')
+    expect(audit(selfHostedRow, new Map(), 'self-hosted')[0]).toContain('did not run')
+    expect(audit(selfHostedRow, new Map([[title, 'failed']]), 'self-hosted')[0]).toContain('failed')
+    expect(audit(selfHostedRow, new Map([[title, 'passed']]), 'self-hosted')).toEqual([])
   })
 
   it('still refuses a row in another job when its test does not exist', () => {
-    const row = '| Role | x | Done | "nothing like this", in the `live (flag-off)` job |\n'
-    expect(audit(row, new Map(), 'zone')[0]).toContain('does not exist')
+    const row = '| Role | x | Done | "nothing like this", in the `live (self-hosted)` job |\n'
+    expect(audit(row, new Map(), 'product')[0]).toContain('does not exist')
   })
 })

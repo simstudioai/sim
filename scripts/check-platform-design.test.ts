@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -81,16 +81,16 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       }`
     )
     write(
-      'platform/app/page.tsx',
+      'app/(product)/page.tsx',
       `import { Button as Action } from '@sim/emcn/button'
       export default function Page() { return <Action variant="primary"/> }`
     )
     write(
-      'platform/app/settings/_components/panel/panel.tsx',
-      `import classes from '@/platform/app/settings/_components/panel/panel.module.css'
+      'app/(product)/settings/_components/panel/panel.tsx',
+      `import classes from '@/app/(product)/settings/_components/panel/panel.module.css'
       export function Panel(){return <section className={classes.panel}/>}`
     )
-    write('platform/app/settings/_components/panel/panel.module.css', '.panel{padding:0}')
+    write('app/(product)/settings/_components/panel/panel.module.css', '.panel{padding:0}')
     const brand = '../../packages/emcn/src/components/brand'
     const brandProps = `import type { SVGProps } from 'react'
       interface WordmarkProps extends Omit<SVGProps<SVGSVGElement>, 'children' | 'style' | 'css' | 'sx'> {}`
@@ -121,7 +121,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       import { OverlayDialog as Surface, ModalFooter as Actions } from '@sim/emcn/modal';
       import { Button as Action } from '@sim/emcn/button';`
     write(
-      'platform/app/settings/_components/inspector.tsx',
+      'app/(product)/settings/_components/inspector.tsx',
       `${dialogImports}
       function ModalFooter(){return <span>Document information</span>}
       export function Inspect({title}:{title:string}) {return <>
@@ -146,7 +146,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     })
     rmSync(path.join(APP, authProbe))
 
-    const looseRecipe = 'platform/app/settings/_components/loose.module.css'
+    const looseRecipe = 'app/(product)/settings/_components/loose.module.css'
     write(looseRecipe, '.loose{padding:0}')
     expect(audit()).toEqual({
       status: 1,
@@ -179,19 +179,14 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       function Nested({choice}:{choice:'primary'|'ghost'}) {return <Action variant={choice}/>}
       export default function Page(){return <Nested choice="primary"/>}`
     write(
-      'platform/app/page.tsx',
+      'app/(product)/page.tsx',
       productPage.replace(
         'function Page(){return',
         'function Page(){function discarded(){return <Nested choice="ghost"/>} (discarded()); return'
       )
     )
-    write(
-      'platform/app/workbench/page.tsx',
-      `import { Button } from '@sim/emcn/button'
-      export default function Workbench(){return <main><Button variant="ghost"/></main>}`
-    )
-    for (const file of ['workbench/loading', '_draft/error', 'orphan/error', '@unused/default']) {
-      write(`platform/app/${file}.tsx`, productPage.replace('choice="primary"', 'choice="ghost"'))
+    for (const file of ['_draft/error', 'orphan/error', '@unused/default']) {
+      write(`app/(product)/${file}.tsx`, productPage.replace('choice="primary"', 'choice="ghost"'))
     }
     expect(audit()).toEqual({
       status: 1,
@@ -199,13 +194,13 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     })
 
     const boundaries = {
-      'platform/app/template.tsx': 'template',
-      'platform/app/account/error.tsx': 'error',
-      'platform/app/account/loading.tsx': 'loading',
-      'platform/app/account/not-found.tsx': 'not-found',
-      'platform/app/global-error.tsx': 'global-error',
+      'app/(product)/template.tsx': 'template',
+      'app/(product)/account/error.tsx': 'error',
+      'app/(product)/account/loading.tsx': 'loading',
+      'app/(product)/account/not-found.tsx': 'not-found',
+      'app/(product)/global-error.tsx': 'global-error',
     }
-    write('platform/app/account/details/page.tsx', 'export default function Page(){return null}')
+    write('app/(product)/account/details/page.tsx', 'export default function Page(){return null}')
     const choices = ['primary', 'ghost', 'shadow', 'defaulted', ...Object.values(boundaries)]
     writeCatalog('variants', {
       Button: { variant: Object.fromEntries(choices.map((choice) => [choice, []])) },
@@ -224,7 +219,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       )
     }
     write(
-      'platform/app/page.tsx',
+      'app/(product)/page.tsx',
       `import {Button} from '@sim/emcn/button';
        function Row({choice}:{choice:'primary'|'ghost'}) {
          const render = (kind = choice) => <Button variant={kind}/>;
@@ -257,14 +252,14 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     const deadPage = productPage
       .replace('function Page(){', 'function Page(){if (DISABLED) return <Nested choice="ghost"/>;')
       .replace('<Nested choice="primary"/>', `<><Nested choice="primary"/>${inactive}</>`)
-    write('platform/app/page.tsx', `const DISABLED = false; ${deadPage}`)
+    write('app/(product)/page.tsx', `const DISABLED = false; ${deadPage}`)
     expect(audit()).toEqual({
       status: 1,
       output: expect.stringContaining('[code-use] Button.variant=ghost'),
     })
 
     write(
-      'platform/app/page.tsx',
+      'app/(product)/page.tsx',
       productPage.replace(
         '<Nested choice="primary"/>',
         '<><Nested choice={Date.now() % 2 ? "primary" : "ghost"}/><link rel="icon" href="/favicon.ico"/></>'
@@ -308,52 +303,51 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       ['dynamic', '<link rel={kind} href="/bypass.css"/>'],
     ]) {
       write(
-        `platform/app/${file}.tsx`,
+        `app/(product)/${file}.tsx`,
         `const kind: string = "stylesheet"; export const Escape = () => ${tag}`
       )
     }
     const injected = audit()
     expect(injected.status).toBe(1)
     for (const file of ['inline', 'stylesheet', 'dynamic']) {
-      expect(injected.output).toContain(`platform/app/${file}.tsx:1 [consumer-style]`)
+      expect(injected.output).toContain(`app/(product)/${file}.tsx:1 [consumer-style]`)
     }
 
-    write('platform/app/chats/ages.ts', "export const updated = '17hrs ago'")
-    write('platform/app/chats/axis.ts', 'export const day = new Intl.DateTimeFormat("en-US")')
+    write('app/(product)/chats/ages.ts', "export const updated = '17hrs ago'")
+    write('app/(product)/chats/axis.ts', 'export const day = new Intl.DateTimeFormat("en-US")')
     write(
-      'platform/app/chats/stamp.ts',
+      'app/(product)/chats/stamp.ts',
       'export const stamp = (date: Date) => date.toLocaleString()'
     )
-    write('platform/app/chats/total.ts', 'export const total = (n: number) => n.toLocaleString()')
-    write('platform/app/settings/_components/index.ts', `export { Panel } from './panel'`)
+    write('app/(product)/chats/total.ts', 'export const total = (n: number) => n.toLocaleString()')
+    write('app/(product)/settings/_components/index.ts', `export { Panel } from './panel'`)
     write(
-      'platform/app/settings/_components/section.tsx',
+      'app/(product)/settings/_components/section.tsx',
       'export function Section() { return null }'
     )
     write(
-      'platform/app/chats/other.ts',
-      `export { Panel } from '@/platform/app/settings/_components'`
+      'app/(product)/chats/other.ts',
+      `export { Panel } from '@/app/(product)/settings/_components'`
     )
     write(
-      'platform/app/settings/_components/profile/profile.ts',
-      `import '@/platform/app/settings/_components/panel.module.css'`
+      'app/(product)/settings/_components/profile/profile.ts',
+      `import '@/app/(product)/settings/_components/panel.module.css'`
     )
-    write('platform/app/chats/gallery.ts', `export { Specimen } from '@/platform/preview/gallery'`)
     write(
       '../../packages/emcn/src/components/menu/chrome.ts',
       `import '../button/button.module.css'`
     )
     write(
-      'platform/app/chats/private.ts',
-      `export { Section } from '@/platform/app/settings/_components/section'`
+      'app/(product)/chats/private.ts',
+      `export { Section } from '@/app/(product)/settings/_components/section'`
     )
     write('../../packages/emcn/src/features/leak/example.ts', 'export const example = true')
     write('../../packages/emcn/src/components/flat.ts', 'export const flat = true')
     write(
-      'platform/app/settings/_components/banner.tsx',
+      'app/(product)/settings/_components/banner.tsx',
       'export const Banner = () => <p>Email delivery is disabled in this preview.</p>'
     )
-    const feature = 'platform/app/settings/_components'
+    const feature = 'app/(product)/settings/_components'
     const handBuiltDialogs = [
       ['header-part', '<Dialogs.ModalHeader title="Invite"/>'],
       ['footer-part', '<Actions confirmLabel="Invite"/>'],
@@ -404,11 +398,11 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     write(`${component}/legacy.ts`, `import '@sim/emcn-legacy/icons'`)
     write(`${component}/surface.ts`, `import '@sim/emcn-platform/catalog/component-recipe'`)
 
-    write('app/legacy.ts', `export { Section } from '@/platform/app/settings/_components/section'`)
+    write('app/legacy.ts', `export { Section } from '@/app/(product)/settings/_components/section'`)
     write(
-      'platform/app/escape.tsx',
+      'app/(product)/escape.tsx',
       `import { Button } from '@sim/emcn/button'
-      import '@/platform/app/bypass.css'
+      import '@/app/(product)/bypass.css'
       export const escape = (props: object) => <Button className="red" style={{opacity: 0.2}} {...props}/>
       export const paperSpecimen = () => import('@sim/emcn-platform/catalog/component-recipe')
       export const localTimer = () => window.setTimeout(() => {}, 2000)
@@ -421,7 +415,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       import { useOrganizations } from '@/hooks/queries/organization'
       import { client } from '@/lib/auth/client'
       import { createLogger } from '@sim/logger'
-      import type { ShellData } from '@/platform/app/shell/_components/model'
+      import type { ShellData } from '@/app/(product)/shell/_components/model'
       export const allowed: unknown[] = [useOrganizations, client, createLogger]
       export type { Principal, ShellData }`
     )
@@ -431,10 +425,10 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       import '@/components/settings/navigation'
       import '@/lib/auth/server-only-module'
       import '@sim/emcn-legacy'
-      import '@/platform/app/shell/_components/value'`
+      import '@/app/(product)/shell/_components/value'`
     )
     write(
-      'platform/app/chats/bypasses-seam.ts',
+      'app/(product)/chats/bypasses-seam.ts',
       `import '@/hooks/queries/mothership-chats'
       import '@/lib/api/client/request'
       import '@sim/logger'`
@@ -445,7 +439,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       interface ActionProps { variant: 'default' | 'not-in-paper' }
       export function Action({ variant }: ActionProps) { return <button data-variant={variant}/> }`
     )
-    write('platform/app/bypass.css', '.button { color: blue }')
+    write('app/(product)/bypass.css', '.button { color: blue }')
     write(
       `${component}/button.module.css`,
       ".button[data-variant='unused-selector']{color:var(--unregistered);background:rebeccapurple; @apply bg-[#f00]; opacity:.37; padding:37px;transition:color .2s}"
@@ -496,18 +490,17 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
     expect(result.output).toContain(`${feature}/actions.module.css [private-recipe]`)
     expect(result.output).toContain(`${component}/legacy.ts [legacy-import]`)
     expect(result.output).toContain(`${component}/surface.ts [design-dependency]`)
-    expect(result.output).toContain('platform/app/chats/other.ts [private-composition]')
+    expect(result.output).toContain('app/(product)/chats/other.ts [private-composition]')
     expect(result.output).toContain(
-      'platform/app/settings/_components/profile/profile.ts [private-recipe]'
+      'app/(product)/settings/_components/profile/profile.ts [private-recipe]'
     )
-    expect(result.output).toContain('platform/app/chats/gallery.ts [workbench-dependency]')
     expect(result.output).toContain(
       '../../packages/emcn/src/components/menu/chrome.ts [private-recipe]'
     )
-    expect(result.output).toContain('platform/app/chats/ages.ts:1 [time-format]')
-    expect(result.output).toContain('platform/app/chats/axis.ts:1 [time-format]')
-    expect(result.output).toContain('platform/app/chats/stamp.ts:1 [time-format]')
-    expect(result.output).not.toContain('platform/app/chats/total.ts:1 [time-format]')
+    expect(result.output).toContain('app/(product)/chats/ages.ts:1 [time-format]')
+    expect(result.output).toContain('app/(product)/chats/axis.ts:1 [time-format]')
+    expect(result.output).toContain('app/(product)/chats/stamp.ts:1 [time-format]')
+    expect(result.output).not.toContain('app/(product)/chats/total.ts:1 [time-format]')
     expect(result.output).toContain(`${feature}/icon.tsx:1 [icon-owner]`)
     expect(result.output).toContain(`${feature}/ink.module.css:1 [icon-owner]`)
     expect(result.output).toContain(`${brand}/wordmark.tsx:4 [icon-owner]`)
@@ -529,7 +522,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       '@sim/logger',
     ])
       expect(result.output).toContain(
-        `platform/app/chats/bypasses-seam.ts [legacy-import] ${specifier}`
+        `app/(product)/chats/bypasses-seam.ts [legacy-import] ${specifier}`
       )
     for (const issue of [
       'legacy-import',
@@ -538,7 +531,6 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       'style-api',
       'fixture-boundary',
       'css-owner',
-      'preview-selector',
       'unknown-token',
       'focus-style',
       'native-picker',
@@ -567,9 +559,9 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
   }
 }, 30_000)
 
-/** The smallest app the check passes on, with the embedded tree beside the zone. */
-function embeddedFixture() {
-  const root = mkdtempSync(path.join(tmpdir(), 'sim-platform-embedded-'))
+/** The smallest app the check passes on: one product page and its design system. */
+function productFixture() {
+  const root = mkdtempSync(path.join(tmpdir(), 'sim-platform-product-'))
   const put = (file: string, content: string) => {
     const absolute = path.join(root, 'apps/sim', file)
     mkdirSync(path.dirname(absolute), { recursive: true })
@@ -580,7 +572,6 @@ function embeddedFixture() {
     path.join(root, 'node_modules'),
     'dir'
   )
-  mkdirSync(path.join(root, 'scripts'))
   put(
     '../../packages/emcn/package.json',
     JSON.stringify({
@@ -620,98 +611,40 @@ function embeddedFixture() {
     `export function Button({variant}: {variant: 'primary'}) { return <button data-variant={variant}/> }`
   )
   put(
-    'platform/embedded/app/(shell)/home/_components/home/home.tsx',
-    `import { useThing } from '@/hooks/queries/thing'
-    import { logger } from '@sim/logger'
-    import { Button } from '@sim/emcn/button'
-    export const used = [useThing, logger]
-    export function Home() { return <Button variant='primary'/> }`
+    'app/(product)/o/[organizationId]/home/page.tsx',
+    `import { Button } from '@sim/emcn/button'
+    export default function Page() { return <Button variant='primary'/> }`
   )
-  put(
-    'app/o/[organizationId]/home/page.tsx',
-    `import { Home } from '@/platform/embedded/app/(shell)/home/_components/home/home'
-    export default function Page() { return <Home/> }`
-  )
-  const run = (...flags: string[]) => {
-    const result = spawnSync('bun', [CHECK, root, ...flags], { encoding: 'utf8' })
+  const run = () => {
+    const result = spawnSync('bun', [CHECK, root], { encoding: 'utf8' })
     if (result.error) throw result.error
     return { status: result.status, output: result.stdout + result.stderr }
   }
-  const baseline = path.join(root, 'scripts/check-platform-design.baseline.json')
-  return { root, put, run, baseline }
+  return { root, put, run }
 }
 
-it('walks the embedded views, with a shrink-only per-file baseline that holds only them', () => {
-  const { root, put, run, baseline } = embeddedFixture()
-  const view = 'platform/embedded/app/(shell)/home/_components/home/spread.tsx'
-  try {
-    expect(run()).toEqual({ status: 0, output: expect.stringContaining('passed') })
-
-    put(view, 'export const Spread = (props: object) => <div {...props}/>')
-    expect(run()).toEqual({ status: 1, output: expect.stringContaining(`${view}:1 [prop-spread]`) })
-
-    expect(run('--update').status).toBe(1)
-    expect(run('--update', '--init').status).toBe(0)
-    expect(JSON.parse(readFileSync(baseline, 'utf8'))).toEqual({ [view]: { 'prop-spread': 1 } })
-    expect(run()).toEqual({ status: 0, output: expect.stringContaining('1 embedded findings') })
-
-    put(
-      view,
-      `export const Spread = (props: object) => <div {...props}/>
-      export const Again = (props: object) => <div {...props}/>`
-    )
-    expect(run()).toEqual({ status: 1, output: expect.stringContaining(`${view}:2 [prop-spread]`) })
-    expect(run('--update').status).toBe(1)
-    expect(JSON.parse(readFileSync(baseline, 'utf8'))).toEqual({ [view]: { 'prop-spread': 1 } })
-
-    put(view, 'export const Clean = 1')
-    expect(run()).toEqual({ status: 1, output: expect.stringContaining('shrink it with --update') })
-    expect(run('--update').status).toBe(0)
-    expect(JSON.parse(readFileSync(baseline, 'utf8'))).toEqual({})
-
-    const zone = 'platform/app/spread.tsx'
-    put(zone, 'export const Spread = (props: object) => <div {...props}/>')
-    writeFileSync(baseline, JSON.stringify({ [zone]: { 'prop-spread': 1 } }))
-    expect(run()).toEqual({ status: 1, output: expect.stringContaining(`${zone}:1 [prop-spread]`) })
-    expect(run('--update').status).toBe(1)
-  } finally {
-    rmSync(root, { recursive: true, force: true })
-  }
-}, 30_000)
-
 it.each([
-  [
-    'zone-embedded',
-    'platform/app/page.tsx',
-    `import '@/platform/embedded/app/(shell)/home/_components/home/home'`,
-  ],
-  ['zone-embedded', 'platform/lib/data/home.ts', `import '@/platform/embedded/lib/time'`],
-  [
-    'design-dependency',
-    '../../packages/emcn/src/components/button/leak.ts',
-    `import '@/platform/embedded/lib/time'`,
-  ],
-  ['zone-embedded', 'platform/embedded/lib/data/reach.ts', `import '@/platform/lib/data/home'`],
-  ['zone-embedded', 'platform/embedded/lib/data/reach2.ts', `import '../../../app/page'`],
-  ['zone-embedded', 'platform/shared/reach.ts', `import '@/platform/lib/navigation'`],
-  ['zone-embedded', 'platform/shared/reach2.ts', `import type {} from '@/platform/lib/data/home'`],
-  ['legacy-import', 'app/o/[organizationId]/reach.ts', `import '@/platform/lib/data/home'`],
-  ['legacy-import', 'app/workspace/reach.tsx', `import '@/platform/embedded/lib/time'`],
+  ['shared-import', 'platform/shared/reach.ts', `import '@/platform/lib/navigation'`],
+  ['shared-import', 'platform/shared/reach2.ts', `import type {} from '@/platform/lib/data/home'`],
+  ['legacy-import', 'app/(product)/workspace/reach.tsx', `import '@/lib/core/utils/cn'`],
+  ['legacy-import', 'app/(product)/_components/reach.ts', `import '@sim/logger'`],
+  ['legacy-import', 'app/(site)/reach.tsx', `import '@/platform/lib/data/home'`],
   [
     'private-composition',
-    'platform/embedded/app/(shell)/search/_components/reach.ts',
-    `import '@/platform/embedded/app/(shell)/home/_components/home/home'`,
+    'app/(product)/o/[organizationId]/search/_components/reach.ts',
+    `import '@/app/(product)/o/[organizationId]/home/_components/panel/panel'`,
   ],
   [
     'private-recipe',
-    'app/o/[organizationId]/recipe.ts',
+    'app/(product)/o/[organizationId]/home/recipe.ts',
     `import '@sim/emcn/button/button.module.css'`,
   ],
 ])(
   'fails [%s] for %s',
   (rule, file, source) => {
-    const { root, put, run } = embeddedFixture()
+    const { root, put, run } = productFixture()
     try {
+      put('app/(product)/o/[organizationId]/home/_components/panel/panel.tsx', 'export {}\n')
       put(file, `${source}\n`)
       const result = run()
       expect(result.status).toBe(1)
@@ -723,25 +656,26 @@ it.each([
   30_000
 )
 
-it('lets a shared model name an EMCN type and an organization route import it', () => {
-  const { root, put, run } = embeddedFixture()
+it('lets the product root layout load the site bootstrap, and a shared model name an EMCN type', () => {
+  const { root, put, run } = productFixture()
   try {
+    put('app/(product)/layout.tsx', `import '@/app/_shell/providers/telemetry'\nexport {}\n`)
     put('../../packages/emcn/src/catalog/icon-geometry.ts', `export type IconName = 'I001'\n`)
     put(
       'platform/shared/model.ts',
       `import type { IconName } from '@sim/emcn/catalog/icon-geometry'\nexport type Row = IconName\n`
     )
-    put('app/o/[organizationId]/model-reader.ts', `import '@/platform/shared/model'\n`)
     expect(run()).toEqual({ status: 0, output: expect.stringContaining('passed') })
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
 }, 30_000)
 
-it('counts a variant only an organization route mounts through a dynamic section table', () => {
-  const { root, put, run } = embeddedFixture()
+it('counts a variant a product page mounts through a dynamic section table', () => {
+  const { root, put, run } = productFixture()
   const button = '../../packages/emcn/src/components/button/button.tsx'
-  const section = 'platform/embedded/app/(shell)/home/_components/home/section.tsx'
+  const home = 'app/(product)/o/[organizationId]/home'
+  const section = `${home}/_components/home/section.tsx`
   try {
     put(
       '../../packages/emcn-platform/src/catalog/variants.json',
@@ -761,15 +695,16 @@ it('counts a variant only an organization route mounts through a dynamic section
     expect(unmounted.output).toContain('[code-use] Button.variant=quiet')
 
     put(
-      'platform/embedded/app/(shell)/home/_components/home/host.tsx',
+      `${home}/_components/home/host.tsx`,
       `import dynamic from 'next/dynamic'
       const TABLE = { one: dynamic(() => import('@/${section.replace('.tsx', '')}')) }
       export function Host({ name }: { name: 'one' }) { const Section = TABLE[name]; return <Section/> }`
     )
     put(
-      'app/o/[organizationId]/section/page.tsx',
-      `import { Host } from '@/platform/embedded/app/(shell)/home/_components/home/host'
-      export default function Page() { return <Host name='one'/> }`
+      `${home}/page.tsx`,
+      `import { Button } from '@sim/emcn/button'
+      import { Host } from '@/${home}/_components/home/host'
+      export default function Page() { return <><Button variant='primary'/><Host name='one'/></> }`
     )
     expect(run()).toEqual({ status: 0, output: expect.stringContaining('passed') })
   } finally {

@@ -248,7 +248,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | --- | --- | --- | --- |
 | Bare `/o` resolves to the viewer's org home | `app/o/page.tsx` | Done | "signing in through the zone lands" |
 | `/o` loading screen | `app/o/loading.tsx` | Unverified | No live check yet. Foundation: `(shell)/loading.tsx` |
-| Signed-out redirect with `callbackUrl` | `O/layout.tsx` | Done | "signing in from a Platform link returns to the zone". The callback is the zone root, as on legacy: a deep link is not restored |
+| Signed-out redirect with `callbackUrl` | `O/layout.tsx` | Done | "signing in through the zone lands", "sign out ends the session". A deep link is not restored |
 | Non-member denial page | `O/layout.tsx`, `organization-access-denied.tsx` | Unverified | No live check yet. Foundation: `shell-gate.tsx` |
 | Surface unavailable redirect | `O/layout.tsx` | Unverified | No live check yet. Foundation: `hasOrganizationSurface` in `live-shell.tsx` |
 | Org root redirect priority | `O/page.tsx` | Unverified | No live check yet. Foundation: `lib/data/landing.ts` |
@@ -441,20 +441,12 @@ The workspace's Dashboard, Issues, Changelog and Logs are Platform pages. Fixtur
 | Workspace | Test source edited beside its results; preview of the exact version a test ran against | `tests/components/test-dashboard.tsx` | Open | Edit opens the file in Files and ran-against rows open the current workflow: the file viewer and canvas preview are route-owned and need promoting first |
 | Workspace | Workspace settings tab: sections, navigation, gates, restricted sections with Request access | `app/workspace/[workspaceId]/settings/` | Unverified | No live check yet. `lib/data/workspace-settings` mirrors the legacy settings sidebar's gates; see Settings: legacy settings homes |
 
-## Zone
+## Routes
 
 | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- |
-| Legacy URLs land on their Platform routes, query kept | `lib/platform/routes.ts` | Done | "lands on" |
-| A client navigation into a mapped route reaches the Platform | `platform-route-guard.tsx` | Done | "a client navigation into a mapped legacy route" |
-| An unmapped route stays legacy; a forged header moves nobody | `proxy.ts` | Done | "a route with no Platform counterpart stays legacy", "a forged legacy URL header" |
-| Security headers and noindex on zone pages, assets under the base path | `platform/proxy.ts` | Done | "zone pages carry the security headers" |
+| Saved links from before the product routes land where they now live, query kept | `next.config.ts` | Done | "a saved" |
+| The retired `/org` paths lead to the product home | `next.config.ts` | Done | "the retired /org paths lead to the product home" |
+| Security headers on product pages | `proxy.ts`, `next.config.ts` | Done | "product pages carry the security headers" |
 | No uncaught error, hydration mismatch, CSP block or 5xx on any route, in both themes at both widths | None; Platform only | Done | "renders healthy in both themes", one per route in `checks/live/routes.spec.ts` |
-| Flag off, zone built: `/o` renders legacy with no redirect, `/org` pages are absent, the bare `/org` leads back to `/o` | `layout.tsx`, `live-shell.tsx`, `lib/data/landing.ts` | Done | "stays on the main app with no redirect", "/org is absent", "the bare /org has nothing to show", run with the flag off |
-| Zone not built, flag on: `/o` renders legacy with no redirect, `/org` is absent | `next.config.ts` | Done | "/org is absent", in the `live (flag-off)` job |
-| Zone down or answering 5xx with the flag on: a legacy URL renders on the main app, a Platform page returns there, an open tab's client navigation is sent back, sign-in lands there | `proxy.ts`, `lib/platform/zone-availability.ts` | Done | "with the zone unavailable", run with the process gone and with every page answering 503; `proxy.test.ts` for each way a zone can fail. A deep link comes back to the organization's home, not to its own page |
-| A zone that recovers takes its organizations back | `lib/platform/zone-availability.ts` | Done | "a zone that comes back takes its organizations back" |
-| Per-organization rollout: `platform-org-ui` reaches a targeted organization by id and no other, on the same deployment, through the real AppConfig client against a fixture of its service | `lib/platform/rollout.ts`, `lib/core/config/feature-flags.ts` | Done | "a targeted organization is handed to the Platform", "an organization outside the rollout stays on /o". No real AppConfig deployment has been read. Each route bundle polls on its own clock, so a change can reach the surface API and `/o` up to a poll apart, and until then `/o` can hand off to a zone that answers 404 |
-| A rollback under an open tab: a client navigation keeps working, because the rollout gate lives in a layout that does not re-render, and a reload's 404 offers a way off the zone | `live-shell.tsx`, `lib/data/landing.ts` | Done | "a rollback under an open tab"; `landing.test.ts` for the root's decision. The 404's home button used to loop back to it |
-| Self-hosted, no zone, no flag: boots, `/o` is served by the main app, `/org` is absent | `next.config.ts`, `lib/platform/rollout.ts` | Done | "a self-hosted deployment with no zone boots", "a self-hosted organization is served by the main app", "a self-hosted deployment has no /org", in the `live (flag-off)` job |
-| A production zone behind a base path with no database, or on fixtures, refuses to start | `instrumentation.ts`, `lib/data/mode.ts` | Done | "a production zone with no database refuses to start", "a production zone on fixtures refuses to start", "a production zone with a database starts under the same command", each a real `next start` of the build. `lib/data/startup.ts` exits, because Next only logs a failed `register()` and answers 500 |
+| Self-hosted: boots and serves the product surface, billing and Enterprise off | `next.config.ts` | Done | "a self-hosted deployment boots", "a self-hosted organization is served the product surface", in the `live (self-hosted)` job |

@@ -43,6 +43,7 @@
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { PRODUCT_ROUTES } from './platform-product-routes'
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(SCRIPT_DIR, '..')
@@ -120,9 +121,9 @@ const isSourceModule = (filename: string) =>
  */
 const ENTRY_SOURCES: readonly EntrySource[] = [
   {
-    root: 'app/workspace',
+    root: PRODUCT_ROUTES,
     matches: isWorkspaceEntry,
-    reason: 'client-reachable workspace convention entries',
+    reason: 'client-reachable product route convention entries',
   },
   {
     root: 'app/api/v2/blocks',
