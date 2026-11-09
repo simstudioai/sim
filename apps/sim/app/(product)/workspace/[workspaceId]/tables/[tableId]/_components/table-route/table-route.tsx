@@ -15,7 +15,10 @@ import { usePageCommands } from '@/app/(product)/_components/command-menu/page-c
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import { folderTrail } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/list-menus'
 import { RenameDialog } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/rename-dialog'
-import { LiveWorkspacePage } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
+import {
+  LiveWorkspacePage,
+  useEmbeddedWorkspacePage,
+} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
 import {
   type ColumnConfig,
   ColumnConfigPanel,
@@ -174,6 +177,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
   const router = useRouter()
   const search = useSearchParams()
   const surfaceScope = useSurfaceScope()
+  const embedded = useEmbeddedWorkspacePage()
   const permissions = useWorkspaceUserPermissions(workspaceId)
   const canEdit = permissions.canEdit
   const canAdmin = permissions.canAdmin
@@ -1077,7 +1081,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
         pendingLabel='Deleting…'
         onConfirm={async () => {
           await deleteTableMutation.mutateAsync(tableId)
-          router.push(tablesHref(null))
+          if (!embedded) router.push(tablesHref(null))
         }}
       />
       <RenameDialog

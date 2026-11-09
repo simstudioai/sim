@@ -28,6 +28,8 @@ export interface PanelResources {
   /** `byPointer` when the reader clicked the tab; keyboard moves along the strip keep focus there. */
   onSelect: (id: string, byPointer: boolean) => void
   onRemove: (id: string) => void
+  /** Moves a tab to an index in the strip; the order persists with the chat. */
+  onReorder: (id: string, index: number) => void
   onExpand: () => void
   onCollapse: () => void
   resize: PanelResize

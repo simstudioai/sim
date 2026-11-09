@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { createContext, type ReactNode, useContext } from 'react'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { FailureNotice } from '@sim/emcn/status'
@@ -25,6 +25,25 @@ import { type WorkspaceTab, workspaceTabs } from '@/platform/lib/workspace-navig
 import type { TabWorkspace } from '@/platform/shared/workspace-records'
 
 const READY: WorkspaceRead = { status: 'ready' }
+
+const Embedded = createContext(false)
+
+/**
+ * Renders the workspace pages inside it as a chat panel tab shows them: each page's controls and
+ * content, without the workspace's heading and tabs, bounded to the tab so its content scrolls
+ * itself. A workspace the viewer cannot open reads as a failure there instead of not found.
+ */
+export function EmbeddedWorkspacePages({ children }: { children: ReactNode }) {
+  return <Embedded.Provider value>{children}</Embedded.Provider>
+}
+
+/**
+ * Whether this page shows in a chat panel tab, where it must not navigate the chat away: a missing
+ * record shows its notice in the tab instead of sending the reader to its list.
+ */
+export function useEmbeddedWorkspacePage() {
+  return useContext(Embedded)
+}
 
 interface WorkspacePageProps {
   /** The workspace the heading names; a live page passes what `useLiveWorkspace` read. */
@@ -58,6 +77,7 @@ export function WorkspacePage({
 }: WorkspacePageProps) {
   const search = useSearchParams()
   const scrollMemory = useScrollMemory<HTMLElement>()
+  const embedded = useEmbeddedWorkspacePage()
   const destinations = workspaceTabs(useWorkspaceDataMode(), useWorkspaceTabFlags()).map((tab) => ({
     section: tab.section,
     label: tab.label,
@@ -79,6 +99,13 @@ export function WorkspacePage({
       <FailureNotice message={read.message} retrying={read.retrying} onRetry={read.onRetry} />
     ) : (
       read.status === 'ready' && children
+    )
+  if (embedded)
+    return (
+      <div className={styles.embedded} data-layout={layout}>
+        {controls && <div className={styles.embeddedControls}>{controls}</div>}
+        <div className={styles.embeddedContent}>{content}</div>
+      </div>
     )
   if (layout === 'canvas')
     return (
@@ -132,9 +159,11 @@ export function LiveWorkspacePage({
   children,
 }: LiveWorkspacePageProps) {
   const live = useLiveWorkspace(workspaceId)
-  if (live.missing) notFound()
-  const workspaceRead: WorkspaceRead =
-    live.status === 'error'
+  const embedded = useEmbeddedWorkspacePage()
+  if (live.missing && !embedded) notFound()
+  const workspaceRead: WorkspaceRead = live.missing
+    ? { status: 'error', message: 'You do not have access to this workspace.', onRetry: live.retry }
+    : live.status === 'error'
       ? { status: 'error', message: 'This workspace could not be loaded.', onRetry: live.retry }
       : live.status === 'pending'
         ? { status: 'pending' }

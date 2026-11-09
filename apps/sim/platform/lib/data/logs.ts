@@ -27,6 +27,7 @@ import {
   useDashboardStats,
   useExecutionSnapshot,
   useLogByExecutionId,
+  useLogDetail,
   useLogSnapshotUpdates,
   useLogsSnapshot,
   useNewLogCount,
@@ -639,6 +640,24 @@ export function useLiveRun(workspaceId: string, executionId: string) {
     run: log && toRunDetail(log, traced),
     commands: log && commandsTarget(log),
     hasSnapshot,
+  }
+}
+
+/**
+ * The run a chat's log resource names. The chat may hold its execution, or only the log row's id,
+ * which is read for it.
+ */
+export function useLogResourceExecution(
+  workspaceId: string,
+  logId: string,
+  executionId: string | undefined
+) {
+  const detail = useLogDetail(workspaceId, executionId ? undefined : logId)
+  if (executionId) return { executionId, read: { status: 'ready' as const }, missing: false }
+  return {
+    executionId: detail.data?.executionId ?? undefined,
+    read: queryRead(detail, 'This run could not be loaded.'),
+    missing: isApiClientError(detail.error) && detail.error.status === 404,
   }
 }
 

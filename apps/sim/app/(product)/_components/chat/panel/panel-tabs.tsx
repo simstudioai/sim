@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { IconButton } from '@sim/emcn/button'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
@@ -12,6 +13,10 @@ interface PanelTabsProps {
   expanded: boolean
   onSelect: (id: string) => void
   onRemove: (id: string) => void
+  /** Moves a tab to an index in the strip; absent, the tabs keep their order. */
+  onReorder?: (id: string, index: number) => void
+  /** The current tab's own commands, before the panel's. */
+  actions?: ReactNode
   /** Absent when this surface has nothing to open a new tab with. */
   onAdd?: () => void
   onExpand: () => void
@@ -24,11 +29,14 @@ export function PanelTabs({
   expanded,
   onSelect,
   onRemove,
+  onReorder,
+  actions,
   onAdd,
   onExpand,
   onHide,
 }: PanelTabsProps) {
   const active = tabs.find((tab) => tab.id === current)
+  const index = tabs.findIndex((tab) => tab.id === current)
   return (
     <Tabs
       label='Chat panel tabs'
@@ -36,6 +44,7 @@ export function PanelTabs({
       current={current}
       onSelect={onSelect}
       onRemove={onRemove}
+      onReorder={onReorder}
       renderHeader={(tabList) => (
         <header className={styles.header} data-expanded={expanded || undefined}>
           <div className={styles.tabList}>{tabList}</div>
@@ -44,6 +53,7 @@ export function PanelTabs({
           </span>
           {onAdd && <IconButton icon='I074' label='New panel tab' onClick={onAdd} />}
           <div className={styles.actions}>
+            {actions}
             <div className={styles.expand}>
               <IconButton
                 icon={expanded ? 'I053' : 'I060'}
@@ -62,10 +72,27 @@ export function PanelTabs({
                     checked: tab.id === current,
                     onSelect: () => onSelect(tab.id),
                   })),
+                  ...(onReorder
+                    ? [
+                        {
+                          id: 'move-left',
+                          label: 'Move tab left',
+                          separatorBefore: true,
+                          disabled: index <= 0,
+                          onSelect: () => onReorder(current, index - 1),
+                        },
+                        {
+                          id: 'move-right',
+                          label: 'Move tab right',
+                          disabled: index < 0 || index >= tabs.length - 1,
+                          onSelect: () => onReorder(current, index + 1),
+                        },
+                      ]
+                    : []),
                   {
                     id: 'close',
                     label: 'Close current tab',
-                    separatorBefore: true,
+                    separatorBefore: !onReorder,
                     onSelect: () => onRemove(current),
                   },
                 ]}

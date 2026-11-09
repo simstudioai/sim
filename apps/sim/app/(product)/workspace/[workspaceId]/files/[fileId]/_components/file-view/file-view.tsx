@@ -28,6 +28,7 @@ import {
 import type { PreviewMode } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/types'
 import {
   LiveWorkspacePage,
+  useEmbeddedWorkspacePage,
   WorkspaceEmpty,
 } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
 import { ShareModal } from '@/app/(product)/workspace/[workspaceId]/files/_components/share-modal/share-modal'
@@ -116,6 +117,7 @@ function RenameFileModal({ file, workspaceId, onClose }: RenameFileModalProps) {
  */
 export function FileView({ workspaceId, fileId }: FileViewProps) {
   const router = useRouter()
+  const embedded = useEmbeddedWorkspacePage()
   const access = useFileAccess(workspaceId)
   // A `workspace-files-changed` broadcast refetches this file and its folder trail, as on the list.
   useWorkspaceFilesRoom(workspaceId)
@@ -151,15 +153,15 @@ export function FileView({ workspaceId, fileId }: FileViewProps) {
   }, [isNewFile, setFilesParams])
 
   useEffect(() => {
-    if (access.hideFiles) router.replace(workspaceEntry(workspaceId))
-  }, [access.hideFiles, router, workspaceId])
+    if (access.hideFiles && !embedded) router.replace(workspaceEntry(workspaceId))
+  }, [access.hideFiles, embedded, router, workspaceId])
 
-  /** An id naming no live file falls back to the list. */
+  /** An id naming no live file falls back to the list; a chat panel tab says so instead. */
   useEffect(() => {
-    if (recordState === 'missing' && !leavingRef.current) {
+    if (recordState === 'missing' && !leavingRef.current && !embedded) {
       router.replace(filesListHref(workspaceId, folderIdParam))
     }
-  }, [recordState, router, workspaceId, folderIdParam])
+  }, [recordState, embedded, router, workspaceId, folderIdParam])
 
   useSettingsUnsavedGuard({
     isDirty,
@@ -317,7 +319,9 @@ export function FileView({ workspaceId, fileId }: FileViewProps) {
         layout='fill'
         controls={controls}
         read={
-          recordState === 'found' || recordState === 'failed'
+          recordState === 'found' ||
+          recordState === 'failed' ||
+          (embedded && recordState === 'missing')
             ? { status: 'ready' }
             : { status: 'pending' }
         }
@@ -327,6 +331,12 @@ export function FileView({ workspaceId, fileId }: FileViewProps) {
             title='Could not load this file'
             description={getErrorMessage(record.error, 'Try again in a moment.')}
             action={{ label: 'Try again', onClick: () => void record.refetch() }}
+          />
+        )}
+        {embedded && recordState === 'missing' && (
+          <WorkspaceEmpty
+            title='File not found'
+            description='This file may have been deleted or moved.'
           />
         )}
         {file && (
@@ -380,7 +390,7 @@ export function FileView({ workspaceId, fileId }: FileViewProps) {
             throw error
           }
           setIsDirty(false)
-          router.push(filesListHref(workspaceId, target.folderId))
+          if (!embedded) router.push(filesListHref(workspaceId, target.folderId))
         }}
       />
     </FileDocRoomProvider>

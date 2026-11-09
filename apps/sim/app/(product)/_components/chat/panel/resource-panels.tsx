@@ -1,7 +1,9 @@
 'use client'
 
 import { type ReactNode, useRef, useState } from 'react'
+import { IconButton } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
+import Link from 'next/link'
 import { OpenPanel } from '@/app/(product)/_components/chat/panel/chat-panels'
 import type { PanelResources } from '@/app/(product)/_components/chat/panel/model'
 import { PanelTabs } from '@/app/(product)/_components/chat/panel/panel-tabs'
@@ -18,12 +20,14 @@ interface ResourcePanelsProps {
  * width belongs to the divider, which keeps a width per viewer and chat.
  */
 export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
-  const { resources, collapsed, onSelect, onRemove, onExpand, onCollapse, resize } = panel
+  const { resources, collapsed, onSelect, onRemove, onReorder, onExpand, onCollapse, resize } =
+    panel
   const [expanded, setExpanded] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   /** Set by a press inside the panel, so a tab chosen by pointer can be told from arrow keys. */
   const pointer = useRef(false)
-  const current = resources.find((resource) => resource.active)?.id ?? resources[0]?.id ?? ''
+  const currentResource = resources.find((resource) => resource.active) ?? resources[0]
+  const current = currentResource?.id ?? ''
   const tabs = resources.map((resource) => ({
     id: resource.id,
     label: resource.title,
@@ -31,6 +35,7 @@ export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
       <ResourceContent
         resource={resource}
         visible={!collapsed && resource.id === current}
+        selected={resource.id === current}
         desktopScopeId={panel.desktopScopeId}
       />
     ),
@@ -81,6 +86,18 @@ export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
               expanded={expanded}
               onSelect={(id) => onSelect(id, pointer.current)}
               onRemove={onRemove}
+              onReorder={onReorder}
+              actions={
+                currentResource?.href &&
+                currentResource.workspaceId && (
+                  <IconButton
+                    icon='I037'
+                    label={`Open ${currentResource.title} in its workspace`}
+                    tooltip
+                    render={<Link href={currentResource.href} />}
+                  />
+                )
+              }
               onExpand={() => setExpanded((value) => !value)}
               onHide={() => {
                 onCollapse()

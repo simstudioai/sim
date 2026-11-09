@@ -1,9 +1,13 @@
 'use client'
 
+import { reorderBrowserTab } from '@/lib/browser-agent/transport'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
+import { workspacePath } from '@/lib/navigation/paths'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
 import { requestTerminalFocus } from '@/lib/terminal/focus'
 import { terminalIdFromResourceId } from '@/lib/terminal/resource-id'
+import { reorderTerminal } from '@/lib/terminal/transport'
+import { toast } from '@/lib/toast/sink'
 import type {
   ChatSource,
   PlatformResource,
@@ -29,9 +33,12 @@ const RESOURCE_KIND: Partial<Record<string, string>> = {
 function resourceHref(scope: SurfaceScope, resource: MothershipResource): string | undefined {
   if (!resource.workspaceId) return undefined
   const kind = RESOURCE_KIND[resource.type] ?? resource.type
-  return isWorkspaceResourceKind(kind)
-    ? workspaceResourcePath(resource.workspaceId, kind, resource.id)
-    : `${surfaceHref(scope, '/home')}?${new URLSearchParams({ resource: resource.id })}`
+  if (isWorkspaceResourceKind(kind))
+    return workspaceResourcePath(resource.workspaceId, kind, resource.id)
+  if (kind === 'dashboard') return workspacePath(resource.workspaceId, 'dashboards')
+  if (kind === 'log' && resource.executionId)
+    return workspacePath(resource.workspaceId, `logs/${encodeURIComponent(resource.executionId)}`)
+  return `${surfaceHref(scope, '/home')}?${new URLSearchParams({ resource: resource.id })}`
 }
 
 /** A Sources tab lists what its answer cited; the transcript already holds that evidence. */
@@ -77,6 +84,7 @@ export function usePanelResources({
     title: resource.title,
     workspaceId: resource.workspaceId,
     href: resourceHref(scope, resource),
+    executionId: resource.executionId,
     active: resource.id === chat.activeResourceId,
     search: resource.search,
     sources: citedBy(resource, turns),
@@ -93,6 +101,23 @@ export function usePanelResources({
     onRemove: (id) => {
       const resource = chat.resources.find((item) => item.id === id)
       if (resource) chat.removeResource(resource)
+    },
+    onReorder: (id, index) => {
+      const from = chat.resources.findIndex((item) => item.id === id)
+      if (from < 0 || from === index) return
+      const reordered = [...chat.resources]
+      const [moved] = reordered.splice(from, 1)
+      reordered.splice(index, 0, moved)
+      chat.reorderResources(reordered)
+      // Pages and shells are not stored with the chat; their order lives in the desktop's lists.
+      const nativeIndex = reordered.filter((item) => item.type === moved.type).indexOf(moved)
+      if (moved.type === 'browser') reorderBrowserTab(moved.id, nativeIndex, chat.desktopScopeId)
+      if (moved.type === 'terminal')
+        void reorderTerminal(
+          terminalIdFromResourceId(moved.id),
+          nativeIndex,
+          chat.desktopScopeId
+        ).catch(() => toast.error('Could not reorder that terminal. Please try again.'))
     },
     onExpand: panel.expandResource,
     onCollapse: panel.collapseResource,

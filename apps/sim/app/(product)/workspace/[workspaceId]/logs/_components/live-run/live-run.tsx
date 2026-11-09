@@ -9,6 +9,10 @@ import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { DetailSplit } from '@/app/(product)/workspace/[workspaceId]/_components/detail-split/detail-split'
+import {
+  useEmbeddedWorkspacePage,
+  WorkspaceEmpty,
+} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
 import { useRevealOnReturn } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import { RunDetails } from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-details/run-details'
 import { useLiveRun, useRunCommands, useRunNeighbors } from '@/platform/lib/data/logs'
@@ -41,6 +45,8 @@ function useRunSteps(workspaceId: string, executionId: string) {
   const [view] = useQueryStates(runListParams)
   const neighbors = useRunNeighbors(workspaceId, executionId, view)
   const revealOnReturn = useRevealOnReturn()
+  /** In a chat panel tab, stepping would navigate the chat away to the Logs page. */
+  const embedded = useEmbeddedWorkspacePage()
   const open = (id: string) => {
     revealOnReturn(id)
     router.replace(
@@ -63,7 +69,7 @@ function useRunSteps(workspaceId: string, executionId: string) {
     if (after) open(after)
   }
   const onKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (event.defaultPrevented || event.metaKey || event.ctrlKey) return
+    if (embedded || event.defaultPrevented || event.metaKey || event.ctrlKey) return
     if (ownsArrowKeys(event.target)) return
     if (event.key === 'ArrowUp' && canPrevious) {
       event.preventDefault()
@@ -78,7 +84,7 @@ function useRunSteps(workspaceId: string, executionId: string) {
     window.addEventListener('keydown', listener)
     return () => window.removeEventListener('keydown', listener)
   }, [])
-  return { canPrevious, canNext, previous, next }
+  return { stepping: !embedded, canPrevious, canNext, previous, next }
 }
 
 interface LiveRunProps {
@@ -98,7 +104,15 @@ export function LiveRun({ workspaceId, executionId, back }: LiveRunProps) {
   const live = useLiveRun(workspaceId, executionId)
   const commands = useRunCommands(workspaceId)
   const steps = useRunSteps(workspaceId, executionId)
-  if (live.missing) notFound()
+  const embedded = useEmbeddedWorkspacePage()
+  if (live.missing && !embedded) notFound()
+  if (live.missing)
+    return (
+      <WorkspaceEmpty
+        title='Run not found'
+        description='This run may have been deleted or is no longer available.'
+      />
+    )
   if (!live.run || !live.commands)
     return (
       <DetailSplit read={live.read} back={back} label='Run trace' railLabel='Selected step'>
@@ -132,22 +146,26 @@ export function LiveRun({ workspaceId, executionId, back }: LiveRunProps) {
       read={live.read}
       actions={
         <>
-          <IconButton
-            label='Previous run'
-            icon='I023'
-            size='compact'
-            tooltip
-            disabled={!steps.canPrevious}
-            onClick={steps.previous}
-          />
-          <IconButton
-            label='Next run'
-            icon='I102'
-            size='compact'
-            tooltip
-            disabled={!steps.canNext}
-            onClick={() => void steps.next()}
-          />
+          {steps.stepping && (
+            <>
+              <IconButton
+                label='Previous run'
+                icon='I023'
+                size='compact'
+                tooltip
+                disabled={!steps.canPrevious}
+                onClick={steps.previous}
+              />
+              <IconButton
+                label='Next run'
+                icon='I102'
+                size='compact'
+                tooltip
+                disabled={!steps.canNext}
+                onClick={() => void steps.next()}
+              />
+            </>
+          )}
           {openWorkflowId && (
             <Button
               variant='secondary'

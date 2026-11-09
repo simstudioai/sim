@@ -26,6 +26,7 @@ import {
 import { useResourceSelection } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/use-resource-selection'
 import {
   LiveWorkspacePage,
+  useEmbeddedWorkspacePage,
   WorkspaceEmpty,
 } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
 import { BaseTagsModal } from '@/app/(product)/workspace/[workspaceId]/knowledge/_components/base-tags-modal/base-tags-modal'
@@ -148,6 +149,7 @@ interface KnowledgeBaseProps {
 export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBaseProps) {
   const router = useRouter()
   const search = useSearchParams()
+  const embedded = useEmbeddedWorkspacePage()
   const access = useKnowledgeAccess(workspaceId)
   const canEdit = access.canEdit
   useOAuthReturnForKBConnectors(knowledgeBaseId)
@@ -781,7 +783,8 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
         pendingLabel='Deleting…'
         onConfirm={async () => {
           await deleteBase.mutateAsync({ knowledgeBaseId })
-          router.push(knowledgeListHref(workspaceId, knowledgeBase?.folderId ?? null, search))
+          if (!embedded)
+            router.push(knowledgeListHref(workspaceId, knowledgeBase?.folderId ?? null, search))
         }}
       />
       <ConfirmDialog
