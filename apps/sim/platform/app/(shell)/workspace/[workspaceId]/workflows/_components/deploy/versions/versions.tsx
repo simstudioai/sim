@@ -2,6 +2,7 @@
 
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { DataTable } from '@sim/emcn/data-display'
 import { Input } from '@sim/emcn/field/inputs'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
@@ -33,6 +34,12 @@ function versionState(version: DeploymentVersion) {
   if (operation === 'failed') return { label: 'Failed', intent: 'danger' } as const
   return null
 }
+
+const COLUMNS = [
+  { key: 'version', label: 'Version', kind: 'text', primary: true },
+  { key: 'deployedBy', label: 'Deployed by', kind: 'text', showFrom: 'compact' },
+  { key: 'deployed', label: 'Deployed', kind: 'text' },
+] as const
 
 interface RenameState {
   version: number
@@ -76,117 +83,101 @@ export function Versions({
     )
   }
 
-  return (
-    <div className={styles.table} role='table' aria-label='Versions'>
-      <div className={styles.header} role='row' data-type='T052'>
-        <span role='columnheader'>Version</span>
-        <span role='columnheader' data-optional=''>
-          Deployed by
-        </span>
-        <span role='columnheader'>Deployed</span>
-        <span role='columnheader'>
-          <span data-visually-hidden=''>Actions</span>
-        </span>
-      </div>
-      <div className={styles.rows} role='rowgroup'>
-        {versions.map((version) => {
-          const state = versionState(version)
-          const renaming = rename?.version === version.version
-          const actions: MenuAction[] = [
+  const rows = versions.map((version) => {
+    const state = versionState(version)
+    const renaming = rename?.version === version.version
+    const actions: MenuAction[] = [
+      {
+        id: 'rename',
+        label: 'Rename',
+        icon: 'I036',
+        onSelect: () =>
+          setRename({
+            version: version.version,
+            value: version.name || `v${version.version}`,
+          }),
+      },
+      {
+        id: 'describe',
+        label: version.description ? 'Edit description' : 'Add description',
+        icon: 'I075',
+        onSelect: () => onDescribe(version.version),
+      },
+      {
+        id: 'compare',
+        label: 'Compare',
+        icon: 'columns',
+        onSelect: () => onCompare(version.version),
+      },
+      ...(version.isActive
+        ? []
+        : [
             {
-              id: 'rename',
-              label: 'Rename',
-              icon: 'I036',
-              onSelect: () =>
-                setRename({
-                  version: version.version,
-                  value: version.name || `v${version.version}`,
-                }),
+              id: 'promote',
+              label: 'Promote to live',
+              icon: 'I065' as const,
+              disabled: isPromotingVersion,
+              onSelect: () => onPromote(version.version),
             },
-            {
-              id: 'describe',
-              label: version.description ? 'Edit description' : 'Add description',
-              icon: 'I075',
-              onSelect: () => onDescribe(version.version),
-            },
-            {
-              id: 'compare',
-              label: 'Compare',
-              icon: 'columns',
-              onSelect: () => onCompare(version.version),
-            },
-            ...(version.isActive
-              ? []
-              : [
-                  {
-                    id: 'promote',
-                    label: 'Promote to live',
-                    icon: 'I065' as const,
-                    disabled: isPromotingVersion,
-                    onSelect: () => onPromote(version.version),
-                  },
-                ]),
-            {
-              id: 'load',
-              label: 'Load deployment',
-              icon: 'I053',
-              onSelect: () => onLoad(version.version),
-            },
-          ]
-          return (
-            <div key={version.id} className={styles.row} role='row' data-type='T060'>
-              <span className={styles.version} role='cell'>
-                <span className={styles.number}>v{version.version}</span>
-                {renaming ? (
-                  <RenameField
-                    version={version.version}
-                    value={rename.value}
-                    saving={renameMutation.isPending}
-                    onChange={(value) => setRename({ version: version.version, value })}
-                    onSubmit={saveRename}
-                    onCancel={() => setRename(null)}
-                  />
-                ) : (
-                  version.name && (
-                    <span className={styles.name}>
-                      <OverflowText text={version.name}>{version.name}</OverflowText>
-                    </span>
-                  )
-                )}
-                {state && !renaming && <StatusTag label={state.label} intent={state.intent} />}
-              </span>
-              <span className={styles.secondary} role='cell' data-optional=''>
-                <OverflowText text={version.deployedBy || 'Unknown'}>
-                  {version.deployedBy || 'Unknown'}
-                </OverflowText>
-              </span>
-              <span className={styles.secondary} role='cell'>
-                {formatTimestamp(Date.parse(version.createdAt))}
-              </span>
-              <span className={styles.actions} role='cell'>
-                <Tooltip label={version.description || 'Add description'}>
-                  <IconButton
-                    label={version.description ? 'Edit description' : 'Add description'}
-                    icon='I075'
-                    size='compact'
-                    onClick={() => onDescribe(version.version)}
-                  />
-                </Tooltip>
-                <ActionMenu
-                  label={`Actions for v${version.version}`}
-                  icon='I108'
-                  align='end'
-                  triggerSize='compact'
-                  disabled={isPromotingVersion}
-                  actions={actions}
-                />
-              </span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
+          ]),
+      {
+        id: 'load',
+        label: 'Load deployment',
+        icon: 'I053',
+        onSelect: () => onLoad(version.version),
+      },
+    ]
+    return {
+      id: version.id,
+      values: {
+        version: version.name || `v${version.version}`,
+        deployedBy: version.deployedBy || 'Unknown',
+        deployed: formatTimestamp(Date.parse(version.createdAt)),
+      },
+      cells: {
+        version: (
+          <span className={styles.version}>
+            <span className={styles.number}>v{version.version}</span>
+            {renaming ? (
+              <RenameField
+                version={version.version}
+                value={rename.value}
+                saving={renameMutation.isPending}
+                onChange={(value) => setRename({ version: version.version, value })}
+                onSubmit={saveRename}
+                onCancel={() => setRename(null)}
+              />
+            ) : (
+              version.name && <OverflowText text={version.name}>{version.name}</OverflowText>
+            )}
+            {state && !renaming && <StatusTag label={state.label} intent={state.intent} />}
+          </span>
+        ),
+      },
+      action: (
+        <>
+          <Tooltip label={version.description || 'Add description'}>
+            <IconButton
+              label={version.description ? 'Edit description' : 'Add description'}
+              icon='I075'
+              size='compact'
+              onClick={() => onDescribe(version.version)}
+            />
+          </Tooltip>
+          <ActionMenu
+            label={`Actions for v${version.version}`}
+            icon='I108'
+            align='end'
+            triggerSize='compact'
+            disabled={isPromotingVersion}
+            actions={actions}
+          />
+        </>
+      ),
+    }
+  })
+
+  return <DataTable title='Versions' titleHidden columns={COLUMNS} rows={rows} />
 }
 
 interface RenameFieldProps {

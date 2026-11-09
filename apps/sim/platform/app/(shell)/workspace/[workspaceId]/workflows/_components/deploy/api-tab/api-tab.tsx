@@ -7,7 +7,6 @@ import { FieldFrame, TextAreaField } from '@sim/emcn/field'
 import { CopyField } from '@sim/emcn/field/value-fields'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { omit } from '@sim/utils/object'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/api-tab/api-tab.module.css'
 import { OutputPicker } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/output-picker/output-picker'
 import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/code-field'
 import { highlightSyntax } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/highlight'
@@ -92,7 +91,7 @@ export function ApiTab({
   const body = JSON.stringify(payload, null, 2)
 
   return (
-    <div className={styles.form}>
+    <>
       <FieldFrame label='Response'>
         <SegmentedControl
           label='Response mode'
@@ -144,6 +143,6 @@ export function ApiTab({
           <CopyField label='Usage limits' value={usageEndpoint} hint='GET' />
         </>
       )}
-    </div>
+    </>
   )
 }

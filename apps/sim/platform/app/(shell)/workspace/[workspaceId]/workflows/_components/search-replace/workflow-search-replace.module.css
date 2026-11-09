@@ -30,10 +30,8 @@
 }
 
 .title {
+  display: flex;
   min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .headerActions {

@@ -131,7 +131,6 @@ const ToolbarItem = memo(function ToolbarItem({
           ref={itemRef}
           role='button'
           tabIndex={-1}
-          className={styles.item}
           draggable={!item.restricted}
           onDragStart={item.restricted ? undefined : handleDragStart}
           onKeyDown={handleKeyDown}

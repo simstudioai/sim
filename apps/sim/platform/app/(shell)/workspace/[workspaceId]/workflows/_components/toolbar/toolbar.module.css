@@ -38,19 +38,6 @@
   gap: var(--ui-list-gap);
 }
 
-/* A draggable row renders as a div, which the shared row hover reserves for links and enabled buttons. */
-.item:is(:hover, :focus-visible) {
-  background: var(--ui-hover);
-}
-
-.item:active {
-  background: var(--ui-selected);
-}
-
-.item[draggable="true"]:active {
-  cursor: grabbing;
-}
-
 .tile {
   display: inline-flex;
   flex: none;
