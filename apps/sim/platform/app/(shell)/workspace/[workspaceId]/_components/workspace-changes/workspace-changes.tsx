@@ -4,8 +4,8 @@ import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
 import { useSearchParams } from 'next/navigation'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-changes/workspace-changes.module.css'
-import type { WorkspaceChange } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import { isAbsoluteHref, platformHref } from '@/platform/lib/navigation'
+import type { WorkspaceChange } from '@/platform/shared/workspace-records'
 
 interface WorkspaceChangesProps {
   title?: string

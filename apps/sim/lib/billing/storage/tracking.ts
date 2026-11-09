@@ -22,6 +22,7 @@ import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { maybeNotifyLimit } from '@/lib/billing/core/limit-notifications'
+import { payerOrganizationIdSql } from '@/lib/billing/core/payer-organization'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { createUserStatsIfMissing } from '@/lib/billing/core/usage'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
@@ -54,6 +55,7 @@ interface WorkspaceStorageMutationResult {
 interface LockedWorkspaceStorage {
   id: string
   billedAccountUserId: string
+  /** The paying organization, null when the billed account pays personally. */
   organizationId: string | null
   storageUsedBytes: number
 }
@@ -260,21 +262,25 @@ export async function prepareFileStorageMutationInTx(
   }
   await lockProject(tx, context.projectId)
   const [owner] = await tx
-    .select({ ownerId: project.ownerId, organizationId: project.organizationId })
+    .select({
+      ownerId: project.ownerId,
+      organizationId: project.organizationId,
+      payerOrganizationId: payerOrganizationIdSql(project.organizationId),
+    })
     .from(project)
     .where(eq(project.id, context.projectId))
     .for('update')
     .limit(1)
   if (!owner) throw new Error(`Project ${context.projectId} not found for storage accounting`)
-  const billingEntity: BillingEntity = owner.organizationId
-    ? { type: 'organization', id: owner.organizationId }
+  const billingEntity: BillingEntity = owner.payerOrganizationId
+    ? { type: 'organization', id: owner.payerOrganizationId }
     : { type: 'user', id: owner.ownerId }
   if (
     owner.ownerId !== context.ownerId ||
     owner.organizationId !== context.organizationId ||
     billingEntity.type !== context.billingEntity.type ||
     billingEntity.id !== context.billingEntity.id ||
-    (!owner.organizationId && context.billedAccountUserId !== owner.ownerId)
+    (!owner.payerOrganizationId && context.billedAccountUserId !== owner.ownerId)
   ) {
     throw new Error(
       `Storage payer changed for Project ${context.projectId}; resolve a fresh billing context`
@@ -374,7 +380,7 @@ export async function applyStorageUsageDeltasInTx(
           .select({
             id: workspace.id,
             billedAccountUserId: workspace.billedAccountUserId,
-            organizationId: workspace.organizationId,
+            organizationId: payerOrganizationIdSql(workspace.organizationId),
             storageUsedBytes: workspace.storageUsedBytes,
           })
           .from(workspace)
@@ -570,7 +576,7 @@ export async function lockWorkspaceStorageForMutationInTx(
   const [workspacePayer] = await tx
     .select({
       billedAccountUserId: workspace.billedAccountUserId,
-      organizationId: workspace.organizationId,
+      organizationId: payerOrganizationIdSql(workspace.organizationId),
       storageUsedBytes: workspace.storageUsedBytes,
     })
     .from(workspace)

@@ -8,7 +8,7 @@ import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import {
   ActionRow,
   SectionStack,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { GroupAccess } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/group-access'
 import { GroupPeople } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/group-people'
 import { GroupProviders } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/group-providers'

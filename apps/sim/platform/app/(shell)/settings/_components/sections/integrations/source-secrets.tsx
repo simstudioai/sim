@@ -13,7 +13,7 @@ import {
   DetailHeader,
   FieldStack,
   SectionStack,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import type { SourceSettingsData } from '@/platform/app/(shell)/settings/_components/sections/integrations/model'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 

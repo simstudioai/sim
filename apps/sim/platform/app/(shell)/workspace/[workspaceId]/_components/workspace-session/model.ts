@@ -1,8 +1,9 @@
-import type { IconName } from '@sim/emcn/catalog/icon-geometry'
+import type { WorkspaceChange, WorkspacePerson } from '@/platform/shared/workspace-records'
 
 /**
- * The workspace's own pages read these shapes. Fixtures fill them on the server today; a live
- * adapter in `lib/data` will map the existing contracts onto the same props.
+ * The Dashboard and Issues shapes, filled by the server-gated fixtures, and the read every workspace
+ * page reports. The Changelog and Logs records, which live adapters also fill, are in
+ * `shared/workspace-records.ts`.
  */
 
 export interface WorkspaceSummary {
@@ -22,30 +23,12 @@ export type WorkspaceRead =
   | { status: 'pending' }
   | { status: 'error'; message: string; retrying?: boolean; onRetry: () => void }
 
-export interface WorkspacePerson {
-  id: string
-  name: string
-  src?: string
-}
-
 /** Semantic ink for a status written as text: no badge, no glyph. */
 type StatusTone = 'neutral' | 'accent' | 'success' | 'warning' | 'danger'
 
 export interface StatusText {
   label: string
   tone: StatusTone
-}
-
-/** A workspace item an issue or a shipped change touched. */
-export interface WorkspaceChange {
-  id: string
-  name: string
-  /** What kind of item it is, written for people: `Workflow`, `Table`, `Notion page`. */
-  type: string
-  /** Where it lives: a product path inside this app or an absolute provider URL. Absent when it has no page. */
-  href?: string
-  icon?: IconName
-  providerId?: string
 }
 
 /* Dashboard */
@@ -227,98 +210,4 @@ export interface IssueDetail extends IssueSummary {
   changelogEntryId?: string
   /** The integration a blocked run waits on. */
   blockedBy?: { providerId: string; name: string }
-}
-
-/* Changelog */
-
-export interface ChangelogEntry {
-  id: string
-  title: string
-  description: string
-  appliedAt: number
-  contributor: WorkspacePerson
-  issueId: string
-}
-
-export interface ChangelogData {
-  workspace: WorkspaceSummary
-  referenceTime: number
-  updatedAt: number
-  entries: readonly ChangelogEntry[]
-}
-
-export interface ChangelogDetail extends ChangelogEntry {
-  workspace: WorkspaceSummary
-  referenceTime: number
-  /** Paragraphs that follow the description. */
-  body: readonly string[]
-  workspaceChanges: readonly WorkspaceChange[]
-}
-
-/* Logs */
-
-export type RunStatus = 'completed' | 'failed' | 'waiting' | 'running' | 'cancelled'
-
-export interface RunTrigger {
-  label: string
-  icon?: IconName
-  providerId?: string
-}
-
-export interface RunSummary {
-  /** The immutable execution identifier. */
-  id: string
-  workflow: { id: string; name: string }
-  status: RunStatus
-  trigger: RunTrigger
-  startedAt: number
-  durationMs: number | null
-  /** Compute Units. `null` is unknown, never zero. */
-  cu: number | null
-}
-
-export interface RunsData {
-  workspace: WorkspaceSummary
-  referenceTime: number
-  runs: readonly RunSummary[]
-}
-
-type TraceKind =
-  | 'agent'
-  | 'model'
-  | 'tool'
-  | 'mcp'
-  | 'loop'
-  | 'iteration'
-  | 'parallel'
-  | 'branch'
-  | 'workflow'
-  | 'block'
-
-export type TracePayload =
-  | { format: 'json' | 'text'; content: string }
-  | { format: 'withheld'; reason: string }
-
-export interface TraceSpan {
-  id: string
-  name: string
-  kind: TraceKind
-  /** Provider identity for model turns and integration calls. */
-  providerId?: string
-  status: 'success' | 'error' | 'handled' | 'running'
-  /** Offset from the run's start, on the root clock. */
-  startMs: number
-  durationMs: number
-  context: readonly { id: string; label: string; value: string }[]
-  input?: TracePayload
-  output?: TracePayload
-  notice?: { tone: 'neutral' | 'warning' | 'danger'; title: string; message: string }
-  children?: readonly TraceSpan[]
-}
-
-export interface RunDetail extends RunSummary {
-  workspace: WorkspaceSummary
-  referenceTime: number
-  version: string
-  trace: readonly TraceSpan[]
 }

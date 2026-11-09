@@ -4,10 +4,7 @@ import { Checkbox } from '@sim/emcn/checkbox'
 import { LoadMoreFooter } from '@sim/emcn/scroll-area/load-more-footer'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
-import {
-  FieldStack,
-  Muted,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { FieldStack, Muted } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { isApiClientError, useProjectList } from '@/platform/lib/data/access-control'
 
 interface ProjectIssueRestrictionsProps {

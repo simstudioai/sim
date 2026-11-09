@@ -14,7 +14,7 @@ import {
   ResourceList,
   SectionStack,
   SectionToolbar,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { DomainsPanel } from '@/platform/app/(shell)/settings/_components/sections/sso/domains-panel'
 import { ProviderDetail } from '@/platform/app/(shell)/settings/_components/sections/sso/provider-detail'

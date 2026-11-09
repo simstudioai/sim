@@ -70,10 +70,12 @@ vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/api-keys', () => ({ useApiKeys: mocks.apiKeys }))
 vi.mock('@/hooks/queries/oauth-provider', () => ({ useAuthorizedApps: mocks.authorizedApps }))
 vi.mock('@/components/mothership-chat/mothership-chat', () => mothershipChatMock)
-vi.mock('@/app/extension/o/[organizationId]/panel-composer', () => ({ PanelComposer: () => null }))
+vi.mock('@/app/(site)/extension/o/[organizationId]/panel-composer', () => ({
+  PanelComposer: () => null,
+}))
 
 import type { ConversationComposerProps } from '@/app/_organization-conversation/composer'
-import { PanelConversation } from '@/app/extension/o/[organizationId]/panel-conversation'
+import { PanelConversation } from '@/app/(site)/extension/o/[organizationId]/panel-conversation'
 import { PageConversation } from '@/platform/embedded/app/(shell)/_components/conversation/page-conversation'
 
 const {

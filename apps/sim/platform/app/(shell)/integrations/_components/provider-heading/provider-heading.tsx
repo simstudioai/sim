@@ -1,6 +1,6 @@
 import type { ComponentType, Ref } from 'react'
+import { BrandMark } from '@/platform/app/(shell)/_components/brand-mark/brand-mark'
 import { DirectoryHeading } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
-import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 
 interface ProviderHeadingProps {
   name: string
@@ -22,7 +22,7 @@ export function ProviderHeading({
       title={name}
       titleRef={titleRef}
       description={description}
-      leading={<IntegrationMark providerId={providerId} icon={icon} />}
+      leading={<BrandMark providerId={providerId} icon={icon} />}
     />
   )
 }

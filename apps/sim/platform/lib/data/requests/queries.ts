@@ -206,6 +206,47 @@ export function useRequestAccess(scope: RequestScope, target: RequestTarget) {
   }
 }
 
+/**
+ * What a page a permission group hides tells its viewer, as legacy's access boundary words it: a
+ * pending request to view, an access request to send, a refresh once access is back, or why it
+ * cannot be requested.
+ */
+export function useFeatureAccessPrompt(
+  workspaceId: string,
+  configKey: Extract<RequestTarget, { kind: 'feature' }>['configKey']
+) {
+  const target: RequestTarget = { kind: 'feature', configKey }
+  const discovery = useDiscoverAccessRequests({
+    kind: 'workspace',
+    workspaceId,
+    targetKind: target.kind,
+    targetKey: getAccessRequestTargetKey(target),
+    limit: 1,
+    offset: 0,
+  })
+  const entry = discovery.isSuccess ? discovery.data.entries[0] : undefined
+  const enabled = Boolean(discovery.data?.enabled)
+  const requestable = entry?.state === 'requestable'
+  const pendingRequestId = (enabled && requestable && entry.pendingRequestId) || null
+  return {
+    loading: discovery.isPending,
+    error: discovery.error,
+    retry: () => void discovery.refetch(),
+    target,
+    label: entry?.label ?? '',
+    allowed: entry?.state === 'allowed',
+    pendingRequestId,
+    canRequest: enabled && requestable && !pendingRequestId,
+    description: pendingRequestId
+      ? 'Your request is pending.'
+      : enabled && requestable
+        ? 'Ask an administrator for access.'
+        : requestable
+          ? 'Access requests are paused for your organization.'
+          : (entry?.reason ?? 'Your organization restricts this feature.'),
+  }
+}
+
 export function useReviewList(organizationId: string) {
   const [params, setParams] = useQueryStates(REQUESTS_PARAMS, accessRequestUrlOptions)
   const search = params['request-search']

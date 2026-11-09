@@ -1,3 +1,5 @@
+import { db } from '@sim/db'
+import { resolvePayerOrganizationId } from '@/lib/billing/core/payer-organization'
 import type { BillingEntity } from '@/lib/billing/core/usage-log'
 import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
 
@@ -34,7 +36,7 @@ export async function canUserManageBillingEntity(
  * Server-side counterpart of `canManageWorkspaceBilling`, resolved from
  * canonical workspace state instead of a viewer-facing host context.
  *
- * An organization-hosted workspace answers to its organization admins; a
+ * A workspace its organization pays for answers to that organization's admins; a
  * personally hosted workspace answers only to its billed account holder. A
  * plain workspace `admin` is deliberately not sufficient: workspace roles
  * govern the workspace's resources, not the payer's pooled credit and storage
@@ -44,9 +46,10 @@ export async function canUserManageWorkspaceBilling(
   context: WorkspaceBillingAuthorityContext,
   userId: string
 ): Promise<boolean> {
+  const payerOrganizationId = await resolvePayerOrganizationId(db, context.workspaceOrganizationId)
   return canUserManageBillingEntity(
-    context.workspaceOrganizationId
-      ? { type: 'organization', id: context.workspaceOrganizationId }
+    payerOrganizationId
+      ? { type: 'organization', id: payerOrganizationId }
       : { type: 'user', id: context.billedAccountUserId },
     userId
   )

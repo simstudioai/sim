@@ -28,13 +28,16 @@ async function resolveWorkspaceHostContextForViewer(
     return null
   }
 
-  const hostOrganizationId = access.workspace.organizationId
-  const [ownerBilling, hostOrganizationAccess] = await Promise.all([
-    getWorkspaceOwnerSubscriptionAccess(workspaceId),
-    hostOrganizationId
-      ? getOrganizationSettingsAccess(hostOrganizationId, userId)
-      : Promise.resolve({ role: null, isMember: false, isAdmin: false }),
-  ])
+  /**
+   * The host is the paying organization. A workspace in a personal organization is hosted by its
+   * billed account, exactly as an organization-less workspace was, so every billing, upgrade and
+   * organization-feature decision made from this context keeps treating it as personal.
+   */
+  const ownerBilling = await getWorkspaceOwnerSubscriptionAccess(workspaceId)
+  const hostOrganizationId = ownerBilling.organizationId
+  const hostOrganizationAccess = hostOrganizationId
+    ? await getOrganizationSettingsAccess(hostOrganizationId, userId)
+    : { role: null, isMember: false, isAdmin: false }
   const [credentialGroupsAvailable, knowledgeAccess, organizationSearch, chat, platformOrgUi] =
     await Promise.all([
       hostOrganizationId

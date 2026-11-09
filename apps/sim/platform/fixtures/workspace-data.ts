@@ -1,9 +1,6 @@
 import 'server-only'
 import type { ShellWorkspace } from '@/platform/app/(shell)/_components/model'
 import type {
-  ChangelogData,
-  ChangelogDetail,
-  ChangelogEntry,
   DashboardContent,
   DashboardData,
   DashboardRow,
@@ -13,15 +10,7 @@ import type {
   IssueOutcome,
   IssueState,
   IssueSummary,
-  RunDetail,
-  RunStatus,
-  RunSummary,
-  RunTrigger,
   StatusText,
-  TracePayload,
-  TraceSpan,
-  WorkspaceChange,
-  WorkspacePerson,
   WorkspaceSummary,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import type { Scenario } from '@/platform/fixtures'
@@ -31,6 +20,19 @@ import alex from '@/platform/fixtures/media/attendee-2.jpg'
 import maya from '@/platform/fixtures/media/attendee-3.jpg'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatCalendarDate } from '@/platform/shared/time'
+import type {
+  ChangelogData,
+  ChangelogDetail,
+  ChangelogEntry,
+  RunDetail,
+  RunStatus,
+  RunSummary,
+  RunTrigger,
+  TracePayload,
+  TraceSpan,
+  WorkspaceChange,
+  WorkspacePerson,
+} from '@/platform/shared/workspace-records'
 
 /**
  * Example data for a workspace's Dashboard, Issues, Changelog and Logs. The loader passes the shell's
@@ -1914,8 +1916,6 @@ export function workspaceRun(
   if (!data || !run) return null
   return {
     ...run,
-    workspace: data.workspace,
-    referenceTime: FIXTURE_NOW,
     version: scenario === 'stress' ? `v1284 ${UNBROKEN}` : 'v14',
     trace: trace(run, scenario),
   }

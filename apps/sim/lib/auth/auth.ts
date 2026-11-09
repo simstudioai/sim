@@ -174,7 +174,10 @@ import { isSalesforceOAuthProviderId, withSalesforceInstanceScope } from '@/lib/
 import { fetchSalesforceInstanceUrl } from '@/lib/oauth/salesforce-instance.server'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
-import { joinInstanceOrganization } from '@/lib/organizations/instance-org'
+import {
+  isInstanceOrganizationMode,
+  joinInstanceOrganization,
+} from '@/lib/organizations/instance-org'
 import { capabilityRefusal } from '@/lib/permission-groups/capability-assertions'
 import { isCapabilityWithheldForUser } from '@/lib/permission-groups/user-scope.server'
 import { captureServerEvent, getPostHogClient } from '@/lib/posthog/server'
@@ -429,13 +432,31 @@ export const auth = betterAuth({
           }
 
           /**
-           * Places the user in the instance organization before they reach the
-           * workspace list, so their first workspace is created org-owned and
-           * org-scoped enterprise settings apply to it from the start. No-ops
-           * unless `INSTANCE_ORG_NAME` is set, and swallows its own failures so
-           * organization setup can never block a signup.
+           * Everyone belongs to an organization before they reach the workspace
+           * list, so their first workspace is created inside it. With
+           * `INSTANCE_ORG_NAME` set that is the instance organization, so
+           * org-scoped enterprise settings apply from the start; otherwise it is
+           * their own personal organization. Neither may block a signup: a
+           * failure is logged, and opening the workspace list provisions the
+           * personal organization a user is still missing. The provisioning
+           * module is imported lazily to keep the billing graph out of the auth
+           * module's load path.
            */
-          await joinInstanceOrganization(user.id)
+          if (isInstanceOrganizationMode()) {
+            await joinInstanceOrganization(user.id)
+          } else {
+            try {
+              const { provisionPersonalOrganization } = await import(
+                '@/lib/organizations/provision-personal'
+              )
+              await provisionPersonalOrganization(user.id)
+            } catch (error) {
+              logger.error(
+                '[databaseHooks.user.create.after] Failed to provision personal organization',
+                { userId: user.id, error }
+              )
+            }
+          }
 
           if (isHosted && user.email && user.emailVerified) {
             try {

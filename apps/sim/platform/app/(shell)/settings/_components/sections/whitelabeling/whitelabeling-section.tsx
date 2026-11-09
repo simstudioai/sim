@@ -13,7 +13,7 @@ import {
   FieldStack,
   Muted,
   SectionStack,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import styles from '@/platform/app/(shell)/settings/_components/sections/whitelabeling/whitelabeling-section.module.css'
 import { useWhitelabelForm } from '@/platform/lib/data/whitelabeling'

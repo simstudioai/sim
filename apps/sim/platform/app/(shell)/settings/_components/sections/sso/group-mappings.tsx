@@ -10,10 +10,7 @@ import { SettingsRow } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
-import {
-  ActionRow,
-  Muted,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { ActionRow, Muted } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import {
   automaticMatchWouldRemain,
   buildScimMappingBody,

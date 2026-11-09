@@ -1,5 +1,5 @@
-import { toast } from '@sim/emcn-legacy'
 import { setRecordValue } from '@/lib/core/utils/records'
+import { toast } from '@/lib/toast/sink'
 import { isValidEnvVarName } from '@/executor/constants'
 
 /** Copies a secret's name and confirms with a toast. */

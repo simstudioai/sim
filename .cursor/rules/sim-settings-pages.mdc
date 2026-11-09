@@ -240,7 +240,7 @@ and — on activatable rows only — the hover band. Never hand-roll any of it, 
   Conditional items become array spreads: `...(canManage ? [{…}] : [])`. Never
   hand-roll the `<DropdownMenu>` + `<MoreHorizontal>` trigger per page.
 - **`RESOURCE_TILE_BASE`** + one of `RESOURCE_TILE_FILL` / `RESOURCE_TILE_PLAIN`
-  (`app/workspace/[workspaceId]/components/resource-tile` — note: *not* under
+  (`components/resource-tile` — note: *not* under
   `settings/`, unlike the other `…/` paths on this page) — the 36px tile chrome, for
   any tile the row does not draw itself: a detail heading, or a caller-supplied
   `iconVariant='custom'` tile. `ResourceTile` wraps the filled pairing. Use

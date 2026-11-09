@@ -1,30 +1,20 @@
-'use client'
+import type { Metadata, Viewport } from 'next'
+import { SITE_VIEWPORT, SiteRootLayout } from '@/app/_shell/site-root-layout'
+import { WorkspaceRoot } from '@/app/workspace/workspace-root'
+import { generateBrandedMetadata } from '@/ee/whitelabeling'
 
-import { SocketProvider } from '@/components/workspace-providers/socket-provider'
-import { useSession } from '@/lib/auth/client'
-import { connectWorkflowStores } from '@/stores/workflows/state-port/connect-stores'
+export const viewport: Viewport = SITE_VIEWPORT
 
-// The socket provider and chat read workflow state through its port; every workspace page hosts them.
-connectWorkflowStores()
+export const metadata: Metadata = generateBrandedMetadata()
 
 interface WorkspaceRootLayoutProps {
   children: React.ReactNode
 }
 
 export default function WorkspaceRootLayout({ children }: WorkspaceRootLayoutProps) {
-  const session = useSession()
-
-  const user = session.data?.user
-    ? {
-        id: session.data.user.id,
-        name: session.data.user.name ?? undefined,
-        email: session.data.user.email,
-      }
-    : undefined
-
   return (
-    <SocketProvider user={user}>
-      <div className='workspace-root'>{children}</div>
-    </SocketProvider>
+    <SiteRootLayout>
+      <WorkspaceRoot>{children}</WorkspaceRoot>
+    </SiteRootLayout>
   )
 }

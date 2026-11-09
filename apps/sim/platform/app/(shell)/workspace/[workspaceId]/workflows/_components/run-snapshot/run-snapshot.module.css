@@ -1,0 +1,10 @@
+/* The frozen canvas takes the reading column's width and a fixed working height on the canvas paint. */
+.canvas {
+  display: flex;
+  block-size: calc(2 * var(--spacing-320));
+  min-inline-size: 0;
+  overflow: hidden;
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-canvas);
+}

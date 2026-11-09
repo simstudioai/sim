@@ -6,20 +6,20 @@ import { TextField } from '@sim/emcn/field'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { InlineNotice } from '@sim/emcn/status'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import {
   ActionRow,
   FieldStack,
   Muted,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
-import { legacyRoutes, type PlatformOrganization } from '@/platform/lib/data/organization-model'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
+import { platformHref } from '@/platform/lib/navigation'
+import { workspacePath } from '@/platform/lib/workspace-navigation'
 
-interface ByokProps {
-  organization: PlatformOrganization
-}
-
-export function MothershipByok({ organization }: ByokProps) {
+export function MothershipByok() {
   const preview = useFixtureSettingsActions()?.previewByokWorkspaces
+  const search = useSearchParams()
   const [target, setTarget] = useState('')
   const [inspected, setInspected] = useState('')
   const workspace = preview?.find((item) => item.id === inspected)
@@ -62,11 +62,9 @@ export function MothershipByok({ organization }: ByokProps) {
               disabled={!id}
               render={
                 id ? (
-                  <a
-                    href={`${legacyRoutes(organization).workspace(encodeURIComponent(id))}/settings/byok`}
-                  >
+                  <Link href={platformHref(workspacePath(id, 'settings/byok'), search)}>
                     Manage workspace BYOK keys
-                  </a>
+                  </Link>
                 ) : undefined
               }
             >

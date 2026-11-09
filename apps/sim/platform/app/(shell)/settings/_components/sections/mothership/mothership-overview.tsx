@@ -7,7 +7,7 @@ import { OverlayDialog } from '@sim/emcn/modal/overlay-dialog'
 import { Pagination } from '@sim/emcn/pagination'
 import { PropertyList } from '@sim/emcn/property-list'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
-import { SectionStack } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { SectionStack } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { type MothershipEnv, useMothershipOverview } from '@/platform/lib/data/mothership-admin'
 import { formatTimestamp } from '@/platform/shared/time'
 

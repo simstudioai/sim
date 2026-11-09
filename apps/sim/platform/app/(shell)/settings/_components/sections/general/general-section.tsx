@@ -1,7 +1,7 @@
 import { Button } from '@sim/emcn/button'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
-import { DetailHeader } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { DetailHeader } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import {
   AccountSettingsRows,

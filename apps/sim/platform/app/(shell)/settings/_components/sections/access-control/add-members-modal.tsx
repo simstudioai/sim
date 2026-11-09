@@ -8,10 +8,7 @@ import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  ActionRow,
-  Muted,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { ActionRow, Muted } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/access-control/permission-rows.module.css'
 import { useOrganizationRoster } from '@/platform/lib/data/access-control'
 

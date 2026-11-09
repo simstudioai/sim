@@ -3,6 +3,8 @@ import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-st
 import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
+import { publicAssetPath } from '@/platform/lib/navigation'
+import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 /** One scope of secret names offered after `{{`: the workspace's or the viewer's own. */
 interface EnvVarGroup {
@@ -80,10 +82,9 @@ export function useEnvVarSuggestions({
         requestedAt: Date.now(),
       })
     }
-    const routes = legacyRoutes(organization)
     const settingsHref = workspaceId
-      ? `${routes.workspace(workspaceId)}/settings/secrets`
-      : routes.workspaceSettings
+      ? publicAssetPath(workspacePath(workspaceId, 'settings/secrets'))
+      : legacyRoutes(organization).workspaceSettings
     window.open(settingsHref, '_blank', 'noopener,noreferrer')
     onClose?.()
   }

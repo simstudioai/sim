@@ -65,6 +65,28 @@ export async function billingFixture(request: Request, path: string, state: Sett
             },
     }
   }
+  if (
+    path === `/api/organizations/${state.organizationId}/aws-marketplace-licenses` ||
+    path === '/api/marketplace/aws/licenses'
+  ) {
+    return { licenses: [] }
+  }
+  if (path === '/api/users/me/usage-logs') {
+    const count = state.scenario === 'empty' ? 0 : state.scenario === 'stress' ? 25 : 3
+    return {
+      success: true,
+      logs: Array.from({ length: count }, (_, i) => ({
+        id: `usage-log-${i}`,
+        createdAt: new Date(state.referenceTime - i * 3_600_000).toISOString(),
+        source: 'workflow',
+        workflowName: 'Weekly report',
+        creditCost: 40,
+        hasCost: true,
+      })),
+      summary: { totalCredits: count * 40, bySourceCredits: { workflow: count * 40 } },
+      pagination: { hasMore: false },
+    }
+  }
   if (path === '/api/billing/invoices') {
     const monthCount = !paid || state.scenario === 'empty' ? 0 : state.scenario === 'stress' ? 6 : 1
     return {

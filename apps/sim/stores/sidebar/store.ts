@@ -10,7 +10,7 @@ import type { SidebarState } from '@/stores/sidebar/types'
  * the minimum) still yields a usable rail instead of collapsing it to nothing.
  *
  * The one definition of the ceiling — the resize handle reads it, and the
- * pre-paint script in `app/layout.tsx` mirrors it inline (it cannot import).
+ * pre-paint script in `app/_shell/site-root-layout.tsx` mirrors it inline (it cannot import).
  */
 export function getMaxSidebarWidth(viewportWidth: number): number {
   return Math.max(
@@ -32,7 +32,7 @@ function clampSidebarWidth(width: number): number {
 /**
  * The width the mounted rail opens at. Every workspace visit persists `sidebarWidth`, so only a value
  * above the minimum proves someone dragged it; the organization rail honours that until it has its
- * own. Mirrored inline by the pre-paint script in `app/layout.tsx`, which cannot import this.
+ * own. Mirrored inline by the pre-paint script in `app/_shell/site-root-layout.tsx`, which cannot import this.
  */
 function resolveExpandedWidth({
   surface,

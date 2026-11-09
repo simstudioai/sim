@@ -70,7 +70,7 @@ test('page dialogs wait for the user on their page and stay automatic for the ag
   }
   const browserComponents = join(
     SIM_DIR,
-    'app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session'
+    'components/mothership-chat/mothership-view/components/resource-content/components/browser-session'
   )
   const bundle = await build({
     stdin: {

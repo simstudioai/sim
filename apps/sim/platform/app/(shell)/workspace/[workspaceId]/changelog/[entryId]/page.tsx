@@ -9,25 +9,31 @@ import { withChangelogView } from '@/platform/lib/workspace-views'
 
 export const metadata: Metadata = { title: 'Changelog' }
 
+/** The mode is per-request; a build with no API origin must not freeze the answer. */
+export const dynamic = 'force-dynamic'
+
 export default async function Page({
   params,
   searchParams,
 }: PageProps<'/workspace/[workspaceId]/changelog/[entryId]'>) {
   const [{ workspaceId, entryId }, query] = await Promise.all([params, searchParams])
-  if (resolvePlatformMode() === 'live') {
-    const { redirectWorkspaceTabToLegacy } = await import('@/platform/lib/data/workspace-directory')
-    redirectWorkspaceTabToLegacy(workspaceId, 'changelog', entryId, query)
-  }
-  const entry = await loadWorkspaceChangelogEntry(
-    readScenario(query.state),
-    workspaceId,
-    decodeURIComponent(entryId)
-  )
-  if (!entry) notFound()
   const search = { get: (key: string) => (typeof query[key] === 'string' ? query[key] : null) }
   const back = {
     href: withChangelogView(platformHref(workspacePath(workspaceId, 'changelog'), search), query),
     label: 'Changelog',
   }
+  const id = decodeURIComponent(entryId)
+  if (resolvePlatformMode() === 'live') {
+    const [{ readWorkspaceTabFlag }, { LiveRelease }] = await Promise.all([
+      import('@/platform/lib/data/workspace-tab-flags'),
+      import(
+        '@/platform/app/(shell)/workspace/[workspaceId]/changelog/_components/live-release/live-release'
+      ),
+    ])
+    if (!(await readWorkspaceTabFlag('changelog'))) notFound()
+    return <LiveRelease workspaceId={workspaceId} releaseId={id} back={back} />
+  }
+  const entry = await loadWorkspaceChangelogEntry(readScenario(query.state), workspaceId, id)
+  if (!entry) notFound()
   return <ChangelogDetails entry={entry} back={back} />
 }

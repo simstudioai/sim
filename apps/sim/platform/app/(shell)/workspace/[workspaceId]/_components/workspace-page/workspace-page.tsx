@@ -23,6 +23,7 @@ import {
   workspacePath,
   workspaceTabs,
 } from '@/platform/lib/workspace-navigation'
+import type { TabWorkspace } from '@/platform/shared/workspace-records'
 
 const READY: WorkspaceRead = { status: 'ready' }
 
@@ -145,6 +146,42 @@ export function LiveWorkspacePage({
       current={current}
       controls={controls}
       read={workspaceRead}
+      layout={layout}
+    >
+      {children}
+    </WorkspacePage>
+  )
+}
+
+interface WorkspaceTabPageProps extends Omit<WorkspacePageProps, 'workspace'> {
+  workspace: TabWorkspace
+}
+
+/** A tab that serves both modes: example data names its workspace, a live page reads the name. */
+export function WorkspaceTabPage({
+  workspace,
+  current,
+  controls,
+  read,
+  layout,
+  children,
+}: WorkspaceTabPageProps) {
+  return 'live' in workspace ? (
+    <LiveWorkspacePage
+      workspaceId={workspace.id}
+      current={current}
+      controls={controls}
+      read={read}
+      layout={layout}
+    >
+      {children}
+    </LiveWorkspacePage>
+  ) : (
+    <WorkspacePage
+      workspace={workspace}
+      current={current}
+      controls={controls}
+      read={read}
       layout={layout}
     >
       {children}

@@ -1,14 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
+import { Button } from '@sim/emcn/button'
 import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import { Icon } from '@sim/emcn/icon'
+import { OverflowText } from '@sim/emcn/overflow-text'
+import { PropertyList } from '@sim/emcn/property-list'
 import { DirectoryHeading } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import {
   DetailSection,
   DetailSplit,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/detail-split/detail-split'
 import { MetadataFields } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/metadata-fields/metadata-fields'
+import { SpanInspector } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/span-inspector/span-inspector'
 import {
   type TracePaint,
   type TraceRow,
@@ -18,15 +22,12 @@ import {
   formatComputeUnits,
   formatDuration,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/format'
-import type {
-  RunDetail,
-  TraceSpan,
-  WorkspaceRead,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
+import type { WorkspaceRead } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import { useViewerTimeZone } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
+import styles from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/run-details/run-details.module.css'
 import { RUN_STATUS_LABEL } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/run-status/run-status'
-import { SpanInspector } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/span-inspector/span-inspector'
 import { formatTimestamp } from '@/platform/shared/time'
+import type { RunDetail, TraceSpan } from '@/platform/shared/workspace-records'
 
 const KIND_ICON: Record<TraceSpan['kind'], IconName> = {
   agent: 'I128',
@@ -122,10 +123,15 @@ interface RunDetailsProps {
   read?: WorkspaceRead
   run: RunDetail
   back: { href: string; label: string }
+  /** Commands on the run, such as Stop and Retry, at the end of Back's row. */
+  actions?: ReactNode
 }
 
-/** One run, named by its execution: its facts and trace, with the selected step's data beside them. */
-export function RunDetails({ run, back, read }: RunDetailsProps) {
+/**
+ * One run, named by its execution: its facts and trace, with the selected step's data beside them,
+ * then the files it produced and what it cost.
+ */
+export function RunDetails({ run, back, read, actions }: RunDetailsProps) {
   const timeZone = useViewerTimeZone()
   const root = run.trace[0]
   const [selectedId, setSelectedId] = useState(root?.id ?? '')
@@ -147,6 +153,7 @@ export function RunDetails({ run, back, read }: RunDetailsProps) {
     <DetailSplit
       read={read}
       back={back}
+      actions={actions}
       label={`Run ${shortId} trace`}
       railKind='inspector'
       railLabel='Selected step'
@@ -166,8 +173,8 @@ export function RunDetails({ run, back, read }: RunDetailsProps) {
             label: 'Usage',
             value: run.cu === null ? 'Unknown' : `${usage} Compute Units`,
           },
-          { id: 'version', label: 'Version', value: run.version },
-          { id: 'execution', label: 'Execution ID', value: run.id },
+          ...(run.version ? [{ id: 'version', label: 'Version', value: run.version }] : []),
+          { id: 'execution', label: 'Execution ID', value: run.id, copyable: true },
         ]}
       />
       {root && (
@@ -179,6 +186,60 @@ export function RunDetails({ run, back, read }: RunDetailsProps) {
             onSelect={setSelectedId}
             onToggle={toggle}
           />
+        </DetailSection>
+      )}
+      {run.files && (
+        <DetailSection title={`Files (${run.files.length})`}>
+          <ul className={styles.files}>
+            {run.files.map((file) => (
+              <li key={file.id} className={styles.file}>
+                <span className={styles.fileText}>
+                  <span className={styles.fileName} data-type='T060'>
+                    <OverflowText text={file.name}>{file.name}</OverflowText>
+                  </span>
+                  <span className={styles.fileDetail} data-type='T052'>
+                    {file.detail}
+                  </span>
+                </span>
+                <Button
+                  variant='quiet'
+                  size='compact'
+                  icon='I049'
+                  aria-label={`Download ${file.name}`}
+                  render={
+                    <a href={file.href} target='_blank' rel='noopener noreferrer'>
+                      Download
+                    </a>
+                  }
+                >
+                  Download
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </DetailSection>
+      )}
+      {run.cost && (
+        <DetailSection title='Cost'>
+          <PropertyList
+            title='Cost'
+            titleHidden
+            properties={[
+              ...run.cost.items.map((item) => ({
+                id: `item-${item.id}`,
+                label: item.label,
+                kind: 'text' as const,
+                value: item.value,
+              })),
+              { id: 'total', label: 'Total', kind: 'text' as const, value: run.cost.total },
+              ...(run.cost.tokens
+                ? [{ id: 'tokens', label: 'Tokens', kind: 'text' as const, value: run.cost.tokens }]
+                : []),
+            ]}
+          />
+          <p className={styles.note} data-type='T052'>
+            {run.cost.note}
+          </p>
         </DetailSection>
       )}
     </DetailSplit>

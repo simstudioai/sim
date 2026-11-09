@@ -191,7 +191,7 @@ export async function grantWorkspaceAccessDirectly(
           executor: tx,
           forUpdate: true,
         })
-        if (!workspaceRow || workspaceRow.organizationId !== input.organizationId) {
+        if (!workspaceRow || workspaceRow.teamOrganizationId !== input.organizationId) {
           throw new DirectGrantContextChangedError()
         }
 

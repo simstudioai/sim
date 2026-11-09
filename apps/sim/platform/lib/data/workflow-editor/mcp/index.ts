@@ -1,6 +1,5 @@
 export { type McpOperationPolicy, normalizeMcpOperationPolicy } from '@/lib/mcp/operation-policy'
 export { createMcpToolId } from '@/lib/mcp/shared'
-export type { McpAuthType, McpTransport } from '@/lib/mcp/types'
 export {
   isSkillNameConflictError,
   type ParsedSkill,
@@ -16,11 +15,7 @@ export {
   SKILL_NAME_HINT,
   SKILL_NAME_PLACEHOLDER,
 } from '@/lib/skills/copy'
-export {
-  type McpServerTestResult,
-  useMcpServerTest,
-  useMcpToolsQuery,
-} from '@/hooks/queries/mcp'
+export { useMcpToolsQuery } from '@/hooks/queries/mcp'
 export {
   type SkillDefinition,
   useCreateSkill,
@@ -28,7 +23,6 @@ export {
   useUpdateSkill,
 } from '@/hooks/queries/skills'
 export { usePermissionConfig } from '@/hooks/use-permission-config'
-export { checkEnvVarTrigger } from '@/platform/lib/data/credentials'
 export {
   type JsonSchemaProperty,
   jsonSchemaType,

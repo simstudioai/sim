@@ -5,6 +5,7 @@ import {
   foldedEmail,
   invitation,
   member,
+  organization,
   permissions,
   scimConnection,
   ssoProvider,
@@ -206,8 +207,9 @@ async function runAdmissionTransaction(
     }
 
     const memberships = await tx
-      .select({ id: member.id, organizationId: member.organizationId })
+      .select({ id: member.id, organizationId: member.organizationId, kind: organization.kind })
       .from(member)
+      .innerJoin(organization, eq(organization.id, member.organizationId))
       .where(eq(member.userId, userId))
 
     const sameOrganization = memberships.find(
@@ -273,7 +275,8 @@ async function runAdmissionTransaction(
         },
       }
     }
-    if (memberships.length > 0) {
+    /** A personal organization dissolves into the SSO organization on admission. */
+    if (memberships.some((membership) => membership.kind === 'team')) {
       return {
         ...attribution,
         result: { kind: 'denied', reason: 'organization-conflict' },

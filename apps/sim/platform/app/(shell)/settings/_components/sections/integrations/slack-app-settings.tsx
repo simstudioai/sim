@@ -4,10 +4,7 @@ import { Button } from '@sim/emcn/button'
 import { Modal } from '@sim/emcn/modal'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import {
-  FieldStack,
-  Muted,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { FieldStack, Muted } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { platformHref } from '@/platform/lib/navigation'
 
 interface SlackAppSettingsProps {
