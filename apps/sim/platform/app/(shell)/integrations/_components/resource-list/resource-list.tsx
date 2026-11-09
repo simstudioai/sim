@@ -1,6 +1,6 @@
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
-import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
+import { BrandMark } from '@/platform/app/(shell)/_components/brand-mark/brand-mark'
 import { IntegrationUsageText } from '@/platform/app/(shell)/integrations/_components/integration-usage/integration-usage'
 import styles from '@/platform/app/(shell)/integrations/_components/resource-list/resource-list.module.css'
 import type { AppSummary, IntegrationResource } from '@/platform/lib/integrations/center-model'
@@ -50,7 +50,7 @@ function AppEntry({ app, onNavigate }: AppEntryProps) {
         event.preventDefault()
         onNavigate(app.href)
       }}
-      leading={<IntegrationMark providerId={app.providerId ?? app.id} icon={app.icon} />}
+      leading={<BrandMark providerId={app.providerId ?? app.id} icon={app.icon} />}
       title={app.name}
       detail={detail}
       detailContent={
@@ -95,11 +95,7 @@ export function ResourceGroup({
               <ActivityRow
                 key={resource.id}
                 leading={
-                  resource.appId ? (
-                    <IntegrationMark providerId={resource.appId} />
-                  ) : (
-                    <Icon name='I137' />
-                  )
+                  resource.appId ? <BrandMark providerId={resource.appId} /> : <Icon name='I137' />
                 }
                 title={resource.name}
                 detail={credentialDescription(resource)}
