@@ -6,7 +6,7 @@ import type { AllTagSlot } from '@/lib/knowledge/constants'
 import { useTagDefinitionsQuery } from '@/hooks/queries/kb/knowledge'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 
-export interface TagDefinition {
+interface TagDefinition {
   id: string
   tagSlot: AllTagSlot
   displayName: string
@@ -16,7 +16,7 @@ export interface TagDefinition {
 }
 
 /** Stable empty fallback, so a pending query does not hand consumers a new array each render. */
-export const EMPTY_TAG_DEFINITIONS: TagDefinition[] = []
+const EMPTY_TAG_DEFINITIONS: TagDefinition[] = []
 
 /**
  * Hook for fetching KB-scoped tag definitions (for filtering/selection)

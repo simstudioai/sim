@@ -13,7 +13,6 @@ import {
   createPinnedItemContract,
   createWorkspaceContract,
   deletePinnedItemContract,
-  deleteWorkspaceContract,
   getWorkspaceContract,
   getWorkspaceMembersContract,
   getWorkspacePermissionsContract,
@@ -21,7 +20,6 @@ import {
   recordWorkspaceVisitContract,
   updateWorkspaceContract,
   type Workspace,
-  type WorkspaceCreationPolicy,
   type WorkspaceMember,
   type WorkspacePermissions,
   type WorkspaceQueryScope,
@@ -51,11 +49,11 @@ export const workspaceKeys = {
   adminList: (userId: string | undefined) => [...workspaceKeys.adminLists(), userId ?? ''] as const,
 }
 
-export type { Workspace, WorkspaceCreationPolicy, WorkspaceMember, WorkspacePermissions }
+export type { Workspace, WorkspaceMember, WorkspacePermissions }
 
-export const WORKSPACE_PERMISSIONS_STALE_TIME = 30 * 1000
+const WORKSPACE_PERMISSIONS_STALE_TIME = 30 * 1000
 export const WORKSPACE_SETTINGS_STALE_TIME = 30 * 1000
-export const WORKSPACE_MEMBERS_STALE_TIME = 5 * 60 * 1000
+const WORKSPACE_MEMBERS_STALE_TIME = 5 * 60 * 1000
 export const WORKSPACE_ADMIN_LIST_STALE_TIME = 60 * 1000
 
 async function fetchWorkspaces(
@@ -120,7 +118,7 @@ export function useWorkspaceCreationPolicy(enabled = true) {
   })
 }
 
-export const EMPTY_PINNED_WORKSPACE_IDS: ReadonlySet<string> = new Set()
+const EMPTY_PINNED_WORKSPACE_IDS: ReadonlySet<string> = new Set()
 
 const selectPinnedWorkspaceIds = (data: WorkspacesResponse): ReadonlySet<string> =>
   data.pinnedWorkspaceIds.length ? new Set(data.pinnedWorkspaceIds) : EMPTY_PINNED_WORKSPACE_IDS
@@ -328,31 +326,6 @@ export function useCreateWorkspace() {
   })
 }
 
-interface DeleteWorkspaceParams {
-  workspaceId: string
-}
-
-/**
- * Deletes a workspace.
- * Automatically invalidates the workspace list cache on success.
- */
-export function useDeleteWorkspace() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({ workspaceId }: DeleteWorkspaceParams) => {
-      return requestJson(deleteWorkspaceContract, {
-        params: { id: workspaceId },
-        body: {},
-      })
-    },
-    onSettled: (_data, _error, variables) => {
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) })
-    },
-  })
-}
-
 type UpdateWorkspaceParams = { workspaceId: string } & Pick<
   ContractBodyInput<typeof updateWorkspaceContract>,
   'name' | 'logoUrl'
@@ -444,17 +417,6 @@ async function fetchWorkspaceSettings(workspaceId: string, signal?: AbortSignal)
     settings,
     permissions,
   }
-}
-
-/**
- * Prefetch a workspace's settings (and permissions) into the cache. Use on
- * hover to warm data before navigating to a settings-style route.
- * @param queryClient - The active QueryClient
- * @param workspaceId - The workspace ID to prefetch settings for
- */
-export function prefetchWorkspaceSettings(queryClient: QueryClient, workspaceId: string) {
-  if (!workspaceId) return
-  queryClient.prefetchQuery(workspaceSettingsQueryOptions(workspaceId))
 }
 
 export function workspaceSettingsQueryOptions(workspaceId: string) {

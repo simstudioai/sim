@@ -18,7 +18,7 @@ export async function resolveRolledOutOrganizationId(
 }
 
 /** Returns the viewer's organization Home, or null for an account not yet in any organization. */
-export async function resolveOrganizationEntryPath(session: EntrySession): Promise<string | null> {
+async function resolveOrganizationEntryPath(session: EntrySession): Promise<string | null> {
   const organizationId = await resolveRolledOutOrganizationId(session)
   return organizationId ? organizationRoutes(organizationId).home : null
 }

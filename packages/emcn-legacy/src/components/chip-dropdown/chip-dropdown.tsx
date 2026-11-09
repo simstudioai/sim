@@ -440,4 +440,4 @@ const ChipDropdown = forwardRef<HTMLButtonElement, ChipDropdownProps>(
 ChipDropdown.displayName = 'ChipDropdown'
 
 export { ChipDropdown }
-export type { ChipDropdownOption, ChipDropdownProps }
+export type { ChipDropdownOption }

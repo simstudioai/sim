@@ -350,7 +350,7 @@ export type BrowserPagePromptResponse =
  * Credentials requested by a server for a top-level page, or by a proxy.
  * Shown only for the tab whose navigation was challenged.
  */
-export interface BrowserHttpAuthPrompt {
+interface BrowserHttpAuthPrompt {
   requestId: string
   kind: 'http-auth'
   /** Scheme, host, and port of the server, or host and port of a proxy. */
@@ -370,7 +370,7 @@ interface BrowserPasskeyAccount {
 }
 
 /** A passkey sign-in asking which of the authenticator's accounts to use. */
-export interface BrowserPasskeyPrompt {
+interface BrowserPasskeyPrompt {
   requestId: string
   kind: 'passkey-account'
   relyingPartyId: string
@@ -387,7 +387,7 @@ interface BrowserClientCertificate {
 }
 
 /** A site asking which client certificate, if any, identifies the user. */
-export interface BrowserClientCertificatePrompt {
+interface BrowserClientCertificatePrompt {
   requestId: string
   kind: 'client-certificate'
   /** Host and port of the server asking. */
@@ -396,7 +396,7 @@ export interface BrowserClientCertificatePrompt {
 }
 
 /** A page the user just interacted with asks to open another app. */
-export interface BrowserExternalAppPrompt {
+interface BrowserExternalAppPrompt {
   requestId: string
   kind: 'external-app'
   /** Origin of the page that asked. */

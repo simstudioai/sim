@@ -26,7 +26,7 @@ import { POPOVER_ANIMATION_CLASSES, RowActions, rowActionsGroupClass } from '@si
 import { cva, type VariantProps } from 'class-variance-authority'
 import { chipGeometryClass } from '#chip-chrome'
 import { MENU_STYLES } from '#menu-styles'
-import { Check, ChevronRight, Circle, Search } from '../../icons'
+import { Check, ChevronRight, Search } from '../../icons'
 import { cn } from '../../lib/cn'
 import { InsideModalContext } from '../modal/modal'
 import { OverflowText, type OverflowTextProps } from '../overflow-text/overflow-text'
@@ -393,36 +393,6 @@ const DropdownMenuItem = React.forwardRef<
 )
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName
 
-/**
- * Compact icon button intended to be used as the `action` slot on a
- * `DropdownMenuItem`. Click events are stopped from bubbling so they don't
- * trigger the parent item's selection.
- */
-const DropdownMenuItemAction = React.forwardRef<
-  HTMLButtonElement,
-  React.ButtonHTMLAttributes<HTMLButtonElement>
->(({ className, onClick, onPointerDown, ...props }, ref) => (
-  <button
-    ref={ref}
-    type='button'
-    onClick={(e) => {
-      e.stopPropagation()
-      e.preventDefault()
-      onClick?.(e)
-    }}
-    onPointerDown={(e) => {
-      e.stopPropagation()
-      onPointerDown?.(e)
-    }}
-    className={cn(
-      'flex size-[18px] shrink-0 items-center justify-center rounded-sm outline-hidden [&_svg]:pointer-events-none [&_svg]:size-[16px] [&_svg]:text-[var(--text-icon)]',
-      className
-    )}
-    {...props}
-  />
-))
-DropdownMenuItemAction.displayName = 'DropdownMenuItemAction'
-
 const DropdownMenuCheckboxItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.CheckboxItem>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.CheckboxItem>
@@ -445,28 +415,6 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   </DropdownMenuPrimitive.CheckboxItem>
 ))
 DropdownMenuCheckboxItem.displayName = DropdownMenuPrimitive.CheckboxItem.displayName
-
-const DropdownMenuRadioItem = React.forwardRef<
-  React.ElementRef<typeof DropdownMenuPrimitive.RadioItem>,
-  React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.RadioItem>
->(({ className, children, ...props }, ref) => (
-  <DropdownMenuPrimitive.RadioItem
-    ref={ref}
-    className={cn(
-      `relative ${MENU_STYLES.rowLayout} ${MENU_STYLES.sizes.md.className} cursor-default select-none whitespace-nowrap pl-7 text-[var(--text-body)] outline-hidden ${MENU_ROW_TRANSITION_CLASS} ${MENU_ROW_HIGHLIGHT_CLASS} data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
-      className
-    )}
-    {...props}
-  >
-    <span className='absolute left-2 flex size-[14px] items-center justify-center'>
-      <DropdownMenuPrimitive.ItemIndicator>
-        <Circle className='size-[6px] fill-current' />
-      </DropdownMenuPrimitive.ItemIndicator>
-    </span>
-    {withOverflowLabel(children)}
-  </DropdownMenuPrimitive.RadioItem>
-))
-DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName
 
 /** Section heading on the menu row grid, one text step below its items. */
 const DropdownMenuLabel = React.forwardRef<
@@ -557,9 +505,7 @@ export {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuItemLabel,
-  DropdownMenuItemAction,
   DropdownMenuCheckboxItem,
-  DropdownMenuRadioItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuSearchInput,

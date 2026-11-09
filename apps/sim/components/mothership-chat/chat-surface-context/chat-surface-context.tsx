@@ -26,7 +26,7 @@ import type { ChatContext } from '@/stores/panel'
  * around the whole chat, since context also reaches what the chat portals out of its own tree. A host
  * that sets nothing gets the workspace's own look.
  */
-export interface ChatChrome {
+interface ChatChrome {
   fontClassName: string
   panelClassName?: string
   tabsClassName?: string
@@ -48,8 +48,6 @@ export interface ChatChrome {
 }
 
 const ChatChromeContext = createContext<ChatChrome>({ fontClassName: inter.className })
-
-export const ChatChromeProvider = ChatChromeContext.Provider
 
 export function useChatChrome() {
   return useContext(ChatChromeContext)

@@ -15,7 +15,6 @@ export type {
 export {
   isAllowedCustomBlockIconUrl,
   publishCustomBlockBodySchema,
-  updateCustomBlockBodySchema,
 } from '@/lib/workflows/custom-blocks/settings-input'
 
 export const customBlockIdParamsSchema = z.object({ id: z.string().min(1) })

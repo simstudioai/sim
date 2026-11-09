@@ -44,14 +44,14 @@ import { HEADER_ACTION_CLUSTER, TITLE_BAR_LANE_PT } from '@/components/page-head
 import { orderHeaderActions, SettingsActionChip } from '@/components/settings/settings-header'
 import { isMobileViewport } from '@/hooks/use-is-mobile'
 
-export interface DropdownOption {
+interface DropdownOption {
   label: string
   icon?: React.ElementType
   onClick: () => void
   disabled?: boolean
 }
 
-export interface BreadcrumbEditing {
+interface BreadcrumbEditing {
   isEditing: boolean
   value: string
   onChange: (value: string) => void
@@ -66,7 +66,7 @@ export interface BreadcrumbEditing {
   disabled?: boolean
 }
 
-export interface BreadcrumbItem {
+interface BreadcrumbItem {
   label: string
   /**
    * The folder this crumb navigates to (`null` is the workspace root). Supplying it makes the
@@ -92,7 +92,7 @@ export interface BreadcrumbItem {
  * `variant` for the default chip; use `primary`/`destructive` for emphasis. Express
  * a selected/toggle state with `active` (e.g. the Logs/Dashboard view toggle).
  */
-export interface ResourceAction {
+interface ResourceAction {
   /**
    * Stable render identity, and the action's slot in the row. `'delete'` and
    * `'discard'` are ordered by {@link orderHeaderActions} rather than by where the

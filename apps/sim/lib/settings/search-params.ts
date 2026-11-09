@@ -1,17 +1,5 @@
 import { parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
-export {
-  groupIdParam,
-  groupIdUrlKeys,
-  groupSearchParam,
-  groupSearchUrlKeys,
-  groupStatusParam,
-  groupStatusUrlKeys,
-  groupTabParam,
-  groupTabUrlKeys,
-} from '@/ee/access-control/search-params'
-export { dataDrainIdParam, dataDrainIdUrlKeys } from '@/ee/data-drains/search-params'
-
 /** Scope shown by the BYOK settings page. */
 export const byokScopeParam = {
   key: 'scope',
@@ -97,38 +85,6 @@ export const credentialGroupTabParam = {
 
 /** Tab view-state: clean URLs, no back-stack churn. */
 export const credentialGroupTabUrlKeys = {
-  history: 'replace',
-  clearOnDefault: true,
-} as const
-
-/**
- * Filters the account types offered inside a credential group's detail view. Separate from the
- * settings-wide search so filtering the picker does not follow the user back out to the list of
- * groups, where the same term would usually match nothing.
- */
-export const credentialGroupProviderSearchParam = {
-  key: 'credential-group-provider',
-  parser: parseAsString.withDefault(''),
-} as const
-
-/** A transient picker filter: no back-stack entry, and absent from the URL when empty. */
-export const credentialGroupProviderSearchUrlKeys = {
-  history: 'replace',
-  clearOnDefault: true,
-} as const
-
-/**
- * Filters the people enrolled in a credential group by email. Its own key rather than the
- * provider filter's, so switching tabs does not carry a term that matches nothing on the
- * other side.
- */
-export const credentialGroupPeopleSearchParam = {
-  key: 'credential-group-people',
-  parser: parseAsString.withDefault(''),
-} as const
-
-/** A transient list filter: no back-stack entry, and absent from the URL when empty. */
-export const credentialGroupPeopleSearchUrlKeys = {
   history: 'replace',
   clearOnDefault: true,
 } as const

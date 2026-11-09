@@ -5,7 +5,7 @@
  * level:error workflow:"my-workflow" trigger:api cost:>0.005 date:today
  */
 
-export interface ParsedFilter {
+interface ParsedFilter {
   field: string
   operator: '=' | '>' | '<' | '>=' | '<=' | '!='
   value: string | number | boolean

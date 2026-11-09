@@ -13,8 +13,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 
 const EMPTY_VARIABLES: Variable[] = []
-const EMPTY_BLOCKS: Record<string, BlockState> = {}
-const EMPTY_EDGES: Edge[] = []
 const EMPTY_LOOPS: Record<string, Loop> = {}
 const EMPTY_PARALLELS: Record<string, Parallel> = {}
 
@@ -144,32 +142,4 @@ export function useWorkflowReferenceScope(): WorkflowReferenceScope {
     }),
     [graph, values.workflowId, values.subBlockValues, values.variables]
   )
-}
-
-/**
- * A scope for a workflow loaded outside the editor. `unrestricted` is derived rather than
- * asked for: it is exactly the case where the referencing block is absent from the graph, and
- * making the caller work that out invites getting it wrong.
- */
-export function buildWorkflowReferenceScope(params: {
-  workflowId: string | null
-  blocks: Record<string, BlockState> | undefined
-  edges: Edge[] | undefined
-  loops?: Record<string, Loop>
-  parallels?: Record<string, Parallel>
-  variables?: Variable[]
-  /** The block whose position filters the suggestions. */
-  referencingBlockId?: string
-}): WorkflowReferenceScope {
-  const blocks = params.blocks ?? EMPTY_BLOCKS
-  return {
-    workflowId: params.workflowId,
-    blocks,
-    edges: params.edges ?? EMPTY_EDGES,
-    loops: params.loops ?? EMPTY_LOOPS,
-    parallels: params.parallels ?? EMPTY_PARALLELS,
-    subBlockValues: EMPTY_SUBBLOCK_VALUES,
-    variables: params.variables ?? EMPTY_VARIABLES,
-    unrestricted: !params.referencingBlockId || !blocks[params.referencingBlockId],
-  }
 }

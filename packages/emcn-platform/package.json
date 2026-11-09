@@ -30,7 +30,6 @@
     "#platform/components/recent-items/recent-items": "./src/components/recent-items/recent-items.tsx",
     "#platform/components/recent-items/recent-items.module.css": "./src/components/recent-items/recent-items.module.css",
     "#platform/components/surface/platform-surface": "./src/components/surface/platform-surface.tsx",
-    "#platform/components/surface/surface.module.css": "./src/components/surface/surface.module.css",
     "#platform/components/workspace-fields/workspace-fields": "./src/components/workspace-fields/workspace-fields.tsx",
     "#platform/components/workspace-fields/workspace-fields.module.css": "./src/components/workspace-fields/workspace-fields.module.css",
     "#platform/components/workspace-list/workspace-list": "./src/components/workspace-list/workspace-list.tsx",
@@ -56,7 +55,6 @@
     "./styles/host-bridge.module.css": "./src/styles/host-bridge.module.css",
     "./styles/platform.css": "./src/styles/platform.css",
     "./styles/system-appearance.cjs": "./src/styles/system-appearance.cjs",
-    "./surface": "./src/components/surface/surface.tsx",
     "./surface/platform-surface": "./src/components/surface/platform-surface.tsx",
     "./workspace-fields": "./src/components/workspace-fields/workspace-fields.tsx",
     "./workspace-list": "./src/components/workspace-list/workspace-list.tsx"

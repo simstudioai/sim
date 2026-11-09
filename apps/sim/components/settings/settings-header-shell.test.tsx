@@ -10,7 +10,6 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { SettingsAction } from '@/components/settings/settings-header'
 import { SettingsHeaderProvider, SettingsHeaderShell } from '@/components/settings/settings-header'
 import { SettingsPanel } from '@/components/settings/settings-panel'
@@ -69,7 +68,8 @@ describe('SettingsHeaderShell action routing', () => {
     const onDelete = vi.fn()
 
     renderHeader([
-      ...saveDiscardActions({ dirty: true, saving: false, onSave, onDiscard }),
+      { id: 'discard', text: 'Discard', onSelect: onDiscard },
+      { id: 'save', text: 'Save', variant: 'primary', onSelect: onSave },
       { id: 'delete', text: 'Delete', onSelect: onDelete },
     ])
 
@@ -90,7 +90,7 @@ describe('SettingsHeaderShell action routing', () => {
     const onDelete = vi.fn()
 
     renderHeader([
-      ...saveDiscardActions({ dirty: false, saving: false, onSave, onDiscard: vi.fn() }),
+      { id: 'save', text: 'Save', variant: 'primary', onSelect: onSave, disabled: true },
       { id: 'delete', text: 'Delete', onSelect: onDelete },
     ])
 

@@ -12,9 +12,6 @@ export type TableQueryScope = 'active' | 'archived' | 'all'
 
 export const TABLE_LIST_STALE_TIME = 30 * 1000
 
-/** Views change only on explicit user action, so they can sit stale for a while. */
-export const TABLE_VIEWS_STALE_TIME = 60 * 1000
-
 export const tableKeys = {
   all: ['tables'] as const,
   lists: () => [...tableKeys.all, 'list'] as const,

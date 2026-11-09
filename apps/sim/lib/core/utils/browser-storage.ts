@@ -194,56 +194,6 @@ export class LandingPromptStorage {
   }
 }
 
-export interface LandingWorkflowSeed {
-  templateId: string
-  workflowName: string
-  workflowDescription?: string
-  workflowJson: string
-}
-
-/**
- * Specialized utility for managing a landing-page workflow seed.
- * Stores a workflow export JSON so it can be imported after signup.
- */
-export class LandingWorkflowSeedStorage {
-  private static readonly KEY = STORAGE_KEYS.LANDING_PAGE_WORKFLOW_SEED
-
-  static store(seed: LandingWorkflowSeed): boolean {
-    if (!seed.templateId || !seed.workflowName || !seed.workflowJson) {
-      return false
-    }
-
-    return BrowserStorage.setItem(LandingWorkflowSeedStorage.KEY, {
-      ...seed,
-      timestamp: Date.now(),
-    })
-  }
-
-  static consume(maxAge: number = 24 * 60 * 60 * 1000): LandingWorkflowSeed | null {
-    const data = BrowserStorage.getItem<(LandingWorkflowSeed & { timestamp: number }) | null>(
-      LandingWorkflowSeedStorage.KEY,
-      null
-    )
-
-    if (!data || !data.templateId || !data.workflowName || !data.timestamp || !data.workflowJson) {
-      return null
-    }
-
-    if (Date.now() - data.timestamp > maxAge) {
-      LandingWorkflowSeedStorage.clear()
-      return null
-    }
-
-    LandingWorkflowSeedStorage.clear()
-    const { timestamp: _timestamp, ...seed } = data
-    return seed
-  }
-
-  static clear(): boolean {
-    return BrowserStorage.removeItem(LandingWorkflowSeedStorage.KEY)
-  }
-}
-
 export interface MothershipHandoff {
   /**
    * Message to auto-send once the home surface mounts. Omit for a chip-only

@@ -461,10 +461,6 @@
   "apps/sim/app/(site)/desktop/connect/page.test.tsx": {
     "TS2345": 1
   },
-  "apps/sim/components/knowledge/base/components/connector-dialogs.test.tsx": {
-    "TS2339": 31,
-    "TS2345": 2
-  },
   "apps/sim/components/file-viewer/rich-markdown-editor/collaboration/apply-streamed-markdown.test.ts": {
     "TS2353": 2
   },
@@ -476,13 +472,6 @@
   },
   "apps/sim/components/file-viewer/rich-markdown-editor/dirty-on-open.test.ts": {
     "TS2578": 2
-  },
-  "apps/sim/components/file-viewer/rich-markdown-editor/field-lifecycle.test.tsx": {
-    "TS2550": 1
-  },
-  "apps/sim/components/file-viewer/rich-markdown-editor/field-upload.test.tsx": {
-    "TS2322": 2,
-    "TS2550": 3
   },
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-collaboration.test.tsx": {
     "TS2345": 1
@@ -517,12 +506,6 @@
   "apps/sim/components/mothership-chat/message-content/message-content.test.ts": {
     "TS18048": 1
   },
-  "apps/sim/components/mothership-chat/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion.test.ts": {
-    "TS2493": 1
-  },
-  "apps/sim/components/mothership-chat/mothership-view/components/resource-content/components/browser-session/browser-session.test.ts": {
-    "TS2769": 1
-  },
   "apps/sim/components/mothership-chat/user-input/components/prompt-editor/use-prompt-editor.test.tsx": {
     "TS2322": 1
   },
@@ -556,17 +539,11 @@
   "apps/sim/components/settings/sections/general/components/privacy-view.test.tsx": {
     "TS2550": 2
   },
-  "apps/sim/components/tables/components/table-filter/table-filter.test.tsx": {
-    "TS7017": 1
-  },
   "apps/sim/components/tables/hooks/use-table-event-stream.test.ts": {
     "TS2739": 3
   },
   "apps/sim/components/tables/utils.test.ts": {
     "TS2345": 3
-  },
-  "apps/sim/components/workflow-editor/components/panel/components/editor/components/sub-block/components/slack-setup-wizard/slack-setup-wizard.test.tsx": {
-    "TS2339": 1
   },
   "apps/sim/components/workflow-editor/hooks/use-node-utilities.test.tsx": {
     "TS2339": 2,
@@ -699,17 +676,11 @@
   "apps/sim/components/settings/navigation.test.ts": {
     "TS2741": 1
   },
-  "apps/sim/components/ui/generated-password-input.test.tsx": {
-    "TS2339": 12
-  },
   "apps/sim/connectors/coda/coda.live.test.ts": {
     "TS2339": 1
   },
   "apps/sim/connectors/sharepoint/sharepoint.test.ts": {
     "TS2339": 4
-  },
-  "apps/sim/ee/access-control/components/group-detail.test.tsx": {
-    "TS2345": 1
   },
   "apps/sim/ee/access-control/hooks/permission-groups.test.tsx": {
     "TS2741": 3
@@ -732,9 +703,6 @@
   },
   "apps/sim/ee/scim/lib/reconcile/job.test.ts": {
     "TS2345": 6
-  },
-  "apps/sim/ee/sso/components/sso-settings.test.tsx": {
-    "TS2339": 2
   },
   "apps/sim/ee/workspace-forking/components/fork-sync/copy-reconciliation.test.ts": {
     "TS2322": 1
@@ -1169,9 +1137,6 @@
   },
   "apps/sim/lib/credential-groups/oauth.test.ts": {
     "TS2345": 9
-  },
-  "apps/sim/lib/credential-groups/organization-account-options.test.ts": {
-    "TS18048": 1
   },
   "apps/sim/lib/credential-groups/organization-provider-setup.test.ts": {
     "TS2345": 5,
@@ -2025,10 +1990,6 @@
   "apps/sim/lib/selectors/server/integration-access.test.ts": {
     "TS2345": 2
   },
-  "apps/sim/lib/settings/application/workspace-section-access.test.ts": {
-    "TS2345": 1,
-    "TS2739": 3
-  },
   "apps/sim/lib/sim-search/connectors.test.ts": {
     "TS2322": 1
   },
@@ -2833,8 +2794,5 @@
   },
   "apps/sim/triggers/vercel/utils.test.ts": {
     "TS2739": 1
-  },
-  "apps/sim/hooks/kb/connectors/use-connector-settings-form.test.tsx": {
-    "TS2322": 1
   }
 }

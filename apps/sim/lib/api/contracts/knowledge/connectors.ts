@@ -347,11 +347,6 @@ const searchSourceSummaryFields = {
 
 export const searchSourceSummarySchema = z.object(searchSourceSummaryFields)
 export type SearchSourceSummary = z.output<typeof searchSourceSummarySchema>
-export interface ViewerSearchSourceAccount {
-  credentialId: string
-  displayName: string
-  status?: 'active' | 'needs_reauth'
-}
 
 export const searchSourceCursorSchema = z.object({
   createdAt: z.string().datetime(),
@@ -389,7 +384,6 @@ export const prepareSearchSourceBodySchema = resourceOwnerSchema.safeExtend({
   connectorType: z.string().min(1, 'connectorType cannot be empty').max(100),
   accessMode: z.enum(['admin', 'members']).optional().default('admin'),
 })
-export type PrepareSearchSourceBody = z.input<typeof prepareSearchSourceBodySchema>
 
 export const prepareSearchSourceContract = defineRouteContract({
   method: 'POST',

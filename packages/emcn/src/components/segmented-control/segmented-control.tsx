@@ -20,6 +20,7 @@ interface SelectionItemProps extends Choice {
   onSelect?: (value: string) => void
 }
 
+/** @public check-platform-design requires every catalog evidence owner to be an exported component. */
 export function SelectionItem({
   name,
   label,

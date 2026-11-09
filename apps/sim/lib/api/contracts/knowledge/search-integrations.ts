@@ -9,7 +9,6 @@ export const searchIntegrationApprovalSchema = z.object({
   approved: z.boolean(),
   policy: liveSearchPolicySchema.optional(),
 })
-export type SearchIntegrationApproval = z.output<typeof searchIntegrationApprovalSchema>
 
 export const searchIntegrationStatusSchema = searchIntegrationApprovalSchema.extend({
   available: z.boolean().optional(),

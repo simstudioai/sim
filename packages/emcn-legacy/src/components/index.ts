@@ -1,7 +1,5 @@
 export { Avatar, AvatarFallback, AvatarImage } from './avatar/avatar'
-export { Badge, type BadgeProps, badgeVariants } from './badge/badge'
-export { Banner } from './banner/banner'
-export { BulkActionButton } from './bulk-action-button/bulk-action-button'
+export { Badge, type BadgeProps } from './badge/badge'
 export { Button } from './button/button'
 export { Checkbox, checkboxIconVariants, checkboxVariants } from './checkbox/checkbox'
 export { ChipChevronDown } from './chip/chevron'
@@ -27,7 +25,6 @@ export {
   chipGeometryClass,
   chipHoverSurfaceClass,
   chipIconSlotClass,
-  chipPrimaryFillTokens,
   chipRadiusClass,
   disclosureChevronClass,
 } from './chip/chrome'
@@ -38,26 +35,17 @@ export {
 export { ChipCombobox } from './chip-combobox/chip-combobox'
 export { ChipCopyInput } from './chip-copy-input/chip-copy-input'
 export { ChipDatePicker } from './chip-date-picker/chip-date-picker'
-export {
-  ChipDropdown,
-  type ChipDropdownOption,
-  type ChipDropdownProps,
-} from './chip-dropdown/chip-dropdown'
-export { ChipEmailsInput } from './chip-emails-input/chip-emails-input'
+export { ChipDropdown, type ChipDropdownOption } from './chip-dropdown/chip-dropdown'
 export { ChipInput } from './chip-input/chip-input'
 export {
   ChipConfirmModal,
-  type ChipConfirmTextSegment,
   ChipModal,
   ChipModalBody,
   ChipModalDescription,
   ChipModalError,
   ChipModalField,
-  type ChipModalFieldAria,
   ChipModalFooter,
-  type ChipModalFooterAction,
   ChipModalHeader,
-  ChipModalSeparator,
   ChipModalSurface,
   ChipModalTabs,
   focusChipModalContent,
@@ -68,12 +56,7 @@ export { ChipTag, chipTagVariants } from './chip-tag/chip-tag'
 export { ChipTextarea } from './chip-textarea/chip-textarea'
 /** @public The documented time sibling of `ChipDatePicker`; consumers import it from the barrel. */
 export { ChipTimePicker } from './chip-time-picker/chip-time-picker'
-export {
-  CODE_LINE_HEIGHT_PX,
-  Code,
-  calculateGutterWidth,
-  getCodeEditorProps,
-} from './code/code'
+export { Code } from './code/code'
 export { CopyCodeButton } from './code/copy-code-button'
 export { highlight, languages } from './code/prism'
 export { CollapsibleCard } from './collapsible-card/collapsible-card'
@@ -83,17 +66,14 @@ export {
   type ComboboxOptionGroup,
 } from './combobox/combobox'
 export { ComposerActionButton } from './composer-action-button/composer-action-button'
-export { DetailsPanel } from './details-panel/details-panel'
 export {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuItemAction,
   DropdownMenuItemLabel,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSearchInput,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
@@ -105,13 +85,8 @@ export {
 } from './dropdown-menu/dropdown-menu'
 export { MENU_STYLES } from './dropdown-menu/styles'
 export { Expandable, ExpandableContent } from './expandable/expandable'
-export { DashedDividerLine, FieldDivider } from './field-divider/field-divider'
+export { FieldDivider } from './field-divider/field-divider'
 export { Info } from './info/info'
-export {
-  InfoCard,
-  InfoCardItem,
-  InfoCardList,
-} from './info-card/info-card'
 export { Input } from './input/input'
 export { Label } from './label/label'
 export { Lightbox } from './lightbox/lightbox'
@@ -129,8 +104,6 @@ export {
   ModalTabsTrigger,
   ModalTitle,
   ModalTrigger,
-  NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
-  type NativeSurfaceOcclusionPrepareDetail,
   useNativeSurfaceOcclusionReady,
 } from './modal/modal'
 export {
@@ -139,23 +112,19 @@ export {
   overflowTextClipClass,
   overflowTextFadeClass,
 } from './overflow-text/overflow-text'
-export { pageHeadingClassName } from './page-heading/page-heading'
 export { POPOVER_ANIMATION_CLASSES } from './popover/animation'
 export {
   Popover,
   PopoverAnchor,
   PopoverBackButton,
   PopoverContent,
-  PopoverDivider,
   PopoverFolder,
   PopoverItem,
   PopoverScrollArea,
   PopoverSearch,
   PopoverSection,
   PopoverTrigger,
-  usePopoverContext,
 } from './popover/popover'
-export { ProgressItem } from './progress-item/progress-item'
 export { RowActions, rowActionsGroupClass } from './row-actions/row-actions'
 export { SecretInput } from './secret-input/secret-input'
 export { SecretReveal } from './secret-reveal/secret-reveal'
@@ -172,13 +141,7 @@ export {
 } from './status-page/status-page'
 export { Switch } from './switch/switch'
 export { TabStripAction } from './tab-strip/action'
-export {
-  TabStrip,
-  type TabStripDragContext,
-  type TabStripItem,
-  type TabStripSelectionSource,
-  tabStripItemSelector,
-} from './tab-strip/tab-strip'
+export { TabStrip, type TabStripItem } from './tab-strip/tab-strip'
 export {
   Table,
   TableBody,
@@ -200,5 +163,4 @@ export {
   useFloatingTooltip,
   useIsOverflowing,
 } from './tooltip/tooltip'
-export { UploadPreviewButton } from './upload-preview-button/upload-preview-button'
 export { Wizard } from './wizard/wizard'

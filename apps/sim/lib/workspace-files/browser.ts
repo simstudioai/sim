@@ -16,14 +16,6 @@ export type FileBrowserSize = (typeof FILE_BROWSER_SIZES)[number]
 /** Small is under 1 MiB, medium 1 to 10 MiB inclusive, large over 10 MiB. */
 export const FILE_BROWSER_SIZE_BOUNDARIES = { small: 1_048_576, medium: 10_485_760 } as const
 
-export function isFileBrowserType(value: string): value is FileBrowserType {
-  return (FILE_BROWSER_TYPES as readonly string[]).includes(value)
-}
-
-export function isFileBrowserSize(value: string): value is FileBrowserSize {
-  return (FILE_BROWSER_SIZES as readonly string[]).includes(value)
-}
-
 export const FILE_BROWSER_MIME_LABELS: Readonly<Record<string, string>> = {
   'application/pdf': 'PDF',
   'application/zip': 'ZIP',

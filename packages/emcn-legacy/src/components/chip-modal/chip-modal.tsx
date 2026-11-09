@@ -61,7 +61,7 @@ import { Tooltip } from '../tooltip/tooltip'
  * exported so body sections (e.g. a settings band below a prompt) can draw the
  * same line instead of re-deriving the `h-px bg-[var(--border)]` string.
  */
-export function ChipModalSeparator({ className }: { className?: string }) {
+function ChipModalSeparator({ className }: { className?: string }) {
   return <div className={cn('h-px bg-[var(--border)]', className)} />
 }
 
@@ -680,7 +680,7 @@ interface ChipModalEmailsFieldProps
  * ARIA the field derives from its own state and renders elsewhere in the row —
  * the `hint`/`error` paragraph ids, plus `required`/`invalid` flags.
  */
-export interface ChipModalFieldAria {
+interface ChipModalFieldAria {
   'aria-required'?: boolean
   'aria-invalid'?: boolean
   'aria-describedby'?: string
@@ -1174,7 +1174,7 @@ interface ChipModalFooterActionBase {
 }
 
 /** A footer action activated either directly or through an associated native form. */
-export type ChipModalFooterAction = ChipModalFooterActionBase &
+type ChipModalFooterAction = ChipModalFooterActionBase &
   (
     | { type?: 'button'; onClick: () => void; form?: never }
     | { type: 'submit'; form: string; onClick?: never }
@@ -1457,7 +1457,7 @@ interface ChipConfirmAction {
  * live inside the strings (`'Deleting '`) and punctuation can sit flush
  * against an emphasized name (`{ text: name, bold: true }, '?'`).
  */
-export type ChipConfirmTextSegment =
+type ChipConfirmTextSegment =
   | string
   | {
       /**

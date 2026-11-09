@@ -60,7 +60,7 @@ async function fetchAuditLogs(
 }
 
 /** The feed's read under one set of filters, for a hook or a read made ahead of showing it. */
-export function auditLogsInfiniteOptions(organizationId: string, filters: AuditLogFilters) {
+function auditLogsInfiniteOptions(organizationId: string, filters: AuditLogFilters) {
   return infiniteQueryOptions({
     queryKey: auditLogKeys.list(organizationId, filters),
     queryFn: ({ pageParam, signal }) => fetchAuditLogs(organizationId, filters, pageParam, signal),

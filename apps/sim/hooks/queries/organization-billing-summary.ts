@@ -6,7 +6,7 @@ import { shouldRetrySettingsRead } from '@/hooks/queries/utils/settings-read-ret
 
 export const ORGANIZATION_BILLING_SUMMARY_STALE_TIME = 30 * 1000
 
-export function organizationBillingSummaryOptions(orgId: string) {
+function organizationBillingSummaryOptions(orgId: string) {
   return queryOptions({
     queryKey: organizationKeys.billingSummary(orgId),
     queryFn: ({ signal }) =>

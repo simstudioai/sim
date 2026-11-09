@@ -1033,7 +1033,7 @@ export function useDocumentTagDefinitionsQuery(
   })
 }
 
-export interface DocumentTagDefinitionInput {
+interface DocumentTagDefinitionInput {
   tagSlot: string
   displayName: string
   fieldType: string

@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { getPanelWidth, getTerminalHeight } from '@/lib/workflows/layout'
-import type { VariablesModalStore, VariablesPosition } from '@/stores/variables/types'
+import type { VariablesModalStore } from '@/stores/variables/types'
 
 /**
  * Floating variables modal default dimensions.
@@ -13,79 +12,10 @@ const DEFAULT_HEIGHT = 320
 /**
  * Minimum and maximum modal dimensions.
  */
-export const MIN_VARIABLES_WIDTH = DEFAULT_WIDTH
-export const MIN_VARIABLES_HEIGHT = DEFAULT_HEIGHT
-export const MAX_VARIABLES_WIDTH = 500
-export const MAX_VARIABLES_HEIGHT = 600
-
-/** Inset gap between the viewport edge and the content window */
-const CONTENT_WINDOW_GAP = 8
-
-/**
- * Compute a center-biased default position, factoring in current layout chrome
- * (sidebar, right panel, terminal) and content window inset.
- */
-const calculateDefaultPosition = (): VariablesPosition => {
-  if (typeof window === 'undefined') {
-    return { x: 100, y: 100 }
-  }
-
-  const sidebarWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
-  )
-  const panelWidth = getPanelWidth()
-  const terminalHeight = getTerminalHeight()
-
-  const availableWidth = window.innerWidth - sidebarWidth - CONTENT_WINDOW_GAP - panelWidth
-  const availableHeight = window.innerHeight - CONTENT_WINDOW_GAP * 2 - terminalHeight
-  const x = sidebarWidth + (availableWidth - DEFAULT_WIDTH) / 2
-  const y = CONTENT_WINDOW_GAP + (availableHeight - DEFAULT_HEIGHT) / 2
-  return { x, y }
-}
-
-/**
- * Constrain a position to the visible canvas, considering layout chrome.
- */
-const constrainPosition = (
-  position: VariablesPosition,
-  width: number = DEFAULT_WIDTH,
-  height: number = DEFAULT_HEIGHT
-): VariablesPosition => {
-  if (typeof window === 'undefined') return position
-
-  const sidebarWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
-  )
-  const panelWidth = getPanelWidth()
-  const terminalHeight = getTerminalHeight()
-
-  const minX = sidebarWidth
-  const maxX = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - width
-  const minY = CONTENT_WINDOW_GAP
-  const maxY = window.innerHeight - CONTENT_WINDOW_GAP - terminalHeight - height
-
-  return {
-    x: Math.max(minX, Math.min(maxX, position.x)),
-    y: Math.max(minY, Math.min(maxY, position.y)),
-  }
-}
-
-/**
- * Return a valid, constrained position. If the stored one is off-bounds due to
- * layout changes, prefer a fresh default center position.
- */
-export const getVariablesPosition = (
-  stored: VariablesPosition | null,
-  width: number = DEFAULT_WIDTH,
-  height: number = DEFAULT_HEIGHT
-): VariablesPosition => {
-  if (!stored) return calculateDefaultPosition()
-  const constrained = constrainPosition(stored, width, height)
-  const deltaX = Math.abs(constrained.x - stored.x)
-  const deltaY = Math.abs(constrained.y - stored.y)
-  if (deltaX > 100 || deltaY > 100) return calculateDefaultPosition()
-  return constrained
-}
+const MIN_VARIABLES_WIDTH = DEFAULT_WIDTH
+const MIN_VARIABLES_HEIGHT = DEFAULT_HEIGHT
+const MAX_VARIABLES_WIDTH = 500
+const MAX_VARIABLES_HEIGHT = 600
 
 /**
  * UI-only store for the floating variables modal.

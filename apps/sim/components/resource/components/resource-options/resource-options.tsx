@@ -27,23 +27,16 @@ const SEARCH_ICON = (
 
 const RESOURCE_MENU_EDGE_OFFSET = 6
 
-/**
- * Section heading inside a filter popover ("File Type", "Owner", …). One constant so every
- * resource list labels its filter sections identically — muted at the field-title size, per
- * the label role in `sim-styling.md`.
- */
-export const FILTER_SECTION_LABEL_CLASS = 'text-[var(--text-muted)] text-small'
-
 type SortDirection = 'asc' | 'desc'
 
-export interface ColumnOption {
+interface ColumnOption {
   id: string
   label: string
   type?: string
   icon?: React.ElementType
 }
 
-export interface SortConfig {
+interface SortConfig {
   options: readonly ColumnOption[]
   active: { column: string; direction: SortDirection } | null
   onSort: (column: string, direction: SortDirection) => void
@@ -51,7 +44,7 @@ export interface SortConfig {
   keepOpenOnSelect?: boolean
 }
 
-export interface FilterTag {
+interface FilterTag {
   label: string
   onRemove: () => void
 }
@@ -62,7 +55,7 @@ export interface SearchTag {
   onRemove: () => void
 }
 
-export interface SearchConfig {
+interface SearchConfig {
   value: string
   maxLength?: number
   onChange: (value: string) => void
@@ -320,11 +313,7 @@ interface SortDropdownProps {
   onOpenChange?: (open: boolean) => void
 }
 
-export const SortDropdown = memo(function SortDropdown({
-  config,
-  open,
-  onOpenChange,
-}: SortDropdownProps) {
+const SortDropdown = memo(function SortDropdown({ config, open, onOpenChange }: SortDropdownProps) {
   const { options, active, onSort, onClear, keepOpenOnSelect = false } = config
 
   return (

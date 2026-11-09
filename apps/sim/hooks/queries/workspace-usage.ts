@@ -31,15 +31,6 @@ export function fetchWorkspaceUsageGate(
   })
 }
 
-export function useWorkspaceCreditAvailability(workspaceId?: string) {
-  return useQuery({
-    queryKey: workspaceUsageKeys.creditAvailability(workspaceId ?? ''),
-    queryFn: ({ signal }) => fetchWorkspaceCreditAvailability(workspaceId as string, signal),
-    enabled: Boolean(workspaceId),
-    staleTime: WORKSPACE_CREDIT_AVAILABILITY_STALE_TIME,
-  })
-}
-
 export function useWorkspaceUsageGate(workspaceId?: string) {
   return useQuery({
     queryKey: workspaceUsageKeys.gate(workspaceId ?? ''),

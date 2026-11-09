@@ -20,7 +20,7 @@ export const RECENTLY_DELETED_ITEM_TYPES = [
  * way the user already reads these resources. A foldered resource's tab also lists its own
  * folders (Tables lists table folders); `folder` is the workflow folder tree.
  */
-export const RECENTLY_DELETED_FILTERS = [
+const RECENTLY_DELETED_FILTERS = [
   'all',
   'chat',
   'table',

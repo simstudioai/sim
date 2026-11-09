@@ -1,13 +1,13 @@
 import type { SimDesktopWindowStateApi } from '@sim/desktop-bridge'
 
-export type DesktopTitleBarMode = 'fullscreen' | 'inset' | null
+type DesktopTitleBarMode = 'fullscreen' | 'inset' | null
 export const DESKTOP_TITLE_BAR_ATTRIBUTE = 'data-sim-desktop-title-bar'
 
 function supportsDesktopTitleBar(userAgent: string, hasDesktopBridge: boolean): boolean {
   return hasDesktopBridge && /Mac/i.test(userAgent)
 }
 
-export function applyDesktopTitleBarMode(
+function applyDesktopTitleBarMode(
   root: Pick<HTMLElement, 'removeAttribute' | 'setAttribute'>,
   mode: DesktopTitleBarMode
 ): void {

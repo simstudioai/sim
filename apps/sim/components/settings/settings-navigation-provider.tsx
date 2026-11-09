@@ -5,7 +5,6 @@ import {
   type ReactNode,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useOptimistic,
   useRef,
@@ -97,14 +96,4 @@ export function useSettingsNavigationState(): SettingsNavigationState {
 /** Embedded surfaces open full settings outside their constrained frame. */
 export function useSettingsNavigationTarget(): '_self' | '_blank' {
   return useContext(SettingsNavigationContext)?.navigationTarget ?? '_self'
-}
-
-/**
- * Registers the mounted settings layout's warmer for sidebar navigation intent. The settings route
- * owns it, not the sidebar, so warming every section's chunk and data adds nothing to the
- * workspace chrome's module graph, which every workspace page loads.
- */
-export function useSettingsIntentHandler(handler: (section: string) => void): void {
-  const { registerIntentHandler } = useSettingsNavigationState()
-  useEffect(() => registerIntentHandler(handler), [registerIntentHandler, handler])
 }

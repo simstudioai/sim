@@ -137,5 +137,3 @@ export function useConnectorActions({
     },
   }
 }
-
-export type ConnectorActionState = ReturnType<typeof useConnectorActions>

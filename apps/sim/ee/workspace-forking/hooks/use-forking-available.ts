@@ -2,14 +2,14 @@ import { useQuery } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { getForkAvailabilityContract } from '@/lib/api/contracts/workspace-fork'
 
-export const forkAvailabilityKeys = {
+const forkAvailabilityKeys = {
   all: ['fork-availability'] as const,
   details: () => [...forkAvailabilityKeys.all, 'detail'] as const,
   detail: (workspaceId?: string) => [...forkAvailabilityKeys.details(), workspaceId ?? ''] as const,
 }
 
 /** Availability flips only on plan or deployment configuration changes. */
-export const FORK_AVAILABILITY_STALE_TIME = 5 * 60 * 1000
+const FORK_AVAILABILITY_STALE_TIME = 5 * 60 * 1000
 
 interface ForkingAvailability {
   available: boolean
@@ -31,9 +31,4 @@ export function useForkingAvailability(workspaceId?: string): ForkingAvailabilit
     staleTime: FORK_AVAILABILITY_STALE_TIME,
   })
   return { available: data?.available ?? false, isLoading }
-}
-
-/** Boolean shorthand for surfaces that only show/hide fork entry points. */
-export function useForkingAvailable(workspaceId?: string): boolean {
-  return useForkingAvailability(workspaceId).available
 }

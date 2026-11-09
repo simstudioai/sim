@@ -17,7 +17,7 @@ import { workspaceFeatureDiscoveryQuery } from '@/hooks/queries/utils/access-req
 const PERMISSION_POLICY_REFRESH_INTERVAL = 30_000
 
 /** Safe feature metadata shared by navigation and access-required pages. */
-export function useWorkspaceAccessRequestFeatures() {
+function useWorkspaceAccessRequestFeatures() {
   const params = useParams()
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : ''
   const discovery = useDiscoverAccessRequests(

@@ -112,7 +112,7 @@ interface RequestAccessModalProps
   onClose: () => void
 }
 
-export function RequestAccessModal({
+function RequestAccessModal({
   scope,
   target,
   label,

@@ -1,3 +1,16 @@
+/**
+ * Sub-block types whose editor honours `SubBlockConfig.password` by concealing the stored value
+ * until the field is focused. Setting `password` on any other type is a silent no-op that leaves a
+ * secret in plaintext, so a new usage must teach that renderer to mask first.
+ * `apps/sim/blocks/password-masking.test.ts` enforces this.
+ */
+export const PASSWORD_MASKED_SUBBLOCK_TYPES = [
+  'short-input',
+  'long-input',
+  'code',
+  'table',
+] as const
+
 /** Glyph substituted for each concealed character. */
 const MASK_CHARACTER = '•'
 

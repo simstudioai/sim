@@ -762,6 +762,7 @@ interface VisibilityMenuProps {
   onChange?: (id: string, visible: boolean) => void
 }
 
+/** @public check-platform-design requires every catalog evidence owner to be an exported component. */
 export function VisibilityMenu({ label, options, onChange }: VisibilityMenuProps) {
   const [choices, setChoices] = useState<Readonly<Record<string, boolean>>>({})
   return (

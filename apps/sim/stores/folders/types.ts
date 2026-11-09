@@ -23,8 +23,3 @@ export interface WorkflowFolder {
   updatedAt: Date
   deletedAt?: Date | null
 }
-
-export interface FolderTreeNode extends WorkflowFolder {
-  children: FolderTreeNode[]
-  level: number
-}

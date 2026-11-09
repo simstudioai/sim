@@ -7,10 +7,9 @@ import { vi } from 'vitest'
  * @example
  * ```ts
  * vi.mock('@/lib/core/config/feature-flags-context', () => featureFlagsProviderMock)
- * featureFlagsProviderMockFns.mockUseFeatureFlag.mockImplementation((name) => name === 'plan')
  * ```
  */
-export const featureFlagsProviderMockFns = {
+const featureFlagsProviderMockFns = {
   mockUseFeatureFlag: vi.fn((_name: string): boolean => false),
 }
 

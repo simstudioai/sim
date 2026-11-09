@@ -26,9 +26,9 @@ function dispatchClaimable<T>(name: string, detail: T): boolean {
  * The mothership host components (workspace home, workflow panel) listen
  * for this event and call their `sendMessage` on receipt.
  */
-export const MOTHERSHIP_SEND_MESSAGE_EVENT = 'mothership-send-message'
+const MOTHERSHIP_SEND_MESSAGE_EVENT = 'mothership-send-message'
 
-export interface MothershipSendMessageDetail {
+interface MothershipSendMessageDetail {
   message: string
   /** Structured contexts to attach — e.g. a `logs` mention tagging a run. */
   contexts?: ChatContext[]
@@ -100,22 +100,6 @@ export type MothershipAddContextDetail =
       /** The contexts to attach as chips, in insertion order. */
       contexts: ChatContext[]
     }
-
-/**
- * Inserts one structured context into the mounted Mothership composer.
- *
- * Producers dispatch through this helper so browser/terminal selections use
- * the same context-token path as resources chosen from the input itself.
- *
- * @returns `true` when a mounted composer claimed the context.
- */
-export function addMothershipContext(context: ChatContext): boolean {
-  const consumed = dispatchClaimable<MothershipAddContextDetail>(MOTHERSHIP_ADD_CONTEXT_EVENT, {
-    context,
-  })
-  logger.info('Dispatched mothership context event', { kind: context.kind, consumed })
-  return consumed
-}
 
 /**
  * Dispatches a passive "add these context chips" request to a mounted Mothership

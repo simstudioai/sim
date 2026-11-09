@@ -15,34 +15,15 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type { DesktopSourceRequest } from '@/lib/api/contracts/desktop-source-connect'
 import {
-  type AddOrganizationAccountMcpProviderBody,
-  addOrganizationAccountMcpProviderContract,
-  type ConfigureOrganizationMcpBody,
-  configureOrganizationMcpContract,
   disconnectPersonalOrganizationAccountContract,
-  type EnsureOrganizationAccountsBody,
-  ensureOrganizationAccountsContract,
   getOrganizationAccountsContract,
-  getOrganizationAccountWorkspaceAccessContract,
-  getOrganizationDatabricksSetupContract,
   getWorkspaceOrganizationAccountsContract,
-  type InviteOrganizationAccountPeopleBody,
-  inviteOrganizationAccountPeopleContract,
   listOrganizationAccountPeopleContract,
   listPersonalOrganizationAccountsContract,
   type OrganizationAccountPeopleQuery,
-  type RemoveOrganizationAccountMcpProviderParams,
-  type ResendOrganizationAccountInvitationQuery,
   reconnectPersonalOrganizationAccountContract,
-  removeOrganizationAccountMcpProviderContract,
-  resendOrganizationAccountInvitationContract,
-  revokeOrganizationAccountEnrollmentContract,
   type StartOrganizationAccountConnectionBody,
   startOrganizationAccountConnectionContract,
-  type UpdateOrganizationAccountsBody,
-  type UpdateOrganizationAccountWorkspaceAccessBody,
-  updateOrganizationAccountsContract,
-  updateOrganizationAccountWorkspaceAccessContract,
 } from '@/lib/api/contracts/organization-accounts'
 import { connectCredentialGroupInPopup } from '@/lib/credential-groups/oauth-popup'
 import { isDesktopApp } from '@/lib/desktop'
@@ -59,7 +40,6 @@ import {
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
 import { searchSourceKeys } from '@/hooks/queries/utils/search-source-keys'
 import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
-import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
 
 function useAccountConnectionMutation<Variables>(
   requestFor: (
@@ -186,86 +166,6 @@ export function useOrganizationAccounts(organizationId?: string) {
   })
 }
 
-export function useEnsureOrganizationAccounts() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({
-      organizationId,
-      ...body
-    }: { organizationId: string } & EnsureOrganizationAccountsBody) =>
-      requestJson(ensureOrganizationAccountsContract, { params: { id: organizationId }, body }),
-    onSuccess: (_, { organizationId }) =>
-      queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.detail(organizationId) }),
-  })
-}
-
-export function useOrganizationDatabricksSetup(organizationId: string, enabled: boolean) {
-  return useQuery({
-    queryKey: organizationAccountsKeys.databricks(organizationId),
-    enabled,
-    staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
-    queryFn: ({ signal }) =>
-      requestJson(getOrganizationDatabricksSetupContract, {
-        params: { id: organizationId },
-        signal,
-      }),
-  })
-}
-
-export function useConfigureOrganizationMcp() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({
-      organizationId,
-      ...body
-    }: { organizationId: string } & ConfigureOrganizationMcpBody) =>
-      requestJson(configureOrganizationMcpContract, { params: { id: organizationId }, body }),
-    onSuccess: (_, { organizationId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.detail(organizationId),
-        }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
-        invalidateSelectorQueries(queryClient),
-      ]),
-  })
-}
-
-export function useUpdateOrganizationAccounts() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({
-      organizationId,
-      groupId,
-      update,
-    }: {
-      organizationId: string
-      groupId: string
-      update: UpdateOrganizationAccountsBody
-    }) =>
-      requestJson(updateOrganizationAccountsContract, {
-        params: { id: organizationId, groupId },
-        body: update,
-      }),
-    onSuccess: (_, { organizationId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.detail(organizationId),
-        }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
-        invalidateSelectorQueries(queryClient),
-        queryClient.invalidateQueries({
-          queryKey: slackSearchKeys.organizationManifests(organizationId),
-        }),
-        queryClient.invalidateQueries({ queryKey: slackSearchKeys.list(organizationId) }),
-      ]),
-  })
-}
-
 /** Everything a newly connected account changes, including what Search can now reach. */
 export async function refreshConnectedAccounts(client: ReturnType<typeof useQueryClient>) {
   await Promise.all([
@@ -307,44 +207,6 @@ export function useWorkspaceOrganizationAccounts(workspaceId?: string, enabled =
     },
   })
 }
-export function useOrganizationAccountWorkspaceAccess(
-  organizationId: string,
-  options?: { enabled?: boolean }
-) {
-  return useQuery({
-    queryKey: organizationAccountsKeys.access(organizationId),
-    enabled: Boolean(organizationId) && (options?.enabled ?? true),
-    staleTime: ORGANIZATION_ACCOUNTS_STALE_TIME,
-    queryFn: ({ signal }) =>
-      requestJson(getOrganizationAccountWorkspaceAccessContract, {
-        params: { id: organizationId },
-        signal,
-      }),
-  })
-}
-export function useUpdateOrganizationAccountWorkspaceAccess() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({
-      organizationId,
-      ...body
-    }: { organizationId: string } & UpdateOrganizationAccountWorkspaceAccessBody) =>
-      requestJson(updateOrganizationAccountWorkspaceAccessContract, {
-        params: { id: organizationId },
-        body,
-      }),
-    onSuccess: (_, { organizationId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.access(organizationId),
-        }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
-        invalidateSelectorQueries(queryClient),
-      ]),
-  })
-}
 export function useOrganizationAccountPeople(
   organizationId: string,
   search?: OrganizationAccountPeopleQuery['search'],
@@ -379,112 +241,5 @@ export function useOrganizationAccountPeople(
         signal,
       }),
     getNextPageParam: (page) => page.nextCursor ?? undefined,
-  })
-}
-export function useInviteOrganizationAccountPeople() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({
-      organizationId,
-      ...body
-    }: { organizationId: string } & InviteOrganizationAccountPeopleBody) =>
-      requestJson(inviteOrganizationAccountPeopleContract, {
-        params: { id: organizationId },
-        body,
-      }),
-    onSuccess: (_, { organizationId }) =>
-      queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.people(organizationId) }),
-  })
-}
-export function useResendOrganizationAccountInvitation() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({
-      organizationId,
-      enrollmentId,
-      ...query
-    }: {
-      organizationId: string
-      enrollmentId: string
-    } & ResendOrganizationAccountInvitationQuery) =>
-      requestJson(resendOrganizationAccountInvitationContract, {
-        params: { id: organizationId, enrollmentId },
-        query,
-      }),
-    onSuccess: (_, { organizationId }) =>
-      queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.people(organizationId) }),
-  })
-}
-export function useRevokeOrganizationAccountEnrollment() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({
-      organizationId,
-      enrollmentId,
-    }: {
-      organizationId: string
-      enrollmentId: string
-    }) =>
-      requestJson(revokeOrganizationAccountEnrollmentContract, {
-        params: { id: organizationId, enrollmentId },
-      }),
-    onSuccess: (_, { organizationId }) =>
-      Promise.all([
-        resetOrganizationSearchAccess(queryClient, organizationId),
-        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
-        invalidateSelectorQueries(queryClient),
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.detail(organizationId),
-        }),
-      ]),
-  })
-}
-export function useAddOrganizationAccountMcpProvider() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({
-      organizationId,
-      ...body
-    }: { organizationId: string } & AddOrganizationAccountMcpProviderBody) =>
-      requestJson(addOrganizationAccountMcpProviderContract, {
-        params: { id: organizationId },
-        body,
-      }),
-    onSuccess: (_, { organizationId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.detail(organizationId),
-        }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
-        invalidateSelectorQueries(queryClient),
-      ]),
-  })
-}
-export function useRemoveOrganizationAccountMcpProvider() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: ({
-      organizationId,
-      connectorId,
-    }: { organizationId: string } & Pick<
-      RemoveOrganizationAccountMcpProviderParams,
-      'connectorId'
-    >) =>
-      requestJson(removeOrganizationAccountMcpProviderContract, {
-        params: { id: organizationId, connectorId },
-      }),
-    onSuccess: (_, { organizationId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.detail(organizationId),
-        }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
-        invalidateSelectorQueries(queryClient),
-      ]),
   })
 }

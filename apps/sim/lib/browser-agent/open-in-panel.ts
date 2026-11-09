@@ -5,8 +5,7 @@
  *
  * Rendering components (markdown links, chips) can't reach the chat's
  * resource state directly, so the request travels as a window CustomEvent;
- * the chat hook owns the panel resource and subscribes via
- * {@link onOpenInBrowserPanel}.
+ * the chat surface that owns the panel resource subscribes to it.
  *
  * OAuth/credential links must NOT go through here: the panel's browser runs
  * on its own partition (not signed in to Sim) and is an embedded user agent
@@ -31,16 +30,4 @@ export function openInBrowserPanel(url: string): void {
   window.dispatchEvent(
     new CustomEvent<OpenInBrowserPanelDetail>(OPEN_IN_BROWSER_PANEL_EVENT, { detail: { url } })
   )
-}
-
-/** Subscribes the chat surface to panel-open requests; returns an unsubscribe. */
-export function onOpenInBrowserPanel(callback: (url: string) => void): () => void {
-  const listener = (event: Event) => {
-    const url = (event as CustomEvent<OpenInBrowserPanelDetail>).detail?.url
-    if (typeof url === 'string' && /^https?:\/\//i.test(url)) {
-      callback(url)
-    }
-  }
-  window.addEventListener(OPEN_IN_BROWSER_PANEL_EVENT, listener)
-  return () => window.removeEventListener(OPEN_IN_BROWSER_PANEL_EVENT, listener)
 }
