@@ -43,7 +43,24 @@ import {
 import { createLogger } from '@sim/logger'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import {
+  allNavigationItems,
+  type SettingsSection,
+} from '@/components/settings/workspace-navigation'
 import { useSidebarChrome } from '@/components/sidebar-chrome/sidebar-chrome-context'
+import { useWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-provider'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
+import type {
+  LogItem,
+  PageActionContext,
+} from '@/components/workspace-sidebar/components/search-modal/utils'
+import { ContextMenu } from '@/components/workspace-sidebar/components/workflow-list/components/context-menu/context-menu'
+import {
+  SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+  SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
+  SIDEBAR_ITEM_GAP_CLASS,
+  SIDEBAR_SECTION_GAP_CLASS,
+} from '@/components/workspace-sidebar/constants'
 import type { DesktopChatActivity } from '@/lib/api/contracts/desktop-executor'
 import { useSession } from '@/lib/auth/client'
 import { canViewWorkspaceBillingSettings } from '@/lib/billing/workspace-permissions'
@@ -68,12 +85,6 @@ import {
   isSidebarBackgroundClick,
 } from '@/lib/workflows/sidebar'
 import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import {
-  allNavigationItems,
-  type SettingsSection,
-} from '@/app/workspace/[workspaceId]/settings/navigation'
 import {
   ChatNavigationLink,
   CollapsedChatFlyoutItem,
@@ -100,19 +111,8 @@ import {
   buildConnectedAccountSearchItems,
   buildIntegrationSearchItems,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/integration-search-items'
-import type {
-  LogItem,
-  PageActionContext,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { SidebarRowAction } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/sidebar-row-actions'
-import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
-import {
-  SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
-  SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
-  SIDEBAR_ITEM_GAP_CLASS,
-  SIDEBAR_SECTION_GAP_CLASS,
-} from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import {
   useFlyoutInlineRename,
   useFolderOperations,
@@ -121,7 +121,6 @@ import {
   useWorkspaceManagement,
   useWorkspaceWorkflowsRoom,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { useImportWorkflow } from '@/app/workspace/[workspaceId]/w/hooks'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { useWorkspaceAccessRequestFeatures } from '@/ee/access-requests/components/permission-access-boundary'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
@@ -150,6 +149,7 @@ import { useIntegrationAccess } from '@/hooks/use-integration-access'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useImportWorkflow } from '@/hooks/workflow-actions'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
 import { useFilterStore } from '@/stores/logs/filters/store'

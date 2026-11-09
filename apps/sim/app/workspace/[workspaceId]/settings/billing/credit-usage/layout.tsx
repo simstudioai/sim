@@ -1,7 +1,7 @@
 import {
   SettingsHeaderProvider,
   SettingsHeaderShell,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
+} from '@/components/settings/primitives/settings-header/settings-header'
 
 /**
  * Credit usage is a static route outside `[section]`, so it does not inherit

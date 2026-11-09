@@ -8,7 +8,7 @@ import {
   isUntitledName,
   renameToUniqueMarkdownName,
   uniqueMarkdownName,
-} from '@/app/workspace/[workspaceId]/files/untitled-title'
+} from '@/components/file-viewer/untitled-title'
 import {
   getWorkspaceFileRecordQueryOptions,
   getWorkspaceFileSearchQueryOptions,

@@ -8,6 +8,28 @@ export {
   normalizeBlockRetryWaitMs,
   normalizeWorkflowBlockName,
 } from '@sim/workflow-types/workflow'
+export {
+  useActiveCanonicalSubBlockValue,
+  useCanonicalSubBlockValue,
+} from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
+export { DependencyBlockTypeProvider } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/hooks/use-dependency-block-type'
+export { useDependsOnGate } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
+export { useFetchedOptions } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/hooks/use-fetched-options'
+export { useMcpBlockConfig } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/hooks/use-mcp-block-config'
+export { useResourceFolders } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/hooks/use-resource-folders'
+export { useSelectorSetup } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/hooks/use-selector-setup'
+export { useSubBlockValue } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+export {
+  parseJsonArrayValue,
+  resolvePreviewContextValue,
+} from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/utils'
+export { useEditorBlockProperties } from '@/components/workflow-editor/components/panel/components/editor/hooks/use-editor-block-properties'
+export { useEditorSubblockLayout } from '@/components/workflow-editor/components/panel/components/editor/hooks/use-editor-subblock-layout'
+export { useAccessibleReferencePrefixes } from '@/components/workflow-editor/hooks/use-accessible-reference-prefixes'
+export { useCurrentWorkflow } from '@/components/workflow-editor/hooks/use-current-workflow'
+export { useWand } from '@/components/workflow-editor/hooks/use-wand'
+export { useWorkflowScope } from '@/components/workspace-providers/workflow-scope-provider'
+export { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
 export { CodeLanguage } from '@/lib/execution/languages'
 export { isMcpRuntimeReference } from '@/lib/mcp/operation-policy'
 export { resolveMcpBlockConfig } from '@/lib/mcp/workflow-config'
@@ -23,28 +45,6 @@ export {
   isStandaloneAdvancedMode,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
-export { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
-export { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-export {
-  useActiveCanonicalSubBlockValue,
-  useCanonicalSubBlockValue,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-canonical-sub-block-value'
-export { DependencyBlockTypeProvider } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-dependency-block-type'
-export { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
-export { useFetchedOptions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-fetched-options'
-export { useMcpBlockConfig } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-mcp-block-config'
-export { useResourceFolders } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-resource-folders'
-export { useSelectorSetup } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-selector-setup'
-export { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
-export {
-  parseJsonArrayValue,
-  resolvePreviewContextValue,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
-export { useEditorBlockProperties } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-editor-block-properties'
-export { useEditorSubblockLayout } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-editor-subblock-layout'
-export { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
-export { useCurrentWorkflow } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-current-workflow'
-export { useWand } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-wand'
 export { getBlock } from '@/blocks/registry'
 export type { BlockConfig, GenerationType, SubBlockConfig } from '@/blocks/types'
 export { createEnvVarPattern, createReferencePattern } from '@/executor/utils/reference-validation'

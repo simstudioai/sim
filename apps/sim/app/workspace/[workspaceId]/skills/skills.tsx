@@ -6,15 +6,15 @@ import { Plus } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/components/integration-tabs-header'
-import { SkillTile } from '@/app/workspace/[workspaceId]/components/skill-tile'
-import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import { IntegrationTabsHeader } from '@/components/integration-tabs-header'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
 import {
   RESOURCE_LIST_GRID,
   SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+} from '@/components/settings/primitives/settings-resource-row'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
+import { SkillTile } from '@/components/skill-tile'
+import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
 import {
   skillIdParam,
   skillIdUrlKeys,

@@ -112,7 +112,7 @@ export function byResourceMenuOrder<T extends { type: MothershipResourceType }>(
 }
 ```
 
-Canonical instance: `app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry/resource-registry.tsx`, consumed by `useAvailableResources` and `ResourceMenuSections`.
+Canonical instance: `components/mothership-chat/mothership-view/components/resource-registry/resource-registry.tsx`, consumed by `useAvailableResources` and `ResourceMenuSections`.
 
 ## Render kinds in one pass, not one phase per kind
 

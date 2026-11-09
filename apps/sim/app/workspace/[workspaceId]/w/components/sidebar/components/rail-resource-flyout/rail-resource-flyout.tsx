@@ -19,7 +19,7 @@ import {
   FOLDERED_RESOURCE_HEADERS,
   flyoutLevelFolders,
   folderedResourceListHref,
-} from '@/app/workspace/[workspaceId]/components/folders'
+} from '@/components/folders'
 import { CollapsedResourceFlyout } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/collapsed-sidebar-menu'
 import { useFolders } from '@/hooks/queries/folders'
 import { usePinnedIds } from '@/hooks/queries/pinned-items'

@@ -11,7 +11,7 @@ vi.mock('@/lib/internal/workflows/read-tool-enrichment', () => ({
   readWorkflowMetadataForTool: workflowMetadataMocks.readWorkflowMetadataForTool,
 }))
 
-import { getParamsForToolOperation } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
+import { getParamsForToolOperation } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/tool-input/param-dependents'
 import { GaugeBlock } from '@/blocks/blocks/gauge'
 import { GreenhouseV2Block } from '@/blocks/blocks/greenhouse'
 import { IntuneBlock } from '@/blocks/blocks/intune'

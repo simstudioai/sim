@@ -22,9 +22,9 @@ import { SettingsNavigationProvider } from '@/components/settings/settings-navig
 import { SettingsSectionProvider } from '@/components/settings/settings-panel'
 import { SettingsPendingSection } from '@/components/settings/settings-pending-section'
 import { SettingsSidebar } from '@/components/settings/settings-sidebar'
+import { SIDEBAR_NO_MOTION_CLASS } from '@/components/workspace-sidebar/constants'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { SIDEBAR_NO_MOTION_CLASS } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { useSeedDeploymentShape } from '@/hooks/use-seed-deployment-shape'
 import { useSidebarWidth } from '@/hooks/use-sidebar-width'
 

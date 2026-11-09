@@ -1,12 +1,12 @@
 import { Table } from '@sim/emcn-legacy/icons'
 import { SlackIcon } from '@/components/icons'
-import { ActivityStatus } from '@/components/ui/activity-status'
-import { getToolInProgressTitle, getToolStatusDisplayTitle } from '@/lib/mothership/tools/display'
 import type {
   ToolActivityPresentation,
   ToolCallItemProps,
-} from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/tool-call-item'
-import { getToolIcon } from '@/app/workspace/[workspaceId]/home/components/message-content/utils'
+} from '@/components/mothership-chat/message-content/components/agent-group/tool-call-item'
+import { getToolIcon } from '@/components/mothership-chat/message-content/utils'
+import { ActivityStatus } from '@/components/ui/activity-status'
+import { getToolInProgressTitle, getToolStatusDisplayTitle } from '@/lib/mothership/tools/display'
 
 /**
  * Demo fixtures have known brands, so the landing page never loads the block registry.

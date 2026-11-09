@@ -63,15 +63,15 @@ vi.mock('@/ee/whitelabeling/components/branding-provider', () => ({
   BrandingProvider: mockBrandingProvider,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/components/impersonation-banner', () => ({
+vi.mock('@/components/impersonation-banner', () => ({
   ImpersonationBanner: () => null,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/components/session-expired', () => ({
+vi.mock('@/components/session-expired', () => ({
   SessionExpired: () => null,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/components/workspace-chrome', () => ({
+vi.mock('@/components/workspace-chrome', () => ({
   WorkspaceChrome: mockWorkspaceChrome,
   WorkspaceViewport: ({ children }: { children: ReactNode }) => children,
 }))
@@ -88,7 +88,7 @@ vi.mock('@/app/workspace/[workspaceId]/w/components/sidebar/sidebar', () => ({
   Sidebar: () => null,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/components/workspace-access-denied', () => ({
+vi.mock('@/components/workspace-access-denied', () => ({
   WorkspaceAccessDenied: () => <div>Workspace access denied</div>,
 }))
 
@@ -96,11 +96,11 @@ vi.mock('@/app/workspace/[workspaceId]/providers/desktop-oauth-connect-listener'
   DesktopOAuthConnectListener: () => null,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/custom-blocks-loader', () => ({
+vi.mock('@/components/workspace-providers/custom-blocks-loader', () => ({
   CustomBlocksLoader: () => null,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/block-visibility-loader', () => ({
+vi.mock('@/components/workspace-providers/block-visibility-loader', () => ({
   BlockVisibilityLoader: () => null,
 }))
 
@@ -108,23 +108,23 @@ vi.mock('@/lib/global-commands/provider', () => ({
   GlobalCommandsProvider: ({ children }: { children: ReactNode }) => children,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/provider-models-loader', () => ({
+vi.mock('@/components/workspace-providers/provider-models-loader', () => ({
   ProviderModelsLoader: () => null,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/settings-loader', () => ({
+vi.mock('@/components/workspace-providers/settings-loader', () => ({
   SettingsLoader: () => null,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-host-provider', () => ({
+vi.mock('@/components/workspace-providers/workspace-host-provider', () => ({
   WorkspaceHostProvider: ({ children }: { children: ReactNode }) => children,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-permissions-provider', () => ({
+vi.mock('@/components/workspace-providers/workspace-permissions-provider', () => ({
   WorkspacePermissionsProvider: ({ children }: { children: ReactNode }) => children,
 }))
 
-vi.mock('@/app/workspace/[workspaceId]/providers/workspace-scope-sync', () => ({
+vi.mock('@/components/workspace-providers/workspace-scope-sync', () => ({
   WorkspaceScopeSync: () => null,
 }))
 

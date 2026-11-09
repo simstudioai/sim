@@ -1,0 +1,628 @@
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Combobox, type ComboboxOption, cn } from '@sim/emcn-legacy'
+import { Plus } from '@sim/emcn-legacy/icons'
+import { useReactFlow } from '@xyflow/react'
+import { SandboxCreateModal } from '@/components/settings/sections/sandboxes/components/sandbox-create-modal'
+import type { SandboxLanguage } from '@/components/settings/sections/sandboxes/utils'
+import { shouldClearMissingOption } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/combobox/missing-option'
+import { formatDisplayText } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { SubBlockInputController } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
+import { getWorkflowSearchLabelHighlight } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import { useFetchedOptions } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/hooks/use-fetched-options'
+import { useSubBlockValue } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
+import { useActiveSearchTarget } from '@/components/workflow-editor/components/panel/components/editor/providers/active-search-target-provider'
+import { useAccessibleReferencePrefixes } from '@/components/workflow-editor/hooks/use-accessible-reference-prefixes'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
+import type { SelectorKey } from '@/lib/selectors/manifest'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import type { SubBlockConfig } from '@/blocks/types'
+import { useDebounce } from '@/hooks/use-debounce'
+import { usePermissionConfig } from '@/hooks/use-permission-config'
+import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useSubBlockStore } from '@/stores/workflows/subblock/store'
+
+/**
+ * Constants for ComboBox component behavior
+ */
+const DEFAULT_MODEL = 'claude-sonnet-5-5'
+const ZOOM_FACTOR_BASE = 0.96
+const MIN_ZOOM = 0.1
+const MAX_ZOOM = 1
+const ZOOM_DURATION = 0
+
+/** Shared empty list, so a selector-backed field with no static options keeps a stable identity. */
+const EMPTY_OPTIONS: ComboBoxOption[] = []
+
+const CREATE_ACTION_LABEL: Record<NonNullable<SubBlockConfig['createAction']>, string> = {
+  sandbox: 'Create Sandbox',
+}
+
+/**
+ * Reserved value for the pinned create row. It can never collide with a stored
+ * value: emcn short-circuits on the option's `onSelect`, so the row never
+ * reaches `onChange`.
+ */
+const CREATE_ACTION_VALUE = '__sub-block-create-action__'
+
+/**
+ * Represents a selectable option in the combobox
+ */
+type ComboBoxOption =
+  | string
+  | {
+      label: string
+      id: string
+      icon?: React.ComponentType<{ className?: string }>
+      /** Left out of the list but still resolves a stored value to its label. */
+      hidden?: boolean
+    }
+
+/**
+ * Props for the ComboBox component
+ */
+interface ComboBoxProps {
+  /**
+   * Static options, or a function deriving them from the block's own values. Absent on a
+   * selector-backed field, whose list comes from `selectorKey` instead — so this must never
+   * be read without a default.
+   */
+  options?: ComboBoxOption[] | ((params?: { values: Record<string, unknown> }) => ComboBoxOption[])
+  /** Default value to use when no value is set */
+  defaultValue?: string
+  /** ID of the parent block */
+  blockId: string
+  /** ID of the sub-block this combobox belongs to */
+  subBlockId: string
+  /** Controlled value (overrides store value when provided) */
+  value?: string
+  /** Whether the component is in preview mode */
+  isPreview?: boolean
+  /** Value to display in preview mode */
+  previewValue?: string | null
+  /** Whether the combobox is disabled */
+  disabled?: boolean
+  /** Placeholder text when no value is entered */
+  placeholder?: string
+  /** Configuration for the sub-block */
+  config: SubBlockConfig
+  /** Registered selector supplying the options. The canonical source for a remote list. */
+  selectorKey?: SelectorKey
+  /** Drop the hosting workflow from a `sim.workflows` list. */
+  selectorExcludeSelf?: boolean
+  /** Field dependencies that trigger option refetch when changed */
+  dependsOn?: SubBlockConfig['dependsOn']
+}
+
+export const ComboBox = memo(function ComboBox({
+  options,
+  defaultValue,
+  blockId,
+  subBlockId,
+  value: propValue,
+  isPreview = false,
+  previewValue,
+  disabled,
+  placeholder = 'Type or select an option...',
+  config,
+  selectorKey,
+  selectorExcludeSelf,
+  dependsOn,
+}: ComboBoxProps) {
+  const activeSearchTarget = useActiveSearchTarget()
+  // Hooks and context
+  const [storeValue, setStoreValue] = useSubBlockValue<string>(blockId, subBlockId)
+  const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
+  const reactFlowInstance = useReactFlow()
+
+  // Dependency tracking for fetchOptions
+  const dependsOnFields = useMemo(() => getDependsOnFields(dependsOn), [dependsOn])
+
+  // Determine the active value based on mode (preview vs. controlled vs. store)
+  const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
+
+  // Permission-based filtering for model dropdowns
+  const { isModelUsable, isLoading: isPermissionLoading } = usePermissionConfig()
+
+  // Evaluate static options if provided as a function
+  // Derived option lists read the block's own values (a model's valid reasoning efforts);
+  // `dependsOn` already re-renders this control when one of those siblings changes.
+  const activeWorkflowIdForValues = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const blockValues = useSubBlockStore((state) =>
+    activeWorkflowIdForValues
+      ? state.workflowValues[activeWorkflowIdForValues]?.[blockId]
+      : undefined
+  )
+
+  /**
+   * Option builders such as the model list and the Function block's languages read the
+   * deployment shape outside React, so the list is keyed on the subscribed shape as well:
+   * a host context that lands after mount (an app version rolling out the field) must
+   * re-evaluate them rather than leave the env fallback's list in place.
+   */
+  const deploymentShape = useDeploymentShape()
+  const staticOptions = useMemo(() => {
+    const opts =
+      typeof options === 'function'
+        ? options({ values: blockValues ?? {} })
+        : (options ?? EMPTY_OPTIONS)
+
+    if (subBlockId === 'model' && !config.mediaModelOptions) {
+      return opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
+    }
+
+    return opts
+  }, [options, blockValues, subBlockId, isModelUsable, deploymentShape, config.mediaModelOptions])
+
+  const [selectorSearch, setSelectorSearch] = useState('')
+  const debouncedSelectorSearch = useDebounce(selectorSearch.trim(), SEARCH_DEBOUNCE_MS)
+  const activeSelectorSearch = selectorSearch.trim() === '' ? '' : debouncedSelectorSearch
+
+  const {
+    fetchedOptions,
+    isLoadingOptions,
+    isFetchingMore,
+    isLoadingAll,
+    hasMore,
+    truncated,
+    fetchError,
+    hydratedOption,
+    missingOptionId,
+    isDynamic,
+    loadMore,
+    loadAll,
+    refetch: refetchOptions,
+  } = useFetchedOptions({
+    blockId,
+    subBlockId,
+    dependsOnFields,
+    selectorKey,
+    selectorExcludeSelf,
+    isPreview: Boolean(isPreview),
+    disabled: Boolean(disabled),
+    search: activeSelectorSearch,
+    valueToHydrate: value as string | null | undefined,
+    localOptions: staticOptions,
+  })
+
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [createLanguage, setCreateLanguage] = useState<SandboxLanguage | undefined>(undefined)
+  const [createdOption, setCreatedOption] = useState<{ label: string; id: string } | null>(null)
+
+  useEffect(() => {
+    const currentValue = useSubBlockStore.getState().getValue(blockId, subBlockId)
+    if (
+      !shouldClearMissingOption({
+        clearOnMissingOption: Boolean(config.clearOnMissingOption),
+        missingOptionId,
+        currentValue,
+        isPreview: Boolean(isPreview),
+        disabled: Boolean(disabled),
+      })
+    ) {
+      return
+    }
+    setStoreValue('')
+  }, [
+    blockId,
+    config.clearOnMissingOption,
+    disabled,
+    isPreview,
+    missingOptionId,
+    setStoreValue,
+    subBlockId,
+  ])
+
+  /**
+   * The pinned "create a new one" row, when the field declares one. Seeded from
+   * the sibling the list is scoped by, so a sandbox created off a JavaScript
+   * block does not land in the Python list and vanish.
+   */
+  const createOption = useMemo((): ComboboxOption | null => {
+    const action = config.createAction
+    if (!action || isPreview || disabled) return null
+    return {
+      label: CREATE_ACTION_LABEL[action],
+      value: CREATE_ACTION_VALUE,
+      icon: Plus,
+      onSelect: () => {
+        const language = useSubBlockStore.getState().getValue(blockId, 'language')
+        setCreateLanguage(language === 'python' || language === 'javascript' ? language : undefined)
+        setIsCreateOpen(true)
+      },
+    }
+  }, [config.createAction, isPreview, disabled, blockId])
+
+  // Normalize fetched options to match ComboBoxOption format
+  const normalizedFetchedOptions = useMemo((): ComboBoxOption[] => {
+    return fetchedOptions.map((opt) => ({ label: opt.label, id: opt.id }))
+  }, [fetchedOptions])
+
+  // Merge static and fetched options - fetched options take priority when available
+  const evaluatedOptions = useMemo((): ComboBoxOption[] => {
+    let opts: ComboBoxOption[] =
+      isDynamic && normalizedFetchedOptions.length > 0 ? normalizedFetchedOptions : staticOptions
+
+    if (
+      subBlockId === 'model' &&
+      !config.mediaModelOptions &&
+      isDynamic &&
+      normalizedFetchedOptions.length > 0
+    ) {
+      opts = opts.filter((opt) => isModelUsable(typeof opt === 'string' ? opt : opt.id))
+    }
+
+    // Merge hydrated option if not already present
+    if (hydratedOption) {
+      const alreadyPresent = opts.some((o) =>
+        typeof o === 'string' ? o === hydratedOption.id : o.id === hydratedOption.id
+      )
+      if (!alreadyPresent) {
+        opts = [hydratedOption, ...opts]
+      }
+    }
+
+    // Something just created through the pinned create row is selected before any
+    // list has refetched, so without this the field would sit on the raw id until
+    // hydration answered. Dropped again the moment a real fetch carries it.
+    if (createdOption) {
+      const alreadyPresent = opts.some((o) =>
+        typeof o === 'string' ? o === createdOption.id : o.id === createdOption.id
+      )
+      if (!alreadyPresent) {
+        opts = [createdOption, ...opts]
+      }
+    }
+
+    return opts
+  }, [
+    isDynamic,
+    normalizedFetchedOptions,
+    staticOptions,
+    hydratedOption,
+    createdOption,
+    subBlockId,
+    isModelUsable,
+    config.mediaModelOptions,
+  ])
+
+  // Convert options to Combobox format
+  const comboboxOptions = useMemo((): ComboboxOption[] => {
+    const mapped = evaluatedOptions.map((option): ComboboxOption => {
+      if (typeof option === 'string') {
+        return { label: option, value: option }
+      }
+      return { label: option.label, value: option.id, icon: option.icon, hidden: option.hidden }
+    })
+    return createOption ? [createOption, ...mapped] : mapped
+  }, [evaluatedOptions, createOption])
+
+  /**
+   * Extracts the value identifier from an option
+   * @param option - The option to extract value from
+   * @returns The option's value identifier
+   */
+  const getOptionValue = useCallback((option: ComboBoxOption): string => {
+    return typeof option === 'string' ? option : option.id
+  }, [])
+
+  /**
+   * Determines the default option value to use.
+   * Priority: explicit defaultValue > DEFAULT_MODEL for model field > first option
+   */
+  const defaultOptionValue = useMemo(() => {
+    if (defaultValue !== undefined) {
+      // Validate that the default value exists in the available (filtered) options
+      const defaultInOptions = evaluatedOptions.find((opt) => getOptionValue(opt) === defaultValue)
+      if (defaultInOptions) {
+        return defaultValue
+      }
+      // Default not available (e.g. provider disabled) — fall through to other fallbacks
+    }
+
+    if (subBlockId === 'model') {
+      const defaultModelOption = evaluatedOptions.find(
+        (opt) => getOptionValue(opt) === DEFAULT_MODEL
+      )
+      if (defaultModelOption) {
+        return getOptionValue(defaultModelOption)
+      }
+    }
+
+    // Auto-selecting the first option is only right for a field that must hold
+    // something. When empty is a real, documented choice (`sandboxId` — "no extra
+    // packages"), pre-filling it silently mutates and persists the block the
+    // moment the user opens advanced options.
+    if (config.emptyIsValid) {
+      return undefined
+    }
+
+    const firstSelectable = evaluatedOptions.find(
+      (option) => typeof option === 'string' || !option.hidden
+    )
+    if (firstSelectable) {
+      return getOptionValue(firstSelectable)
+    }
+
+    return undefined
+  }, [defaultValue, evaluatedOptions, subBlockId, getOptionValue, config.emptyIsValid])
+
+  /**
+   * Resolve the user-facing text for the current stored value.
+   * - For object options, map stored ID -> label
+   * - For everything else, display the raw value
+   */
+  const displayValue = useMemo(() => {
+    const raw = value?.toString() ?? ''
+    if (!raw) return ''
+
+    const match = evaluatedOptions.find((option) =>
+      typeof option === 'string' ? option === raw : option.id === raw
+    )
+
+    if (!match) return raw
+    return typeof match === 'string' ? match : match.label
+  }, [value, evaluatedOptions])
+
+  const [inputValue, setInputValue] = useState(displayValue)
+  const [prevDisplayValue, setPrevDisplayValue] = useState(displayValue)
+  if (displayValue !== prevDisplayValue) {
+    setPrevDisplayValue(displayValue)
+    setInputValue(displayValue)
+  }
+
+  /**
+   * The default in force when the user emptied the input, so the field is not refilled while they
+   * type. A dependency change that brings a different default (a provider switch) ends it, and so
+   * does a remount: a required field saved empty gets its default back when reopened.
+   */
+  const userClearedDefaultRef = useRef<string | null>(null)
+
+  // Set default value once permissions are loaded
+  useEffect(() => {
+    if (isPermissionLoading) return
+    if (defaultOptionValue === undefined) return
+
+    // Set the default on initial block add, and after a dependency change clears an opted-in field
+    const clearedByDependency =
+      config.restoreDefaultWhenCleared &&
+      value === '' &&
+      userClearedDefaultRef.current !== defaultOptionValue
+    if (value === null || value === undefined || clearedByDependency) {
+      setStoreValue(defaultOptionValue)
+    }
+  }, [
+    value,
+    defaultOptionValue,
+    setStoreValue,
+    isPermissionLoading,
+    config.restoreDefaultWhenCleared,
+  ])
+
+  /**
+   * Handles wheel event for ReactFlow zoom control
+   * Intercepts Ctrl/Cmd+Wheel to zoom the canvas
+   * @param e - Wheel event
+   * @returns False if zoom was handled, true otherwise
+   */
+  const handleWheel = useCallback(
+    (e: React.WheelEvent<HTMLInputElement>) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault()
+        e.stopPropagation()
+
+        const currentZoom = reactFlowInstance.getZoom()
+        const { x: viewportX, y: viewportY } = reactFlowInstance.getViewport()
+
+        const delta = e.deltaY > 0 ? 1 : -1
+        const zoomFactor = ZOOM_FACTOR_BASE ** delta
+        const newZoom = Math.min(Math.max(currentZoom * zoomFactor, MIN_ZOOM), MAX_ZOOM)
+
+        const { x: pointerX, y: pointerY } = reactFlowInstance.screenToFlowPosition({
+          x: e.clientX,
+          y: e.clientY,
+        })
+
+        const newViewportX = viewportX + (pointerX * currentZoom - pointerX * newZoom)
+        const newViewportY = viewportY + (pointerY * currentZoom - pointerY * newZoom)
+
+        reactFlowInstance.setViewport(
+          { x: newViewportX, y: newViewportY, zoom: newZoom },
+          { duration: ZOOM_DURATION }
+        )
+
+        return false
+      }
+      return true
+    },
+    [reactFlowInstance]
+  )
+
+  /**
+   * Handles combobox open state changes to trigger option fetching
+   */
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        refetchOptions()
+      }
+    },
+    [refetchOptions]
+  )
+
+  /**
+   * Gets the icon for the currently selected option
+   */
+  const selectedOption = useMemo(() => {
+    if (!value) return undefined
+    return comboboxOptions.find((opt) => opt.value === value)
+  }, [comboboxOptions, value])
+
+  const selectedOptionIcon = selectedOption?.icon
+
+  /**
+   * Overlay content for the editable combobox
+   */
+  const overlayContent = useMemo(() => {
+    const SelectedIcon = selectedOptionIcon
+    const displayLabel = inputValue
+    const workflowSearchHighlight = getWorkflowSearchLabelHighlight({
+      activeSearchTarget,
+      blockId,
+      subBlockId,
+      valuePath: [],
+      label: displayLabel,
+    })
+    return (
+      <div className='flex w-full items-center truncate [scrollbar-width:none]'>
+        {SelectedIcon && <SelectedIcon className='mr-2 size-3 shrink-0' />}
+        <div className='truncate'>
+          {formatDisplayText(displayLabel, {
+            accessiblePrefixes,
+            highlightAll: !accessiblePrefixes,
+            workflowSearchHighlight,
+          })}
+        </div>
+      </div>
+    )
+  }, [activeSearchTarget, blockId, inputValue, accessiblePrefixes, selectedOptionIcon, subBlockId])
+
+  const ctrlOnChangeRef = useRef<
+    ((e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) => void) | null
+  >(null)
+  const onDropRef = useRef<
+    ((e: React.DragEvent<HTMLTextAreaElement | HTMLInputElement>) => void) | null
+  >(null)
+  const onDragOverRef = useRef<
+    ((e: React.DragEvent<HTMLTextAreaElement | HTMLInputElement>) => void) | null
+  >(null)
+  const inputRefFromController = useRef<HTMLInputElement | null>(null)
+
+  const comboboxOnChange = useCallback(
+    (newValue: string) => {
+      const matchedComboboxOption = comboboxOptions.find((option) => option.value === newValue)
+      if (matchedComboboxOption) {
+        setInputValue(matchedComboboxOption.label)
+        setSelectorSearch('')
+      } else {
+        setInputValue(newValue)
+        setSelectorSearch(newValue)
+      }
+
+      // Use controller's handler so env vars, tags, and DnD still work
+      const syntheticEvent = {
+        target: { value: newValue, selectionStart: newValue.length },
+      } as React.ChangeEvent<HTMLInputElement>
+      ctrlOnChangeRef.current?.(syntheticEvent)
+    },
+    [comboboxOptions, setInputValue]
+  )
+
+  const comboboxInputProps = useMemo(
+    () => ({
+      onDrop: ((e: React.DragEvent<HTMLInputElement>) => {
+        onDropRef.current?.(e)
+      }) as (e: React.DragEvent<HTMLInputElement>) => void,
+      onDragOver: ((e: React.DragEvent<HTMLInputElement>) => {
+        onDragOverRef.current?.(e)
+      }) as (e: React.DragEvent<HTMLInputElement>) => void,
+      onWheel: handleWheel,
+      autoComplete: 'off' as const,
+    }),
+    [handleWheel]
+  )
+
+  // Stable onChange for SubBlockInputController
+  const controllerOnChange = useCallback(
+    (newValue: string) => {
+      if (isPreview) {
+        return
+      }
+
+      const matchedOption = evaluatedOptions.find((option) => {
+        if (typeof option === 'string') {
+          return option === newValue
+        }
+        return option.id === newValue
+      })
+
+      // If a matching option is found, store its ID; otherwise store the raw value
+      // (allows expressions like <block.output> to be entered directly)
+      const nextValue = matchedOption
+        ? typeof matchedOption === 'string'
+          ? matchedOption
+          : matchedOption.id
+        : newValue
+      userClearedDefaultRef.current = nextValue === '' ? (defaultOptionValue ?? null) : null
+      setStoreValue(nextValue)
+    },
+    [isPreview, evaluatedOptions, setStoreValue, defaultOptionValue]
+  )
+
+  return (
+    <div className='relative w-full'>
+      <SubBlockInputController
+        blockId={blockId}
+        subBlockId={subBlockId}
+        config={config}
+        value={propValue}
+        onChange={controllerOnChange}
+        isPreview={isPreview}
+        disabled={disabled}
+        previewValue={previewValue}
+      >
+        {({ ref, onChange: ctrlOnChange, onDrop, onDragOver }) => {
+          // Update refs with latest handlers from render prop
+          ctrlOnChangeRef.current = ctrlOnChange
+          onDropRef.current = onDrop
+          onDragOverRef.current = onDragOver
+          // Store the input ref for passing to Combobox
+          if (ref.current) {
+            inputRefFromController.current = ref.current as HTMLInputElement
+          }
+
+          return (
+            <Combobox
+              options={comboboxOptions}
+              value={inputValue}
+              selectedValue={value ?? ''}
+              onChange={comboboxOnChange}
+              placeholder={placeholder}
+              disabled={disabled}
+              editable
+              overlayContent={overlayContent}
+              inputRef={ref as React.RefObject<HTMLInputElement>}
+              filterOptions
+              searchable={config.searchable}
+              className={cn('allow-scroll overflow-x-auto', selectedOptionIcon && 'pl-7')}
+              inputProps={comboboxInputProps}
+              isLoading={isLoadingOptions}
+              isLoadingMore={isFetchingMore}
+              isLoadingAll={isLoadingAll}
+              hasMore={hasMore}
+              truncated={truncated}
+              searchActive={Boolean(debouncedSelectorSearch)}
+              onLoadMore={loadMore}
+              onLoadAll={loadAll}
+              error={fetchError}
+              onOpenChange={handleOpenChange}
+              onSearchChange={setSelectorSearch}
+            />
+          )
+        }}
+      </SubBlockInputController>
+
+      {config.createAction === 'sandbox' && (
+        <SandboxCreateModal
+          open={isCreateOpen}
+          onOpenChange={setIsCreateOpen}
+          defaultLanguage={createLanguage}
+          onCreated={(sandbox) => {
+            setCreatedOption({ label: sandbox.name, id: sandbox.id })
+            setStoreValue(sandbox.id)
+          }}
+        />
+      )}
+    </div>
+  )
+})

@@ -2,6 +2,8 @@ import { createElement } from 'react'
 import { authClientMock } from '@sim/testing/mocks/auth-client.mock'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
+import { AgentGroup } from '@/components/mothership-chat/message-content/components/agent-group/agent-group'
+import { parseBlocks } from '@/components/mothership-chat/message-content/message-content'
 import { toDisplayMessage } from '@/lib/mothership/chat/display-message'
 import { buildEffectiveChatTranscript } from '@/lib/mothership/chat/effective-transcript'
 import {
@@ -13,16 +15,11 @@ import type { MothershipStreamV1StreamScope } from '@/lib/mothership/generated/m
 import { createStreamingContext } from '@/lib/mothership/request/context/request-context'
 import { handleSpanEvent } from '@/lib/mothership/request/handlers/span'
 import { parsePersistedStreamEventEnvelope } from '@/lib/mothership/request/session/contract'
-import { AgentGroup } from '@/app/workspace/[workspaceId]/home/components/message-content/components/agent-group/agent-group'
-import { parseBlocks } from '@/app/workspace/[workspaceId]/home/components/message-content/message-content'
-import {
-  createTurnModel,
-  reduceEvent,
-} from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model'
+import { createTurnModel, reduceEvent } from '@/hooks/mothership-chat/stream/turn-model'
 import {
   contentBlocksToModel,
   modelToContentBlocks,
-} from '@/app/workspace/[workspaceId]/home/hooks/stream/turn-model-serialize'
+} from '@/hooks/mothership-chat/stream/turn-model-serialize'
 
 vi.mock('@/lib/auth/client', () => authClientMock)
 

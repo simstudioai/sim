@@ -36,10 +36,10 @@ import { executeBrowserToolOnClient } from '@/lib/mothership/tools/client/browse
 import { executeTerminalToolOnClient } from '@/lib/mothership/tools/client/terminal-tool-execution'
 import { POST as confirmPOST } from '@/app/api/copilot/confirm/route'
 import { POST as authorizePOST } from '@/app/api/desktop/tool/authorize/route'
-import { dispatchStreamEvent } from '@/app/workspace/[workspaceId]/home/hooks/stream/dispatch-stream-event'
-import { createStreamLoopContext } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-context'
-import { makeStreamLoopDeps } from '@/app/workspace/[workspaceId]/home/hooks/stream/stream-test-helpers'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { createStreamLoopContext } from '@/hooks/mothership-chat/stream/context'
+import { dispatchStreamEvent } from '@/hooks/mothership-chat/stream/dispatch-stream-event'
+import { makeStreamLoopDeps } from '@/hooks/mothership-chat/stream/test-helpers'
 
 const APP_ORIGIN = 'http://localhost:3000'
 const ROUTES: Record<string, (request: NextRequest) => Promise<Response>> = {

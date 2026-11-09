@@ -2,17 +2,17 @@ import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { createSearchParamsCache } from 'nuqs/server'
-import { getSession } from '@/lib/auth'
-import { Files } from '@/app/workspace/[workspaceId]/files/files'
-import FilesLoading from '@/app/workspace/[workspaceId]/files/loading'
-import { prefetchFilesBrowser } from '@/app/workspace/[workspaceId]/files/prefetch'
 import {
   filesBrowserListParams,
   filesFilterParsers,
   filesFilterUrlKeys,
   filesParsers,
   filesSortParams,
-} from '@/app/workspace/[workspaceId]/files/search-params'
+} from '@/components/file-viewer/search-params'
+import { getSession } from '@/lib/auth'
+import { Files } from '@/app/workspace/[workspaceId]/files/files'
+import FilesLoading from '@/app/workspace/[workspaceId]/files/loading'
+import { prefetchFilesBrowser } from '@/app/workspace/[workspaceId]/files/prefetch'
 import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 
 /** The browser's URL state, read with the same parsers (and URL keys) the client binds. */

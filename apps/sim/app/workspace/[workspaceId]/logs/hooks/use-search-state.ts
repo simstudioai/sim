@@ -1,10 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import type { ParsedFilter } from '@/lib/logs/query-parser'
-import type {
-  Suggestion,
-  SuggestionGroup,
-  SuggestionSection,
-} from '@/app/workspace/[workspaceId]/logs/types'
+import type { Suggestion, SuggestionGroup, SuggestionSection } from '@/lib/logs/suggestion-types'
 
 interface UseSearchStateOptions {
   onFiltersChange: (filters: ParsedFilter[], textSearch: string) => void

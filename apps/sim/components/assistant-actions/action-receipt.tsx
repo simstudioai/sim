@@ -3,9 +3,9 @@ import { Chip, cn, OverflowText } from '@sim/emcn-legacy'
 import { ChevronDown, ChevronRight, ShieldCheck } from '@sim/emcn-legacy/icons'
 import { ActionPreview } from '@/components/assistant-actions/action-preview'
 import { assistantActionPresentation } from '@/components/assistant-actions/presentation'
+import { InteractionCard } from '@/components/mothership-chat/message-content/components/interaction-card'
 import type { AssistantActionReceiptsResponse } from '@/lib/api/contracts/assistant-actions'
 import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
-import { InteractionCard } from '@/app/workspace/[workspaceId]/home/components/message-content/components/interaction-card'
 import { BrandIcon } from '@/blocks/brand-icon'
 
 type ActionReceipt = AssistantActionReceiptsResponse['receipts'][number]

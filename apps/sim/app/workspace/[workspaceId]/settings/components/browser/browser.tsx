@@ -10,12 +10,12 @@ import type {
 } from '@sim/desktop-bridge'
 import { Chip, ChipConfirmModal, Label, Switch, toast } from '@sim/emcn-legacy'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import { getDesktopBridge } from '@/lib/desktop'
 import { AppearanceThemeSelect } from '@/app/workspace/[workspaceId]/settings/components/appearance-theme-select'
 import { PasswordsView } from '@/app/workspace/[workspaceId]/settings/components/browser/components/passwords-view/passwords-view'
 import { DefaultZoomSelect } from '@/app/workspace/[workspaceId]/settings/components/default-zoom-select'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
 
 interface DataRow {

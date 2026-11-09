@@ -1,8 +1,8 @@
 'use client'
 
 import { ChipLink } from '@sim/emcn-legacy'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
 import { SITE_URL } from '@/lib/core/utils/urls'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 
 /** Chat keys are issued by the managed service, not by this deployment. */
 const CHAT_KEYS_HREF = `${SITE_URL}/selfhost/settings/chat-keys`

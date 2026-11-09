@@ -3,8 +3,8 @@
 import { type RefObject, useEffect, useRef, useState } from 'react'
 import { Badge, Chip, Switch } from '@sim/emcn-legacy'
 import { ArrowLeft, ChevronDown, ChevronUp, FileText } from '@sim/emcn-legacy/icons'
+import { ResourceOptions } from '@/components/resource/components/resource-options'
 import type { KnowledgePreviewDocument } from '@/app/(landing)/knowledge/components/knowledge-sources-preview/data'
-import { ResourceOptions } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
 
 interface KnowledgeDocumentDetailProps {
   document: KnowledgePreviewDocument

@@ -2,11 +2,11 @@
 
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
-import type { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
+import type { useChat } from '@/hooks/mothership-chat/use-chat'
 import type {
   useChatResourcePanel,
   useResourcePanelController,
-} from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
+} from '@/hooks/mothership-chat/use-resource-panel'
 import type { PlatformResource } from '@/platform/app/(shell)/_components/chat/model'
 import type { PanelResources } from '@/platform/app/(shell)/_components/chat/panel/model'
 import { useOrganization } from '@/platform/lib/data/organization'

@@ -4,6 +4,7 @@ import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
+import { executeWorkflowWithFullLogging } from '@/components/workflow-editor/utils/workflow-execution'
 import { ApiClientError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -35,7 +36,6 @@ import {
   WORKFLOW_EXECUTION_BUSY,
   type WorkflowToolLaunchError,
 } from '@/lib/mothership/tools/workflow-tools'
-import { executeWorkflowWithFullLogging } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution'
 import {
   isExecutionStreamHttpError,
   isReconnectStreamOpen,

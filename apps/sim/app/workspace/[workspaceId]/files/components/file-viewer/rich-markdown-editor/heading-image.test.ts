@@ -4,23 +4,23 @@ import { DOMSerializer } from '@tiptap/pm/model'
 import { NodeSelection } from '@tiptap/pm/state'
 import { afterEach, describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
-import { markdownToYDoc, yDocToFileMarkdown, yDocToMarkdown } from '@/lib/collab-doc/converter'
 import {
   applyAgentStreamFrame,
   beginAgentStream,
   endAgentStream,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/apply-streamed-markdown'
-import { FileCollaboration } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration'
-import { createMarkdownContentExtensions } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/extensions'
-import { dispatchEditorDrop } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drop.test-helpers'
-import { isImageNode } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-node'
-import { ImageUploadPlaceholders } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-upload'
+} from '@/components/file-viewer/rich-markdown-editor/collaboration/apply-streamed-markdown'
+import { FileCollaboration } from '@/components/file-viewer/rich-markdown-editor/collaboration/file-collaboration'
+import { createMarkdownContentExtensions } from '@/components/file-viewer/rich-markdown-editor/extensions'
+import { isImageNode } from '@/components/file-viewer/rich-markdown-editor/image-node'
+import { ImageUploadPlaceholders } from '@/components/file-viewer/rich-markdown-editor/image-upload'
 import {
   editorNormalForm,
   parseMarkdownToDoc,
   serializeMarkdownBody,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
-import { isRoundTripSafe } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/round-trip-safety'
+} from '@/components/file-viewer/rich-markdown-editor/markdown-parse'
+import { isRoundTripSafe } from '@/components/file-viewer/rich-markdown-editor/round-trip-safety'
+import { markdownToYDoc, yDocToFileMarkdown, yDocToMarkdown } from '@/lib/collab-doc/converter'
+import { dispatchEditorDrop } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-drop.test-helpers'
 
 const IMAGE = '![Logo](/logo.png "Title")'
 const CASES = [

@@ -39,23 +39,20 @@ vi.mock('@/lib/core/config/feature-flags-context', () => featureFlagsProviderMoc
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@tanstack/react-query', () => reactQueryMock)
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => useResourcePanelMock)
-vi.mock(
-  '@/app/workspace/[workspaceId]/home/components/chat-resource-panel',
-  () => chatResourcePanelMock
-)
+vi.mock('@/hooks/mothership-chat/use-resource-panel', () => useResourcePanelMock)
+vi.mock('@/components/mothership-chat/chat-resource-panel', () => chatResourcePanelMock)
 vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => useChatMock)
+vi.mock('@/hooks/mothership-chat/use-chat', () => useChatMock)
 vi.mock('@/hooks/queries/mothership-chats', () => mothershipChatsQueriesMock)
 vi.mock('@/platform/embedded/app/(shell)/_components/conversation/page-composer', () => ({
   PageComposer: mocks.composer,
 }))
-vi.mock('@/app/workspace/[workspaceId]/home/components/suggested-actions', () => ({
+vi.mock('@/components/mothership-chat/suggested-actions', () => ({
   SuggestedActions: () => <div>Suggested actions</div>,
 }))
 vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
-vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => mothershipChatMock)
+vi.mock('@/components/mothership-chat/mothership-chat', () => mothershipChatMock)
 
 import {
   type ConversationLandingSlot,

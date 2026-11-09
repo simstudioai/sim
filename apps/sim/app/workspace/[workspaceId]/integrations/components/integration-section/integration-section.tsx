@@ -2,8 +2,8 @@ import type { ReactNode } from 'react'
 import {
   RESOURCE_LIST_GRID,
   RESOURCE_LIST_STACK,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
+} from '@/components/settings/primitives/settings-resource-row'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 
 interface IntegrationSectionProps {
   label: string

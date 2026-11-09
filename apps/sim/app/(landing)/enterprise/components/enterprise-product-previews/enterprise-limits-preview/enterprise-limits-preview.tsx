@@ -1,8 +1,8 @@
 import { ChipInput } from '@sim/emcn-legacy'
 import { Building } from '@sim/emcn-legacy/icons'
+import { SegmentedMeter } from '@/components/settings/primitives/segmented-meter/segmented-meter'
+import { SettingsSection } from '@/components/settings/primitives/settings-section/settings-section'
 import { MenuPreviewHeader } from '@/app/(landing)/components/navbar/components/nav-menu-chip/components/nav-menu-preview/components/menu-preview-header/menu-preview-header'
-import { SegmentedMeter } from '@/app/workspace/[workspaceId]/settings/components/segmented-meter/segmented-meter'
-import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 
 /** The Enterprise seat allowance and usage-limit field use the settings page's own primitives. */
 export function EnterpriseLimitsPreview() {

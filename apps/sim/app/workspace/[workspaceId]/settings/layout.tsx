@@ -4,11 +4,11 @@ import { useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSettingsIntentHandler } from '@/components/settings/settings-navigation-provider'
 import { SettingsPendingSection } from '@/components/settings/settings-pending-section'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   resolveSettingsSection,
   type SettingsSection,
-} from '@/app/workspace/[workspaceId]/settings/navigation'
+} from '@/components/settings/workspace-navigation'
+import { useWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-provider'
 import { warmSettingsSection } from '@/app/workspace/[workspaceId]/settings/section-warmers'
 
 function pendingSectionMeta(section: string) {

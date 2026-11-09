@@ -1,3 +1,7 @@
+export {
+  connectorSyncFrequencyHint,
+  SYNC_INTERVALS,
+} from '@/components/knowledge/base/components/consts'
 export type {
   ConnectorAccessMode,
   ConnectorData,
@@ -17,10 +21,6 @@ export { getCanonicalScopesForProvider, getProviderIdFromServiceId } from '@/lib
 export { getMissingRequiredScopes } from '@/lib/oauth/utils'
 export type { SourceSelectionLabel } from '@/lib/sim-search/source-identity'
 export { describeSearchSource } from '@/lib/sim-search/source-identity'
-export {
-  connectorSyncFrequencyHint,
-  SYNC_INTERVALS,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
 export { getConnectorRequiredScopes, isConnectorCredentialTypeAllowed } from '@/connectors/auth'
 export {
   GITLAB_CSV_FILES,

@@ -3,6 +3,7 @@ import { FILE_DOC_SEED, FILE_DOC_TIMEOUTS } from '@sim/realtime-protocol/file-do
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import * as Y from 'yjs'
+import { splitFrontmatter } from '@/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { applyMarkdownToYDoc, markdownToYDoc } from '@/lib/collab-doc/converter'
 import {
   assertCollabDocStateSize,
@@ -13,7 +14,6 @@ import {
   loadCollabDocState,
 } from '@/lib/collab-doc/state'
 import { fetchWorkspaceFileBuffer, getWorkspaceFile } from '@/lib/uploads/contexts/workspace'
-import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 
 const logger = createLogger('FileDocSeed')
 

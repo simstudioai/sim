@@ -16,10 +16,7 @@ import { ArrowLeft } from '@sim/emcn-legacy/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
-import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
-import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
-import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
+import { ConnectOAuthModal } from '@/components/connect-oauth-modal'
 import {
   AddPeopleModal,
   CredentialDetailHeading,
@@ -27,18 +24,18 @@ import {
   CredentialMembersSection,
   DetailSection,
   useCredentialDetailForm,
-} from '@/app/workspace/[workspaceId]/components/credential-detail'
-import {
-  RESOURCE_TILE_BASE,
-  RESOURCE_TILE_PLAIN,
-} from '@/app/workspace/[workspaceId]/components/resource-tile'
-import { ConnectPersonalTokenModal } from '@/app/workspace/[workspaceId]/integrations/components/connect-personal-token-modal'
+} from '@/components/credential-detail'
+import { ConnectPersonalTokenModal } from '@/components/integrations/connect-personal-token-modal'
 import {
   ConnectServiceAccountModal,
   type ServiceAccountProviderId,
-} from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
-import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+} from '@/components/integrations/connect-service-account-modal'
+import { IntegrationTile } from '@/components/integrations/integrations-showcase'
+import { RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN } from '@/components/resource-tile'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
+import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
+import { resolveCredentialDisplay } from '@/lib/integrations/credential-display'
 import {
   useCreateCredentialDraft,
   useDeleteWorkspaceCredential,

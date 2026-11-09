@@ -5,7 +5,9 @@ import { ArrowLeft, Chip, toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { BillingPeriodToggle, ComparisonTable, UpgradePlanCard } from '@/components/billing/upgrade'
 import { PAGE_HEADER_BAR } from '@/components/page-header-bar'
+import { useWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-provider'
 import { useSession } from '@/lib/auth/client'
 import {
   getUpgradeCardCta,
@@ -25,12 +27,6 @@ import {
 } from '@/lib/billing/plan-configs'
 import { DEFAULT_UPGRADE_HEADER, UPGRADE_REASON_COPY } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import {
-  BillingPeriodToggle,
-  ComparisonTable,
-  UpgradePlanCard,
-} from '@/app/workspace/[workspaceId]/upgrade/components'
 import {
   upgradeReasonParam,
   upgradeUrlKeys,

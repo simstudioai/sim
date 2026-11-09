@@ -1,3 +1,9 @@
+export {
+  knowledgeListPreferenceConfig,
+  knowledgeParsers,
+  knowledgeSortParams,
+  knowledgeUrlKeys,
+} from '@/components/knowledge/search-params'
 export type { TagDefinitionData, TagUsageData } from '@/lib/api/contracts/knowledge'
 export { MAX_CHUNKING_SEPARATOR_LENGTH, MAX_CHUNKING_SEPARATORS } from '@/lib/chunkers/constants'
 export {
@@ -24,13 +30,6 @@ export { validateKnowledgeBaseFile } from '@/lib/uploads/utils/file'
 export { formatFileSize } from '@/lib/uploads/utils/file-size'
 export { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 export { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-export { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
-export {
-  knowledgeListPreferenceConfig,
-  knowledgeParsers,
-  knowledgeSortParams,
-  knowledgeUrlKeys,
-} from '@/app/workspace/[workspaceId]/knowledge/search-params'
 export {
   hasProcessingDocuments,
   useDocument,
@@ -38,6 +37,7 @@ export {
   useKnowledgeBase,
   useKnowledgeBaseDocuments,
 } from '@/hooks/kb/use-knowledge'
+export { useKnowledgeUpload } from '@/hooks/knowledge/use-knowledge-upload'
 export { useFolderMap } from '@/hooks/queries/folders'
 export {
   type DocumentTagFilter,

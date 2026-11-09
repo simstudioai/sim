@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { TestsFeatureGate } from '@/app/workspace/[workspaceId]/tests/components'
+import { TestsFeatureGate } from '@/components/workflow-tests'
 
 interface TestsLayoutProps {
   children: ReactNode

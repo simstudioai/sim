@@ -6,7 +6,20 @@ import { Search } from '@sim/emcn-legacy/icons'
 import { formatDate } from '@sim/utils/formatting'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { folderedResourceListHref } from '@/components/folders'
+import { RESOURCE_REGISTRY } from '@/components/mothership-chat/mothership-view/components/resource-registry'
+import { type ColumnOption, SortDropdown } from '@/components/resource/components/resource-options'
 import { canMutateWorkspaceSettingsSection } from '@/components/settings/navigation'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
+import {
+  RESOURCE_LIST_STACK,
+  SettingsResourceRow,
+} from '@/components/settings/primitives/settings-resource-row'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
 import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
 import {
   RECENTLY_DELETED_TYPES_BY_FILTER,
@@ -14,27 +27,11 @@ import {
 } from '@/lib/api/contracts/recently-deleted'
 import type { MothershipResourceType } from '@/lib/mothership/chat/types'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { folderedResourceListHref } from '@/app/workspace/[workspaceId]/components/folders'
-import {
-  type ColumnOption,
-  SortDropdown,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
-import { RESOURCE_REGISTRY } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-registry'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   recentlyDeletedParsers,
   recentlyDeletedSortParams,
   recentlyDeletedUrlKeys,
 } from '@/app/workspace/[workspaceId]/settings/components/recently-deleted/search-params'
-import {
-  SettingsEmptyState,
-  SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
-import {
-  RESOURCE_LIST_STACK,
-  SettingsResourceRow,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useFolders, useRestoreFolder } from '@/hooks/queries/folders'
 import { useRestoreKnowledgeBase } from '@/hooks/queries/kb/knowledge'
 import { useRestoreMothershipChat } from '@/hooks/queries/mothership-chats'

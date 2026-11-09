@@ -12,9 +12,6 @@ import {
 } from '@sim/emcn-legacy'
 import { ArrowLeft, Clock, Key, Send } from '@sim/emcn-legacy/icons'
 import { useQueryState } from 'nuqs'
-import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
-import { SettingsActionChips } from '@/components/settings/settings-header'
-import { isApiClientError } from '@/lib/api/client/errors'
 import {
   AddPeopleModal,
   CredentialDetailHeading,
@@ -22,11 +19,14 @@ import {
   CredentialMembersSection,
   DetailSection,
   useCredentialDetailForm,
-} from '@/app/workspace/[workspaceId]/components/credential-detail'
-import { ResourceTile } from '@/app/workspace/[workspaceId]/components/resource-tile'
-import { SecretValueField } from '@/app/workspace/[workspaceId]/settings/components/secrets/components/secret-value-field'
+} from '@/components/credential-detail'
+import { ResourceTile } from '@/components/resource-tile'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
+import { SecretValueField } from '@/components/settings/sections/secrets/components/secret-value-field'
+import { SettingsActionChips } from '@/components/settings/settings-header'
+import { isApiClientError } from '@/lib/api/client/errors'
 import { useSecretValue } from '@/app/workspace/[workspaceId]/settings/components/secrets/hooks/use-secret-value'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SecretReferencesPanel } from '@/app/workspace/[workspaceId]/settings/secrets/[credentialId]/components/secret-references-panel'
 import { SecretUsagePanel } from '@/app/workspace/[workspaceId]/settings/secrets/[credentialId]/components/secret-usage-panel'
 import {

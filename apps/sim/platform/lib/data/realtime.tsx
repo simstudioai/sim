@@ -1,8 +1,8 @@
 'use client'
 
 import { type ReactNode, useMemo } from 'react'
+import { SocketProvider } from '@/components/workspace-providers/socket-provider'
 import { useSession } from '@/lib/auth/client'
-import { SocketProvider } from '@/app/workspace/providers/socket-provider'
 
 /**
  * The one realtime socket every live workspace tab shares, connected as the viewer, as the legacy
@@ -20,4 +20,4 @@ export function WorkspaceRealtime({ children }: { children: ReactNode }) {
   return <SocketProvider user={user}>{children}</SocketProvider>
 }
 
-export { useSocket } from '@/app/workspace/providers/socket-provider'
+export { useSocket } from '@/components/workspace-providers/socket-provider'

@@ -3,13 +3,13 @@
 import { useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useSettingsNavigationTarget } from '@/components/settings/settings-navigation-provider'
+import type { SettingsSection } from '@/components/settings/workspace-navigation'
+import { useOptionalWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-context'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/client'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { popSettingsReturnUrl, rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
-import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-context'
-import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 
 interface SettingsNavigationOptions {
   section?: SettingsSection

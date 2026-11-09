@@ -5,7 +5,7 @@ import { useQueryStates } from 'nuqs'
 import {
   SettingsEmptyState,
   SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+} from '@/components/settings/primitives/settings-empty-state'
 import { OrganizationAccountPeople } from '@/ee/credential-groups/components/organization-account-people'
 import { OrganizationAccountProviders } from '@/ee/credential-groups/components/organization-account-providers'
 import { OrganizationAccountWorkspaceAccess } from '@/ee/credential-groups/components/organization-account-workspace-access'

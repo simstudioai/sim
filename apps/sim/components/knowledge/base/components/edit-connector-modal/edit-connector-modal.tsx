@@ -1,0 +1,117 @@
+'use client'
+
+import { useState } from 'react'
+import {
+  ChipModal,
+  ChipModalBody,
+  ChipModalFooter,
+  ChipModalHeader,
+  ChipModalTabs,
+} from '@sim/emcn-legacy'
+import {
+  ConnectorDocumentsTab,
+  ConnectorDocumentsTabFilter,
+} from '@/components/knowledge/base/components/edit-connector-modal/connector-documents-tab'
+import { ConnectorSettingsFields } from '@/components/knowledge/base/components/edit-connector-modal/connector-settings-fields'
+import type { ConnectorDocumentFilter } from '@/lib/api/contracts/knowledge/connectors'
+import type { ResourceScope } from '@/lib/core/resource-scope'
+import { withBrandIcon } from '@/blocks/brand-icon'
+import { useConnectorSettingsForm } from '@/hooks/kb/connectors/use-connector-settings-form'
+import type { ConnectorData } from '@/hooks/queries/kb/connectors'
+
+interface EditConnectorModalProps {
+  scope?: ResourceScope
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  knowledgeBaseId: string
+  isSearchIndex?: boolean
+  connector: ConnectorData
+}
+
+export function EditConnectorModal({
+  open,
+  onOpenChange,
+  knowledgeBaseId,
+  isSearchIndex = false,
+  connector,
+  scope,
+}: EditConnectorModalProps) {
+  const [activeTab, setActiveTab] = useState('settings')
+  const [documentFilter, setDocumentFilter] = useState<ConnectorDocumentFilter>('active')
+  const form = useConnectorSettingsForm({
+    scope,
+    knowledgeBaseId,
+    isSearchIndex,
+    connector,
+    onSaved: () => onOpenChange(false),
+  })
+
+  return (
+    <ChipModal
+      open={open}
+      onOpenChange={onOpenChange}
+      srTitle={`Edit ${form.displayName}`}
+      size='md'
+      dismissDisabled={form.saving}
+    >
+      <ChipModalHeader
+        icon={form.icon ? withBrandIcon(form.icon) : null}
+        onClose={() => onOpenChange(false)}
+      >
+        Edit {form.displayName}
+      </ChipModalHeader>
+      <ChipModalBody>
+        <div className='mx-2 flex shrink-0 items-center justify-between gap-2'>
+          <ChipModalTabs
+            tabs={[
+              { value: 'settings', label: 'Settings' },
+              { value: 'documents', label: 'Documents' },
+            ]}
+            value={activeTab}
+            onChange={setActiveTab}
+            aria-label='Connection views'
+          />
+          {activeTab === 'documents' && (
+            <ConnectorDocumentsTabFilter
+              knowledgeBaseId={knowledgeBaseId}
+              connectorId={connector.id}
+              filter={documentFilter}
+              onFilterChange={setDocumentFilter}
+            />
+          )}
+        </div>
+        {activeTab === 'settings' ? (
+          <ConnectorSettingsFields {...form.fieldsProps} />
+        ) : (
+          <ConnectorDocumentsTab
+            knowledgeBaseId={knowledgeBaseId}
+            connectorId={connector.id}
+            filter={documentFilter}
+            onFilterChange={setDocumentFilter}
+          />
+        )}
+      </ChipModalBody>
+      {activeTab === 'settings' && (
+        <ChipModalFooter
+          onCancel={() => onOpenChange(false)}
+          secondaryActions={
+            form.docsUrl
+              ? [
+                  {
+                    label: 'Setup guide',
+                    onClick: () => window.open(form.docsUrl, '_blank', 'noopener,noreferrer'),
+                  },
+                ]
+              : undefined
+          }
+          primaryAction={{
+            label: form.saving ? 'Saving…' : 'Save',
+            onClick: form.save,
+            disabled: !form.canSave,
+            disabledTooltip: form.saveBlockedReason,
+          }}
+        />
+      )}
+    </ChipModal>
+  )
+}

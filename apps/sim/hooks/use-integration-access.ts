@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useMemo } from 'react'
+import { useOptionalWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-context'
 import {
   createIntegrationAccessPolicy,
   type IntegrationAccess,
   type IntegrationAccessPolicy,
   resolveIntegrationAccess,
 } from '@/lib/integrations/access'
-import { useOptionalWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-context'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { overlayVisibility } from '@/blocks/visibility/context'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'

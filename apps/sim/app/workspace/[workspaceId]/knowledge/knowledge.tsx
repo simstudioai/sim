@@ -8,14 +8,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
-import { MAX_KNOWLEDGE_BATCH_ITEMS } from '@/lib/knowledge/constants'
-import type { KnowledgeBaseData } from '@/lib/knowledge/types'
-import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import type {
-  MoveOptionNode,
-  SortableResource,
-} from '@/app/workspace/[workspaceId]/components/folders'
+import type { MoveOptionNode, SortableResource } from '@/components/folders'
 import {
   buildDescendantIndex,
   buildMoveOptions,
@@ -37,38 +30,43 @@ import {
   splitFolderedRowIds,
   useFolderNavigation,
   useFolderRowDragDrop,
-} from '@/app/workspace/[workspaceId]/components/folders'
-import { reportBulkOutcome } from '@/app/workspace/[workspaceId]/components/resource/bulk-outcome'
-import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
-import { ownerCell } from '@/app/workspace/[workspaceId]/components/resource/components/owner-cell'
+} from '@/components/folders'
+import { BaseTagsModal } from '@/components/knowledge/base/components/base-tags-modal'
+import { canDeleteKnowledgeBase } from '@/components/knowledge/permissions'
+import {
+  knowledgeListPreferenceConfig,
+  knowledgeParsers,
+  knowledgeSortParams,
+  knowledgeUrlKeys,
+} from '@/components/knowledge/search-params'
+import { reportBulkOutcome } from '@/components/resource/bulk-outcome'
+import { ownerCell } from '@/components/resource/components/owner-cell'
 import {
   KnowledgeEmptyState,
   ResourceNoResults,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
+} from '@/components/resource/components/resource-empty-state'
 import type {
   BreadcrumbItem,
   ResourceAction,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
+} from '@/components/resource/components/resource-header'
 import type {
   FilterTag,
   SearchConfig,
   SortConfig,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
-import { FILTER_SECTION_LABEL_CLASS } from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
-import { timeCell } from '@/app/workspace/[workspaceId]/components/resource/components/time-cell'
-import { resourceListState } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
-import type {
-  ResourceCell,
-  ResourceColumn,
-  ResourceRow,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
-import {
-  EMPTY_CELL_PLACEHOLDER,
-  Resource,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
-import { selectionLabel } from '@/app/workspace/[workspaceId]/components/resource/selection-label'
-import { useResourceRowSelection } from '@/app/workspace/[workspaceId]/components/resource/use-resource-row-selection'
-import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/base-tags-modal'
+} from '@/components/resource/components/resource-options'
+import { FILTER_SECTION_LABEL_CLASS } from '@/components/resource/components/resource-options'
+import { timeCell } from '@/components/resource/components/time-cell'
+import { resourceListState } from '@/components/resource/is-resource-list-empty'
+import type { ResourceCell, ResourceColumn, ResourceRow } from '@/components/resource/resource'
+import { EMPTY_CELL_PLACEHOLDER, Resource } from '@/components/resource/resource'
+import { selectionLabel } from '@/components/resource/selection-label'
+import { useResourceRowSelection } from '@/components/resource/use-resource-row-selection'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
+import { useRegisterGlobalCommands } from '@/lib/global-commands/provider'
+import { MAX_KNOWLEDGE_BATCH_ITEMS } from '@/lib/knowledge/constants'
+import type { KnowledgeBaseData } from '@/lib/knowledge/types'
+import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
+import { ResourceActionBar } from '@/app/workspace/[workspaceId]/components/resource/components/action-bar'
 import {
   CreateBaseModal,
   DeleteKnowledgeBaseModal,
@@ -77,14 +75,6 @@ import {
   KnowledgeListContextMenu,
 } from '@/app/workspace/[workspaceId]/knowledge/components'
 import KnowledgeLoading from '@/app/workspace/[workspaceId]/knowledge/loading'
-import { canDeleteKnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/permissions'
-import {
-  knowledgeListPreferenceConfig,
-  knowledgeParsers,
-  knowledgeSortParams,
-  knowledgeUrlKeys,
-} from '@/app/workspace/[workspaceId]/knowledge/search-params'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { BrandIcon } from '@/blocks/brand-icon'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'

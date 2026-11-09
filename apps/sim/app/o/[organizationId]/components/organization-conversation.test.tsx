@@ -56,15 +56,12 @@ vi.mock('@/lib/core/config/deployment-shape', () => deploymentShapeMock)
 vi.mock('@/blocks/integration-matcher', () => integrationMatcherMock)
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@tanstack/react-query', () => reactQueryMock)
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-resource-panel', () => useResourcePanelMock)
-vi.mock(
-  '@/app/workspace/[workspaceId]/home/components/chat-resource-panel',
-  () => chatResourcePanelMock
-)
+vi.mock('@/hooks/mothership-chat/use-resource-panel', () => useResourcePanelMock)
+vi.mock('@/components/mothership-chat/chat-resource-panel', () => chatResourcePanelMock)
 vi.mock('@/lib/auth/client', () => authClientMock)
 vi.mock('@/lib/uploads/client/session-upload', () => ({ uploadInternalFileSession: mocks.upload }))
 vi.mock('@/lib/organizations/provider', () => organizationProviderMock)
-vi.mock('@/app/workspace/[workspaceId]/home/hooks/use-chat', () => useChatMock)
+vi.mock('@/hooks/mothership-chat/use-chat', () => useChatMock)
 vi.mock('@/hooks/queries/mothership-chats', () => mothershipChatsQueriesMock)
 vi.mock('@/platform/embedded/app/(shell)/_components/conversation/page-composer', () => ({
   PageComposer: mocks.composer,
@@ -72,7 +69,7 @@ vi.mock('@/platform/embedded/app/(shell)/_components/conversation/page-composer'
 vi.mock('@/hooks/queries/kb/connectors', () => kbConnectorsQueriesMock)
 vi.mock('@/hooks/queries/api-keys', () => ({ useApiKeys: mocks.apiKeys }))
 vi.mock('@/hooks/queries/oauth-provider', () => ({ useAuthorizedApps: mocks.authorizedApps }))
-vi.mock('@/app/workspace/[workspaceId]/home/components/mothership-chat', () => mothershipChatMock)
+vi.mock('@/components/mothership-chat/mothership-chat', () => mothershipChatMock)
 vi.mock('@/app/extension/o/[organizationId]/panel-composer', () => ({ PanelComposer: () => null }))
 
 import type { ConversationComposerProps } from '@/app/_organization-conversation/composer'

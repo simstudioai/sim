@@ -3,7 +3,7 @@
  *
  * Lives in `lib/` rather than beside the logs table because three unrelated
  * features render it — logs, credit usage, and audit logs — and the previous
- * home (`app/workspace/[workspaceId]/logs/utils.ts`) also exports registry-backed
+ * home (`components/logs/utils.ts`) also exports registry-backed
  * badge components. Importing a date formatter from there pulled
  * `@/blocks/registry` → all 282 block configs → the tool registry into every
  * consumer's bundle.

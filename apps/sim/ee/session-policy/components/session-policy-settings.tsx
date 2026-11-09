@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { ChipConfirmModal, ChipInput, Label, toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
+import { SettingsEmptyState } from '@/components/settings/primitives/settings-empty-state'
+import { SettingsPanel } from '@/components/settings/primitives/settings-panel'
 import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import { MIN_IDLE_TIMEOUT_HOURS } from '@/lib/api/contracts/organization'
 import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   type SessionPolicyResponse,
   useOrganizationSessionPolicy,

@@ -4,12 +4,7 @@
  * code viewer's search state unchanged; only the views are rebuilt in the zone.
  */
 
-export { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
-export type { LargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
-export { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
-export type { LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
-export { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
-export { useTerminalFilters } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/hooks/use-terminal-filters'
+export { useTerminalFilters } from '@/components/workflow-editor/components/terminal/hooks/use-terminal-filters'
 export {
   collectExpandableNodeIds,
   type EntryNode,
@@ -23,7 +18,12 @@ export {
   type NavigableBlockEntry,
   TERMINAL_CONFIG,
   type VisibleTerminalRow,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/utils'
+} from '@/components/workflow-editor/components/terminal/utils'
+export { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
+export type { LargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
+export { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
+export type { LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+export { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 export { useCodeViewerFeatures } from '@/hooks/use-code-viewer'
 export { isMobileViewport } from '@/hooks/use-is-mobile'
 export { OUTPUT_PANEL_WIDTH } from '@/stores/constants'

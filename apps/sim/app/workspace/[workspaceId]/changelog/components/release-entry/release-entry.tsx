@@ -14,9 +14,9 @@ import {
 import { MoreHorizontal } from '@sim/emcn-legacy/icons'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
+import { FileViewer } from '@/components/file-viewer'
 import type { ChangelogRelease } from '@/lib/api/contracts/changelog'
 import { ReleaseWorkflows } from '@/app/workspace/[workspaceId]/changelog/components/release-workflows/release-workflows'
-import { FileViewer } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
 
 interface ReleaseEntryProps {

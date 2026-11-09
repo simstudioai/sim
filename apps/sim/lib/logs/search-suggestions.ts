@@ -1,4 +1,4 @@
-import type { Suggestion, SuggestionGroup } from '@/app/workspace/[workspaceId]/logs/types'
+import type { Suggestion, SuggestionGroup } from '@/lib/logs/suggestion-types'
 
 export interface FilterDefinition {
   key: string

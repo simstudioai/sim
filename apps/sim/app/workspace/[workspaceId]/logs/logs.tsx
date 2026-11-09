@@ -30,6 +30,43 @@ import { formatDuration } from '@sim/utils/formatting'
 import { useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { Dashboard, LogDetails, LogRowContextMenu } from '@/components/logs'
+import { useLogFilters } from '@/components/logs/hooks/use-log-filters'
+import {
+  SnapshotBoundary,
+  SnapshotModalFallback,
+} from '@/components/logs/log-details/components/execution-snapshot/snapshot-boundary'
+import {
+  executionIdParam,
+  executionIdWriteOptions,
+  logDetailsTabParam,
+  logDetailsTabUrlKeys,
+  logFilterUrlKeys,
+  logSortParams,
+} from '@/components/logs/search-params'
+import {
+  formatDate,
+  getDisplayStatus,
+  getLogWorkflowLabel,
+  type LogStatus,
+  parseDuration,
+  resolveLogWorkflowId,
+  STATUS_CONFIG,
+  StatusBadge,
+  TriggerBadge,
+  workflowEditorPath,
+} from '@/components/logs/utils'
+import { LogsEmptyState } from '@/components/resource/components/resource-empty-state'
+import type { ResourceAction } from '@/components/resource/components/resource-header'
+import type {
+  FilterTag,
+  SearchConfig,
+  SortConfig,
+} from '@/components/resource/components/resource-options'
+import { isResourceListEmpty } from '@/components/resource/is-resource-list-empty'
+import type { ResourceColumn, ResourceRow } from '@/components/resource/resource'
+import { Resource, type ResourceTableHandle } from '@/components/resource/resource'
+import { useUserPermissionsContext } from '@/components/workspace-providers/workspace-permissions-provider'
 import type {
   WorkflowLogDetail,
   WorkflowLogRow,
@@ -48,41 +85,11 @@ import {
   type TriggerData,
   type WorkflowData,
 } from '@/lib/logs/search-suggestions'
+import type { Suggestion } from '@/lib/logs/suggestion-types'
 import { getEndDateFromTimeRange, getStartDateFromTimeRange } from '@/lib/logs/time-range'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
-import { LogsEmptyState } from '@/app/workspace/[workspaceId]/components/resource/components/resource-empty-state'
-import type { ResourceAction } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
-import type {
-  FilterTag,
-  SearchConfig,
-  SortConfig,
-} from '@/app/workspace/[workspaceId]/components/resource/components/resource-options'
-import { isResourceListEmpty } from '@/app/workspace/[workspaceId]/components/resource/is-resource-list-empty'
-import type {
-  ResourceColumn,
-  ResourceRow,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
-import {
-  Resource,
-  type ResourceTableHandle,
-} from '@/app/workspace/[workspaceId]/components/resource/resource'
-import {
-  SnapshotBoundary,
-  SnapshotModalFallback,
-} from '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/snapshot-boundary'
 import { getLogsRefreshAction } from '@/app/workspace/[workspaceId]/logs/components/log-refresh-action'
-import { useLogFilters } from '@/app/workspace/[workspaceId]/logs/hooks/use-log-filters'
 import { useSearchState } from '@/app/workspace/[workspaceId]/logs/hooks/use-search-state'
-import {
-  executionIdParam,
-  executionIdWriteOptions,
-  logDetailsTabParam,
-  logDetailsTabUrlKeys,
-  logFilterUrlKeys,
-  logSortParams,
-} from '@/app/workspace/[workspaceId]/logs/search-params'
-import type { Suggestion } from '@/app/workspace/[workspaceId]/logs/types'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import {
@@ -101,19 +108,6 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useUrlSort } from '@/hooks/use-url-sort'
 import { useFilterStore } from '@/stores/logs/filters/store'
 import { CORE_TRIGGER_TYPES } from '@/stores/logs/filters/types'
-import { Dashboard, LogDetails, LogRowContextMenu } from './components'
-import {
-  formatDate,
-  getDisplayStatus,
-  getLogWorkflowLabel,
-  type LogStatus,
-  parseDuration,
-  resolveLogWorkflowId,
-  STATUS_CONFIG,
-  StatusBadge,
-  TriggerBadge,
-  workflowEditorPath,
-} from './utils'
 
 /**
  * Lazy per the code-splitting rule in `sim-imports.md`: the snapshot renders the workflow
@@ -124,9 +118,9 @@ import {
  * leftover re-export would silently defeat this split.
  */
 const ExecutionSnapshot = lazy(() =>
-  import(
-    '@/app/workspace/[workspaceId]/logs/components/log-details/components/execution-snapshot/execution-snapshot'
-  ).then((m) => ({ default: m.ExecutionSnapshot }))
+  import('@/components/logs/log-details/components/execution-snapshot/execution-snapshot').then(
+    (m) => ({ default: m.ExecutionSnapshot })
+  )
 )
 
 const LOGS_PER_PAGE = 50 as const

@@ -2,15 +2,15 @@
 
 import dynamic from 'next/dynamic'
 import { getSettingsPermissionConfigKey } from '@/components/settings/navigation'
-import { useSession } from '@/lib/auth/client'
-import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
-import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
-import { SettingsSectionProvider } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { SettingsSectionProvider } from '@/components/settings/primitives/settings-panel'
+import { General } from '@/components/settings/sections/general/general'
 import {
   getSettingsSectionMeta,
   type SettingsSection,
-} from '@/app/workspace/[workspaceId]/settings/navigation'
+} from '@/components/settings/workspace-navigation'
+import { useWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-provider'
+import { useSession } from '@/lib/auth/client'
+import { useDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { SECTION_MODULES } from '@/app/workspace/[workspaceId]/settings/section-warmers'
 import { PermissionAccessBoundary } from '@/ee/access-requests/components/permission-access-boundary'
 import { useCaptureWhenReady } from '@/hooks/use-capture-when-ready'

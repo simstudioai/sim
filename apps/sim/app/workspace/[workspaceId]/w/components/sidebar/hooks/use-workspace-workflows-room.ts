@@ -2,9 +2,9 @@
 
 import { ROOM_TYPES } from '@sim/realtime-protocol/rooms'
 import { useQueryClient } from '@tanstack/react-query'
-import { useWorkspaceInvalidationRoom } from '@/app/workspace/[workspaceId]/hooks/use-workspace-invalidation-room'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { useWorkspaceInvalidationRoom } from '@/hooks/use-workspace-invalidation-room'
 
 /**
  * Keeps the sidebar's workflow registry live: joins the workspace-workflows room so a

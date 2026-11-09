@@ -16,16 +16,16 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { IdentityTile } from '@/components/identity-tile/identity-tile'
+import {
+  SettingsEmptyState,
+  SettingsQueryErrorState,
+} from '@/components/settings/primitives/settings-empty-state'
+import { SettingsResourceRow } from '@/components/settings/primitives/settings-resource-row'
 import type { MyInvitation } from '@/lib/api/contracts/invitations'
 import { getInvitationErrorMessage } from '@/lib/invitations/error-messages'
 import { getWorkspaceInitial } from '@/lib/workspaces/initials'
 import { InvitationDisclosure } from '@/app/invite/components/invitation-disclosure'
 import { InvitationWorkspaceAccess } from '@/app/invite/components/invitation-workspace-access'
-import {
-  SettingsEmptyState,
-  SettingsQueryErrorState,
-} from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import { SettingsResourceRow } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import {
   useAcceptMyInvitation,
   useDeclineMyInvitation,

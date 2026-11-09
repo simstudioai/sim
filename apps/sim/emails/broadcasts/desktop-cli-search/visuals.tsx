@@ -3,14 +3,14 @@
 import { Chip, ComposerActionButton, cn } from '@sim/emcn-legacy'
 import { ArrowUp, Search } from '@sim/emcn-legacy/icons'
 import { GithubIcon, GmailIcon, GoogleDriveIcon, SlackIcon } from '@/components/icons'
+import { PROMPT_FIELD_CLASSES } from '@/components/mothership-chat/user-input/components/constants'
+import { InputToolbar } from '@/components/mothership-chat/user-input/components/input-toolbar'
 import {
   LANDING_STAGE_RADIUS,
   LANDING_STAGE_WINDOW_RADIUS,
   LANDING_WINDOW_SHADOW,
 } from '@/app/(landing)/components/landing-layout'
 import { CodeWindowGraphic } from '@/app/(landing)/components/shared/code-window-graphic'
-import { PROMPT_FIELD_CLASSES } from '@/app/workspace/[workspaceId]/home/components/user-input/components/constants'
-import { InputToolbar } from '@/app/workspace/[workspaceId]/home/components/user-input/components/input-toolbar'
 
 const SOURCES = [
   { name: 'Slack', icon: SlackIcon },

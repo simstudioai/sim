@@ -6,6 +6,11 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { toRecord } from '@sim/utils/object'
 import { useQueryClient } from '@tanstack/react-query'
 import { createSerializer, useQueryStates } from 'nuqs'
+import { fetchWorkspaceResourceRef } from '@/components/mothership-chat/resolve-resource-ref'
+import {
+  type AttachedFile,
+  useFileAttachments,
+} from '@/components/workflow-editor/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
 import { requestJson } from '@/lib/api/client/request'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { getWorkspaceHostContextContract } from '@/lib/api/contracts/workspaces'
@@ -34,20 +39,12 @@ import {
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
 import type { ConversationComposerProps } from '@/app/_organization-conversation/composer'
-import {
-  getMothershipUseChatOptions,
-  useChat,
-} from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
+import { getMothershipUseChatOptions, useChat } from '@/hooks/mothership-chat/use-chat'
 import {
   useChatResourcePanel,
   useResourcePanelController,
-} from '@/app/workspace/[workspaceId]/home/hooks/use-resource-panel'
-import { useRestoredChatEntry } from '@/app/workspace/[workspaceId]/home/hooks/use-restored-chat-entry'
-import { fetchWorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/resolve-resource-ref'
-import {
-  type AttachedFile,
-  useFileAttachments,
-} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/copilot/components/user-input/hooks/use-file-attachments'
+} from '@/hooks/mothership-chat/use-resource-panel'
+import { useRestoredChatEntry } from '@/hooks/mothership-chat/use-restored-chat-entry'
 import { useMarkMothershipChatRead } from '@/hooks/queries/mothership-chats'
 import { useSearchHistoryActions } from '@/hooks/sim-search/source-history'
 import { type PrepareChatSubmission, useComposerSubmission } from '@/hooks/use-composer-submission'

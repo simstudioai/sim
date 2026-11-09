@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { createLogger } from '@sim/logger'
+import { useWorkflowScope } from '@/components/workspace-providers/workflow-scope-provider'
 import { getBaseUrl } from '@/lib/core/utils/urls'
-import { useWorkflowScope } from '@/app/workspace/[workspaceId]/providers/workflow-scope-provider'
 import { getBlock } from '@/blocks'
 import { useWebhookQuery } from '@/hooks/queries/webhooks'
 import { populateTriggerFieldsFromConfig } from '@/hooks/use-trigger-config-aggregation'

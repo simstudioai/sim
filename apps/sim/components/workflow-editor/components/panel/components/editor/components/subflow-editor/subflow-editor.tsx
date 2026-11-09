@@ -1,0 +1,294 @@
+'use client'
+
+import {
+  Code as CodeEditor,
+  Combobox,
+  FieldDivider,
+  getCodeEditorProps,
+  Input,
+  Label,
+} from '@sim/emcn-legacy'
+import { ChevronUp } from '@sim/emcn-legacy/icons'
+import SimpleCodeEditor from 'react-simple-code-editor'
+import { ConnectionBlocks } from '@/components/workflow-editor/components/panel/components/editor/components/connection-blocks'
+import { WORKFLOW_SEARCH_HIGHLIGHT_CLASS } from '@/components/workflow-editor/components/panel/components/editor/components/constants'
+import {
+  formatDisplayText,
+  getValidWorkflowSearchRange,
+} from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { TagDropdown } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
+import { getActiveWorkflowSearchHighlight } from '@/components/workflow-editor/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
+import type { ConnectedBlock } from '@/components/workflow-editor/components/panel/components/editor/hooks/use-block-connections'
+import { useSubflowEditor } from '@/components/workflow-editor/components/panel/components/editor/hooks/use-subflow-editor'
+import { useActiveSearchTarget } from '@/components/workflow-editor/components/panel/components/editor/providers/active-search-target-provider'
+import { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
+import type { BlockState } from '@/stores/workflows/workflow/types'
+
+const WORKFLOW_SEARCH_MATCH_PLACEHOLDER = '__WORKFLOW_SEARCH_MATCH__'
+
+const escapeHtml = (value: string): string =>
+  value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+
+interface SubflowEditorProps {
+  currentBlock: BlockState
+  currentBlockId: string
+  subBlocksRef: React.RefObject<HTMLDivElement | null>
+  connectionsHeight: number
+  isResizing: boolean
+  hasIncomingConnections: boolean
+  incomingConnections: ConnectedBlock[]
+  handleConnectionsResizeMouseDown: (e: React.MouseEvent) => void
+  toggleConnectionsCollapsed: () => void
+  userCanEdit: boolean
+  isConnectionsAtMinHeight: boolean
+}
+
+/**
+ * SubflowEditor component for editing loop and parallel blocks
+ *
+ * @param props - Component props
+ * @returns Rendered subflow editor
+ */
+export function SubflowEditor({
+  currentBlock,
+  currentBlockId,
+  subBlocksRef,
+  connectionsHeight,
+  isResizing,
+  hasIncomingConnections,
+  incomingConnections,
+  handleConnectionsResizeMouseDown,
+  toggleConnectionsCollapsed,
+  userCanEdit,
+  isConnectionsAtMinHeight,
+}: SubflowEditorProps) {
+  const activeSearchTarget = useActiveSearchTarget()
+  const {
+    subflowConfig,
+    currentType,
+    isCountMode,
+    isConditionMode,
+    inputValue,
+    batchSizeValue,
+    editorValue,
+    typeOptions,
+    showTagDropdown,
+    cursorPosition,
+    editorContainerRef,
+    handleSubflowTypeChange,
+    handleSubflowIterationsChange,
+    handleSubflowIterationsBlur,
+    handleParallelBatchSizeChange,
+    handleParallelBatchSizeBlur,
+    handleSubflowEditorChange,
+    handleSubflowTagSelect,
+    highlightWithReferences,
+    setShowTagDropdown,
+  } = useSubflowEditor(currentBlock, currentBlockId)
+
+  if (!subflowConfig) return null
+
+  const configSearchFieldId = isCountMode
+    ? WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.iterations
+    : isConditionMode
+      ? WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.condition
+      : WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.items
+  const configSearchHighlight = getActiveWorkflowSearchHighlight({
+    activeSearchTarget,
+    subBlockId: configSearchFieldId,
+    valuePath: [],
+    targetKind: 'subflow',
+  })
+  const batchSizeSearchHighlight = getActiveWorkflowSearchHighlight({
+    activeSearchTarget,
+    subBlockId: WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize,
+    valuePath: [],
+    targetKind: 'subflow',
+  })
+  const highlightEditorValue = (value: string) => {
+    const workflowSearchRange = getValidWorkflowSearchRange(value, configSearchHighlight)
+    if (!workflowSearchRange) return highlightWithReferences(value)
+    const highlightedValue = highlightWithReferences(
+      `${value.slice(0, workflowSearchRange.start)}${WORKFLOW_SEARCH_MATCH_PLACEHOLDER}${value.slice(workflowSearchRange.end)}`
+    )
+    return highlightedValue.replace(
+      WORKFLOW_SEARCH_MATCH_PLACEHOLDER,
+      `<mark class="${WORKFLOW_SEARCH_HIGHLIGHT_CLASS}">${escapeHtml(value.slice(workflowSearchRange.start, workflowSearchRange.end))}</mark>`
+    )
+  }
+
+  return (
+    <div className='flex flex-1 flex-col overflow-hidden pt-[0px]'>
+      <div ref={subBlocksRef} className='subblocks-section flex flex-1 flex-col overflow-hidden'>
+        <div className='flex-1 overflow-y-auto overflow-x-hidden px-2 pt-[9px] pb-2'>
+          <div
+            data-workflow-search-subblock-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type}
+            data-workflow-search-canonical-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type}
+            className='rounded-md'
+          >
+            <Label className='mb-[6.5px] block pl-0.5 text-small'>
+              {currentBlock.type === 'loop' ? 'Loop Type' : 'Parallel Type'}
+            </Label>
+            <Combobox
+              options={typeOptions}
+              value={currentType || ''}
+              onChange={handleSubflowTypeChange}
+              disabled={!userCanEdit}
+              placeholder='Select type...'
+            />
+          </div>
+
+          <FieldDivider className='pb-2.5' />
+
+          <div
+            data-workflow-search-subblock-id={configSearchFieldId}
+            data-workflow-search-canonical-id={configSearchFieldId}
+            className='rounded-md'
+          >
+            <Label className='mb-[6.5px] block pl-0.5 text-small'>
+              {isCountMode
+                ? `${currentBlock.type === 'loop' ? 'Loop' : 'Parallel'} Iterations`
+                : isConditionMode
+                  ? 'While Condition'
+                  : `${currentBlock.type === 'loop' ? 'Collection' : 'Parallel'} Items`}
+            </Label>
+
+            {isCountMode ? (
+              <div className='relative'>
+                <Input
+                  type='text'
+                  value={inputValue}
+                  onChange={handleSubflowIterationsChange}
+                  onBlur={handleSubflowIterationsBlur}
+                  disabled={!userCanEdit}
+                  className='mb-1 text-transparent caret-[var(--text-primary)] [letter-spacing:inherit]'
+                />
+                <div className='pointer-events-none absolute inset-x-0 top-0 flex h-8 items-center overflow-hidden px-2 font-sans text-sm'>
+                  {formatDisplayText(inputValue, {
+                    workflowSearchHighlight: configSearchHighlight,
+                  })}
+                </div>
+                <div className='text-[var(--text-muted)] text-micro'>
+                  Enter a whole number greater than 0.
+                </div>
+              </div>
+            ) : (
+              <div ref={editorContainerRef} className='relative'>
+                <CodeEditor.Container>
+                  <CodeEditor.Content>
+                    <CodeEditor.Placeholder gutterWidth={0} show={editorValue.length === 0}>
+                      {isConditionMode ? '<counter.value> < 10' : "['item1', 'item2', 'item3']"}
+                    </CodeEditor.Placeholder>
+
+                    <SimpleCodeEditor
+                      value={editorValue}
+                      onValueChange={handleSubflowEditorChange}
+                      highlight={highlightEditorValue}
+                      {...getCodeEditorProps({
+                        isPreview: false,
+                        disabled: !userCanEdit,
+                      })}
+                    />
+
+                    {showTagDropdown && (
+                      <TagDropdown
+                        visible={showTagDropdown}
+                        onSelect={handleSubflowTagSelect}
+                        blockId={currentBlockId}
+                        activeSourceBlockId={null}
+                        inputValue={editorValue}
+                        cursorPosition={cursorPosition}
+                        onClose={() => setShowTagDropdown(false)}
+                        inputRef={{
+                          current: editorContainerRef.current?.querySelector(
+                            'textarea'
+                          ) as HTMLTextAreaElement,
+                        }}
+                      />
+                    )}
+                  </CodeEditor.Content>
+                </CodeEditor.Container>
+              </div>
+            )}
+          </div>
+
+          {currentBlock.type === 'parallel' && (
+            <div
+              data-workflow-search-subblock-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize}
+              data-workflow-search-canonical-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.batchSize}
+              className='relative mt-4 rounded-md'
+            >
+              <Label className='mb-[6.5px] block pl-0.5 text-small'>Parallel Batch Size</Label>
+              <Input
+                type='text'
+                value={batchSizeValue}
+                onChange={handleParallelBatchSizeChange}
+                onBlur={handleParallelBatchSizeBlur}
+                disabled={!userCanEdit}
+                className='mb-1 text-transparent caret-[var(--text-primary)] [letter-spacing:inherit]'
+              />
+              <div className='pointer-events-none absolute inset-x-0 top-[26px] flex h-8 items-center overflow-hidden px-2 font-sans text-sm'>
+                {formatDisplayText(batchSizeValue, {
+                  workflowSearchHighlight: batchSizeSearchHighlight,
+                })}
+              </div>
+              <div className='text-[var(--text-muted)] text-micro'>
+                Run 1 to 20 parallel branches at a time.
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {hasIncomingConnections && (
+        <div
+          className={
+            'connections-section flex shrink-0 flex-col overflow-hidden border-[var(--border)] border-t' +
+            (!isResizing ? ' transition-[height] duration-100 ease-out' : '')
+          }
+          style={{ height: `${connectionsHeight}px` }}
+        >
+          <div className='relative'>
+            <div
+              role='separator'
+              aria-orientation='horizontal'
+              className='absolute top-[-4px] right-0 left-0 z-30 h-[8px] cursor-ns-resize'
+              onMouseDown={handleConnectionsResizeMouseDown}
+            />
+          </div>
+
+          <div
+            className='flex shrink-0 cursor-pointer items-center gap-2 px-2.5 pt-[5px] pb-[5px]'
+            onClick={toggleConnectionsCollapsed}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                toggleConnectionsCollapsed()
+              }
+            }}
+            role='button'
+            tabIndex={0}
+            aria-label={isConnectionsAtMinHeight ? 'Expand connections' : 'Collapse connections'}
+          >
+            <ChevronUp
+              className={
+                'size-[14px] transition-transform' +
+                (!isConnectionsAtMinHeight ? ' rotate-180' : '')
+              }
+            />
+            <div className='text-[var(--text-primary)] text-small'>Connections</div>
+          </div>
+
+          <div className='flex-1 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
+            <ConnectionBlocks connections={incomingConnections} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
