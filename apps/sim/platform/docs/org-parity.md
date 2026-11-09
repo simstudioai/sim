@@ -39,7 +39,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Search | Source and date filters, custom range, keyboard movement | `search-filters.tsx` | Done | "A query lands in the URL" covers the date filter. Source filters and a custom range have no live check |
 | Search | Source row: open, record, copy link | `source-card.tsx` | Unverified | No live check yet. `lib/data/search.ts` |
 | Search | Source row: Summarize, scoped to that document, hand-off to Assistant | `source-card.tsx`, `use-organization-conversation.ts` | Done | "Summarize on a result switches to Assistant" |
-| Search | Source row: Create Sim link | `source-card.tsx` | Open | Chat lane. Needs the Sim Links form |
+| Search | Source row: Create Sim link | `source-card.tsx` | Unverified | No live check yet. `source-row/live-source-links.tsx` over `useSourceLinkAction` in `lib/data/links.ts`: `Copy sim/<name>` when a link already opens the URL, else Create link into the Links page's `LinkEditor`; a failed lookup offers neither. Gated by `navFlags.simLinks` |
 | Search | History: recently viewed, recent searches, clear, retry | `search-landing-history.tsx` | Unverified | No live check yet. `search-surface.tsx` |
 | Search | First paint of history | `prefetch.ts` | Done | `prefetch-reads.test.ts` |
 | Search | Search and Assistant switch, remembered per viewer, gated on `mothershipAvailable` | `search.tsx` | Unverified | No live check yet. `search-surface.tsx`; route gates in `live-search-route.tsx` |
@@ -125,7 +125,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Links | `?create=<name>` deep link from an unknown `sim/<name>` | `app/(site)/sim/[[...path]]` | Done | "an unknown sim/ link opens the editor" |
 | Links | Delete confirm with error | Links | Done | "links: create, find, open, edit and delete". The error path has no live check |
 | Links | Install Sim for Chrome | Links | Unverified | No live check yet. Hosted only, same gate. Current staging has no shortcuts modal or bookmark export |
-| Links | Copy or create from a chat source card | `source-card` | Open | Chat owner |
+| Links | Copy or create from a chat source card | `source-card` | Unverified | No live check yet. The same `source-row` entry in a reply's sources popover (`message/message-sources.tsx`), which closes before the form opens |
 | White-labeling | Form, entitlement, upload, colors, links, save and discard, guard | White-labeling | Unverified | "white-labeling reports its entitlement" reads the entitlement; the form, upload and save have no live check |
 | White-labeling | Applying the brand to the Platform | `BrandingProvider` | Hidden | The Platform's tokens differ from `--brand*`. Needs a token mapping |
 | Unsaved changes | Link click, closing tab, browser Back and Forward | `settings-navigation-guard` | Unverified | No live check yet. The same hooks and dirty store as legacy; one dialog in `session-state/settings-leave-guard`. Not exercised in which seeds no draft on a paid plan |
