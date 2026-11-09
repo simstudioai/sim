@@ -62,6 +62,7 @@ export function MessageComposer({
       data-elevation='composer'
       data-dragging={drop?.dragging || undefined}
       aria-busy={hold.holding || undefined}
+      onPointerDown={refs.pointerDown}
       onDragEnter={drop?.onDragEnter}
       onDragOver={drop?.onDragOver}
       onDragLeave={drop?.onDragLeave}

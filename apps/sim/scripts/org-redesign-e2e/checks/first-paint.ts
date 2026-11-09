@@ -34,8 +34,14 @@ const PREFETCHED_SECRET_SOURCE = [
 ]
 const PREFETCHED_LINKS = [{ label: 'links first page', pattern: /\/sim-links(\?(?!.*cursor=)|$)/ }]
 
-/** The composer's per-workspace lists, which wait until someone asks. */
+/** The composer's skill list: one organization-wide mentions read, as legacy read `/api/skills`. */
+const SKILLS_READ = /^\/api\/organizations\/[^/]+\/mentions\?(?=.*family=skills)/
+/**
+ * The composer's lists, which wait until someone asks: the organization mentions reads that took
+ * over from legacy's per-workspace reads, and those reads, which nothing should make any more.
+ */
 const PER_WORKSPACE_READ = [
+  /^\/api\/organizations\/[^/]+\/mentions\?/,
   /^\/api\/skills\?/,
   /^\/api\/workflows\?/,
   /^\/api\/table\?/,
@@ -158,7 +164,7 @@ export async function firstPaintChecks() {
         .filter((path) => isPerWorkspaceRead(path))
       assert(reads.length > 0, 'The skills were never read')
       assert.deepEqual(
-        reads.filter((path) => !path.startsWith('/api/skills?')),
+        reads.filter((path) => !SKILLS_READ.test(path)),
         [],
         'A slash read the resource lists'
       )

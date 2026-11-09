@@ -210,10 +210,17 @@ export function useLiveComposer({
     if (legacyKey) store.migrateDraft(legacyKey, initialKey)
     if (initialKey !== key) store.migrateDraft(initialKey, key)
   }, [initialKey, key, legacyKey])
-  const [pickerOpened, setPickerOpened] = useState(false)
-  const inventoryEnabled = !assistant && pickerOpened
+  const [resourceIntent, setResourceIntent] = useState(false)
+  const [skillIntent, setSkillIntent] = useState(false)
   const [referenceSearch, setReferenceSearch] = useState('')
-  const mentions = useMentionInventory(inventoryEnabled, organization.id, referenceSearch)
+  const mentions = useMentionInventory(
+    {
+      resources: !assistant && resourceIntent,
+      skills: !assistant && (resourceIntent || skillIntent),
+    },
+    organization.id,
+    referenceSearch
+  )
   const { references, referencesLoading, skills, skillsLoading } = mentions
   const files = useFileAttachments({
     userId,
@@ -405,7 +412,8 @@ export function useLiveComposer({
     skillsLoading,
     skillList: assistant ? undefined : mentions.skillList,
     skills,
-    onPickerOpen: () => setPickerOpened(true),
+    onPickerOpen: () => setResourceIntent(true),
+    onSkillIntent: () => setSkillIntent(true),
     onReferenceSearch: setReferenceSearch,
     browse: mentions.browse,
     onBrowseWorkspace: mentions.onBrowseWorkspace,

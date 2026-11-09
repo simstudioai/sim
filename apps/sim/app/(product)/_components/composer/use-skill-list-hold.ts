@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react'
 import { toast } from '@/lib/toast/sink'
 import type { ComposerController } from '@/app/(product)/_components/composer/model'
+import { SLASH_TOKEN } from '@/app/(product)/_components/composer/reference-text'
 
-/** A `/` starting a token: typed, pasted, or carried in by a draft, all of which can name a skill. */
-const SLASH_TOKEN = /(^|\s)\//
 /**
  * How long a send waits on the skill list. The request layer sets no deadline, so this is the only
  * bound on a list that never lands, and the message waits in the field when it passes.
@@ -19,7 +18,7 @@ interface HeldSend {
 }
 
 interface SkillListHoldOptions {
-  composer: Pick<ComposerController, 'skillList' | 'onPickerOpen'>
+  composer: Pick<ComposerController, 'skillList' | 'onSkillIntent'>
   text: string
   /** Matches the draft's `/names` against the list that just landed. */
   resync: () => void
@@ -73,7 +72,7 @@ export function useSkillListHold({ composer, text, resync, send }: SkillListHold
     holding: held !== null,
     submit: () => {
       if (skillList === 'pending' && SLASH_TOKEN.test(text) && text !== declined) {
-        composer.onPickerOpen?.()
+        composer.onSkillIntent?.()
         if (held?.text !== text) setHeld({ text, landed: false })
         return
       }

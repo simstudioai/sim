@@ -105,3 +105,18 @@ export function PanelTabs({
     />
   )
 }
+
+interface EmptyPanelHeaderProps {
+  onHide: () => void
+}
+
+/** The panel's header while it holds no tab: only the control that hides it again. */
+export function EmptyPanelHeader({ onHide }: EmptyPanelHeaderProps) {
+  return (
+    <header className={styles.header}>
+      <div className={styles.actions}>
+        <IconButton icon='I038' label='Close chat panel' onClick={onHide} />
+      </div>
+    </header>
+  )
+}

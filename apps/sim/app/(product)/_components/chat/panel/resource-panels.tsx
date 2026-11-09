@@ -6,7 +6,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import Link from 'next/link'
 import { OpenPanel } from '@/app/(product)/_components/chat/panel/chat-panels'
 import type { PanelResources } from '@/app/(product)/_components/chat/panel/model'
-import { PanelTabs } from '@/app/(product)/_components/chat/panel/panel-tabs'
+import { EmptyPanelHeader, PanelTabs } from '@/app/(product)/_components/chat/panel/panel-tabs'
 import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
 import { ResourceContent } from '@/app/(product)/_components/chat/panel/resource-content'
 import { referenceOptions } from '@/app/(product)/_components/composer/reference-options'
@@ -46,6 +46,10 @@ export function ResourcePanels({ panel, alwaysOpenable, children }: ResourcePane
       selectWorkspaces={false}
     />
   )
+  function hide() {
+    onCollapse()
+    requestAnimationFrame(() => trigger.current?.focus())
+  }
   const currentResource = resources.find((resource) => resource.active) ?? resources[0]
   const current = currentResource?.id ?? ''
   const tabs = resources.map((resource) => ({
@@ -124,17 +128,17 @@ export function ResourcePanels({ panel, alwaysOpenable, children }: ResourcePane
                 )
               }
               onExpand={() => setExpanded((value) => !value)}
-              onHide={() => {
-                onCollapse()
-                requestAnimationFrame(() => trigger.current?.focus())
-              }}
+              onHide={hide}
             />
           ) : (
-            <EmptyState
-              title='Nothing open yet'
-              description='Resources Sim works on open here.'
-              action={add}
-            />
+            <>
+              <EmptyPanelHeader onHide={hide} />
+              <EmptyState
+                title='Nothing open yet'
+                description='Resources Sim works on open here.'
+                action={add}
+              />
+            </>
           )}
         </aside>
       </div>

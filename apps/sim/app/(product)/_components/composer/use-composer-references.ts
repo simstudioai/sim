@@ -1,6 +1,6 @@
 'use client'
 
-import { type KeyboardEvent, useId, useMemo, useRef, useState } from 'react'
+import { type KeyboardEvent, type PointerEvent, useId, useMemo, useRef, useState } from 'react'
 import type { ComposerController } from '@/app/(product)/_components/composer/model'
 import {
   type ComposerOption,
@@ -11,7 +11,11 @@ import {
   selectedOptions,
   uniqueOption,
 } from '@/app/(product)/_components/composer/reference-options'
-import { matchReferences, triggerAt } from '@/app/(product)/_components/composer/reference-text'
+import {
+  matchReferences,
+  SLASH_TOKEN,
+  triggerAt,
+} from '@/app/(product)/_components/composer/reference-text'
 
 export function useComposerReferences(composer: ComposerController) {
   const editor = useRef<HTMLTextAreaElement>(null)
@@ -99,8 +103,12 @@ export function useComposerReferences(composer: ComposerController) {
     )
     const position = editor.current?.selectionStart ?? canonical.length
     const next = triggerAt(canonical, position, nextMatches)
+    if (SLASH_TOKEN.test(canonical)) composer.onSkillIntent?.()
     if (dismissed !== null && next?.start !== dismissed) setDismissed(null)
-    if (next?.prefix === '@') composer.onReferenceSearch?.(next.query)
+    if (next?.prefix === '@') {
+      composer.onPickerOpen?.()
+      composer.onReferenceSearch?.(next.query)
+    }
   }
 
   function replace(start: number, end: number, insertion: string, item?: ComposerOption) {
@@ -190,11 +198,16 @@ export function useComposerReferences(composer: ComposerController) {
     selectResource: (item: ComposerOption) => choose(item, false),
     highlight: (index: number) => setHighlight({ key, index }),
     dismiss: () => setDismissed(trigger?.start ?? null),
-    cursor: (start: number, end: number) => setCaret(start === end ? start : null),
-    focus: () => {
-      setFocused(true)
-      composer.onPickerOpen?.()
+    cursor: (start: number, end: number) => {
+      setCaret(start === end ? start : null)
+      if (start === end && triggerAt(text, start, matches)?.prefix === '@')
+        composer.onPickerOpen?.()
     },
+    /** Pressing the field reaches for a resource, as legacy's field did; focus alone does not. */
+    pointerDown: (event: PointerEvent) => {
+      if (event.target === editor.current) composer.onPickerOpen?.()
+    },
+    focus: () => setFocused(true),
     blur: () => setFocused(false),
   }
 }
