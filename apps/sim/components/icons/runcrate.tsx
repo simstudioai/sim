@@ -2,6 +2,7 @@ import type { SVGProps } from 'react'
 
 interface RuncrateIconProps extends SVGProps<SVGSVGElement> {}
 
+/** Runcrate logo mark; accepts standard SVG props. */
 export function RuncrateIcon(props: RuncrateIconProps) {
   return (
     <svg {...props} viewBox='0 0 64 64' fill='none' xmlns='http://www.w3.org/2000/svg'>

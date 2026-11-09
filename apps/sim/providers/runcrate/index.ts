@@ -27,6 +27,11 @@ async function applyResponseFormat(
   return messages
 }
 
+/**
+ * Runcrate provider for the OpenAI-compatible inference API at `api.runcrate.ai`.
+ * Requires an API key (workspace key or block-level). Named tool choice is downgraded
+ * to `auto` on models that cannot honor it.
+ */
 export const runcrateProvider: ProviderConfig = {
   id: 'runcrate',
   name: 'Runcrate',
