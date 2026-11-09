@@ -3,14 +3,11 @@
 import { useEffect, useState } from 'react'
 import { resolveFileCategory } from '@/components/file-viewer/file-category'
 import type { MentionFamily } from '@/lib/api/contracts/organization-mentions'
-import { reorderBrowserTab } from '@/lib/browser-agent/transport'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { workspacePath } from '@/lib/navigation/paths'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
 import { requestTerminalFocus } from '@/lib/terminal/focus'
 import { terminalIdFromResourceId } from '@/lib/terminal/resource-id'
-import { reorderTerminal } from '@/lib/terminal/transport'
-import { toast } from '@/lib/toast/sink'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
 import type {
   ChatSource,
@@ -194,23 +191,6 @@ export function usePanelResources({
     onRemove: (id) => {
       const resource = chat.resources.find((item) => item.id === id)
       if (resource) chat.removeResource(resource)
-    },
-    onReorder: (id, index) => {
-      const from = chat.resources.findIndex((item) => item.id === id)
-      if (from < 0 || from === index) return
-      const reordered = [...chat.resources]
-      const [moved] = reordered.splice(from, 1)
-      reordered.splice(index, 0, moved)
-      chat.reorderResources(reordered)
-      // Pages and shells are not stored with the chat; their order lives in the desktop's lists.
-      const nativeIndex = reordered.filter((item) => item.type === moved.type).indexOf(moved)
-      if (moved.type === 'browser') reorderBrowserTab(moved.id, nativeIndex, chat.desktopScopeId)
-      if (moved.type === 'terminal')
-        void reorderTerminal(
-          terminalIdFromResourceId(moved.id),
-          nativeIndex,
-          chat.desktopScopeId
-        ).catch(() => toast.error('Could not reorder that terminal. Please try again.'))
     },
     onExpand: panel.expandResource,
     onCollapse: panel.collapseResource,

@@ -24,7 +24,7 @@ interface ResourcePanelsProps {
  * width belongs to the divider, which keeps a width per viewer and chat.
  */
 export function ResourcePanels({ panel, alwaysOpenable, children }: ResourcePanelsProps) {
-  const { resources, collapsed, onSelect, onRemove, onReorder, onExpand, onCollapse, resize } =
+  const { resources, collapsed, onSelect, onRemove, onExpand, onCollapse, resize } =
     panel
   const [expanded, setExpanded] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -114,7 +114,6 @@ export function ResourcePanels({ panel, alwaysOpenable, children }: ResourcePane
               expanded={expanded}
               onSelect={(id) => onSelect(id, pointer.current)}
               onRemove={onRemove}
-              onReorder={onReorder}
               add={add}
               actions={
                 currentResource?.href &&

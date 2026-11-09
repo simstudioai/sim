@@ -24,15 +24,6 @@
   min-inline-size: var(--spacing-64);
   flex: 0 1 var(--panel-tab-width);
 }
-.tabs [data-dragging] {
-  opacity: var(--opacity-disabled);
-}
-.tabs [data-drop="before"] {
-  box-shadow: inset var(--spacing-stroke-focus) 0 0 var(--ui-secondary);
-}
-.tabs [data-drop="after"] {
-  box-shadow: inset calc(-1 * var(--spacing-stroke-focus)) 0 0 var(--ui-secondary);
-}
 .contentRoot {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
