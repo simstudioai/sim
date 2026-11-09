@@ -39,7 +39,7 @@ function valueRoot(node: ts.Node): ts.Node {
  * Text a view renders: JSX text, a JSX attribute value, or a returned string. A bare lowercase
  * token such as a `'loading'` variant or status is a value, not copy.
  */
-export function renderedText(node: ts.Node): RenderedText | undefined {
+function renderedText(node: ts.Node): RenderedText | undefined {
   if (ts.isJsxText(node)) {
     const text = node.text.trim()
     return text ? { text, root: node, host: node.parent } : undefined
@@ -130,7 +130,7 @@ export function hasAsciiEllipsis(node: ts.Node): boolean {
 }
 
 /** `process.env.SIM_PLATFORM_FIXTURES`, `isPlatformFixtureBuild()` or `resolvePlatformMode()`. */
-export function isPlatformModeRead(node: ts.Node): boolean {
+function isPlatformModeRead(node: ts.Node): boolean {
   if (ts.isPropertyAccessExpression(node))
     return node.getText() === 'process.env.SIM_PLATFORM_FIXTURES'
   return (

@@ -20,7 +20,7 @@ import { localBin } from './local-bin'
 import { listRepoFiles } from './repo-files'
 
 const FROZEN = new Set(['@sim/emcn', '@sim/emcn-platform'])
-export const SNAPSHOT = 'scripts/emcn-surface.json'
+const SNAPSHOT = 'scripts/emcn-surface.json'
 
 /** A prop's literal values, sorted, or `null` when its type is not a literal union. */
 type PropShape = string[] | null
@@ -28,11 +28,11 @@ interface SubpathSurface {
   names: string[]
   props: Record<string, Record<string, PropShape>>
 }
-export interface PackageSurface {
+interface PackageSurface {
   exports: Record<string, SubpathSurface | 'asset'>
   classes: Record<string, string[]>
 }
-export type Surface = Record<string, PackageSurface>
+type Surface = Record<string, PackageSurface>
 
 const sorted = <T>(values: Iterable<T>) => [...values].sort()
 const byKey = <T>(entries: [string, T][]) =>
@@ -54,7 +54,7 @@ function literalValues(type: ts.Type): PropShape {
 }
 
 /** Reads the frozen packages' surface from the tree at `root`. */
-export function readSurface(root: string): Surface {
+function readSurface(root: string): Surface {
   const owners = emcnPackages(root).filter((owner) => FROZEN.has(owner.name))
   const files = listRepoFiles(root)
   const entries = owners.flatMap((owner) =>
