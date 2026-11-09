@@ -145,6 +145,7 @@ export function DeployButton({ workspaceId, workflowId }: DeployButtonProps) {
   return (
     <>
       <Button
+        size='compact'
         render={<button type='button' onPointerEnter={prefetch} onFocus={prefetch} />}
         disabled={isRegistryLoading || isDisabled}
         disabledReason={isRegistryLoading ? 'Workflow is still loading' : reason}

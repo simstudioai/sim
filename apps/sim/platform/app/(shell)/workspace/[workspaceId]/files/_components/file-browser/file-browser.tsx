@@ -1000,7 +1000,7 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
         actions={sortActions({ columns: SORTS, sort, dir, onSort: preferences.setSort })}
       />
       <Button
-        variant='secondary'
+        variant='quiet'
         size='compact'
         icon='I117'
         disabled={!canEdit || uploading}
@@ -1009,7 +1009,7 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
         {uploadLabel}
       </Button>
       <Button
-        variant='secondary'
+        variant='quiet'
         size='compact'
         icon='I100'
         disabled={!canEdit || createFolder.isPending}
@@ -1018,7 +1018,7 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
         New folder
       </Button>
       <Button
-        variant='primary'
+        variant='secondary'
         size='compact'
         icon='I074'
         disabled={!canEdit || uploading || creatingFile}

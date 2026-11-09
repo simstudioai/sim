@@ -119,7 +119,8 @@ export function SlackBotModal({
               <div className={styles.actions}>
                 {form.createAppUrl ? (
                   <Button
-                    variant='primary'
+                    variant='secondary'
+                    size='compact'
                     trailingIcon='I030'
                     render={
                       <a href={form.createAppUrl} target='_blank' rel='noopener noreferrer'>
@@ -130,7 +131,7 @@ export function SlackBotModal({
                     Create Slack app
                   </Button>
                 ) : (
-                  <Button variant='primary' trailingIcon='I030' disabled>
+                  <Button variant='secondary' size='compact' trailingIcon='I030' disabled>
                     Create Slack app
                   </Button>
                 )}

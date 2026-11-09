@@ -250,11 +250,12 @@ export function EnrichmentConfig({
       back={onBack ? { label: 'Back to enrichments', onBack } : undefined}
       footer={
         <>
-          <Button variant='quiet' onClick={onClose}>
+          <Button variant='quiet' size='compact' onClick={onClose}>
             Cancel
           </Button>
           <Button
             variant='primary'
+            size='compact'
             onClick={() => void handleSave()}
             disabled={pending || Boolean(blockedReason)}
             disabledReason={pending ? undefined : blockedReason}

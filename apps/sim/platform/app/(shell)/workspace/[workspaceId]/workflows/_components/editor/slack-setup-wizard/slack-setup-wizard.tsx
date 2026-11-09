@@ -74,6 +74,7 @@ export function SlackSetupWizard({
     <>
       <Button
         variant='secondary'
+        size='compact'
         trailingIcon='I032'
         disabled={controlsDisabled}
         onClick={() => setOpen(true)}
@@ -189,7 +190,8 @@ function WizardModal({
               <div className={styles.actions}>
                 {canCreate ? (
                   <Button
-                    variant='primary'
+                    variant='secondary'
+                    size='compact'
                     trailingIcon='I030'
                     render={
                       <a
@@ -204,7 +206,7 @@ function WizardModal({
                     Create Slack app
                   </Button>
                 ) : (
-                  <Button variant='primary' trailingIcon='I030' disabled>
+                  <Button variant='secondary' size='compact' trailingIcon='I030' disabled>
                     Create Slack app
                   </Button>
                 )}

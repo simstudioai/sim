@@ -596,7 +596,7 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
       )}
       {(canEdit || access.isLoading) && (
         <Button
-          variant='secondary'
+          variant='quiet'
           size='compact'
           icon='I074'
           disabled={!canEdit || !knowledgeBase}
@@ -606,7 +606,7 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
         </Button>
       )}
       <Button
-        variant='primary'
+        variant='secondary'
         size='compact'
         icon='I117'
         disabled={!canEdit}

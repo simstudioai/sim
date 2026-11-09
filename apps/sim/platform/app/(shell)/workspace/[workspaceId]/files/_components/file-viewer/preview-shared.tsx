@@ -30,7 +30,7 @@ export function UnsupportedPreview({ name, reason, onDownload }: UnsupportedPrev
         description={reason ?? 'Download the file to open it.'}
         action={
           onDownload && (
-            <Button variant='secondary' icon='I049' onClick={onDownload}>
+            <Button variant='secondary' size='compact' icon='I049' onClick={onDownload}>
               Download
             </Button>
           )

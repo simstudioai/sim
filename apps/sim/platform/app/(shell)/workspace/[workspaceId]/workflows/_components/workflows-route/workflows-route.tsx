@@ -798,7 +798,7 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
         actions={sortActions({ columns: SORTS, sort, dir, onSort })}
       />
       <Button
-        variant='secondary'
+        variant='quiet'
         size='compact'
         icon='I117'
         disabled={createBlocked || ops.isImporting}
@@ -807,7 +807,7 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
         {ops.isImporting ? 'Importing…' : 'Import'}
       </Button>
       <Button
-        variant='secondary'
+        variant='quiet'
         size='compact'
         icon='I100'
         disabled={createBlocked || ops.isCreatingFolder}
@@ -816,7 +816,7 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
         New folder
       </Button>
       <Button
-        variant='primary'
+        variant='secondary'
         size='compact'
         icon='I074'
         disabled={createBlocked || ops.isCreatingWorkflow}

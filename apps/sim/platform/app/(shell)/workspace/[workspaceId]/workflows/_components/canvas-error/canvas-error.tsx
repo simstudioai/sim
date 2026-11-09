@@ -39,7 +39,11 @@ export function ErrorUI({
         title={title}
         description={message}
         action={
-          <Button variant='primary' onClick={onReset ?? (() => window.location.reload())}>
+          <Button
+            variant='secondary'
+            size='compact'
+            onClick={onReset ?? (() => window.location.reload())}
+          >
             Try again
           </Button>
         }

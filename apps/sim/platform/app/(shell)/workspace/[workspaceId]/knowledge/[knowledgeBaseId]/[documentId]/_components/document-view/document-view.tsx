@@ -554,7 +554,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
           )}
           {(creating || editable) && (
             <Button
-              variant='primary'
+              variant='secondary'
               size='compact'
               disabled={!dirty || (creating ? createStatus : saveStatus) === 'saving'}
               onClick={() => void save().catch(() => {})}
@@ -579,7 +579,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
           />
           <ActionMenu label='Sort chunks' icon='I050' tooltip actions={sortActions} />
           <Button
-            variant='primary'
+            variant='secondary'
             size='compact'
             icon='I074'
             disabled={newChunkDisabled}

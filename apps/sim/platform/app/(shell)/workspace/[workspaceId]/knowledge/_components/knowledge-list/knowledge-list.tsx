@@ -769,7 +769,7 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
         actions={sortActions({ columns: SORTS, sort, dir, onSort: preferences.setSort })}
       />
       <Button
-        variant='secondary'
+        variant='quiet'
         size='compact'
         icon='I100'
         disabled={!canEdit || createFolder.isPending}
@@ -778,7 +778,7 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
         New folder
       </Button>
       <Button
-        variant='primary'
+        variant='secondary'
         size='compact'
         icon='I074'
         disabled={!canEdit}

@@ -231,15 +231,20 @@ export function ColumnConfigPanel({
       onClose={onClose}
       footer={
         <>
-          <Button variant='quiet' onClick={onClose}>
+          <Button variant='quiet' size='compact' onClick={onClose}>
             {readOnly ? 'Close' : 'Cancel'}
           </Button>
           {readOnly ? (
-            <Button variant='primary' disabled disabledReason={readOnlyReason}>
+            <Button variant='primary' size='compact' disabled disabledReason={readOnlyReason}>
               Save
             </Button>
           ) : (
-            <Button variant='primary' onClick={() => void handleSave()} disabled={saving}>
+            <Button
+              variant='primary'
+              size='compact'
+              onClick={() => void handleSave()}
+              disabled={saving}
+            >
               {saving ? 'Saving…' : 'Save'}
             </Button>
           )}

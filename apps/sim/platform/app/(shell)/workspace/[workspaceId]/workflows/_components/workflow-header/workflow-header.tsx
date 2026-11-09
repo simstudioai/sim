@@ -405,7 +405,7 @@ export function WorkflowActions({ workspaceId, workflowId }: WorkflowHeaderProps
       <ActionMenu label='Workflow actions' actions={menu} icon='I108' align='end' tooltip />
       <DeployButton workspaceId={workspaceId} workflowId={workflowId} />
       <Button
-        variant={isExecuting ? 'secondary' : 'primary'}
+        size='compact'
         icon={isExecuting ? 'I035' : undefined}
         disabled={runDisabled}
         onClick={() => void (isExecuting ? handleCancelExecution() : run())}

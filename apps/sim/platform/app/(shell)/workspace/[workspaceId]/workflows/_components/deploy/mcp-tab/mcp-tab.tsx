@@ -64,7 +64,7 @@ export function McpTab({
         title='No MCP servers'
         description='Create an MCP server to expose your workflows as tools.'
         action={
-          <Button variant='secondary' onClick={onCreateServer}>
+          <Button variant='secondary' size='compact' onClick={onCreateServer}>
             Create MCP server
           </Button>
         }
