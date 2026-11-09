@@ -105,7 +105,9 @@ async function setNotificationsEnabled(enabled: boolean): Promise<void> {
 beforeAll(async () => {
   await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
   await connection.unsafe(`
-    CREATE TABLE organization (id text PRIMARY KEY, limit_notifications jsonb);
+    CREATE TABLE organization (
+      id text PRIMARY KEY, limit_notifications jsonb, kind text NOT NULL DEFAULT 'team'
+    );
     CREATE TABLE "user" (id text PRIMARY KEY, email text, name text);
     CREATE TABLE member (id text PRIMARY KEY, organization_id text, user_id text, role text);
     CREATE TABLE settings (id text PRIMARY KEY, user_id text, billing_usage_notifications_enabled boolean);

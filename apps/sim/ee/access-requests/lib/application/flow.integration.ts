@@ -73,7 +73,7 @@ beforeAll(async () => {
       id text PRIMARY KEY, name text NOT NULL, email text NOT NULL,
       banned boolean DEFAULT false, ban_expires timestamp, suspended_at timestamp
     );
-    CREATE TABLE organization (id text PRIMARY KEY);
+    CREATE TABLE organization (id text PRIMARY KEY, kind text NOT NULL DEFAULT 'team');
     CREATE TABLE member (
       id text PRIMARY KEY, organization_id text REFERENCES organization(id),
       user_id text REFERENCES "user"(id), role text NOT NULL

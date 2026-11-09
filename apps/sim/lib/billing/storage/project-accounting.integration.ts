@@ -87,7 +87,10 @@ describe('Project storage admission, transfer, and reconciliation in PostgreSQL'
     })
     database = drizzle(sql, { schema })
     await sql.unsafe(`
-      CREATE TABLE organization (id text PRIMARY KEY, storage_used_bytes bigint NOT NULL DEFAULT 0);
+      CREATE TABLE organization (
+        id text PRIMARY KEY, storage_used_bytes bigint NOT NULL DEFAULT 0,
+        kind text NOT NULL DEFAULT 'team'
+      );
       CREATE TABLE user_stats (id text PRIMARY KEY, user_id text UNIQUE NOT NULL, storage_used_bytes bigint NOT NULL DEFAULT 0);
       CREATE TABLE member (id text PRIMARY KEY, organization_id text NOT NULL, user_id text NOT NULL, role text NOT NULL);
       CREATE TABLE subscription (id text PRIMARY KEY, plan text NOT NULL, reference_id text NOT NULL,
