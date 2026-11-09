@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
-import { TextAreaField, TextField } from '@sim/emcn/field'
-import { DetailsField } from '@sim/emcn/field/details-field'
+import { SwitchField, TextAreaField, TextField } from '@sim/emcn/field'
 import { FileField } from '@sim/emcn/field/file-field'
 import { Modal } from '@sim/emcn/modal'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
@@ -21,6 +20,7 @@ import {
   Muted,
   SectionStack,
 } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
+import { MetadataFields } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/metadata-fields/metadata-fields'
 import {
   type CustomBlock,
   type CustomBlockInput,
@@ -391,8 +391,13 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
           <FieldStack>
             {existing ? (
               <>
-                <DetailsField label='Workspace'>{existing.workspaceName ?? '—'}</DetailsField>
-                <DetailsField label='Workflow'>{existing.workflowName}</DetailsField>
+                <MetadataFields
+                  label='Source workflow'
+                  fields={[
+                    { id: 'workspace', label: 'Workspace', value: existing.workspaceName ?? '—' },
+                    { id: 'workflow', label: 'Workflow', value: existing.workflowName },
+                  ]}
+                />
                 <Muted>
                   {notDeployed
                     ? 'This workflow isn’t deployed. Redeploy it so the block can run.'
@@ -483,16 +488,16 @@ export function CustomBlockDetail({ existing, workspaceId, onBack }: CustomBlock
             {!deployed.isLoading && visibleInputs.length === 0 && (
               <Muted>This workflow’s Start block has no inputs.</Muted>
             )}
+            {!deployed.isLoading &&
+              visibleInputs.map((input) => (
+                <InputOverride
+                  key={input.id}
+                  input={input}
+                  disabled={fieldsDisabled}
+                  onChange={(patch) => setInputOverride(input.id, patch)}
+                />
+              ))}
           </FieldStack>
-          {!deployed.isLoading &&
-            visibleInputs.map((input) => (
-              <InputOverride
-                key={input.id}
-                input={input}
-                disabled={fieldsDisabled}
-                onChange={(patch) => setInputOverride(input.id, patch)}
-              />
-            ))}
         </SettingsSection>
         <SettingsSection title='Outputs'>
           <FieldStack>
@@ -616,27 +621,21 @@ interface InputOverrideProps {
 function InputOverride({ input, disabled, onChange }: InputOverrideProps) {
   return (
     <>
-      <SettingsRow
+      <TextField
         label={input.name}
-        description={input.description ? `${input.type} · ${input.description}` : input.type}
-      >
-        <Switch
-          label={`${input.name} required`}
-          checked={input.required ?? false}
-          onCheckedChange={(required) => onChange({ required })}
-          disabled={disabled}
-        />
-      </SettingsRow>
-      <FieldStack>
-        <TextField
-          label={`${input.name} placeholder`}
-          value={input.placeholder ?? ''}
-          onChange={(placeholder) => onChange({ placeholder })}
-          placeholder='Shown in the empty field'
-          maxLength={200}
-          disabled={disabled}
-        />
-      </FieldStack>
+        hint={input.description ? `${input.type} · ${input.description}` : input.type}
+        value={input.placeholder ?? ''}
+        onChange={(placeholder) => onChange({ placeholder })}
+        placeholder='Shown in the empty field'
+        maxLength={200}
+        disabled={disabled}
+      />
+      <SwitchField
+        label={`${input.name} required`}
+        checked={input.required ?? false}
+        onCheckedChange={(required) => onChange({ required })}
+        disabled={disabled}
+      />
     </>
   )
 }
