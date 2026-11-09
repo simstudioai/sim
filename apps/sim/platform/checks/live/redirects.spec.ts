@@ -33,8 +33,9 @@ test('a saved link to a workspace the viewer cannot open is not found, naming no
   page,
 }) => {
   await signInAsAdmin(page, liveRoute('/home'))
+  // The shell paints before the page decides, so the not-found page arrives in a 200 response; a
+  // root layout's notFound() would answer 404 with Next's unbranded page instead.
   const response = await page.goto(`${OUTSIDE_WORKSPACE}/home`)
-  expect(response?.status()).toBe(404)
   await expect(page).toHaveURL(new RegExp(`${escapeRegExp(OUTSIDE_WORKSPACE)}/home$`))
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
   expect(await response?.text()).not.toContain(`${organizationId()}-outside`)
