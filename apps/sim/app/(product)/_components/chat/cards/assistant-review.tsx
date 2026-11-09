@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { type RefObject, useEffect, useRef, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { Disclosure } from '@sim/emcn/disclosure'
 import { Input, TextArea } from '@sim/emcn/field/inputs'
@@ -87,7 +87,7 @@ interface ActionCardProps {
   disabled: boolean
   saving: Decision | null
   onEdit: (name: string, value: string) => void
-  onDecide: (decision: Decision) => void
+  onDecide: (decision: Decision, source: HTMLButtonElement) => void
 }
 
 function ActionCard({ action, edits, error, disabled, saving, onEdit, onDecide }: ActionCardProps) {
@@ -170,11 +170,16 @@ function ActionCard({ action, edits, error, disabled, saving, onEdit, onDecide }
           variant='primary'
           size='compact'
           disabled={disabled || inactive || !action.account}
-          onClick={() => onDecide('allow')}
+          onClick={(event) => onDecide('allow', event.currentTarget)}
         >
           {saving === 'allow' ? 'Saving…' : 'Allow'}
         </Button>
-        <Button variant='muted' size='compact' disabled={disabled} onClick={() => onDecide('skip')}>
+        <Button
+          variant='muted'
+          size='compact'
+          disabled={disabled}
+          onClick={(event) => onDecide('skip', event.currentTarget)}
+        >
           {saving === 'skip' ? 'Saving…' : 'Cancel'}
         </Button>
       </div>
@@ -240,22 +245,62 @@ export function Receipt({ receipt }: { receipt: AssistantReceipt }) {
   )
 }
 
+interface AssistantReviewProps {
+  turnId: string
+  /** Takes focus back when the button a decision was made from is gone once it settles. */
+  turn: RefObject<HTMLElement | null>
+}
+
 /**
  * An assistant turn's review: what every reviewed action of the turn did, read a page at a time,
  * and on the turn holding them, the actions still waiting for the person to allow or cancel.
  */
-export function AssistantReview({ turnId }: { turnId: string }) {
+export function AssistantReview({ turnId, turn }: AssistantReviewProps) {
   const { review } = useChatInteractions()
   const cards = useChatCards()
   const [edits, setEdits] = useState<Edits>({})
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState<{ ids: readonly string[]; decision: Decision } | null>(null)
+  const focusOrigin = useRef<HTMLButtonElement | null>(null)
+  const pending = review?.pending ?? false
+
+  // Saving disables the decision buttons, which drops their focus. Once it settles, focus returns
+  // to the button decided from, or to the turn when that button is gone, unless the person has
+  // since moved focus elsewhere.
+  useEffect(() => {
+    const origin = focusOrigin.current
+    if (!origin) return
+    if (pending) {
+      const cancelRestore = () => {
+        focusOrigin.current = null
+      }
+      const handleFocus = (event: FocusEvent) => {
+        if (event.target !== origin && event.target !== document.body) cancelRestore()
+      }
+      document.addEventListener('focusin', handleFocus, true)
+      document.addEventListener('pointerdown', cancelRestore, true)
+      return () => {
+        document.removeEventListener('focusin', handleFocus, true)
+        document.removeEventListener('pointerdown', cancelRestore, true)
+      }
+    }
+    focusOrigin.current = null
+    if (
+      document.hasFocus() &&
+      (document.activeElement === document.body || document.activeElement === origin)
+    ) {
+      const target = origin.isConnected && !origin.disabled ? origin : turn.current
+      target?.focus({ preventScroll: true })
+    }
+  }, [pending, turn])
+
   if (!review) return null
-  const { actions, status, pending, more, retry, decide, streamIds } = review
+  const { actions, status, more, retry, decide, streamIds } = review
   const ownsActions = review.turnId === turnId
   const streamId = streamIds.get(turnId)
   const pendingIds = new Set(actions.map((action) => action.id))
-  async function run(ids: readonly string[], decision: Decision) {
+  async function run(ids: readonly string[], decision: Decision, source: HTMLButtonElement) {
+    focusOrigin.current = document.activeElement === source ? source : null
     setErrors((current) =>
       Object.fromEntries(Object.entries(current).filter(([id]) => !ids.includes(id)))
     )
@@ -313,7 +358,7 @@ export function AssistantReview({ turnId }: { turnId: string }) {
                   [action.id]: { ...current[action.id], [name]: value },
                 }))
               }}
-              onDecide={(decision) => void run([action.id], decision)}
+              onDecide={(decision, source) => void run([action.id], decision, source)}
             />
           ))}
           {actions.length > 1 && (
@@ -322,10 +367,11 @@ export function AssistantReview({ turnId }: { turnId: string }) {
                 variant='primary'
                 size='compact'
                 disabled={allowDisabled || status === 'error'}
-                onClick={() =>
+                onClick={(event) =>
                   void run(
                     actions.map((action) => action.id),
-                    'allow'
+                    'allow',
+                    event.currentTarget
                   )
                 }
               >
@@ -335,10 +381,11 @@ export function AssistantReview({ turnId }: { turnId: string }) {
                 variant='muted'
                 size='compact'
                 disabled={pending || status === 'error'}
-                onClick={() =>
+                onClick={(event) =>
                   void run(
                     actions.map((action) => action.id),
-                    'skip'
+                    'skip',
+                    event.currentTarget
                   )
                 }
               >

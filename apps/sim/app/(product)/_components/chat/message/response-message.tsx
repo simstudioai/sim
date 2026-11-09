@@ -1,5 +1,6 @@
 'use client'
 
+import { useRef } from 'react'
 import { Button } from '@sim/emcn/button'
 import { AssistantReview } from '@/app/(product)/_components/chat/cards/assistant-review'
 import { LaneActivity } from '@/app/(product)/_components/chat/message/lane-activity'
@@ -80,12 +81,19 @@ export function ResponseMessage({ turn }: ResponseMessageProps) {
   const { review } = useChatInteractions()
   const { retry } = useChatHandlers()
   const inReview = review?.turnId === turn.id && (review.actions.length > 0 || review.pending)
+  const turnRef = useRef<HTMLDivElement>(null)
   return (
-    <div className={styles.answer}>
+    <div
+      ref={turnRef}
+      className={styles.answer}
+      role={review ? 'group' : undefined}
+      aria-label={review ? 'Conversation turn' : undefined}
+      tabIndex={review ? -1 : undefined}
+    >
       {parts.map((part) => (
         <ResponsePart key={part.id} part={part} />
       ))}
-      <AssistantReview turnId={turn.id} />
+      <AssistantReview turnId={turn.id} turn={turnRef} />
       {waiting && (
         <p className={styles.status} data-type='T048' role='status'>
           {waiting}
