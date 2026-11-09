@@ -57,18 +57,6 @@ export type HomeListState<T> =
       settling?: boolean
     }
 
-/** A Home Workspaces row: one of the sidebar's workspaces, with what its runs are doing. */
-export interface HomeWorkspaceItem {
-  id: string
-  name: string
-  href: string
-  /** Absent while the viewer's activity read has nothing to say about this workspace. */
-  detail?: string
-  status?: 'review' | 'running'
-  /** Shown in place of a status, as when the newest run started. */
-  lastRunAt?: number
-}
-
 export interface ActivityPoint {
   date: string
   value: number

@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import type { Locator, Page } from '@playwright/test'
 import { createDeferred } from '@sim/testing/helpers/deferred'
-import type { OrganizationHomeWorkspaceActivity } from '@/lib/api/contracts/organization-home'
 import {
   ADMIN,
   ADMIN_CHATS,
@@ -38,7 +37,7 @@ import {
   searchField,
   sidebar,
 } from '@/scripts/org-redesign-e2e/locators'
-import { fulfillContract, stubSearch } from '@/scripts/org-redesign-e2e/stubs'
+import { stubSearch } from '@/scripts/org-redesign-e2e/stubs'
 
 /** The Search page's Search/Assistant switch, a radio group in the page header. */
 const searchMode = (page: Page, mode: 'Search' | 'Assistant') =>
@@ -54,7 +53,7 @@ const homeUrl = url(org.home)
 const assistantSearchUrl = url(`${org.search}?mode=assistant`)
 
 /**
- * Real signals for the Home Workspaces rows: a person-paused run in the member's write workspace, a
+ * Real signals for the workspace activity read: a person-paused run in the member's write workspace, a
  * live run in their admin workspace, and a paused run in one they cannot open, which must not reach them.
  */
 async function withWorkspaceActivity(run: () => Promise<void>) {
@@ -370,75 +369,6 @@ export async function homeChecks() {
       await expect(homeRegion(page, 'Email')).toBeVisible()
     })
   })
-  await check('a workspace with an old run says when, and claims no status', async () => {
-    await withSession(ADMIN, async ({ page }) => {
-      await page.route(/\/home\/workspace-activity$/, (route) =>
-        fulfillContract<OrganizationHomeWorkspaceActivity>(route, {
-          workspaces: [
-            {
-              workspaceId: MEMBER_ADMIN_WORKSPACE.id,
-              status: null,
-              statusWorkflowName: null,
-              lastRun: {
-                workflowName: 'Invoice sync',
-                startedAt: new Date(Date.now() - 2.5 * 60 * 60_000).toISOString(),
-                failed: true,
-              },
-            },
-            {
-              workspaceId: MEMBER_WRITE_WORKSPACE.id,
-              status: null,
-              statusWorkflowName: null,
-              lastRun: null,
-            },
-          ],
-        })
-      )
-      await page.goto(homeUrl)
-      const region = homeRegion(page, 'Workspaces')
-      await expect(region.getByText('Last run failed: Invoice sync')).toBeVisible()
-      await expect(region.getByText('2hrs ago')).toBeVisible()
-      await expect(region.getByText('No recent workflow runs')).toBeVisible()
-      const rowWidth = (await region.getByRole('link', { name: /Invoice sync/ }).boundingBox())
-        ?.width
-      const regionWidth = (await region.boundingBox())?.width
-      assert(
-        rowWidth && regionWidth && rowWidth >= regionWidth,
-        `A row is ${rowWidth}px wide in a ${regionWidth}px section, too narrow to show its name`
-      )
-    })
-  })
-  await check(
-    'Workspaces shows its rows while their activity is out, and keeps them if it fails',
-    async () => {
-      await withSession(ADMIN, async ({ page }) => {
-        const release = createDeferred<void>()
-        let fail = true
-        await page.route(/\/home\/workspace-activity$/, async (route) => {
-          await release.promise
-          if (fail) await route.fulfill({ status: 500, json: { error: 'stand-in' } })
-          else await route.fallback()
-        })
-        await page.goto(homeUrl)
-        const region = homeRegion(page, 'Workspaces')
-        // The names are already known, so the rows paint at once, with what they report still out.
-        await expect(region.getByRole('link', { name: MEMBER_ADMIN_WORKSPACE.name })).toBeVisible()
-        await expect(region.getByText('…', { exact: true }).first()).toBeVisible()
-        await expect(region.getByText('Up to date')).toHaveCount(0)
-        release.resolve()
-        await expect(
-          region.getByText('What these workspaces are doing could not load.')
-        ).toBeVisible({ timeout: 30_000 })
-        await expect(region.getByRole('link', { name: MEMBER_ADMIN_WORKSPACE.name })).toBeVisible()
-        fail = false
-        await region.getByRole('button', { name: 'Try again' }).click()
-        await expect(
-          region.getByText('What these workspaces are doing could not load.')
-        ).toHaveCount(0, { timeout: 30_000 })
-      })
-    },
-    { allow: [/500 GET .*workspace-activity/] }
-  )
   await check("a builder's Home does not jump from its skeleton to its content", async () => {
     await withSession(ADMIN, async (session) => {
       const { page } = session
@@ -470,10 +400,8 @@ export async function homeChecks() {
       async (session) => {
         const { page } = session
         await page.goto(homeUrl)
-        await expect(homeRegion(page, 'Workspaces')).toBeVisible()
+        await expect(homeRegion(page, 'Email')).toBeVisible()
         await session.settle()
-        const seeMore = homeRegion(page, 'Workspaces').getByRole('button', { name: 'See more' })
-        if ((await seeMore.count()) > 0) await seeMore.click()
         const boxes = await page
           .getByRole('main')
           .getByRole('region')
@@ -508,28 +436,6 @@ export async function homeChecks() {
         await page.goto(url(path))
         await expect(page.getByRole('main')).toHaveCount(1)
       }
-    })
-  })
-  await check('Customize Home hides Workspaces across a reload, and stops its read', async () => {
-    await onHome(ADMIN, async (session) => {
-      const { page } = session
-      await expect(homeRegion(page, 'Workspaces')).toBeVisible()
-      await page.getByRole('button', { name: 'Customize Home' }).click()
-      await page.getByRole('menuitemcheckbox', { name: 'Workspaces' }).click()
-      await page.keyboard.press('Escape')
-      await expect(homeRegion(page, 'Workspaces')).toHaveCount(0)
-      const reads = captureRequests(page, (request) =>
-        request.url().includes('/home/workspace-activity')
-      )
-      await page.reload()
-      await expect(composer(page)).toBeVisible()
-      await session.settle()
-      await expect(homeRegion(page, 'Workspaces')).toHaveCount(0)
-      assert.deepEqual(reads, [], 'A hidden widget still read its activity')
-      await page.getByRole('button', { name: 'Customize Home' }).click()
-      await page.getByRole('menuitemcheckbox', { name: 'Workspaces' }).click()
-      await page.keyboard.press('Escape')
-      await expect(homeRegion(page, 'Workspaces')).toBeVisible()
     })
   })
   section('3 Home: admin')
@@ -571,16 +477,6 @@ export async function homeChecks() {
       })
     }
   )
-  await check('an admin pages through Workspaces the way the rail does', async () => {
-    await onHome(ADMIN, async ({ page }) => {
-      const region = homeRegion(page, 'Workspaces')
-      await expect(region.getByRole('link')).toHaveCount(5)
-      await region.getByRole('button', { name: 'See more' }).click()
-      await expect.poll(() => region.getByRole('link').count()).toBeGreaterThan(5)
-      await region.getByRole('button', { name: 'See less' }).click()
-      await expect(region.getByRole('link')).toHaveCount(5)
-    })
-  })
   await check('the workspace activity read refuses another organization', async () => {
     await onHome(ADMIN, async ({ page }) => {
       const response = await page.request.get(
@@ -589,18 +485,22 @@ export async function homeChecks() {
       assert.equal(response.status(), 404)
     })
   })
-  await check('the agent composer with its tools and the Tasks run chart', async () => {
-    await onHome(ADMIN, async ({ page }) => {
-      await expect(page).toHaveURL(homeUrl)
-      await expect(page.getByRole('heading', { level: 1 })).toContainText(', Ada')
-      await expect(composer(page)).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Add attachment' })).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Attach file' })).toBeVisible()
-      await expect(page.getByRole('button', { name: /Skills/ }).first()).toBeVisible()
-      await expect(homeRegion(page, 'Tasks run')).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeDisabled()
-    })
-  })
+  await check(
+    'the agent composer with its tools and the Tasks run chart, without Suggested actions',
+    async () => {
+      await onHome(ADMIN, async ({ page }) => {
+        await expect(page).toHaveURL(homeUrl)
+        await expect(page.getByRole('heading', { level: 1 })).toContainText(', Ada')
+        await expect(composer(page)).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Add attachment' })).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Attach file' })).toBeVisible()
+        await expect(page.getByRole('button', { name: /Skills/ }).first()).toBeVisible()
+        await expect(page.getByText('Suggested actions', { exact: true })).toHaveCount(0)
+        await expect(homeRegion(page, 'Tasks run')).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeDisabled()
+      })
+    }
+  )
   await check('an agent turn streams, keeps its route, and Stop ends it', async () => {
     await onHome(ADMIN, async ({ page }) => {
       await composer(page).fill('Count slowly from 1 to 50, one number per line.')

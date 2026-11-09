@@ -10,7 +10,6 @@ import type {
   HomeListState,
   HomeWidgetActions,
   HomeWidgetState,
-  HomeWorkspaceItem,
 } from '@/platform/shared/home'
 
 export interface AttentionItem {
@@ -64,8 +63,6 @@ export interface HomeView {
   activity: Record<HomeMode, HomeActivityState>
   email: HomeWidgetState<readonly EmailItem[]>
   calendar: HomeWidgetState<HomeCalendarDay>
-  /** The viewer's workspaces, the sidebar's rows. Nothing renders for a viewer with none. */
-  workspaces: HomeListState<HomeWorkspaceItem>
   recents: HomeListState<HomeRecentItem>
   getStarted: readonly HomeGetStartedStep[]
   composerInventory?: ComposerInventory
@@ -79,7 +76,6 @@ export interface HomeActions {
   returnToToday: () => void
   retryAttention: () => void
   retryActivity: () => void
-  retryWorkspaces: () => void
   retryRecents: () => void
   removeRecent: (id: string) => void
 }

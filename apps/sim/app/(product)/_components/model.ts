@@ -5,7 +5,7 @@ import type { SettingsSearchEntry } from '@/platform/shared/settings-search'
 import type { ShellDestination, ShellItem, ShellQueryStatus } from '@/platform/shared/shell'
 
 export type HomeMode = 'Build' | 'Search'
-export type HomeWidget = 'Activity' | 'Workspaces' | 'Email' | 'Calendar'
+export type HomeWidget = 'Activity' | 'Email' | 'Calendar'
 
 export interface InboxItem extends ShellItem {
   description: string
