@@ -353,19 +353,20 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/page.tsx": {
-      "modules": 363,
+      "modules": 400,
       "gateways": {
-        "apps/sim/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/document-view/document-view.tsx": 361,
-        "apps/sim/platform/lib/data/knowledge/index.ts": 202,
+        "apps/sim/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/document-view/document-view.tsx": 194,
+        "apps/sim/platform/lib/data/knowledge/index.ts": 174,
         "apps/sim/lib/sim-search/connectors.ts": 80,
         "apps/sim/connectors/registry.ts": 76,
-        "apps/sim/lib/api/contracts/index.ts": 72
+        "apps/sim/lib/api/contracts/index.ts": 69,
+        "apps/sim/app/(product)/workspace/[workspaceId]/_components/access-required/access-boundary.tsx": 37
       }
     },
     "app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/page.tsx": {
-      "modules": 1505,
+      "modules": 1541,
       "gateways": {
-        "apps/sim/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/knowledge-base/knowledge-base.tsx": 1503,
+        "apps/sim/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/knowledge-base/knowledge-base.tsx": 1335,
         "apps/sim/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/connector-fields/connector-fields.tsx": 1030,
         "apps/sim/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/connector-selector-field/connector-selector-field.tsx": 1028,
         "apps/sim/triggers/index.ts": 599,
