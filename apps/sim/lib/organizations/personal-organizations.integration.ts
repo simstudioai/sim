@@ -44,14 +44,22 @@ async function createUser(): Promise<string> {
   return id
 }
 
-/** An organization-less workspace, as every personal workspace was before personal organizations. */
-async function createLegacyPersonalWorkspace(ownerId: string, name: string): Promise<string> {
+/**
+ * An organization-less workspace, as every personal workspace was before personal organizations
+ * and as the previous release still creates them during cutover. `observedOrganizationId` is the
+ * membership the creator holds, which the creation lock re-checks.
+ */
+async function createLegacyPersonalWorkspace(
+  ownerId: string,
+  name: string,
+  observedOrganizationId: string | null = null
+): Promise<string> {
   const created = await db.transaction((tx) =>
     createWorkspaceInTransaction(tx, {
       userId: ownerId,
       name,
       organizationId: null,
-      observedOrganizationId: null,
+      observedOrganizationId,
       governingPermissionGroupOrganizationId: null,
       workspaceMode: 'personal',
       billedAccountUserId: ownerId,
@@ -187,7 +195,11 @@ describe('personal organization provisioning', () => {
     if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
     expect(provisioned.attachedWorkspaceIds).toEqual([])
 
-    const late = await createLegacyPersonalWorkspace(ownerId, 'Created by the previous release')
+    const late = await createLegacyPersonalWorkspace(
+      ownerId,
+      'Created by the previous release',
+      provisioned.organizationId
+    )
     const resumed = await provisionPersonalOrganization(ownerId)
 
     expect(resumed).toMatchObject({
