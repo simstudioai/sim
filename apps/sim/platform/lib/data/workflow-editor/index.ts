@@ -37,12 +37,17 @@ export { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 export { WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS } from '@/lib/workflows/search-replace/subflow-fields'
 export {
   buildCanonicalIndex,
+  buildCanonicalIndexForSurface,
   buildSubBlockValues,
   evaluateSubBlockCondition,
   getCanonicalSubBlocksForSurface,
   hasAdvancedValues,
   isCanonicalPair,
   isStandaloneAdvancedMode,
+  isSubBlockFeatureEnabled,
+  isSubBlockVisibleForMode,
+  isSubBlockVisibleForTriggerMode,
+  isToolInputOnlySubBlock,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 export { getBlock } from '@/blocks/registry'
@@ -67,6 +72,7 @@ export { useWorkflowStore } from '@/stores/workflows/workflow/store'
 export type { BlockState } from '@/stores/workflows/workflow/types'
 export { isAccessibleCodeReference } from './code-references'
 export { checkTagTrigger } from './reference-triggers'
+export { resolveSnapshotConnections, type SnapshotReference } from './snapshot-connections'
 export { isFieldRequired } from './subblock-required'
 export {
   type BlockTagGroup,
