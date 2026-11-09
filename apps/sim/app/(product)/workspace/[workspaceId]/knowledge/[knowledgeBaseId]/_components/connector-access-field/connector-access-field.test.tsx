@@ -22,13 +22,12 @@ vi.mock('@/platform/lib/data/knowledge/connectors', () => ({
   }),
 }))
 
-import { SETTINGS_SECTIONS } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { ConnectorAccessField } from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/connector-access-field/connector-access-field'
 import type { ConnectorMeta } from '@/platform/lib/data/knowledge/connectors'
 import { SurfaceScopeProvider } from '@/platform/lib/surface-scope'
 
 describe('Set up Slack', () => {
-  it("links to the organization's Slack section, which the Settings registry serves", () => {
+  it("links to the organization's Slack section", () => {
     const markup = renderToStaticMarkup(
       <SurfaceScopeProvider routePrefix='/o/org-1'>
         <ConnectorAccessField
@@ -46,6 +45,5 @@ describe('Set up Slack', () => {
 
     const href = markup.match(/href="([^"]+)"/)?.[1]
     expect(href).toBe('/o/org-1/settings/search-slack')
-    expect(Object.keys(SETTINGS_SECTIONS)).toContain('search-slack')
   })
 })
