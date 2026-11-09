@@ -3,7 +3,7 @@
 import { type KeyboardEvent, type RefObject, useRef, useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
 import { Input } from '@sim/emcn/field/inputs'
-import styles from '@/app/(product)/workspace/[workspaceId]/_components/find-bar/find-bar.module.css'
+import styles from '@/app/(product)/_components/find-bar/find-bar.module.css'
 
 /** Replacing matches, offered only where the content is editable. */
 interface FindReplace {
