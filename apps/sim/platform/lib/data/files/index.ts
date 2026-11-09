@@ -47,6 +47,7 @@ export {
 } from '@/hooks/queries/workspace-files'
 export type { SaveStatus } from '@/hooks/use-autosave'
 export { useWorkspaceFilesRoom } from '@/hooks/use-workspace-files-room'
+export { useInFlightUploadsStore } from '@/stores/in-flight-uploads/store'
 export { useFileAccess } from './access'
 export { useAddToChat } from './add-to-chat'
 export { useDeriveFileTitle } from './title'

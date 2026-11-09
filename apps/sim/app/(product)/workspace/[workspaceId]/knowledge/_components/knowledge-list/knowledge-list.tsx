@@ -167,7 +167,7 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
   const membersQuery = useWorkspaceMembersQuery(workspaceId)
   const foldersQuery = useFolders(workspaceId, { resourceType: 'knowledge_base' })
   const folders = foldersQuery.data ?? EMPTY_FOLDERS
-  const foldersResolved = foldersQuery.isSuccess && !foldersQuery.isPlaceholderData
+  const foldersResolved = foldersQuery.data !== undefined && !foldersQuery.isPlaceholderData
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
   const memberById = useMemo(
     () => new Map((membersQuery.data ?? []).map((member) => [member.userId, member])),
@@ -792,12 +792,15 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
     </ControlBar>
   )
 
-  const read: WorkspaceRead = basesQuery.isError
+  const failedRead = [basesQuery, foldersQuery].find(
+    (query) => query.isError && query.data === undefined
+  )
+  const read: WorkspaceRead = failedRead
     ? {
         status: 'error',
         message: 'Knowledge bases could not be loaded.',
-        retrying: basesQuery.isFetching,
-        onRetry: () => void basesQuery.refetch(),
+        retrying: failedRead.isFetching,
+        onRetry: () => void failedRead.refetch(),
       }
     : !access.settled ||
         (!access.hidden && (basesQuery.isPending || !foldersResolved || !preferences.isReady))

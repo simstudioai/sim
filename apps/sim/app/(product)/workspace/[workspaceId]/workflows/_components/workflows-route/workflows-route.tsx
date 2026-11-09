@@ -195,7 +195,7 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
   )
   const foldersQuery = useFolders(workspaceId, { resourceType: 'workflow' })
   const folders = foldersQuery.data ?? EMPTY_FOLDERS
-  const foldersResolved = foldersQuery.isSuccess && !foldersQuery.isPlaceholderData
+  const foldersResolved = foldersQuery.data !== undefined && !foldersQuery.isPlaceholderData
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
   const folderMap = useMemo(() => Object.fromEntries(folderById), [folderById])
   const workflowById = useMemo(
@@ -829,12 +829,15 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
     </ControlBar>
   )
 
-  const read: WorkspaceRead = workflowsQuery.isError
+  const failedRead = [workflowsQuery, foldersQuery].find(
+    (query) => query.isError && query.data === undefined
+  )
+  const read: WorkspaceRead = failedRead
     ? {
         status: 'error',
         message: 'Workflows could not be loaded.',
-        retrying: workflowsQuery.isFetching,
-        onRetry: () => void workflowsQuery.refetch(),
+        retrying: failedRead.isFetching,
+        onRetry: () => void failedRead.refetch(),
       }
     : workflowsQuery.isPending ||
         workflowsQuery.isPlaceholderData ||
