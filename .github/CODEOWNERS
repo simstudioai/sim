@@ -1,31 +1,36 @@
 # Copilot/Mothership chat streaming entrypoints and replay surfaces.
 /apps/sim/app/api/copilot/chat/ @simstudioai/mothership
 /apps/sim/app/api/copilot/confirm/ @simstudioai/mothership
-/apps/sim/app/api/copilot/chats/ @simstudioai/mothership
 /apps/sim/app/api/mothership/chat/ @simstudioai/mothership
 /apps/sim/app/api/mothership/chats/ @simstudioai/mothership
 /apps/sim/app/api/mothership/execute/ @simstudioai/mothership
 /apps/sim/app/api/v1/copilot/chat/ @simstudioai/mothership
 
 # Server-side stream orchestration, persistence, and protocol.
-/apps/sim/lib/copilot/chat/ @simstudioai/mothership
-/apps/sim/lib/copilot/async-runs/ @simstudioai/mothership
-/apps/sim/lib/copilot/request/ @simstudioai/mothership
-/apps/sim/lib/copilot/generated/ @simstudioai/mothership
-/apps/sim/lib/copilot/constants.ts @simstudioai/mothership
+/apps/sim/lib/mothership/chat/ @simstudioai/mothership
+/apps/sim/lib/mothership/async-runs/ @simstudioai/mothership
+/apps/sim/lib/mothership/request/ @simstudioai/mothership
+/apps/sim/lib/mothership/generated/ @simstudioai/mothership
+/apps/sim/lib/mothership/constants.ts @simstudioai/mothership
 /apps/sim/lib/core/utils/sse.ts @simstudioai/mothership
 
 # Stream-time tool execution, confirmations, resource persistence, and handlers.
-/apps/sim/lib/copilot/tool-executor/ @simstudioai/mothership
-/apps/sim/lib/copilot/tools/ @simstudioai/mothership
-/apps/sim/lib/copilot/persistence/ @simstudioai/mothership
-/apps/sim/lib/copilot/resources/ @simstudioai/mothership
+/apps/sim/lib/mothership/tool-executor/ @simstudioai/mothership
+/apps/sim/lib/mothership/tools/ @simstudioai/mothership
+/apps/sim/lib/mothership/persistence/ @simstudioai/mothership
+/apps/sim/lib/mothership/resources/ @simstudioai/mothership
 
 # Client-side stream consumption, hydration, and reconnect.
 /apps/sim/hooks/mothership-chat/use-chat.ts @simstudioai/mothership
 /apps/sim/hooks/mothership-chat/preview/ @simstudioai/mothership
 /apps/sim/hooks/mothership-chat/stream/ @simstudioai/mothership
-/apps/sim/hooks/queries/tasks.ts @simstudioai/mothership
+/apps/sim/hooks/queries/mothership-chats.ts @simstudioai/mothership
+
+# EMCN is frozen: only the design owner changes the shared design system or its surface snapshot
+# (`bun run check:emcn-surface`). Listed before the dependency rules, which still own package.json.
+/packages/emcn/ @emir-karabeg
+/packages/emcn-platform/ @emir-karabeg
+/scripts/emcn-surface.json @emir-karabeg
 
 # Dependency manifests and package-manager config. Any change here — adding,
 # removing, or bumping a dependency, or altering install/security settings —

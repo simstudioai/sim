@@ -19,12 +19,12 @@
  *
  * Run: `bun run check:guidance-refs`
  */
-import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
+import { listRepoFiles } from './repo-files'
 import { parseRule } from './sync-skills'
 
-const ROOT = path.resolve(import.meta.dir, '..')
+const ROOT = path.resolve(import.meta.dirname, '..')
 const APP_ROOT = path.join(ROOT, 'apps/sim')
 const SKILLS_DIR = path.join(ROOT, '.agents/skills')
 const SOURCE_EXTENSIONS = ['', '.ts', '.tsx', '.js', '.mjs', '.json', '.md', '.css']
@@ -36,20 +36,6 @@ interface Finding {
   ref: string
 }
 
-/**
- * Every tracked or untracked-but-not-ignored file on disk, relative to the repo root. A file
- * deleted from the working tree but still in the index is dropped.
- */
-function repoFiles(): string[] {
-  return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    maxBuffer: 1 << 28,
-  })
-    .split('\n')
-    .filter((rel) => rel && existsSync(path.join(ROOT, rel)))
-}
-
 /** Every guidance document, deduplicated through symlinks (`AGENTS.md` -> `CLAUDE.md`). */
 function guidanceFiles(files: string[]): string[] {
   const found = new Map<string, string>()
@@ -57,7 +43,8 @@ function guidanceFiles(files: string[]): string[] {
     const isGuidance =
       ['AGENTS.md', 'CLAUDE.md'].includes(path.basename(rel)) ||
       /^\.claude\/rules\/[^/]+\.md$/.test(rel) ||
-      /^\.agents\/skills\/.+\.md$/.test(rel)
+      /^\.agents\/skills\/.+\.md$/.test(rel) ||
+      /^apps\/sim\/platform\/docs\/.+\.md$/.test(rel)
     // `.claude/skills` and `.cursor` are generated projections of `.agents/skills`.
     if (!isGuidance || rel.startsWith('.claude/skills/') || rel.startsWith('.cursor/')) continue
     const full = path.join(ROOT, rel)
@@ -161,9 +148,14 @@ function pathResolves(ref: string, docDir: string): boolean {
     .replace(/\/$/, '')
   if (!clean) return true
   if (PATH_PREFIXES.some((prefix) => clean.startsWith(prefix))) {
-    return resolvesFrom(ROOT, clean)
+    // A doc inside the app may name the app's own `scripts/`.
+    return (
+      resolvesFrom(ROOT, clean) || (docDir.startsWith(APP_ROOT) && resolvesFrom(APP_ROOT, clean))
+    )
   }
-  const bases = [ROOT, docDir, APP_ROOT]
+  // A project's `docs/` folder writes paths from that project's root (`platform/docs` → `platform`).
+  const project = path.basename(docDir) === 'docs' ? [path.dirname(docDir)] : []
+  const bases = [ROOT, docDir, APP_ROOT, ...project]
   const rel = clean.replace(/^\.\//, '')
   const first = rel.split('/')[0]
   const anchored = bases.filter((base) => existsSync(path.join(base, first)))
@@ -216,6 +208,31 @@ const SCRIPT_RUN =
 const IMPORT_SPEC = /(['"`])((?:@\/|@sim\/)[^'"`\s]+)\1/g
 const SKILL_SLASH = /(?:^|[\s(`"'])\/([a-z][a-z0-9]*(?:-[a-z0-9]+)+|[a-z]{3,})(?=[\s`)"',.:;]|$)/g
 const SKILL_NAMED = /`\/?([a-z][a-z0-9-]+)`\s+skills?\b/g
+const SKILL_DOLLAR = /(?:^|[\s(`])\$([a-z][a-z0-9]*(?:-[a-z0-9]+)+)(?![\w{])/g
+/** A table column that names legacy code by design: it records where a capability came from. */
+const HISTORY_COLUMN = 'Legacy source'
+
+/** The skills a line names as `$name` (always hyphenated, unlike an OData `$filter`). */
+export function dollarSkills(text: string): string[] {
+  return [...text.matchAll(SKILL_DOLLAR)].map((match) => match[1] as string)
+}
+
+/** The lines with every table's `Legacy source` cells blanked, so history is never checked. */
+export function withoutHistoryColumn(lines: readonly string[]): string[] {
+  let column = -1
+  return lines.map((line) => {
+    if (!line.startsWith('|')) {
+      column = -1
+      return line
+    }
+    const cells = line.split(/(?<!\\)\|/)
+    if (column === -1) {
+      column = cells.findIndex((cell) => cell.trim() === HISTORY_COLUMN)
+      return line
+    }
+    return column > 0 ? cells.map((cell, at) => (at === column ? ' ' : cell)).join('|') : line
+  })
+}
 const REPO_PATH =
   /(?:^|[\s'"`(=])((?:apps|packages|scripts|\.claude|\.agents|\.github)\/[\w@.()[\]{}<>*/-]+)/g
 const CHECK_TOKEN = /^(check:[\w:-]+|[\w-]+:check)$/
@@ -279,7 +296,7 @@ function auditDocument(relFile: string, workspaces: Workspaces, files: string[])
   }
 
   let inFence = false
-  lines.forEach((text, index) => {
+  withoutHistoryColumn(lines).forEach((text, index) => {
     const line = index + 1
     if (/^\s*(```|~~~)/.test(text)) {
       inFence = !inFence
@@ -321,7 +338,7 @@ function auditDocument(relFile: string, workspaces: Workspaces, files: string[])
       }
       // A link names its destination explicitly, so there is no prose fallback: it resolves from
       // the repo root (leading `/`) or from the document's own folder.
-      const dest = target.replace(/[#?].*$/, '')
+      const dest = decodeURIComponent(target.replace(/[#?].*$/, ''))
       const base = dest.startsWith('/') ? ROOT : docDir
       if (dest && !resolvesFrom(base, dest.replace(/^\//, '').replace(/\/$/, ''))) {
         report(line, 'path', target)
@@ -331,7 +348,8 @@ function auditDocument(relFile: string, workspaces: Workspaces, files: string[])
     const outsideSpans = text.replace(/`[^`\n]*`/g, (span) =>
       span.startsWith('`/') ? span : 'CODE'
     )
-    if (/\bskills?\b/i.test(text)) {
+    // Product docs name routes and composer commands (`/integrations`, `/skill`), not skills.
+    if (/\bskills?\b/i.test(text) && !relFile.startsWith('apps/sim/platform/docs/')) {
       for (const match of outsideSpans.matchAll(SKILL_SLASH)) {
         if (!isPlaceholder(match[1]) && !skillExists(match[1])) report(line, 'skill', match[1])
       }
@@ -339,12 +357,15 @@ function auditDocument(relFile: string, workspaces: Workspaces, files: string[])
     for (const match of text.matchAll(SKILL_NAMED)) {
       if (!skillExists(match[1])) report(line, 'skill', match[1])
     }
+    for (const name of dollarSkills(text)) {
+      if (!skillExists(name)) report(line, 'skill', `$${name}`)
+    }
   })
   return findings
 }
 
 if (import.meta.main) {
-  const files = repoFiles()
+  const files = listRepoFiles(ROOT)
   const docs = guidanceFiles(files)
   const workspaces = readWorkspaces(files)
   const findings = docs.flatMap((doc) => auditDocument(doc, workspaces, files))

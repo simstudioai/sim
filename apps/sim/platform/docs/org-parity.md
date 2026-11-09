@@ -117,7 +117,7 @@ One row per capability of the legacy organization surface. Every capability is e
 
 | Domain | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- | --- |
-| Billing | Section gate | `settingsSections` | Done | "renders healthy in both themes" |
+| Billing | Section gate | `settingsSections` | Done | "${name} renders healthy in both themes at both widths" |
 | Billing | First-paint read, failure with retry | Billing | Unverified | The server read is proved by "a plan read on the server stands". The failure state needs the Platform server's own read to fail, which no browser stub can do |
 | Billing | Plan name, price, lapsed and free copy | Billing | Unverified | No live check yet. Same derivations; needs a seeded subscription for each state |
 | Billing | Explore plans link | Billing | Unverified | No live check yet. Links to `/settings/billing/plans` |
@@ -138,7 +138,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Usage | Workspace drill-down, Open logs | Insights | Unverified | No live check yet. Open logs keeps its hosted or `auditLogs` gate |
 | Usage | Activity summary, breakdown, paging, 404 recovery | Insights | Done | "Insights keeps its window" shows the breakdown; paging and 404 recovery have no live check. The metrics keep legacy's explanations and the runs chart its note on Other |
 | Usage | Manage member credits | Insights | Unverified | No live check yet. Member tab and hosted, same gate |
-| Usage | Events ledger, paging | Usage events | Done | "renders healthy in both themes". Paging has no live check |
+| Usage | Events ledger, paging | Usage events | Done | "${name} renders healthy in both themes at both widths". Paging has no live check |
 
 ## Settings: links and other
 
@@ -311,7 +311,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Collapsed icon rail with flyouts | `organization-sidebar.tsx` | Hidden | Product decision: the Platform collapses to its opener control, with no rail |
 | Drag to resize | `useSidebarResize` | Hidden | Product decision: the Platform sidebar has one width |
 | Desktop hover peek | `useSidebarPeek` | Hidden | Product decision: follows the rail decision |
-| Mobile navigation drawer | `workspace-chrome.tsx` | Unverified | No live check yet. Existing `platform-shell.tsx` drawer; `checks/ts` |
+| Mobile navigation drawer | `workspace-chrome.tsx` | Unverified | No live check yet. Existing `platform-shell.tsx` drawer |
 | Phone viewport containment | `workspace-viewport.tsx` | Open | Shell owner: needs a device check, and none has been possible yet. The shell uses `100dvh` |
 | Desktop titlebar insets | `workspace-chrome.tsx` | Unverified | No live check yet. Existing `desktop-host.tsx` |
 | Desktop menu commands | `workspace-chrome.tsx` | Unverified | No live check yet. `useDesktopCommands` in `desktop-host.tsx` |
@@ -324,7 +324,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Active item highlighting | `organization-sidebar.tsx` | Unverified | No live check yet. Existing `sidebar.tsx` |
 | Settings rail replaces app rail | `organization-sidebar.tsx` | Unverified | No live check yet. Existing `sidebar.tsx` |
 | Settings nav per role and plan | `organization-settings-sidebar.tsx` | Unverified | No live check yet. Foundation: `settings-navigation/destinations.ts` |
-| Settings search: sections and the settings inside them, synonyms, admin and hosted entries gated, a result opens its tab and brings its row into view | `platform/shared/settings-search.ts` | Unverified | No live check yet. The pre-cutover Platform's index and matching, moved to `platform/shared/settings-search.ts` from the deleted `platform/embedded`, attached to each section the viewer may open by `resolveSettingsNavigation`; `?row=` is revealed and stripped by `settings-screen.tsx`. `scripts/org-redesign-e2e/checks/settings.ts` exercises it but has not run against this build |
+| Settings search: sections and the settings inside them, synonyms, admin and hosted entries gated, a result opens its tab and brings its row into view | `platform/shared/settings-search.ts` | Unverified | No live check yet. The pre-cutover Platform's index and matching, moved to `platform/shared/settings-search.ts`, attached to each section the viewer may open by `resolveSettingsNavigation`; `?row=` is revealed and stripped by `settings-screen.tsx`. `scripts/org-redesign-e2e/checks/settings.ts` exercises it but has not run against this build |
 | Leave settings, return to prior page | `settings-return.ts` | Unverified | No live check yet. `settingsReturn` in `lib/data/shell-actions.ts` |
 | Org chip with logo or initial | `organization-header.tsx` | Unverified | No live check yet. `organization-menu.tsx` |
 | Collapsed chip as expand control | `organization-header.tsx` | Hidden | Product decision: the opener control does this, with no rail to hold a chip |
@@ -491,8 +491,8 @@ The workspace's Dashboard, Issues, Changelog and Logs are Platform pages. Fixtur
 
 | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- |
-| Saved links from before the product routes land where they now live, query kept | `next.config.ts` | Done | "a saved" |
+| Saved links from before the product routes land where they now live, query kept | `next.config.ts` | Done | "a saved ${from} lands on ${to}" |
 | The retired `/org` paths lead to the product home | `next.config.ts` | Done | "the retired /org paths lead to the product home" |
 | Security headers on product pages | `proxy.ts`, `next.config.ts` | Done | "product pages carry the security headers" |
-| No uncaught error, hydration mismatch, CSP block or 5xx on any route, in both themes at both widths | None; Platform only | Done | "renders healthy in both themes", one per route in `checks/live/routes.spec.ts` |
+| No uncaught error, hydration mismatch, CSP block or 5xx on any route, in both themes at both widths | None; Platform only | Done | "${name} renders healthy in both themes at both widths" (one per route) and "people-profile renders healthy in both themes at both widths", in `checks/live/routes.spec.ts` |
 | Self-hosted: boots and serves the product surface, billing and Enterprise off | `next.config.ts` | Done | "a self-hosted deployment boots", "a self-hosted organization is served the product surface", in the `live (self-hosted)` job |

@@ -26,12 +26,12 @@ like that" is not one.
 | Save | `SaveActions`, end-aligned in the page flow under the fields it commits: Discard while dirty, then Save. Save is visible and disabled while clean | Save in a header, Save before Discard, a Cancel beside Discard |
 | Autosave vs Save | One or the other per page. A page with `SaveActions` holds every field in one draft and writes it in one request. List actions with their own dialog, such as adding or removing a member, are not field edits | A page mixing both |
 | Create | A primary compact button in `SectionToolbar`, or in the page header on a page with one | Create in both the toolbar and the empty state |
-| Search over a section's rows | `SectionSearch subject='members'` | `SearchField` with its own copy, unless the search covers more than the subject's name |
+| Search over a section's rows | `SearchField` in the toolbar's `grow` slot, labelled and placeholdered `Search <subject>…` | A hand-built input, or copy that names more than the rows it filters |
 | Row | `ActivityRow` for a row that opens something, `SettingsRow` for a row holding a control | A hand-built row |
 | List of rows | `RowList` (`dividers` for a list read as one block). `ActivityRow density='comfortable'` in settings | `calc(-1 * var(--ui-row-inset))` around a list; styling a row's height from outside |
 | Row actions | `ActionMenu` with icon `I108`, destructive item last with a separator | The same action in the row and its menu |
 | Section heading | `SettingsSection title` (h2), `DetailHeader` for a sub-view's way back | A hand-written heading |
-| Toolbar | `SectionToolbar grow={<SectionSearch />}` with its actions as children | A hand-built flex row |
+| Toolbar | `SectionToolbar grow={<SearchField label='Search members' … />}` with its actions as children | A hand-built flex row |
 
 ## Failure feedback
 

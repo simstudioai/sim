@@ -15,7 +15,7 @@ Most rules here are enforced by a `check:*` audit or biome. When one fails, its 
 
 ## Architecture
 
-- **Layout**: `apps/sim` is the Next.js app (UI, API routes, executor; use cases live in `lib/<domain>/application`); its product UI is the route group `apps/sim/app/(product)/`, which reads server data through the seam in `apps/sim/platform/lib/data`. `apps/realtime` the collaborative Socket.IO server, `apps/desktop` an Electron shell around the hosted web app, `apps/docs` the docs site, and `apps/pii` a Python service outside the JS/turbo build. Shared code is in `packages/*` (`@sim/*`).
+- **Layout**: `apps/sim` is the Next.js app (UI, API routes, executor; use cases live in `lib/<domain>/application`). Its product UI is the route group `apps/sim/app/(product)/`, which reads server data through the seam in `apps/sim/platform/lib/data` (rules: `apps/sim/platform/AGENTS.md`). `apps/realtime` is the collaborative Socket.IO server, `apps/desktop` an Electron shell around the hosted web app, `apps/extension` the browser extension, `apps/docs` the docs site, and `apps/pii` a Python service outside the JS/turbo build. Shared code is in `packages/*` (`@sim/*`).
 - **Package boundaries**: `apps/* → packages/*` only; packages never import from `apps/*`. `apps/realtime` (a Bun Socket.IO server) avoids Next.js, React, the block/tool registry, provider SDKs, and the executor, and calls `apps/sim` only over internal HTTP with `INTERNAL_API_SECRET` (`check:boundaries`, `check:realtime-prune`). Both apps share Better Auth sessions through `@sim/db` and the same `BETTER_AUTH_SECRET`.
 - `'use client'` boundary, app/worker env split, and feature folder layout: `.claude/rules/sim-architecture.md`.
 

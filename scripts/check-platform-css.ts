@@ -11,21 +11,24 @@
  * - `route-reach`: only the product routes may load the design system. No other Next entry (the
  *   site's pages, auth, the extension's panel) may reach `platform/` or `packages/emcn-platform`
  *   through any import, static or dynamic. Dynamic counts because Next attaches a dynamically
- *   imported module's CSS to a Server Component's route whether or not it renders.
+ *   imported module's CSS to a Server Component's route whether or not it renders. A stylesheet's
+ *   `@import` and `composes … from` count too; so does a type-only import, which the scan does
+ *   not tell apart.
  *
  * Run: `bun run check:platform-css`
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import path from 'node:path'
+import ts from '@typescript/typescript6'
 import postcss, { type AcceptedPlugin, type AtRule } from 'postcss'
 import { emcnPackages, resolveEmcnImport } from './emcn-packages'
 import { PRODUCT_ROUTES } from './platform-product-routes'
+import { listRepoFiles } from './repo-files'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
 const APP = path.join(ROOT, 'apps/sim')
 const PLATFORM = path.join(APP, 'platform')
-const PACKAGES = emcnPackages(ROOT)
 const SHARED = path.join(ROOT, 'packages/emcn/src')
 const PLATFORM_COMPONENTS = path.join(ROOT, 'packages/emcn-platform/src')
 const PRODUCT = path.join(APP, PRODUCT_ROUTES)
@@ -63,10 +66,9 @@ export function findModuleEscapes(css: string, file: string): Finding[] {
     const inheritsLocalScope =
       parent?.type === 'rule' || (parent as AtRule | undefined)?.name === 'keyframes'
     for (const selector of rule.selectors) {
-      if (
-        selector.includes(':global') ||
-        (!inheritsLocalScope && !/\.-?[_a-zA-Z]/.test(selector))
-      ) {
+      // A class named inside an attribute value or string (`[href$=".pdf"]`) is not a local class.
+      const bare = selector.replace(/\[[^\]]*\]|"[^"]*"|'[^']*'/g, '')
+      if (selector.includes(':global') || (!inheritsLocalScope && !/\.-?[_a-zA-Z]/.test(bare))) {
         findings.push({ rule: 'module-escape', detail: `${file}: ${selector}` })
       }
     }
@@ -74,22 +76,17 @@ export function findModuleEscapes(css: string, file: string): Finding[] {
   return findings
 }
 
-function walk(directory: string, pattern: RegExp, files: string[] = []): string[] {
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    if (SKIPPED_FOLDERS.has(entry.name)) continue
-    const full = path.join(directory, entry.name)
-    if (entry.isDirectory()) walk(full, pattern, files)
-    else if (pattern.test(entry.name) && !TEST_FILE.test(entry.name)) files.push(full)
-  }
-  return files
-}
-
-function resolveSpecifier(specifier: string, from: string): string | null {
-  const workspace = resolveEmcnImport(PACKAGES, specifier, from)
+function resolveSpecifier(
+  specifier: string,
+  from: string,
+  app: string,
+  packages: ReturnType<typeof emcnPackages>
+): string | null {
+  const workspace = resolveEmcnImport(packages, specifier, from)
   const base =
     workspace ??
     (specifier.startsWith('@/')
-      ? path.join(APP, specifier.slice(2))
+      ? path.join(app, specifier.slice(2))
       : specifier.startsWith('.')
         ? path.resolve(path.dirname(from), specifier)
         : null)
@@ -101,24 +98,63 @@ function resolveSpecifier(specifier: string, from: string): string | null {
   return null
 }
 
-/** Walks importers back from `platform/`, so each module is visited once however the graph cycles. */
-function findRouteReach(): Finding[] {
+/** A stylesheet's own edges: `@import` and `composes … from`, which load the named sheet too. */
+function cssImports(css: string): string[] {
+  const found: string[] = []
+  const sheet = postcss.parse(css)
+  sheet.walkAtRules('import', (rule) => {
+    const specifier = rule.params.match(/['"]([^'"]+)['"]/)?.[1]
+    if (specifier) found.push(specifier)
+  })
+  sheet.walkDecls('composes', (decl) => {
+    const specifier = decl.value.match(/\bfrom\s+['"]([^'"]+)['"]/)?.[1]
+    if (specifier) found.push(specifier)
+  })
+  return found
+}
+
+/**
+ * Walks importers back from `platform/`, so each module is visited once however the graph cycles.
+ * Code and CSS files count: a site stylesheet composing a design-system class loads its sheet.
+ */
+export function findRouteReach(root = ROOT): Finding[] {
+  const app = path.join(root, 'apps/sim')
+  const packages = emcnPackages(root)
+  const product = path.join(app, PRODUCT_ROUTES)
   const insidePlatform = (file: string) =>
-    [PLATFORM, PLATFORM_COMPONENTS].some((directory) => file.startsWith(`${directory}${path.sep}`))
-  const files = [
-    ...walk(APP, CODE_FILE),
-    ...PACKAGES.flatMap((owner) => walk(owner.source, CODE_FILE)),
-  ].filter((file) => !insidePlatform(file))
-  const tsTranspiler = new Bun.Transpiler({ loader: 'ts' })
-  const tsxTranspiler = new Bun.Transpiler({ loader: 'tsx' })
+    [path.join(app, 'platform'), path.join(root, 'packages/emcn-platform/src')].some((directory) =>
+      file.startsWith(`${directory}${path.sep}`)
+    )
+  const sources = packages.map((owner) => `${owner.source}${path.sep}`)
+  const files = listRepoFiles(root)
+    .map((file) => path.join(root, file))
+    .filter(
+      (file) =>
+        (file.startsWith(`${app}${path.sep}`) ||
+          sources.some((source) => file.startsWith(source))) &&
+        (CODE_FILE.test(file) || file.endsWith('.css')) &&
+        !TEST_FILE.test(file) &&
+        !file.split(path.sep).some((segment) => SKIPPED_FOLDERS.has(segment)) &&
+        !insidePlatform(file)
+    )
   const importers = new Map<string, string[]>()
   const queue: string[] = []
   /** Maps a module that reaches `platform/` to its next step on the way there. */
   const nextStep = new Map<string, string>()
   for (const file of files) {
-    const transpiler = file.endsWith('x') ? tsxTranspiler : tsTranspiler
-    for (const { path: specifier } of transpiler.scan(readFileSync(file, 'utf8')).imports) {
-      const target = resolveSpecifier(specifier, file)
+    const source = readFileSync(file, 'utf8')
+    const specifiers = file.endsWith('.css')
+      ? cssImports(source)
+      : ts.preProcessFile(source, true, true).importedFiles.map((entry) => entry.fileName)
+    for (const specifier of specifiers) {
+      const target = resolveSpecifier(
+        file.endsWith('.css') && !specifier.startsWith('@') && !specifier.startsWith('.')
+          ? `./${specifier}`
+          : specifier,
+        file,
+        app,
+        packages
+      )
       if (!target) continue
       if (insidePlatform(target)) {
         if (!nextStep.has(file)) queue.push(file)
@@ -140,14 +176,14 @@ function findRouteReach(): Finding[] {
 
   const findings: Finding[] = []
   for (const file of files) {
-    const relative = path.relative(APP, file)
+    const relative = path.relative(app, file)
     const isNextEntry =
       relative.startsWith(`app${path.sep}`) && NEXT_ENTRY.test(path.basename(file))
     if (!isNextEntry && !ROOT_ENTRIES.includes(relative)) continue
-    if (file.startsWith(PRODUCT) || !nextStep.has(file)) continue
+    if (file.startsWith(product) || !nextStep.has(file)) continue
     const chain = [relative]
     for (let step = nextStep.get(file); step; step = nextStep.get(step)) {
-      chain.push(path.relative(APP, step))
+      chain.push(path.relative(app, step))
     }
     findings.push({ rule: 'route-reach', detail: chain.join(' -> ') })
   }
@@ -169,9 +205,13 @@ if (import.meta.main) {
   const compile = async (file: string) =>
     (await postcss(plugins).process(readFileSync(file, 'utf8'), { from: file })).css
 
-  const modules = [PRODUCT, PLATFORM, SHARED, PLATFORM_COMPONENTS].flatMap((directory) =>
-    walk(directory, CSS_MODULE)
-  )
+  const owners = [PRODUCT, PLATFORM, SHARED, PLATFORM_COMPONENTS]
+  const modules = listRepoFiles(ROOT)
+    .map((file) => path.join(ROOT, file))
+    .filter(
+      (file) =>
+        CSS_MODULE.test(file) && owners.some((owner) => file.startsWith(path.join(owner, path.sep)))
+    )
   const findings: Finding[] = []
   for (const file of modules) {
     findings.push(...findModuleEscapes(await compile(file), path.relative(APP, file)))

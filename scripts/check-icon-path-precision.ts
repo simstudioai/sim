@@ -6,8 +6,9 @@
  * digits increase shipped source without a visible benefit. Every path must
  * satisfy the limit or carry a reasoned local exception.
  *
- * Scope is intentionally limited to the shared app/docs icon catalogs and EMCN
- * icon components. SVG transforms, view boxes, dynamic path expressions, and
+ * Scope is intentionally limited to the shared app/docs icon catalogs, the legacy
+ * EMCN icon components, and modern EMCN's glyph geometry (icon masters, interface
+ * and brand glyphs). SVG transforms, view boxes, dynamic path expressions, and
  * page-specific artwork are not inspected because their safe precision depends
  * on context.
  *
@@ -23,6 +24,10 @@ const EMCN_ICONS_DIRECTORY = path.join(ROOT, 'packages/emcn-legacy/src/icons')
 const STATIC_ICON_FILES = [
   path.join(ROOT, 'apps/docs/components/icons/icons.tsx'),
   path.join(ROOT, 'apps/sim/components/icons.tsx'),
+  // Modern EMCN's glyph geometry: the Paper icon masters, interface glyphs and provider marks.
+  path.join(ROOT, 'packages/emcn/src/catalog/icon-geometry.tsx'),
+  path.join(ROOT, 'packages/emcn/src/components/icon/interface-glyphs.tsx'),
+  path.join(ROOT, 'packages/emcn/src/components/brand/provider-icon.tsx'),
 ]
 const SVG_NUMBER_PATTERN = /[+-]?(?:(?:\d+\.\d*)|(?:\.\d+)|(?:\d+))(?:[eE][+-]?\d+)?/g
 const PRECISION_EXCEPTION_DIRECTIVE = 'svg-path-precision-exception:'

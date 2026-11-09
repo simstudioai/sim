@@ -13,9 +13,11 @@
  * saying it is proved in the `live (self-hosted)` job answers to that job's run, and every other row
  * answers to `product`'s.
  */
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
+import ts from '@typescript/typescript6'
+import { listRepoFiles } from './repo-files'
 
 const STATUSES = new Set([
   'Done',
@@ -41,7 +43,7 @@ type RunOutcome = Map<string, string>
 
 interface LedgerInputs {
   ledger: string
-  /** Base names of every test file in the app. */
+  /** Every test file, by its path relative to the app. */
   testFiles: ReadonlySet<string>
   /** Titles of every test in the live specs. */
   liveTitles: readonly string[]
@@ -57,9 +59,58 @@ function cells(line: string): string[] {
     .map((cell) => cell.trim())
 }
 
-function matchingTitles(quoted: string, titles: Iterable<string>): string[] {
+/**
+ * The live tests a quote names: the one whose title it is, or else every title containing it. A
+ * quote is a proof only when this is exactly one test.
+ */
+function matchingTitles(quoted: string, titles: readonly string[]): string[] {
   const needle = quoted.toLowerCase()
-  return [...titles].filter((title) => title.toLowerCase().includes(needle))
+  const exact = titles.filter((title) => title.toLowerCase() === needle)
+  return exact.length ? exact : titles.filter((title) => title.toLowerCase().includes(needle))
+}
+
+/**
+ * How a live test fared in a run: its worst outcome across every run title it produced, since a
+ * parameterized title runs once per case.
+ */
+function runOutcome(title: string, run: RunOutcome): string | undefined {
+  const pattern = new RegExp(
+    `^${title
+      .split(/\$\{[^}]*\}/)
+      .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+      .join('.+')}$`
+  )
+  const outcomes = [...run].filter(([name]) => pattern.test(name)).map(([, status]) => status)
+  return outcomes.find((status) => status !== 'passed') ?? outcomes[0]
+}
+
+/** Whether a proof names an existing test file, by its whole path or a trailing part of it. */
+function namesTestFile(proof: string, testFiles: ReadonlySet<string>): boolean {
+  const suffix = proof.replace(/^(?:\.\/)?(?:apps\/sim\/)?/, '')
+  return [...testFiles].some((file) => file === suffix || file.endsWith(`/${suffix}`))
+}
+
+/**
+ * The title of every `test(...)` (and `test.skip`/`only`/`fixme`) a spec declares. A parameterized
+ * title keeps its placeholders as written (`a saved ${from} lands on ${to}`).
+ */
+export function liveTestTitles(source: string): string[] {
+  const titles: string[] = []
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression.getText()
+      const [title] = node.arguments
+      if (
+        /^test(?:\.(?:skip|only|fixme|fail))?$/.test(callee) &&
+        title &&
+        (ts.isStringLiteralLike(title) || ts.isTemplateExpression(title))
+      )
+        titles.push(ts.isTemplateExpression(title) ? title.getText().slice(1, -1) : title.text)
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(ts.createSourceFile('spec.ts', source, ts.ScriptTarget.Latest, true))
+  return titles
 }
 
 function isLiveSpec(file: string): boolean {
@@ -101,7 +152,7 @@ export function auditLedger({ ledger, testFiles, liveTitles, run, job }: LedgerI
 
     const files = [...proof.matchAll(FILE_PROOF)].map(([file]) => file)
     for (const file of files) {
-      if (!testFiles.has(path.basename(file))) {
+      if (!namesTestFile(file, testFiles)) {
         findings.push(`${at}: "${capability}" names ${file}, which does not exist`)
       }
     }
@@ -116,15 +167,22 @@ export function auditLedger({ ledger, testFiles, liveTitles, run, job }: LedgerI
       )
     }
     for (const title of quoted) {
-      if (matchingTitles(title, liveTitles).length === 0) {
+      const [match, ...others] = matchingTitles(title, liveTitles)
+      if (!match) {
         findings.push(`${at}: "${capability}" quotes a test that does not exist: "${title}"`)
         continue
       }
-      if (!run || !answersToThisRun) continue
-      const outcomes = matchingTitles(title, run.keys()).map((match) => run.get(match))
-      if (!outcomes.includes('passed')) {
+      if (others.length) {
         findings.push(
-          `${at}: "${capability}" rests on "${title}", which ${outcomes[0] ?? 'did not run'} in this run`
+          `${at}: "${capability}" quotes "${title}", which ${others.length + 1} tests contain; quote one test's whole title`
+        )
+        continue
+      }
+      if (!run || !answersToThisRun) continue
+      const outcome = runOutcome(match, run)
+      if (outcome !== 'passed') {
+        findings.push(
+          `${at}: "${capability}" rests on "${title}", which ${outcome ?? 'did not run'} in this run`
         )
       }
     }
@@ -152,26 +210,29 @@ function readRunOutcome(reports: readonly string[]): RunOutcome {
     }
   }
   for (const report of reports) {
-    const parsed = JSON.parse(readFileSync(report, 'utf8')) as ReportSuite
-    visit(parsed)
+    if (!existsSync(report)) {
+      console.error(
+        `check:platform-parity: --report ${report} does not exist; did the live run write it?`
+      )
+      process.exit(1)
+    }
+    visit(JSON.parse(readFileSync(report, 'utf8')) as ReportSuite)
   }
   return titles
 }
 
 function main() {
-  const app = path.resolve(import.meta.dir, '..', 'apps/sim')
+  const root = path.resolve(import.meta.dir, '..')
+  const app = path.join(root, 'apps/sim')
   const testFiles = new Set<string>()
   const liveTitles: string[] = []
-  const entries = readdirSync(app, { recursive: true, encoding: 'utf8' })
-  for (const entry of entries) {
-    if (entry.includes('node_modules') || entry.includes('.next')) continue
+  for (const file of listRepoFiles(root)) {
+    if (!file.startsWith('apps/sim/')) continue
+    const entry = file.slice('apps/sim/'.length)
     if (!/\.(?:integration\.ts|test\.tsx?|spec\.ts)$/.test(entry)) continue
-    testFiles.add(path.basename(entry))
-    if (!entry.startsWith('platform/checks/live/')) continue
-    const source = readFileSync(path.join(app, entry), 'utf8')
-    for (const [, title] of source.matchAll(/test\(\s*[`'"]([^`]*?)[`'"],\s*(?:async|\{)/g)) {
-      liveTitles.push(title as string)
-    }
+    testFiles.add(entry)
+    if (entry.startsWith('platform/checks/live/'))
+      liveTitles.push(...liveTestTitles(readFileSync(path.join(app, entry), 'utf8')))
   }
   const { values } = parseArgs({
     options: { report: { type: 'string', multiple: true }, job: { type: 'string' } },

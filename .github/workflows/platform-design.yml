@@ -3,9 +3,11 @@ name: platform-design
 on:
   pull_request:
     # The product routes and the seam they read through: the main app that serves them, the
-    # contracts, hooks and enterprise domains its data layer wraps, and the chat modules it drives
-    # unchanged. A pattern's order matters: the ledger follows the docs exclusion so an edit to it
-    # still meets the report-based parity check.
+    # contracts, hooks and enterprise domains its data layer wraps, the chat modules it drives
+    # unchanged, the use cases its server reads run in process and the host modules its views
+    # import (`serverSeamHelpers`, `platformHostModules`; platform-design-workflow.test.ts holds
+    # this list to them), and the API routes the live suites call. A pattern's order matters: the
+    # ledger follows the docs exclusion so an edit to it still meets the report-based parity check.
     paths:
       - 'apps/sim/app/(product)/**'
       - 'apps/sim/platform/**'
@@ -17,12 +19,29 @@ on:
       - 'apps/sim/turbo.json'
       - 'apps/sim/lib/core/config/platform-fixtures.ts'
       - 'apps/sim/lib/api/contracts/**'
+      - 'apps/sim/app/api/**'
       - 'apps/sim/hooks/queries/**'
-      - 'apps/sim/lib/mothership/chat/types.ts'
-      - 'apps/sim/lib/mothership/chat/search-params.ts'
-      - 'apps/sim/lib/mothership/chat/special-tags.ts'
-      - 'apps/sim/lib/mothership/chat/source-link.ts'
+      - 'apps/sim/lib/mothership/**'
+      - 'apps/sim/lib/auth/**'
+      - 'apps/sim/lib/billing/**'
+      - 'apps/sim/lib/workspaces/**'
+      - 'apps/sim/lib/credential-groups/**'
+      - 'apps/sim/lib/integrations/**'
+      - 'apps/sim/lib/permission-groups/**'
+      - 'apps/sim/lib/permissions/**'
+      - 'apps/sim/lib/organization-secrets/**'
+      - 'apps/sim/lib/settings/**'
+      - 'apps/sim/lib/sim-links/**'
+      - 'apps/sim/lib/toast/**'
+      - 'apps/sim/lib/core/application/**'
+      - 'apps/sim/lib/core/config/block-visibility.ts'
+      - 'apps/sim/lib/core/utils/deadline.ts'
+      - 'apps/sim/lib/knowledge/application/**'
       - 'apps/sim/lib/knowledge/search/results.ts'
+      - 'apps/sim/lib/users/application/**'
+      - 'apps/sim/lib/workflows/application/**'
+      - 'apps/sim/components/file-viewer/**'
+      - 'apps/sim/components/dashboard-panel/**'
       - 'apps/sim/hooks/sim-search/**'
       - 'apps/sim/ee/**'
       - 'apps/sim/hooks/mothership-chat/**'
