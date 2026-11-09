@@ -82,7 +82,6 @@ export {
 } from '@/components/file-viewer/rich-markdown-editor/title-heading'
 export { useEditorEditable } from '@/components/file-viewer/rich-markdown-editor/use-editor-editable'
 export { isUntitledName } from '@/components/file-viewer/untitled-title'
-export { useFindShortcut } from '@/components/find-bar/use-find-shortcut'
 export { BLOCK_NAMES } from '@/lib/block-metadata/names.generated'
 export { DASHBOARD_EMBED_LANGUAGE } from '@/lib/dashboards/embed-language'
 export { DIFF_EMBED_LANGUAGE } from '@/lib/diff/embed-language'

@@ -25,6 +25,7 @@ import {
   SIM_LINK_VARIABLE,
   simLinkFieldsSchema,
   simLinkOrigin,
+  suggestSimLinkName,
   toSimLinkName,
 } from '@/lib/sim-links/validation'
 import { toast } from '@/lib/toast/sink'
@@ -33,6 +34,7 @@ import {
   useCreateSimLink,
   useDeleteSimLink,
   useSimLinks,
+  useSimLinksForUrl,
   useUpdateSimLink,
 } from '@/hooks/queries/sim-links'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
@@ -67,6 +69,16 @@ export function openLink(name: string) {
   openLinkInNewTab(simLinkPath(name))
 }
 
+async function copyLink(name: string, notice: string) {
+  try {
+    await navigator.clipboard.writeText(simLinkUrl(window.location.origin, name))
+    toast.success(notice, { noticeId: COPY_NOTICE_ID })
+  } catch (error) {
+    logger.error('Failed to copy Sim link', { error })
+    toast.error('Unable to copy link', { noticeId: COPY_NOTICE_ID })
+  }
+}
+
 /** Every Sim link the viewer may browse, driven by the page's URL state. */
 export function useLinksPage(organizationId: string) {
   const [{ search, create }, setView] = useQueryStates(simLinksParsers, simLinksUrlKeys)
@@ -92,15 +104,7 @@ export function useLinksPage(organizationId: string) {
     }),
     [hasMore, isFetchingNextPage, isFetchNextPageError, fetchNextPage]
   )
-  const copy = useCallback(async (name: string) => {
-    try {
-      await navigator.clipboard.writeText(simLinkUrl(window.location.origin, name))
-      toast.success('Link copied', { noticeId: COPY_NOTICE_ID })
-    } catch (error) {
-      logger.error('Failed to copy Sim link', { error })
-      toast.error('Unable to copy link', { noticeId: COPY_NOTICE_ID })
-    }
-  }, [])
+  const copy = useCallback((name: string) => copyLink(name, 'Link copied'), [])
 
   const sortActions: MenuAction[] = [
     ...(activeSort
@@ -208,6 +212,40 @@ export function useLinkEditor(
         return false
       }
     },
+  }
+}
+
+/** A new link's starting fields, from a document someone wants a short name for. */
+export interface LinkDraft {
+  url: string
+  name: string
+}
+
+/**
+ * The Sim link entry of a source's actions menu: copies the link that already opens `url`, so the
+ * menu never offers a duplicate, or offers to create one. It looks up only while the menu is open,
+ * and offers nothing when the lookup fails rather than risk a duplicate.
+ */
+export function useSourceLinkAction(
+  organizationId: string,
+  source: { url: string; title: string },
+  open: boolean,
+  onCreate: (draft: LinkDraft) => void
+): MenuAction | null {
+  const { data, isPending, isError } = useSimLinksForUrl(organizationId, source.url, open)
+  if (isError) return null
+  const existing = data?.at(0)
+  if (existing)
+    return {
+      id: 'sim-link',
+      label: `Copy sim/${existing.name}`,
+      onSelect: () => void copyLink(existing.name, `Copied sim/${existing.name}`),
+    }
+  return {
+    id: 'sim-link',
+    label: 'Create link',
+    disabled: isPending,
+    onSelect: () => onCreate({ url: source.url, name: suggestSimLinkName(source.title) }),
   }
 }
 

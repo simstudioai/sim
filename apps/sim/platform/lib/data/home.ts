@@ -53,6 +53,7 @@ import {
 import { useIntegrationActions } from '@/platform/lib/data/integrations'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
+import { useHomeSuggestions } from '@/platform/lib/data/suggested-actions'
 import { wallClockMinute } from '@/platform/shared/calendar-meeting'
 import type {
   HomeAccountView,
@@ -442,6 +443,11 @@ export function useLiveHome(
   )
   // Search-only members start here, so their onboarding comes with the Assistant composer.
   const getStarted = useHomeGetStarted(organization, integrations, assistant)
+  const suggestions = useHomeSuggestions(
+    organization,
+    integrations.entries,
+    !assistant && organization.canBuild
+  )
 
   const showDay = (day: string | null) =>
     void setSelectedDay(day === today ? null : day, { history: 'replace', scroll: false })
@@ -458,6 +464,7 @@ export function useLiveHome(
       calendar: calendar.state,
       recents: recents.state,
       getStarted,
+      suggestions,
     },
     actions: {
       email: { ...connectionActions, retry: email.retry },

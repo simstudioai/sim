@@ -11,6 +11,10 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+/* Marks searchable prose without becoming a box, so its blocks keep the answer's gap. */
+.findable {
+  display: contents;
+}
 .answer p strong {
   font-weight: var(--font-weight-medium);
 }
@@ -153,6 +157,8 @@
   display: grid;
   gap: var(--ui-stack-gap);
   justify-items: start;
+  inline-size: min(var(--container-440), calc(100vw - var(--spacing-32)));
+  padding: var(--ui-row-block) var(--ui-row-inset);
 }
 .sourceList {
   display: grid;

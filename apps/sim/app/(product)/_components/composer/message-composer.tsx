@@ -12,6 +12,10 @@ import { MessageAttachments } from '@/app/(product)/_components/composer/message
 import type { ComposerController } from '@/app/(product)/_components/composer/model'
 import { ComposerResourceMenu } from '@/app/(product)/_components/composer/resource-menu'
 import { useComposerReferences } from '@/app/(product)/_components/composer/use-composer-references'
+import {
+  type PromptHistoryEntry,
+  usePromptHistory,
+} from '@/app/(product)/_components/composer/use-prompt-history'
 import { useComposerFocus } from '@/app/(product)/_components/session/composer-host'
 
 interface MessageComposerProps {
@@ -21,6 +25,8 @@ interface MessageComposerProps {
   /** Returns false to keep the draft, when the message was refused before it went anywhere. */
   onSubmit: (draft: ComposerController['draft']) => false | undefined
   onStop?: () => void
+  /** Messages sent earlier, which Up and Down recall into an empty draft. */
+  history?: readonly PromptHistoryEntry[]
 }
 
 export function MessageComposer({
@@ -29,12 +35,14 @@ export function MessageComposer({
   focusTarget,
   onSubmit,
   onStop,
+  history,
 }: MessageComposerProps) {
   const compact = useCompactViewport()
   const { draft, settings, drop } = composer
   const { text, attachments: files } = draft
   const refs = useComposerReferences(composer)
   useComposerFocus(focusTarget, refs.editor)
+  const recall = usePromptHistory(composer, history, refs.editor)
   const picker = useRef<HTMLInputElement>(null)
   const folder = useRef<HTMLInputElement>(null)
   const uploading = files.some((file) => file.uploading)
@@ -56,6 +64,7 @@ export function MessageComposer({
       onDragLeave={drop?.onDragLeave}
       onDrop={drop?.onDrop}
     >
+      {composer.readers}
       <MessageAttachments items={refs.attachments} onRemove={composer.removeAttachment} />
       <ComposerInput
         density={compact ? 'compact' : 'standard'}
@@ -74,7 +83,10 @@ export function MessageComposer({
         onFocus={refs.focus}
         onBlur={refs.blur}
         onCursorChange={refs.cursor}
-        onEditorKeyDown={refs.onKeyDown}
+        onEditorKeyDown={(event) => {
+          refs.onKeyDown(event)
+          recall(event)
+        }}
         onSubmit={submit}
         onPasteFiles={composer.addFiles}
         onPasteText={composer.addPastedText}

@@ -79,3 +79,43 @@ describe('isRunningWait', () => {
     expect(isRunningWait([pausing, next])).toBe(false)
   })
 })
+
+describe('cited sources', () => {
+  const cite = (source: Record<string, string>) => `<source>${JSON.stringify(source)}</source>`
+  const answer: ChatMessage = {
+    id: 'cited',
+    role: 'assistant',
+    content: '',
+    contentBlocks: [
+      {
+        type: 'text',
+        content: `Setup ${cite({ url: 'https://a.test/guide', title: 'Guide', siteName: 'Docs', author: 'Ann' })} and ${cite({ url: 'https://b.test/x' })}.`,
+      },
+      { type: 'subagent', subagent: 'research', spanId: 'lane-1' },
+      {
+        type: 'subagent_text',
+        subagent: 'research',
+        spanId: 'lane-1',
+        content: `Found ${cite({ url: 'https://c.test/lane', title: 'Lane note' })}`,
+      },
+      { type: 'subagent_end', subagent: 'research', spanId: 'lane-1' },
+      {
+        type: 'text',
+        content: `Again ${cite({ url: 'https://a.test/guide', title: 'Retitled' })}`,
+      },
+    ],
+  }
+
+  it('lists each document the answer cites once, in first-cited order, without lane citations', () => {
+    const turn = toPlatformTurns([owner, answer], { ...options, streaming: false }).at(-1)
+    expect(turn?.role === 'assistant' && turn.sources).toEqual([
+      {
+        id: 'https://a.test/guide',
+        url: 'https://a.test/guide',
+        title: 'Guide',
+        meta: 'Docs · Ann',
+      },
+      { id: 'https://b.test/x', url: 'https://b.test/x', title: 'b.test', meta: 'b.test' },
+    ])
+  })
+})

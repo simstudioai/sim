@@ -8,6 +8,7 @@ import type {
   HomeCalendarDay,
   HomeGetStartedStep,
   HomeListState,
+  HomeSuggestion,
   HomeWidgetActions,
   HomeWidgetState,
 } from '@/platform/shared/home'
@@ -62,6 +63,7 @@ export interface HomeView {
   calendar: HomeWidgetState<HomeCalendarDay>
   recents: HomeListState<RecentItem>
   getStarted: readonly HomeGetStartedStep[]
+  suggestions: readonly HomeSuggestion[]
   composerInventory?: ComposerInventory
 }
 

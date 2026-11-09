@@ -115,6 +115,7 @@ function useMemoryComposer({
         attachments: current.attachments.filter((file) => file.id !== id),
       })),
     clear: () => updateDraft(() => ({ text: '', attachments: [] })),
+    restore: (next) => updateDraft(() => next),
   }
 }
 

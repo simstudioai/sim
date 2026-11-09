@@ -6,17 +6,20 @@ import { ControlRow } from '@sim/emcn/button/control-row'
 import { SecretField } from '@sim/emcn/field/value-fields'
 import { InlineNotice } from '@sim/emcn/status'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import styles from '@/app/(product)/_components/chat/cards/cards.module.css'
 import type {
   CredentialCardProps,
   UsageNoticeProps,
 } from '@/app/(product)/_components/chat/message/message-segments'
 import type { PlatformCredentialRequest } from '@/app/(product)/_components/chat/model'
+import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
 import {
   CredentialWorkspaceProvider,
   useCredentialWorkspace,
   useFolderAccess,
   useIntegrationsHref,
+  useMemberLimitRequest,
   useOAuthChipConnection,
   useSearchConnectionRow,
   useSecretSaver,
@@ -281,26 +284,46 @@ export function LiveCredentialCard({
 /** Usage and plan refusals: admins get the billing route, everyone else who to ask. */
 export function LiveUsageNotice({ action, reason, message }: UsageNoticeProps) {
   const { canManage, upgrade, href } = useUsageLink(action)
+  const router = useRouter()
+  const [requesting, setRequesting] = useState(false)
+  const memberLimit = useMemberLimitRequest(
+    !canManage && reason === 'usage_limit' && action === 'increase_limit'
+  )
   if (reason === 'job_run_budget')
     return <InlineNotice intent='warning' title='Run Spend Limit Reached' message={message} />
   return (
-    <InlineNotice
-      intent='warning'
-      title={reason === 'chat_plan_required' ? 'Paid Plan Required' : 'Usage Limit Reached'}
-      message={
-        canManage
-          ? message
-          : `${message} Contact an organization admin to ${upgrade ? "upgrade this organization's plan" : 'manage usage limits'}.`
-      }
-      action={
-        canManage ? (
-          <ControlRow
-            render={<Link href={href} />}
-            label={upgrade ? 'Upgrade Plan' : 'Increase Limit'}
-            trailingIcon='I030'
-          />
-        ) : undefined
-      }
-    />
+    <>
+      <InlineNotice
+        intent='warning'
+        title={reason === 'chat_plan_required' ? 'Paid Plan Required' : 'Usage Limit Reached'}
+        message={
+          canManage
+            ? message
+            : `${message} Contact an organization admin to ${upgrade ? "upgrade this organization's plan" : 'manage usage limits'}.`
+        }
+        action={
+          canManage ? (
+            <ControlRow
+              render={<Link href={href} />}
+              label={upgrade ? 'Upgrade Plan' : 'Increase Limit'}
+              trailingIcon='I030'
+            />
+          ) : memberLimit ? (
+            <Button variant='muted' size='compact' onClick={() => setRequesting(true)}>
+              Request increase
+            </Button>
+          ) : undefined
+        }
+      />
+      {requesting && memberLimit && (
+        <RequestAccessModal
+          scope={memberLimit.scope}
+          target={memberLimit.target}
+          label={memberLimit.label}
+          onViewRequest={(requestId) => router.push(memberLimit.requestHref(requestId))}
+          onClose={() => setRequesting(false)}
+        />
+      )}
+    </>
   )
 }

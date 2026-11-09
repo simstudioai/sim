@@ -21,7 +21,11 @@ export function UserMessage({ turn }: UserMessageProps) {
   return (
     <div className={styles.user}>
       <MessageAttachments items={turn.prompt.attachments} />
-      {turn.prompt.text && <MessageBubble>{turn.prompt.text}</MessageBubble>}
+      {turn.prompt.text && (
+        <MessageBubble>
+          <span data-chat-find=''>{turn.prompt.text}</span>
+        </MessageBubble>
+      )}
       {turn.delivery && (
         <div className={styles.userActions} data-type='T060' role='status'>
           {DELIVERY_LABELS[turn.delivery]}

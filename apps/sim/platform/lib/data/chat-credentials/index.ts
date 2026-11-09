@@ -4,6 +4,7 @@ export {
   useCredentialWorkspace,
   useFolderAccess,
   useIntegrationsHref,
+  useMemberLimitRequest,
   useSearchConnectionRow,
   useSecretSaver,
   useUsageLink,
