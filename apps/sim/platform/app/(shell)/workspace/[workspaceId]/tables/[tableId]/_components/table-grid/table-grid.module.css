@@ -176,37 +176,7 @@
 .rowSelect[data-checked] .rowCheck {
   display: flex;
 }
-.rowRun,
-.groupRun {
-  display: grid;
-  flex: none;
-  place-items: center;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--ui-ink);
-  cursor: pointer;
-}
-.rowRun {
-  inline-size: var(--spacing-20);
-  block-size: var(--spacing-20);
-  border-radius: var(--ui-control-radius);
-}
-.groupRun {
-  inline-size: var(--spacing-16);
-  block-size: var(--spacing-16);
-  border-radius: var(--radius-2);
-  color: var(--ui-muted);
-}
-.rowRun:hover,
-.groupRun:hover {
-  background: var(--ui-hover);
-  color: var(--ui-ink);
-}
-.rowRun:focus-visible,
-.groupRun:focus-visible,
-.headerButton:focus-visible,
-.headerChevron:focus-visible {
+.headerButton:focus-visible {
   outline: var(--spacing-stroke-focus) solid var(--status-info);
   outline-offset: calc(-1 * var(--spacing-stroke-focus));
 }
@@ -500,31 +470,21 @@
   flex: none;
   align-items: center;
 }
+/* The column menu's trigger, revealed with the header, so a resting header reads as its label alone. */
 .headerChevron {
   display: flex;
   flex: none;
   align-items: center;
-  align-self: stretch;
-  padding-block: 0;
-  padding-inline: var(--spacing-2) var(--spacing-10);
-  border: 0;
-  background: transparent;
-  color: var(--ui-muted);
-  cursor: pointer;
+  padding-inline-end: var(--spacing-4);
   opacity: 0;
   transition: opacity var(--ui-motion-color) ease-out;
 }
 .headerCell:hover .headerChevron,
-.headerChevron:focus-visible {
+.headerChevron:has(:focus-visible) {
   opacity: 1;
-}
-.headerChevron:hover {
-  color: var(--ui-ink);
 }
 @media (pointer: coarse) {
   .headerChevron {
-    min-inline-size: var(--spacing-32);
-    justify-content: center;
     opacity: 1;
   }
 }

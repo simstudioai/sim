@@ -37,11 +37,12 @@
   opacity: 1;
 }
 
+/* The read-only language sits where the editable trigger does, at the compact Button's metrics. */
 .codeLanguage {
   display: inline-flex;
   align-items: center;
-  min-block-size: var(--spacing-24);
-  padding-inline: var(--spacing-6);
+  min-block-size: var(--spacing-28);
+  padding-inline: var(--spacing-8);
   color: var(--ui-secondary);
 }
 

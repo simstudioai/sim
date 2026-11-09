@@ -85,6 +85,7 @@ export const FindBar = memo(function FindBar({
               <IconButton
                 label='Clear search'
                 icon='I105'
+                size='compact'
                 onClick={() => {
                   onQueryChange('')
                   inputRef.current?.focus()

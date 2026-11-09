@@ -47,9 +47,6 @@
   border-radius: var(--radius-item);
   color: var(--ui-secondary);
 }
-.provider:hover {
-  background: var(--ui-hover);
-}
 .provider[data-matched] {
   background: var(--ui-selected);
 }

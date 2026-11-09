@@ -1,6 +1,7 @@
 'use client'
 
 import { type DragEvent, type MouseEvent, useRef } from 'react'
+import { IconButton } from '@sim/emcn/button'
 import { Icon } from '@sim/emcn/icon'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import type { EnrichmentMark } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/column-types/enrichment-marks'
@@ -144,19 +145,17 @@ export function GroupHeader({
           <OverflowText text={name}>{name}</OverflowText>
         </span>
         {canRun && (
-          <button
-            type='button'
-            className={styles.groupRun}
-            aria-label='Run group'
-            title='Run group'
+          <IconButton
+            label='Run group'
+            icon='play'
+            size='inline'
+            tooltip
             onClick={(e) => {
               e.stopPropagation()
               const rect = e.currentTarget.getBoundingClientRect()
               onOpenRunMenu(groupId, rect.left, rect.bottom)
             }}
-          >
-            <Icon name='play' />
-          </button>
+          />
         )}
       </div>
     </th>

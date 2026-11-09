@@ -13,13 +13,14 @@
   scrollbar-width: none;
 }
 
+/* A format toggle takes the compact quiet Button's metrics and adds the pressed state Button lacks. */
 .toggle {
   display: inline-flex;
   flex: none;
   align-items: center;
   justify-content: center;
-  min-block-size: var(--spacing-24);
-  padding-inline: var(--spacing-6);
+  min-block-size: var(--spacing-28);
+  padding-inline: var(--spacing-8);
   border: 0;
   border-radius: var(--ui-control-radius);
   background: transparent;
@@ -60,7 +61,7 @@
 
 .input {
   inline-size: var(--spacing-224);
-  min-block-size: var(--spacing-24);
+  min-block-size: var(--spacing-28);
   padding-inline: var(--spacing-8);
   border: 0;
   background: transparent;

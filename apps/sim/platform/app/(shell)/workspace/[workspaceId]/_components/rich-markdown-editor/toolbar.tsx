@@ -1,7 +1,7 @@
 'use client'
 
 import type { PointerEvent, ReactNode, Ref } from 'react'
-import { IconButton } from '@sim/emcn/button'
+import { Button, IconButton } from '@sim/emcn/button'
 import type { IconName } from '@sim/emcn/icon'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { Tooltip } from '@sim/emcn/tooltip'
@@ -71,7 +71,7 @@ interface ToolbarButtonProps {
   onClick: () => void
 }
 
-/** One command in a floating toolbar. */
+/** One command in a floating toolbar: an icon, a text action, or a format that toggles on the selection. */
 export function ToolbarButton({
   label,
   icon,
@@ -91,6 +91,20 @@ export function ToolbarButton({
         onClick={onClick}
       />
     )
+  if (pressed === undefined) {
+    const action = (
+      <Button
+        variant='quiet'
+        size='compact'
+        aria-label={shortcut ? `${label} (${shortcut})` : undefined}
+        disabled={disabled}
+        onClick={onClick}
+      >
+        {label}
+      </Button>
+    )
+    return shortcut ? <Tooltip label={`${label} (${shortcut})`}>{action}</Tooltip> : action
+  }
   const button = (
     <button
       type='button'

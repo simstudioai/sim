@@ -9,6 +9,7 @@ import {
   useEffect,
   useRef,
 } from 'react'
+import { IconButton } from '@sim/emcn/button'
 import { Icon } from '@sim/emcn/icon'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { Tooltip } from '@sim/emcn/tooltip'
@@ -278,15 +279,15 @@ export const ColumnHeader = memo(function ColumnHeader({
               <OverflowText text={label}>{label}</OverflowText>
             </span>
           </button>
-          <button
-            type='button'
-            className={styles.headerChevron}
-            onClick={handleChevronClick}
-            draggable={false}
-            aria-label='Column options'
-          >
-            <Icon name='I051' />
-          </button>
+          <span className={styles.headerChevron}>
+            <IconButton
+              label='Column options'
+              icon='I051'
+              size='compact'
+              render={<button type='button' draggable={false} />}
+              onClick={handleChevronClick}
+            />
+          </span>
         </div>
       )}
       <div

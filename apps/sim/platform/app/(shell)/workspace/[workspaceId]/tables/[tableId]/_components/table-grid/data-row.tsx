@@ -1,8 +1,8 @@
 'use client'
 
 import { type MouseEvent, memo, useMemo, useRef } from 'react'
+import { IconButton } from '@sim/emcn/button'
 import { Checkbox } from '@sim/emcn/checkbox'
-import { Icon } from '@sim/emcn/icon'
 import { CellContent } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/cell-render'
 import { inlineStyle } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/inline-style'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/table-grid.module.css'
@@ -256,18 +256,16 @@ export const DataRow = memo(function DataRow({
             </span>
           </div>
           {hasWorkflowColumns && (
-            <button
-              type='button'
-              aria-label={runLabel}
-              title={runLabel}
-              className={styles.rowRun}
+            <IconButton
+              label={runLabel}
+              icon={runningCount > 0 ? 'I035' : 'play'}
+              size='inline'
+              tooltip
               onClick={() => {
                 if (runningCount > 0) onStopRow(row.id)
                 else onRunRow(row.id)
               }}
-            >
-              <Icon name={runningCount > 0 ? 'I035' : 'play'} />
-            </button>
+            />
           )}
         </div>
       </td>

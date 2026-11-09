@@ -13,6 +13,7 @@ import {
 } from 'react'
 import { IconButton } from '@sim/emcn/button'
 import { ControlRow } from '@sim/emcn/button/control-row'
+import { Disclosure } from '@sim/emcn/disclosure'
 import { Icon } from '@sim/emcn/icon'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
@@ -313,7 +314,6 @@ interface ToolbarSectionProps {
   items: BlockItem[]
   isTrigger: boolean
   expanded: boolean
-  searching: boolean
   onToggle: (key: ToolbarSectionKey) => void
   getItemRef: (index: number) => (el: HTMLDivElement | null) => void
   onDragStart: ToolbarItemProps['onDragStart']
@@ -329,7 +329,6 @@ const ToolbarSection = memo(function ToolbarSection({
   items,
   isTrigger,
   expanded,
-  searching,
   onToggle,
   getItemRef,
   onDragStart,
@@ -342,23 +341,12 @@ const ToolbarSection = memo(function ToolbarSection({
   if (items.length === 0) return null
 
   return (
-    <section aria-label={label}>
-      <div className={styles.sectionHeader}>
-        <button
-          type='button'
-          onClick={toggle}
-          aria-expanded={expanded}
-          disabled={searching}
-          className={styles.sectionToggle}
-          data-type='T052'
-        >
-          <span className={styles.sectionLabel}>{label}</span>
-          <span className={styles.chevron}>
-            <Icon name={expanded ? 'I051' : 'I090'} />
-          </span>
-        </button>
-        <SectionInfo description={tooltip} />
-      </div>
+    <Disclosure
+      label={label}
+      open={expanded}
+      onOpenChange={toggle}
+      actions={<SectionInfo description={tooltip} />}
+    >
       {expanded && (
         <div className={styles.items}>
           {items.map((item, index) => (
@@ -375,7 +363,7 @@ const ToolbarSection = memo(function ToolbarSection({
           ))}
         </div>
       )}
-    </section>
+    </Disclosure>
   )
 })
 
@@ -857,7 +845,7 @@ export const Toolbar = memo(
           />
         )}
 
-        <div ref={listEdges} className={styles.list} data-sticky-head=''>
+        <div ref={listEdges} className={styles.list}>
           <ToolbarSection
             label='Triggers'
             tooltip='Events that start a workflow'
@@ -865,7 +853,6 @@ export const Toolbar = memo(
             items={filteredTriggers}
             isTrigger={true}
             expanded={sectionExpanded.triggers}
-            searching={isSearching}
             onToggle={handleSectionToggle}
             getItemRef={getTriggerRefCallback}
             onDragStart={handleDragStart}
@@ -880,7 +867,6 @@ export const Toolbar = memo(
             items={filteredBlocks}
             isTrigger={false}
             expanded={sectionExpanded.blocks}
-            searching={isSearching}
             onToggle={handleSectionToggle}
             getItemRef={getBlockRefCallback}
             onDragStart={handleDragStart}
@@ -896,7 +882,6 @@ export const Toolbar = memo(
               items={filteredCustomBlocks}
               isTrigger={false}
               expanded={sectionExpanded.customBlocks}
-              searching={isSearching}
               onToggle={handleSectionToggle}
               getItemRef={getCustomBlockRefCallback}
               onDragStart={handleDragStart}
@@ -912,7 +897,6 @@ export const Toolbar = memo(
             items={filteredTools}
             isTrigger={false}
             expanded={sectionExpanded.tools}
-            searching={isSearching}
             onToggle={handleSectionToggle}
             getItemRef={getToolRefCallback}
             onDragStart={handleDragStart}
@@ -921,13 +905,13 @@ export const Toolbar = memo(
             onViewDocumentation={handleViewDocumentation}
           />
           {filteredRestrictedItems.length > 0 && (
-            <section aria-label='Access required'>
-              <div className={styles.sectionHeader}>
-                <span className={styles.sectionTitle} data-type='T052'>
-                  Access required
-                </span>
+            <Disclosure
+              label='Access required'
+              initiallyOpen
+              actions={
                 <SectionInfo description='Ask your organization admin to enable these blocks for your permission group.' />
-              </div>
+              }
+            >
               <div className={styles.items}>
                 {filteredRestrictedItems.map((item, index) => (
                   <ToolbarItem
@@ -942,7 +926,7 @@ export const Toolbar = memo(
                   />
                 ))}
               </div>
-            </section>
+            </Disclosure>
           )}
         </div>
       </div>
