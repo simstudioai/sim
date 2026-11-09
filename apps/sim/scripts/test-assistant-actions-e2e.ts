@@ -25,6 +25,7 @@ import {
 import { allocateCursor, appendEvents, clearBuffer } from '@/lib/mothership/request/session/buffer'
 import type { SessionStreamEvent } from '@/lib/mothership/request/session/contract'
 import { createEvent } from '@/lib/mothership/request/session/event'
+import { organizationRoutes } from '@/lib/navigation/paths'
 
 /**
  * Runs against a local app and disposable PostgreSQL with member Search, Connected Accounts, and Access Control enabled.
@@ -123,7 +124,9 @@ const catalogAccounts = [
   { option: 'google-meet', provider: 'google-meet', name: 'Google Meet', supported: false },
 ].map((account) => ({ ...account, credentialId: generateId() }))
 const token = generateShortId()
-const root = `/o/${organizationId}`
+const routes = organizationRoutes(organizationId)
+const appUrl = (path: string) => `${baseUrl.origin}${path}`
+const integrationPath = (segment: string) => `${routes.integrations}/${segment}`
 const question = 'Create the two launch follow-up tickets in Jira.'
 const answer = 'Review the two Jira issues before I create them.'
 const reviewAnswer = 'Review these keyboard and batch proposals.'
@@ -137,6 +140,16 @@ const browser = await chromium.launch()
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
 const page = await context.newPage()
 const reviewCards = page.getByRole('region', { name: 'Review Create Jira issue', exact: true })
+const jiraReceipts = page.getByRole('region', { name: 'Create Jira issue receipt', exact: true })
+const permissionsTab = page.getByRole('tab', { name: 'Permissions', exact: true })
+const toolSearch = page.getByRole('searchbox', { name: 'Search tools', exact: true })
+const connectIntegration = page.getByRole('button', { name: 'Connect integration', exact: true })
+const staleAccount = page.getByRole('heading', {
+  name: 'This account is no longer connected.',
+  exact: true,
+})
+/** The composer's name is its placeholder, which reads as a follow-up once a chat has turns. */
+const composer = page.getByRole('textbox', { name: /^(Ask|Add) a follow-up…$/ })
 page.on('console', (message) => {
   if (browserMessages.length < 40)
     browserMessages.push({ type: message.type(), text: message.text().slice(0, 1000) })
@@ -180,6 +193,23 @@ function integrationRow(name: string) {
     })
 }
 
+/** A connected account row on an integration's page; its detail line carries the credential id. */
+function accountRow(label: string, id: string) {
+  return page
+    .getByRole('region', { name: /^Connected credentials?$/ })
+    .getByRole('link')
+    .filter({ has: page.getByText(label, { exact: true }) })
+    .filter({ hasText: id })
+}
+
+/** Opens one account of an integration and its tool permissions tab. */
+async function openAccountPermissions(label: string, id: string) {
+  await accountRow(label, id).click()
+  await expect(page).toHaveURL((url) => url.searchParams.get('account') === id)
+  await permissionsTab.click()
+  await expect(page).toHaveURL((url) => url.searchParams.get('credentialTab') === 'permissions')
+}
+
 async function capture(name: string) {
   await page.evaluate(() => document.fonts.ready)
   await page.addStyleTag({ content: 'nextjs-portal { display: none; }' })
@@ -197,14 +227,12 @@ async function capture(name: string) {
   await page.screenshot({ path: resolve(artifactDirectory, `${name}.png`), animations: 'disabled' })
 }
 
-async function captureExpandedReceipt(name: string, disclosure: Locator) {
-  await disclosure.hover()
-  await page.mouse.wheel(0, -1000)
-  await disclosure.click()
-  await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
-  await expect(disclosure).toBeInViewport({ ratio: 1 })
+async function captureReceipt(name: string, receipt: Locator, state: string) {
+  await expect(receipt).toContainText(state)
+  await receipt.scrollIntoViewIfNeeded()
+  await expect(receipt).toBeInViewport({ ratio: 1 })
   await capture(name)
-  await expect(disclosure).toBeInViewport({ ratio: 1 })
+  await expect(receipt).toBeInViewport({ ratio: 1 })
 }
 
 function proposalArguments(summary: string) {
@@ -571,29 +599,30 @@ try {
     }
   )
   await check('A native Assistant account exposes its own tool permissions', async () => {
-    await page.goto(`${baseUrl.origin}${root}/integrations`, {
+    await page.goto(appUrl(routes.integrations), {
       waitUntil: 'domcontentloaded',
       timeout: 180_000,
     })
     await integrationRow('Salesforce').click()
-    await expect(page.getByRole('button', { name: 'Add account', exact: true })).toHaveCount(0)
+    await expect(page).toHaveURL((url) => url.pathname === integrationPath('salesforce'))
+    await openAccountPermissions('taylor@acme.example', nativeCredentialId)
+    await expect(connectIntegration).toHaveCount(0)
     const policy = page.getByRole('group', { name: 'Create Task in Salesforce permission' })
     await expect(policy).toBeVisible({ timeout: 180_000 })
-    await page.getByRole('button', { name: /^Manage / }).click()
-    await expect(
-      page.getByRole('menuitem', { name: 'Reconnect account', exact: true })
-    ).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeEnabled()
     await capture('integration-account-actions')
-    await page.getByRole('menuitem', { name: 'Disconnect account', exact: true }).click()
-    await expect(page.getByRole('dialog', { name: 'Disconnect Salesforce' })).toBeVisible()
+    await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
+    const confirmation = page.getByRole('dialog', { name: 'Disconnect Salesforce', exact: true })
+    await expect(confirmation).toBeVisible()
     await capture('integration-disconnect-confirmation')
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect(confirmation).toBeHidden()
     await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
     await capture('integration-detail-salesforce')
   })
   await check('Integration details agree with the real Assistant tool catalog', async () => {
     for (const account of catalogAccounts) {
-      await page.goto(`${baseUrl.origin}${root}/integrations`, { waitUntil: 'domcontentloaded' })
+      await page.goto(appUrl(routes.integrations), { waitUntil: 'domcontentloaded' })
       const response = await context.request.get(
         `${baseUrl.origin}/api/organizations/${organizationId}/connected-accounts/personal/${account.credentialId}/tool-permissions`
       )
@@ -602,46 +631,44 @@ try {
       assert.equal(data.account.credentialId, account.credentialId)
       assert.equal(data.tools.length > 0, account.supported, account.name)
       await integrationRow(account.name).click()
-      const permissions = page.getByRole('searchbox', { name: 'Search tools', exact: true })
+      await accountRow('taylor@acme.example', account.credentialId).click()
+      await expect(page).toHaveURL(
+        (url) => url.searchParams.get('account') === account.credentialId
+      )
+      await expect(page.getByRole('tablist', { name: 'Credential details' })).toBeVisible()
       if (account.supported) {
-        await expect(permissions).toBeVisible()
+        await permissionsTab.click()
+        await expect(toolSearch).toBeVisible()
         await expect(page.getByRole('radio').first()).toBeVisible()
       } else {
-        await expect(permissions).toHaveCount(0)
+        await expect(permissionsTab).toHaveCount(0)
+        await expect(toolSearch).toHaveCount(0)
       }
       await capture(`integration-detail-${account.name.toLowerCase().replaceAll(' ', '-')}`)
     }
-    await page.goto(`${baseUrl.origin}${root}/integrations`)
+    await page.goto(appUrl(routes.integrations))
     await expect(integrationRow('Salesforce')).toBeVisible()
     await capture('integrations-desktop')
   })
   await check(
     'A synthetic duplicate-provider fixture isolates permissions and disconnects only the selected account',
     async () => {
-      await page.goto(`${baseUrl.origin}${root}/integrations`)
+      await page.goto(appUrl(routes.integrations))
       await integrationRow('Jira').click()
-      await expect(page).toHaveURL((url) => url.pathname === `${root}/integrations/jira`)
+      await expect(page).toHaveURL((url) => url.pathname === integrationPath('jira'))
       const accountsUrl = page.url()
-      const firstAccount = page.getByRole('link', { name: 'taylor@acme.example', exact: true })
-      const secondAccount = page.getByRole('link', {
-        name: 'launch-team@acme.example',
-        exact: true,
-      })
+      const firstAccount = accountRow('taylor@acme.example', credentialId)
+      const secondAccount = accountRow('launch-team@acme.example', secondCredentialId)
       await expect(firstAccount).toBeVisible()
       await expect(secondAccount).toBeVisible()
-      await expect(page.getByRole('searchbox', { name: 'Search tools', exact: true })).toHaveCount(
-        0
-      )
+      await expect(toolSearch).toHaveCount(0)
       await capture('integration-multiple-accounts')
-      await expect(
-        page.getByRole('button', { name: 'Jira integration actions', exact: true })
-      ).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Disconnect', exact: true })).toHaveCount(0)
       await page.setViewportSize({ width: 390, height: 844 })
       await capture('integration-multiple-accounts-mobile')
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       await page.setViewportSize({ width: 1440, height: 1000 })
-      await secondAccount.click()
-      await expect(page).toHaveURL((url) => url.searchParams.get('account') === secondCredentialId)
+      await openAccountPermissions('launch-team@acme.example', secondCredentialId)
       const selectedUrl = page.url()
       const policy = page.getByRole('group', { name: 'Jira Write permission' })
       await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
@@ -666,20 +693,18 @@ try {
           expected
         )
       }
-      await page.getByRole('link', { name: 'Jira', exact: true }).click()
+      await page.getByRole('link', { name: 'Back to Jira', exact: true }).click()
       await expect(firstAccount).toBeVisible()
-      await firstAccount.click()
+      await openAccountPermissions('taylor@acme.example', credentialId)
       await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
       await page.goto(selectedUrl)
       await expect(policy.getByRole('radio', { name: 'Block', exact: true })).toBeChecked()
-      await page
-        .getByRole('button', { name: 'Manage launch-team@acme.example', exact: true })
-        .click()
       await expect(
-        page.getByRole('menuitem', { name: 'Reconnect account', exact: true })
+        page.getByRole('heading', { name: 'launch-team@acme.example', exact: true })
       ).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toBeEnabled()
       await capture('integration-selected-account-actions')
-      await page.getByRole('menuitem', { name: 'Disconnect account', exact: true }).click()
+      await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
       const confirmation = page.getByRole('dialog', { name: 'Disconnect Jira', exact: true })
       await expect(confirmation).toContainText('launch-team@acme.example')
       await expect(confirmation).not.toContainText('taylor@acme.example')
@@ -697,12 +722,8 @@ try {
       await expect(page.getByText('launch-team@acme.example', { exact: true })).toHaveCount(0)
       await expect(page.getByText('taylor@acme.example', { exact: true })).toBeVisible()
       await page.goto(selectedUrl)
-      await expect(
-        page.getByRole('heading', { name: 'This account is no longer connected.', exact: true })
-      ).toBeVisible()
-      await expect(page.getByRole('searchbox', { name: 'Search tools', exact: true })).toHaveCount(
-        0
-      )
+      await expect(staleAccount).toBeVisible()
+      await expect(toolSearch).toHaveCount(0)
       const states =
         await sql`select id, managed_oauth_status from credential where id in (${credentialId}, ${secondCredentialId})`
       assert.equal(
@@ -714,6 +735,8 @@ try {
         'revoked'
       )
       await page.goto(accountsUrl)
+      await expect(secondAccount).toHaveCount(0)
+      await openAccountPermissions('taylor@acme.example', credentialId)
       await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
     }
   )
@@ -732,37 +755,36 @@ try {
           (account) => account.credentialId === firefliesCredentialId
         )
       )
-      await page.goto(`${baseUrl.origin}${root}/integrations`)
+      await page.goto(appUrl(routes.integrations))
       await integrationRow('Coda').click()
-      await expect(page).toHaveURL((url) => url.pathname === `${root}/integrations/coda`)
+      await expect(page).toHaveURL((url) => url.pathname === integrationPath('coda'))
       const detailUrl = page.url()
-      const connect = page.getByRole('button', { name: 'Coda', exact: true })
-      await expect(connect).toBeEnabled()
-      await expect(
-        page.getByRole('main').getByText('Connect your Coda account', { exact: true })
-      ).toBeVisible()
+      const noCredentials = page
+        .getByRole('main')
+        .getByRole('heading', { name: 'No connected credentials', exact: true })
+      await expect(connectIntegration).toBeEnabled()
+      await expect(noCredentials).toBeVisible()
       await expect(page.getByText('meetings@acme.example', { exact: true })).toHaveCount(0)
       await capture('integration-enabled-empty')
       const forgedUrl = new URL(detailUrl)
       forgedUrl.searchParams.set('account', firefliesCredentialId)
       await page.goto(forgedUrl.toString())
-      await expect(
-        page.getByRole('heading', { name: 'This account is no longer connected.', exact: true })
-      ).toBeVisible()
-      await expect(page.getByRole('button', { name: /^Manage / })).toHaveCount(0)
-      await expect(page.getByRole('searchbox', { name: 'Search tools', exact: true })).toHaveCount(
-        0
-      )
+      await expect(staleAccount).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Disconnect', exact: true })).toHaveCount(0)
+      await expect(page.getByRole('button', { name: 'Reconnect', exact: true })).toHaveCount(0)
+      await expect(page.getByRole('tab', { name: 'Permissions', exact: true })).toHaveCount(0)
+      await expect(toolSearch).toHaveCount(0)
       await sql`update organization_search_integration set approved = false where organization_id = ${organizationId} and connector_type = 'coda'`
       try {
-        await page.goto(`${baseUrl.origin}${root}/integrations`)
+        await page.goto(appUrl(routes.integrations))
         await expect(integrationRow('Coda')).toBeVisible()
         await integrationRow('Coda').click()
-        await expect(page).toHaveURL((url) => url.pathname === `${root}/integrations/coda`)
+        await expect(page).toHaveURL((url) => url.pathname === integrationPath('coda'))
+        await expect(noCredentials).toBeVisible()
         await expect(
           page.getByRole('main').getByText('Disabled by your organization', { exact: true })
         ).toBeVisible()
-        await expect(connect).toBeDisabled()
+        await expect(connectIntegration).toBeDisabled()
         await capture('integration-disabled-empty')
       } finally {
         await sql`update organization_search_integration set approved = true where organization_id = ${organizationId} and connector_type = 'coda'`
@@ -775,7 +797,7 @@ try {
             .getByRole('main')
             .getByText('Connections are paused by your organization', { exact: true })
         ).toBeVisible()
-        await expect(connect).toBeDisabled()
+        await expect(connectIntegration).toBeDisabled()
         await capture('integration-paused-empty')
       } finally {
         await sql`update credential_group set status = 'active' where id = ${groupId}`
@@ -783,16 +805,18 @@ try {
       await sql`update credential set managed_oauth_status = 'revoked' where id = ${nativeCredentialId}`
       await sql`update credential_group set options = (select jsonb_agg(case when value->>'id' = 'salesforce' then value || '{"status":"disabled"}'::jsonb else value end) from jsonb_array_elements(options)) where id = ${groupId}`
       try {
-        await page.goto(`${baseUrl.origin}${root}/integrations`)
+        await page.goto(appUrl(routes.integrations))
         const salesforce = integrationRow('Salesforce')
         await expect(salesforce).toBeVisible()
         await salesforce.click()
-        await expect(page).toHaveURL((url) => url.pathname === `${root}/integrations/salesforce`)
+        await expect(page).toHaveURL((url) => url.pathname === integrationPath('salesforce'))
+        await expect(noCredentials).toBeVisible()
         await expect(
           page.getByRole('main').getByText('Connections unavailable', { exact: true })
         ).toBeVisible()
-        await expect(page.getByRole('region', { name: 'Connected account' })).toHaveCount(0)
-        await expect(page.getByRole('button', { name: 'Salesforce', exact: true })).toBeDisabled()
+        await expect(page.getByRole('region', { name: /^Connected credentials?$/ })).toHaveCount(0)
+        // With no connectable option left the page offers no connection at all.
+        await expect(connectIntegration).toHaveCount(0)
         await capture('integration-disabled-app-empty')
       } finally {
         await sql`update credential set managed_oauth_status = 'active' where id = ${nativeCredentialId}`
@@ -874,15 +898,12 @@ try {
       })
       await page.setViewportSize({ width: 1440, height: 1000 })
       await page.emulateMedia({ colorScheme: 'dark' })
-      await page.goto(`${baseUrl.origin}${root}/search/chat/${emailChatId}`)
+      await page.goto(appUrl(routes.searchChat(emailChatId)))
       const emails = page.getByRole('region', { name: 'Review Send email', exact: true })
       await expect(emails).toHaveCount(2)
       for (const message of messages) {
-        const email = emails.filter({ hasText: message.subject }).filter({
-          has: page
-            .getByRole('region', { name: 'Message preview', exact: true })
-            .filter({ hasText: message.body }),
-        })
+        const body = page.getByRole('definition').filter({ hasText: message.body })
+        const email = emails.filter({ hasText: message.subject }).filter({ has: body })
         await expect(email).toHaveCount(1)
         for (const address of [
           'launch-team@example.test',
@@ -892,10 +913,9 @@ try {
           await expect(email.getByText(address, { exact: true })).toBeVisible()
         }
         assert.equal(
-          await email.getByRole('region', { name: 'Message preview', exact: true }).textContent(),
+          await email.getByRole('definition').filter({ hasText: message.body }).textContent(),
           message.body
         )
-        await email.getByRole('button', { name: 'Details', exact: true }).click()
       }
       await capture('email-review-desktop')
       const plainIndex = (await emails.allTextContents()).findIndex((content) =>
@@ -910,9 +930,9 @@ try {
       await plain.scrollIntoViewIfNeeded()
       await capture('email-review-edit')
       await plain.getByRole('button', { name: 'Done', exact: true }).click()
-      await expect(plain.getByRole('region', { name: 'Message preview', exact: true })).toHaveText(
-        editedBody
-      )
+      await expect(
+        plain.getByRole('definition').filter({ hasText: 'Please confirm the owner by Friday.' })
+      ).toHaveText(editedBody)
       for (const width of [320, 390]) {
         await page.setViewportSize({ width, height: 844 })
         await emails.first().scrollIntoViewIfNeeded()
@@ -926,11 +946,7 @@ try {
       await expect(emails).toHaveCount(0)
       const receipts = page.getByRole('region', { name: 'Send email receipt', exact: true })
       await expect(receipts).toHaveCount(2)
-      for (const receipt of await receipts.all()) {
-        await receipt
-          .getByRole('button', { name: 'View Send email receipt: Cancelled', exact: true })
-          .click()
-      }
+      for (const receipt of await receipts.all()) await expect(receipt).toContainText('Cancelled')
       await capture('email-receipts-mobile')
       const response = await context.request.get(
         `${baseUrl.origin}/api/organizations/${organizationId}/chats/${emailChatId}/actions/receipts`,
@@ -954,11 +970,12 @@ try {
       await page.setViewportSize({ width: 1440, height: 1000 })
     }
   )
-  await check('Personal permissions persist through the real settings route', async () => {
-    await page.goto(`${baseUrl.origin}${root}/integrations/accounts/${credentialId}`, {
-      waitUntil: 'domcontentloaded',
-      timeout: 180_000,
-    })
+  await check('Personal permissions persist through the account permissions page', async () => {
+    const accountPage = new URL(appUrl(integrationPath('jira')))
+    accountPage.searchParams.set('account', credentialId)
+    accountPage.searchParams.set('credentialTab', 'permissions')
+    await page.goto(accountPage.toString(), { waitUntil: 'domcontentloaded', timeout: 180_000 })
+    await expect(permissionsTab).toHaveAttribute('aria-selected', 'true')
     const policy = page.getByRole('group', { name: 'Jira Write permission' })
     await expect(policy).toBeVisible({ timeout: 180_000 })
     await expect(policy.getByRole('radio', { name: 'Ask', exact: true })).toBeChecked()
@@ -1011,7 +1028,7 @@ try {
           new URL(response.url()).searchParams.get('streamId') === streamId,
         { timeout: 180_000 }
       )
-      await page.goto(`${baseUrl.origin}${root}/search/chat/${assistantId}`, {
+      await page.goto(appUrl(routes.searchChat(assistantId)), {
         waitUntil: 'domcontentloaded',
         timeout: 180_000,
       })
@@ -1026,11 +1043,7 @@ try {
       assert.equal(restoredReview.actions.length, 2)
       await expect(reviewCards).toHaveCount(2)
       await page.unroute(reviewUrl)
-      await expect(
-        page
-          .getByRole('region', { name: 'Create Jira issue receipt' })
-          .filter({ hasText: 'Approved historical title' })
-      ).toBeAttached()
+      await expect(jiraReceipts.filter({ hasText: 'Approved historical title' })).toBeAttached()
       await expect(page.getByRole('button', { name: 'Allow', exact: true })).toHaveCount(2)
       await expect(reviewCards.getByRole('textbox')).toHaveCount(0)
       await expect(reviewCards.getByText('Priority', { exact: true })).toHaveCount(0)
@@ -1081,23 +1094,12 @@ try {
       await expect(
         reviewCards.nth(0).getByText('Publish the launch checklist', { exact: true })
       ).toBeVisible()
-      await expect(
-        page
-          .getByRole('region', { name: 'Create Jira issue receipt' })
-          .filter({ hasText: 'Approved historical title' })
-      ).toBeAttached()
-      const historicalReceipt = page
-        .getByRole('region', { name: 'Create Jira issue receipt' })
-        .filter({ hasText: 'Approved historical title' })
-      await captureExpandedReceipt(
-        'action-receipt-completed-expanded',
-        historicalReceipt.getByRole('button', {
-          name: /^(View|Hide) Create Jira issue receipt: Completed$/,
-        })
+      await expect(jiraReceipts.filter({ hasText: 'Approved historical title' })).toBeAttached()
+      await captureReceipt(
+        'action-receipt-completed',
+        jiraReceipts.filter({ hasText: 'Approved historical title' }),
+        'Completed'
       )
-      await historicalReceipt
-        .getByRole('button', { name: 'Hide Create Jira issue receipt: Completed', exact: true })
-        .click()
       await reviewCards.last().scrollIntoViewIfNeeded()
       await capture('assistant-actions-desktop')
       await capture('action-review-desktop')
@@ -1171,21 +1173,14 @@ try {
       await expect(
         reviewCards.getByText('Confirm the rollout owners', { exact: true })
       ).toBeVisible()
-      const approvedReceipt = page
-        .getByRole('region', { name: 'Create Jira issue receipt' })
-        .filter({ hasText: 'Publish the reviewed launch checklist' })
-      await expect(
-        approvedReceipt.getByRole('button', {
-          name: 'View Create Jira issue receipt: Approved',
-          exact: true,
-        })
-      ).toBeVisible()
+      const approvedReceipt = jiraReceipts.filter({
+        hasText: 'Publish the reviewed launch checklist',
+      })
+      await expect(approvedReceipt).toContainText('Approved')
       await approvedReceipt.scrollIntoViewIfNeeded()
       await capture('action-review-approved-and-pending')
-      await approvedReceipt.getByRole('button', { name: 'View Create Jira issue receipt' }).click()
       await expect(approvedReceipt.getByRole('textbox')).toHaveCount(0)
       await expect(approvedReceipt.getByText('acme.atlassian.net', { exact: true })).toBeVisible()
-      await approvedReceipt.getByRole('button', { name: 'Hide Create Jira issue receipt' }).click()
       const cancellation = page.waitForResponse(
         (response) =>
           response.request().method() === 'PATCH' &&
@@ -1196,31 +1191,14 @@ try {
       const cancellationResponse = await cancellation
       assert.equal(cancellationResponse.status(), 200, await cancellationResponse.text())
       await expect(reviewCards).toHaveCount(0)
-      const cancelledReceipt = page
-        .getByRole('region', { name: 'Create Jira issue receipt' })
-        .filter({ hasText: 'Confirm the rollout owners' })
-      await expect(
-        cancelledReceipt.getByRole('button', {
-          name: 'View Create Jira issue receipt: Cancelled',
-          exact: true,
-        })
-      ).toBeVisible()
+      const cancelledReceipt = jiraReceipts.filter({ hasText: 'Confirm the rollout owners' })
+      await expect(cancelledReceipt).toContainText('Cancelled')
       await capture('action-receipts-mobile')
       await page.setViewportSize({ width: 1440, height: 1000 })
       await capture('action-receipts-desktop')
       await page.reload()
-      await expect(
-        approvedReceipt.getByRole('button', {
-          name: 'View Create Jira issue receipt: Approved',
-          exact: true,
-        })
-      ).toBeVisible()
-      await expect(
-        cancelledReceipt.getByRole('button', {
-          name: 'View Create Jira issue receipt: Cancelled',
-          exact: true,
-        })
-      ).toBeVisible()
+      await expect(approvedReceipt).toContainText('Approved')
+      await expect(cancelledReceipt).toContainText('Cancelled')
       const rows =
         await sql`select tool_call_id, permission_decision, args, approved_args, execution_started_at from copilot_async_tool_calls where run_id = ${runId} order by persist_seq`
       assert.equal(rows[0]?.permission_decision, 'allow')
@@ -1243,7 +1221,7 @@ try {
       const initialReview = page.waitForResponse(
         (response) => response.request().method() === 'GET' && response.url() === reviewUrl
       )
-      await page.goto(`${baseUrl.origin}${root}/search/chat/${lagChatId}`, {
+      await page.goto(appUrl(routes.searchChat(lagChatId)), {
         waitUntil: 'domcontentloaded',
         timeout: 180_000,
       })
@@ -1360,7 +1338,7 @@ try {
         await insertProposal(reviewRunId, id, summary)
         await appendStreamEvents(reviewChatId, reviewStreamId, [pendingToolEvent(id, summary)])
       }
-      await page.goto(`${baseUrl.origin}${root}/search/chat/${reviewChatId}`)
+      await page.goto(appUrl(routes.searchChat(reviewChatId)))
       await expect(reviewCards).toHaveCount(3)
       const actionUrl = `${baseUrl.origin}/api/organizations/${organizationId}/chats/${reviewChatId}/actions/${keyboardCallId}`
       await page.route(
@@ -1423,7 +1401,6 @@ try {
         await reviewCards.nth(0).getByRole('button', { name: 'Cancel', exact: true }).focus()
         await page.keyboard.press('Enter')
         await expect.poll(() => decisionRequested).toBe(true)
-        const composer = page.getByRole('textbox', { name: 'Ask Sim', exact: true })
         await composer.fill('Keep my focus here')
         releaseDecision.resolve()
         assert.equal((await cancellation).status(), 200)
@@ -1459,7 +1436,6 @@ try {
           await page.keyboard.press('Enter')
           await expect.poll(() => decisionRequested).toBe(true)
           if (intent === 'focus') {
-            const composer = page.getByRole('textbox', { name: 'Ask Sim', exact: true })
             await composer.fill('Continue elsewhere')
             await expect(composer).toBeFocused()
             await composer.evaluate((element) => {
@@ -1510,8 +1486,10 @@ try {
         await reviewCards.getByRole('button', { name: 'Cancel', exact: true }).focus()
         await page.keyboard.press('Enter')
         await expect.poll(() => decisionPersisted).toBe(true)
-        await page.goto(`${baseUrl.origin}${root}/search?mode=search`)
-        const search = page.getByRole('textbox', { name: 'Search your sources', exact: true })
+        await page.goto(`${appUrl(routes.search)}?mode=search`)
+        const search = page
+          .getByRole('search')
+          .getByRole('textbox', { name: 'Search', exact: true })
         await search.fill('Continue searching')
         releaseResponse.resolve()
         await expect.poll(() => responseReleased).toBe(true)
@@ -1535,7 +1513,7 @@ try {
       await insertProposal(reviewRunId, id, summary)
       await appendStreamEvents(reviewChatId, reviewStreamId, [pendingToolEvent(id, summary)])
     }
-    await page.goto(`${baseUrl.origin}${root}/search/chat/${reviewChatId}`)
+    await page.goto(appUrl(routes.searchChat(reviewChatId)))
     await expect(reviewCards).toHaveCount(3)
     const approval = page.waitForResponse(
       (response) =>
@@ -1615,10 +1593,8 @@ try {
         { type: 'text', payload: { channel: 'assistant', text: 'Review the remaining actions.' } },
       ])
       const responsesBefore = httpResponses.length
-      await page.goto(`${baseUrl.origin}/o/${organizationId}/chat/${bulkChatId}?mode=assistant`)
-      const cards = page.locator(
-        'section[aria-label="Review Create Jira issue"], section[aria-label="Create Jira issue receipt"]'
-      )
+      await page.goto(appUrl(routes.searchChat(bulkChatId)))
+      const cards = reviewCards.or(jiraReceipts)
       await expect(cards).toHaveCount(48)
       await expect(cards.nth(0)).toContainText('Batch issue 1')
       await expect(cards.nth(0)).toContainText('Cancelled')
@@ -1695,11 +1671,7 @@ try {
           await page.unroute(`${receiptsUrl}*`)
         }
         await page.getByRole('button', { name: 'Retry', exact: true }).first().click()
-        await expect(
-          page
-            .getByRole('region', { name: 'Create Jira issue receipt' })
-            .filter({ hasText: fixture.summary })
-        ).toContainText(fixture.state)
+        await expect(jiraReceipts.filter({ hasText: fixture.summary })).toContainText(fixture.state)
       }
       const [savedExecution] =
         await sql`select status, execution_started_at, execution_settled_at, execution_owner_token, execution_lease_expires_at, completed_at, result, assistant_action from copilot_async_tool_calls where run_id = ${bulkRunId} and tool_call_id = ${precedingCallId}`
@@ -1714,14 +1686,11 @@ try {
           const leaseExpiresAt = fixture.settled ? null : new Date(Date.now() + 3_600_000)
           await sql`update copilot_async_tool_calls set status = ${fixture.status}, execution_started_at = now(), execution_settled_at = ${settledAt}, execution_owner_token = ${generateId()}, execution_lease_expires_at = ${leaseExpiresAt}, completed_at = ${settledAt}, result = ${sql.json({ outcomeUnknown: fixture.unknown })} where run_id = ${bulkRunId} and tool_call_id = ${precedingCallId}`
           await page.reload()
-          const receipt = page
-            .getByRole('region', { name: 'Create Jira issue receipt' })
-            .filter({ hasText: 'Batch issue 62' })
-          await captureExpandedReceipt(
+          const receipt = jiraReceipts.filter({ hasText: 'Batch issue 62' })
+          await captureReceipt(
             `action-receipt-${fixture.label.toLowerCase().replaceAll(' ', '-')}`,
-            receipt.getByRole('button', {
-              name: new RegExp(`^(View|Hide) Create Jira issue receipt: ${fixture.label}$`),
-            })
+            receipt,
+            fixture.label
           )
         }
         const incompatibleBinding = {
@@ -1737,11 +1706,10 @@ try {
         ]) {
           await sql`update copilot_async_tool_calls set assistant_action = ${sql.json(fixture.binding)} where run_id = ${bulkRunId} and tool_call_id = ${precedingCallId}`
           await page.reload()
-          await captureExpandedReceipt(
+          await captureReceipt(
             `action-receipt-${fixture.name}`,
-            page.getByRole('button', {
-              name: /^(View|Hide) Create Jira issue receipt: Outcome unknown$/,
-            })
+            jiraReceipts.filter({ hasText: 'Outcome unknown' }),
+            'Outcome unknown'
           )
         }
       } finally {
