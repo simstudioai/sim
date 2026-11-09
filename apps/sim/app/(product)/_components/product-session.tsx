@@ -85,7 +85,10 @@ function SessionTree({
  */
 export function FixtureProductSession({
   fixtures,
-  ...frame
+  routePrefix,
+  banner,
+  sidebarCollapsed,
+  children,
 }: SessionFrameProps & {
   fixtures: Record<
     Scenario,
@@ -97,19 +100,38 @@ export function FixtureProductSession({
   const fixture = fixtures[scenario]
   return (
     <SessionTree
-      {...frame}
+      routePrefix={routePrefix}
+      banner={banner}
+      sidebarCollapsed={sidebarCollapsed}
       data={{
         ...fixture,
         settingsNavigation: fixture.settingsByPlan[readPreviewPlan(search.get('plan'))],
       }}
       theme={readAppearance(search.get('theme'))}
       scenario={scenario}
-    />
+    >
+      {children}
+    </SessionTree>
   )
 }
 
 /** A live session's shell, over the data `LiveProviders` holds. */
-export function ProductSession(frame: SessionFrameProps) {
+export function ProductSession({
+  routePrefix,
+  banner,
+  sidebarCollapsed,
+  children,
+}: SessionFrameProps) {
   const live = useLiveShellData()
-  return <SessionTree {...frame} data={live} theme={live?.appearance ?? 'system'} />
+  return (
+    <SessionTree
+      routePrefix={routePrefix}
+      banner={banner}
+      sidebarCollapsed={sidebarCollapsed}
+      data={live}
+      theme={live?.appearance ?? 'system'}
+    >
+      {children}
+    </SessionTree>
+  )
 }
