@@ -1048,6 +1048,11 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
     if (input.organizationId) await requireOrganizationSearchAvailable(input.organizationId)
     if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 8)
       throw new OrchestrationError('validation', 'Invalid document read limit')
+    if (input.startChunkIndex && input.startChunkIndex !== 0)
+      throw new OrchestrationError(
+        'validation',
+        'Live documents use chunk index zero; continue using next.startOffset'
+      )
     const reference = readLiveReference(
       input.documentId,
       liveReferenceOwner(userId, resourceScopeKey(resourceScopeFromOwner(input)))
@@ -1114,11 +1119,6 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
     if (!matchesLiveFilters(document, input.documentId, reference.provider, input.filters))
       throw new OrchestrationError('not_found', 'Document is outside the selected search filters')
     const content = safeContent(document.content, input.resultSecretRegistry)
-    if (input.startChunkIndex && input.startChunkIndex !== 0)
-      throw new OrchestrationError(
-        'validation',
-        'Live documents use chunk index zero; continue using next.startOffset'
-      )
     const start = input.startOffset ?? 0
     if (!Number.isSafeInteger(start) || start < 0 || start > content.length)
       throw new OrchestrationError(
