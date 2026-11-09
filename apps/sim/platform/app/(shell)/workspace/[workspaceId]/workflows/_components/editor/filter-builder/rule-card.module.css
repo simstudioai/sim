@@ -6,15 +6,15 @@
   border-radius: var(--radius-12);
 }
 
+/* The fold toggle reaches one hit inset into the start padding, so its title keeps the card's 8px inset. */
 .header {
   display: flex;
   align-items: center;
   gap: var(--ui-action-gap);
   min-inline-size: 0;
-  padding: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-4) var(--spacing-4) var(--spacing-8);
 }
 
-.toggle,
 .heading {
   display: flex;
   flex: 1;
@@ -22,27 +22,6 @@
   gap: var(--spacing-4);
   min-inline-size: 0;
   min-block-size: var(--spacing-24);
-  padding-inline: var(--spacing-4);
-}
-
-.toggle {
-  border: 0;
-  border-radius: var(--ui-control-radius);
-  background: transparent;
-  color: var(--ui-ink);
-  cursor: pointer;
-  text-align: start;
-}
-
-.toggle:hover,
-.toggle:focus-visible {
-  background: var(--ui-hover);
-}
-
-.chevron {
-  display: inline-flex;
-  flex: none;
-  color: var(--ui-secondary);
 }
 
 .title,
@@ -75,17 +54,6 @@
   gap: var(--spacing-12);
   min-inline-size: 0;
   padding: var(--spacing-4) var(--spacing-8) var(--spacing-8);
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-field-label-gap);
-  min-inline-size: 0;
-}
-
-.fieldLabel {
-  color: var(--ui-ink);
 }
 
 .list {

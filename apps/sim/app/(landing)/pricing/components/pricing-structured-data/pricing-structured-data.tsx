@@ -1,8 +1,8 @@
 import { INTEGRATION_COUNT_LABEL } from '@sim/deployment-config/integration-claims'
 import { CREDIT_TIERS } from '@/lib/billing/constants'
+import { COMPARISON_SECTIONS } from '@/lib/billing/plan-comparison'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import { JsonLd } from '@/app/(landing)/components/json-ld'
-import { COMPARISON_SECTIONS } from '@/app/workspace/[workspaceId]/upgrade/components/comparison-table/comparison-data'
 
 const PAGE_URL = `${SITE_URL}/pricing`
 

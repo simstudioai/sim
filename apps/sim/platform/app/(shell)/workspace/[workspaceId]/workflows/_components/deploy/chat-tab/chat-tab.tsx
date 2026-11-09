@@ -3,12 +3,17 @@
 import { useId, useState } from 'react'
 import { IconButton } from '@sim/emcn/button'
 import { CopyButton } from '@sim/emcn/button/copy-button'
-import { FieldFrame, fieldDescription, TextAreaField, TextField } from '@sim/emcn/field'
+import {
+  FieldFrame,
+  fieldDescription,
+  SwitchField,
+  TextAreaField,
+  TextField,
+} from '@sim/emcn/field'
 import { Input } from '@sim/emcn/field/inputs'
 import { Icon } from '@sim/emcn/icon'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { InlineNotice, Spinner } from '@sim/emcn/status'
-import { Switch } from '@sim/emcn/switch'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import { randomInt } from '@sim/utils/random'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/chat-tab/chat-tab.module.css'
@@ -57,7 +62,7 @@ export function ChatTab({ workflowId, chat, canRevealPassword }: ChatTabProps) {
   const url = buildChatDeploymentUrl(form.identifier || 'my-chat')
   const displayUrl = url.replace(/^https?:\/\//, '')
   return (
-    <div className={styles.form}>
+    <>
       {errors.general && <InlineNotice intent='danger' message={errors.general} />}
       <IdentifierField
         value={form.identifier}
@@ -89,13 +94,13 @@ export function ChatTab({ workflowId, chat, canRevealPassword }: ChatTabProps) {
         disabled={submitting}
         error={errors.outputBlocks}
       />
-      <SwitchRow
+      <SwitchField
         label='Include thinking'
         checked={form.includeThinking}
         disabled={submitting}
         onCheckedChange={(checked) => update('includeThinking', checked)}
       />
-      <SwitchRow
+      <SwitchField
         label='Include tool calls'
         checked={form.includeToolCalls}
         disabled={submitting}
@@ -153,7 +158,7 @@ export function ChatTab({ workflowId, chat, canRevealPassword }: ChatTabProps) {
         hint='Shown when someone first opens the chat.'
         disabled={submitting}
       />
-    </div>
+    </>
   )
 }
 
@@ -219,32 +224,6 @@ function IdentifierField({
         }
       />
     </FieldFrame>
-  )
-}
-
-interface SwitchRowProps {
-  label: string
-  checked: boolean
-  disabled: boolean
-  onCheckedChange: (checked: boolean) => void
-}
-
-/** A setting that applies to the chat as it is saved, captioned on its leading edge. */
-function SwitchRow({ label, checked, disabled, onCheckedChange }: SwitchRowProps) {
-  const id = useId()
-  return (
-    <div className={styles.switchRow}>
-      <label htmlFor={id} data-type='T059'>
-        {label}
-      </label>
-      <Switch
-        id={id}
-        label={label}
-        checked={checked}
-        disabled={disabled}
-        onCheckedChange={onCheckedChange}
-      />
-    </div>
   )
 }
 

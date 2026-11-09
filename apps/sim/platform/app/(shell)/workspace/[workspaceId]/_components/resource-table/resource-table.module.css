@@ -199,24 +199,6 @@
   padding-block-start: var(--spacing-16);
   pointer-events: none;
 }
-.bulk {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  max-inline-size: 100%;
-  gap: var(--ui-action-gap);
-  padding: var(--ui-popup-padding);
-  border: var(--spacing-stroke-default) solid var(--ui-border);
-  border-radius: var(--radius-menu);
-  pointer-events: auto;
-}
-.count {
-  padding-inline: var(--ui-row-inset);
-  color: var(--ui-secondary);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
 /* The drag image: laid out off screen so the browser can capture it under the pointer. */
 .ghost {
   position: fixed;

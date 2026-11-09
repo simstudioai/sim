@@ -2,8 +2,8 @@
 
 import { Button } from '@sim/emcn/button'
 import { Select } from '@sim/emcn/picker/select'
+import { ActionField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/field-label-row/field-label-row'
 import { ShortInput } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/short-input/short-input'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/tool-input/tool-input.module.css'
 import type { SubBlockConfig } from '@/platform/lib/data/workflow-editor'
 import type { CanonicalMode, StoredTool } from '@/platform/lib/data/workflow-editor/tool-input'
 
@@ -54,11 +54,9 @@ export function ToolUsageControl({
 }: ToolUsageControlProps) {
   const advanced = mode === 'advanced'
   return (
-    <div className={styles.field}>
-      <div className={styles.labelRow}>
-        <span className={styles.label} data-type='T059'>
-          Permission Mode
-        </span>
+    <ActionField
+      label='Permission Mode'
+      actions={
         <Button
           variant='quiet'
           size='compact'
@@ -68,7 +66,8 @@ export function ToolUsageControl({
         >
           {advanced ? 'Selector' : 'Variable'}
         </Button>
-      </div>
+      }
+    >
       {advanced ? (
         <ShortInput
           blockId={blockId}
@@ -96,6 +95,6 @@ export function ToolUsageControl({
           })}
         />
       )}
-    </div>
+    </ActionField>
   )
 }

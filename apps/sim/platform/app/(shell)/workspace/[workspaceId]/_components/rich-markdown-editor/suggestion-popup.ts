@@ -1,69 +1,55 @@
 import type { ForwardRefExoticComponent, PropsWithoutRef, RefAttributes } from 'react'
-import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom'
 import { ReactRenderer } from '@tiptap/react'
 import type { SuggestionOptions, SuggestionProps } from '@tiptap/suggestion'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/suggestion.module.css'
 
 /** The handle every suggestion list exposes, so the popup can forward arrow and Enter keys to it. */
 export interface SuggestionListHandle {
   onKeyDown: (props: { event: KeyboardEvent }) => boolean
 }
 
-type AnySuggestionProps = SuggestionProps<unknown, unknown>
-
-const POPUP_OFFSET = 6
-const POPUP_PADDING = 8
-
-function positionPopup(element: HTMLElement, getRect: AnySuggestionProps['clientRect']) {
-  const rect = getRect?.()
-  if (!rect) return
-  computePosition({ getBoundingClientRect: () => rect }, element, {
-    placement: 'bottom-start',
-    strategy: 'fixed',
-    middleware: [
-      offset(POPUP_OFFSET),
-      flip({ padding: POPUP_PADDING }),
-      shift({ padding: POPUP_PADDING }),
-    ],
-  }).then(({ x, y }) => {
-    if (!element.isConnected) return
-    element.style.left = `${x}px`
-    element.style.top = `${y}px`
-  })
+/** What the renderer gives every list, beyond the props its extension maps. */
+export interface SuggestionPlacement {
+  /** The suggestion's range in the document, which the list positions itself against. */
+  anchor: { getBoundingClientRect: () => DOMRect }
+  /** Closes the list when the reader presses outside it, as Escape does. */
+  onDismiss: () => void
 }
 
-interface SuggestionPopupConfig<P, H extends SuggestionListHandle> {
-  /** The list, mounted through `ReactRenderer` into a floating element beside the editor. */
+type AnySuggestionProps = SuggestionProps<unknown, unknown>
+
+interface SuggestionPopupConfig<P extends SuggestionPlacement, H extends SuggestionListHandle> {
+  /** The list, which positions and portals its own popup beside the editor. */
   component: ForwardRefExoticComponent<PropsWithoutRef<P> & RefAttributes<H>>
-  mapProps: (props: AnySuggestionProps) => P
+  mapProps: (props: AnySuggestionProps) => Omit<P, keyof SuggestionPlacement>
   /** Runs once as the popup opens, before mount: to start fetching its data lazily. */
   onOpen?: (props: AnySuggestionProps) => void
 }
 
 /**
- * The `render` lifecycle of a `@tiptap/suggestion` popup: mounts the list into a fixed element
- * inside the editor's Platform surface (so its theme and tokens apply), keeps it beside the caret,
- * forwards keys to the list and tears down on exit, Escape or editor destroy.
+ * The `render` lifecycle of a `@tiptap/suggestion` popup: mounts the list, keeps its anchor on the
+ * suggestion's range, forwards keys to it and tears down on exit, Escape, an outside press or
+ * editor destroy.
  */
-export function createSuggestionPopupRenderer<P, H extends SuggestionListHandle>(
-  config: SuggestionPopupConfig<P, H>
-): NonNullable<SuggestionOptions['render']> {
+export function createSuggestionPopupRenderer<
+  P extends SuggestionPlacement,
+  H extends SuggestionListHandle,
+>(config: SuggestionPopupConfig<P, H>): NonNullable<SuggestionOptions['render']> {
   return () => {
     let component: ReactRenderer<H> | null = null
-    let popup: HTMLElement | null = null
     let boundEditor: AnySuggestionProps['editor'] | null = null
-    let stopAutoUpdate: (() => void) | null = null
 
     const teardown = () => {
-      stopAutoUpdate?.()
-      stopAutoUpdate = null
       boundEditor?.off('destroy', teardown)
       boundEditor = null
-      popup?.remove()
       component?.destroy()
-      popup = null
       component = null
     }
+
+    const listProps = (props: AnySuggestionProps): Record<string, unknown> => ({
+      ...(config.mapProps(props) as Record<string, unknown>),
+      anchor: { getBoundingClientRect: () => props.clientRect?.() ?? new DOMRect() },
+      onDismiss: teardown,
+    })
 
     return {
       onStart: (props) => {
@@ -71,25 +57,14 @@ export function createSuggestionPopupRenderer<P, H extends SuggestionListHandle>
         if (props.editor.isDestroyed) return
         config.onOpen?.(props)
         component = new ReactRenderer(config.component, {
-          props: config.mapProps(props) as Record<string, unknown>,
+          props: listProps(props),
           editor: props.editor,
         })
-        popup = document.createElement('div')
-        popup.className = styles.popup
-        popup.appendChild(component.element)
-        const host = props.editor.view.dom.closest('dialog, [data-emcn]') ?? document.body
-        host.appendChild(popup)
         boundEditor = props.editor
         boundEditor.on('destroy', teardown)
-        const reference = { getBoundingClientRect: () => props.clientRect?.() ?? new DOMRect() }
-        const surface = popup
-        stopAutoUpdate = autoUpdate(reference, surface, () =>
-          positionPopup(surface, props.clientRect)
-        )
       },
       onUpdate: (props) => {
-        component?.updateProps(config.mapProps(props) as Record<string, unknown>)
-        if (popup) positionPopup(popup, props.clientRect)
+        component?.updateProps(listProps(props))
       },
       onKeyDown: (props) => {
         if (props.event.isComposing) return false

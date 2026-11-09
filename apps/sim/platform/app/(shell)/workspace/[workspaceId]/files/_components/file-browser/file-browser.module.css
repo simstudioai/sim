@@ -15,26 +15,6 @@
   justify-content: flex-end;
   padding-block-end: var(--spacing-8);
 }
-.find {
-  display: flex;
-  align-items: center;
-  gap: var(--ui-action-gap);
-  padding: var(--ui-popup-padding);
-  border: var(--spacing-stroke-default) solid var(--ui-border);
-  border-radius: var(--radius-menu);
-}
-.findInput {
-  display: flex;
-  inline-size: var(--container-208);
-}
-.findCount {
-  min-inline-size: var(--spacing-72);
-  padding-inline: var(--spacing-4);
-  color: var(--ui-secondary);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-  white-space: nowrap;
-}
 .dropOverlay {
   position: absolute;
   inset: 0;

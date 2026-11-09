@@ -7,7 +7,9 @@ import {
   type ReactElement,
   type ReactNode,
   type RefObject,
+  useCallback,
   useContext,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -265,6 +267,53 @@ export function ContextActionMenu({
   )
 }
 
+interface PointActionMenuProps {
+  label: string
+  actions: MenuActions
+  /** The viewport point the rows open from, such as a secondary click the caller measured; `null` closes the menu. */
+  point: { x: number; y: number } | null
+  onClose: () => void
+  /** Receives the open popup, for a caller that tells its own outside presses apart from the rows. */
+  popupRef?: RefObject<HTMLDivElement | null>
+}
+
+/**
+ * The same rows as `ActionMenu`, opened at a point for a surface that decides its own secondary
+ * click, such as a canvas or a spreadsheet cell. The rows hang from that point as a native context
+ * menu's do, and place, flip and dismiss like every other menu.
+ */
+export function PointActionMenu({
+  label,
+  actions,
+  point,
+  onClose,
+  popupRef,
+}: PointActionMenuProps) {
+  const { trigger, container } = usePopoverContainer()
+  const x = point?.x ?? 0
+  const y = point?.y ?? 0
+  const anchor = useMemo(
+    () => ({ getBoundingClientRect: () => DOMRect.fromRect({ x, y, width: 0, height: 0 }) }),
+    [x, y]
+  )
+  return (
+    <>
+      <span ref={trigger} hidden />
+      <Menu.Root
+        modal={false}
+        open={point !== null}
+        onOpenChange={(open) => {
+          if (!open) onClose()
+        }}
+      >
+        <ActionMenuPopup label={label} container={container} anchor={anchor} popupRef={popupRef}>
+          <MenuActionRows actions={actions} />
+        </ActionMenuPopup>
+      </Menu.Root>
+    </>
+  )
+}
+
 interface ActionMenuPopupProps {
   label: string
   container: HTMLElement | null
@@ -272,6 +321,9 @@ interface ActionMenuPopupProps {
   browser?: boolean
   searchLabel?: string
   align?: 'start' | 'end'
+  /** A point to open from in place of the trigger, which then adds no offset. */
+  anchor?: { getBoundingClientRect: () => DOMRect }
+  popupRef?: RefObject<HTMLDivElement | null>
   children: ReactNode
 }
 
@@ -293,6 +345,8 @@ export function ActionMenuPopup({
   browser,
   searchLabel,
   align = 'start',
+  anchor,
+  popupRef,
   children,
 }: ActionMenuPopupProps) {
   const scrollEdges = useScrollEdges<HTMLDivElement>()
@@ -301,12 +355,20 @@ export function ActionMenuPopup({
   const parent = useContext(FloatingMenu)
   const browserRows = useContext(BrowserRows) || Boolean(browser)
   const panel = useRef<HTMLDivElement>(null)
+  const setPanel = useCallback(
+    (node: HTMLDivElement | null) => {
+      panel.current = node
+      if (popupRef) popupRef.current = node
+    },
+    [popupRef]
+  )
   if (!container) return null
   return (
     <FloatingMenu.Provider value={panel}>
       <Menu.Portal container={container}>
         <Menu.Positioner
           className={popup.positioner}
+          anchor={anchor}
           side={submenu ? 'inline-end' : searchable ? 'top' : 'bottom'}
           align={align}
           sideOffset={
@@ -315,15 +377,17 @@ export function ActionMenuPopup({
                   const { gap, edge } = panelSpacing(parent?.current)
                   return edge + gap
                 }
-              : browserRows
-                ? 8
-                : 4
+              : anchor
+                ? 0
+                : browserRows
+                  ? 8
+                  : 4
           }
           alignOffset={submenu ? () => -panelSpacing(parent?.current).edge : 0}
           collisionPadding={8}
         >
           <Menu.Popup
-            ref={panel}
+            ref={setPanel}
             data-menu={browserRows ? (submenu ? 'zoom' : 'browser') : undefined}
             data-searchable={searchable || undefined}
             aria-label={searchLabel ? label : undefined}

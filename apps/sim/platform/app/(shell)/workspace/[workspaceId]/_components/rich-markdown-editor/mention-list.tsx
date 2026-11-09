@@ -4,6 +4,7 @@ import { forwardRef, useImperativeHandle, useMemo, useRef, useSyncExternalStore 
 import type { Editor } from '@tiptap/core'
 import { mentionMark } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/mention-items'
 import { SuggestionList } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/suggestion-list'
+import type { SuggestionPlacement } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/suggestion-popup'
 import {
   type MentionItem,
   type MentionStore,
@@ -11,7 +12,7 @@ import {
   useSuggestionKeyboard,
 } from '@/platform/lib/data/files/markdown'
 
-interface MentionListProps {
+interface MentionListProps extends SuggestionPlacement {
   /** The text typed after `@`. */
   query: string
   command: (item: MentionItem) => void
@@ -43,11 +44,12 @@ function matches(item: MentionItem, query: string): boolean {
  * the workspace's entities arrive; with nothing to show yet it says so only once files settle.
  */
 export const MentionList = forwardRef<SuggestionKeyDownHandler, MentionListProps>(
-  function MentionList({ query, command, store, editor }, ref) {
+  function MentionList({ query, command, store, editor, anchor, onDismiss }, ref) {
     const menu = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
-    const containerRef = useRef<HTMLDivElement>(null)
+    // The shared list scrolls its active row into view itself.
+    const listRef = useRef<HTMLElement>(null)
 
-    const { flat, groups } = useMemo(() => {
+    const flat = useMemo(() => {
       const q = query.trim().toLowerCase()
       const byGroup = new Map<string, MentionItem[]>()
       let shown = 0
@@ -60,40 +62,36 @@ export const MentionList = forwardRef<SuggestionKeyDownHandler, MentionListProps
         else byGroup.set(item.group, [item])
         shown++
       }
-      const ordered: { group: string; items: { item: MentionItem; index: number }[] }[] = []
-      const flat: MentionItem[] = []
-      for (const group of GROUP_ORDER) {
-        const inGroup = byGroup.get(group)
-        if (!inGroup) continue
-        ordered.push({
-          group,
-          items: inGroup.map((item) => ({ item, index: flat.push(item) - 1 })),
-        })
-      }
-      return { flat, groups: ordered }
+      return GROUP_ORDER.flatMap((group) => byGroup.get(group) ?? [])
     }, [menu.items, query])
 
-    const { activeIndex, setActiveIndex, onKeyDown } = useSuggestionKeyboard(
-      flat,
-      command,
-      containerRef
+    const rows = useMemo(
+      () =>
+        flat.map((item) => {
+          const mark = mentionMark(item.kind, item.id, item.label)
+          return {
+            name: item.label,
+            group: item.group,
+            ...(mark && ('name' in mark ? { icon: mark.name } : { providerId: mark.providerId })),
+          }
+        }),
+      [flat]
     )
+
+    const { activeIndex, setActiveIndex, onKeyDown } = useSuggestionKeyboard(flat, command, listRef)
     useImperativeHandle(ref, () => ({ onKeyDown }), [onKeyDown])
 
     return (
       <SuggestionList
         editor={editor}
-        containerRef={containerRef}
-        groups={groups}
-        activeIndex={activeIndex}
-        setActiveIndex={setActiveIndex}
-        command={command}
-        ariaLabel='Mentions'
-        idPrefix='mention'
-        emptyLabel={menu.items.length === 0 || menu.filesPending ? null : 'No results'}
-        itemKey={(item) => `${item.kind}:${item.id}`}
-        itemLabel={(item) => item.label}
-        itemMark={(item) => mentionMark(item.kind, item.id, item.label)}
+        label='Mentions'
+        empty={menu.items.length === 0 || menu.filesPending ? null : 'No results'}
+        rows={rows}
+        active={activeIndex}
+        onHighlight={setActiveIndex}
+        onSelect={(index) => command(flat[index])}
+        anchor={anchor}
+        onDismiss={onDismiss}
       />
     )
   }

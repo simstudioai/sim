@@ -1,41 +1,4 @@
-/* The Logs run list's rows inside the dialog: a flexible version, then lanes that line up. */
-.table {
-  min-inline-size: 0;
-  margin-inline: calc(-1 * var(--ui-row-inset));
-  container: deploy-versions / inline-size;
-}
-.header,
-.row {
-  display: grid;
-  grid-template-columns:
-    minmax(0, 1fr)
-    minmax(0, var(--spacing-128))
-    calc(var(--spacing-128) + var(--spacing-24))
-    calc(var(--spacing-app-control-sm) * 2 + var(--ui-action-gap));
-  align-items: center;
-  gap: var(--spacing-16);
-  padding-inline: var(--ui-row-inset);
-}
-.header {
-  min-block-size: var(--ui-table-head);
-  color: var(--ui-secondary);
-  white-space: nowrap;
-}
-.rows {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--ui-list-gap);
-}
-.row {
-  min-block-size: var(--spacing-40);
-  padding-block: var(--spacing-4);
-  border-radius: var(--radius-item);
-  color: var(--ui-ink);
-}
-.row:hover,
-.row:has(:focus-visible) {
-  background: var(--ui-hover);
-}
+/* A version's cell: its number, then its name or the field renaming it, then its state. */
 .version {
   display: flex;
   align-items: center;
@@ -47,37 +10,8 @@
   color: var(--ui-secondary);
   font-variant-numeric: tabular-nums;
 }
-.name {
-  display: flex;
-  min-inline-size: 0;
-}
 .rename {
   display: flex;
   flex: 1;
   min-inline-size: 0;
-}
-.secondary {
-  display: flex;
-  min-inline-size: 0;
-  color: var(--ui-secondary);
-  white-space: nowrap;
-}
-.actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--ui-action-gap);
-  margin-inline-end: calc(-1 * var(--ui-action-overhang));
-}
-@container deploy-versions (width < 30rem) {
-  .header,
-  .row {
-    grid-template-columns:
-      minmax(0, 1fr)
-      calc(var(--spacing-128) + var(--spacing-24))
-      calc(var(--spacing-app-control-sm) * 2 + var(--ui-action-gap));
-  }
-  .table [data-optional] {
-    display: none;
-  }
 }

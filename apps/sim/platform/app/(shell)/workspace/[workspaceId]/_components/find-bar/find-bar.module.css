@@ -1,0 +1,38 @@
+/* The find surface; its consumer places it over the content it searches. */
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-action-gap);
+  max-inline-size: 100%;
+  padding: var(--ui-popup-padding);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu-shared);
+  color: var(--ui-ink);
+}
+.bar[data-replace] {
+  inline-size: min(var(--container-440), 100%);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-action-gap);
+}
+.field {
+  display: flex;
+  flex: 1 1 var(--container-208);
+  min-inline-size: var(--spacing-128);
+}
+.tally {
+  flex: none;
+  min-inline-size: var(--spacing-64);
+  padding-inline: var(--spacing-4);
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+/* Holds the find row's replace toggle width, so both fields share a start edge. */
+.indent {
+  flex: none;
+  inline-size: var(--spacing-24);
+}

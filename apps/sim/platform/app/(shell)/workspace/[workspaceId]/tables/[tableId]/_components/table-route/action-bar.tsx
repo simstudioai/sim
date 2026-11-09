@@ -1,6 +1,7 @@
 'use client'
 
 import { IconButton } from '@sim/emcn/button'
+import { SelectionBar } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/selection-bar/selection-bar'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/table-route/table-route.module.css'
 
 interface TableActionBarProps {
@@ -51,25 +52,23 @@ export function TableActionBar({
 
   return (
     <div className={styles.actionBar}>
-      <div className={styles.actionBarSurface} data-material='floating' data-elevation='menu'>
-        <span className={styles.actionBarLabel} data-type='T060'>
-          {selectedCellCount === 1
+      <SelectionBar
+        aria-label='Workflow cell actions'
+        label={
+          selectedCellCount === 1
             ? 'Selected 1 workflow cell'
-            : `Selected ${selectedCellCount} workflow cells`}
-        </span>
-        <span className={styles.actionBarActions}>
-          {showPlay && <IconButton label={playLabel} icon='play' tooltip onClick={onPlay} />}
-          {showRefresh && (
-            <IconButton label={refreshLabel} icon='I065' tooltip onClick={onRefresh} />
-          )}
-          {runningCount > 0 && (
-            <IconButton label={stopLabel} icon='I035' tooltip onClick={onStopWorkflows} />
-          )}
-          {onViewExecution && (
-            <IconButton label='View execution' icon='eye' tooltip onClick={onViewExecution} />
-          )}
-        </span>
-      </div>
+            : `Selected ${selectedCellCount} workflow cells`
+        }
+      >
+        {showPlay && <IconButton label={playLabel} icon='play' tooltip onClick={onPlay} />}
+        {showRefresh && <IconButton label={refreshLabel} icon='I065' tooltip onClick={onRefresh} />}
+        {runningCount > 0 && (
+          <IconButton label={stopLabel} icon='I035' tooltip onClick={onStopWorkflows} />
+        )}
+        {onViewExecution && (
+          <IconButton label='View execution' icon='eye' tooltip onClick={onViewExecution} />
+        )}
+      </SelectionBar>
     </div>
   )
 }

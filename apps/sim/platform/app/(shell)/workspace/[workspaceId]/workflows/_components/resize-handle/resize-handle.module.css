@@ -1,0 +1,22 @@
+.handle {
+  position: absolute;
+  z-index: 2;
+}
+.handle[data-edge="inline-start"] {
+  inset-block: 0;
+  inset-inline-start: calc(-1 * var(--spacing-4));
+  inline-size: var(--spacing-8);
+  cursor: ew-resize;
+}
+.handle[data-edge="block-start"] {
+  inset-block-start: calc(-1 * var(--spacing-4));
+  inset-inline: 0;
+  block-size: var(--spacing-8);
+  cursor: ns-resize;
+}
+/* The editor stacks its side-by-side surfaces below 48rem, leaving nothing to resize sideways. */
+@media (max-width: 48rem) {
+  .handle[data-edge="inline-start"] {
+    display: none;
+  }
+}

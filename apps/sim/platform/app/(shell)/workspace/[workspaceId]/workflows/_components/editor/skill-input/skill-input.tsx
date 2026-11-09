@@ -7,6 +7,10 @@ import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { useActiveSearchTarget } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import { formatDisplayText } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/formatted-text'
 import { getWorkflowSearchLabelHighlight } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
+import {
+  ItemCard,
+  ItemList,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/item-card/item-card'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/skill-input/skill-input.module.css'
 import { SkillModal } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/skill-input/skill-modal'
 import { useSubBlockValue, useWorkflowScope } from '@/platform/lib/data/workflow-editor'
@@ -116,7 +120,7 @@ export function SkillInput({
         onCreate={() => setShowCreateModal(true)}
       />
       {selectedSkills.length > 0 && (
-        <ul className={styles.list} aria-label='Skills'>
+        <ItemList label='Skills'>
           {selectedSkills.map((stored, index) => {
             const fullSkill = skillsById.get(stored.skillId)
             const skillName = fullSkill?.name ?? stored.name ?? stored.skillId
@@ -129,45 +133,37 @@ export function SkillInput({
                 label: skillName,
               }),
             })
-            const body = (
-              <>
-                <span className={styles.glyph}>
-                  <Icon name='I044' />
-                </span>
-                <span className={styles.name} data-type='T043'>
-                  {label}
-                </span>
-              </>
-            )
             return (
-              <li key={stored.skillId} className={styles.row}>
-                {fullSkill && editable ? (
-                  <button
-                    type='button'
-                    className={styles.rowMain}
-                    aria-label={`Edit ${skillName}`}
-                    onClick={() => {
-                      setEditingSkillId(fullSkill.id)
-                      setEditingSkillSnapshot(fullSkill)
-                    }}
-                  >
-                    {body}
-                  </button>
-                ) : (
-                  <span className={styles.rowMain}>{body}</span>
-                )}
-                {editable && (
-                  <IconButton
-                    label={`Remove ${skillName}`}
-                    icon='I105'
-                    size='compact'
-                    onClick={() => removeSkill(stored.skillId)}
-                  />
-                )}
+              <li key={stored.skillId}>
+                <ItemCard
+                  icon='I044'
+                  name={label}
+                  title={skillName}
+                  expandable={false}
+                  expanded={false}
+                  onActivate={
+                    fullSkill && editable
+                      ? () => {
+                          setEditingSkillId(fullSkill.id)
+                          setEditingSkillSnapshot(fullSkill)
+                        }
+                      : undefined
+                  }
+                  actions={
+                    editable && (
+                      <IconButton
+                        label={`Remove ${skillName}`}
+                        icon='I105'
+                        size='compact'
+                        onClick={() => removeSkill(stored.skillId)}
+                      />
+                    )
+                  }
+                />
               </li>
             )
           })}
-        </ul>
+        </ItemList>
       )}
       <SkillModal
         workspaceId={workspaceId}

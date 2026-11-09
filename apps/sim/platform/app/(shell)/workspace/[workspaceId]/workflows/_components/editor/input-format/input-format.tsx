@@ -2,12 +2,14 @@
 
 import { useId, useMemo, useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
+import { FieldFrame } from '@sim/emcn/field'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { Select } from '@sim/emcn/picker/select'
 import { useActiveSearchTarget } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/active-search-target/active-search-target'
 import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/code-field'
 import { highlightSyntax } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/highlight'
 import { EntryCard } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/entry-card/entry-card'
+import { ActionField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/field-label-row/field-label-row'
 import { FileUpload } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/file-upload/file-upload'
 import { getActiveWorkflowSearchHighlight } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/input-format/input-format.module.css'
@@ -280,10 +282,7 @@ export function InputFormat({
               </>
             }
           >
-            <div className={styles.field}>
-              <label className={styles.label} data-type='T059' htmlFor={`${fieldId}-name`}>
-                Name
-              </label>
+            <FieldFrame id={`${fieldId}-name`} label='Name'>
               <ReferenceField
                 id={`${fieldId}-name`}
                 label='Name'
@@ -302,7 +301,7 @@ export function InputFormat({
                   valuePath: [index, 'name'],
                 })}
               />
-            </div>
+            </FieldFrame>
             <Select
               label='Type'
               field={{}}
@@ -311,10 +310,7 @@ export function InputFormat({
               onValueChange={(next) => updateField(field.id, 'type', next)}
               disabled={isReadOnly}
             />
-            <div className={styles.field}>
-              <label className={styles.label} data-type='T059' htmlFor={`${fieldId}-description`}>
-                Description
-              </label>
+            <FieldFrame id={`${fieldId}-description`} label='Description'>
               <ReferenceField
                 id={`${fieldId}-description`}
                 label='Description'
@@ -331,17 +327,14 @@ export function InputFormat({
                   valuePath: [index, 'description'],
                 })}
               />
-            </div>
+            </FieldFrame>
             {showValue && (
-              <div className={styles.field}>
-                <div className={styles.labelRow}>
-                  <span className={styles.label} data-type='T059'>
-                    Value
-                  </span>
-                  {isFileFieldType(field.type) && renderFileModeToggle(field)}
-                </div>
+              <ActionField
+                label='Value'
+                actions={isFileFieldType(field.type) && renderFileModeToggle(field)}
+              >
                 {renderValueControl(field, index)}
-              </div>
+              </ActionField>
             )}
           </EntryCard>
         )

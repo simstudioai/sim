@@ -11,6 +11,10 @@ import {
   getWorkflowSearchLabelHighlight,
   isWorkflowSearchTargetForField,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/formatted-text/search-highlight'
+import {
+  ItemCard,
+  ItemList,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/item-card/item-card'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/knowledge-base-selector/knowledge-base-selector.module.css'
 import {
   type SubBlockConfig,
@@ -126,12 +130,12 @@ export function KnowledgeBaseSelector({
   return (
     <div className={styles.selector}>
       {isMultiSelect && selected.length > 0 && (
-        <ul className={styles.chips} aria-label={`Selected ${label.toLowerCase()}`}>
+        <ItemList label={`Selected ${label.toLowerCase()}`}>
           {selected.map((knowledgeBase, index) => (
-            <li key={knowledgeBase.id} className={styles.chip}>
-              <Icon name='I082' />
-              <span className={styles.chipLabel} data-type='T052'>
-                {formatDisplayText(labelOf(knowledgeBase), {
+            <li key={knowledgeBase.id}>
+              <ItemCard
+                icon='I082'
+                name={formatDisplayText(labelOf(knowledgeBase), {
                   workflowSearchHighlight: getWorkflowSearchLabelHighlight({
                     activeSearchTarget,
                     blockId,
@@ -140,22 +144,27 @@ export function KnowledgeBaseSelector({
                     label: labelOf(knowledgeBase),
                   }),
                 })}
-              </span>
-              {editable && (
-                <IconButton
-                  label={`Remove ${labelOf(knowledgeBase)}`}
-                  icon='I105'
-                  size='inline'
-                  onClick={() =>
-                    setStoreValue(
-                      storedSelection(selectedIds.filter((id) => id !== knowledgeBase.id))
-                    )
-                  }
-                />
-              )}
+                title={labelOf(knowledgeBase)}
+                expandable={false}
+                expanded={false}
+                actions={
+                  editable && (
+                    <IconButton
+                      label={`Remove ${labelOf(knowledgeBase)}`}
+                      icon='I105'
+                      size='compact'
+                      onClick={() =>
+                        setStoreValue(
+                          storedSelection(selectedIds.filter((id) => id !== knowledgeBase.id))
+                        )
+                      }
+                    />
+                  )
+                }
+              />
             </li>
           ))}
-        </ul>
+        </ItemList>
       )}
       <div className={styles.picker} data-search-match={searchMatch || undefined}>
         {isMultiSelect ? (

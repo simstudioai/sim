@@ -1,4 +1,5 @@
 import { type ComponentProps, useId } from 'react'
+import styles from '#emcn/components/field/field.shared.module.css'
 import { FieldFrame, fieldDescription } from '#emcn/components/field/frame'
 import {
   Input,
@@ -7,6 +8,7 @@ import {
   type TextValueProps,
 } from '#emcn/components/field/inputs'
 import { Select } from '#emcn/components/picker/select'
+import { Switch } from '#emcn/components/switch/switch'
 
 interface FieldProps {
   label: string
@@ -172,5 +174,31 @@ export function SelectField<Value extends string>({
       describedBy={fieldDescription(id, error, hint)}
       field={{ optional, error, hint }}
     />
+  )
+}
+
+interface SwitchFieldProps {
+  label: string
+  checked: boolean
+  disabled?: boolean
+  onCheckedChange: (checked: boolean) => void
+}
+
+/** A setting that applies with its switch: the caption on the leading edge names and toggles it. */
+export function SwitchField({ label, checked, disabled, onCheckedChange }: SwitchFieldProps) {
+  const id = useId()
+  return (
+    <div className={styles.switchField}>
+      <label htmlFor={id} data-type='T059'>
+        {label}
+      </label>
+      <Switch
+        id={id}
+        label={label}
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onCheckedChange}
+      />
+    </div>
   )
 }
