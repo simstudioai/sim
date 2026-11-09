@@ -252,21 +252,9 @@ export function getSelfHostSettingsHref(
   return withSettingsSearchParams(`/selfhost/settings/${section}`, searchParams)
 }
 
-export function getWorkspaceSettingsHref(
-  workspaceId: string,
-  section: WorkspaceSettingsSection,
-  searchParams?: SettingsHrefSearchParams
-): string {
-  return withSettingsSearchParams(`/workspace/${workspaceId}/settings/${section}`, searchParams)
-}
-
 export const ACCOUNT_SETTINGS_PATH_ALIASES = {
   apikeys: 'api-keys',
 } as const satisfies Readonly<Record<string, AccountSettingsSection>>
-
-export const WORKSPACE_SETTINGS_PATH_ALIASES = {
-  apikeys: 'api-keys',
-} as const satisfies Readonly<Record<string, WorkspaceSettingsSection>>
 
 interface ParseSettingsPathSectionOptions<
   Section extends string,
@@ -866,7 +854,7 @@ export const ACCOUNT_SETTINGS_ITEMS: SettingsNavigationItem<AccountSettingsSecti
 export const SELFHOST_SETTINGS_ITEMS: SettingsNavigationItem<SelfHostSettingsSection>[] =
   buildPlaneSettingsItems('selfhost')
 
-export const WORKSPACE_SETTINGS_ITEMS: SettingsNavigationItem<WorkspaceSettingsSection>[] =
+const WORKSPACE_SETTINGS_ITEMS: SettingsNavigationItem<WorkspaceSettingsSection>[] =
   buildPlaneSettingsItems('workspace')
 
 export const ORGANIZATION_SETTINGS_GROUPS = [

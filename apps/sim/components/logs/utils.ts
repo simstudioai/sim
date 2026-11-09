@@ -2,7 +2,6 @@ import type React from 'react'
 import type { Badge } from '@sim/emcn-legacy'
 import { formatRelativeTime } from '@sim/utils/formatting'
 import { format } from 'date-fns'
-import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 
 export const LOG_COLUMNS = {
   workflow: { width: 'w-[22%]', minWidth: 'min-w-[140px]', label: 'Workflow' },
@@ -30,23 +29,6 @@ export function resolveLogWorkflowId(log: {
 }): string | null {
   if (log.trigger === 'mothership' || log.workflow?.archivedAt) return null
   return log.workflow?.id || log.workflowId || null
-}
-
-/**
- * The workflow label a log row and its details panel show. An archived workflow keeps its name
- * (it just cannot be opened, see {@link resolveLogWorkflowId}); only a hard-deleted workflow, which
- * leaves no workflow id, reads as deleted.
- */
-export function getLogWorkflowLabel(log: {
-  trigger?: string | null
-  workflowId?: string | null
-  jobTitle?: string | null
-  workflow?: { id?: string; name?: string | null; archivedAt?: string | null } | null
-}): string {
-  if (log.trigger === 'mothership') return log.jobTitle || 'Untitled Job'
-  return log.workflow?.id || log.workflowId
-    ? log.workflow?.name || 'Unknown'
-    : DELETED_WORKFLOW_LABEL
 }
 
 export type LogStatus =

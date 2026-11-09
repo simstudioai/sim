@@ -18,7 +18,6 @@ export {
   mapResourceToContext,
   OVERLAY_CLASSES,
   SCROLLER_CLASSES,
-  SPEECH_RECOGNITION_LANG,
   TEXTAREA_BASE_CLASSES,
 } from './constants'
 export { DropOverlay } from './drop-overlay'

@@ -282,7 +282,7 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
 }))
 
 import {
-  isChatWorkflowRunResult,
+  type ChatWorkflowRunResult,
   useWorkflowExecution,
   WorkflowAttachmentUploadError,
 } from '@/components/workflow-editor/hooks/use-workflow-execution'
@@ -789,11 +789,10 @@ describe('useWorkflowExecution attachment uploads', () => {
       await drainStream(runResult)
     })
 
-    expect(isChatWorkflowRunResult(runResult)).toBe(true)
-    if (!isChatWorkflowRunResult(runResult)) {
-      throw new Error('Expected a chat workflow run result')
-    }
-    expect(runResult.uploadedAttachments).toEqual([
+    expect(runResult).toEqual(
+      expect.objectContaining({ success: true, stream: expect.any(ReadableStream) })
+    )
+    expect((runResult as ChatWorkflowRunResult).uploadedAttachments).toEqual([
       expect.objectContaining({
         name: 'diagram.png',
         url: '/api/files/serve/execution%2Fdiagram.png',

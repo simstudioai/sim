@@ -4,13 +4,10 @@ import {
   ACCOUNT_SETTINGS_PATH_ALIASES,
   canMutateWorkspaceSettingsSection,
   getOrganizationSettingsFeatures,
-  getWorkspaceSettingsHref,
   isSelfHostedOverrideEnabled,
   parseSettingsPathSection,
   resolveOrganizationSectionAccess,
   resolveWorkspaceNavigation,
-  WORKSPACE_SETTINGS_ITEMS,
-  WORKSPACE_SETTINGS_PATH_ALIASES,
 } from '@/components/settings/navigation'
 import type { DeploymentShape } from '@/lib/api/contracts/workspaces'
 import { organizationPlanAllowsSettingsSection } from '@/lib/settings/section-availability'
@@ -61,17 +58,6 @@ describe('settings navigation boundaries', () => {
     expect(isSelfHostedOverrideEnabled('sso', SELF_HOSTED)).toBe(false)
   })
 
-  it('preserves encoded query parameters on canonical settings hrefs', () => {
-    const searchParams = new URLSearchParams([
-      ['mcpServerId', 'server/a'],
-      ['view', 'tools and prompts'],
-    ])
-
-    expect(getWorkspaceSettingsHref('workspace-a', 'mcp', searchParams)).toBe(
-      '/workspace/workspace-a/settings/mcp?mcpServerId=server%2Fa&view=tools+and+prompts'
-    )
-  })
-
   it('parses canonical, nested, and aliased account settings paths', () => {
     const parseAccountPath = (path: string, defaultSection: 'general' | null) =>
       parseSettingsPathSection({
@@ -86,20 +72,6 @@ describe('settings navigation boundaries', () => {
     expect(parseAccountPath('/account/settings/apikeys', null)).toBe('api-keys')
     expect(parseAccountPath('/account/settings/not-a-section', null)).toBeNull()
     expect(parseAccountPath('/account/settings', 'general')).toBe('general')
-  })
-
-  it('parses canonical, aliased, and invalid workspace settings paths', () => {
-    const parseWorkspacePath = (path: string) =>
-      parseSettingsPathSection({
-        path,
-        items: WORKSPACE_SETTINGS_ITEMS,
-        defaultSection: null,
-        aliases: WORKSPACE_SETTINGS_PATH_ALIASES,
-      })
-
-    expect(parseWorkspacePath('secrets')).toBe('secrets')
-    expect(parseWorkspacePath('/workspace/workspace-a/settings/apikeys')).toBe('api-keys')
-    expect(parseWorkspacePath('/workspace/workspace-a/settings/not-a-section')).toBeNull()
   })
 
   it('requires target-organization membership and admin authority', () => {

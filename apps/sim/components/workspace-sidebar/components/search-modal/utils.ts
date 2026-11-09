@@ -1,181 +1,3 @@
-import type { ComponentType } from 'react'
-import { toSearchToken } from '@/lib/search/tokens'
-import type { SearchBlockItem, SearchToolOperationItem } from '@/stores/modals/search/types'
-
-/**
- * Every result group the palette can render. This is also the canonical order:
- * the zero-query browse list and the flat search tie-break both follow it,
- * with two page-aware insertions at the front — the page's action group, then
- * its own entity section hoisted above `actions`' platform group.
- */
-const SEARCH_SECTIONS = [
-  'actions',
-  'blocks',
-  'triggers',
-  'tools',
-  'toolOperations',
-  'pages',
-  'workflows',
-  'workspaces',
-  'files',
-  'tables',
-  'knowledgeBases',
-  'logs',
-  'connectedAccounts',
-  'chats',
-  'integrations',
-] as const
-
-/** A single search-modal result group. */
-export type SearchSection = (typeof SEARCH_SECTIONS)[number]
-
-interface IntegrationSearchItem {
-  id: string
-  name: string
-  href: string
-  icon: ComponentType<{ className?: string }>
-  bgColor: string
-}
-
-interface TaskItem {
-  id: string
-  name: string
-  href: string
-  /** Formatted last-activity date shown as trailing metadata. Set for chats. */
-  date?: string
-}
-
-/**
- * A {@link TaskItem} that lives in a folder tree, so the row can show which
- * folder it came from — a name is only unique within its folder.
- */
-export interface FolderedItem extends TaskItem {
-  /** Owning folder names, root first. */
-  folderPath?: string[]
-}
-
-interface WorkflowItem extends FolderedItem {
-  isCurrent?: boolean
-}
-
-interface WorkspaceItem {
-  id: string
-  name: string
-  href: string
-  isCurrent?: boolean
-  logoUrl?: string | null
-}
-
-interface PageItem {
-  id: string
-  name: string
-  icon: ComponentType<{ className?: string }>
-  href?: string
-  onClick?: () => void
-  shortcut?: string
-  hidden?: boolean
-}
-
-type FileItem = FolderedItem
-
-interface LogItem {
-  id: string
-  /** Workflow (or job) name the execution belongs to. */
-  name: string
-  href: string
-  /** Human-readable run date shown as trailing metadata. */
-  date: string
-}
-
-/**
- * Pages that contribute their own palette actions while active. Each page
- * registers its handlers as global commands on mount; the palette invokes
- * them by id and only offers them while the matching route is mounted.
- */
-type PageActionContext =
-  | 'workflow'
-  | 'tables'
-  | 'tableDetail'
-  | 'files'
-  | 'fileDetail'
-  | 'knowledge'
-  | 'knowledgeBase'
-  | 'logs'
-  | 'logsDashboard'
-
-/** Where an {@link ActionItem} (a verb) is available. */
-export type ActionContext = 'global' | PageActionContext
-
-/**
- * An action is a verb the palette can run directly (create, import, toggle),
- * as opposed to an entity the user navigates to. Actions render at the top of
- * the result list so the most common "do something" intents are one keystroke
- * away.
- */
-export interface ActionItem {
-  id: string
-  name: string
-  /** Extra terms folded into the search value (e.g. "new add"). */
-  keywords?: string
-  /**
-   * Lowercase queries that name this action outright — the module it heads
-   * (`'workflows'` for Create workflow) or its bare verb (`'deploy'`,
-   * `'copy'`). When the trimmed query IS one of these, the action ranks like
-   * a page row ({@link PAGE_MATCH_TIER}), above section-lifted and
-   * exact-name entity rows.
-   */
-  exactQueries?: readonly string[]
-  icon: ComponentType<{ className?: string }>
-  shortcut?: string
-  context: ActionContext
-  run: () => void
-}
-
-export type ActionGroupLabel = 'Sim' | 'Actions'
-
-const SECTION_LABELS: Record<SearchSection, string> = {
-  actions: 'Sim',
-  blocks: 'Blocks',
-  triggers: 'Triggers',
-  tools: 'Tools',
-  toolOperations: 'Tool operations',
-  pages: 'Pages',
-  workflows: 'Workflows',
-  workspaces: 'Workspaces',
-  files: 'Files',
-  tables: 'Tables',
-  knowledgeBases: 'Knowledge Bases',
-  logs: 'Logs',
-  connectedAccounts: 'Connected Integrations',
-  integrations: 'Integrations',
-  chats: 'Chats',
-}
-
-export type SearchEntry =
-  | { section: 'actions'; score: number; item: ActionItem }
-  | { section: 'blocks' | 'tools' | 'triggers'; score: number; item: SearchBlockItem }
-  | { section: 'toolOperations'; score: number; item: SearchToolOperationItem }
-  | { section: 'connectedAccounts' | 'integrations'; score: number; item: IntegrationSearchItem }
-  | { section: 'chats'; score: number; item: TaskItem }
-  | { section: 'workflows'; score: number; item: WorkflowItem }
-  | { section: 'tables' | 'knowledgeBases'; score: number; item: FolderedItem }
-  | { section: 'files'; score: number; item: FileItem }
-  | { section: 'logs'; score: number; item: LogItem }
-  | { section: 'workspaces'; score: number; item: WorkspaceItem }
-  | { section: 'pages'; score: number; item: PageItem }
-
-/** Merge-ranks every match from the visible sections into one flat result list. */
-export function getGlobalSearchResults(
-  entriesBySection: Partial<Record<SearchSection, readonly SearchEntry[]>>,
-  sections: readonly SearchSection[]
-): SearchEntry[] {
-  /* Flattening in section order makes the spec-stable sort's tie-break the
-     section order (then within-section order) with no explicit comparator. */
-  return sections
-    .flatMap((section) => entriesBySection[section] ?? [])
-    .sort((a, b) => b.score - a.score)
-}
-
 /** Characters that begin a new word — a match here scores higher. */
 const SEPARATORS = new Set([' ', '-', '_', '/', '.', ':', '(', ')'])
 
@@ -331,20 +153,6 @@ export function fuzzyMatch(
 const NAME_MATCH_TIER = 1_000_000
 
 /**
- * Rank offset that lifts an entire section above every name match when the
- * query IS that section's name — typing "triggers" asks for the Triggers
- * section itself, not rows from other sections that happen to contain the word.
- */
-const SECTION_MATCH_TIER = 2_000_000
-
-/**
- * Rank offset for a page row whose name IS the query. Typing "logs" means the
- * Logs page itself first, then its contents (the section lifted into
- * {@link SECTION_MATCH_TIER}) beneath it.
- */
-const PAGE_MATCH_TIER = 3_000_000
-
-/**
  * Matches a query against secondary search text: a space-separated list of
  * entries where multi-word phrases are kebab-cased into single tokens (see
  * `toSearchToken`). Whole-string matching keeps the exact/prefix/substring and
@@ -392,8 +200,8 @@ function scoreItem(name: string, search: string, getExtra?: () => string | undef
   return byExtra.matched ? byExtra : NO_MATCH
 }
 
-/** Scores and sorts matches while retaining scores for cross-section ranking. */
-export function scoreAndSort<T>(
+/** Scores and sorts matches, highest first. */
+function scoreAndSort<T>(
   items: T[],
   toValue: (item: T) => string,
   search: string,
@@ -411,125 +219,6 @@ export function scoreAndSort<T>(
   }
   scored.sort((a, b) => b.score - a.score)
   return scored
-}
-
-/**
- * Scores normal item matches first, then fills a matched section with its
- * remaining rows in natural order. A query that exactly names the section
- * lifts every returned row into {@link SECTION_MATCH_TIER}, keeping this
- * internal order but beating name matches from other sections.
- */
-function scoreItemsForSection<T>(
-  sectionLabel: string,
-  items: T[],
-  toValue: (item: T) => string,
-  search: string,
-  toExtra?: (item: T) => string | undefined,
-  maxResults = Number.POSITIVE_INFINITY
-): Array<{ item: T; score: number }> {
-  const rankedItems = scoreAndSort(items, toValue, search, toExtra)
-  const query = search.trim()
-  const sectionMatch = fuzzyMatch(sectionLabel, query)
-  const isExactLabelMatch =
-    sectionMatch.matched && query.toLowerCase() === sectionLabel.toLowerCase()
-
-  let results: Array<{ item: T; score: number }>
-  if (!sectionMatch.matched || rankedItems.length >= maxResults) {
-    results = rankedItems.slice(0, maxResults)
-  } else {
-    const matchedItems = new Set(rankedItems.map(({ item }) => item))
-    const lowestItemScore = rankedItems.at(-1)?.score
-    const fallbackScore =
-      lowestItemScore === undefined
-        ? sectionMatch.score
-        : Math.min(sectionMatch.score, lowestItemScore - 1)
-
-    results = [...rankedItems]
-    for (const item of items) {
-      if (!matchedItems.has(item)) results.push({ item, score: fallbackScore })
-      if (results.length >= maxResults) break
-    }
-  }
-
-  if (isExactLabelMatch) {
-    return results.map(({ item }, index) => ({ item, score: SECTION_MATCH_TIER - index }))
-  }
-  return results
-}
-
-/**
- * Sections whose label never participates in matching. Tool operations are a
- * 1000+ registry-ordered list, so label-driven behavior ("tool operations"
- * lifting the section, or a partial hit like "tool" filling it) would surface
- * arbitrary rows; individual operations stay searchable by name and alias.
- */
-const LABEL_MATCH_EXEMPT_SECTIONS = new Set<SearchSection>(['toolOperations'])
-
-export function scoreSectionItems<T>(
-  section: SearchSection,
-  items: T[],
-  toValue: (item: T) => string,
-  search: string,
-  toExtra?: (item: T) => string | undefined,
-  maxResults = Number.POSITIVE_INFINITY
-): Array<{ item: T; score: number }> {
-  if (LABEL_MATCH_EXEMPT_SECTIONS.has(section)) {
-    return scoreAndSort(items, toValue, search, toExtra).slice(0, maxResults)
-  }
-  return scoreItemsForSection(SECTION_LABELS[section], items, toValue, search, toExtra, maxResults)
-}
-
-/**
- * Rank offset added to a matched action. Actions are the palette's few
- * runnable verbs, so a matched action outranks entity rows of the same match
- * quality — a name-matched action beats name-matched entities, a
- * keyword-matched action beats other secondary-text matches — while the
- * half-tier offset deliberately cannot bridge into the next tier up
- * ({@link SECTION_MATCH_TIER}, {@link PAGE_MATCH_TIER}). A name hit that
- * starts mid-word ("h" in "New chat") is NOT the same quality as the
- * word-start matches the offset would leapfrog, so it forgoes the bias.
- */
-export const ACTION_MATCH_BIAS = 500_000
-
-/**
- * Whether a match begins where a word begins — the string start, right after a
- * separator, or at a camelCase hump. The empty query (no positions) counts as
- * a word start.
- */
-function isWordStartMatch(text: string, positions: readonly number[]): boolean {
-  if (positions.length === 0) return true
-  return isHardBoundary(text.toLowerCase(), positions[0]) || isCamelBoundary(text, positions[0])
-}
-
-/**
- * Scores actions by visible name before falling back to their keywords.
- * Word-start matches are lifted by {@link ACTION_MATCH_BIAS}; a mid-word name
- * hit keeps its honest score so word-start entity matches outrank it; a query
- * listed in the action's `exactQueries` ranks it like a page row instead.
- */
-export function scoreActions(
-  actions: ActionItem[],
-  search: string,
-  maxResults = Number.POSITIVE_INFINITY,
-  groupLabel: ActionGroupLabel = 'Sim'
-): Array<{ item: ActionItem; score: number }> {
-  const query = search.trim().toLowerCase()
-  return scoreItemsForSection(
-    groupLabel,
-    actions,
-    (action) => action.name,
-    search,
-    (action) => `${toSearchToken(action.name)} ${action.keywords ?? ''}`,
-    maxResults
-  ).map(({ item, score }) => {
-    if (item.exactQueries?.includes(query)) return { item, score: PAGE_MATCH_TIER }
-    /* Section-lifted rows (the query IS the group label) keep the bias
-       wholesale — only plain name-tier scores are quality-checked. */
-    const byName = fuzzyMatch(item.name, query)
-    const midWordNameMatch =
-      score < SECTION_MATCH_TIER && byName.matched && !isWordStartMatch(item.name, byName.positions)
-    return { item, score: midWordNameMatch ? score : score + ACTION_MATCH_BIAS }
-  })
 }
 
 /**
@@ -552,7 +241,7 @@ export function filterAndSort<T>(
  * reshuffling match set every keystroke is what stalls typing; results are
  * score-sorted, so the cap only drops the low-relevance tail.
  */
-export const MAX_RESULTS_PER_GROUP = 50
+const MAX_RESULTS_PER_GROUP = 50
 
 /**
  * {@link filterAndSort} bounded to {@link MAX_RESULTS_PER_GROUP} while searching,

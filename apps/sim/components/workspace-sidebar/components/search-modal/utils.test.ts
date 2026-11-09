@@ -1,90 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  ACTION_MATCH_BIAS,
   filterAndCap,
   filterAndSort,
   fuzzyMatch,
-  getGlobalSearchResults,
-  MAX_RESULTS_PER_GROUP,
-  type SearchEntry,
-  scoreActions,
-  scoreAndSort,
-  scoreSectionItems,
 } from '@/components/workspace-sidebar/components/search-modal/utils'
-
-describe('getGlobalSearchResults', () => {
-  it('merge-ranks results across every visible section', () => {
-    const action: SearchEntry = {
-      section: 'actions',
-      score: 7,
-      item: {
-        id: 'create-folder',
-        name: 'Create folder',
-        icon: () => null,
-        context: 'global',
-        run: () => {},
-      },
-    }
-    const workflow: SearchEntry = {
-      section: 'workflows',
-      score: 20,
-      item: { id: 'workflow-1', name: 'New customer workflow', href: '/workflow-1' },
-    }
-    const chat: SearchEntry = {
-      section: 'chats',
-      score: 83,
-      item: { id: 'chat-1', name: 'New chat', href: '/chat-1' },
-    }
-
-    const matches = getGlobalSearchResults(
-      { actions: [action], workflows: [workflow], chats: [chat] },
-      ['actions', 'workflows', 'chats']
-    )
-
-    expect(matches.map((entry) => entry.item.id)).toEqual(['chat-1', 'workflow-1', 'create-folder'])
-  })
-
-  it('biases matched actions above equal-quality matches from entity sections', () => {
-    const action = {
-      id: 'new-chat-action',
-      name: 'New chat',
-      keywords: 'message conversation',
-      icon: () => null,
-      context: 'global' as const,
-      run: () => {},
-    }
-    const chat = { id: 'new-chat-result', name: 'New chat', href: '/new-chat-result' }
-    const [actionMatch] = scoreActions([action], 'new c')
-    const [chatMatch] = scoreAndSort([chat], (item) => item.name, 'new c')
-
-    expect(actionMatch.score).toBe(chatMatch.score + ACTION_MATCH_BIAS)
-    expect(
-      getGlobalSearchResults(
-        {
-          actions: [{ section: 'actions', ...actionMatch }],
-          chats: [{ section: 'chats', ...chatMatch }],
-        },
-        ['actions', 'chats']
-      ).map((entry) => entry.item.id)
-    ).toEqual(['new-chat-action', 'new-chat-result'])
-  })
-})
-
-describe('scoreSectionItems', () => {
-  it('never fills or lifts tool operations from their section label', () => {
-    const operations = [{ name: 'Send Message' }, { name: 'Create Row' }]
-
-    expect(
-      scoreSectionItems('toolOperations', operations, (op) => op.name, 'tool operations')
-    ).toHaveLength(0)
-    expect(scoreSectionItems('toolOperations', operations, (op) => op.name, 'tool')).toHaveLength(0)
-    expect(
-      scoreSectionItems('toolOperations', operations, (op) => op.name, 'send').map(
-        ({ item }) => item.name
-      )
-    ).toEqual(['Send Message'])
-  })
-})
 
 /**
  * The matcher that shipped before fuzzy matching was introduced. Re-implemented
@@ -337,7 +256,7 @@ describe('filterAndCap', () => {
   const id = (s: string) => s
 
   it('never caps the empty (browse) state, even above the cap', () => {
-    const items = Array.from({ length: MAX_RESULTS_PER_GROUP + 25 }, (_, i) => `item ${i}`)
+    const items = Array.from({ length: 75 }, (_, i) => `item ${i}`)
     const result = filterAndCap(items, id, '')
     expect(result).toHaveLength(items.length)
     expect(result).toBe(items)

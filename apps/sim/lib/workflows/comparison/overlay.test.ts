@@ -1,15 +1,18 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
-import { getPreviewBlockDimensions } from '@/components/workflow-editor/preview/components/preview-workflow/preview-dimensions'
+import { describe, expect, it, vi } from 'vitest'
 import {
   generateWorkflowDiffSummary,
   type WorkflowDiffSummary,
 } from '@/lib/workflows/comparison/compare'
 import { buildWorkflowDiffOverlay } from '@/lib/workflows/comparison/overlay'
 import { getConditionRows, getRouterRows } from '@/lib/workflows/dynamic-handle-topology'
+import { getPreviewBlockDimensions } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-preview/preview-dimensions'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
+
+/** The product preview's seam names the canvas font, which only Next's compiler can load. */
+vi.mock('next/font/local', () => ({ default: () => ({ className: '', style: {} }) }))
 
 /** Overlay only reads position, data and ids; the cast keeps the fixtures short. */
 function asState(state: Record<string, unknown>): WorkflowState {
