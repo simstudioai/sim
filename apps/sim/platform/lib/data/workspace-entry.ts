@@ -12,7 +12,7 @@ import { listWorkspacesEnsuringDefault } from '@/lib/workspaces/create'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { resolveOrganizationGate } from '@/platform/lib/data/route-resolution'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
-import { readShellOrganizationId } from '@/platform/lib/data/shell-scope'
+import { ensureViewerLandingOrganization } from '@/platform/lib/data/shell-scope'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 import { DEFAULT_WORKSPACE_SETTING } from '@/platform/lib/data/workspace-settings'
 
@@ -65,12 +65,12 @@ export async function resolveWorkspaceEntry(
   query: WorkspaceEntryQuery
 ): Promise<WorkspaceEntryDecision> {
   const { principal, userName, activeOrganizationId } = await requireSessionViewer()
-  /** The shell's organization, provisioned for an account in none, before the list decides. */
-  await readShellOrganizationId()
+  /** The viewer's organization, provisioned for an account in none, before the list decides. */
+  const organizationId = await ensureViewerLandingOrganization()
   const list = await listWorkspacesEnsuringDefault({
     userId: principal.userId,
     userName,
-    activeOrganizationId,
+    activeOrganizationId: organizationId,
   })
     .then((payload) => asRouteResponse(listWorkspacesContract, payload))
     .catch((error: unknown) => {

@@ -10,13 +10,13 @@ import {
 import { readSessionViewer } from '@/platform/lib/data/server-read'
 
 /**
- * The organization the viewer's shell opens in when no URL names one: where they land, or, for an
- * account not yet in any organization (before the backfill reaches it, or after a failed signup
- * provisioning), the one `ensureViewerOrganization` provisions for them now. This is the shell's
- * one deliberate provisioning point; it creates the organization and its owner membership only, and
- * their workspaces stay where they are.
+ * The organization the viewer lands in, provisioned first for an account not yet in any
+ * organization (before the backfill reaches it, or after a failed signup provisioning) by
+ * `ensureViewerOrganization`. This is the shell's one provisioning point, run once per request: it
+ * creates the organization and its owner membership only, and their workspaces stay where they are.
+ * The shell's reads fall back to it when no URL names an organization the viewer can open.
  */
-const readViewerLandingOrganizationId = cache(async (): Promise<string | null> => {
+export const ensureViewerLandingOrganization = cache(async (): Promise<string | null> => {
   const viewer = await readSessionViewer()
   if (!viewer) return null
   return ensureViewerOrganization.execute({ principal: viewer.principal, input: {} })
@@ -36,7 +36,7 @@ export const readWorkspaceShellOrganizationId = cache(
         principal: viewer.principal,
         input: { workspaceId },
       })
-      return shell.organizationId ?? (await readViewerLandingOrganizationId())
+      return shell.organizationId ?? (await ensureViewerLandingOrganization())
     } catch (error) {
       if (isWorkspaceShellRefusal(error)) return null
       throw error
@@ -57,5 +57,5 @@ export const readShellOrganizationId = cache(async (): Promise<string | undefine
   if (!viewer) return undefined
   const workspaceOrganizationId =
     scope?.kind === 'workspace' ? await readWorkspaceShellOrganizationId(scope.workspaceId) : null
-  return workspaceOrganizationId ?? (await readViewerLandingOrganizationId()) ?? undefined
+  return workspaceOrganizationId ?? (await ensureViewerLandingOrganization()) ?? undefined
 })

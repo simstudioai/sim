@@ -345,6 +345,8 @@ const serverSeamHelpers: ReasonedAllowlist = {
     'The workflow definition use case a workspace entry reads to open a workflow',
   'lib/workspaces/application/workspace-shell':
     "The workspace shell use case behind the shell's scope",
+  'lib/workspaces/create':
+    'listWorkspacesEnsuringDefault, the workspaces a viewer may open, their default one created first',
   'lib/workspaces/list': 'listWorkspacesForViewer, the workspaces a viewer may open',
   'lib/workspaces/seed-workspace-list': 'The workspace list the shell seeds for the sidebar',
   'lib/core/config/block-visibility':
