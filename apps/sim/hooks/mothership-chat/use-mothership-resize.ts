@@ -145,7 +145,7 @@ export function useMothershipResize(
   { userId, collapsed }: MothershipResizeOptions
 ) {
   const scopeRef = useRef(desktopScopeId)
-  const mothershipRef = useRef<HTMLDivElement | null>(null)
+  const mothershipRef = useRef<HTMLElement | null>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
   const focusedDividerRef = useRef<HTMLElement | null>(null)
   const preferredWidthRef = useRef<number | undefined>(undefined)
@@ -177,7 +177,7 @@ export function useMothershipResize(
 
   /** DOM attachment owns gesture cleanup; pending chat adoption leaves the same panel attached. */
   const attachPanel = useCallback(
-    (el: HTMLDivElement | null) => {
+    (el: HTMLElement | null) => {
       if (!el) return
       mothershipRef.current = el
       preferredWidthRef.current = readPreferredWidth(userId, scopeRef.current)

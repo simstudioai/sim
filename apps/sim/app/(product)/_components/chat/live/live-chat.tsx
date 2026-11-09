@@ -6,6 +6,7 @@ import {
   LiveCredentialCard,
   LiveUsageNotice,
 } from '@/app/(product)/_components/chat/cards/live-credential-card'
+import { LiveTurnReceipts } from '@/app/(product)/_components/chat/cards/live-turn-receipts'
 import { Conversation } from '@/app/(product)/_components/chat/conversation/conversation'
 import { CHAT_PLACEHOLDERS } from '@/app/(product)/_components/chat/conversation/model'
 import {
@@ -22,7 +23,11 @@ import { useChatRestore, useViewerId } from '@/platform/lib/data/chat-restore'
 import { useOrganization } from '@/platform/lib/data/organization'
 import type { SummaryRequest } from '@/platform/lib/data/search-summary'
 
-const CARDS: ChatCards = { Credential: LiveCredentialCard, Usage: LiveUsageNotice }
+const CARDS: ChatCards = {
+  Credential: LiveCredentialCard,
+  Usage: LiveUsageNotice,
+  TurnReceipts: LiveTurnReceipts,
+}
 
 const PLACEHOLDERS = {
   agent: CHAT_PLACEHOLDERS,

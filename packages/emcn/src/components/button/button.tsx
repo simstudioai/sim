@@ -111,7 +111,11 @@ interface IconButtonProps {
   render?: ReactElement
   label: string
   icon: IconName
-  size?: 'small' | 'row' | 'compact' | 'inline'
+  /**
+   * `bar` keeps the small face on touch screens, beside compact buttons in a toolbar, and extends
+   * only its target there.
+   */
+  size?: 'small' | 'bar' | 'row' | 'compact' | 'inline'
   variant?: 'quiet' | 'solid' | 'floating'
   disabled?: boolean
   onClick?: MouseEventHandler<HTMLButtonElement>

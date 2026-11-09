@@ -4,6 +4,10 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockPreview } = vi.hoisted(() => ({ mockPreview: vi.fn() }))
+vi.mock('@/lib/browser-agent/open-in-panel', () => ({
+  shouldOpenInBrowserPanel: () => false,
+  openInBrowserPanel: vi.fn(),
+}))
 vi.mock('@/lib/integrations/icon-mapping', () => ({ blockTypeToIconMap: {} }))
 vi.mock('@/hooks/queries/link-preview', () => ({ useLinkPreview: mockPreview }))
 

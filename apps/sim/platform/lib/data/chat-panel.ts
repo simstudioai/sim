@@ -8,11 +8,13 @@ import type {
   PlatformTurn,
 } from '@/app/(product)/_components/chat/model'
 import type { PanelResources } from '@/app/(product)/_components/chat/panel/model'
+import { useBrowserTabResources } from '@/hooks/mothership-chat/use-browser-tab-resources'
 import type { useChat } from '@/hooks/mothership-chat/use-chat'
 import type {
   useChatResourcePanel,
   useResourcePanelController,
 } from '@/hooks/mothership-chat/use-resource-panel'
+import { useTerminalTabResources } from '@/hooks/mothership-chat/use-terminal-tab-resources'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type SurfaceScope, surfaceHref } from '@/platform/lib/data/organization-model'
 
@@ -53,13 +55,19 @@ interface PanelResourcesOptions {
   controller: ReturnType<typeof useResourcePanelController>
 }
 
-/** The hook's tabs as the panel reads them. Selection stays in `?resource=`, owned by the hook. */
+/**
+ * The hook's tabs as the panel reads them. Selection stays in `?resource=`, owned by the hook. In
+ * the desktop app the chat's native browser pages and shells join them, one tab each, and a source link
+ * clicked in the chat opens in a new one.
+ */
 export function usePanelResources({
   chat,
   turns,
   panel,
   controller,
 }: PanelResourcesOptions): PanelResources {
+  useBrowserTabResources(panel.desktopTabResourceOptions)
+  useTerminalTabResources(panel.desktopTabResourceOptions)
   const scope = useOrganization()
   const resources: PlatformResource[] = chat.resources.map((resource) => ({
     id: resource.id,
@@ -81,5 +89,13 @@ export function usePanelResources({
     },
     onExpand: panel.expandResource,
     onCollapse: panel.collapseResource,
+    resize: {
+      panelRef: panel.mothershipRef,
+      onPointerDown: panel.handleResourceResizePointerDown,
+      onKeyDown: panel.handleResourceResizeKeyDown,
+      onFocus: panel.handleResourceResizeFocus,
+    },
+    onInteraction: panel.handleResourceInteraction,
+    desktopScopeId: chat.desktopScopeId,
   }
 }

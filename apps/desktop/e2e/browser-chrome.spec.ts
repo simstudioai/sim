@@ -26,10 +26,7 @@ test('crowded tabs and renderer overlays work with a real native browser page', 
       `${readFileSync(stylesheet, 'utf8')}\n@source ${JSON.stringify(FIXTURE)};`,
       { from: stylesheet }
     )
-    const hook = join(
-      SIM_DIR,
-      'components/mothership-chat/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion.ts'
-    )
+    const hook = join(SIM_DIR, 'lib/browser-agent/panel-occlusion.ts')
     const bundle = await build({
       stdin: {
         contents: `import { mountBrowserChromeFixture } from ${JSON.stringify(FIXTURE)};

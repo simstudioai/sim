@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -66,17 +66,16 @@ test('sign-in and app-launch prompts wait for the user on the page that asked', 
       throw error
     }
   }
-  const browserComponents = join(
-    SIM_DIR,
-    'components/mothership-chat/mothership-view/components/resource-content/components/browser-session'
-  )
+  const browserComponents = join(SIM_DIR, 'app/(product)/_components/chat/panel/browser-session')
+  const occlusion = join(SIM_DIR, 'lib/browser-agent/panel-occlusion.ts')
   const bundle = await build({
     stdin: {
       contents: `import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useBrowserSessionStore as store } from ${JSON.stringify(join(SIM_DIR, 'stores/browser-session/store.ts'))};
-import { BrowserAppLaunchNoticeBar, BrowserPagePromptModal } from ${JSON.stringify(join(browserComponents, 'browser-page-prompt.tsx'))};
-import { useBrowserPanelOcclusion } from ${JSON.stringify(join(browserComponents, 'browser-panel-occlusion.ts'))};
+import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface';
+import { AppLaunchNotice, PagePromptModal } from ${JSON.stringify(join(browserComponents, 'page-prompts.tsx'))};
+import { useBrowserPanelOcclusion } from ${JSON.stringify(occlusion)};
 const scope = ${JSON.stringify(SCOPE)};
 const api = globalThis.simDesktop.browserAgent;
 api.onPageState(state => store.getState().setPageState(state));
@@ -88,9 +87,9 @@ function Fixture() {
   const page = store(state => state.sessions[scope]?.pageState);
   useBrowserPanelOcclusion(scope, page?.tabId ?? null, true, () => document.getElementById('native-panel')?.getBoundingClientRect() ?? null);
   const respond = (requestId, response) => api.panelAction({ action: 'respond-prompt', requestId, response }, scope);
-  return createElement('div', null,
-    page?.appLaunchNotice ? createElement(BrowserAppLaunchNoticeBar, { key: page.appLaunchNotice.requestId, notice: page.appLaunchNotice, onRespond: respond }) : null,
-    createElement(BrowserPagePromptModal, { prompt: page?.prompt, open: Boolean(page?.prompt), onRespond: respond }));
+  return createElement(PlatformSurface, { theme: 'light' },
+    page?.appLaunchNotice ? createElement(AppLaunchNotice, { key: page.appLaunchNotice.requestId, notice: page.appLaunchNotice, onRespond: respond }) : null,
+    page?.prompt ? createElement(PagePromptModal, { prompt: page.prompt, onRespond: respond }) : null);
 }
 createRoot(document.getElementById('root')).render(createElement(Fixture));`,
       resolveDir: SIM_DIR,
@@ -99,7 +98,8 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
     bundle: true,
     write: false,
     outfile: test.info().outputPath('fixture.js'),
-    external: ['node:async_hooks'],
+    jsx: 'automatic',
+    external: ['node:async_hooks', 'postgres'],
     banner: { js: 'var process={env:{NODE_ENV:"development"},browser:true};' },
     format: 'iife',
     platform: 'browser',
@@ -107,10 +107,13 @@ createRoot(document.getElementById('root')).render(createElement(Fixture));`,
     define: { 'process.env.NODE_ENV': '"development"' },
   })
   const config = await loadPostcssConfig({}, SIM_DIR)
-  const stylesheet = join(SIM_DIR, 'app/_styles/globals.css')
-  const css = await postcss(config.plugins).process(readFileSync(stylesheet, 'utf8'), {
-    from: stylesheet,
-  })
+  const productCss = await postcss(config.plugins).process(
+    '@import "./bootstrap.css";\n@import "@sim/emcn-platform/styles/platform.css";',
+    { from: join(SIM_DIR, 'platform/styles/bootstrap.css') }
+  )
+  const css = {
+    css: `${productCss.css}\n${bundle.outputFiles.find((file) => file.path.endsWith('.css'))?.text ?? ''}`,
+  }
   const calls = new Map<string, { chatId: string; toolName: BrowserToolName; args: unknown }>()
   const challenges: string[] = []
   let otherPort = 0

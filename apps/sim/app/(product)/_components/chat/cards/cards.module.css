@@ -42,3 +42,14 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.summary {
+  overflow: hidden;
+  color: var(--ui-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history {
+  display: grid;
+  min-inline-size: 0;
+  gap: var(--ui-row-gap);
+}

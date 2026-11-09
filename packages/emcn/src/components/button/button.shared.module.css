@@ -128,6 +128,15 @@
     inline-size: var(--spacing-20);
     block-size: var(--spacing-20);
   }
+  /* A toolbar face keeps its drawn size beside compact buttons; only its target grows. */
+  .iconButton[data-size="bar"] {
+    position: relative;
+  }
+  .iconButton[data-size="bar"]::after {
+    content: "";
+    position: absolute;
+    inset: calc((var(--spacing-app-control-sm) - var(--spacing-app-touch-target)) / 2);
+  }
   .iconButton[data-size="small"]:not([data-solid]) {
     inline-size: var(--spacing-app-touch-target);
     block-size: var(--spacing-app-touch-target);
@@ -140,6 +149,50 @@
     content: "";
     position: absolute;
     inset: calc((var(--spacing-app-control-sm) - var(--spacing-app-touch-target)) / 2);
+  }
+}
+
+@media (pointer: coarse) and (max-width: 48rem) {
+  /*
+   * On a phone, a filled control keeps its drawn size while its box grows to the touch target, as
+   * the legacy composer's send and stop buttons did: the fill moves to a centered layer behind the
+   * glyph. Elsewhere only its target grows.
+   */
+  .iconButton[data-size="small"][data-solid] {
+    position: relative;
+    isolation: isolate;
+    inline-size: var(--spacing-app-touch-target);
+    block-size: var(--spacing-app-touch-target);
+  }
+  .iconButton[data-size="small"][data-solid]::after {
+    inset: 0;
+  }
+  .iconButton[data-size="small"][data-solid],
+  .iconButton[data-size="small"][data-solid]:is(:enabled, a[href]):not(
+      [data-disabled],
+      [aria-disabled="true"]
+    ):is(:hover, :active) {
+    background: transparent;
+  }
+  .iconButton[data-size="small"][data-solid]::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: calc((var(--spacing-app-touch-target) - var(--spacing-app-control-sm)) / 2);
+    border-radius: inherit;
+    background: var(--control-solid-fill);
+  }
+  .iconButton[data-size="small"][data-solid]:is(:enabled, a[href]):not(
+      [data-disabled],
+      [aria-disabled="true"]
+    ):hover::before {
+    background: var(--control-solid-hover);
+  }
+  .iconButton[data-size="small"][data-solid]:is(:enabled, a[href]):not(
+      [data-disabled],
+      [aria-disabled="true"]
+    ):active::before {
+    background: var(--control-solid-pressed);
   }
 }
 

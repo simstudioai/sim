@@ -125,7 +125,6 @@ export function useLiveChatRuntime({
       onResourceEvent: controller.onResourceEvent,
       activeResourceState: controller.activeResourceState,
     }),
-    projectsDesktopTabs: false,
   })
   const panel = useChatResourcePanel(chat, controller, session?.user?.id)
   const streaming = chat.isSending || chat.isReconnecting

@@ -10,6 +10,7 @@
  * bridge and the terminal tools are never offered.
  */
 import {
+  type DesktopZoomPercent,
   isPendingDesktopScopeId,
   type SimDesktopTerminalApi,
   type TerminalShortcutCommand,
@@ -158,6 +159,20 @@ export function onTerminalData(
   }
 }
 
+/**
+ * Tells the desktop app whether the visible terminal resource owns shortcut
+ * routing. Menu accelerators are global, so this claim must survive transient
+ * focus moves through the panel chrome.
+ */
+export function reportTerminalFocused(focused: boolean, scopeId = currentTerminalScopeId()): void {
+  bridge()?.setFocused(focused, scopeId)
+}
+
+/** Tells the shell which terminal panel is visibly open for tab shortcuts. */
+export function reportTerminalVisible(visible: boolean, scopeId = currentTerminalScopeId()): void {
+  bridge()?.setVisible?.(visible, scopeId)
+}
+
 /** Subscribes to menu shortcuts routed to one focused terminal scope. */
 export function onTerminalShortcutCommand(
   callback: (command: TerminalShortcutCommand) => void,
@@ -173,12 +188,66 @@ export function onTerminalShortcutCommand(
   )
 }
 
+/** Subscribes to device-wide terminal default-zoom changes. */
+export function onTerminalDefaultZoomChanged(
+  callback: (zoom: DesktopZoomPercent) => void
+): () => void {
+  return bridge()?.onDefaultZoomChanged(callback) ?? (() => {})
+}
+
 /** Tells a waiting handoff that the user is done in the terminal. */
 export function finishTerminalHandoff(
   terminalId: string,
   scopeId = currentTerminalScopeId()
 ): void {
   bridge()?.finishHandoff(terminalId, scopeId)
+}
+
+export async function getTerminalScrollback(
+  terminalId: string,
+  scopeId = currentTerminalScopeId()
+): Promise<string> {
+  return (await bridge()?.getScrollback(terminalId, scopeId)) ?? ''
+}
+
+/** Forgets the desktop-owned replay buffer after the local xterm is cleared. */
+export async function clearTerminalScrollback(
+  terminalId: string,
+  scopeId = currentTerminalScopeId()
+): Promise<boolean> {
+  return (await bridge()?.clearScrollback(terminalId, scopeId)) ?? false
+}
+
+export function writeToTerminal(
+  terminalId: string,
+  data: string,
+  scopeId = currentTerminalScopeId()
+): void {
+  bridge()?.write(terminalId, data, scopeId)
+}
+
+/**
+ * Pastes the system clipboard into a terminal, reading it in the main process
+ * when the shell can.
+ *
+ * Main-side is preferred because the read is synchronous, so there is no
+ * window in which the paste can be refused for want of a recent gesture, and
+ * the renderer never touches the clipboard.
+ */
+export async function pasteIntoTerminal(
+  terminalId: string,
+  scopeId = currentTerminalScopeId()
+): Promise<boolean | 'too-large'> {
+  return (await bridge()?.paste(terminalId, scopeId)) ?? false
+}
+
+export function resizeTerminal(
+  terminalId: string,
+  cols: number,
+  rows: number,
+  scopeId = currentTerminalScopeId()
+): void {
+  bridge()?.resize(terminalId, cols, rows, scopeId)
 }
 
 export async function openTerminal(
@@ -194,6 +263,22 @@ export async function openTerminal(
     return terminal.start({ cols: 80, rows: 24 }, scopeId)
   }
   return terminal.openTerminal(cwd, scopeId)
+}
+
+/** Shows a terminal; `claim: false` mirrors a strip selection without claiming the shell. */
+export async function switchTerminal(
+  terminalId: string,
+  scopeId = currentTerminalScopeId(),
+  options?: { claim?: boolean }
+): Promise<void> {
+  await bridge()?.switchTerminal(terminalId, scopeId, options)
+}
+
+export async function closeTerminal(
+  terminalId: string,
+  scopeId = currentTerminalScopeId()
+): Promise<void> {
+  await bridge()?.closeTerminal(terminalId, scopeId)
 }
 
 /** Executes one terminal operation in the desktop main process. */

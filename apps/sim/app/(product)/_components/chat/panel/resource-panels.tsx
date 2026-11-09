@@ -13,16 +13,25 @@ interface ResourcePanelsProps {
   children: ReactNode
 }
 
-/** The panel over a chat's real resources. Its tabs and selection belong to the chat hook. */
+/**
+ * The panel over a chat's real resources. Its tabs and selection belong to the chat hook; its
+ * width belongs to the divider, which keeps a width per viewer and chat.
+ */
 export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
-  const { resources, collapsed, onSelect, onRemove, onExpand, onCollapse } = panel
+  const { resources, collapsed, onSelect, onRemove, onExpand, onCollapse, resize } = panel
   const [expanded, setExpanded] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const current = resources.find((resource) => resource.active)?.id ?? resources[0]?.id ?? ''
   const tabs = resources.map((resource) => ({
     id: resource.id,
     label: resource.title,
-    content: <ResourceContent resource={resource} />,
+    content: (
+      <ResourceContent
+        resource={resource}
+        visible={!collapsed && resource.id === current}
+        desktopScopeId={panel.desktopScopeId}
+      />
+    ),
   }))
   return (
     <OpenPanel.Provider
@@ -37,7 +46,26 @@ export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
         data-expanded={!collapsed && expanded}
       >
         <div className={styles.conversation}>{children}</div>
-        <aside className={styles.panel} aria-label='Chat panel' hidden={collapsed}>
+        <div
+          className={styles.divider}
+          role='separator'
+          tabIndex={0}
+          aria-orientation='vertical'
+          aria-label='Resize resource view'
+          hidden={collapsed || expanded}
+          onPointerDown={resize.onPointerDown}
+          onKeyDown={resize.onKeyDown}
+          onFocus={resize.onFocus}
+        />
+        <aside
+          ref={resize.panelRef}
+          className={styles.panel}
+          aria-label='Chat panel'
+          hidden={collapsed}
+          data-mothership-panel=''
+          onPointerDownCapture={panel.onInteraction}
+          onKeyDownCapture={panel.onInteraction}
+        >
           {tabs.length ? (
             <PanelTabs
               tabs={tabs}

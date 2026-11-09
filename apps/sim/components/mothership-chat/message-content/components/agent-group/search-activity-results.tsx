@@ -16,7 +16,7 @@ import {
   sourceSiteName,
 } from '@/components/mothership-chat/message-content/components/source-chip'
 import type { SourceTagData } from '@/components/mothership-chat/message-content/components/special-tags'
-import { externalLinkHostname } from '@/lib/mothership/chat/source-link'
+import { externalLinkHostname, handleExternalLinkClick } from '@/lib/mothership/chat/source-link'
 
 interface SearchActivityResultsProps {
   sources: SourceTagData[]
@@ -54,6 +54,7 @@ export function SearchActivityResults({ sources, label }: SearchActivityResultsP
                   href={source.url}
                   target='_blank'
                   rel='noopener noreferrer'
+                  onClick={(event) => handleExternalLinkClick(event, source.url)}
                   className={cn(
                     'not-prose flex h-8 min-w-0 items-center gap-2 px-2 text-[var(--text-body)] text-small no-underline transition-colors focus-visible:bg-[var(--surface-hover)] focus-visible:outline-none',
                     chipHoverSurfaceClass,

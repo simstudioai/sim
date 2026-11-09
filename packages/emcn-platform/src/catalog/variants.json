@@ -38,6 +38,7 @@
   },
   "IconButton": {
     "size": {
+      "bar": [],
       "inline": [],
       "row": [],
       "small": [

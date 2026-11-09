@@ -7,6 +7,7 @@ import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { toast } from '@/lib/toast/sink'
 import styles from '@/app/(product)/_components/source-row/source-row.module.css'
+import { onExternalLinkClick } from '@/platform/lib/data/external-link'
 
 /** One document a search found or an answer cited. */
 export interface SourceRowData {
@@ -71,7 +72,10 @@ export function SourceRow({ row, onOpen, onSummarize, onLeave }: SourceRowProps)
           href={row.url}
           target='_blank'
           rel='noopener noreferrer'
-          onClick={() => onOpen?.(row)}
+          onClick={(event) => {
+            onOpen?.(row)
+            onExternalLinkClick(event, row.url)
+          }}
         >
           <OverflowText text={row.title}>{row.title}</OverflowText>
         </a>
