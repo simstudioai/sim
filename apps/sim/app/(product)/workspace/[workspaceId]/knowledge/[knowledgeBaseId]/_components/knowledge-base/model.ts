@@ -1,7 +1,7 @@
 import type { IconName } from '@sim/emcn/icon'
+import { workspacePath } from '@/lib/navigation/paths'
 import type { DocumentData } from '@/platform/lib/data/knowledge'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 interface SearchValues {
   get(key: string): string | null

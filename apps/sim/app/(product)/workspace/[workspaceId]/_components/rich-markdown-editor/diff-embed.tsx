@@ -9,6 +9,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { diffWordsWithSpace } from 'diff'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import styles from '@/app/(product)/workspace/[workspaceId]/_components/rich-markdown-editor/diff-embed.module.css'
 import { useWorkspaceFileRecord } from '@/platform/lib/data/files'
 import {
@@ -20,7 +21,6 @@ import {
   type UnifiedDiff,
   useDocumentQuery,
 } from '@/platform/lib/data/files/markdown'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatInstantDate } from '@/platform/shared/time'
 
 const CONTEXT_EDGE = 3

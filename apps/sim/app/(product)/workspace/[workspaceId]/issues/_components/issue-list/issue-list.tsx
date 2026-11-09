@@ -8,6 +8,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { workspacePath } from '@/lib/navigation/paths'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import { ListEnd } from '@/app/(product)/workspace/[workspaceId]/_components/list-end/list-end'
 import {
@@ -31,7 +32,6 @@ import {
   issueQualifier,
 } from '@/app/(product)/workspace/[workspaceId]/issues/_components/issue-list/issue-state'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { issueListParams, serializeIssueList } from '@/platform/lib/workspace-views'
 import { formatRelativeTime } from '@/platform/shared/time'
 

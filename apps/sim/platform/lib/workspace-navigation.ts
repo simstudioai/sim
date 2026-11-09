@@ -1,3 +1,4 @@
+import { workspacePath } from '@/lib/navigation/paths'
 /** Where a server's data comes from, as far as the workspace pages are concerned. */
 export type WorkspaceDataMode = 'fixture' | 'live'
 
@@ -48,18 +49,9 @@ export function workspaceHome(mode: WorkspaceDataMode): WorkspaceTab {
   return mode === 'live' ? 'workflows' : 'dashboards'
 }
 
-export function workspacePath(workspaceId: string, section: string) {
-  return `/workspace/${encodeURIComponent(workspaceId)}/${section}`
-}
-
 /** The page a workspace opens on for a server's data, linked directly so no redirect sits in between. */
 export function workspaceHomePath(workspaceId: string, mode: WorkspaceDataMode) {
   return workspacePath(workspaceId, workspaceHome(mode))
-}
-
-/** A workspace itself; its route opens the page `workspaceHome` names for the server's data. */
-export function workspaceEntry(workspaceId: string) {
-  return `/workspace/${encodeURIComponent(workspaceId)}`
 }
 
 /** The workspace a path is under, and the record it shows, if any. */

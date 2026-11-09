@@ -1,11 +1,11 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { IssueRoute } from '@/app/(product)/workspace/[workspaceId]/issues/_components/issues-route/issues-route'
 import { loadWorkspaceIssue } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref, readScenario } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { withIssueListView } from '@/platform/lib/workspace-views'
 
 export async function generateMetadata({

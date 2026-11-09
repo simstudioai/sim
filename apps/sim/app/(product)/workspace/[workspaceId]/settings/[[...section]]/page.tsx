@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { WORKSPACE_SETTINGS_SECTIONS } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import {
   LiveWorkspaceSettings,
@@ -14,7 +15,6 @@ import {
 } from '@/platform/lib/data/workspace-settings'
 import { readScenario } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 export async function generateMetadata({
   params,

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import type { Page } from '@playwright/test'
-import { workspaceEntry } from '@/platform/lib/workspace-navigation'
+import { workspaceEntry } from '@/lib/navigation/paths'
 import { ADMIN, MEMBER, MEMBER_ADMIN_WORKSPACE } from '@/scripts/org-redesign-e2e/fixture'
 import {
   check,

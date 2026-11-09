@@ -9,6 +9,7 @@ import { InlineNotice, StatusTag } from '@sim/emcn/status'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { DirectoryHeading } from '@/app/(product)/_components/resource-directory/resource-directory'
 import {
@@ -31,7 +32,6 @@ import {
   type WorkflowTestDetail,
 } from '@/platform/lib/data/workflow-tests'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 type RunDetail = NonNullable<WorkflowTestDetail['latestRun']>

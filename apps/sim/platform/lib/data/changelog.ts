@@ -3,12 +3,12 @@
 import { useEffect } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { ChangelogRelease } from '@/lib/api/contracts/changelog'
+import { workspacePath } from '@/lib/navigation/paths'
 import { useChangelogReleases, useUpdateChangelogRelease } from '@/hooks/queries/changelog'
 import { useWorkspaceFileContent, useWorkspaceFileRecord } from '@/hooks/queries/workspace-files'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type SurfaceScope, surfaceHref } from '@/platform/lib/data/organization-model'
 import { useWorkspaceUserPermissions } from '@/platform/lib/data/tables/permissions'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import {
   type ChangelogData,
   type ChangelogDetail,

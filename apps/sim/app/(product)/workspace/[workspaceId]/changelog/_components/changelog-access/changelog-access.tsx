@@ -2,6 +2,7 @@
 
 import { type ReactNode, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
 import {
   LiveWorkspacePage,
@@ -9,7 +10,6 @@ import {
 } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
 import { useResourceListAccess } from '@/platform/lib/data/folders'
 import { useFeatureAccessPrompt } from '@/platform/lib/data/requests'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 interface AccessRequiredProps {
   workspaceId: string
