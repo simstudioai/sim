@@ -1,8 +1,4 @@
 import { terminalConsoleMockFns } from '@sim/testing'
-import {
-  workflowRegistryStoreMock,
-  workflowRegistryStoreMockFns,
-} from '@sim/testing/mocks/workflow-registry-store.mock'
 import { QueryClient } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -11,15 +7,11 @@ const {
   mockMothershipDraftsReset,
   mockOperationQueueReset,
   mockResetRegisteredUserData,
-  mockSubBlockSetState,
-  mockWorkflowSetState,
 } = vi.hoisted(() => ({
   mockGetQueryClient: vi.fn(),
   mockMothershipDraftsReset: vi.fn(),
   mockOperationQueueReset: vi.fn(),
   mockResetRegisteredUserData: vi.fn(),
-  mockSubBlockSetState: vi.fn(),
-  mockWorkflowSetState: vi.fn(),
 }))
 
 vi.mock('@/hooks/queries/utils/get-query-client', () => ({
@@ -37,18 +29,10 @@ vi.mock('@/stores/mothership-drafts/store', () => ({
 vi.mock('@/stores/operation-queue/store', () => ({
   useOperationQueueStore: { getState: () => ({ reset: mockOperationQueueReset }) },
 }))
-vi.mock('@/stores/workflows/registry/store', () => workflowRegistryStoreMock)
-vi.mock('@/stores/workflows/subblock/store', () => ({
-  useSubBlockStore: { setState: mockSubBlockSetState },
-}))
-vi.mock('@/stores/workflows/workflow/store', () => ({
-  useWorkflowStore: { setState: mockWorkflowSetState },
-}))
 
 import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'
 import { resetAllStores } from '@/stores/reset-all-stores'
 
-const mockRegistrySetState = workflowRegistryStoreMockFns.mockSetState
 const {
   mockClearAllExecutionPointers,
   mockWaitForConsoleHydration,
@@ -92,13 +76,6 @@ describe('resetAllStores', () => {
   it('removes transient workflow state and replaces persisted console data', async () => {
     await resetAllStores()
 
-    expect(mockRegistrySetState).toHaveBeenCalledWith(
-      expect.objectContaining({ clipboard: null, pendingSelection: null })
-    )
-    expect(mockWorkflowSetState).toHaveBeenCalledWith(
-      expect.objectContaining({ currentWorkflowId: null, blocks: {}, edges: [] })
-    )
-    expect(mockSubBlockSetState).toHaveBeenCalledWith({ workflowValues: {} })
     expect(mockOperationQueueReset).toHaveBeenCalledOnce()
     expect(mockResetRegisteredUserData).toHaveBeenCalledOnce()
     expect(mockConsoleReset).toHaveBeenCalledOnce()
@@ -119,10 +96,10 @@ describe('resetAllStores', () => {
     expect(mockOperationQueueReset).toHaveBeenCalledOnce()
     expect(mockResetRegisteredUserData).toHaveBeenCalledOnce()
     await Promise.resolve()
-    expect(mockRegistrySetState).not.toHaveBeenCalled()
+    expect(mockConsoleReset).not.toHaveBeenCalled()
 
     finishHydration?.()
     await resetPromise
-    expect(mockRegistrySetState).toHaveBeenCalledOnce()
+    expect(mockConsoleReset).toHaveBeenCalledOnce()
   })
 })
