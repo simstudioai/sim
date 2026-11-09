@@ -119,5 +119,5 @@ Earlier commits on the branch added the breadcrumbs (`@sim/emcn/breadcrumbs`), t
 - @-mentions in the markdown editor list every catalog integration; legacy filters them by integration access. The fix needs a generated hidden-block set outside the registry; see the follow-ups.
 - Note image paste reached the upload pipeline but the local upload-complete step answered 500 for the seeded workspace's storage key.
 - The development zone needs `TRUSTED_ORIGINS` to include its own origin for OAuth links; behind the `/org` base path it shares the main app's origin.
-- Workspace-scoped access requests open the legacy workspace Settings, which the empty Settings tab does not replace yet.
+- Workspace-scoped access requests open the workspace Settings tab's Requests section (`wip/ws-settings`).
 - The local dev servers restart under memory pressure; browser checks against the dev preview time out on navigations that need a fresh compile.
