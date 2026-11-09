@@ -1861,10 +1861,19 @@ export interface SessionPolicySettings {
   idleTimeoutHours?: number | null
 }
 
+/**
+ * `personal`: the single-member organization every account outside a team gets, owning that
+ * person's workspaces. It bills nothing itself: its workspaces bill their owner exactly as
+ * organization-less workspaces did, and it dissolves into the team the person joins.
+ * `team`: every other organization, billed through its own subscription.
+ */
+export const organizationKindEnum = pgEnum('organization_kind', ['personal', 'team'])
+
 export const organization = pgTable('organization', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   slug: text('slug').notNull(),
+  kind: organizationKindEnum('kind').notNull().default('team'),
   logo: text('logo'),
   metadata: json('metadata'),
   sessionPolicySettings: json('session_policy_settings').$type<SessionPolicySettings>(),
