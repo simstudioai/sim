@@ -266,10 +266,14 @@ const serverSeamHelpers = new Set([
  * Application modules every Platform file may import, views included, because the Platform and the
  * legacy app share them: the toast sink each root connects its own toaster to.
  */
-/** Host modules the product shares with the rest of the app: one toast sink, one desktop tool lifetime. */
+/**
+ * Host modules the product shares with the rest of the app: one toast sink, one desktop tool
+ * lifetime, and the app's path builders.
+ */
 const platformHostModules: ReadonlySet<string> = new Set([
   'lib/toast/sink',
   'hooks/mothership-chat/desktop-tool-lifetimes',
+  'lib/navigation/paths',
 ])
 const isServerOnly = (file: string) => /^import 'server-only'$/m.test(read(file))
 /** A seam module that runs only on the server, or a test, which no bundle includes. */
@@ -299,6 +303,7 @@ const seamHelpers = new Set([
   'lib/mothership/chat/selection-clipboard',
   'lib/pptx-renderer/sim-pptx-viewer',
   'lib/slack-search/manifest',
+  'lib/slack-search/onboarding',
   'lib/integrations/slack-manifest',
   'lib/organizations/search-params',
   'lib/organizations/integrations-search-params',
@@ -449,6 +454,7 @@ const seamHelpers = new Set([
   'hooks/use-credential-refresh-triggers',
   'hooks/use-computer-use-status',
   'hooks/use-desktop-preference-mutation',
+  'hooks/use-desktop-update-gate',
   'hooks/use-desktop-update-state',
   'hooks/use-file-content-source',
   'hooks/use-inline-rename',
@@ -510,6 +516,13 @@ const seamHelpers = new Set([
   'lib/sim-search/constants',
   'lib/sim-search/live/source-settings',
   'lib/sim-search/source-identity',
+  'lib/sim-search/live/source-catalog',
+  'lib/sim-search/params',
+  'lib/credential-groups/limits',
+  'lib/credential-groups/slack-managed-user-scopes',
+  'lib/core/utils/save-file',
+  'lib/oauth/github-installation-types',
+  'hooks/use-github-installation-setup',
   'lib/table/column-keys',
   'lib/table/column-naming',
   'lib/table/column-types',
@@ -617,6 +630,7 @@ const seamHelpers = new Set([
   'lib/integrations/credential-display',
   'lib/credential-groups/search-readiness',
   'lib/credential-groups/providers',
+  'lib/credential-groups/credential-types',
   'lib/assistant-actions/providers',
   'hooks/use-oauth-return',
   'hooks/use-hydrated',

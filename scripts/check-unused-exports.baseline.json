@@ -970,7 +970,6 @@
   "apps/sim/lib/api/contracts/credential-groups.ts#InviteCredentialGroupEnrollmentsBody",
   "apps/sim/lib/api/contracts/credential-groups.ts#StartCredentialGroupOAuthQuery",
   "apps/sim/lib/api/contracts/credential-groups.ts#UpdateCredentialGroupAccessBody",
-  "apps/sim/lib/api/contracts/credential-groups.ts#UpdateCredentialGroupBody",
   "apps/sim/lib/api/contracts/credential-groups.ts#UpdateCredentialGroupMcpConnectorBody",
   "apps/sim/lib/api/contracts/credential-groups.ts#credentialGroupAccessPolicySchema",
   "apps/sim/lib/api/contracts/credential-groups.ts#credentialGroupAccessResponseSchema",

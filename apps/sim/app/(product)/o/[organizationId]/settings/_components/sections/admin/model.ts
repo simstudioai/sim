@@ -1,17 +1,4 @@
-export interface AdminPreferences {
-  superUserModeEnabled: boolean
-  mothershipEnvironment: string
-}
-
-export interface DirectoryUser {
-  id: string
-  name: string
-  email: string
-  role: 'user' | 'admin'
-  banned: boolean
-  banReason?: string
-  emailVerified: boolean
-}
+import type { AdminPreferences, DirectoryUser } from '@/platform/lib/data/admin-model'
 
 export interface AdminExample extends AdminPreferences {
   operatorId: string

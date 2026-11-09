@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspaceHome, workspacePath } from '@/platform/lib/workspace-navigation'
+import { workspaceHome } from '@/platform/lib/workspace-navigation'
 
 /** The mode is per-request; a build must not freeze the answer. */
 export const dynamic = 'force-dynamic'

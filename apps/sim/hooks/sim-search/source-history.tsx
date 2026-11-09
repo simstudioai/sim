@@ -12,7 +12,6 @@ import { noop } from '@sim/utils/helpers'
 import { truncateAtCodePoint } from '@sim/utils/string'
 import type { ViewedSearchSource } from '@/lib/api/contracts/knowledge/search-history'
 import { isKnowledgeSourceUrl } from '@/lib/knowledge/search/source-url'
-import { handleExternalLinkClick } from '@/lib/mothership/chat/source-link'
 import type { SourceTagData } from '@/lib/mothership/chat/special-tags'
 import { useRecordSearchHistory } from '@/hooks/queries/search-history'
 
@@ -82,7 +81,6 @@ export function useSourceNavigation(source: SourceTagData) {
           ? truncateAtCodePoint(source.connectorType.trim(), 64, '')
           : undefined,
       })
-      handleExternalLinkClick(event, source.url)
     },
     [source.url, source.title, source.siteName, source.connectorType, recordSource]
   )

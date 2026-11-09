@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
@@ -87,7 +88,6 @@ import {
 import { folderChain } from '@/platform/lib/folder-chain'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 /** Blocked-action notices carry a button, so they linger past the default. */
 const BLOCKED_TOAST_MS = 8000

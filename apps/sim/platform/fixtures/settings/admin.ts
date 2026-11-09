@@ -1,11 +1,9 @@
 import 'server-only'
-import type {
-  AdminExample,
-  DirectoryUser,
-} from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/model'
+import type { AdminExample } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/model'
 import type { Scenario } from '@/platform/fixtures'
 import { settingsWorkspaces } from '@/platform/fixtures/settings/organization'
 import { settingsScenarios } from '@/platform/fixtures/settings-data'
+import type { DirectoryUser } from '@/platform/lib/data/admin-model'
 
 export function adminExample(scenario: Scenario): AdminExample {
   const users: DirectoryUser[] = settingsScenarios[scenario].members.map((member, index) => ({

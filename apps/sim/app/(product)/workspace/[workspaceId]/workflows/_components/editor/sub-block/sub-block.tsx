@@ -10,6 +10,7 @@ import {
   useState,
 } from 'react'
 import { isEqual } from 'es-toolkit'
+import { workspacePath } from '@/lib/navigation/paths'
 import { CheckboxList } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/checkbox-list/checkbox-list'
 import { Code } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/code/code'
 import { ComboBox } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/combobox/combobox'
@@ -66,7 +67,6 @@ import {
   useWebhookManagement,
   useWorkflowScope,
 } from '@/platform/lib/data/workflow-editor'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 /** Sub-block values keyed by id, each wrapped as the store keeps it: `{ value }`. */
 export type SubBlockValues = Record<string, { value?: unknown } | undefined>

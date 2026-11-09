@@ -6,6 +6,7 @@ import { Icon } from '@sim/emcn/icon'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { useSearchParams } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import {
   Muted,
   ResourceList,
@@ -19,7 +20,6 @@ import {
   useSecretReferences,
 } from '@/platform/lib/data/secrets'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 /**
  * A capped scan that listed nothing is not "not referenced": it stopped early, so silence would

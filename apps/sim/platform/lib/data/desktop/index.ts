@@ -3,6 +3,7 @@ export { loadDesktopTerminalThemeProfiles, withSelectedProfile } from '@/lib/des
 export { useBrowserImportProfiles } from '@/hooks/queries/browser-import'
 export { useComputerUseStatus } from '@/hooks/use-computer-use-status'
 export { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
+export { useDesktopUpdateGate } from '@/hooks/use-desktop-update-gate'
 export { useDesktopUpdateState } from '@/hooks/use-desktop-update-state'
 export { useSettingsSearch } from '@/hooks/use-settings-search'
 export * from './model'

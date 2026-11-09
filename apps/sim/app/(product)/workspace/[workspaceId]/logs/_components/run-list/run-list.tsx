@@ -12,6 +12,7 @@ import { SegmentedControl } from '@sim/emcn/segmented-control'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { workspacePath } from '@/lib/navigation/paths'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import {
   ListEnd,
@@ -33,7 +34,6 @@ import {
   RunTriggerLabel,
 } from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-status/run-status'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 import {
   RUN_PERIODS,
   RUN_SORTS,

@@ -2,12 +2,12 @@
 
 import { CommandPalette } from '@sim/emcn/command-palette'
 import { OverlayDialog } from '@sim/emcn/modal/overlay-dialog'
+import { workspaceEntry } from '@/lib/navigation/paths'
 import { useRegisteredPageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { platformDestinations } from '@/app/(product)/_components/destinations'
 import type { ShellChat, ShellData } from '@/app/(product)/_components/model'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
-import { workspaceEntry } from '@/platform/lib/workspace-navigation'
 import type { ShellDestination } from '@/platform/shared/shell'
 
 /** Marks a page command's value apart from the hrefs every other entry navigates to. */

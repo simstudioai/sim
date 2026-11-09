@@ -19,9 +19,6 @@ import {
   deleteWorkflowContract,
   duplicateWorkflowContract,
   type GetWorkflowResponseData,
-  type ImportWorkflowAsSuperuserBody,
-  type ImportWorkflowAsSuperuserResponse,
-  importWorkflowAsSuperuserContract,
   reorderWorkflowsContract,
   restoreWorkflowContract,
   updateWorkflowContract,
@@ -671,24 +668,6 @@ export function useReorderWorkflows() {
     },
     onSettled: (_data, _error, variables) => {
       return invalidateWorkflowLists(queryClient, variables.workspaceId)
-    },
-  })
-}
-
-export function useImportWorkflow() {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async ({
-      workflowId,
-      targetWorkspaceId,
-    }: ImportWorkflowAsSuperuserBody): Promise<ImportWorkflowAsSuperuserResponse> => {
-      return requestJson(importWorkflowAsSuperuserContract, {
-        body: { workflowId, targetWorkspaceId },
-      })
-    },
-    onSettled: (_data, _error, variables) => {
-      return invalidateWorkflowLists(queryClient, variables.targetWorkspaceId)
     },
   })
 }

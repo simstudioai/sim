@@ -14,7 +14,6 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { parseAsString, useQueryState } from 'nuqs'
-import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   FieldStack,
@@ -25,21 +24,22 @@ import type {
   CredentialProvider,
   DatabricksConfiguration,
 } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
+import type {
+  CredentialGroupActions,
+  DatabricksDraft,
+} from '@/platform/lib/data/credential-group-actions'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface GroupProvidersProps {
-  databricks?: DatabricksConfiguration
-  onConfigure: (config?: DatabricksConfiguration) => void
   data: CredentialGroupsData
-  editable: boolean
-  onChange: (keys: string[]) => void
+  actions: CredentialGroupActions
 }
 
 interface DatabricksFormProps {
   configuration?: DatabricksConfiguration
-  onSave: (value: DatabricksConfiguration) => void
+  onSave: (value: DatabricksDraft) => Promise<void>
   onClose: () => void
 }
 
@@ -61,11 +61,11 @@ function DatabricksForm({ configuration, onSave, onClose }: DatabricksFormProps)
         const parsed = URL.parse(url)
         if (parsed?.protocol !== 'https:')
           throw new Error('Enter an HTTPS URL for the Databricks server.')
-        onSave({
+        return onSave({
           name: name.trim(),
           url: parsed.href,
           clientId: clientId.trim(),
-          hasSecret: Boolean(secret.trim() || configuration?.hasSecret),
+          clientSecret: secret,
         })
       }}
     >
@@ -110,13 +110,7 @@ function DatabricksForm({ configuration, onSave, onClose }: DatabricksFormProps)
   )
 }
 
-export function GroupProviders({
-  data,
-  editable,
-  onChange,
-  databricks,
-  onConfigure,
-}: GroupProvidersProps) {
+export function GroupProviders({ data, actions }: GroupProvidersProps) {
   const [search, setSearch] = useQueryState(
     'credential-group-provider',
     parseAsString.withDefault('')
@@ -135,14 +129,14 @@ export function GroupProviders({
   const visible = configured.filter((item) =>
     item.name.toLowerCase().includes(search.trim().toLowerCase())
   )
-  function add(key: string) {
-    if (!data.configured.includes(key)) onChange([...data.configured, key])
+  async function add(item: CredentialProvider) {
+    if (!data.configured.includes(item.key)) await actions.addProvider(item)
   }
   function choose() {
     const item = available.find((entry) => entry.key === choice)
     if (!item) return
     if (item.provider === 'slack' || item.provider === 'databricks') setConfiguration(item)
-    else add(item.key)
+    else return add(item)
   }
   return (
     <SectionStack>
@@ -166,27 +160,25 @@ export function GroupProviders({
             }
             label={item.name}
           >
-            {editable && (
-              <ActionRow>
-                {(item.provider === 'slack' || item.provider === 'databricks') && (
-                  <Button size='compact' onClick={() => setConfiguration(item)}>
-                    Configure
-                  </Button>
-                )}
-                <ActionMenu
-                  icon='I108'
-                  label={`${item.name} actions`}
-                  actions={[
-                    {
-                      id: 'remove',
-                      label: 'Remove',
-                      destructive: true,
-                      onSelect: () => setRemoving(item),
-                    },
-                  ]}
-                />
-              </ActionRow>
-            )}
+            <ActionRow>
+              {(item.provider === 'slack' || item.provider === 'databricks') && (
+                <Button size='compact' onClick={() => setConfiguration(item)}>
+                  Configure
+                </Button>
+              )}
+              <ActionMenu
+                icon='I108'
+                label={`${item.name} actions`}
+                actions={[
+                  {
+                    id: 'remove',
+                    label: 'Remove',
+                    destructive: true,
+                    onSelect: () => setRemoving(item),
+                  },
+                ]}
+              />
+            </ActionRow>
           </SettingsRow>
         ))}
         {!visible.length && (
@@ -198,26 +190,24 @@ export function GroupProviders({
             }
           />
         )}
-        {editable && (
-          <SettingsRow label='Available integrations'>
-            <Button
-              size='compact'
-              disabled={!available.length}
-              onClick={() => {
-                setChoice(null)
-                setCatalog(true)
-              }}
-            >
-              Add integration
-            </Button>
-          </SettingsRow>
-        )}
-        {editable && configured.some((item) => item.method === 'oauth') && (
+        <SettingsRow label='Available integrations'>
+          <Button
+            size='compact'
+            disabled={!available.length}
+            onClick={() => {
+              setChoice(null)
+              setCatalog(true)
+            }}
+          >
+            Add integration
+          </Button>
+        </SettingsRow>
+        {configured.some((item) => item.method === 'oauth') && (
           <SettingsRow
             label='App configurations'
             description='Accounts whose app configuration changed will need to reconnect.'
           >
-            <Button size='compact' onClick={() => toast.success('Configurations updated')}>
+            <Button size='compact' onClick={() => void actions.updateConfigurations()}>
               Update configurations
             </Button>
           </SettingsRow>
@@ -254,7 +244,7 @@ export function GroupProviders({
           }
           confirmDisabled={slackTeams.length > 1 && !selectedTeam}
           onConfirm={() => {
-            if (selectedTeam) add(configuration.key)
+            if (selectedTeam) return add(configuration)
           }}
         >
           <FieldStack>
@@ -295,12 +285,9 @@ export function GroupProviders({
       )}
       {configuration?.provider === 'databricks' && (
         <DatabricksForm
-          configuration={databricks}
+          configuration={data.databricks}
           onClose={() => setConfiguration(undefined)}
-          onSave={(value) => {
-            onConfigure(value)
-            add(configuration.key)
-          }}
+          onSave={actions.saveDatabricks}
         />
       )}
       {removing && (
@@ -314,10 +301,7 @@ export function GroupProviders({
           title={`Remove ${removing.name}`}
           description='Remove this provider and its connected accounts from the organization?'
           confirmLabel='Remove'
-          onConfirm={() => {
-            onChange(data.configured.filter((key) => key !== removing.key))
-            if (removing.provider === 'databricks') onConfigure(undefined)
-          }}
+          onConfirm={() => actions.removeProvider(removing)}
         />
       )}
     </SectionStack>

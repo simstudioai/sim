@@ -36,8 +36,18 @@ export function AppHead() {
   )
 }
 
+interface AppAnalyticsProps {
+  /** The root's own consent banner; only hosted Sim asks. */
+  consentBanner: ReactNode
+  children: ReactNode
+}
+
 /** Product analytics under the consent lifecycle hosted Sim requires, shared by every root. */
-export function AppAnalytics({ children }: { children: ReactNode }) {
+export function AppAnalytics({ consentBanner, children }: AppAnalyticsProps) {
   const analytics = <PostHogProvider consentRequired={isHosted}>{children}</PostHogProvider>
-  return isHosted ? <ConsentProvider>{analytics}</ConsentProvider> : analytics
+  return isHosted ? (
+    <ConsentProvider banner={consentBanner}>{analytics}</ConsentProvider>
+  ) : (
+    analytics
+  )
 }

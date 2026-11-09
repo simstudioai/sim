@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { writePendingCredentialCreateRequest } from '@/lib/credentials/client-state'
-import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
+import { WORKSPACE_SETTINGS_PATH, workspacePath } from '@/lib/navigation/paths'
 import { usePersonalEnvironment, useWorkspaceEnvironment } from '@/hooks/queries/environment'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 /** One scope of secret names offered after `{{`: the workspace's or the viewer's own. */
 interface EnvVarGroup {

@@ -59,7 +59,10 @@ export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
       label: 'Documentation',
       icon: 'I082',
       trailingIcon: 'I030',
-      onSelect: () => openLinkInNewTab(help.documentationUrl),
+      onSelect: () => {
+        help.onLinkOpened?.('documentation')
+        openLinkInNewTab(help.documentationUrl)
+      },
     },
     ...(slackUrl
       ? [
@@ -68,7 +71,10 @@ export function HelpMenu({ iconOnly, help = SESSION_HELP }: HelpMenuProps) {
             label: 'Join Slack',
             icon: 'I123',
             trailingIcon: 'I030',
-            onSelect: () => openLinkInNewTab(slackUrl),
+            onSelect: () => {
+              help.onLinkOpened?.('slack')
+              openLinkInNewTab(slackUrl)
+            },
           } satisfies MenuAction,
         ]
       : []),

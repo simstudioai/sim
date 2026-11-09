@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { Icon, type IconName } from '@sim/emcn/icon'
 import { useRouter } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/command-list/command-list.module.css'
 import {
   createLogger,
@@ -11,7 +12,6 @@ import {
   useWorkflowScope,
 } from '@/platform/lib/data/workflows'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 const logger = createLogger('WorkflowCommandList')
 

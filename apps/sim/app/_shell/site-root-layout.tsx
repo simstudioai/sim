@@ -12,6 +12,7 @@ import { env } from '@/lib/core/config/env'
 import { isHosted, isReactGrabEnabled, isReactScanEnabled } from '@/lib/core/config/env-flags'
 import { publicEnvHtmlAttributes } from '@/lib/core/config/public-env'
 import { AppAnalytics, AppHead } from '@/app/_shell/app-document'
+import { ConsentBanner } from '@/app/_shell/consent/consent-banner'
 import { DesktopUpdateGate } from '@/app/_shell/desktop-update-gate'
 import { DesktopUpdateNotification } from '@/app/_shell/desktop-update-notification'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
@@ -173,7 +174,7 @@ export function SiteRootLayout({ children }: SiteRootLayoutProps) {
         <HydrationErrorHandler />
         <DesktopUpdateGate />
         <NuqsAdapter>
-          <AppAnalytics>{application}</AppAnalytics>
+          <AppAnalytics consentBanner={<ConsentBanner />}>{application}</AppAnalytics>
         </NuqsAdapter>
       </body>
     </html>

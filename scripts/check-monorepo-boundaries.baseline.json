@@ -1,6 +1,5 @@
 {
   "libToViewTypes": {
-    "apps/sim/platform/lib/data/admin.ts": 1,
     "apps/sim/platform/lib/data/chat-composer.ts": 2,
     "apps/sim/platform/lib/data/chat-credentials/rows.ts": 1,
     "apps/sim/platform/lib/data/chat-draft.ts": 1,
@@ -17,7 +16,6 @@
     "apps/sim/platform/lib/data/shell-actions.ts": 1,
     "apps/sim/platform/lib/data/shell-context.ts": 1,
     "apps/sim/platform/lib/data/shell.ts": 1,
-    "apps/sim/platform/lib/data/source-settings.ts": 1,
     "apps/sim/platform/lib/data/workspaces.ts": 1
   }
 }

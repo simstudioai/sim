@@ -2,13 +2,13 @@
 
 import { FailureNotice } from '@sim/emcn/status'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { workspacePath } from '@/lib/navigation/paths'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { SecretDetail } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail'
 import { SecretsEditor } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/secrets-editor'
 import { useWorkspaceSecrets } from '@/platform/lib/data/secrets'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
 import { platformHref } from '@/platform/lib/navigation'
-import { workspacePath } from '@/platform/lib/workspace-navigation'
 
 /** The workspace's and the viewer's secrets, or one secret's details at `secrets/<credentialId>`. */
 export default function SecretsSection({ workspaceId, subpath }: WorkspaceSettingsSectionProps) {
