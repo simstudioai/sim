@@ -1,5 +1,6 @@
 'use client'
 
+import { SavedAccountModal } from '@/app/(product)/_components/service-account-modal/saved-account-modal'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
 import { ZoneHomeDashboard } from '@/app/(product)/o/[organizationId]/home/_components/home-dashboard/zone-home-dashboard'
 import {
@@ -11,14 +12,26 @@ import {
 
 function HydratedHome({ widgets }: { widgets: HiddenHomeWidgets }) {
   const preferences = useInterfacePreferences()
-  const { view, actions } = useLiveHome(preferences?.homeMode === 'Search', widgets.hiddenWidgets)
+  const { view, actions, savedConnection } = useLiveHome(
+    preferences?.homeMode === 'Search',
+    widgets.hiddenWidgets
+  )
   return (
-    <ZoneHomeDashboard
-      view={view}
-      actions={actions}
-      hiddenWidgets={widgets.hiddenWidgets}
-      onWidgetHiddenChange={widgets.setWidgetHidden}
-    />
+    <>
+      <ZoneHomeDashboard
+        view={view}
+        actions={actions}
+        hiddenWidgets={widgets.hiddenWidgets}
+        onWidgetHiddenChange={widgets.setWidgetHidden}
+      />
+      {savedConnection && (
+        <SavedAccountModal
+          organizationId={savedConnection.organizationId}
+          connection={savedConnection.connection}
+          onClose={savedConnection.close}
+        />
+      )}
+    </>
   )
 }
 

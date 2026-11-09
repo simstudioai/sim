@@ -25,10 +25,11 @@ export function useSearchConnectionRequest(
   })
 }
 
-/** A saved account a link asks the member to add by hand, or to replace. */
-interface SavedSearchConnection {
+/** A saved account the member adds by hand, or replaces under its current name. */
+export interface SavedSearchConnection {
   providerId: SaveSearchPersonalCredentialBody['providerId']
   credentialId?: string
+  displayName?: string
 }
 
 /**
