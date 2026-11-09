@@ -72,6 +72,7 @@ function ChatFixture({ scopeId, userId }: ChatFixtureProps) {
         collapsed,
         onSelect: () => {},
         onRemove: () => setCollapsed(true),
+        onReorder: () => {},
         onExpand: () => setCollapsed(false),
         onCollapse: () => setCollapsed(true),
         resize: {
@@ -82,6 +83,15 @@ function ChatFixture({ scopeId, userId }: ChatFixtureProps) {
         },
         onInteraction: () => {},
         desktopScopeId: scopeId,
+        picker: {
+          items: [],
+          onOpen: () => {},
+          onWorkspaceOpen: () => {},
+          onSearchChange: () => {},
+          moreFor: () => undefined,
+          workspaceLoaded: () => false,
+          onSelect: () => {},
+        },
       }}
     >
       <div>
