@@ -35,7 +35,7 @@ export function resolveLiveDestinations(organization: PlatformOrganization): She
   const people = {
     id: 'people',
     label: 'People',
-    icon: 'I104',
+    icon: 'I133',
     value: surfaceHref(organization, '/people'),
   } as const
   const benchmark = {
