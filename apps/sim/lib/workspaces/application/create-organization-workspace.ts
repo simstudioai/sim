@@ -43,7 +43,8 @@ export const createOrganizationWorkspace: OperationUseCase<
         policy.reason ?? 'Workspace creation is not allowed'
       )
     }
-    if (policy.organizationId !== context.organizationId || policy.workspaceMode !== 'organization')
+    /** A personal organization's workspaces are created in the personal regime, inside it. */
+    if (policy.organizationId !== context.organizationId)
       throw new OrchestrationError(
         'forbidden',
         'This organization cannot create workspaces under its current subscription'

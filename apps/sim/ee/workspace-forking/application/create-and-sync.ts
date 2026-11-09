@@ -91,6 +91,7 @@ async function creationPolicy(workspace: ForkApplicationContext['workspace'], us
     userId,
     activeOrganizationId: workspace.organizationId,
     pinOrganization: true,
+    pinnedToAuthorizedSource: true,
   })
   if (!policy.canCreate)
     throw new OrchestrationError(

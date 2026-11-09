@@ -5,7 +5,10 @@ import { isOrgAdminRole } from '@sim/platform-authz/workspace'
 import { and, count, eq, isNull } from 'drizzle-orm'
 import type { OrganizationRole } from '@/lib/api/contracts/primitives'
 import { getOrganizationSubscription } from '@/lib/billing/core/billing'
-import { payerOrganizationIdSql } from '@/lib/billing/core/payer-organization'
+import {
+  payerOrganizationIdSql,
+  resolvePayerOrganizationId,
+} from '@/lib/billing/core/payer-organization'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
 import {
   acquireOrganizationUserMutationLocks,
@@ -244,17 +247,20 @@ export async function lockWorkspaceCreationContext(
     organizationIds: organizationId ? [organizationId] : [],
   })
   const currentMembership = await getUserOrganization(userId, tx)
+  /** A personal target is the personal regime: it may be someone else's, for a fork beside its source. */
+  const targetIsTeam =
+    organizationId !== null && (await resolvePayerOrganizationId(tx, organizationId)) !== null
   if (
     (currentMembership?.organizationId ?? null) !== observedOrganizationId ||
-    (organizationId !== null && currentMembership?.organizationId !== organizationId)
+    (targetIsTeam && currentMembership?.organizationId !== organizationId)
   ) {
     throw new WorkspaceCreationContextChangedError()
   }
 
   let billedAccountUserId = userId
-  if (organizationId && currentMembership?.kind === 'team') {
+  if (organizationId && targetIsTeam) {
     if (isBillingEnabled) {
-      if (!organizationWorkspaceCreationRoleAllowed(currentMembership.role)) {
+      if (!organizationWorkspaceCreationRoleAllowed(currentMembership?.role)) {
         throw new WorkspaceCreationContextChangedError()
       }
       const currentSubscription = await getOrganizationSubscription(organizationId, {
@@ -304,6 +310,12 @@ interface GetWorkspaceCreationPolicyParams {
    * org, not whatever org the acting user happens to belong to.
    */
   pinOrganization?: boolean
+  /**
+   * The pinned organization comes from a source workspace the caller is already authorized on (a
+   * fork), so it may be someone else's personal organization. Anything else may only land in the
+   * caller's own personal organization.
+   */
+  pinnedToAuthorizedSource?: boolean
 }
 
 export function isOrganizationWorkspace(
@@ -472,18 +484,30 @@ export async function getWorkspaceCreationPolicy({
   userId,
   activeOrganizationId,
   pinOrganization = false,
+  pinnedToAuthorizedSource = false,
 }: GetWorkspaceCreationPolicyParams): Promise<WorkspaceCreationPolicy> {
   const membership = await getUserOrganization(userId)
-  /**
-   * A personal organization is the personal regime, not an organization one: its workspaces are
-   * capped and billed exactly as personal workspaces, and land in it.
-   */
-  const personalOrganizationId = membership?.kind === 'personal' ? membership.organizationId : null
   const requestedOrganizationId = pinOrganization
     ? (activeOrganizationId ?? null)
     : (activeOrganizationId ?? membership?.organizationId ?? null)
-  const organizationId =
-    requestedOrganizationId === personalOrganizationId ? null : requestedOrganizationId
+  /**
+   * A personal organization is the personal regime, not an organization one: its workspaces are
+   * capped and billed to their creator exactly as personal workspaces, and land in it. A pinned
+   * request keeps the exact organization it names — a fork stays in its source's Project, so a
+   * collaborator's fork of someone's personal workspace lands beside it, billed to the
+   * collaborator, as it did when both were organization-less.
+   */
+  const requestedIsPersonal =
+    requestedOrganizationId !== null &&
+    (await resolvePayerOrganizationId(db, requestedOrganizationId)) === null
+  const personalOrganizationId = pinOrganization
+    ? requestedIsPersonal
+      ? requestedOrganizationId
+      : null
+    : membership?.kind === 'personal'
+      ? membership.organizationId
+      : null
+  const organizationId = requestedIsPersonal ? null : requestedOrganizationId
   const orgRole =
     organizationId == null
       ? undefined
@@ -543,6 +567,25 @@ export async function getWorkspaceCreationPolicy({
         governingPermissionGroupOrganizationId,
         blockedReasonCode: 'permission-group-denied',
       }
+    }
+  }
+
+  if (
+    personalOrganizationId !== null &&
+    personalOrganizationId !== membership?.organizationId &&
+    !pinnedToAuthorizedSource
+  ) {
+    return {
+      canCreate: false,
+      workspaceMode: WORKSPACE_MODE.PERSONAL,
+      organizationId: personalOrganizationId,
+      billedAccountUserId: userId,
+      maxWorkspaces: null,
+      currentWorkspaceCount: 0,
+      reason: 'You can only create workspaces in your own organization.',
+      status: 403,
+      observedOrganizationId: membership?.organizationId ?? null,
+      governingPermissionGroupOrganizationId,
     }
   }
 

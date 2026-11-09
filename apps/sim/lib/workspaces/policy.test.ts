@@ -33,6 +33,13 @@ vi.mock('@/lib/billing/core/billing', () => billingCoreMock)
 
 vi.mock('@/lib/billing/core/plan', () => billingPlanMock)
 
+/** Every organization these cases name is a team; personal organizations have their own suite. */
+vi.mock('@/lib/billing/core/payer-organization', () => ({
+  payerOrganizationIdSql: (organizationId: unknown) => organizationId,
+  resolvePayerOrganizationId: async (_executor: unknown, organizationId: string | null) =>
+    organizationId,
+}))
+
 import {
   getWorkspaceCreationPolicy,
   getWorkspaceInvitePolicy,
