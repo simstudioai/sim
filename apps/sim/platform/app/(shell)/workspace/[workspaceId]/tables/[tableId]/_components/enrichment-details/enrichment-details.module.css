@@ -4,10 +4,6 @@
   min-inline-size: 0;
   gap: var(--ui-content-gap);
 }
-.note {
-  margin: 0;
-  color: var(--ui-secondary);
-}
 /* The cascade's summary, as the trace header reads: status, duration, providers and cost. */
 .summary {
   display: flex;

@@ -75,7 +75,6 @@
     "apps/sim/app/workspace/[workspaceId]/settings/[section]/page.tsx": 2,
     "apps/sim/app/workspace/[workspaceId]/settings/components/api-keys/api-keys.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/settings/components/mcp/mcp.tsx": 1,
-    "apps/sim/app/workspace/[workspaceId]/skills/components/utils.test.ts": 1,
     "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/column-config-sidebar/column-config-sidebar.tsx": 2,
     "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/context-menu/context-menu.tsx": 1,
     "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/enrichments-sidebar/enrichment-config.tsx": 1,

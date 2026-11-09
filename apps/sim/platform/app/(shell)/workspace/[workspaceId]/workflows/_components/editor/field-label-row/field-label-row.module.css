@@ -1,0 +1,33 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-field-label-gap);
+  min-inline-size: 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-action-gap);
+  min-block-size: var(--spacing-24);
+  margin-block: calc((var(--spacing-18) - var(--spacing-24)) / 2);
+}
+
+.label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--spacing-4);
+  min-inline-size: 0;
+  color: var(--ui-ink);
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ui-action-gap);
+  min-inline-size: 0;
+}

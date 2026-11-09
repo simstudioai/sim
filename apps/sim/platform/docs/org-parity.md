@@ -46,7 +46,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Search | Assistant conversation stays mounted under Search and keeps streaming | `search.tsx` | Unverified | No live check yet. `search-surface.tsx` |
 | Home | Build enters a new chat through the handoff; Search goes to `/search?q=` | `organization-conversation.tsx` | Done | "Home hands a draft to a new chat", "Home’s Search segment opens Search" |
 | Navigation | Benchmark | `/o/[id]/benchmark` | Legacy | Unmapped |
-| Navigation | Skills | `/o/[id]/skills` | Legacy | Unmapped |
+| Navigation | Skills: list per workspace, create, import, edit, delete, built-ins read-only, editors | `/workspace/[id]/skills`, `/o/[id]/skills` | Unverified | No live check yet. `/integrations?tab=skills&workspace=<id>`; `lib/data/skills`. Instructions use the large textarea, not legacy's rich editor |
 | Settings | Platform administration: Admin | `/o/[id]/settings/admin` | Unverified | No live check yet. `/settings/admin`, platform admins only. The legacy URL stays unmapped and keeps its own page |
 | Settings | Platform administration: Mothership | `/o/[id]/settings/mothership` | Unverified | No live check yet. `/settings/mothership`, platform admins only. The legacy URL maps here |
 | Integrations | Member inventory and account pages | `/o/[id]/integrations`, `/o/[id]/integrations/[provider]` | Unverified | No live check yet. `/integrations` and `/integrations/[providerId]`. `/integrations` maps here unless its query asks for a job the zone cannot do; `/integrations/[provider]` stays unmapped and keeps its own page |
@@ -90,7 +90,8 @@ One row per capability of the legacy organization surface. Every capability is e
 | Billing | Section gate | `settingsSections` | Done | "renders healthy in both themes" |
 | Billing | First-paint read, failure with retry | Billing | Unverified | The server read is proved by "a plan read on the server stands". The failure state needs the Platform server's own read to fail, which no browser stub can do |
 | Billing | Plan name, price, lapsed and free copy | Billing | Unverified | No live check yet. Same derivations; needs a seeded subscription for each state |
-| Billing | Explore plans link | Billing | Unverified | No live check yet. Links out to the unmapped workspace upgrade route |
+| Billing | Explore plans link | Billing | Unverified | No live check yet. Links to `/settings/billing/plans` |
+| Billing | Plan picker: plans, period, checkout, switch, contact, upgrade reasons, self-hosted and billing-off gates | `/workspace/[id]/upgrade` | Unverified | No live check yet. `/settings/billing/plans`, `lib/data/plans.ts`; needs Stripe |
 | Billing | Usage limit: credits, autosave, minimum, unsaved guard | Billing | Unverified | No live check yet. Shared decision in `lib/billing/usage-limit-draft`; needs a paid subscription to prove |
 | Billing | On-demand switch and lock | Billing | Unverified | No live check yet. Lock explained in the row's description where legacy used a tooltip |
 | Billing | Stripe portal, cancel, restore | Billing | Unverified | No live check yet. Existing operations. Needs Stripe, so live |
@@ -264,6 +265,9 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Sim link scope and global create form | `O/layout.tsx` | Open | Settings owner: Links is a Settings section |
 | Impersonation banner | `impersonation-banner.tsx` | Unverified | No live check yet. Foundation: `session-state.tsx` |
 | Session expired takeover | `session-expired.tsx` | Unverified | No live check yet. Foundation: `session-state.tsx` |
+| Stale session cookie: sign out before login instead of looping | `app/workspace/page.tsx` | Unverified | No live check yet. `live-shell/stale-session.tsx` |
+| Workspace entry: last workspace, `redirect_workflow`, `redirect`, first workspace, blocked policy | `app/workspace/page.tsx` | Unverified | No live check yet. `(shell)/workspace/page.tsx`, `lib/data/workspace-entry.ts` |
+| Workspace error, not found and access denied | `[workspaceId]/error.tsx`, `not-found.tsx`, `workspace-access-denied.tsx` | Unverified | No live check yet. `workspace/[workspaceId]/error.tsx` and `not-found.tsx`; an inaccessible workspace reads as not found |
 | Unsaved settings guard on links and sign out | `settings-navigation-guard.tsx`, `settings-guarded-link.tsx` | Unverified | No live check yet. `lib/data/settings-guard`, `settings-leave-guard.tsx`, `requestLeave` |
 | Unsaved settings guard on browser back and forward | `use-settings-browser-navigation.ts` | Unverified | No live check yet. `lib/data/settings-guard`, the same hook as legacy |
 | Branded metadata and whitelabel theme | `app/layout.tsx` | Open | Settings owner, with White-labeling |
@@ -387,6 +391,8 @@ The workspace's Dashboard, Issues, Changelog and Logs are Platform pages with fi
 | Workspace | Deploy, redeploy, undeploy, roll back, rename versions, version descriptions, compare versions, API, chat and MCP deployment | `w/[workflowId]/components/panel/components/deploy/` | Unverified | Checked by hand |
 | Workspace | Terminal and workflow variables | `w/[workflowId]/components/terminal/`, `components/variables/` | Unverified | Checked by hand. Variables moved from a floating window into the right panel |
 | Workspace | Live workflow view in the deploy modal, API language examples, editor connections panel, canvas error notifications, panel and floating chat, floating variables | `w/[workflowId]/` | Hidden | Removed by product direction |
+| Workspace | Tests list, Run all, test details and run picker | `app/workspace/[workspaceId]/tests/` | Unverified | No live check yet. Behind `workflow-tests` |
+| Workspace | Test source edited beside its results; preview of the exact version a test ran against | `tests/components/test-dashboard.tsx` | Open | Edit opens the file in Files and ran-against rows open the current workflow: the file viewer and canvas preview are route-owned and need promoting first |
 | Workspace | Workspace settings tab | `app/workspace/[workspaceId]/settings/` | Legacy | The tab exists and is empty by product direction; settings stay on the legacy workspace |
 
 ## Zone

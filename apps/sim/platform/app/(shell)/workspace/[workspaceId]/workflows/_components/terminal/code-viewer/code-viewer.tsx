@@ -1,7 +1,7 @@
 'use client'
 
 import { type RefObject, useCallback, useEffect, useMemo, useState } from 'react'
-import { Icon } from '@sim/emcn/icon'
+import { IconButton } from '@sim/emcn/button'
 import { escapeRegExp } from '@sim/utils/string'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import Prism from 'prismjs'
@@ -334,16 +334,13 @@ export function CodeViewer({
             {showFolds && (
               <span className={styles.fold}>
                 {canFold && (
-                  <button
-                    type='button'
-                    className={styles.foldButton}
-                    data-collapsed={collapsed || undefined}
-                    aria-label={collapsed ? 'Expand' : 'Collapse'}
-                    aria-expanded={!collapsed}
+                  <IconButton
+                    render={<button type='button' aria-expanded={!collapsed} />}
+                    label={collapsed ? 'Expand' : 'Collapse'}
+                    icon={collapsed ? 'I090' : 'I051'}
+                    size='inline'
                     onClick={() => toggle(lineIndex)}
-                  >
-                    <Icon name='I032' />
-                  </button>
+                  />
                 )}
               </span>
             )}

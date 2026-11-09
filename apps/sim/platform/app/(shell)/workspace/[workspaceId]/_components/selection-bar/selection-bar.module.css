@@ -1,0 +1,29 @@
+/* Wraps rather than overflowing, so a narrow surface never pushes a command past its edge. */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  max-inline-size: 100%;
+  gap: var(--ui-action-gap);
+  padding: var(--ui-popup-padding);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-menu);
+  pointer-events: auto;
+}
+.label {
+  max-inline-size: 100%;
+  padding-inline: var(--ui-row-inset);
+  overflow: hidden;
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ui-action-gap);
+}

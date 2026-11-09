@@ -1,11 +1,11 @@
 'use client'
 
 import { useMemo, useRef, useState } from 'react'
-import { FieldFrame, TextAreaField, TextField } from '@sim/emcn/field'
+import { FieldFrame, TextAreaField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/api-tab/api-tab.module.css'
+import { ParameterDescriptions } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/parameter-descriptions/parameter-descriptions'
 import {
   EMPTY_SUBBLOCK_VALUES,
   getMeaningfulWorkflowDescription,
@@ -164,24 +164,14 @@ export function ApiInfoModal({ workspaceId, workflowId, onClose }: ApiInfoModalP
             />
           </FieldFrame>
         )}
-        {inputFormat.length > 0 && (
-          <FieldFrame label='Parameters' count={inputFormat.length}>
-            <div className={styles.stack}>
-              {inputFormat.map((field) => (
-                <TextField
-                  key={field.name}
-                  label={`${field.name} · ${field.type || 'string'}`}
-                  placeholder={`Enter description for ${field.name}`}
-                  value={paramDescriptions[field.name] || ''}
-                  onChange={(value) =>
-                    setParamDescriptions((current) => ({ ...current, [field.name]: value }))
-                  }
-                  autoComplete='off'
-                />
-              ))}
-            </div>
-          </FieldFrame>
-        )}
+        <ParameterDescriptions
+          fields={inputFormat}
+          value={(name) => paramDescriptions[name] || ''}
+          placeholder={(name) => `Enter description for ${name}`}
+          onChange={(name, value) =>
+            setParamDescriptions((current) => ({ ...current, [name]: value }))
+          }
+        />
       </Modal>
       <ConfirmDialog
         target={confirmingDiscard}

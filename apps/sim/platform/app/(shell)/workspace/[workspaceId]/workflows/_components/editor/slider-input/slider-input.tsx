@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/slider-input/slider-input.module.css'
+import { RangeRow } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/slider-input/range-row'
 import { useSubBlockValue } from '@/platform/lib/data/workflow-editor'
 
 interface SliderInputProps {
@@ -50,25 +50,15 @@ export function SliderInput({
 
   const isDisabled = isPreview || disabled
   return (
-    <div className={styles.row} data-disabled={isDisabled || undefined}>
-      <input
-        type='range'
-        className={styles.range}
-        aria-label={label}
-        min={min}
-        max={max}
-        step={integer ? 1 : step}
-        value={normalizedValue}
-        disabled={isDisabled}
-        onChange={(event) => {
-          if (isDisabled) return
-          const next = Number(event.target.value)
-          setStoreValue(integer ? Math.round(next) : next)
-        }}
-      />
-      <output className={styles.value} data-type='T060' aria-hidden='true'>
-        {integer ? Math.round(normalizedValue).toString() : Number(normalizedValue).toFixed(1)}
-      </output>
-    </div>
+    <RangeRow
+      label={label}
+      min={min}
+      max={max}
+      value={Number(normalizedValue)}
+      integer={integer}
+      step={step}
+      disabled={isDisabled}
+      onValueChange={setStoreValue}
+    />
   )
 }

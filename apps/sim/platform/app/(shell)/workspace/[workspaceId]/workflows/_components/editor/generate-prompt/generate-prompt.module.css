@@ -1,0 +1,28 @@
+.prompt {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--ui-action-gap);
+  min-inline-size: 0;
+  max-inline-size: var(--spacing-320);
+}
+
+.input {
+  flex: 1;
+  min-inline-size: 0;
+  block-size: var(--spacing-24);
+  padding-inline: var(--spacing-8);
+  border: var(--spacing-stroke-default) solid var(--ui-border);
+  border-radius: var(--radius-control);
+  background: var(--ui-reading);
+  color: var(--ui-ink);
+}
+
+.input::placeholder {
+  color: var(--ui-secondary);
+  opacity: 1;
+}
+
+.input:disabled {
+  color: var(--ui-secondary);
+}
