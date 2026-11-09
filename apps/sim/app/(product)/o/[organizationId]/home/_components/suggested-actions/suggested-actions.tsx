@@ -2,8 +2,8 @@
 
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
+import { HomeSection } from '@/app/(product)/_components/home-section/home-section'
 import { useHomePrompt } from '@/app/(product)/_components/session/composer-host'
-import { HomeSection } from '@/app/(product)/o/[organizationId]/home/_components/home-section/home-section'
 import styles from '@/app/(product)/o/[organizationId]/home/_components/suggested-actions/suggested-actions.module.css'
 import type { HomeSuggestion } from '@/platform/shared/home'
 

@@ -414,6 +414,16 @@ function useHomeGetStarted(
   return steps
 }
 
+/**
+ * The Assistant landing's Get started: the steps Home gives a search-only member, read only while a
+ * landing that shows them is mounted.
+ */
+export function useAssistantGetStarted(): HomeGetStartedStep[] {
+  const organization = useOrganization()
+  const integrations = useHomeIntegrations(organization)
+  return useHomeGetStarted(organization, integrations, true)
+}
+
 /** Whether this render is past hydration, which Home's clock-dependent markup waits for. */
 export function useHomeHydrated(): boolean {
   return useHydrated()

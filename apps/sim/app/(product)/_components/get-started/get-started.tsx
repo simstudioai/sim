@@ -1,7 +1,7 @@
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
-import styles from '@/app/(product)/o/[organizationId]/home/_components/get-started/get-started.module.css'
-import { HomeSection } from '@/app/(product)/o/[organizationId]/home/_components/home-section/home-section'
+import styles from '@/app/(product)/_components/get-started/get-started.module.css'
+import { HomeSection } from '@/app/(product)/_components/home-section/home-section'
 import type { HomeGetStartedStep } from '@/platform/shared/home'
 
 interface GetStartedProps {

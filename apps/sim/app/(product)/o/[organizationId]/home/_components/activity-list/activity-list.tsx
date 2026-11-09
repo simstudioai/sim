@@ -5,8 +5,8 @@ import { Icon } from '@sim/emcn/icon'
 import { ScrollArea } from '@sim/emcn/scroll-area'
 import { InlineNotice } from '@sim/emcn/status'
 import { useSearchParams } from 'next/navigation'
+import { HomeSection } from '@/app/(product)/_components/home-section/home-section'
 import styles from '@/app/(product)/o/[organizationId]/home/_components/activity-list/activity-list.module.css'
-import { HomeSection } from '@/app/(product)/o/[organizationId]/home/_components/home-section/home-section'
 import type {
   AttentionItem,
   EmailItem,
