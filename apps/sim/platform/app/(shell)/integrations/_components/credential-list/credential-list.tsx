@@ -1,7 +1,7 @@
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { CountedLabel } from '@sim/emcn/overflow-text/counted-label'
+import { BrandMark } from '@/platform/app/(shell)/_components/brand-mark/brand-mark'
 import styles from '@/platform/app/(shell)/integrations/_components/credential-list/credential-list.module.css'
-import { IntegrationMark } from '@/platform/app/(shell)/integrations/_components/integration-mark/integration-mark'
 import { credentialDescription } from '@/platform/lib/integrations/credential-display'
 import type { IntegrationCredential } from '@/platform/lib/integrations/credential-model'
 
@@ -26,7 +26,7 @@ export function CredentialList({ providerId, credentials, onOpen }: CredentialLi
           {credentials.map((credential) => (
             <ActivityRow
               key={credential.id}
-              leading={<IntegrationMark providerId={providerId} />}
+              leading={<BrandMark providerId={providerId} />}
               title={credential.displayName}
               detail={credentialDescription(credential)}
               onOpen={() => onOpen(credential)}

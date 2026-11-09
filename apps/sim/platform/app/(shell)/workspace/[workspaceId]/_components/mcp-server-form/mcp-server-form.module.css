@@ -95,3 +95,7 @@
   padding-block-start: var(--ui-section-gap);
   gap: var(--ui-section-gap);
 }
+
+.reference {
+  color: var(--status-info);
+}

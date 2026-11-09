@@ -1,0 +1,113 @@
+.tree {
+  display: grid;
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+}
+
+.branch {
+  display: grid;
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+}
+
+.branchHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  min-inline-size: 0;
+}
+
+.branchChildren {
+  display: grid;
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+  padding-inline-start: var(--spacing-24);
+}
+
+.group {
+  display: grid;
+  gap: var(--spacing-8);
+  min-inline-size: 0;
+}
+
+.entries {
+  display: grid;
+  gap: var(--spacing-16);
+  min-inline-size: 0;
+  padding-block: var(--spacing-8);
+  padding-inline-start: var(--spacing-24);
+}
+
+.entry {
+  display: grid;
+  gap: var(--spacing-8);
+  min-inline-size: 0;
+}
+
+.entryHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-8);
+  min-inline-size: 0;
+}
+
+.entryLabel {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.entryControl {
+  flex: 0 1 var(--settings-control-width);
+  min-inline-size: 0;
+}
+
+.entryEnd {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.fields {
+  display: grid;
+  gap: var(--spacing-12);
+  min-inline-size: 0;
+  padding-block: var(--spacing-8);
+}
+
+.toolFields {
+  display: grid;
+  gap: var(--spacing-12);
+  min-inline-size: 0;
+  padding-inline-start: var(--spacing-8);
+}
+
+.reference {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  min-inline-size: 0;
+}
+
+.referenceText {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}
+
+.strong {
+  color: var(--ui-ink);
+}
+
+.url {
+  display: block;
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}
+
+.secondary {
+  color: var(--ui-secondary);
+}
