@@ -112,7 +112,7 @@ One row per capability of the legacy organization surface. Every capability is e
 
 | Domain | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- | --- |
-| Billing | Section gate | `settingsSections` | Done | "renders healthy in both themes" |
+| Billing | Section gate | `settingsSections` | Done | "${name} renders healthy in both themes at both widths" |
 | Billing | First-paint read, failure with retry | Billing | Unverified | The server read is proved by "a plan read on the server stands". The failure state needs the Platform server's own read to fail, which no browser stub can do |
 | Billing | Plan name, price, lapsed and free copy | Billing | Unverified | No live check yet. Same derivations; needs a seeded subscription for each state |
 | Billing | Explore plans link | Billing | Unverified | No live check yet. Links to `/settings/billing/plans` |
@@ -133,7 +133,7 @@ One row per capability of the legacy organization surface. Every capability is e
 | Usage | Workspace drill-down, Open logs | Insights | Unverified | No live check yet. Open logs keeps its hosted or `auditLogs` gate |
 | Usage | Activity summary, breakdown, paging, 404 recovery | Insights | Done | "Insights keeps its window" shows the breakdown; paging and 404 recovery have no live check. The metrics keep legacy's explanations and the runs chart its note on Other |
 | Usage | Manage member credits | Insights | Unverified | No live check yet. Member tab and hosted, same gate |
-| Usage | Events ledger, paging | Usage events | Done | "renders healthy in both themes". Paging has no live check |
+| Usage | Events ledger, paging | Usage events | Done | "${name} renders healthy in both themes at both widths". Paging has no live check |
 
 ## Settings: links and other
 
@@ -480,8 +480,8 @@ The workspace's Dashboard, Issues, Changelog and Logs are Platform pages. Fixtur
 
 | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- |
-| Saved links from before the product routes land where they now live, query kept | `next.config.ts` | Done | "a saved" |
+| Saved links from before the product routes land where they now live, query kept | `next.config.ts` | Done | "a saved ${from} lands on ${to}" |
 | The retired `/org` paths lead to the product home | `next.config.ts` | Done | "the retired /org paths lead to the product home" |
 | Security headers on product pages | `proxy.ts`, `next.config.ts` | Done | "product pages carry the security headers" |
-| No uncaught error, hydration mismatch, CSP block or 5xx on any route, in both themes at both widths | None; Platform only | Done | "renders healthy in both themes", one per route in `checks/live/routes.spec.ts` |
+| No uncaught error, hydration mismatch, CSP block or 5xx on any route, in both themes at both widths | None; Platform only | Done | "${name} renders healthy in both themes at both widths" (one per route) and "people-profile renders healthy in both themes at both widths", in `checks/live/routes.spec.ts` |
 | Self-hosted: boots and serves the product surface, billing and Enterprise off | `next.config.ts` | Done | "a self-hosted deployment boots", "a self-hosted organization is served the product surface", in the `live (self-hosted)` job |
