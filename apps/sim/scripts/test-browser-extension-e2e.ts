@@ -30,6 +30,7 @@ import { PASTE_RENDER_THRESHOLDS } from '@sim/utils/paste'
 import { generateRandomHex } from '@sim/utils/random'
 import postgres from 'postgres'
 import { chatContextsSchema } from '@/lib/api/contracts/mothership-chat-context'
+import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import { MOTHERSHIP_CHAT_ID_HEADER } from '@/lib/mothership/constants'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { workspaceResourcePath } from '@/lib/resources/urls'
@@ -129,7 +130,7 @@ let releaseHeldRequest = () => {}
 const alphaId = generateId()
 const betaId = generateId()
 const deniedId = generateId()
-/** The viewer's personal organization, which sign-up provisions; read back after sign-up. */
+/** The viewer's team, started from the personal organization sign-up provisions; set by `seed`. */
 let organizationId = ''
 let organizationName = ''
 const otherOrganizationId = generateId()
@@ -259,8 +260,20 @@ async function seed() {
   const [personal] = await sql`select o.id, o.name, o.kind from member m
     join organization o on o.id = m.organization_id where m.user_id=${owner}`
   assert.equal(personal?.kind, 'personal', 'Sign-up did not provision a personal organization')
-  organizationId = String(personal.id)
-  organizationName = String(personal.name)
+  // Permission groups and access-request settings are team configuration, so the viewer starts a
+  // team the way the product does: their personal organization becomes it, keeping its id.
+  organizationName = 'Extension QA organization'
+  const team = await createOrganizationWithOwner({
+    ownerUserId: owner,
+    name: organizationName,
+    slug: `extension-qa-${generateRandomHex(8)}`,
+  })
+  assert.equal(
+    team.organizationId,
+    personal.id,
+    'Starting a team did not convert the personal organization'
+  )
+  organizationId = team.organizationId
   const organization = organizationId
   await sql.begin(async (tx) => {
     await tx`insert into project (id, name, owner_id, organization_id) values (${alphaId}, 'Extension QA project', ${owner}, ${organization})`
