@@ -57,8 +57,8 @@ export function createApprovalNotifier(deps: ApprovalNotifierDeps) {
           silent: !preferences.notificationSounds,
         })
         if (!notification) return
-        const route = item.workspaceId
-          ? `/workspace/${encodeURIComponent(item.workspaceId)}/chat/${encodeURIComponent(item.chatId)}`
+        const route = item.organizationId
+          ? `/o/${encodeURIComponent(item.organizationId)}/chat/${encodeURIComponent(item.chatId)}`
           : undefined
         notification.on('click', () => deps.openRoute(route))
         notification.show()

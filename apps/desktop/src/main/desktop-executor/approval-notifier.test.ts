@@ -9,7 +9,8 @@ function approval(toolCallId: string, chatId = 'chat-b'): DesktopApprovalItem {
     toolName: 'terminal',
     chatId,
     chatTitle: 'Fix CI',
-    workspaceId: 'ws-1',
+    organizationId: 'org-1',
+    workspaceId: null,
     summary: 'rm -rf build && npm test',
   }
 }
@@ -78,7 +79,7 @@ describe('approval notifications', () => {
     expect(notifications[0]?.options.body).not.toContain('rm -rf')
     expect(notifications[0]?.options.body).not.toContain('Fix CI')
     notifications[0]?.click()
-    expect(opened).toEqual(['/workspace/ws-1/chat/chat-b'])
+    expect(opened).toEqual(['/o/org-1/chat/chat-b'])
   })
 
   it('closes the notification once the call is decided', () => {
