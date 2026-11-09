@@ -1,4 +1,5 @@
 import type { OrganizationSurfaceResponse } from '@/lib/api/contracts/organization'
+import { resourceParam } from '@/lib/mothership/chat/search-params'
 import { WORKSPACE_SETTINGS_PATH, WORKSPACES_PATH } from '@/lib/navigation/paths'
 
 /** What every organization route's path needs in front of it: `/o/<organizationId>`. */
@@ -34,9 +35,24 @@ export function canListOrganizationChats(organization: PlatformOrganization): bo
   return mothershipAvailable && (canBuild || searchAccess.memberScoped)
 }
 
-/** The legacy Home page's gate: a member who cannot build goes to Search, otherwise to Settings. */
-export function resolveHomeRedirect(organization: PlatformOrganization): string | null {
+/**
+ * The legacy Home page's gate: a member who cannot build goes to Search, otherwise to Settings.
+ * Legacy Home was a new chat with a resource panel, so a builder's address that opens a resource
+ * (`?resource=`, with a results tab's `?q=` and filters) goes to the new chat, which owns it now.
+ */
+export function resolveHomeRedirect(
+  organization: PlatformOrganization,
+  searchParams: Record<string, string | string[] | undefined>
+): string | null {
   const { mothershipAvailable, canBuild, searchAccess } = organization
-  if (mothershipAvailable && canBuild) return null
-  return searchAccess.memberScoped ? surfaceHref(organization, '/search') : WORKSPACE_SETTINGS_PATH
+  if (!mothershipAvailable || !canBuild) {
+    return searchAccess.memberScoped
+      ? surfaceHref(organization, '/search')
+      : WORKSPACE_SETTINGS_PATH
+  }
+  if (!searchParams[resourceParam.key]) return null
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(searchParams))
+    for (const entry of [value ?? []].flat()) query.append(key, entry)
+  return `${surfaceHref(organization, '/chat')}?${query}`
 }
