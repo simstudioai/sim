@@ -1,17 +1,16 @@
-import { Chip, cn } from '@sim/emcn-legacy'
-import { ChevronLeft, ChevronRight, RefreshCw, ZoomIn, ZoomOut } from '@sim/emcn-legacy/icons'
+import { Button, IconButton } from '@sim/emcn/button'
+import styles from '@/components/file-viewer/preview-toolbar.module.css'
 
-interface PreviewNavigationControls {
+interface PreviewNavigation {
   current: number
   total: number
+  /** What one step moves by, such as "page" or "slide". */
   label: string
   onPrevious: () => void
   onNext: () => void
-  canPrevious?: boolean
-  canNext?: boolean
 }
 
-interface PreviewZoomControls {
+interface PreviewZoom {
   label: string
   onZoomOut: () => void
   onZoomIn: () => void
@@ -21,77 +20,63 @@ interface PreviewZoomControls {
 }
 
 interface PreviewToolbarProps {
-  navigation?: PreviewNavigationControls
-  zoom?: PreviewZoomControls
-  className?: string
+  navigation?: PreviewNavigation
+  zoom?: PreviewZoom
 }
 
-export function PreviewToolbar({ navigation, zoom, className }: PreviewToolbarProps) {
+/** Page or slide steps at the start and zoom at the end, above a document preview. */
+export function PreviewToolbar({ navigation, zoom }: PreviewToolbarProps) {
   return (
-    <div
-      className={cn(
-        'flex h-[41px] shrink-0 items-center justify-between border-[var(--border)] border-b bg-[var(--surface-1)] px-2 max-md:h-auto max-md:min-h-[45px] max-md:flex-wrap max-md:gap-x-2',
-        className
+    <div className={styles.toolbar}>
+      <div className={styles.group}>
+        {navigation && (
+          <>
+            <IconButton
+              label={`Previous ${navigation.label}`}
+              icon='I140'
+              size='compact'
+              disabled={navigation.current <= 1}
+              onClick={navigation.onPrevious}
+            />
+            <span className={styles.count} data-type='T060'>
+              {navigation.total > 0 ? `${navigation.current} / ${navigation.total}` : '0 / 0'}
+            </span>
+            <IconButton
+              label={`Next ${navigation.label}`}
+              icon='I032'
+              size='compact'
+              disabled={navigation.current >= navigation.total}
+              onClick={navigation.onNext}
+            />
+          </>
+        )}
+      </div>
+      {zoom && (
+        <div className={styles.group}>
+          {zoom.onReset && (
+            <Button variant='quiet' size='compact' onClick={zoom.onReset}>
+              Reset
+            </Button>
+          )}
+          <IconButton
+            label='Zoom out'
+            icon='I134'
+            size='compact'
+            disabled={zoom.canZoomOut === false}
+            onClick={zoom.onZoomOut}
+          />
+          <span className={styles.count} data-type='T060' aria-live='polite'>
+            {zoom.label}
+          </span>
+          <IconButton
+            label='Zoom in'
+            icon='I074'
+            size='compact'
+            disabled={zoom.canZoomIn === false}
+            onClick={zoom.onZoomIn}
+          />
+        </div>
       )}
-    >
-      <div className='flex items-center gap-1'>
-        {navigation && <PreviewNavigationControls {...navigation} />}
-      </div>
-      <div className='flex items-center gap-1 max-md:ml-auto'>
-        {zoom && <PreviewZoomControls {...zoom} />}
-      </div>
     </div>
-  )
-}
-
-function PreviewNavigationControls({
-  current,
-  total,
-  label,
-  onPrevious,
-  onNext,
-  canPrevious = current > 1,
-  canNext = current < total,
-}: PreviewNavigationControls) {
-  return (
-    <>
-      <Chip
-        leftIcon={ChevronLeft}
-        onClick={onPrevious}
-        disabled={!canPrevious}
-        aria-label={`Previous ${label}`}
-      />
-      <span className='min-w-[4.5rem] text-center text-[var(--text-body)] text-sm'>
-        {total > 0 ? `${current} / ${total}` : '0 / 0'}
-      </span>
-      <Chip
-        leftIcon={ChevronRight}
-        onClick={onNext}
-        disabled={!canNext}
-        aria-label={`Next ${label}`}
-      />
-    </>
-  )
-}
-
-function PreviewZoomControls({
-  label,
-  onZoomOut,
-  onZoomIn,
-  canZoomOut = true,
-  canZoomIn = true,
-  onReset,
-}: PreviewZoomControls) {
-  return (
-    <>
-      {onReset && (
-        <Chip leftIcon={RefreshCw} mobileIconOnly onClick={onReset} aria-label='Reset zoom'>
-          Reset
-        </Chip>
-      )}
-      <Chip leftIcon={ZoomOut} onClick={onZoomOut} disabled={!canZoomOut} aria-label='Zoom out' />
-      <span className='min-w-[3.25rem] text-center text-[var(--text-body)] text-sm'>{label}</span>
-      <Chip leftIcon={ZoomIn} onClick={onZoomIn} disabled={!canZoomIn} aria-label='Zoom in' />
-    </>
   )
 }

@@ -1,7 +1,10 @@
 'use client'
 
-import { Chip, toast } from '@sim/emcn-legacy'
+import { Button } from '@sim/emcn/button'
+import { InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import styles from '@/components/file-viewer/file-save-conflict.module.css'
+import { toast } from '@/lib/toast/sink'
 
 interface FileSaveConflictProps {
   isReloading: boolean
@@ -9,34 +12,42 @@ interface FileSaveConflictProps {
   downloadDraft: () => void
 }
 
-/** Keeps both versions recoverable until the user explicitly replaces the local draft. */
+/** Keeps both versions recoverable until the reader chooses to replace the local draft. */
 export function FileSaveConflict({
   isReloading,
   reloadLatestContent,
   downloadDraft,
 }: FileSaveConflictProps) {
   return (
-    <div
-      role='alert'
-      className='flex shrink-0 flex-wrap items-center gap-2 border-[var(--border)] border-b px-4 py-2 text-[var(--text-body)] text-small'
-    >
-      <p className='min-w-0 flex-1'>
-        Saving paused: the file changed elsewhere. Your local draft is preserved. Reload replaces it
-        with the latest version.
-      </p>
-      <Chip onClick={downloadDraft}>Download local draft</Chip>
-      <Chip
-        disabled={isReloading}
-        onClick={() => {
-          void reloadLatestContent().catch((error) =>
-            toast.error(
-              getErrorMessage(error, 'Could not reload the file. Your local draft is unchanged.')
-            )
-          )
-        }}
-      >
-        {isReloading ? 'Reloading…' : 'Discard draft and reload'}
-      </Chip>
+    <div className={styles.conflict}>
+      <InlineNotice
+        intent='warning'
+        message='Saving paused: the file changed elsewhere. Your local draft is preserved. Reload replaces it with the latest version.'
+        action={
+          <>
+            <Button variant='quiet' size='compact' onClick={downloadDraft}>
+              Download local draft
+            </Button>
+            <Button
+              variant='quiet'
+              size='compact'
+              disabled={isReloading}
+              onClick={() => {
+                void reloadLatestContent().catch((error) =>
+                  toast.error(
+                    getErrorMessage(
+                      error,
+                      'Could not reload the file. Your local draft is unchanged.'
+                    )
+                  )
+                )
+              }}
+            >
+              {isReloading ? 'Reloading…' : 'Discard draft and reload'}
+            </Button>
+          </>
+        }
+      />
     </div>
   )
 }

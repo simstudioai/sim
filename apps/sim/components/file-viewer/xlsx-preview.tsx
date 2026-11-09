@@ -1,16 +1,12 @@
 'use client'
 
-import { memo, useEffect, useRef, useState } from 'react'
-import { Chip } from '@sim/emcn-legacy'
-import { createLogger } from '@sim/logger'
+import { useEffect, useRef, useState } from 'react'
+import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { toError } from '@sim/utils/errors'
 import type { WorkBook } from 'xlsx'
 import { DataTable } from '@/components/file-viewer/data-table'
-import {
-  PreviewError,
-  PreviewLoadingFrame,
-  resolvePreviewError,
-} from '@/components/file-viewer/preview-shared'
+import { PreviewError, resolvePreviewError } from '@/components/file-viewer/preview-shared'
+import styles from '@/components/file-viewer/table-frame.module.css'
 import { useDocPreviewBinary } from '@/components/file-viewer/use-doc-preview-binary'
 import { useHorizontalWheelScroll } from '@/components/file-viewer/use-horizontal-wheel-scroll'
 import {
@@ -22,8 +18,6 @@ import {
 import { assertOoxmlPreviewWithinLimits } from '@/lib/file-parsers/ooxml-preview-guard'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 
-const logger = createLogger('XlsxPreview')
-
 interface XlsxSheet {
   name: string
   headers: string[]
@@ -32,126 +26,104 @@ interface XlsxSheet {
   columnTruncated: boolean
 }
 
-export const XlsxPreview = memo(function XlsxPreview({
-  file,
-  workspaceId,
-}: {
+interface XlsxPreviewProps {
   file: WorkspaceFileRecord
   workspaceId: string
-}) {
+}
+
+function truncationNote(sheet: XlsxSheet): string | null {
+  const rows = `${XLSX_MAX_ROWS.toLocaleString()} rows`
+  const columns = `${XLSX_MAX_COLUMNS.toLocaleString()} columns`
+  const shown =
+    sheet.rowTruncated && sheet.columnTruncated
+      ? `${rows} and ${columns}`
+      : sheet.rowTruncated
+        ? rows
+        : sheet.columnTruncated
+          ? columns
+          : null
+  return shown && `Showing the first ${shown}. Download the file to view all data.`
+}
+
+/** A workbook with a tab per sheet, each its first 1,000 rows and 200 columns, read on demand. */
+export function XlsxPreview({ file, workspaceId }: XlsxPreviewProps) {
   const scrollRef = useHorizontalWheelScroll()
   const preview = useDocPreviewBinary(workspaceId, file)
   const fileData = preview.data
-
   const [sheetNames, setSheetNames] = useState<string[]>([])
-  const [activeSheet, setActiveSheet] = useState(0)
-  const [currentSheet, setCurrentSheet] = useState<XlsxSheet | null>(null)
+  const [activeSheet, setActiveSheet] = useState('')
+  const [sheet, setSheet] = useState<XlsxSheet | null>(null)
   const [renderError, setRenderError] = useState<string | null>(null)
   const workbookRef = useRef<WorkBook | null>(null)
 
   useEffect(() => {
     if (!fileData) return
-    const data = fileData
-
     let cancelled = false
-
-    async function parse() {
+    const parse = async () => {
       try {
         setRenderError(null)
-        await assertOoxmlPreviewWithinLimits(data)
+        await assertOoxmlPreviewWithinLimits(fileData)
         const XLSX = await import('xlsx')
-        const workbook = readXlsxWorkbook(XLSX, data)
-        if (!cancelled) {
-          workbookRef.current = workbook
-          setSheetNames(workbook.SheetNames)
-          setActiveSheet(0)
-        }
-      } catch (err) {
-        if (!cancelled) {
-          const msg = toError(err).message || 'Failed to parse spreadsheet'
-          logger.error('XLSX parse failed', { error: msg })
-          setRenderError(msg)
-        }
+        const workbook = readXlsxWorkbook(XLSX, fileData)
+        if (cancelled) return
+        workbookRef.current = workbook
+        setSheetNames(workbook.SheetNames)
+        setActiveSheet(workbook.SheetNames[0] ?? '')
+      } catch (error) {
+        if (!cancelled) setRenderError(toError(error).message || 'Failed to parse spreadsheet')
       }
     }
-
-    parse()
+    void parse()
     return () => {
       cancelled = true
     }
   }, [fileData])
 
   useEffect(() => {
-    if (sheetNames.length === 0 || !workbookRef.current) return
-
+    const workbook = workbookRef.current
+    if (!workbook || !activeSheet) return
     let cancelled = false
-
-    async function parseSheet() {
+    const parseSheet = async () => {
       try {
         const XLSX = await import('xlsx')
-        const workbook = workbookRef.current!
-        const name = sheetNames[activeSheet]
-        const sheet = workbook.Sheets[name]
-        const { headers, rows, rowTruncated, columnTruncated } = readXlsxPreviewData(XLSX, sheet)
-        if (!cancelled) {
-          setCurrentSheet({
-            name,
-            headers,
-            rows,
-            rowTruncated,
-            columnTruncated,
-          })
-        }
-      } catch (err) {
-        if (!cancelled) {
-          const msg = toError(err).message || 'Failed to parse sheet'
-          logger.error('XLSX sheet parse failed', { error: msg })
-          setRenderError(msg)
-        }
+        const data = readXlsxPreviewData(XLSX, workbook.Sheets[activeSheet])
+        if (!cancelled) setSheet({ name: activeSheet, ...data })
+      } catch (error) {
+        if (!cancelled) setRenderError(toError(error).message || 'Failed to parse sheet')
       }
     }
-
-    parseSheet()
+    void parseSheet()
     return () => {
       cancelled = true
     }
-  }, [sheetNames, activeSheet])
+  }, [activeSheet])
 
-  const error = resolvePreviewError(preview.error, renderError)
-  if (error) return <PreviewError label='spreadsheet' error={error} />
-  if (!fileData || currentSheet === null) {
-    return <PreviewLoadingFrame className='flex flex-1 flex-col overflow-hidden' />
-  }
-
-  return (
-    <div className='flex flex-1 flex-col overflow-hidden'>
-      <div className='flex shrink-0 items-center border-[var(--border)] border-b bg-[var(--surface-1)] px-2 py-1'>
-        <div className='flex items-center gap-1 overflow-x-auto'>
-          {sheetNames.map((name, i) => (
-            <Chip
-              key={name}
-              active={i === activeSheet}
-              onClick={() => setActiveSheet(i)}
-              className='shrink-0'
-            >
-              {name}
-            </Chip>
-          ))}
-        </div>
-      </div>
-      <div ref={scrollRef} className='flex-1 overflow-auto p-6'>
-        <DataTable headers={currentSheet.headers} rows={currentSheet.rows} />
-        {(currentSheet.rowTruncated || currentSheet.columnTruncated) && (
-          <p className='mt-3 text-center text-[var(--text-muted)] text-caption'>
-            {currentSheet.rowTruncated && currentSheet.columnTruncated
-              ? `Showing first ${XLSX_MAX_ROWS.toLocaleString()} rows and ${XLSX_MAX_COLUMNS.toLocaleString()} columns.`
-              : currentSheet.rowTruncated
-                ? `Showing first ${XLSX_MAX_ROWS.toLocaleString()} rows.`
-                : `Showing first ${XLSX_MAX_COLUMNS.toLocaleString()} columns.`}{' '}
-            Download the file to view all data.
-          </p>
-        )}
-      </div>
+  const failure = resolvePreviewError(preview.error, renderError)
+  if (failure) return <PreviewError label='spreadsheet' error={failure} />
+  if (!fileData || !sheet) return null
+  const note = truncationNote(sheet)
+  const table = (
+    <div ref={scrollRef} className={styles.frame}>
+      <DataTable headers={sheet.headers} rows={sheet.rows} />
+      {note && (
+        <p className={styles.note} data-type='T052'>
+          {note}
+        </p>
+      )}
     </div>
   )
-})
+  return (
+    <div className={styles.sheets}>
+      <ContentTabs
+        label='Sheets'
+        current={activeSheet}
+        onSelect={setActiveSheet}
+        items={sheetNames.map((name) => ({
+          id: name,
+          label: name,
+          content: name === sheet.name ? table : null,
+        }))}
+      />
+    </div>
+  )
+}

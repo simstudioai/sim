@@ -9,6 +9,7 @@ import { InlineNotice, StatusText } from '@sim/emcn/status'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import type { PreviewMode } from '@/components/file-viewer/types'
 import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { DirectoryHeading } from '@/app/(product)/_components/resource-directory/resource-directory'
@@ -16,7 +17,6 @@ import {
   DetailSection,
   DetailSplit,
 } from '@/app/(product)/workspace/[workspaceId]/_components/detail-split/detail-split'
-import type { PreviewMode } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/types'
 import { useMinuteClock } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/rename-dialog'
 import { formatDuration } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/format'
 import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'

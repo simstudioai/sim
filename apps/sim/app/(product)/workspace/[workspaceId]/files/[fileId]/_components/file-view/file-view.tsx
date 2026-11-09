@@ -11,21 +11,21 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
-import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
-import { toast } from '@/lib/toast/sink'
-import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import {
   FileDocAvatars,
   FileDocRoomProvider,
-} from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/collaboration/file-doc-room'
+} from '@/components/file-viewer/collaboration/file-doc-room'
 import {
   FileViewer,
   isCsvStreamOnly,
   isMarkdownFile,
   isPreviewable,
   isTextEditable,
-} from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/file-viewer'
-import type { PreviewMode } from '@/app/(product)/workspace/[workspaceId]/_components/file-viewer/types'
+} from '@/components/file-viewer/file-viewer'
+import type { PreviewMode } from '@/components/file-viewer/types'
+import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
+import { toast } from '@/lib/toast/sink'
+import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import {
   LiveWorkspacePage,
   WorkspaceEmpty,
@@ -38,6 +38,7 @@ import {
   type SaveStatus,
   SIM_PAGE_CONTENT_TYPE,
   triggerFileDownload,
+  useAddToChat,
   useDeleteWorkspaceFile,
   useDeriveFileTitle,
   useFileAccess,
@@ -130,6 +131,7 @@ export function FileView({ workspaceId, fileId }: FileViewProps) {
   const [composing] = useState(isNewFile)
   const { data: folders } = useWorkspaceFileFolders(workspaceId)
   const deriveTitle = useDeriveFileTitle(workspaceId)
+  const addToChat = useAddToChat()
   const deleteFile = useDeleteWorkspaceFile()
   const { copied: linkCopied, copy } = useClipboard()
 
@@ -342,6 +344,7 @@ export function FileView({ workspaceId, fileId }: FileViewProps) {
             saveRef={saveRef}
             downloadSourceRef={downloadSourceRef}
             discardRef={discardRef}
+            onAddToChat={addToChat}
             onDownload={() => void download()}
             collaborative
             onDeriveTitleFromHeading={deriveTitle}

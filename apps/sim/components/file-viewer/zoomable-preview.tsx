@@ -1,9 +1,16 @@
 'use client'
 
-import type { PointerEvent, ReactNode } from 'react'
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
-import { bindPreviewWheelZoom, cn } from '@sim/emcn-legacy'
+import {
+  type PointerEvent,
+  type ReactNode,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { PreviewToolbar } from '@/components/file-viewer/preview-toolbar'
+import { bindWheelZoom } from '@/components/file-viewer/preview-wheel'
+import styles from '@/components/file-viewer/zoomable-preview.module.css'
 
 const ZOOM_MIN = 0.25
 const ZOOM_MAX = 4
@@ -23,124 +30,99 @@ interface Size {
   height: number
 }
 
-interface ZoomablePreviewProps {
-  children: ReactNode
-  className?: string
-  contentClassName?: string
-  initialScale?: 'actual' | 'fit'
-  resetKey?: string | number
+function elementSize(element: HTMLElement | null): Size {
+  return element
+    ? { width: element.offsetWidth, height: element.offsetHeight }
+    : { width: 0, height: 0 }
 }
 
-function getElementSize(element: HTMLElement | null): Size {
-  if (!element) return { width: 0, height: 0 }
-  return {
-    width: element.offsetWidth,
-    height: element.offsetHeight,
-  }
+function hasArea(size: Size) {
+  return size.width > 0 && size.height > 0
 }
 
-function getFitZoom(container: Size, content: Size): number {
-  if (container.width <= 0 || container.height <= 0 || content.width <= 0 || content.height <= 0) {
-    return 1
-  }
-
-  const availableWidth = Math.max(1, container.width - FIT_PADDING)
-  const availableHeight = Math.max(1, container.height - FIT_PADDING)
-  return clampZoom(Math.min(availableWidth / content.width, availableHeight / content.height))
+function fitZoom(container: Size, content: Size): number {
+  if (!hasArea(container) || !hasArea(content)) return 1
+  const width = Math.max(1, container.width - FIT_PADDING)
+  const height = Math.max(1, container.height - FIT_PADDING)
+  return clampZoom(Math.min(width / content.width, height / content.height))
 }
 
 function clampOffset(container: Size, content: Size, offset: Offset, zoom: number): Offset {
-  if (container.width <= 0 || container.height <= 0 || content.width <= 0 || content.height <= 0) {
-    return offset
-  }
-
-  const scaledWidth = content.width * zoom
-  const scaledHeight = content.height * zoom
-  const maxX = Math.max(0, (scaledWidth - container.width) / 2)
-  const maxY = Math.max(0, (scaledHeight - container.height) / 2)
-
+  if (!hasArea(container) || !hasArea(content)) return offset
+  const maxX = Math.max(0, (content.width * zoom - container.width) / 2)
+  const maxY = Math.max(0, (content.height * zoom - container.height) / 2)
   return {
     x: Math.min(Math.max(offset.x, -maxX), maxX),
     y: Math.min(Math.max(offset.y, -maxY), maxY),
   }
 }
 
-export function ZoomablePreview({
-  children,
-  className,
-  contentClassName,
-  initialScale = 'actual',
-  resetKey,
-}: ZoomablePreviewProps) {
+interface ZoomablePreviewProps {
+  children: ReactNode
+  /** `fit` scales the content to the frame until the reader zooms; `actual` starts at 100%. */
+  initialScale?: 'actual' | 'fit'
+}
+
+/** A zoomable, pannable canvas for an image or diagram: 25–400%, wheel or pinch, drag to pan. */
+export function ZoomablePreview({ children, initialScale = 'actual' }: ZoomablePreviewProps) {
   const [zoom, setZoom] = useState(1)
-  const [offset, setOffset] = useState({ x: 0, y: 0 })
-  const [containerSize, setContainerSize] = useState<Size>({ width: 0, height: 0 })
-  const [contentSize, setContentSize] = useState<Size>({ width: 0, height: 0 })
   const viewportRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const activePointerIdRef = useRef<number | null>(null)
-  const dragStart = useRef({ x: 0, y: 0 })
-  const offsetAtDragStart = useRef({ x: 0, y: 0 })
-  const hasInteractedRef = useRef(false)
-  const zoomRef = useRef(zoom)
-  const offsetRef = useRef(offset)
-  const containerSizeRef = useRef(containerSize)
-  const contentSizeRef = useRef(contentSize)
-  zoomRef.current = zoom
-  offsetRef.current = offset
-  containerSizeRef.current = containerSize
-  contentSizeRef.current = contentSize
+  const zoomRef = useRef(1)
+  const offsetRef = useRef<Offset>({ x: 0, y: 0 })
+  const sizesRef = useRef<{ container: Size; content: Size }>({
+    container: { width: 0, height: 0 },
+    content: { width: 0, height: 0 },
+  })
+  const interactedRef = useRef(false)
+  const dragRef = useRef<{ pointerId: number; x: number; y: number; from: Offset } | null>(null)
 
-  const applyZoom = useCallback((nextZoom: number, anchorX?: number, anchorY?: number) => {
-    const currentZoom = zoomRef.current
-    const ratio = nextZoom / currentZoom
-    const container = containerSizeRef.current
-    const anchorFromCenter = {
-      x: (anchorX ?? container.width / 2) - container.width / 2,
-      y: (anchorY ?? container.height / 2) - container.height / 2,
-    }
-
+  /** The transform is set on the element itself: it follows every pointer move. */
+  const paint = useCallback((nextZoom: number, nextOffset: Offset) => {
     zoomRef.current = nextZoom
+    offsetRef.current = nextOffset
+    const content = contentRef.current
+    if (content)
+      content.style.transform = `translate(${nextOffset.x}px, ${nextOffset.y}px) scale(${nextZoom})`
     setZoom(nextZoom)
-    setOffset((currentOffset) =>
-      clampOffset(
-        container,
-        contentSizeRef.current,
-        {
-          x: currentOffset.x * ratio + anchorFromCenter.x * (1 - ratio),
-          y: currentOffset.y * ratio + anchorFromCenter.y * (1 - ratio),
-        },
-        nextZoom
-      )
-    )
   }, [])
 
-  const fitToView = useCallback(() => {
-    hasInteractedRef.current = false
-    const nextZoom =
-      initialScale === 'fit' ? getFitZoom(containerSizeRef.current, contentSizeRef.current) : 1
-    zoomRef.current = nextZoom
-    setZoom(nextZoom)
-    setOffset({ x: 0, y: 0 })
-  }, [initialScale])
+  const applyZoom = useCallback(
+    (nextZoom: number, anchorX?: number, anchorY?: number) => {
+      const { container, content } = sizesRef.current
+      const ratio = nextZoom / zoomRef.current
+      const fromCenterX = (anchorX ?? container.width / 2) - container.width / 2
+      const fromCenterY = (anchorY ?? container.height / 2) - container.height / 2
+      const offset = offsetRef.current
+      paint(
+        nextZoom,
+        clampOffset(
+          container,
+          content,
+          {
+            x: offset.x * ratio + fromCenterX * (1 - ratio),
+            y: offset.y * ratio + fromCenterY * (1 - ratio),
+          },
+          nextZoom
+        )
+      )
+    },
+    [paint]
+  )
 
-  const zoomIn = () => {
-    hasInteractedRef.current = true
-    applyZoom(clampZoom(zoom * ZOOM_BUTTON_FACTOR))
-  }
-  const zoomOut = () => {
-    hasInteractedRef.current = true
-    applyZoom(clampZoom(zoom / ZOOM_BUTTON_FACTOR))
-  }
+  const reset = useCallback(() => {
+    interactedRef.current = false
+    const { container, content } = sizesRef.current
+    paint(initialScale === 'fit' ? fitZoom(container, content) : 1, { x: 0, y: 0 })
+  }, [initialScale, paint])
 
   useLayoutEffect(() => {
     const viewport = viewportRef.current
     if (!viewport) return
-
-    return bindPreviewWheelZoom(
+    return bindWheelZoom(
       viewport,
       (event) => {
-        hasInteractedRef.current = true
+        interactedRef.current = true
         const rect = viewport.getBoundingClientRect()
         applyZoom(
           clampZoom(zoomRef.current * Math.exp(-event.deltaY * ZOOM_WHEEL_SENSITIVITY)),
@@ -148,142 +130,115 @@ export function ZoomablePreview({
           event.clientY - rect.top
         )
       },
-      {
-        onPan: (event) => {
-          hasInteractedRef.current = true
-          setOffset((currentOffset) =>
-            clampOffset(
-              containerSizeRef.current,
-              contentSizeRef.current,
-              {
-                x: currentOffset.x - event.deltaX,
-                y: currentOffset.y - event.deltaY,
-              },
-              zoomRef.current
-            )
+      (event) => {
+        interactedRef.current = true
+        const { container, content } = sizesRef.current
+        const offset = offsetRef.current
+        paint(
+          zoomRef.current,
+          clampOffset(
+            container,
+            content,
+            { x: offset.x - event.deltaX, y: offset.y - event.deltaY },
+            zoomRef.current
           )
-        },
+        )
       }
     )
-  }, [applyZoom])
+  }, [applyZoom, paint])
 
   useLayoutEffect(() => {
-    const updateSizes = () => {
-      setContainerSize(getElementSize(viewportRef.current))
-      setContentSize(getElementSize(contentRef.current))
-    }
-    updateSizes()
-
-    const container = viewportRef.current
+    const viewport = viewportRef.current
     const content = contentRef.current
-    if (!container || !content) return
-
-    const observer = new ResizeObserver(() => {
-      updateSizes()
-    })
-    observer.observe(container)
+    if (!viewport || !content) return
+    const measure = () => {
+      const sizes = { container: elementSize(viewport), content: elementSize(content) }
+      sizesRef.current = sizes
+      if (!hasArea(sizes.container) || !hasArea(sizes.content)) return
+      const nextZoom =
+        initialScale === 'fit' && !interactedRef.current
+          ? fitZoom(sizes.container, sizes.content)
+          : zoomRef.current
+      paint(nextZoom, clampOffset(sizes.container, sizes.content, offsetRef.current, nextZoom))
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(viewport)
     observer.observe(content)
     return () => observer.disconnect()
-  }, [])
+  }, [initialScale, paint])
 
-  useLayoutEffect(() => {
-    if (
-      containerSize.width <= 0 ||
-      containerSize.height <= 0 ||
-      contentSize.width <= 0 ||
-      contentSize.height <= 0
-    ) {
-      return
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || dragRef.current || !event.isPrimary) return
+    interactedRef.current = true
+    dragRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      from: offsetRef.current,
     }
-
-    const nextZoom =
-      initialScale === 'fit' && !hasInteractedRef.current
-        ? getFitZoom(containerSize, contentSize)
-        : zoomRef.current
-    zoomRef.current = nextZoom
-    setZoom(nextZoom)
-    setOffset((currentOffset) => clampOffset(containerSize, contentSize, currentOffset, nextZoom))
-  }, [containerSize, contentSize, initialScale])
-
-  useLayoutEffect(() => {
-    hasInteractedRef.current = false
-    const nextZoom =
-      initialScale === 'fit' ? getFitZoom(containerSizeRef.current, contentSizeRef.current) : 1
-    zoomRef.current = nextZoom
-    setZoom(nextZoom)
-    setOffset({ x: 0, y: 0 })
-  }, [initialScale, resetKey])
-
-  const handlePointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || activePointerIdRef.current !== null || !e.isPrimary) return
-    hasInteractedRef.current = true
-    activePointerIdRef.current = e.pointerId
-    e.currentTarget.setPointerCapture(e.pointerId)
-    dragStart.current = { x: e.clientX, y: e.clientY }
-    offsetAtDragStart.current = offsetRef.current
-    if (viewportRef.current) viewportRef.current.style.cursor = 'grabbing'
-    e.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    event.currentTarget.dataset.dragging = ''
+    event.preventDefault()
   }
 
-  const handlePointerMove = (e: PointerEvent<HTMLDivElement>) => {
-    if (activePointerIdRef.current !== e.pointerId) return
-    setOffset(
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (drag?.pointerId !== event.pointerId) return
+    const { container, content } = sizesRef.current
+    paint(
+      zoomRef.current,
       clampOffset(
-        containerSizeRef.current,
-        contentSizeRef.current,
-        {
-          x: offsetAtDragStart.current.x + (e.clientX - dragStart.current.x),
-          y: offsetAtDragStart.current.y + (e.clientY - dragStart.current.y),
-        },
-        zoom
+        container,
+        content,
+        { x: drag.from.x + event.clientX - drag.x, y: drag.from.y + event.clientY - drag.y },
+        zoomRef.current
       )
     )
   }
 
-  const handlePointerEnd = (e: PointerEvent<HTMLDivElement>) => {
-    if (activePointerIdRef.current !== e.pointerId) return
-    activePointerIdRef.current = null
-    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-      e.currentTarget.releasePointerCapture(e.pointerId)
-    }
-    if (viewportRef.current) viewportRef.current.style.cursor = 'grab'
+  const handlePointerEnd = (event: PointerEvent<HTMLDivElement>) => {
+    if (dragRef.current?.pointerId !== event.pointerId) return
+    dragRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId))
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    delete event.currentTarget.dataset.dragging
   }
 
   return (
-    <div className={cn('flex min-h-0 flex-col overflow-hidden bg-[var(--surface-1)]', className)}>
+    <div className={styles.frame}>
       <PreviewToolbar
         zoom={{
           label: `${Math.round(zoom * 100)}%`,
           canZoomOut: zoom > ZOOM_MIN,
           canZoomIn: zoom < ZOOM_MAX,
-          onReset: fitToView,
-          onZoomOut: zoomOut,
-          onZoomIn: zoomIn,
+          onReset: reset,
+          onZoomOut: () => {
+            interactedRef.current = true
+            applyZoom(clampZoom(zoomRef.current / ZOOM_BUTTON_FACTOR))
+          },
+          onZoomIn: () => {
+            interactedRef.current = true
+            applyZoom(clampZoom(zoomRef.current * ZOOM_BUTTON_FACTOR))
+          },
         }}
       />
       <div
         ref={viewportRef}
         role='application'
         aria-label='Zoomable preview'
-        className='relative min-h-0 flex-1 cursor-grab touch-pinch-zoom overflow-hidden'
+        className={styles.viewport}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerEnd}
         onPointerCancel={handlePointerEnd}
         onLostPointerCapture={handlePointerEnd}
       >
-        <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
+        <div className={styles.stage}>
           <div
             ref={contentRef}
-            className={cn(
-              'flex items-center justify-center',
-              (zoom !== 1 || offset.x !== 0 || offset.y !== 0) && 'will-change-transform',
-              contentClassName
-            )}
-            style={{
-              transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
-              transformOrigin: 'center center',
-            }}
+            className={styles.content}
+            data-fit={initialScale === 'fit' || undefined}
           >
             {children}
           </div>

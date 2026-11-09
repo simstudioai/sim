@@ -3,8 +3,9 @@
 import { useMemo } from 'react'
 import { Chip, OverflowText, SimWordmark } from '@sim/emcn-legacy'
 import { Download } from '@sim/emcn-legacy/icons'
+import '@sim/emcn/styles/global.css'
 import Link from 'next/link'
-import { FileViewer } from '@/components/file-viewer'
+import { FileViewer } from '@/components/file-viewer/file-viewer'
 import { SITE_URL } from '@/lib/core/utils/urls'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { EditableFileOwner } from '@/lib/workspace-files/ownership'
@@ -110,7 +111,8 @@ export function PublicFileView({
         </Chip>
       </header>
 
-      <main className='flex min-h-0 flex-1 flex-col'>
+      {/* The viewer is drawn by the design system, inside its own scoped, light surface. */}
+      <main data-emcn='' data-theme='light' className='flex min-h-0 flex-1 flex-col'>
         <FileViewer
           file={file}
           workspaceId={token}

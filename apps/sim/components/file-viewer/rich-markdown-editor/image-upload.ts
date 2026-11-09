@@ -3,6 +3,7 @@ import { type Editor, Extension, type Range } from '@tiptap/core'
 import type { Slice } from '@tiptap/pm/model'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import styles from '@/components/file-viewer/rich-markdown-editor/editor-dom.module.css'
 import { imageTypeAt } from '@/components/file-viewer/rich-markdown-editor/image-node'
 
 interface PendingImageUpload extends Range {
@@ -33,14 +34,13 @@ function uploadDecoration({ id, from, label, side }: PendingImageUpload): Decora
       const placeholder = document.createElement('span')
       placeholder.contentEditable = 'false'
       if (label) {
-        placeholder.className =
-          'mx-1 rounded border border-[var(--border)] px-2 py-1 text-[var(--text-muted)] text-small'
+        placeholder.className = styles.uploadPlaceholder
+        placeholder.dataset.type = 'T060'
         placeholder.setAttribute('role', 'status')
         placeholder.textContent = `Uploading ${label}…`
         const cancel = document.createElement('button')
         cancel.type = 'button'
-        cancel.className =
-          'ml-2 underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--selection)]'
+        cancel.className = styles.uploadCancel
         cancel.textContent = 'Cancel insertion'
         cancel.setAttribute('aria-label', `Cancel insertion of ${label}`)
         cancel.title = 'The file may still finish uploading to the workspace.'
