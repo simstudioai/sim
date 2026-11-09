@@ -6,7 +6,6 @@ import { ZoneHomeDashboard } from '@/app/(product)/o/[organizationId]/home/_comp
 import {
   type HiddenHomeWidgets,
   useHiddenHomeWidgets,
-  useHomeHydrated,
   useLiveHome,
 } from '@/platform/lib/data/home'
 
@@ -42,7 +41,6 @@ function HydratedHome({ widgets }: { widgets: HiddenHomeWidgets }) {
  * reads. A client navigation already has both and renders it at once.
  */
 export function LiveHome() {
-  const hydrated = useHomeHydrated()
   const widgets = useHiddenHomeWidgets()
-  return hydrated && widgets ? <HydratedHome widgets={widgets} /> : null
+  return widgets ? <HydratedHome widgets={widgets} /> : null
 }

@@ -424,11 +424,6 @@ export function useAssistantGetStarted(): HomeGetStartedStep[] {
   return useHomeGetStarted(organization, integrations, true)
 }
 
-/** Whether this render is past hydration, which Home's clock-dependent markup waits for. */
-export function useHomeHydrated(): boolean {
-  return useHydrated()
-}
-
 const NO_WIDGETS: readonly HomeWidget[] = []
 
 function isHomeWidget(widget: string): widget is HomeWidget {
@@ -444,10 +439,11 @@ export interface HiddenHomeWidgets {
 
 /**
  * The viewer's Customize Home choices in this organization, kept in this browser across reloads under
- * the legacy Home's key and cleared with the viewer's other data on sign-out. Null until the session
- * names the viewer.
+ * the legacy Home's key and cleared with the viewer's other data on sign-out. Null until the render is
+ * past hydration, which Home's clock-dependent markup waits for, and the session names the viewer.
  */
 export function useHiddenHomeWidgets(): HiddenHomeWidgets | null {
+  const hydrated = useHydrated()
   const organizationId = useOrganization().organization.id
   const userId = useSession().data?.user?.id
   const viewer = userId ? `${userId}:${organizationId}` : null
@@ -455,7 +451,7 @@ export function useHiddenHomeWidgets(): HiddenHomeWidgets | null {
     viewer ? state.hiddenWidgets[viewer] : undefined
   )
   const setWidgetHidden = useOrganizationHomeStore((state) => state.setWidgetHidden)
-  if (!viewer) return null
+  if (!hydrated || !viewer) return null
   return {
     hiddenWidgets: stored?.filter(isHomeWidget) ?? NO_WIDGETS,
     setWidgetHidden: (widget, hidden) => setWidgetHidden(viewer, widget, hidden),
