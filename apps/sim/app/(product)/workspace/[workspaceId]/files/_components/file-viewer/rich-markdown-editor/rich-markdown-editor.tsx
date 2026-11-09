@@ -20,7 +20,7 @@ import type { Editor } from '@tiptap/react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import { useRouter } from 'next/navigation'
 import { toast } from '@/lib/toast/sink'
-import { FindBar } from '@/app/(product)/workspace/[workspaceId]/_components/find-bar/find-bar'
+import { FindBar } from '@/app/(product)/_components/find-bar/find-bar'
 import { EditorBubbleMenu } from '@/app/(product)/workspace/[workspaceId]/_components/rich-markdown-editor/bubble-menu'
 import { createMarkdownEditorExtensions } from '@/app/(product)/workspace/[workspaceId]/_components/rich-markdown-editor/editor-extensions'
 import {
