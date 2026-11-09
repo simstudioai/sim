@@ -12,6 +12,7 @@ import {
   validateHelpImage,
 } from '@/lib/help/request'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
+import { captureClientEvent } from '@/lib/posthog/client'
 import { toast } from '@/lib/toast/sink'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import type { ShellHelp, ShellOrganizationActions } from '@/app/(product)/_components/model'
@@ -85,6 +86,10 @@ function useHelp(organization: PlatformOrganization): ShellHelp {
         }
       : undefined,
     support: SUPPORT,
+    onLinkOpened: (link) =>
+      link === 'documentation'
+        ? captureClientEvent('docs_opened', { source: 'help_menu' })
+        : captureClientEvent('slack_community_opened', { source: 'help_menu' }),
   }
 }
 
