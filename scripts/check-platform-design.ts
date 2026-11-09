@@ -466,6 +466,7 @@ const seamHelpers = new Set([
   'lib/mothership/tools/display',
   'lib/permission-groups/block-successors.generated',
   'lib/resources',
+  'lib/settings/search-params',
   'lib/settings/section-availability',
   'lib/sim-search/connectors',
   'lib/sim-search/connection-labels',
