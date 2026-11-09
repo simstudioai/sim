@@ -23,7 +23,9 @@ interface DetailSplitProps {
   railKind?: 'facts' | 'inspector'
   /** The record's read; anything but ready replaces the split, never Back. */
   read?: WorkspaceRead
-  /** The reading column, which alone scrolls. */
+  /** A reading column that scrolls, or an embedded editor that fills the working area and scrolls itself. */
+  content?: 'reading' | 'editor'
+  /** The reading column, which alone scrolls, or the editor that fills it. */
   children: ReactNode
 }
 
@@ -44,6 +46,7 @@ export function DetailSplit({
   railLabel,
   railKind = 'facts',
   read = READY,
+  content = 'reading',
   children,
 }: DetailSplitProps) {
   const reading = useScrollEdges<HTMLDivElement>('vertical')
@@ -64,8 +67,16 @@ export function DetailSplit({
         {ready && (
           <div className={styles.frame}>
             <div ref={stack} className={styles.split}>
-              <div ref={reading} className={styles.reading} role='region' aria-label={label}>
-                <div className={styles.content}>{children}</div>
+              <div
+                ref={reading}
+                className={styles.reading}
+                data-content={content}
+                role='region'
+                aria-label={label}
+              >
+                <div className={styles.content} data-content={content}>
+                  {children}
+                </div>
               </div>
               {rail && (
                 <aside
