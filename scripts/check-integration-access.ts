@@ -48,7 +48,7 @@ const EXEMPT: Readonly<Record<string, string>> = {
   'app/sitemap.ts': 'public sitemap of the marketing integration pages',
   'app/workspace/[workspaceId]/integrations/[block]/page.tsx':
     'resolves the route slug to one integration; IntegrationBlockDetail gates it',
-  'app/workspace/[workspaceId]/home/components/suggested-actions/suggested-actions.tsx':
+  'components/mothership-chat/suggested-actions/suggested-actions.tsx':
     'maps integration names to slugs to rewrite prompt text; lists nothing',
   'app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/integration-search-items.ts':
     'builder whose required `isUsable` the sidebar supplies from useIntegrationAccess',

@@ -116,7 +116,7 @@ bun run --cwd apps/sim test \
   lib/execution/remote-sandbox/cli-tools-boundary.test.ts \
   lib/execution/remote-sandbox/spec.test.ts \
   lib/execution/remote-sandbox/resolve.test.ts \
-  'app/workspace/[workspaceId]/settings/components/sandboxes/utils.test.ts'
+  'components/settings/sections/sandboxes/utils.test.ts'
 ```
 
 From the repository root:

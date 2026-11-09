@@ -461,87 +461,87 @@
   "apps/sim/app/desktop/connect/page.test.tsx": {
     "TS2345": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/knowledge/[id]/components/connector-dialogs.test.tsx": {
+  "apps/sim/components/knowledge/base/components/connector-dialogs.test.tsx": {
     "TS2339": 31,
     "TS2345": 2
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/apply-streamed-markdown.test.ts": {
+  "apps/sim/components/file-viewer/rich-markdown-editor/collaboration/apply-streamed-markdown.test.ts": {
     "TS2353": 2
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/collab-streaming-integration.test.ts": {
+  "apps/sim/components/file-viewer/rich-markdown-editor/collaboration/collab-streaming-integration.test.ts": {
     "TS2353": 2
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider.test.ts": {
+  "apps/sim/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider.test.ts": {
     "TS2550": 3
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/dirty-on-open.test.ts": {
+  "apps/sim/components/file-viewer/rich-markdown-editor/dirty-on-open.test.ts": {
     "TS2578": 2
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/field-lifecycle.test.tsx": {
+  "apps/sim/components/file-viewer/rich-markdown-editor/field-lifecycle.test.tsx": {
     "TS2550": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/field-upload.test.tsx": {
+  "apps/sim/components/file-viewer/rich-markdown-editor/field-upload.test.tsx": {
     "TS2322": 2,
     "TS2550": 3
   },
   "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-collaboration.test.tsx": {
     "TS2345": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/image-resize.test.tsx": {
+  "apps/sim/components/file-viewer/rich-markdown-editor/image-resize.test.tsx": {
     "TS2345": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/keymap.test.ts": {
+  "apps/sim/components/file-viewer/rich-markdown-editor/keymap.test.ts": {
     "TS2345": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/link-input-rule.test.ts": {
+  "apps/sim/components/file-viewer/rich-markdown-editor/link-input-rule.test.ts": {
     "TS2554": 2
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/list-input-rules.test.ts": {
+  "apps/sim/components/file-viewer/rich-markdown-editor/list-input-rules.test.ts": {
     "TS2339": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-paste.test.ts": {
+  "apps/sim/components/file-viewer/rich-markdown-editor/markdown-paste.test.ts": {
     "TS2739": 2
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-storage.test.ts": {
+  "apps/sim/components/file-viewer/rich-markdown-editor/markdown-storage.test.ts": {
     "TS2339": 2
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/paste-admission.test.ts": {
+  "apps/sim/components/file-viewer/rich-markdown-editor/paste-admission.test.ts": {
     "TS2684": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/use-editable-file-conflicts.test.tsx": {
+  "apps/sim/components/file-viewer/use-editable-file-conflicts.test.tsx": {
     "TS2550": 6
   },
-  "apps/sim/app/workspace/[workspaceId]/home/components/knowledge-search-results/search-transitions.test.tsx": {
+  "apps/sim/components/mothership-chat/knowledge-search-results/search-transitions.test.tsx": {
     "TS2322": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/home/components/message-content/message-content.test.ts": {
+  "apps/sim/components/mothership-chat/message-content/message-content.test.ts": {
     "TS18048": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion.test.ts": {
+  "apps/sim/components/mothership-chat/mothership-view/components/resource-content/components/browser-session/browser-panel-occlusion.test.ts": {
     "TS2493": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session.test.ts": {
+  "apps/sim/components/mothership-chat/mothership-view/components/resource-content/components/browser-session/browser-session.test.ts": {
     "TS2769": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/home/components/user-input/components/prompt-editor/use-prompt-editor.test.tsx": {
+  "apps/sim/components/mothership-chat/user-input/components/prompt-editor/use-prompt-editor.test.tsx": {
     "TS2322": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/home/hooks/preview/apply-file-preview-phase.test.ts": {
+  "apps/sim/hooks/mothership-chat/preview/apply-file-preview-phase.test.ts": {
     "TS2322": 3
   },
-  "apps/sim/app/workspace/[workspaceId]/home/hooks/stream/handle-resource-event.test.ts": {
+  "apps/sim/hooks/mothership-chat/stream/handle-resource-event.test.ts": {
     "TS2741": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/home/hooks/use-chat.dom.test.tsx": {
+  "apps/sim/hooks/mothership-chat/use-chat.dom.test.tsx": {
     "TS2304": 1,
     "TS2322": 2,
     "TS2353": 1,
     "TS2550": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload.test.tsx": {
+  "apps/sim/hooks/knowledge/use-knowledge-upload.test.tsx": {
     "TS2322": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/providers/workspace-scope-sync.test.tsx": {
+  "apps/sim/components/workspace-providers/workspace-scope-sync.test.tsx": {
     "TS2345": 1
   },
   "apps/sim/app/workspace/[workspaceId]/settings/components/browser/components/password-detail/password-detail.test.tsx": {
@@ -553,36 +553,36 @@
   "apps/sim/app/workspace/[workspaceId]/settings/components/byok/byok.test.tsx": {
     "TS2339": 4
   },
-  "apps/sim/app/workspace/[workspaceId]/settings/components/general/components/privacy-view.test.tsx": {
+  "apps/sim/components/settings/sections/general/components/privacy-view.test.tsx": {
     "TS2550": 2
   },
-  "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/components/table-filter/table-filter.test.tsx": {
+  "apps/sim/components/tables/components/table-filter/table-filter.test.tsx": {
     "TS7017": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/hooks/use-table-event-stream.test.ts": {
+  "apps/sim/components/tables/hooks/use-table-event-stream.test.ts": {
     "TS2739": 3
   },
-  "apps/sim/app/workspace/[workspaceId]/tables/[tableId]/utils.test.ts": {
+  "apps/sim/components/tables/utils.test.ts": {
     "TS2345": 3
   },
-  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/slack-setup-wizard/slack-setup-wizard.test.tsx": {
+  "apps/sim/components/workflow-editor/components/panel/components/editor/components/sub-block/components/slack-setup-wizard/slack-setup-wizard.test.tsx": {
     "TS2339": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-node-utilities.test.tsx": {
+  "apps/sim/components/workflow-editor/hooks/use-node-utilities.test.tsx": {
     "TS2339": 2,
     "TS2739": 3
   },
-  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution.test.tsx": {
+  "apps/sim/components/workflow-editor/hooks/use-workflow-execution.test.tsx": {
     "TS2322": 4,
     "TS2345": 5,
     "TS2353": 1,
     "TS2554": 1,
     "TS7006": 2
   },
-  "apps/sim/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution.test.ts": {
+  "apps/sim/components/workflow-editor/utils/workflow-execution.test.ts": {
     "TS2739": 1
   },
-  "apps/sim/app/workspace/[workspaceId]/w/components/workflow-diff/utils.test.ts": {
+  "apps/sim/components/workflow-editor/workflow-diff/utils.test.ts": {
     "TS2322": 2
   },
   "apps/sim/background/async-execution-correlation.test.ts": {

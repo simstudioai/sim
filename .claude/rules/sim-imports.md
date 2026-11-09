@@ -26,10 +26,10 @@ Use barrel exports (`index.ts`) when a folder has 3+ exports. Import from barrel
 
 ```typescript
 // ✓ Good
-import { Dashboard, Sidebar } from '@/app/workspace/[workspaceId]/logs/components'
+import { Dashboard, Sidebar } from '@/components/logs'
 
 // ✗ Bad
-import { Dashboard } from '@/app/workspace/[workspaceId]/logs/components/dashboard/dashboard'
+import { Dashboard } from '@/components/logs/dashboard/dashboard'
 ```
 
 ## Code-splitting through barrels
@@ -39,7 +39,7 @@ When you `lazy(() => import(...))` a component to keep it out of a route's initi
 ```typescript
 // ✓ Good — deep lazy import + no barrel edge left behind
 const MothershipView = lazy(() =>
-  import('@/app/workspace/[workspaceId]/home/components/mothership-view/mothership-view').then(
+  import('@/components/mothership-chat/mothership-view/mothership-view').then(
     (m) => ({ default: m.MothershipView })
   )
 )
