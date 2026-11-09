@@ -9,8 +9,8 @@ import {
   LiveWorkspacePage,
   WorkspaceEmpty,
   WorkspacePage,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
-import type { WorkspaceSummary } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+} from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
+import type { WorkspaceSummary } from '@/app/(product)/_components/workspace/workspace-session/model'
 import styles from '@/app/(product)/workspace/[workspaceId]/settings/_components/workspace-settings/workspace-settings.module.css'
 import { getMyAccessRequestHref } from '@/platform/lib/data/requests'
 import {

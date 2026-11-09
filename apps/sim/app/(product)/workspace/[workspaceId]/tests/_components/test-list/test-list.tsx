@@ -10,19 +10,19 @@ import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
-import { sortActions } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/list-menus'
-import { useMinuteClock } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/rename-dialog'
+import { sortActions } from '@/app/(product)/_components/workspace/resource-table/list-menus'
+import { useMinuteClock } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import {
   OwnerCell,
   type ResourceColumn,
   type ResourceRow,
   ResourceTable,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/resource-table'
+} from '@/app/(product)/_components/workspace/resource-table/resource-table'
 import {
   LiveWorkspacePage,
   WorkspaceEmpty,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
-import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+} from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
+import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
 import { TestStatus } from '@/app/(product)/workspace/[workspaceId]/tests/_components/test-status/test-status'
 import {
   SEARCH_DEBOUNCE_MS,

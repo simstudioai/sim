@@ -2,9 +2,9 @@
 
 import { useState } from 'react'
 import { DirectoryHeading } from '@/app/(product)/_components/resource-directory/resource-directory'
-import { DetailSplit } from '@/app/(product)/workspace/[workspaceId]/_components/detail-split/detail-split'
-import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
-import { WorkflowPreview } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview'
+import { DetailSplit } from '@/app/(product)/_components/workspace/detail-split/detail-split'
+import { WorkflowPreview } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-preview/workflow-preview'
+import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/run-snapshot/run-snapshot.module.css'
 import { SnapshotBlock } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/snapshot-block/snapshot-block'
 import { useDeploymentVersionState } from '@/platform/lib/data/workflow-deploy'

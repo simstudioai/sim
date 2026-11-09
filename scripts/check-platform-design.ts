@@ -69,7 +69,7 @@ const read = (file: string) => readFileSync(path.join(app, file), 'utf8')
  * tokens, declared once in `workflow-canvas/canvas-tokens.module.css`. Chrome around the canvas
  * (menus, panels, dialogs, the toolbar) lives outside this folder and keeps every rule.
  */
-const WORKFLOW_CANVAS = `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/canvas/`
+const WORKFLOW_CANVAS = `${PRODUCT_ROUTES}_components/workspace/workflows/canvas/`
 const WORKFLOW_CANVAS_RULES: ReadonlySet<string> = new Set([
   'consumer-style',
   'focus-style',

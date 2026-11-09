@@ -23,36 +23,36 @@ import {
   selectionAction,
   sortEntries,
   splitRowIds,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/folder-tree'
+} from '@/app/(product)/_components/workspace/resource-table/folder-tree'
 import {
   folderHref,
   folderTrail,
   noResults,
   sortActions,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/list-menus'
+} from '@/app/(product)/_components/workspace/resource-table/list-menus'
 import {
   RenameDialog,
   useMinuteClock,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/rename-dialog'
+} from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import {
   type ResourceColumn,
   type ResourceRow,
   ResourceTable,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/resource-table'
+} from '@/app/(product)/_components/workspace/resource-table/resource-table'
 import {
   type RowMove,
   useResourceDrag,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/use-resource-drag'
-import { useResourceSelection } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/use-resource-selection'
-import {
-  LiveWorkspacePage,
-  WorkspaceEmpty,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
-import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+} from '@/app/(product)/_components/workspace/resource-table/use-resource-drag'
+import { useResourceSelection } from '@/app/(product)/_components/workspace/resource-table/use-resource-selection'
 import {
   GlobalCommandsProvider,
   useRegisterGlobalCommands,
-} from '@/app/(product)/workspace/[workspaceId]/workflows/_components/global-commands/global-commands'
+} from '@/app/(product)/_components/workspace/workflows/global-commands/global-commands'
+import {
+  LiveWorkspacePage,
+  WorkspaceEmpty,
+} from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
+import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
 import {
   useWorkflowListOperations,
   workflowEditorPath,

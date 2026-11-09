@@ -4,9 +4,9 @@ import dynamic from 'next/dynamic'
 import type { PlatformResource } from '@/app/(product)/_components/chat/model'
 import { TabUrlState } from '@/app/(product)/_components/chat/panel/workspace-resource/tab-url-state'
 import styles from '@/app/(product)/_components/chat/panel/workspace-resource/workspace-resource.module.css'
-import { AccessBoundary } from '@/app/(product)/workspace/[workspaceId]/_components/access-required/access-boundary'
-import { EmbeddedWorkspacePages } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
-import { WorkspaceSession } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
+import { AccessBoundary } from '@/app/(product)/_components/workspace/access-required/access-boundary'
+import { EmbeddedWorkspacePages } from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
+import { WorkspaceSession } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 
 /** The workspace's realtime socket, only for the pages that show presence or edit together. */
 const WorkspaceRealtime = dynamic(
@@ -16,33 +16,33 @@ const WorkspaceRealtime = dynamic(
 
 const FileView = dynamic(
   () =>
-    import(
-      '@/app/(product)/workspace/[workspaceId]/files/[fileId]/_components/file-view/file-view'
-    ).then((module) => module.FileView),
+    import('@/app/(product)/_components/workspace/files/file-view/file-view').then(
+      (module) => module.FileView
+    ),
   { ssr: false }
 )
 
 const TableRoute = dynamic(
   () =>
-    import(
-      '@/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/table-route/table-route'
-    ).then((module) => module.TableRoute),
+    import('@/app/(product)/_components/workspace/tables/table-route/table-route').then(
+      (module) => module.TableRoute
+    ),
   { ssr: false }
 )
 
 const KnowledgeBase = dynamic(
   () =>
-    import(
-      '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/knowledge-base/knowledge-base'
-    ).then((module) => module.KnowledgeBase),
+    import('@/app/(product)/_components/workspace/knowledge/knowledge-base/knowledge-base').then(
+      (module) => module.KnowledgeBase
+    ),
   { ssr: false }
 )
 
 const LiveDashboard = dynamic(
   () =>
-    import(
-      '@/app/(product)/workspace/[workspaceId]/dashboards/_components/live-dashboard/live-dashboard'
-    ).then((module) => module.LiveDashboard),
+    import('@/app/(product)/_components/workspace/dashboards/live-dashboard/live-dashboard').then(
+      (module) => module.LiveDashboard
+    ),
   { ssr: false }
 )
 

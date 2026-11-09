@@ -5,9 +5,9 @@ import { Disclosure } from '@sim/emcn/disclosure'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
 import { ReactFlowProvider } from '@xyflow/react'
-import { MetadataFields } from '@/app/(product)/workspace/[workspaceId]/_components/metadata-fields/metadata-fields'
-import { SpanInspector } from '@/app/(product)/workspace/[workspaceId]/_components/span-inspector/span-inspector'
-import { PreviewScope } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/preview-scope'
+import { MetadataFields } from '@/app/(product)/_components/workspace/metadata-fields/metadata-fields'
+import { SpanInspector } from '@/app/(product)/_components/workspace/span-inspector/span-inspector'
+import { PreviewScope } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-preview/preview-scope'
 import {
   SubBlock,
   type SubBlockValues,

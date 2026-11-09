@@ -12,7 +12,7 @@ import {
   Muted,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
-import { MetadataFields } from '@/app/(product)/workspace/[workspaceId]/_components/metadata-fields/metadata-fields'
+import { MetadataFields } from '@/app/(product)/_components/workspace/metadata-fields/metadata-fields'
 import styles from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/mcp/mcp-server-detail.module.css'
 import {
   formatTransportLabel,

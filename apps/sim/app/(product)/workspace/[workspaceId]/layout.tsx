@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { notFound } from 'next/navigation'
 import { ShellOrganizationGuard } from '@/app/(product)/_components/shell-organization-guard/shell-organization-guard'
-import { WorkspaceSession } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
+import { WorkspaceSession } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
 interface WorkspaceLayoutProps {

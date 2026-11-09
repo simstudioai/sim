@@ -3,16 +3,16 @@
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { parseAsString, useQueryState } from 'nuqs'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
-import { UpdatedStatus } from '@/app/(product)/workspace/[workspaceId]/_components/updated-status/updated-status'
 import {
   useNewChatHref,
   WorkspaceEmpty,
   WorkspacePage,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
+} from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
 import type {
   DashboardData,
   WorkspaceRead,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+} from '@/app/(product)/_components/workspace/workspace-session/model'
+import { UpdatedStatus } from '@/app/(product)/workspace/[workspaceId]/_components/updated-status/updated-status'
 import { DashboardSectionView } from '@/app/(product)/workspace/[workspaceId]/dashboards/_components/dashboard-section/dashboard-section'
 import styles from '@/app/(product)/workspace/[workspaceId]/dashboards/_components/dashboard-view/dashboard-view.module.css'
 

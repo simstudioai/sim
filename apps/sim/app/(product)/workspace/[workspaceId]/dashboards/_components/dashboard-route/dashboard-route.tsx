@@ -1,7 +1,7 @@
 'use client'
 
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
-import type { DashboardData } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+import type { DashboardData } from '@/app/(product)/_components/workspace/workspace-session/model'
 import { DashboardView } from '@/app/(product)/workspace/[workspaceId]/dashboards/_components/dashboard-view/dashboard-view'
 
 interface DashboardRouteProps {

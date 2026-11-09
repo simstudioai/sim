@@ -19,8 +19,8 @@ import {
   SectionStack,
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
-import { ListEnd } from '@/app/(product)/workspace/[workspaceId]/_components/list-end/list-end'
-import { sortActions } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/list-menus'
+import { ListEnd } from '@/app/(product)/_components/workspace/list-end/list-end'
+import { sortActions } from '@/app/(product)/_components/workspace/resource-table/list-menus'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import {
   RECENTLY_DELETED_TYPES_BY_FILTER,

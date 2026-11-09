@@ -18,7 +18,8 @@ import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import { openInNewTabAction } from '@/app/(product)/_components/sidebar/row-links'
-import { AccessRequired } from '@/app/(product)/workspace/[workspaceId]/_components/access-required/access-required'
+import { AccessRequired } from '@/app/(product)/_components/workspace/access-required/access-required'
+import { BaseTagsModal } from '@/app/(product)/_components/workspace/knowledge/base-tags-modal/base-tags-modal'
 import {
   descendantIndex,
   folderLocation,
@@ -34,35 +35,34 @@ import {
   selectionName,
   sortEntries,
   splitRowIds,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/folder-tree'
+} from '@/app/(product)/_components/workspace/resource-table/folder-tree'
 import {
   folderHref,
   folderTrail,
   type ListPreference,
   noResults,
   sortActions,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/list-menus'
+} from '@/app/(product)/_components/workspace/resource-table/list-menus'
 import {
   RenameDialog,
   useMinuteClock,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/rename-dialog'
+} from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import {
   OwnerCell,
   type ResourceColumn,
   type ResourceRow,
   ResourceTable,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/resource-table'
+} from '@/app/(product)/_components/workspace/resource-table/resource-table'
 import {
   type RowMove,
   useResourceDrag,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/use-resource-drag'
-import { useResourceSelection } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/use-resource-selection'
+} from '@/app/(product)/_components/workspace/resource-table/use-resource-drag'
+import { useResourceSelection } from '@/app/(product)/_components/workspace/resource-table/use-resource-selection'
 import {
   LiveWorkspacePage,
   WorkspaceEmpty,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
-import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
-import { BaseTagsModal } from '@/app/(product)/workspace/[workspaceId]/knowledge/_components/base-tags-modal/base-tags-modal'
+} from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
+import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
 import { CreateBaseModal } from '@/app/(product)/workspace/[workspaceId]/knowledge/_components/create-base-modal/create-base-modal'
 import { DeleteBaseModal } from '@/app/(product)/workspace/[workspaceId]/knowledge/_components/delete-base-modal/delete-base-modal'
 import { EditBaseModal } from '@/app/(product)/workspace/[workspaceId]/knowledge/_components/edit-base-modal/edit-base-modal'

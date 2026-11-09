@@ -2,7 +2,7 @@
 
 import { useQueryStates } from 'nuqs'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
-import { useRevealedCount } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
+import { useRevealedCount } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import { RunList } from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-list/run-list'
 import { type RUN_PERIODS, type RUN_SORTS, runListParams } from '@/platform/lib/workspace-views'
 import { DAY_MS, MINUTE_MS } from '@/platform/shared/time'

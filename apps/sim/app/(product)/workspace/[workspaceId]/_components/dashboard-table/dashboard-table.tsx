@@ -1,17 +1,17 @@
 import { DataTable } from '@sim/emcn/data-display'
-import styles from '@/app/(product)/workspace/[workspaceId]/_components/dashboard-table/dashboard-table.module.css'
 import {
   formatCount,
   formatCurrency,
   formatDelta,
   formatDuration,
   formatPercent,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/format'
+} from '@/app/(product)/_components/workspace/workspace-session/format'
 import type {
   DashboardCell,
   DashboardColumn,
   DashboardTableData,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+} from '@/app/(product)/_components/workspace/workspace-session/model'
+import styles from '@/app/(product)/workspace/[workspaceId]/_components/dashboard-table/dashboard-table.module.css'
 
 interface DashboardTableProps extends DashboardTableData {
   /** Names the table for assistive technology; its section shows the visible title. */

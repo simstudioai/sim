@@ -15,24 +15,24 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { toast } from '@/lib/toast/sink'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
-import {
-  type ResourceColumn,
-  type ResourceRow,
-  ResourceTable,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/resource-table'
-import { useResourceSelection } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/use-resource-selection'
-import {
-  LiveWorkspacePage,
-  WorkspaceEmpty,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
-import { DocumentTagsModal } from '@/app/(product)/workspace/[workspaceId]/knowledge/_components/document-tags-modal/document-tags-modal'
+import { DocumentTagsModal } from '@/app/(product)/_components/workspace/knowledge/document-tags-modal/document-tags-modal'
 import {
   documentHref,
   formatTokenCount,
   knowledgeBaseHref,
   knowledgeListHref,
-} from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/knowledge-base/model'
-import { RenameModal } from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/rename-modal/rename-modal'
+} from '@/app/(product)/_components/workspace/knowledge/knowledge-base/model'
+import { RenameModal } from '@/app/(product)/_components/workspace/knowledge/rename-modal/rename-modal'
+import {
+  type ResourceColumn,
+  type ResourceRow,
+  ResourceTable,
+} from '@/app/(product)/_components/workspace/resource-table/resource-table'
+import { useResourceSelection } from '@/app/(product)/_components/workspace/resource-table/use-resource-selection'
+import {
+  LiveWorkspacePage,
+  WorkspaceEmpty,
+} from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
 import {
   ChunkEditor,
   type ChunkSaveStatus,

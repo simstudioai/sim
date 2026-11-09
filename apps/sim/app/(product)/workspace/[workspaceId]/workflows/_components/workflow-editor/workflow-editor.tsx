@@ -3,12 +3,12 @@
 import { type RefObject, useRef } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
-import { LiveWorkspacePage } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
-import { WorkflowCanvas } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-canvas/workflow-canvas'
+import { WorkflowCanvas } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/workflow-canvas'
 import {
   GlobalCommandsProvider,
   useRegisterGlobalCommands,
-} from '@/app/(product)/workspace/[workspaceId]/workflows/_components/global-commands/global-commands'
+} from '@/app/(product)/_components/workspace/workflows/global-commands/global-commands'
+import { LiveWorkspacePage } from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
 import {
   RightPanel,
   useRightPanelTab,

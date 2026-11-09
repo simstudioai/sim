@@ -2,7 +2,7 @@ import {
   compareEntries,
   type SortEntry,
   sortEntries,
-} from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/folder-tree'
+} from '@/app/(product)/_components/workspace/resource-table/folder-tree'
 
 /** One row of the Files list, before it becomes a table row. */
 type FileEntry<Folder, File> = { kind: 'folder'; folder: Folder } | { kind: 'file'; file: File }

@@ -14,26 +14,23 @@ import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
-import {
-  ListEnd,
-  type ListEndProps,
-} from '@/app/(product)/workspace/[workspaceId]/_components/list-end/list-end'
-import {
-  WorkspaceEmpty,
-  WorkspaceTabPage,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
-import {
-  formatComputeUnits,
-  formatDuration,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/format'
-import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
-import { useRevealRow } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
-import styles from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-list/run-list.module.css'
+import { ListEnd, type ListEndProps } from '@/app/(product)/_components/workspace/list-end/list-end'
 import {
   RUN_STATUS_LABEL,
   RunStatusText,
   RunTriggerLabel,
-} from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-status/run-status'
+} from '@/app/(product)/_components/workspace/logs/run-status/run-status'
+import {
+  WorkspaceEmpty,
+  WorkspaceTabPage,
+} from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
+import {
+  formatComputeUnits,
+  formatDuration,
+} from '@/app/(product)/_components/workspace/workspace-session/format'
+import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
+import { useRevealRow } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
+import styles from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-list/run-list.module.css'
 import { platformHref } from '@/platform/lib/navigation'
 import {
   RUN_PERIODS,

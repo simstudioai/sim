@@ -3,7 +3,7 @@
 import { EmptyState } from '@sim/emcn/empty-state'
 import { FailureNotice } from '@sim/emcn/status'
 import styles from '@/app/(product)/_components/chat/panel/workspace-resource/workspace-resource.module.css'
-import { WorkflowPreview } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview'
+import { WorkflowPreview } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-preview/workflow-preview'
 import { useWorkflowPreviewState } from '@/platform/lib/data/workflow-editor'
 
 interface WorkflowResourceProps {

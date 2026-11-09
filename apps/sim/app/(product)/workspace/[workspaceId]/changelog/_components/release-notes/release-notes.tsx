@@ -2,7 +2,7 @@
 
 import { InlineNotice } from '@sim/emcn/status'
 import { RichMarkdownField } from '@/components/file-viewer/rich-markdown-editor/rich-markdown-field'
-import { DetailSection } from '@/app/(product)/workspace/[workspaceId]/_components/detail-split/detail-split'
+import { DetailSection } from '@/app/(product)/_components/workspace/detail-split/detail-split'
 import styles from '@/app/(product)/workspace/[workspaceId]/changelog/_components/release-notes/release-notes.module.css'
 import { useReleaseNotes } from '@/platform/lib/data/changelog'
 

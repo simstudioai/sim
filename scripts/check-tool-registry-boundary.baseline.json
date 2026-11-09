@@ -31,16 +31,16 @@
       "gateways": {}
     },
     "app/(product)/o/[organizationId]/chat/[[...id]]/page.tsx": {
-      "modules": 2582,
+      "modules": 3373,
       "gateways": {
-        "apps/sim/app/(product)/_components/chat/live/live-chat-route.tsx": 2388,
-        "apps/sim/platform/lib/data/server-read.ts": 1345,
-        "apps/sim/lib/auth/index.ts": 1343,
-        "apps/sim/blocks/registry.ts": 944,
-        "apps/sim/blocks/registry-maps.ts": 942,
-        "apps/sim/triggers/index.ts": 557,
+        "apps/sim/app/(product)/_components/chat/live/live-chat-route.tsx": 3181,
+        "apps/sim/app/(product)/_components/chat/live/live-chat.tsx": 1244,
+        "apps/sim/app/(product)/_components/chat/panel/resource-panels.tsx": 808,
+        "apps/sim/app/(product)/_components/chat/panel/workspace-resource/workspace-resource.tsx": 792,
         "apps/sim/triggers/registry.ts": 555,
-        "apps/sim/app/(product)/_components/chat/live/live-chat.tsx": 413
+        "apps/sim/blocks/registry.ts": 357,
+        "apps/sim/platform/lib/data/server-read.ts": 318,
+        "apps/sim/app/(product)/_components/workspace/files/file-view/file-view.tsx": 171
       }
     },
     "app/(product)/o/[organizationId]/home/page.tsx": {
@@ -161,29 +161,29 @@
       }
     },
     "app/(product)/o/[organizationId]/search/chat/[id]/page.tsx": {
-      "modules": 2507,
+      "modules": 3318,
       "gateways": {
-        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route.tsx": 2505,
-        "apps/sim/platform/lib/data/server-read.ts": 1345,
-        "apps/sim/lib/auth/index.ts": 1343,
-        "apps/sim/blocks/registry.ts": 944,
-        "apps/sim/blocks/registry-maps.ts": 942,
-        "apps/sim/triggers/index.ts": 557,
+        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route.tsx": 3316,
+        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface.tsx": 1330,
+        "apps/sim/app/(product)/_components/chat/live/live-chat.tsx": 1133,
+        "apps/sim/app/(product)/_components/chat/panel/resource-panels.tsx": 810,
+        "apps/sim/app/(product)/_components/chat/panel/workspace-resource/workspace-resource.tsx": 794,
         "apps/sim/triggers/registry.ts": 555,
-        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface.tsx": 519
+        "apps/sim/blocks/registry.ts": 357,
+        "apps/sim/platform/lib/data/server-read.ts": 318
       }
     },
     "app/(product)/o/[organizationId]/search/page.tsx": {
-      "modules": 2507,
+      "modules": 3318,
       "gateways": {
-        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route.tsx": 2505,
-        "apps/sim/platform/lib/data/server-read.ts": 1345,
-        "apps/sim/lib/auth/index.ts": 1343,
-        "apps/sim/blocks/registry.ts": 944,
-        "apps/sim/blocks/registry-maps.ts": 942,
-        "apps/sim/triggers/index.ts": 557,
+        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/live-search-route.tsx": 3316,
+        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface.tsx": 1330,
+        "apps/sim/app/(product)/_components/chat/live/live-chat.tsx": 1133,
+        "apps/sim/app/(product)/_components/chat/panel/resource-panels.tsx": 810,
+        "apps/sim/app/(product)/_components/chat/panel/workspace-resource/workspace-resource.tsx": 794,
         "apps/sim/triggers/registry.ts": 555,
-        "apps/sim/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface.tsx": 519
+        "apps/sim/blocks/registry.ts": 357,
+        "apps/sim/platform/lib/data/server-read.ts": 318
       }
     },
     "app/(product)/o/[organizationId]/settings/[[...section]]/page.tsx": {
@@ -273,7 +273,7 @@
         "apps/sim/blocks/registry-maps.ts": 941,
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,
-        "apps/sim/app/(product)/workspace/[workspaceId]/dashboards/_components/live-dashboard/live-dashboard.tsx": 122,
+        "apps/sim/app/(product)/_components/workspace/dashboards/live-dashboard/live-dashboard.tsx": 122,
         "apps/sim/lib/webhooks/providers/index.ts": 96
       }
     },
@@ -284,7 +284,7 @@
     "app/(product)/workspace/[workspaceId]/files/[fileId]/page.tsx": {
       "modules": 567,
       "gateways": {
-        "apps/sim/app/(product)/workspace/[workspaceId]/files/[fileId]/_components/file-view/file-view.tsx": 565,
+        "apps/sim/app/(product)/_components/workspace/files/file-view/file-view.tsx": 565,
         "apps/sim/app/(product)/workspace/[workspaceId]/_components/file-viewer/file-viewer.tsx": 284,
         "apps/sim/app/(product)/workspace/[workspaceId]/_components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 157,
         "apps/sim/platform/lib/data/files/markdown/index.ts": 91,
@@ -333,7 +333,7 @@
       "gateways": {
         "apps/sim/app/(product)/workspace/[workspaceId]/issues/_components/issues-route/issues-route.tsx": 130,
         "apps/sim/app/(product)/workspace/[workspaceId]/issues/_components/issue-list/issue-list.tsx": 109,
-        "apps/sim/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page.tsx": 103,
+        "apps/sim/app/(product)/_components/workspace/workspace-page/workspace-page.tsx": 103,
         "apps/sim/platform/lib/data/workspace-summary.ts": 101,
         "apps/sim/platform/fixtures/index.ts": 100,
         "apps/sim/lib/api/contracts/index.ts": 98,
@@ -345,7 +345,7 @@
       "gateways": {
         "apps/sim/app/(product)/workspace/[workspaceId]/issues/_components/issues-route/issues-route.tsx": 131,
         "apps/sim/app/(product)/workspace/[workspaceId]/issues/_components/issue-list/issue-list.tsx": 110,
-        "apps/sim/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page.tsx": 103,
+        "apps/sim/app/(product)/_components/workspace/workspace-page/workspace-page.tsx": 103,
         "apps/sim/platform/lib/data/workspace-summary.ts": 101,
         "apps/sim/platform/fixtures/index.ts": 100,
         "apps/sim/lib/api/contracts/index.ts": 98,
@@ -360,15 +360,15 @@
         "apps/sim/lib/sim-search/connectors.ts": 80,
         "apps/sim/connectors/registry.ts": 76,
         "apps/sim/lib/api/contracts/index.ts": 69,
-        "apps/sim/app/(product)/workspace/[workspaceId]/_components/access-required/access-boundary.tsx": 37
+        "apps/sim/app/(product)/_components/workspace/access-required/access-boundary.tsx": 37
       }
     },
     "app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/page.tsx": {
       "modules": 1541,
       "gateways": {
-        "apps/sim/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/knowledge-base/knowledge-base.tsx": 1335,
-        "apps/sim/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/connector-fields/connector-fields.tsx": 1030,
-        "apps/sim/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/_components/connector-selector-field/connector-selector-field.tsx": 1028,
+        "apps/sim/app/(product)/_components/workspace/knowledge/knowledge-base/knowledge-base.tsx": 1335,
+        "apps/sim/app/(product)/_components/workspace/knowledge/connector-fields/connector-fields.tsx": 1030,
+        "apps/sim/app/(product)/_components/workspace/knowledge/connector-selector-field/connector-selector-field.tsx": 1028,
         "apps/sim/triggers/index.ts": 599,
         "apps/sim/triggers/registry.ts": 597,
         "apps/sim/blocks/registry.ts": 412,
@@ -402,7 +402,7 @@
     "app/(product)/workspace/[workspaceId]/logs/[runId]/page.tsx": {
       "modules": 289,
       "gateways": {
-        "apps/sim/app/(product)/workspace/[workspaceId]/logs/_components/live-run/live-run.tsx": 139,
+        "apps/sim/app/(product)/_components/workspace/logs/live-run/live-run.tsx": 139,
         "apps/sim/platform/lib/data/logs.ts": 137,
         "apps/sim/platform/fixtures/index.ts": 94,
         "apps/sim/lib/api/contracts/index.ts": 80,
@@ -459,13 +459,13 @@
     "app/(product)/workspace/[workspaceId]/tables/[tableId]/page.tsx": {
       "modules": 1854,
       "gateways": {
-        "apps/sim/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/table-route/table-route.tsx": 1852,
+        "apps/sim/app/(product)/_components/workspace/tables/table-route/table-route.tsx": 1852,
         "apps/sim/platform/lib/data/workflows/index.ts": 1323,
         "apps/sim/triggers/registry.ts": 597,
         "apps/sim/blocks/registry.ts": 360,
         "apps/sim/blocks/registry-maps.ts": 358,
-        "apps/sim/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/table-grid.tsx": 105,
-        "apps/sim/app/(product)/workspace/[workspaceId]/tables/[tableId]/_components/table-grid/data-row.tsx": 94,
+        "apps/sim/app/(product)/_components/workspace/tables/table-grid/table-grid.tsx": 105,
+        "apps/sim/app/(product)/_components/workspace/tables/table-grid/data-row.tsx": 94,
         "apps/sim/platform/lib/data/knowledge/index.ts": 91
       }
     },
@@ -526,7 +526,7 @@
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/right-panel/right-panel.tsx": 188,
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/editor/editor-panel/editor-panel.tsx": 179,
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/editor/sub-block/sub-block.tsx": 156,
-        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-canvas/workflow-canvas-constants.ts": 149
+        "apps/sim/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/workflow-canvas-constants.ts": 149
       }
     },
     "app/(product)/workspace/[workspaceId]/workflows/[workflowId]/versions/[version]/page.tsx": {
@@ -539,7 +539,7 @@
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/snapshot-block/snapshot-block.tsx": 274,
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/editor/sub-block/sub-block.tsx": 215,
         "apps/sim/platform/lib/data/workflows/index.ts": 159,
-        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview.tsx": 46
+        "apps/sim/app/(product)/_components/workspace/workflows/canvas/workflow-preview/workflow-preview.tsx": 46
       }
     },
     "app/(product)/workspace/[workspaceId]/workflows/layout.tsx": {
@@ -578,7 +578,7 @@
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/snapshot-block/snapshot-block.tsx": 276,
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/editor/sub-block/sub-block.tsx": 215,
         "apps/sim/platform/lib/data/workflows/index.ts": 163,
-        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview.tsx": 46
+        "apps/sim/app/(product)/_components/workspace/workflows/canvas/workflow-preview/workflow-preview.tsx": 46
       }
     },
     "app/(product)/workspace/page.tsx": {

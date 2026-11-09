@@ -19,8 +19,8 @@ import {
   Preformatted,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
+import { MetadataFields } from '@/app/(product)/_components/workspace/metadata-fields/metadata-fields'
 import { CreateApiKeyModal } from '@/app/(product)/workspace/[workspaceId]/_components/create-api-key-modal/create-api-key-modal'
-import { MetadataFields } from '@/app/(product)/workspace/[workspaceId]/_components/metadata-fields/metadata-fields'
 import {
   getConfigSnippet,
   getCursorInstallUrl,

@@ -9,17 +9,17 @@ import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import { DirectoryHeading } from '@/app/(product)/_components/resource-directory/resource-directory'
-import { DashboardTable } from '@/app/(product)/workspace/[workspaceId]/_components/dashboard-table/dashboard-table'
 import {
   DetailSection,
   DetailSplit,
-} from '@/app/(product)/workspace/[workspaceId]/_components/detail-split/detail-split'
-import { WorkspaceChanges } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-changes/workspace-changes'
+} from '@/app/(product)/_components/workspace/detail-split/detail-split'
 import type {
   IssueDetail,
   WorkspaceRead,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
-import { useViewerTimeZone } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
+} from '@/app/(product)/_components/workspace/workspace-session/model'
+import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
+import { DashboardTable } from '@/app/(product)/workspace/[workspaceId]/_components/dashboard-table/dashboard-table'
+import { WorkspaceChanges } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-changes/workspace-changes'
 import { DocumentChange } from '@/app/(product)/workspace/[workspaceId]/issues/_components/document-change/document-change'
 import { IssueComparison } from '@/app/(product)/workspace/[workspaceId]/issues/_components/issue-comparison/issue-comparison'
 import styles from '@/app/(product)/workspace/[workspaceId]/issues/_components/issue-details/issue-details.module.css'

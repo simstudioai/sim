@@ -1,5 +1,5 @@
 import { Icon } from '@sim/emcn/icon'
-import type { DocumentChange as DocumentChangeData } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+import type { DocumentChange as DocumentChangeData } from '@/app/(product)/_components/workspace/workspace-session/model'
 import styles from '@/app/(product)/workspace/[workspaceId]/issues/_components/document-change/document-change.module.css'
 
 const MARK = { removed: '−', added: '+', context: '' } as const

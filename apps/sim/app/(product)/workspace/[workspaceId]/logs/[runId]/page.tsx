@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
-import { RunDetails } from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-details/run-details'
+import { RunDetails } from '@/app/(product)/_components/workspace/logs/run-details/run-details'
 import { loadWorkspaceRun } from '@/platform/fixtures'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref, readScenario } from '@/platform/lib/navigation'
@@ -25,9 +25,7 @@ export default async function Page({
   }
   const executionId = decodeURIComponent(runId)
   if (resolvePlatformMode() === 'live') {
-    const { LiveRun } = await import(
-      '@/app/(product)/workspace/[workspaceId]/logs/_components/live-run/live-run'
-    )
+    const { LiveRun } = await import('@/app/(product)/_components/workspace/logs/live-run/live-run')
     return <LiveRun workspaceId={workspaceId} executionId={executionId} back={back} />
   }
   const run = await loadWorkspaceRun(readScenario(query.state), workspaceId, executionId)

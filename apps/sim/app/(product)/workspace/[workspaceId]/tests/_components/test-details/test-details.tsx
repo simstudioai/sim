@@ -16,10 +16,10 @@ import { DirectoryHeading } from '@/app/(product)/_components/resource-directory
 import {
   DetailSection,
   DetailSplit,
-} from '@/app/(product)/workspace/[workspaceId]/_components/detail-split/detail-split'
-import { useMinuteClock } from '@/app/(product)/workspace/[workspaceId]/_components/resource-table/rename-dialog'
-import { formatDuration } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/format'
-import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+} from '@/app/(product)/_components/workspace/detail-split/detail-split'
+import { useMinuteClock } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
+import { formatDuration } from '@/app/(product)/_components/workspace/workspace-session/format'
+import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
 import {
   type CaseState,
   CaseStatus,

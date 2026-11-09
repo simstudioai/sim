@@ -4,7 +4,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { FailureNotice } from '@sim/emcn/status'
 import { workspacePath } from '@/lib/navigation/paths'
 import styles from '@/app/(product)/_components/chat/panel/workspace-resource/workspace-resource.module.css'
-import { LiveRun } from '@/app/(product)/workspace/[workspaceId]/logs/_components/live-run/live-run'
+import { LiveRun } from '@/app/(product)/_components/workspace/logs/live-run/live-run'
 import { useLogResourceExecution } from '@/platform/lib/data/logs'
 
 interface LogResourceProps {

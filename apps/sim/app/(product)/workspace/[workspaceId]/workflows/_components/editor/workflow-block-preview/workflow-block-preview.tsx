@@ -2,7 +2,7 @@
 
 import { IconButton } from '@sim/emcn/button'
 import { workspacePath } from '@/lib/navigation/paths'
-import { WorkflowPreview } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview'
+import { WorkflowPreview } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-preview/workflow-preview'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/workflow-block-preview/workflow-block-preview.module.css'
 import { useWorkflowState } from '@/platform/lib/data/workflow-editor'
 

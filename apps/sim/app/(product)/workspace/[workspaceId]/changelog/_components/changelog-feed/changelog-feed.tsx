@@ -8,20 +8,17 @@ import { useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
-import {
-  ListEnd,
-  type ListEndProps,
-} from '@/app/(product)/workspace/[workspaceId]/_components/list-end/list-end'
-import { UpdatedStatus } from '@/app/(product)/workspace/[workspaceId]/_components/updated-status/updated-status'
+import { ListEnd, type ListEndProps } from '@/app/(product)/_components/workspace/list-end/list-end'
 import {
   WorkspaceEmpty,
   WorkspaceTabPage,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-page/workspace-page'
-import type { WorkspaceRead } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+} from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
+import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
 import {
   useRevealedCount,
   useViewerTimeZone,
-} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
+} from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
+import { UpdatedStatus } from '@/app/(product)/workspace/[workspaceId]/_components/updated-status/updated-status'
 import styles from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-feed/changelog-feed.module.css'
 import { platformHref } from '@/platform/lib/navigation'
 import {

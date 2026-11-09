@@ -251,7 +251,7 @@ Open the panel/modal only when the id **resolves to a loaded entity** — never 
 
 ## Read-then-strip deep links
 
-For an ephemeral deep-link that pre-opens a modal/drawer and should not linger in the URL (e.g. the workflow editor's focus-block link), read the param, act on it once behind a `useRef` guard, then clear it: `setParam(null, { history: 'replace', scroll: false })`. See `apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/focus-block-deep-link/focus-block-deep-link.tsx`.
+For an ephemeral deep-link that pre-opens a modal/drawer and should not linger in the URL (e.g. the workflow editor's focus-block link), read the param, act on it once behind a `useRef` guard, then clear it: `setParam(null, { history: 'replace', scroll: false })`. See `apps/sim/app/(product)/_components/workspace/workflows/focus-block-deep-link/focus-block-deep-link.tsx`.
 
 ## Workflow editor carve-out — what must NOT go in the URL
 

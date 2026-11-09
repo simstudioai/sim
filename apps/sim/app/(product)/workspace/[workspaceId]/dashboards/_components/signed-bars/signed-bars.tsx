@@ -1,6 +1,6 @@
 import { OverflowText } from '@sim/emcn/overflow-text'
-import { formatUnit } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/format'
-import type { DashboardUnit } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
+import { formatUnit } from '@/app/(product)/_components/workspace/workspace-session/format'
+import type { DashboardUnit } from '@/app/(product)/_components/workspace/workspace-session/model'
 import styles from '@/app/(product)/workspace/[workspaceId]/dashboards/_components/signed-bars/signed-bars.module.css'
 
 interface SignedBarsProps {
