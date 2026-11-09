@@ -18,14 +18,10 @@
   min-inline-size: 0;
   gap: var(--ui-content-gap);
 }
+/* In the page flow under the controls, as Integrations and Settings place an empty list. */
 .empty {
   display: grid;
-  flex: 1;
-  place-items: center;
-  min-block-size: var(--spacing-320);
-}
-.empty > * {
-  inline-size: min(100%, var(--container-440));
+  min-inline-size: 0;
 }
 /* A bounded tab: the heading, tabs and controls hold their place and the content below scrolls itself. */
 .page[data-bounded] {
