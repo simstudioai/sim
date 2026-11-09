@@ -373,7 +373,7 @@ export interface HiddenHomeWidgets {
  */
 export function useHiddenHomeWidgets(): HiddenHomeWidgets | null {
   const organizationId = useOrganization().organization.id
-  const userId = useSession().data?.user.id
+  const userId = useSession().data?.user?.id
   const viewer = userId ? `${userId}:${organizationId}` : null
   const stored = useOrganizationHomeStore((state) =>
     viewer ? state.hiddenWidgets[viewer] : undefined

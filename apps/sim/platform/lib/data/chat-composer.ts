@@ -167,7 +167,7 @@ export function useLiveComposer({
   chatId,
   onPlanChange,
 }: ComposerOptions & { onPlanChange?: (active: boolean) => void }): ComposerController {
-  const { organization } = useOrganization()
+  const { organization, canBuild } = useOrganization()
   const { data: session } = useSession()
   const userId = session?.user?.id
   const assistant = requestMode === 'assistant'
@@ -178,7 +178,7 @@ export function useLiveComposer({
       ? null
       : legacySharedDraftKey(userId, organization.id, {
           assistant,
-          canBuild: organization.canBuild,
+          canBuild,
         })
   )
   const saved = useMothershipDraftsStore((state) =>
