@@ -78,9 +78,10 @@ interface BackfillReport {
 
 /**
  * Users the backfill still has work for: in no organization, or in their personal organization
- * while still owning a workspace that has none.
+ * while still owning a workspace that has none. On an instance-organization deployment, only users
+ * in no organization.
  */
-function candidateUsersWhere(instanceMode: boolean): SQL {
+function candidateUsersWhere(cursor: string | null, instanceMode: boolean): SQL {
   const inPersonalOrganization = exists(
     db
       .select({ id: member.id })
@@ -97,8 +98,34 @@ function candidateUsersWhere(instanceMode: boolean): SQL {
   const inNoOrganization = notExists(
     db.select({ id: member.id }).from(member).where(eq(member.userId, user.id))
   )
-  if (instanceMode) return inNoOrganization
-  return or(inNoOrganization, and(inPersonalOrganization, ownsUnassignedWorkspace)) as SQL
+  const candidate = instanceMode
+    ? inNoOrganization
+    : (or(inNoOrganization, and(inPersonalOrganization, ownsUnassignedWorkspace)) as SQL)
+  return cursor ? (and(gt(user.id, cursor), candidate) as SQL) : candidate
+}
+
+/** The next page of candidate user ids after `cursor`, in id order. */
+export async function selectCandidateBatch(
+  cursor: string | null,
+  size: number,
+  instanceMode: boolean
+): Promise<string[]> {
+  const rows = await db
+    .select({ id: user.id })
+    .from(user)
+    .where(candidateUsersWhere(cursor, instanceMode))
+    .orderBy(asc(user.id))
+    .limit(size)
+  return rows.map((row) => row.id)
+}
+
+/** `--batch-size`, defaulting to {@link DEFAULT_BATCH_SIZE} and bounded by {@link MAX_BATCH_SIZE}. */
+export function parseBatchSize(value: string | undefined): number {
+  const batchSize = value ? Number(value) : DEFAULT_BATCH_SIZE
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > MAX_BATCH_SIZE) {
+    throw new Error(`--batch-size must be an integer between 1 and ${MAX_BATCH_SIZE}`)
+  }
+  return batchSize
 }
 
 function readOptions() {
@@ -111,13 +138,9 @@ function readOptions() {
       help: { type: 'boolean', default: false },
     },
   })
-  const batchSize = values['batch-size'] ? Number(values['batch-size']) : DEFAULT_BATCH_SIZE
-  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > MAX_BATCH_SIZE) {
-    throw new Error(`--batch-size must be an integer between 1 and ${MAX_BATCH_SIZE}`)
-  }
   return {
     apply: values.apply,
-    batchSize,
+    batchSize: parseBatchSize(values['batch-size']),
     after: values.after ?? null,
     reportPath: values.report ?? null,
     help: values.help,
@@ -149,30 +172,17 @@ async function main(): Promise<void> {
   const [{ value: candidates }] = await db
     .select({ value: count() })
     .from(user)
-    .where(
-      options.after
-        ? and(gt(user.id, options.after), candidateUsersWhere(instanceMode))
-        : candidateUsersWhere(instanceMode)
-    )
+    .where(candidateUsersWhere(options.after, instanceMode))
   report.candidates = candidates
   logger.info('Users to provision', { candidates, after: options.after })
 
   if (options.apply) {
     let cursor = options.after
     while (true) {
-      const batch = await db
-        .select({ id: user.id })
-        .from(user)
-        .where(
-          cursor
-            ? and(gt(user.id, cursor), candidateUsersWhere(instanceMode))
-            : candidateUsersWhere(instanceMode)
-        )
-        .orderBy(asc(user.id))
-        .limit(options.batchSize)
+      const batch = await selectCandidateBatch(cursor, options.batchSize, instanceMode)
       if (batch.length === 0) break
 
-      for (const { id: userId } of batch) {
+      for (const userId of batch) {
         try {
           if (instanceMode) {
             await joinInstanceOrganization(userId)
@@ -197,7 +207,7 @@ async function main(): Promise<void> {
         }
       }
 
-      cursor = batch[batch.length - 1].id
+      cursor = batch[batch.length - 1]
       report.lastCursor = cursor
       logger.info('Provisioned batch', {
         cursor,
@@ -226,9 +236,11 @@ async function main(): Promise<void> {
   if (report.failures.length > 0) process.exitCode = 1
 }
 
-main()
-  .then(() => process.exit(process.exitCode ?? 0))
-  .catch((error) => {
-    logger.error('Personal organization backfill crashed', { error: getErrorMessage(error) })
-    process.exit(1)
-  })
+if (import.meta.main) {
+  main()
+    .then(() => process.exit(process.exitCode ?? 0))
+    .catch((error) => {
+      logger.error('Personal organization backfill crashed', { error: getErrorMessage(error) })
+      process.exit(1)
+    })
+}
