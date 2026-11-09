@@ -10,11 +10,13 @@
  *
  * Run: `bun run check:emcn-surface` (`-- --update` rewrites the snapshot)
  */
+import { spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import ts from '@typescript/typescript6'
 import postcss from 'postcss'
 import { emcnPackages, emcnTypeScriptPaths } from './emcn-packages'
+import { localBin } from './local-bin'
 import { listRepoFiles } from './repo-files'
 
 const FROZEN = new Set(['@sim/emcn', '@sim/emcn-platform'])
@@ -169,6 +171,7 @@ if (import.meta.main) {
   const snapshotPath = path.join(root, SNAPSHOT)
   if (process.argv.includes('--update')) {
     writeFileSync(snapshotPath, `${JSON.stringify(live, null, 2)}\n`)
+    spawnSync(localBin('biome'), ['format', '--write', snapshotPath], { cwd: root })
     process.stdout.write(`Wrote ${SNAPSHOT}\n`)
   } else {
     let snapshot: unknown = {}

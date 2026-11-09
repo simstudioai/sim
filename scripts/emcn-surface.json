@@ -2,82 +2,54 @@
   "@sim/emcn": {
     "exports": {
       "./activity-row": {
-        "names": [
-          "ActivityRow"
-        ],
+        "names": ["ActivityRow"],
         "props": {
           "ActivityRow": {
             "count": null,
-            "density": [
-              "comfortable",
-              "regular"
-            ],
+            "density": ["comfortable", "regular"],
             "detail": null,
             "detailContent": null,
             "detailLead": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "href": null,
             "leading": null,
             "metadataLeading": null,
             "onNavigate": null,
             "onOpen": null,
             "people": null,
-            "readOnly": [
-              "true"
-            ],
+            "readOnly": ["true"],
             "render": null,
-            "showChevron": [
-              "false",
-              "true"
-            ],
+            "showChevron": ["false", "true"],
             "textMetadata": null,
             "title": null,
-            "wrapDetail": [
-              "false",
-              "true"
-            ]
+            "wrapDetail": ["false", "true"]
           }
         }
       },
       "./activity-row/activity-body": {
-        "names": [
-          "ActivityBody"
-        ],
+        "names": ["ActivityBody"],
         "props": {
           "ActivityBody": {
             "children": null,
-            "decorativeLeading": [
-              "false",
-              "true"
-            ],
+            "decorativeLeading": ["false", "true"],
             "leading": null
           }
         }
       },
       "./attachments": {
-        "names": [
-          "AttachmentGrid"
-        ],
+        "names": ["AttachmentGrid"],
         "props": {
           "AttachmentGrid": {
             "attachments": null,
             "label": null,
-            "layout": [
-              "grid",
-              "list"
-            ],
+            "layout": ["grid", "list"],
             "onPreview": null,
             "onRemove": null
           }
         }
       },
       "./attachments/file-thumbnail": {
-        "names": [
-          "FileThumbnail"
-        ],
+        "names": ["FileThumbnail"],
         "props": {
           "FileThumbnail": {
             "file": null,
@@ -86,10 +58,7 @@
         }
       },
       "./attachments/tile": {
-        "names": [
-          "AttachmentItem",
-          "AttachmentTile"
-        ],
+        "names": ["AttachmentItem", "AttachmentTile"],
         "props": {
           "AttachmentTile": {
             "item": null,
@@ -99,36 +68,17 @@
         }
       },
       "./attachments/use-file-url": {
-        "names": [
-          "useFileUrl"
-        ],
+        "names": ["useFileUrl"],
         "props": {}
       },
       "./avatar": {
-        "names": [
-          "Avatar",
-          "AvatarGroup",
-          "AvatarImage",
-          "PeoplePopover",
-          "PersonRow"
-        ],
+        "names": ["Avatar", "AvatarGroup", "AvatarImage", "PeoplePopover", "PersonRow"],
         "props": {
           "Avatar": {
-            "decorative": [
-              "false",
-              "true"
-            ],
+            "decorative": ["false", "true"],
             "name": null,
-            "organization": [
-              "false",
-              "true"
-            ],
-            "size": [
-              "card",
-              "hero",
-              "inline",
-              "row"
-            ],
+            "organization": ["false", "true"],
+            "size": ["card", "hero", "inline", "row"],
             "src": null
           },
           "AvatarGroup": {
@@ -151,11 +101,7 @@
         }
       },
       "./brand/provider-icon": {
-        "names": [
-          "GithubIcon",
-          "GoogleIcon",
-          "MicrosoftIcon"
-        ],
+        "names": ["GithubIcon", "GoogleIcon", "MicrosoftIcon"],
         "props": {
           "GithubIcon": {
             "…inherited": [
@@ -187,9 +133,7 @@
         }
       },
       "./brand/wordmark": {
-        "names": [
-          "Wordmark"
-        ],
+        "names": ["Wordmark"],
         "props": {
           "Wordmark": {
             "…inherited": [
@@ -203,10 +147,7 @@
         }
       },
       "./breadcrumbs": {
-        "names": [
-          "BreadcrumbItem",
-          "Breadcrumbs"
-        ],
+        "names": ["BreadcrumbItem", "Breadcrumbs"],
         "props": {
           "Breadcrumbs": {
             "items": null,
@@ -215,41 +156,22 @@
         }
       },
       "./button": {
-        "names": [
-          "Button",
-          "Chip",
-          "IconButton"
-        ],
+        "names": ["Button", "Chip", "IconButton"],
         "props": {
           "Button": {
             "aria-label": null,
             "children": null,
             "count": null,
-            "destructive": [
-              "false",
-              "true"
-            ],
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "destructive": ["false", "true"],
+            "disabled": ["false", "true"],
             "disabledReason": null,
             "icon": null,
             "narrowLabel": null,
             "onClick": null,
             "render": null,
-            "selected": [
-              "false",
-              "true"
-            ],
-            "size": [
-              "compact",
-              "regular"
-            ],
-            "submit": [
-              "false",
-              "true"
-            ],
+            "selected": ["false", "true"],
+            "size": ["compact", "regular"],
+            "submit": ["false", "true"],
             "trailingIcon": [
               "I001",
               "I003",
@@ -359,13 +281,7 @@
               "warning-triangle",
               "workflow-x"
             ],
-            "variant": [
-              "destructive",
-              "muted",
-              "primary",
-              "quiet",
-              "secondary"
-            ]
+            "variant": ["destructive", "muted", "primary", "quiet", "secondary"]
           },
           "Chip": {
             "action": null,
@@ -483,18 +399,12 @@
             "onClick": null,
             "onNavigate": null,
             "replaceActionOnTouch": null,
-            "selected": [
-              "false",
-              "true"
-            ],
+            "selected": ["false", "true"],
             "status": null
           },
           "IconButton": {
             "aria-describedby": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "icon": [
               "I001",
               "I003",
@@ -605,42 +515,22 @@
               "workflow-x"
             ],
             "label": null,
-            "mirrored": [
-              "false",
-              "true"
-            ],
+            "mirrored": ["false", "true"],
             "onClick": null,
             "render": null,
-            "size": [
-              "compact",
-              "inline",
-              "row",
-              "small"
-            ],
-            "tooltip": [
-              "false",
-              "true"
-            ],
-            "variant": [
-              "floating",
-              "quiet",
-              "solid"
-            ]
+            "size": ["compact", "inline", "row", "small"],
+            "tooltip": ["false", "true"],
+            "variant": ["floating", "quiet", "solid"]
           }
         }
       },
       "./button/control-row": {
-        "names": [
-          "ControlRow"
-        ],
+        "names": ["ControlRow"],
         "props": {
           "ControlRow": {
             "accessibleLabel": null,
             "action": null,
-            "actionSide": [
-              "end",
-              "start"
-            ],
+            "actionSide": ["end", "start"],
             "icon": [
               "I001",
               "I003",
@@ -754,10 +644,7 @@
             "leading": null,
             "onClick": null,
             "render": null,
-            "replaceActionOnTouch": [
-              "false",
-              "true"
-            ],
+            "replaceActionOnTouch": ["false", "true"],
             "status": null,
             "trailingIcon": [
               "I001",
@@ -868,45 +755,27 @@
               "warning-triangle",
               "workflow-x"
             ],
-            "wrap": [
-              "false",
-              "true"
-            ]
+            "wrap": ["false", "true"]
           }
         }
       },
       "./button/copy-button": {
-        "names": [
-          "CopyButton"
-        ],
+        "names": ["CopyButton"],
         "props": {
           "CopyButton": {
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "label": null,
-            "size": [
-              "compact",
-              "small"
-            ],
+            "size": ["compact", "small"],
             "text": null
           }
         }
       },
       "./catalog/icon-geometry": {
-        "names": [
-          "IconName",
-          "glyphs"
-        ],
+        "names": ["IconName", "glyphs"],
         "props": {}
       },
       "./catalog/plots": {
-        "names": [
-          "DonutPlot",
-          "StackPlot",
-          "TrendPlot"
-        ],
+        "names": ["DonutPlot", "StackPlot", "TrendPlot"],
         "props": {
           "DonutPlot": {
             "label": null,
@@ -923,28 +792,18 @@
             "active": null,
             "label": null,
             "maximum": null,
-            "straight": [
-              "false",
-              "true"
-            ],
+            "straight": ["false", "true"],
             "values": null
           }
         }
       },
       "./chart/charts": {
-        "names": [
-          "BarChart",
-          "DonutChart",
-          "TrendChart"
-        ],
+        "names": ["BarChart", "DonutChart", "TrendChart"],
         "props": {
           "BarChart": {
             "bars": null,
             "control": null,
-            "hideEmptySeries": [
-              "false",
-              "true"
-            ],
+            "hideEmptySeries": ["false", "true"],
             "maximum": null,
             "series": null,
             "seriesTotals": null,
@@ -965,16 +824,11 @@
         }
       },
       "./chart/format": {
-        "names": [
-          "chartNumber",
-          "chartTick"
-        ],
+        "names": ["chartNumber", "chartTick"],
         "props": {}
       },
       "./chart/tooltip": {
-        "names": [
-          "ChartTooltip"
-        ],
+        "names": ["ChartTooltip"],
         "props": {
           "ChartTooltip": {
             "entries": null,
@@ -984,40 +838,21 @@
         }
       },
       "./chart/use-plot-inspection": {
-        "names": [
-          "usePlotInspection"
-        ],
+        "names": ["usePlotInspection"],
         "props": {}
       },
       "./checkbox": {
-        "names": [
-          "Checkbox"
-        ],
+        "names": ["Checkbox"],
         "props": {
           "Checkbox": {
-            "checked": [
-              "false",
-              "true"
-            ],
-            "defaultChecked": [
-              "false",
-              "true"
-            ],
+            "checked": ["false", "true"],
+            "defaultChecked": ["false", "true"],
             "description": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "disabledReason": null,
-            "indeterminate": [
-              "false",
-              "true"
-            ],
+            "indeterminate": ["false", "true"],
             "label": null,
-            "labelHidden": [
-              "false",
-              "true"
-            ],
+            "labelHidden": ["false", "true"],
             "name": null,
             "onCheckedChange": null,
             "value": null
@@ -1025,9 +860,7 @@
         }
       },
       "./command-palette": {
-        "names": [
-          "CommandPalette"
-        ],
+        "names": ["CommandPalette"],
         "props": {
           "CommandPalette": {
             "groups": null,
@@ -1037,11 +870,7 @@
         }
       },
       "./data-display": {
-        "names": [
-          "DataTable",
-          "MetricGroup",
-          "TableLabel"
-        ],
+        "names": ["DataTable", "MetricGroup", "TableLabel"],
         "props": {
           "DataTable": {
             "columns": null,
@@ -1049,29 +878,17 @@
             "loadMore": null,
             "locale": null,
             "onSortChange": null,
-            "rowActions": [
-              "false",
-              "true"
-            ],
-            "rowChevron": [
-              "false",
-              "true"
-            ],
+            "rowActions": ["false", "true"],
+            "rowChevron": ["false", "true"],
             "rows": null,
             "selection": null,
             "sort": null,
             "tabs": null,
             "title": null,
-            "titleHidden": [
-              "false",
-              "true"
-            ],
+            "titleHidden": ["false", "true"],
             "toolbar": null,
             "toolbarEnd": null,
-            "virtualized": [
-              "false",
-              "true"
-            ]
+            "virtualized": ["false", "true"]
           },
           "MetricGroup": {
             "metrics": null
@@ -1084,35 +901,23 @@
         }
       },
       "./disclosure": {
-        "names": [
-          "Disclosure"
-        ],
+        "names": ["Disclosure"],
         "props": {
           "Disclosure": {
             "actions": null,
             "chevron": null,
             "children": null,
-            "initiallyOpen": [
-              "false",
-              "true"
-            ],
+            "initiallyOpen": ["false", "true"],
             "introduction": null,
             "label": null,
             "onOpenChange": null,
-            "open": [
-              "false",
-              "true"
-            ],
-            "variant": [
-              "activity"
-            ]
+            "open": ["false", "true"],
+            "variant": ["activity"]
           }
         }
       },
       "./empty-state": {
-        "names": [
-          "EmptyState"
-        ],
+        "names": ["EmptyState"],
         "props": {
           "EmptyState": {
             "action": null,
@@ -1123,15 +928,11 @@
         }
       },
       "./feedback/use-clipboard": {
-        "names": [
-          "useClipboard"
-        ],
+        "names": ["useClipboard"],
         "props": {}
       },
       "./feedback/use-feedback-expiry": {
-        "names": [
-          "useFeedbackExpiry"
-        ],
+        "names": ["useFeedbackExpiry"],
         "props": {}
       },
       "./field": {
@@ -1151,125 +952,65 @@
             "hint": null,
             "id": null,
             "label": null,
-            "labelHidden": [
-              "false",
-              "true"
-            ],
+            "labelHidden": ["false", "true"],
             "labelRender": null,
-            "optional": [
-              "false",
-              "true"
-            ]
+            "optional": ["false", "true"]
           },
           "SelectField": {
             "defaultValue": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "disabledReason": null,
             "error": null,
             "hint": null,
             "label": null,
             "name": null,
             "onValueChange": null,
-            "optional": [
-              "false",
-              "true"
-            ],
+            "optional": ["false", "true"],
             "options": null,
             "placeholder": null,
             "value": null
           },
           "SwitchField": {
-            "checked": [
-              "false",
-              "true"
-            ],
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "checked": ["false", "true"],
+            "disabled": ["false", "true"],
             "label": null,
             "onCheckedChange": null
           },
           "TextAreaField": {
             "autoComplete": null,
-            "defaultSize": [
-              "expanded",
-              "large",
-              "regular"
-            ],
+            "defaultSize": ["expanded", "large", "regular"],
             "defaultValue": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "error": null,
             "hint": null,
             "label": null,
             "maxLength": null,
             "name": null,
             "onChange": null,
-            "optional": [
-              "false",
-              "true"
-            ],
+            "optional": ["false", "true"],
             "placeholder": null,
-            "readOnly": [
-              "false",
-              "true"
-            ],
-            "required": [
-              "false",
-              "true"
-            ],
-            "spellCheck": [
-              "false",
-              "true"
-            ],
+            "readOnly": ["false", "true"],
+            "required": ["false", "true"],
+            "spellCheck": ["false", "true"],
             "value": null,
-            "viewOnly": [
-              "false",
-              "true"
-            ]
+            "viewOnly": ["false", "true"]
           },
           "TextField": {
             "autoComplete": null,
             "defaultValue": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "error": null,
             "hint": null,
-            "inputMode": [
-              "decimal",
-              "email",
-              "numeric",
-              "search",
-              "tel",
-              "text",
-              "url"
-            ],
+            "inputMode": ["decimal", "email", "numeric", "search", "tel", "text", "url"],
             "label": null,
             "maxLength": null,
             "name": null,
             "onChange": null,
-            "optional": [
-              "false",
-              "true"
-            ],
+            "optional": ["false", "true"],
             "pattern": null,
             "placeholder": null,
-            "readOnly": [
-              "false",
-              "true"
-            ],
-            "required": [
-              "false",
-              "true"
-            ],
+            "readOnly": ["false", "true"],
+            "required": ["false", "true"],
             "type": [
               "date",
               "datetime-local",
@@ -1282,23 +1023,16 @@
               "url"
             ],
             "value": null,
-            "viewOnly": [
-              "false",
-              "true"
-            ]
+            "viewOnly": ["false", "true"]
           }
         }
       },
       "./field/autofill-decoys": {
-        "names": [
-          "AutofillDecoys"
-        ],
+        "names": ["AutofillDecoys"],
         "props": {}
       },
       "./field/details-field": {
-        "names": [
-          "DetailsField"
-        ],
+        "names": ["DetailsField"],
         "props": {
           "DetailsField": {
             "children": null,
@@ -1308,46 +1042,27 @@
       },
       "./field/field.shared.module.css": "asset",
       "./field/file-field": {
-        "names": [
-          "FileField"
-        ],
+        "names": ["FileField"],
         "props": {
           "FileField": {
             "accept": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "error": null,
             "hint": null,
-            "kind": [
-              "file",
-              "image"
-            ],
+            "kind": ["file", "image"],
             "label": null,
-            "multiple": [
-              "true"
-            ],
+            "multiple": ["true"],
             "onClear": null,
             "onFileChange": null,
             "onFilesChange": null,
-            "optional": [
-              "false",
-              "true"
-            ],
+            "optional": ["false", "true"],
             "prompt": null,
             "selection": null
           }
         }
       },
       "./field/inputs": {
-        "names": [
-          "ControlProps",
-          "Input",
-          "TextArea",
-          "TextEntryProps",
-          "TextValueProps"
-        ],
+        "names": ["ControlProps", "Input", "TextArea", "TextEntryProps", "TextValueProps"],
         "props": {
           "Input": {
             "autoCapitalize": null,
@@ -1355,30 +1070,13 @@
             "autoCorrect": null,
             "defaultValue": null,
             "describedBy": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "id": null,
-            "inputMode": [
-              "decimal",
-              "email",
-              "numeric",
-              "search",
-              "tel",
-              "text",
-              "url"
-            ],
+            "inputMode": ["decimal", "email", "numeric", "search", "tel", "text", "url"],
             "inputRef": null,
-            "invalid": [
-              "false",
-              "true"
-            ],
+            "invalid": ["false", "true"],
             "label": null,
-            "masked": [
-              "false",
-              "true"
-            ],
+            "masked": ["false", "true"],
             "maxLength": null,
             "name": null,
             "onBlur": null,
@@ -1389,18 +1087,9 @@
             "onSelect": null,
             "pattern": null,
             "placeholder": null,
-            "readOnly": [
-              "false",
-              "true"
-            ],
-            "required": [
-              "false",
-              "true"
-            ],
-            "spellCheck": [
-              "false",
-              "true"
-            ],
+            "readOnly": ["false", "true"],
+            "required": ["false", "true"],
+            "spellCheck": ["false", "true"],
             "trailing": null,
             "type": [
               "date",
@@ -1414,37 +1103,21 @@
               "url"
             ],
             "value": null,
-            "viewOnly": [
-              "false",
-              "true"
-            ]
+            "viewOnly": ["false", "true"]
           },
           "TextArea": {
             "autoCapitalize": null,
             "autoComplete": null,
             "autoCorrect": null,
-            "defaultSize": [
-              "expanded",
-              "large",
-              "regular"
-            ],
+            "defaultSize": ["expanded", "large", "regular"],
             "defaultValue": null,
             "describedBy": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "id": null,
             "inputRef": null,
-            "invalid": [
-              "false",
-              "true"
-            ],
+            "invalid": ["false", "true"],
             "label": null,
-            "masked": [
-              "false",
-              "true"
-            ],
+            "masked": ["false", "true"],
             "maxLength": null,
             "name": null,
             "onBlur": null,
@@ -1454,30 +1127,16 @@
             "onScroll": null,
             "onSelect": null,
             "placeholder": null,
-            "readOnly": [
-              "false",
-              "true"
-            ],
-            "required": [
-              "false",
-              "true"
-            ],
-            "spellCheck": [
-              "false",
-              "true"
-            ],
+            "readOnly": ["false", "true"],
+            "required": ["false", "true"],
+            "spellCheck": ["false", "true"],
             "value": null,
-            "viewOnly": [
-              "false",
-              "true"
-            ]
+            "viewOnly": ["false", "true"]
           }
         }
       },
       "./field/list-field": {
-        "names": [
-          "ListField"
-        ],
+        "names": ["ListField"],
         "props": {
           "ListField": {
             "groups": null,
@@ -1486,10 +1145,7 @@
         }
       },
       "./field/value-fields": {
-        "names": [
-          "CopyField",
-          "SecretField"
-        ],
+        "names": ["CopyField", "SecretField"],
         "props": {
           "CopyField": {
             "hint": null,
@@ -1498,63 +1154,37 @@
           },
           "SecretField": {
             "autoComplete": null,
-            "copyable": [
-              "false",
-              "true"
-            ],
+            "copyable": ["false", "true"],
             "defaultValue": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "error": null,
             "hint": null,
             "inputRef": null,
             "label": null,
-            "maskAsText": [
-              "false",
-              "true"
-            ],
+            "maskAsText": ["false", "true"],
             "name": null,
             "onChange": null,
             "onSelect": null,
-            "optional": [
-              "false",
-              "true"
-            ],
+            "optional": ["false", "true"],
             "placeholder": null,
-            "readOnly": [
-              "false",
-              "true"
-            ],
-            "required": [
-              "false",
-              "true"
-            ],
+            "readOnly": ["false", "true"],
+            "required": ["false", "true"],
             "value": null
           }
         }
       },
       "./find-bar": {
-        "names": [
-          "FindBar"
-        ],
+        "names": ["FindBar"],
         "props": {
           "FindBar": {
-            "canStep": [
-              "false",
-              "true"
-            ],
+            "canStep": ["false", "true"],
             "inputRef": null,
             "label": null,
             "onClose": null,
             "onCommit": null,
             "onQueryChange": null,
             "onStep": null,
-            "pending": [
-              "false",
-              "true"
-            ],
+            "pending": ["false", "true"],
             "query": null,
             "replace": null,
             "results": null
@@ -1565,10 +1195,7 @@
       "./fonts/geist-mono.woff2": "asset",
       "./fonts/geist.woff2": "asset",
       "./icon": {
-        "names": [
-          "Icon",
-          "IconName"
-        ],
+        "names": ["Icon", "IconName"],
         "props": {
           "Icon": {
             "label": null,
@@ -1585,28 +1212,19 @@
         }
       },
       "./icon/assets": {
-        "names": [
-          "useAssetBasePath"
-        ],
+        "names": ["useAssetBasePath"],
         "props": {}
       },
       "./icon/provider-mark-ids.generated": {
-        "names": [
-          "providerMarkIds"
-        ],
+        "names": ["providerMarkIds"],
         "props": {}
       },
       "./icon/provider-marks": {
-        "names": [
-          "FALLBACK_PROVIDER_MARK",
-          "providerMark"
-        ],
+        "names": ["FALLBACK_PROVIDER_MARK", "providerMark"],
         "props": {}
       },
       "./identity-button": {
-        "names": [
-          "IdentityButton"
-        ],
+        "names": ["IdentityButton"],
         "props": {
           "IdentityButton": {
             "children": null,
@@ -1727,28 +1345,19 @@
         }
       },
       "./layout/use-compact-viewport": {
-        "names": [
-          "isCompactViewport",
-          "useCompactViewport"
-        ],
+        "names": ["isCompactViewport", "useCompactViewport"],
         "props": {}
       },
       "./lib/cn": {
-        "names": [
-          "cn"
-        ],
+        "names": ["cn"],
         "props": {}
       },
       "./lib/feedback": {
-        "names": [
-          "FEEDBACK_DURATION_MS"
-        ],
+        "names": ["FEEDBACK_DURATION_MS"],
         "props": {}
       },
       "./lib/navigation": {
-        "names": [
-          "isAbsoluteHref"
-        ],
+        "names": ["isAbsoluteHref"],
         "props": {}
       },
       "./menu/action-menu": {
@@ -1766,16 +1375,10 @@
         "props": {
           "ActionMenu": {
             "actions": null,
-            "align": [
-              "end",
-              "start"
-            ],
+            "align": ["end", "start"],
             "children": null,
             "defaultValue": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "disabledReason": null,
             "heading": null,
             "icon": [
@@ -1889,45 +1492,23 @@
             ],
             "label": null,
             "onOpenChange": null,
-            "open": [
-              "false",
-              "true"
-            ],
+            "open": ["false", "true"],
             "search": null,
-            "tooltip": [
-              "false",
-              "true"
-            ],
-            "triggerSize": [
-              "compact",
-              "row",
-              "small"
-            ],
+            "tooltip": ["false", "true"],
+            "triggerSize": ["compact", "row", "small"],
             "triggerText": null,
-            "triggerVariant": [
-              "quiet",
-              "secondary"
-            ]
+            "triggerVariant": ["quiet", "secondary"]
           },
           "ActionMenuPopup": {
-            "align": [
-              "end",
-              "start"
-            ],
+            "align": ["end", "start"],
             "anchor": null,
-            "browser": [
-              "false",
-              "true"
-            ],
+            "browser": ["false", "true"],
             "children": null,
             "container": null,
             "label": null,
             "popupRef": null,
             "searchLabel": null,
-            "submenu": [
-              "false",
-              "true"
-            ]
+            "submenu": ["false", "true"]
           },
           "BrowserActionsMenu": {
             "address": null,
@@ -1942,19 +1523,10 @@
             "onOpenChange": null
           },
           "MenuItem": {
-            "checked": [
-              "false",
-              "true"
-            ],
-            "destructive": [
-              "false",
-              "true"
-            ],
+            "checked": ["false", "true"],
+            "destructive": ["false", "true"],
             "detail": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "disabledReason": null,
             "href": null,
             "icon": [
@@ -2066,16 +1638,10 @@
               "warning-triangle",
               "workflow-x"
             ],
-            "keepOpen": [
-              "false",
-              "true"
-            ],
+            "keepOpen": ["false", "true"],
             "label": null,
             "onSelect": null,
-            "selected": [
-              "false",
-              "true"
-            ],
+            "selected": ["false", "true"],
             "shortcut": null,
             "trailingIcon": [
               "I001",
@@ -2318,9 +1884,7 @@
         }
       },
       "./menu/anchored-popover": {
-        "names": [
-          "AnchoredPopover"
-        ],
+        "names": ["AnchoredPopover"],
         "props": {
           "AnchoredPopover": {
             "anchor": null,
@@ -2436,34 +2000,20 @@
             ],
             "label": null,
             "onOpenChange": null,
-            "open": [
-              "false",
-              "true"
-            ],
-            "presentation": [
-              "menu",
-              "panel"
-            ],
+            "open": ["false", "true"],
+            "presentation": ["menu", "panel"],
             "trigger": null,
             "triggerLabel": null
           }
         }
       },
       "./menu/choice-menu": {
-        "names": [
-          "ChoiceMenu"
-        ],
+        "names": ["ChoiceMenu"],
         "props": {
           "ChoiceMenu": {
-            "defaultOpen": [
-              "false",
-              "true"
-            ],
+            "defaultOpen": ["false", "true"],
             "defaultValue": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "disabledReason": null,
             "id": null,
             "label": null,
@@ -2475,18 +2025,13 @@
       },
       "./menu/popup.shared.module.css": "asset",
       "./menu/suggestions": {
-        "names": [
-          "ComposerSuggestions"
-        ],
+        "names": ["ComposerSuggestions"],
         "props": {
           "ComposerSuggestions": {
             "active": null,
             "anchor": null,
             "empty": null,
-            "grouped": [
-              "false",
-              "true"
-            ],
+            "grouped": ["false", "true"],
             "id": null,
             "input": null,
             "items": null,
@@ -2494,87 +2039,48 @@
             "onDismiss": null,
             "onHighlight": null,
             "onSelect": null,
-            "side": [
-              "bottom",
-              "top"
-            ]
+            "side": ["bottom", "top"]
           }
         }
       },
       "./menu/use-popover-container": {
-        "names": [
-          "usePopoverContainer"
-        ],
+        "names": ["usePopoverContainer"],
         "props": {}
       },
       "./modal": {
-        "names": [
-          "Modal",
-          "MultiStepModal"
-        ],
+        "names": ["Modal", "MultiStepModal"],
         "props": {
           "Modal": {
             "accessibleName": null,
             "cancelLabel": null,
             "children": null,
-            "confirmDisabled": [
-              "false",
-              "true"
-            ],
+            "confirmDisabled": ["false", "true"],
             "confirmLabel": null,
             "description": null,
-            "destructive": [
-              "false",
-              "true"
-            ],
+            "destructive": ["false", "true"],
             "footerStartAction": null,
             "onBack": null,
             "onConfirm": null,
             "onOpenChange": null,
-            "open": [
-              "false",
-              "true"
-            ],
-            "pending": [
-              "false",
-              "true"
-            ],
-            "submitOnEnter": [
-              "false",
-              "true"
-            ],
+            "open": ["false", "true"],
+            "pending": ["false", "true"],
+            "submitOnEnter": ["false", "true"],
             "title": null,
             "triggerIcon": null,
             "triggerLabel": null,
-            "variant": [
-              "confirm",
-              "feedback",
-              "form"
-            ]
+            "variant": ["confirm", "feedback", "form"]
           },
           "MultiStepModal": {
             "accessibleName": null,
-            "confirmDisabled": [
-              "false",
-              "true"
-            ],
+            "confirmDisabled": ["false", "true"],
             "confirmLabel": null,
             "footerStartAction": null,
             "onConfirm": null,
             "onOpenChange": null,
-            "open": [
-              "false",
-              "true"
-            ],
-            "pending": [
-              "false",
-              "true"
-            ],
+            "open": ["false", "true"],
+            "pending": ["false", "true"],
             "steps": null,
-            "submitOnEnter": [
-              "false",
-              "true"
-            ],
+            "submitOnEnter": ["false", "true"],
             "title": null,
             "triggerIcon": null,
             "triggerLabel": null
@@ -2582,97 +2088,57 @@
         }
       },
       "./modal/confirm-dialog": {
-        "names": [
-          "ConfirmDialog"
-        ],
+        "names": ["ConfirmDialog"],
         "props": {
           "ConfirmDialog": {
             "children": null,
-            "confirmDisabled": [
-              "false",
-              "true"
-            ],
+            "confirmDisabled": ["false", "true"],
             "confirmLabel": null,
             "description": null,
             "onClose": null,
             "onConfirm": null,
-            "pending": [
-              "false",
-              "true"
-            ],
+            "pending": ["false", "true"],
             "pendingLabel": null,
-            "safe": [
-              "false",
-              "true"
-            ],
+            "safe": ["false", "true"],
             "target": null,
             "title": null
           }
         }
       },
       "./modal/overlay-dialog": {
-        "names": [
-          "OverlayDialog"
-        ],
+        "names": ["OverlayDialog"],
         "props": {
           "OverlayDialog": {
             "accessibleName": null,
-            "busy": [
-              "false",
-              "true"
-            ],
+            "busy": ["false", "true"],
             "children": null,
             "description": null,
             "label": null,
             "onClose": null,
             "onSubmit": null,
-            "open": [
-              "false",
-              "true"
-            ],
-            "presentation": [
-              "command"
-            ],
+            "open": ["false", "true"],
+            "presentation": ["command"],
             "step": null,
-            "submitOnEnter": [
-              "false",
-              "true"
-            ],
+            "submitOnEnter": ["false", "true"],
             "title": null
           }
         }
       },
       "./modal/parts": {
-        "names": [
-          "ModalBody",
-          "ModalFooter",
-          "ModalHeader"
-        ],
+        "names": ["ModalBody", "ModalFooter", "ModalHeader"],
         "props": {
           "ModalBody": {
             "children": null,
-            "inactive": [
-              "false",
-              "true"
-            ],
+            "inactive": ["false", "true"],
             "label": null,
             "onInput": null
           },
           "ModalFooter": {
-            "cancelDisabled": [
-              "false",
-              "true"
-            ],
+            "cancelDisabled": ["false", "true"],
             "cancelLabel": null,
             "confirmLabel": null,
-            "destructive": [
-              "false",
-              "true"
-            ],
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "destructive": ["false", "true"],
+            "disabled": ["false", "true"],
             "footerStartAction": null,
             "onPrevious": null,
             "progress": null
@@ -2687,9 +2153,7 @@
         }
       },
       "./overflow-text": {
-        "names": [
-          "OverflowText"
-        ],
+        "names": ["OverflowText"],
         "props": {
           "OverflowText": {
             "children": null,
@@ -2699,9 +2163,7 @@
         }
       },
       "./overflow-text/counted-label": {
-        "names": [
-          "CountedLabel"
-        ],
+        "names": ["CountedLabel"],
         "props": {
           "CountedLabel": {
             "count": null,
@@ -2710,19 +2172,11 @@
         }
       },
       "./pagination": {
-        "names": [
-          "Pagination"
-        ],
+        "names": ["Pagination"],
         "props": {
           "Pagination": {
-            "disabled": [
-              "false",
-              "true"
-            ],
-            "hasNext": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
+            "hasNext": ["false", "true"],
             "label": null,
             "onPageChange": null,
             "page": null,
@@ -2731,10 +2185,7 @@
         }
       },
       "./picker/calendar": {
-        "names": [
-          "Calendar",
-          "formatDay"
-        ],
+        "names": ["Calendar", "formatDay"],
         "props": {
           "Calendar": {
             "end": null,
@@ -2748,90 +2199,52 @@
         }
       },
       "./picker/date-picker": {
-        "names": [
-          "DatePicker",
-          "DateRangePicker"
-        ],
+        "names": ["DatePicker", "DateRangePicker"],
         "props": {
           "DatePicker": {
-            "clearable": [
-              "false",
-              "true"
-            ],
+            "clearable": ["false", "true"],
             "defaultValue": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "error": null,
             "hint": null,
             "label": null,
-            "labelHidden": [
-              "false",
-              "true"
-            ],
+            "labelHidden": ["false", "true"],
             "max": null,
             "min": null,
             "name": null,
             "onValueChange": null,
-            "optional": [
-              "false",
-              "true"
-            ],
+            "optional": ["false", "true"],
             "placeholder": null,
             "value": null
           },
           "DateRangePicker": {
-            "clearable": [
-              "false",
-              "true"
-            ],
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "clearable": ["false", "true"],
+            "disabled": ["false", "true"],
             "error": null,
             "hint": null,
             "label": null,
-            "labelHidden": [
-              "false",
-              "true"
-            ],
+            "labelHidden": ["false", "true"],
             "max": null,
             "min": null,
             "onOpenChange": null,
             "onValueChange": null,
-            "open": [
-              "false",
-              "true"
-            ],
+            "open": ["false", "true"],
             "placeholder": null,
             "value": null,
-            "withTime": [
-              "false",
-              "true"
-            ]
+            "withTime": ["false", "true"]
           }
         }
       },
       "./picker/multi-select": {
-        "names": [
-          "MultiSelect"
-        ],
+        "names": ["MultiSelect"],
         "props": {
           "MultiSelect": {
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "disabledReason": null,
             "error": null,
             "hint": null,
             "label": null,
-            "labelHidden": [
-              "false",
-              "true"
-            ],
+            "labelHidden": ["false", "true"],
             "name": null,
             "onOpenChange": null,
             "onValueChange": null,
@@ -2841,17 +2254,12 @@
             "searchLabel": null,
             "selectedLabels": null,
             "value": null,
-            "variant": [
-              "field",
-              "text"
-            ]
+            "variant": ["field", "text"]
           }
         }
       },
       "./picker/search-combobox": {
-        "names": [
-          "SearchCombobox"
-        ],
+        "names": ["SearchCombobox"],
         "props": {
           "SearchCombobox": {
             "emptyLabel": null,
@@ -2867,20 +2275,12 @@
         }
       },
       "./picker/search-popup": {
-        "names": [
-          "PickerOption",
-          "PickerServerSearch",
-          "SearchPopup",
-          "optionKeys"
-        ],
+        "names": ["PickerOption", "PickerServerSearch", "SearchPopup", "optionKeys"],
         "props": {
           "SearchPopup": {
             "children": null,
             "container": null,
-            "detached": [
-              "false",
-              "true"
-            ],
+            "detached": ["false", "true"],
             "label": null,
             "search": null,
             "searchLabel": null
@@ -2888,25 +2288,17 @@
         }
       },
       "./picker/searchable-select": {
-        "names": [
-          "SearchableSelect"
-        ],
+        "names": ["SearchableSelect"],
         "props": {
           "SearchableSelect": {
             "createLabel": null,
             "defaultValue": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "disabledReason": null,
             "error": null,
             "hint": null,
             "label": null,
-            "labelHidden": [
-              "false",
-              "true"
-            ],
+            "labelHidden": ["false", "true"],
             "name": null,
             "onCreate": null,
             "onOpenChange": null,
@@ -2918,32 +2310,21 @@
             "selectedLabel": null,
             "selectedLeading": null,
             "value": null,
-            "variant": [
-              "field",
-              "text"
-            ]
+            "variant": ["field", "text"]
           }
         }
       },
       "./picker/select": {
-        "names": [
-          "Select"
-        ],
+        "names": ["Select"],
         "props": {
           "Select": {
             "defaultValue": null,
             "describedBy": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "disabledReason": null,
             "field": null,
             "id": null,
-            "invalid": [
-              "false",
-              "true"
-            ],
+            "invalid": ["false", "true"],
             "label": null,
             "name": null,
             "onValueChange": null,
@@ -2954,58 +2335,34 @@
         }
       },
       "./picker/use-picker-value": {
-        "names": [
-          "usePickerValue"
-        ],
+        "names": ["usePickerValue"],
         "props": {}
       },
       "./property-list": {
-        "names": [
-          "PropertyItem",
-          "PropertyList"
-        ],
+        "names": ["PropertyItem", "PropertyList"],
         "props": {
           "PropertyList": {
             "properties": null,
             "title": null,
-            "titleHidden": [
-              "false",
-              "true"
-            ]
+            "titleHidden": ["false", "true"]
           }
         }
       },
       "./scroll-area": {
-        "names": [
-          "ScrollArea"
-        ],
+        "names": ["ScrollArea"],
         "props": {
           "ScrollArea": {
-            "arrows": [
-              "false",
-              "true"
-            ],
-            "axis": [
-              "horizontal",
-              "vertical"
-            ],
+            "arrows": ["false", "true"],
+            "axis": ["horizontal", "vertical"],
             "children": null,
-            "hideScrollbar": [
-              "false",
-              "true"
-            ],
+            "hideScrollbar": ["false", "true"],
             "label": null,
-            "startAtEnd": [
-              "false",
-              "true"
-            ]
+            "startAtEnd": ["false", "true"]
           }
         }
       },
       "./scroll-area/load-more-footer": {
-        "names": [
-          "LoadMoreFooter"
-        ],
+        "names": ["LoadMoreFooter"],
         "props": {
           "LoadMoreFooter": {
             "state": null
@@ -3013,22 +2370,15 @@
         }
       },
       "./scroll-area/use-load-more": {
-        "names": [
-          "LoadMoreState",
-          "useLoadMore"
-        ],
+        "names": ["LoadMoreState", "useLoadMore"],
         "props": {}
       },
       "./scroll-area/use-scroll-edges": {
-        "names": [
-          "useScrollEdges"
-        ],
+        "names": ["useScrollEdges"],
         "props": {}
       },
       "./search-field": {
-        "names": [
-          "SearchField"
-        ],
+        "names": ["SearchField"],
         "props": {
           "SearchField": {
             "defaultValue": null,
@@ -3036,23 +2386,14 @@
             "maxLength": null,
             "onValueChange": null,
             "placeholder": null,
-            "shortcut": [
-              "/",
-              "⌘K"
-            ],
+            "shortcut": ["/", "⌘K"],
             "value": null,
-            "variant": [
-              "outlined",
-              "quiet",
-              "sidebar"
-            ]
+            "variant": ["outlined", "quiet", "sidebar"]
           }
         }
       },
       "./search-field/menu-search-field": {
-        "names": [
-          "MenuSearchField"
-        ],
+        "names": ["MenuSearchField"],
         "props": {
           "MenuSearchField": {
             "input": null,
@@ -3061,36 +2402,21 @@
         }
       },
       "./segmented-control": {
-        "names": [
-          "SegmentedControl",
-          "SelectionItem"
-        ],
+        "names": ["SegmentedControl", "SelectionItem"],
         "props": {
           "SegmentedControl": {
             "defaultValue": null,
             "description": null,
-            "holdOnReselect": [
-              "false",
-              "true"
-            ],
+            "holdOnReselect": ["false", "true"],
             "label": null,
             "onSelect": null,
             "options": null,
             "value": null
           },
           "SelectionItem": {
-            "checked": [
-              "false",
-              "true"
-            ],
-            "defaultChecked": [
-              "false",
-              "true"
-            ],
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "checked": ["false", "true"],
+            "defaultChecked": ["false", "true"],
+            "disabled": ["false", "true"],
             "icon": [
               "I001",
               "I003",
@@ -3209,19 +2535,12 @@
         }
       },
       "./settings-section": {
-        "names": [
-          "SettingsRow",
-          "SettingsSection",
-          "SettingsSurface"
-        ],
+        "names": ["SettingsRow", "SettingsSection", "SettingsSurface"],
         "props": {
           "SettingsRow": {
             "children": null,
             "description": null,
-            "field": [
-              "false",
-              "true"
-            ],
+            "field": ["false", "true"],
             "label": null,
             "leading": null
           },
@@ -3235,48 +2554,30 @@
         }
       },
       "./settings-section/row-list": {
-        "names": [
-          "RowList"
-        ],
+        "names": ["RowList"],
         "props": {
           "RowList": {
             "children": null,
-            "dividers": [
-              "false",
-              "true"
-            ],
+            "dividers": ["false", "true"],
             "label": null
           }
         }
       },
       "./settings-section/save-actions": {
-        "names": [
-          "SaveActions"
-        ],
+        "names": ["SaveActions"],
         "props": {
           "SaveActions": {
-            "blocked": [
-              "false",
-              "true"
-            ],
+            "blocked": ["false", "true"],
             "blockedReason": null,
-            "dirty": [
-              "false",
-              "true"
-            ],
+            "dirty": ["false", "true"],
             "onDiscard": null,
             "onSave": null,
-            "saving": [
-              "false",
-              "true"
-            ]
+            "saving": ["false", "true"]
           }
         }
       },
       "./stack": {
-        "names": [
-          "Stack"
-        ],
+        "names": ["Stack"],
         "props": {
           "Stack": {
             "items": null,
@@ -3286,62 +2587,29 @@
         }
       },
       "./status": {
-        "names": [
-          "FailureNotice",
-          "InlineNotice",
-          "Spinner",
-          "StatusTag",
-          "StatusText"
-        ],
+        "names": ["FailureNotice", "InlineNotice", "Spinner", "StatusTag", "StatusText"],
         "props": {
           "FailureNotice": {
-            "intent": [
-              "danger",
-              "warning"
-            ],
+            "intent": ["danger", "warning"],
             "message": null,
             "onRetry": null,
-            "retrying": [
-              "false",
-              "true"
-            ],
+            "retrying": ["false", "true"],
             "title": null
           },
           "InlineNotice": {
             "action": null,
-            "intent": [
-              "danger",
-              "info",
-              "neutral",
-              "success",
-              "warning"
-            ],
+            "intent": ["danger", "info", "neutral", "success", "warning"],
             "message": null,
             "title": null
           },
           "StatusTag": {
-            "intent": [
-              "danger",
-              "info",
-              "neutral",
-              "success",
-              "warning"
-            ],
+            "intent": ["danger", "info", "neutral", "success", "warning"],
             "label": null,
             "leading": null,
-            "live": [
-              "false",
-              "true"
-            ]
+            "live": ["false", "true"]
           },
           "StatusText": {
-            "intent": [
-              "danger",
-              "info",
-              "neutral",
-              "success",
-              "warning"
-            ],
+            "intent": ["danger", "info", "neutral", "success", "warning"],
             "label": null
           }
         }
@@ -3353,23 +2621,12 @@
       "./styles/global.css": "asset",
       "./styles/theme.css": "asset",
       "./switch": {
-        "names": [
-          "Switch"
-        ],
+        "names": ["Switch"],
         "props": {
           "Switch": {
-            "checked": [
-              "false",
-              "true"
-            ],
-            "defaultChecked": [
-              "false",
-              "true"
-            ],
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "checked": ["false", "true"],
+            "defaultChecked": ["false", "true"],
+            "disabled": ["false", "true"],
             "id": null,
             "label": null,
             "onCheckedChange": null
@@ -3377,10 +2634,7 @@
         }
       },
       "./tabs": {
-        "names": [
-          "TabItem",
-          "Tabs"
-        ],
+        "names": ["TabItem", "Tabs"],
         "props": {
           "Tabs": {
             "current": null,
@@ -3394,9 +2648,7 @@
         }
       },
       "./tabs/content-tabs": {
-        "names": [
-          "ContentTabs"
-        ],
+        "names": ["ContentTabs"],
         "props": {
           "ContentTabs": {
             "actions": null,
@@ -3409,33 +2661,20 @@
       },
       "./tabs/tab-list.shared.module.css": "asset",
       "./tooltip": {
-        "names": [
-          "Tooltip"
-        ],
+        "names": ["Tooltip"],
         "props": {
           "Tooltip": {
             "children": null,
-            "disabledControl": [
-              "false",
-              "true"
-            ],
-            "enabled": [
-              "false",
-              "true"
-            ],
+            "disabledControl": ["false", "true"],
+            "enabled": ["false", "true"],
             "label": null,
             "panel": null,
-            "visualOnly": [
-              "false",
-              "true"
-            ]
+            "visualOnly": ["false", "true"]
           }
         }
       },
       "./touch-target": {
-        "names": [
-          "TouchTarget"
-        ],
+        "names": ["TouchTarget"],
         "props": {
           "TouchTarget": {
             "children": null
@@ -3519,10 +2758,7 @@
         "tooltip",
         "total"
       ],
-      "src/components/chart/tooltip.module.css": [
-        "detail",
-        "tooltip"
-      ],
+      "src/components/chart/tooltip.module.css": ["detail", "tooltip"],
       "src/components/checkbox/checkbox.module.css": [
         "box",
         "checkbox",
@@ -3571,15 +2807,8 @@
         "expanded",
         "summary"
       ],
-      "src/components/empty-state/empty-state.module.css": [
-        "actions",
-        "copy",
-        "empty",
-        "graphic"
-      ],
-      "src/components/field/details-field.module.css": [
-        "value"
-      ],
+      "src/components/empty-state/empty-state.module.css": ["actions", "copy", "empty", "graphic"],
+      "src/components/field/details-field.module.css": ["value"],
       "src/components/field/field.shared.module.css": [
         "autofillDecoys",
         "copyAction",
@@ -3609,16 +2838,8 @@
         "items",
         "viewport"
       ],
-      "src/components/find-bar/find-bar.module.css": [
-        "bar",
-        "field",
-        "indent",
-        "row",
-        "tally"
-      ],
-      "src/components/icon/icon.module.css": [
-        "icon"
-      ],
+      "src/components/find-bar/find-bar.module.css": ["bar", "field", "indent", "row", "tally"],
+      "src/components/icon/icon.module.css": ["icon"],
       "src/components/menu/menu.module.css": [
         "contextTrigger",
         "hint",
@@ -3640,11 +2861,7 @@
         "positioner",
         "separator"
       ],
-      "src/components/menu/suggestions.module.css": [
-        "detail",
-        "empty",
-        "popup"
-      ],
+      "src/components/menu/suggestions.module.css": ["detail", "empty", "popup"],
       "src/components/modal/modal.module.css": [
         "error",
         "footerEnd",
@@ -3664,10 +2881,7 @@
         "overflowLabel",
         "overflowText"
       ],
-      "src/components/pagination/pagination.module.css": [
-        "pagination",
-        "position"
-      ],
+      "src/components/pagination/pagination.module.css": ["pagination", "position"],
       "src/components/picker/calendar.module.css": [
         "calendar",
         "day",
@@ -3694,11 +2908,7 @@
         "trigger",
         "value"
       ],
-      "src/components/property-list/property-list.module.css": [
-        "list",
-        "row",
-        "rows"
-      ],
+      "src/components/property-list/property-list.module.css": ["list", "row", "rows"],
       "src/components/scroll-area/scroll-area.module.css": [
         "content",
         "loadStatus",
@@ -3733,11 +2943,7 @@
         "section",
         "surface"
       ],
-      "src/components/stack/stack.module.css": [
-        "count",
-        "item",
-        "stack"
-      ],
+      "src/components/stack/stack.module.css": ["count", "item", "stack"],
       "src/components/status/status.module.css": [
         "action",
         "copy",
@@ -3750,14 +2956,8 @@
         "tag",
         "text"
       ],
-      "src/components/switch/switch.module.css": [
-        "target",
-        "thumb",
-        "track"
-      ],
-      "src/components/tabs/tab-list.shared.module.css": [
-        "lane"
-      ],
+      "src/components/switch/switch.module.css": ["target", "thumb", "track"],
+      "src/components/tabs/tab-list.shared.module.css": ["lane"],
       "src/components/tabs/tabs.module.css": [
         "contentActions",
         "contentHeader",
@@ -3775,17 +2975,13 @@
         "tooltipHost",
         "tooltipPanel"
       ],
-      "src/components/touch-target/touch-target.module.css": [
-        "touchTarget"
-      ]
+      "src/components/touch-target/touch-target.module.css": ["touchTarget"]
     }
   },
   "@sim/emcn-platform": {
     "exports": {
       "./catalog/component-recipe": {
-        "names": [
-          "ComponentRecipe"
-        ],
+        "names": ["ComponentRecipe"],
         "props": {
           "ComponentRecipe": {
             "recipe": null,
@@ -3797,20 +2993,14 @@
       "./catalog/recipes.json": "asset",
       "./catalog/variants.json": "asset",
       "./composer-input": {
-        "names": [
-          "ComposerInput",
-          "ComposerMark"
-        ],
+        "names": ["ComposerInput", "ComposerMark"],
         "props": {
           "ComposerInput": {
             "activeOptionId": null,
             "anchorOffset": null,
             "caretAnchorRef": null,
             "defaultValue": null,
-            "density": [
-              "compact",
-              "standard"
-            ],
+            "density": ["compact", "standard"],
             "inputRef": null,
             "label": null,
             "listId": null,
@@ -3829,9 +3019,7 @@
         }
       },
       "./composer-input/marked-text": {
-        "names": [
-          "MarkedText"
-        ],
+        "names": ["MarkedText"],
         "props": {
           "MarkedText": {
             "anchorOffset": null,
@@ -3842,9 +3030,7 @@
         }
       },
       "./connection-prompt": {
-        "names": [
-          "ConnectionPrompt"
-        ],
+        "names": ["ConnectionPrompt"],
         "props": {
           "ConnectionPrompt": {
             "options": null,
@@ -3854,9 +3040,7 @@
         }
       },
       "./destination-tabs": {
-        "names": [
-          "DestinationTabs"
-        ],
+        "names": ["DestinationTabs"],
         "props": {
           "DestinationTabs": {
             "currentHref": null,
@@ -3866,9 +3050,7 @@
         }
       },
       "./execution-steps": {
-        "names": [
-          "ExecutionSteps"
-        ],
+        "names": ["ExecutionSteps"],
         "props": {
           "ExecutionSteps": {
             "steps": null,
@@ -3877,9 +3059,7 @@
         }
       },
       "./message-bubble": {
-        "names": [
-          "MessageBubble"
-        ],
+        "names": ["MessageBubble"],
         "props": {
           "MessageBubble": {
             "children": null,
@@ -3889,10 +3069,7 @@
         }
       },
       "./page-column": {
-        "names": [
-          "PageColumn",
-          "PageOverflow"
-        ],
+        "names": ["PageColumn", "PageOverflow"],
         "props": {
           "PageColumn": {
             "children": null
@@ -3903,10 +3080,7 @@
         }
       },
       "./recent-items": {
-        "names": [
-          "RecentItem",
-          "RecentItems"
-        ],
+        "names": ["RecentItem", "RecentItems"],
         "props": {
           "RecentItems": {
             "items": null,
@@ -3920,52 +3094,25 @@
       "./styles/host-bridge.module.css": "asset",
       "./styles/platform.css": "asset",
       "./surface/platform-surface": {
-        "names": [
-          "PlatformSurface"
-        ],
+        "names": ["PlatformSurface"],
         "props": {
           "PlatformSurface": {
-            "canvas": [
-              "false",
-              "true"
-            ],
+            "canvas": ["false", "true"],
             "children": null,
-            "detached": [
-              "false",
-              "true"
-            ],
-            "embedded": [
-              "false",
-              "true"
-            ],
-            "systemFont": [
-              "false",
-              "true"
-            ],
-            "systemMono": [
-              "false",
-              "true"
-            ],
-            "theme": [
-              "dark",
-              "light",
-              "system"
-            ]
+            "detached": ["false", "true"],
+            "embedded": ["false", "true"],
+            "systemFont": ["false", "true"],
+            "systemMono": ["false", "true"],
+            "theme": ["dark", "light", "system"]
           }
         }
       },
       "./workspace-fields": {
-        "names": [
-          "RecipientField",
-          "RecipientTag"
-        ],
+        "names": ["RecipientField", "RecipientTag"],
         "props": {
           "RecipientField": {
             "defaultRecipients": null,
-            "disabled": [
-              "false",
-              "true"
-            ],
+            "disabled": ["false", "true"],
             "error": null,
             "hint": null,
             "label": null,
@@ -3973,27 +3120,18 @@
             "onRecipientsChange": null,
             "placeholder": null,
             "recipients": null,
-            "submitsWithInvalid": [
-              "false",
-              "true"
-            ],
+            "submitsWithInvalid": ["false", "true"],
             "validate": null
           },
           "RecipientTag": {
             "address": null,
-            "invalid": [
-              "false",
-              "true"
-            ],
+            "invalid": ["false", "true"],
             "onRemove": null
           }
         }
       },
       "./workspace-list": {
-        "names": [
-          "SidebarWorkspaceItems",
-          "WorkspaceList"
-        ],
+        "names": ["SidebarWorkspaceItems", "WorkspaceList"],
         "props": {
           "SidebarWorkspaceItems": {
             "items": null,
@@ -4003,10 +3141,7 @@
             "items": null,
             "label": null,
             "onSelect": null,
-            "target": [
-              "standard",
-              "touch"
-            ]
+            "target": ["standard", "touch"]
           }
         }
       }
@@ -4551,13 +3686,8 @@
         "trigger",
         "viewport"
       ],
-      "src/components/connection-prompt/connection-prompt.module.css": [
-        "prompt",
-        "providers"
-      ],
-      "src/components/destination-tabs/destination-tabs.module.css": [
-        "destinations"
-      ],
+      "src/components/connection-prompt/connection-prompt.module.css": ["prompt", "providers"],
+      "src/components/destination-tabs/destination-tabs.module.css": ["destinations"],
       "src/components/execution-steps/execution-steps.module.css": [
         "description",
         "marker",
@@ -4566,19 +3696,9 @@
         "steps",
         "stepsTitle"
       ],
-      "src/components/message-bubble/message-bubble.module.css": [
-        "bubble",
-        "preview"
-      ],
-      "src/components/page-column/page-column.module.css": [
-        "column",
-        "overflow"
-      ],
-      "src/components/recent-items/recent-items.module.css": [
-        "heading",
-        "recentLane",
-        "recents"
-      ],
+      "src/components/message-bubble/message-bubble.module.css": ["bubble", "preview"],
+      "src/components/page-column/page-column.module.css": ["column", "overflow"],
+      "src/components/recent-items/recent-items.module.css": ["heading", "recentLane", "recents"],
       "src/components/workspace-fields/workspace-fields.module.css": [
         "recipientViewport",
         "recipients",
@@ -4591,11 +3711,7 @@
         "workspaceViewport",
         "workspaces"
       ],
-      "src/styles/host-bridge.module.css": [
-        "canvas",
-        "palette",
-        "tokens"
-      ]
+      "src/styles/host-bridge.module.css": ["canvas", "palette", "tokens"]
     }
   }
 }
