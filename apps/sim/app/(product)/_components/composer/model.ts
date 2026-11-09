@@ -132,11 +132,16 @@ export interface ComposerController extends ComposerInventory {
   referencesLoading?: boolean
   skillsLoading?: boolean
   /**
-   * Whether the `/` list has landed, for a host that reads it after the composer opens. A message
+   * Whether the `/` list has landed, for a host that reads it once `onSkillIntent` fires. A message
    * naming a `/skill` waits while it is pending, so the name is sent as the skill and not as text.
    */
   skillList?: SkillListStatus
-  /** Tells the host a picker opened, which is when it reads the inventories behind them. */
+  /** Tells the host the draft gained a `/` token, which is when it reads the skill list alone. */
+  onSkillIntent?: () => void
+  /**
+   * Tells the host the viewer reached for a resource (the field pressed, an `@` typed, or the
+   * resource menu opened), which is when it reads the inventories behind the pickers.
+   */
   onPickerOpen?: () => void
   /** What follows an `@` as it is typed, which the host searches by. */
   onReferenceSearch?: (query: string) => void

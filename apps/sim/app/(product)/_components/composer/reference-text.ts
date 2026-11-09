@@ -10,6 +10,8 @@ interface MatchedReference {
 }
 
 const BOUNDARY = /^[\s.,;:!?(){}[\]"'`/\\<>]$/
+/** A `/` starting a token: typed, pasted, or carried in by a draft, all of which can name a skill. */
+export const SLASH_TOKEN = /(^|\s)\//
 
 export function matchReferences(
   text: string,

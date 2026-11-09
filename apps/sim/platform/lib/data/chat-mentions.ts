@@ -124,10 +124,10 @@ const FAMILY_BY_GROUP = new Map(
   Object.entries(GROUPS).map(([family, group]) => [group, family as MentionFamily])
 )
 
-/** Mention rows as the pickers list them, in groups by family. */
 /** Whether the `/` list has landed, which a message naming a `/skill` waits for. */
 export type SkillListStatus = 'pending' | 'landed' | 'failed'
 
+/** Mention rows as the pickers list them, in groups by family. */
 export function grouped(rows: readonly MentionRow[] | undefined) {
   const groups = new Map<string, MentionReference[]>()
   for (const row of rows ?? []) {
@@ -230,36 +230,50 @@ export function useMentionBrowse(enabled: boolean, organizationId: string) {
   }
 }
 
+/** Which of the composer's inventories the viewer has asked for so far. */
+interface MentionInventoryWanted {
+  /** The `@` matches and the resource menu, read once the viewer reaches for a resource. */
+  resources: boolean
+  /** Every skill for `/`, read once the draft holds a `/` token or a resource is reached for. */
+  skills: boolean
+}
+
 /**
  * What the composer can mention across the viewer's workspaces in this organization, from one
  * server read per question: the `@` query's matches (the most recent rows when empty), every
  * skill for `/`, and the resource menu's workspaces, each opened workspace's families, or the
- * menu's own search. Nothing is read until a picker first opens.
+ * menu's own search. Each is read only once `wanted` asks for it, so a `/` alone reads no
+ * resource list.
  */
-export function useMentionInventory(enabled: boolean, organizationId: string, search: string) {
+export function useMentionInventory(
+  wanted: MentionInventoryWanted,
+  organizationId: string,
+  search: string
+) {
   const query = useSearchFilterValue(search, SEARCH_DEBOUNCE_MS).trim()
   useMentionsFollowMutations()
   const suggestions = useOrganizationMentions(
     organizationId,
     { query, limit: MENTION_SUGGESTION_LIMIT },
-    { enabled }
+    { enabled: wanted.resources }
   )
   const skills = useOrganizationMentions(
     organizationId,
     { query: '', family: 'skills', limit: MENTION_BROWSE_LIMIT },
-    { enabled }
+    { enabled: wanted.skills }
   )
   const { rows, browseMore, onBrowseWorkspace, onBrowseSearch } = useMentionBrowse(
-    enabled,
+    wanted.resources,
     organizationId
   )
   const skillList: SkillListStatus = skills.data ? 'landed' : skills.isError ? 'failed' : 'pending'
   return {
     references: grouped(suggestions.data?.rows),
     referencesLoading:
-      enabled && (suggestions.isPending || search.trim() !== query || suggestions.isFetching),
+      wanted.resources &&
+      (suggestions.isPending || search.trim() !== query || suggestions.isFetching),
     skills: grouped(skills.data?.rows).flatMap(({ items }) => items),
-    skillsLoading: enabled && skills.isPending,
+    skillsLoading: wanted.skills && skills.isPending,
     skillList,
     browse: grouped(rows),
     browseMore,
