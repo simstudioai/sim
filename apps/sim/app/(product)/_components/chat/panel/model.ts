@@ -32,8 +32,8 @@ export interface PanelResources {
   resize: PanelResize
   /** Any pointer or key inside the panel: the reader now owns which tab it shows. */
   onInteraction: () => void
-  /** The desktop scope whose native browser tabs this chat's browser resources show. */
-  browserScopeId: string
+  /** The desktop scope whose native browser pages and shells this chat's tabs show. */
+  desktopScopeId: string
 }
 
 export interface PanelData {

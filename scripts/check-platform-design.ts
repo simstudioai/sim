@@ -367,6 +367,7 @@ const seamHelpers = new Set([
   'components/mothership-chat/message-content/tool-status',
   'hooks/mothership-chat/use-chat',
   'hooks/mothership-chat/use-browser-tab-resources',
+  'hooks/mothership-chat/use-terminal-tab-resources',
   'hooks/mothership-chat/use-resource-panel',
   'hooks/mothership-chat/use-restored-chat-entry',
   'components/knowledge/base/components/consts',
@@ -565,6 +566,7 @@ const seamHelpers = new Set([
   'stores/table/types',
   'stores/tool-permission/store',
   'stores/browser-session/store',
+  'stores/copilot-terminal/store',
   'stores/workflows/registry/types',
   'stores/workflows/subblock/types',
   'stores/workflows/workflow/types',
@@ -908,7 +910,7 @@ const seamClosureViews = new Set([
 /** Each pulls in a whole subsystem, which only the workflow editor's seam may bundle. */
 const seamClosureBanned = /^(?:blocks|tools|triggers)\/registry\.tsx?$/
 const seamPackages =
-  /^@sim\/(?:utils|logger|browser-extension-protocol|browser-protocol|desktop-bridge|platform-authz\/predicates|realtime-protocol|auth\/principal)(?:\/|$)/
+  /^@sim\/(?:utils|logger|browser-extension-protocol|browser-protocol|desktop-bridge|terminal-protocol|platform-authz\/predicates|realtime-protocol|auth\/principal)(?:\/|$)/
 /**
  * The Workflows tab runs the legacy editor's logic unchanged (the user asked for the canvas exactly
  * as it is), so its seam folders are the one place the blocks and tools registry, the workflow

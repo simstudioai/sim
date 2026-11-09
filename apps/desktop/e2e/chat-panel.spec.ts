@@ -78,7 +78,7 @@ function ChatFixture({ scopeId, userId }: ChatFixtureProps) {
           onFocus: resize.handleResizeFocus,
         },
         onInteraction: () => {},
-        browserScopeId: scopeId,
+        desktopScopeId: scopeId,
       }}
     >
       <div>

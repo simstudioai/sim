@@ -29,7 +29,7 @@ export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
       <ResourceContent
         resource={resource}
         visible={!collapsed && resource.id === current}
-        browserScopeId={panel.browserScopeId}
+        desktopScopeId={panel.desktopScopeId}
       />
     ),
   }))

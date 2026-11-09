@@ -7,21 +7,24 @@ import type { PlatformResource } from '@/app/(product)/_components/chat/model'
 import { BrowserSession } from '@/app/(product)/_components/chat/panel/browser-session/browser-session'
 import { CitedSources } from '@/app/(product)/_components/chat/panel/cited-sources'
 import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
+import { TerminalSession } from '@/app/(product)/_components/chat/panel/terminal-session/terminal-session'
 import { SearchResultsPanel } from '@/app/(product)/_components/search/search-results-host'
 
 interface ResourceContentProps {
   resource: PlatformResource
   /** Whether this tab is the one on screen in an open panel. */
   visible: boolean
-  browserScopeId: string
+  desktopScopeId: string
 }
 
 /** What a tab shows. A kind this app does not render yet opens in the legacy surface that does. */
-export function ResourceContent({ resource, visible, browserScopeId }: ResourceContentProps) {
+export function ResourceContent({ resource, visible, desktopScopeId }: ResourceContentProps) {
   if (resource.type === 'search' && resource.search)
     return <SearchResultsPanel resource={resource} />
   if (resource.type === 'browser')
-    return <BrowserSession scopeId={browserScopeId} visible={visible} />
+    return <BrowserSession scopeId={desktopScopeId} visible={visible} />
+  if (resource.type === 'terminal')
+    return <TerminalSession scopeId={desktopScopeId} visible={visible} />
   if (resource.type === 'sources') return <CitedSources sources={resource.sources ?? []} />
   return (
     <div className={styles.document}>

@@ -1,0 +1,16 @@
+.session {
+  position: relative;
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+/* Each shell fills the panel; one behind another tab is removed from layout so xterm stops painting. */
+.view {
+  position: absolute;
+  inset: 0;
+  padding: var(--spacing-6) var(--spacing-8) var(--spacing-4) var(--spacing-6);
+}
+.view[hidden] {
+  display: none;
+}

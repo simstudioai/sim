@@ -14,6 +14,7 @@ import type {
   useChatResourcePanel,
   useResourcePanelController,
 } from '@/hooks/mothership-chat/use-resource-panel'
+import { useTerminalTabResources } from '@/hooks/mothership-chat/use-terminal-tab-resources'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type SurfaceScope, surfaceHref } from '@/platform/lib/data/organization-model'
 
@@ -56,7 +57,7 @@ interface PanelResourcesOptions {
 
 /**
  * The hook's tabs as the panel reads them. Selection stays in `?resource=`, owned by the hook. In
- * the desktop app the chat's native browser pages join them, one tab per page, and a source link
+ * the desktop app the chat's native browser pages and shells join them, one tab each, and a source link
  * clicked in the chat opens in a new one.
  */
 export function usePanelResources({
@@ -66,6 +67,7 @@ export function usePanelResources({
   controller,
 }: PanelResourcesOptions): PanelResources {
   useBrowserTabResources(panel.desktopTabResourceOptions)
+  useTerminalTabResources(panel.desktopTabResourceOptions)
   const scope = useOrganization()
   const resources: PlatformResource[] = chat.resources.map((resource) => ({
     id: resource.id,
@@ -94,6 +96,6 @@ export function usePanelResources({
       onFocus: panel.handleResourceResizeFocus,
     },
     onInteraction: panel.handleResourceInteraction,
-    browserScopeId: chat.desktopScopeId,
+    desktopScopeId: chat.desktopScopeId,
   }
 }
