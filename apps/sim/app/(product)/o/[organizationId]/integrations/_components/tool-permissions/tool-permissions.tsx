@@ -135,7 +135,11 @@ export function ToolPermissions({
       })}
       {!matches.length && (
         <EmptyState
-          title={filter ? 'No matching tools' : 'No Assistant tools are available for this account'}
+          title={
+            permissions.tools.length
+              ? 'No matching tools'
+              : 'No Assistant tools are available for this account'
+          }
         />
       )}
     </section>
