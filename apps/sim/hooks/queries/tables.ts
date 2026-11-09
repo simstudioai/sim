@@ -75,8 +75,6 @@ import {
   type TableLocksInput,
   type TableRowParamsInput,
   type TableRowsQueryInput,
-  type TableViewConfigInput,
-  type TableViewWire,
   type UpdateTableColumnBodyInput,
   type UpdateTableRowBodyInput,
   type UpdateWorkflowGroupBodyInput,
@@ -84,7 +82,6 @@ import {
   updateTableContract,
   updateTableMetadataContract,
   updateTableRowContract,
-  updateTableViewContract,
   updateWorkflowGroupContract,
 } from '@/lib/api/contracts/tables'
 import type { V2TableImportSource, V2TableImportTarget } from '@/lib/api/contracts/v2/tables'
@@ -1508,76 +1505,6 @@ export function useUpdateTableMetadata({ workspaceId, tableId }: RowMutationCont
     onSettled: () => {
       // exact: rowsRoot nests under detail, so a prefix match would needlessly refetch all rows
       queryClient.invalidateQueries({ queryKey: tableKeys.detail(tableId), exact: true })
-    },
-  })
-}
-
-interface UpdateTableViewParams {
-  viewId: string
-  name?: string
-  /** Full replacement for API consumers. Mutually exclusive with `configPatch`. */
-  config?: TableViewConfigInput
-  /** Server-side shallow merge — used for the grid's incremental layout writes. */
-  configPatch?: TableViewConfigInput
-  isDefault?: boolean
-}
-
-/**
- * Patches one view — overwrite its config, rename it, or promote it to default.
- * `isDefault: true` demotes the previous default server-side, so the whole list
- * is invalidated rather than just the edited row.
- */
-export function useUpdateTableView({ workspaceId, tableId }: RowMutationContext) {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    // View config and layout patches can touch the same top-level JSON keys.
-    // Preserve gesture order so rapid visibility toggles cannot finish out of
-    // order and leave an older snapshot stored last.
-    scope: { id: `table-view:${tableId}` },
-    mutationFn: async ({ viewId, name, config, configPatch, isDefault }: UpdateTableViewParams) => {
-      const response = await requestJson(updateTableViewContract, {
-        params: { tableId, viewId },
-        body: { workspaceId, name, config, configPatch, isDefault },
-      })
-      return response.data.view
-    },
-    // Keep the active view's server baseline current immediately; the refetch
-    // remains the authoritative reconciliation for concurrent collaborators.
-    onSuccess: (view) => {
-      queryClient.setQueryData<TableViewWire[]>(tableKeys.views(tableId), (prev) => {
-        if (!prev) return prev
-        // Layout and view controls auto-save concurrently, and their
-        // responses can arrive out of order. The DB merge is authoritative, so
-        // only let a response at least as new as the cached row win — for
-        // installing the row AND for demoting the previous default. A stale
-        // response applies nothing; otherwise it would rewind the cache (or
-        // strip isDefault from a newer default, leaving none) until the
-        // refetch lands.
-        const cached = prev.find((existing) => existing.id === view.id)
-        const currentDefault = view.isDefault
-          ? prev.find((existing) => existing.id !== view.id && existing.isDefault)
-          : undefined
-        const responseTime = new Date(view.updatedAt)
-        if (
-          (cached && responseTime < new Date(cached.updatedAt)) ||
-          (currentDefault && responseTime < new Date(currentDefault.updatedAt))
-        ) {
-          return prev
-        }
-        return prev.map((existing) => {
-          if (view.isDefault && existing.id !== view.id && existing.isDefault) {
-            return { ...existing, isDefault: false }
-          }
-          return existing.id === view.id ? view : existing
-        })
-      })
-    },
-    onSettled: () => {
-      // A scoped mutation only needs the database write ahead of the next
-      // patch. Let reconciliation run alongside the queue instead of making
-      // every rapid visibility toggle wait for a full list refetch.
-      void queryClient.invalidateQueries({ queryKey: tableKeys.views(tableId) })
     },
   })
 }
