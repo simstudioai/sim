@@ -1535,7 +1535,7 @@ const WorkflowContent = memo(function WorkflowContent({
   const handleContextOpenLogs = useCallback(() => {
     router.push(
       zoneHref(
-        `${workspacePath(workspaceId, 'logs')}?workflowIds=${encodeURIComponent(workflowIdParam)}`
+        `${workspacePath(workspaceId, 'logs')}?workflow=${encodeURIComponent(workflowIdParam)}`
       )
     )
   }, [router, workspaceId, workflowIdParam])
