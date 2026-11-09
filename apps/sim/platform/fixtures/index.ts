@@ -97,6 +97,7 @@ export const loadConversationData = fixture(async (scenario) => {
   return {
     home: { ...home, composerInventory: inventory },
     chat: { ...chat, composerInventory: inventory },
+    workspaces: shellScenarios[scenario].workspaces,
   }
 })
 export const loadIntegrationsData = fixture(

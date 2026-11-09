@@ -3,6 +3,7 @@
 import type {
   ClipboardEventHandler,
   FocusEventHandler,
+  KeyboardEvent,
   ReactNode,
   Ref,
   SyntheticEvent,
@@ -166,12 +167,24 @@ export function Input({
   )
 }
 
+/** A one-line textarea's Enter submits its form, as an input's would; Shift+Enter breaks the line. */
+function submitOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
+  if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+  event.preventDefault()
+  event.currentTarget.form?.requestSubmit()
+}
+
 interface TextAreaProps
   extends Omit<
     InputProps,
     'pattern' | 'type' | 'inputMode' | 'trailing' | 'inputRef' | 'onSelect'
   > {
-  defaultSize?: 'regular' | 'expanded' | 'large'
+  /**
+   * Resting height: regular (76px), expanded (112px) or large (240px). `line` rests at one line
+   * like an Input, grows with its text up to the large height, and Enter submits its form while
+   * Shift+Enter breaks the line.
+   */
+  defaultSize?: 'regular' | 'expanded' | 'large' | 'line'
   onSelect?: (event: SyntheticEvent<HTMLTextAreaElement>) => void
   /** The textarea element, for a caller that places its caret. */
   inputRef?: Ref<HTMLTextAreaElement>
@@ -238,6 +251,7 @@ export function TextArea({
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
         onSelect={onSelect}
+        onKeyDown={defaultSize === 'line' ? submitOnEnter : undefined}
       />
       {viewOnly && (
         <span className={styles.copyAction}>
