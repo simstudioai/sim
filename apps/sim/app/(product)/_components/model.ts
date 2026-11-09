@@ -169,4 +169,8 @@ export interface ShellActions {
   requestLeave: (leave: () => void) => void
   /** The accessible destination for a viewer who opened Settings directly. */
   settingsLanding: string
+  /** Reads a navigation destination's page ahead of an intended open. Returns how to call it off. */
+  warmDestination?: (destinationId: string) => () => void
+  /** Reads a Settings section's route and data as a menu holding its entry opens. */
+  warmSettings?: (section: 'general' | 'members') => void
 }

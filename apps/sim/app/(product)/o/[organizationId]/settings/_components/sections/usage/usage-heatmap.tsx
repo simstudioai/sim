@@ -1,16 +1,14 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { ScrollArea } from '@sim/emcn/scroll-area'
 import { FailureNotice } from '@sim/emcn/status'
+import { Tooltip } from '@sim/emcn/tooltip'
 import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/usage-section.module.css'
 import { useUsageCalendar } from '@/platform/lib/data/usage'
 import { layoutUsageCalendar, type UsageCalendarDay } from '@/platform/shared/usage'
 
-const CELL = 12
-const SIZE = 10
-const LEFT = 28
-const TOP = 16
+const LEVELS = [0, 1, 2, 3, 4] as const
 const WEEKDAYS = ['Mon', '', 'Wed', '', 'Fri', '', 'Sun'] as const
 const ARROWS: Record<string, number> = {
   ArrowLeft: -7,
@@ -19,88 +17,103 @@ const ARROWS: Record<string, number> = {
   ArrowDown: 1,
 }
 
-/** Calendar dates stay in UTC for layout; they already describe the viewer's local days. */
+/**
+ * Calendar dates stay in UTC for layout; they already describe the viewer's local days. The grid
+ * flows down each week's column, so leading blanks align the first day with its weekday and no cell
+ * needs a placement of its own.
+ */
 function Heatmap({ days }: { days: readonly UsageCalendarDay[] }) {
   const layout = useMemo(() => layoutUsageCalendar(days), [days])
-  const [activeDate, setActiveDate] = useState<string | null>(null)
-  const selected = layout.cells.findIndex((cell) => cell.date === activeDate)
-  const active = selected === -1 ? layout.cells.length - 1 : selected
+  const grid = useRef<HTMLDivElement>(null)
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
+  const [pinnedDate, setPinnedDate] = useState<string | null>(null)
+  const pinned = layout.cells.find((cell) => cell.date === pinnedDate)
+  const leading = layout.cells[0]?.row ?? 0
+  const monthAt = new Map(layout.months.map((month) => [month.column, month]))
   return (
     <>
-      <ScrollArea label='Daily credit usage' axis='horizontal'>
-        <svg
-          className={styles.heatmap}
-          viewBox={`0 0 ${LEFT + layout.weeks * CELL} ${TOP + 7 * CELL}`}
-          role='group'
-          aria-label='Daily credit usage. Use arrow keys to move between days, Home for the first day, or End for today.'
-        >
-          <g>
-            {layout.months.map((month) => (
-              <text
-                key={month.date}
-                className={styles.heatLabel}
-                x={LEFT + month.column * CELL}
-                y={10}
-                fontSize={9}
-              >
-                {month.label}
-              </text>
+      <ScrollArea label='Daily credit usage' axis='horizontal' startAtEnd>
+        <div className={styles.heatmap}>
+          <div className={styles.heatMonths} aria-hidden='true'>
+            {Array.from({ length: layout.weeks }, (_, column) => (
+              <span key={column} data-type='T052'>
+                {monthAt.get(column)?.label}
+              </span>
             ))}
-            {WEEKDAYS.map((label, index) => (
-              <text
-                key={index}
-                className={styles.heatLabel}
-                x={0}
-                y={TOP + index * CELL + 8}
-                fontSize={9}
-              >
-                {label}
-              </text>
-            ))}
-          </g>
-          {layout.cells.map((cell, index) => (
-            <rect
-              key={cell.date}
-              className={styles.heatDay}
-              data-level={cell.level}
-              data-day={index}
-              data-active={index === active || undefined}
-              x={LEFT + cell.column * CELL}
-              y={TOP + cell.row * CELL}
-              width={SIZE}
-              height={SIZE}
-              rx={2}
-              role='button'
-              aria-pressed={index === active}
-              aria-label={cell.label}
-              tabIndex={index === active ? 0 : -1}
-              onPointerEnter={() => setActiveDate(cell.date)}
-              onClick={() => setActiveDate(cell.date)}
-              onFocus={() => setActiveDate(cell.date)}
-              onKeyDown={(event) => {
-                const delta = ARROWS[event.key]
-                const next =
-                  event.key === 'Home'
-                    ? 0
-                    : event.key === 'End'
-                      ? layout.cells.length - 1
-                      : delta === undefined
-                        ? null
-                        : Math.max(0, Math.min(layout.cells.length - 1, index + delta))
-                if (next === null) return
-                event.preventDefault()
-                event.currentTarget.ownerSVGElement
-                  ?.querySelector<SVGRectElement>(`[data-day="${next}"]`)
-                  ?.focus()
-              }}
-            />
-          ))}
-        </svg>
+          </div>
+          <div className={styles.heatBody}>
+            <div className={styles.heatWeekdays} aria-hidden='true'>
+              {WEEKDAYS.map((label, index) => (
+                <span key={index} data-type='T052'>
+                  {label}
+                </span>
+              ))}
+            </div>
+            <div
+              ref={grid}
+              className={styles.heatGrid}
+              role='group'
+              aria-label='Daily credit usage. Use arrow keys to move between days, Home for the first day, or End for today.'
+            >
+              {Array.from({ length: leading }, (_, index) => (
+                <span key={`blank-${index}`} aria-hidden='true' />
+              ))}
+              {layout.cells.map((cell, index) => (
+                <Tooltip key={cell.date} label={cell.label}>
+                  <button
+                    type='button'
+                    className={styles.heatDay}
+                    data-level={cell.level}
+                    data-day={index}
+                    aria-label={cell.label}
+                    aria-pressed={cell.date === pinnedDate}
+                    tabIndex={index === (focusedIndex ?? layout.cells.length - 1) ? 0 : -1}
+                    onClick={() =>
+                      setPinnedDate((current) => (current === cell.date ? null : cell.date))
+                    }
+                    onFocus={() => setFocusedIndex(index)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape' && pinnedDate) {
+                        event.preventDefault()
+                        setPinnedDate(null)
+                        return
+                      }
+                      const delta = ARROWS[event.key]
+                      const next =
+                        event.key === 'Home'
+                          ? 0
+                          : event.key === 'End'
+                            ? layout.cells.length - 1
+                            : delta === undefined
+                              ? null
+                              : Math.max(0, Math.min(layout.cells.length - 1, index + delta))
+                      if (next === null) return
+                      event.preventDefault()
+                      grid.current
+                        ?.querySelector<HTMLButtonElement>(`[data-day="${next}"]`)
+                        ?.focus()
+                    }}
+                  />
+                </Tooltip>
+              ))}
+            </div>
+          </div>
+        </div>
       </ScrollArea>
-      <p className={styles.quiet} data-type='T060' aria-live='polite'>
-        {layout.cells[active] ? `${layout.cells[active].label}. ` : ''}
-        {layout.total}
-      </p>
+      <div className={styles.heatFooter} data-type='T060'>
+        <span aria-live='polite'>{pinned ? pinned.label : layout.total}</span>
+        <div
+          className={styles.heatLegend}
+          role='img'
+          aria-label='Color intensity: less to more daily usage'
+        >
+          <span>Less</span>
+          {LEVELS.map((level) => (
+            <span key={level} className={styles.heatSwatch} data-level={level} />
+          ))}
+          <span>More</span>
+        </div>
+      </div>
     </>
   )
 }

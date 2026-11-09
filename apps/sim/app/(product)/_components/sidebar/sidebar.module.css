@@ -43,7 +43,8 @@
   min-block-size: 0;
 }
 .nav,
-.group {
+.group,
+.destination {
   display: grid;
   min-inline-size: 0;
 }

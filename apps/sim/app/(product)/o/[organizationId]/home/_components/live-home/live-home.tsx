@@ -2,22 +2,34 @@
 
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
 import { ZoneHomeDashboard } from '@/app/(product)/o/[organizationId]/home/_components/home-dashboard/zone-home-dashboard'
-import { useHomeHydrated, useLiveHome } from '@/platform/lib/data/home'
+import {
+  type HiddenHomeWidgets,
+  useHiddenHomeWidgets,
+  useHomeHydrated,
+  useLiveHome,
+} from '@/platform/lib/data/home'
 
-function HydratedHome() {
+function HydratedHome({ widgets }: { widgets: HiddenHomeWidgets }) {
   const preferences = useInterfacePreferences()
-  const { view, actions } = useLiveHome(
-    preferences?.homeMode === 'Search',
-    preferences?.hiddenWidgets ?? []
+  const { view, actions } = useLiveHome(preferences?.homeMode === 'Search', widgets.hiddenWidgets)
+  return (
+    <ZoneHomeDashboard
+      view={view}
+      actions={actions}
+      hiddenWidgets={widgets.hiddenWidgets}
+      onWidgetHiddenChange={widgets.setWidgetHidden}
+    />
   )
-  return <ZoneHomeDashboard view={view} actions={actions} />
 }
 
 /**
  * The live implementation of Home's view. Fixture sessions never mount it or its reads. Its dates are
  * in the viewer's zone, which the server cannot render, so it mounts after hydration and paints
- * nothing before. A client navigation is already hydrated and renders it at once.
+ * nothing before. It also waits for the viewer's Customize Home choices, so a widget they hid never
+ * reads. A client navigation already has both and renders it at once.
  */
 export function LiveHome() {
-  return useHomeHydrated() ? <HydratedHome /> : null
+  const hydrated = useHomeHydrated()
+  const widgets = useHiddenHomeWidgets()
+  return hydrated && widgets ? <HydratedHome widgets={widgets} /> : null
 }

@@ -555,6 +555,7 @@ const seamHelpers = new Set([
   'stores/folders/types',
   'stores/mothership-drafts/store',
   'stores/mothership-effort/store',
+  'stores/organization-home/store',
   'stores/panel',
   'stores/table/types',
   'stores/tool-permission/store',

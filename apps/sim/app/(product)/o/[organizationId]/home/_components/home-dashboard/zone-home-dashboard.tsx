@@ -1,7 +1,7 @@
 'use client'
 
 import { SegmentedControl } from '@sim/emcn/segmented-control'
-import type { HomeMode } from '@/app/(product)/_components/model'
+import type { HomeMode, HomeWidget } from '@/app/(product)/_components/model'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
 import { HomeComposer } from '@/app/(product)/o/[organizationId]/home/_components/home-composer/home-composer'
 import { HomeDashboard } from '@/app/(product)/o/[organizationId]/home/_components/home-dashboard/home-dashboard'
@@ -18,13 +18,23 @@ const PROMPTS: Record<HomeMode, string> = {
 interface ZoneHomeDashboardProps {
   view: HomeView
   actions: HomeActions
+  hiddenWidgets: readonly HomeWidget[]
+  onWidgetHiddenChange: (widget: HomeWidget, hidden: boolean) => void
 }
 
-/** Home inside this app's shell: the session's mode and hidden widgets, and its own composer. */
-export function ZoneHomeDashboard({ view, actions }: ZoneHomeDashboardProps) {
+/**
+ * Home inside this app's shell: the session's mode and its own composer. Hidden widgets come from the
+ * host, which decides how long a Customize Home choice lasts.
+ */
+export function ZoneHomeDashboard({
+  view,
+  actions,
+  hiddenWidgets,
+  onWidgetHiddenChange,
+}: ZoneHomeDashboardProps) {
   const preferences = useInterfacePreferences()
   if (!preferences) throw new Error('Home needs interface preferences')
-  const { hiddenWidgets, setHiddenWidgets, profileName, homeMode, setHomeMode } = preferences
+  const { profileName, homeMode, setHomeMode } = preferences
   const firstName = profileName?.split(/\s/u)[0] || view.firstName
   return (
     <HomeDashboard
@@ -45,15 +55,7 @@ export function ZoneHomeDashboard({ view, actions }: ZoneHomeDashboardProps) {
         />
       }
       hiddenWidgets={hiddenWidgets}
-      onWidgetHiddenChange={(widget, hidden) =>
-        setHiddenWidgets((current) =>
-          hidden
-            ? current.includes(widget)
-              ? current
-              : [...current, widget]
-            : current.filter((item) => item !== widget)
-        )
-      }
+      onWidgetHiddenChange={onWidgetHiddenChange}
     />
   )
 }

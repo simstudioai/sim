@@ -11,6 +11,7 @@ import {
   useWorkspaceCreationPolicy,
 } from '@/hooks/queries/workspace'
 import { useCanOpenOrganizationChat, useChatListActions } from '@/platform/lib/data/chat-list'
+import { useNavWarmers } from '@/platform/lib/data/nav-warmers'
 import { useOrganization } from '@/platform/lib/data/organization'
 import {
   canListOrganizationChats,
@@ -105,6 +106,7 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
   const chatActions = useChatListActions(organizationId)
   const workspaceActions = useWorkspaceActions(liveWorkspaceHome)
   const accountActions = useLiveAccountActions(organization, navigation.destinations)
+  const navWarmers = useNavWarmers()
   return {
     data: {
       appearance: settings.data?.theme,
@@ -131,6 +133,11 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
     },
     actions: {
       ...accountActions,
+      warmDestination(destinationId) {
+        navWarmers.schedule(destinationId)
+        return navWarmers.cancel
+      },
+      warmSettings: navWarmers.warmSettings,
       chats: { ...chatActions, retry: () => void chats.refetch() },
       workspaces: { ...workspaceActions, retry: () => void workspaces.refetch() },
     },
