@@ -226,8 +226,60 @@ describe('desktop executor registration', () => {
 
     sim.registrations[0]?.(true)
 
-    await vi.waitFor(() => expect(desktopExecutor.getDevice()).not.toBeNull())
+    await vi.waitFor(async () => expect(await desktopExecutor.getDevice()).not.toBeNull())
     await vi.waitFor(() => expect(sim.requests).toContain('GET /api/desktop/inbox'))
+  })
+
+  it("offers the device to a turn sent while the sign-in's registration is still due", async () => {
+    const { sim, desktopExecutor } = await service()
+    desktopExecutor.start()
+    desktopExecutor.refreshRegistration()
+
+    // Asked before the debounced registration has even gone out, as a first send after sign-in.
+    const offered = desktopExecutor.getDevice()
+    await vi.waitFor(() => expect(sim.registrations).toHaveLength(1), { timeout: 3_000 })
+    sim.registrations[0]?.(true)
+
+    await expect(offered).resolves.toMatchObject({ protocolVersion: 1 })
+    await desktopExecutor.signOut()
+  })
+
+  it('never holds a turn on a registration that is only backing off', async () => {
+    const { sim, desktopExecutor } = await service()
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    try {
+      desktopExecutor.start()
+      await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+      sim.registrations[0]?.(503)
+      await vi.advanceTimersByTimeAsync(0)
+
+      // The retry is seconds away: the turn goes out unbound now rather than waiting on it.
+      let answered = false
+      const offered = desktopExecutor.getDevice().finally(() => {
+        answered = true
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(answered).toBe(true)
+      await expect(offered).resolves.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('sends a turn unbound when the registration it waits on never answers', async () => {
+    const { sim, desktopExecutor } = await service()
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    try {
+      desktopExecutor.start()
+      const offered = desktopExecutor.getDevice()
+      await vi.waitFor(() => expect(sim.registrations).toHaveLength(1))
+
+      await vi.advanceTimersByTimeAsync(5_000)
+
+      await expect(offered).resolves.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('never resumes for a registration that Sim answers after sign-out', async () => {
@@ -239,7 +291,7 @@ describe('desktop executor registration', () => {
     sim.registrations[0]?.(true)
     await sleep(50)
 
-    expect(desktopExecutor.getDevice()).toBeNull()
+    expect(await desktopExecutor.getDevice()).toBeNull()
     expect(sim.requests).not.toContain('GET /api/desktop/inbox')
     expect(sim.requests).not.toContain('GET /api/desktop/inbox/stream')
   })
@@ -252,7 +304,7 @@ describe('desktop executor registration', () => {
     sim.registrations[0]?.(true)
     await sleep(100)
 
-    expect(desktopExecutor.getDevice()).toBeNull()
+    expect(await desktopExecutor.getDevice()).toBeNull()
     expect(sim.requests.filter((request) => request.includes('/api/desktop/inbox'))).toEqual([])
   })
 
@@ -264,7 +316,7 @@ describe('desktop executor registration', () => {
     sim.registrations[0]?.(false)
     await sleep(100)
 
-    expect(desktopExecutor.getDevice()).toBeNull()
+    expect(await desktopExecutor.getDevice()).toBeNull()
     expect(sim.requests.filter((request) => request.includes('/api/desktop/inbox'))).toEqual([])
   })
 

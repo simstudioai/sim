@@ -318,7 +318,7 @@ describe('registerIpcHandlers', () => {
     })
     deps = {
       appOrigin: () => APP,
-      getExecutorDevice: () => null,
+      getExecutorDevice: async () => null,
       allowHttpLocalhost: () => false,
       accountDataAvailable: () => true,
       isLocalPageUrl,
