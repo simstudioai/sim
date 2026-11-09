@@ -491,6 +491,37 @@ export function useLiveRuns(workspaceId: string, view: RunListView) {
   }
 }
 
+function snapshotRunIds(pages: readonly { logs: readonly WorkflowLogSummary[] }[]) {
+  return pages.flatMap((page) =>
+    page.logs.flatMap((log) => (log.executionId ? [log.executionId] : []))
+  )
+}
+
+/**
+ * The runs either side of one in its list's order, for legacy's ArrowUp/ArrowDown between runs. It
+ * reads the list's own snapshot, the same query the list holds for the view, so the order is the one
+ * the reader left. At the last run read so far, `readNext` reads the next page and answers the run
+ * after it, as legacy's list loads more when its selection reaches the end.
+ */
+export function useRunNeighbors(workspaceId: string, executionId: string, view: RunListView) {
+  const snapshot = useLogsSnapshot(workspaceId, listFilters(view))
+  const ids = snapshotRunIds(snapshot.data?.pages ?? [])
+  const index = ids.indexOf(executionId)
+  return {
+    previous: index > 0 ? ids[index - 1] : undefined,
+    next: index >= 0 ? ids[index + 1] : undefined,
+    /** The run is the last one read and the list has more. */
+    hasMore: index >= 0 && index === ids.length - 1 && snapshot.hasNextPage,
+    loadingMore: snapshot.isFetchingNextPage,
+    readNext: async () => {
+      const result = await snapshot.fetchNextPage()
+      const read = snapshotRunIds(result.data?.pages ?? [])
+      const at = read.indexOf(executionId)
+      return at >= 0 ? read[at + 1] : undefined
+    },
+  }
+}
+
 /** A dashboard series point: the segment's start and its value. */
 export interface RunSeriesPoint {
   at: number
