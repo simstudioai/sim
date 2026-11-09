@@ -1313,6 +1313,29 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     },
     models: [
       {
+        id: 'claude-fable-5-2',
+        pricing: {
+          input: 8.0,
+          cachedInput: 0.2,
+          output: 40.0,
+          updatedAt: '2026-11-09',
+        },
+        capabilities: {
+          forcedToolUse: false,
+          nativeStructuredOutputs: true,
+          maxOutputTokens: 128000,
+          promptCaching: { minimumCacheableTokens: 512 },
+          thinking: {
+            levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+            default: 'high',
+            streamed: 'summary',
+          },
+        },
+        contextWindow: 1000000,
+        releaseDate: '2026-11-09',
+        featured: true,
+      },
+      {
         id: 'claude-fable-5-1',
         pricing: {
           input: 10.0,
@@ -1333,7 +1356,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1000000,
         releaseDate: '2026-09-01',
-        featured: true,
+        sunset: { status: 'legacy' },
       },
       {
         id: 'claude-fable-5',

@@ -54,6 +54,37 @@ export const SITEMAP_LINE = linkLine(
 /** One llms.txt entry per `/solutions/*` page. */
 export const SOLUTION_LINES = SOLUTIONS.map((s) => linkLine(s.title, s.path, s.description))
 
+/** Compliance and enterprise identity controls, which buyers check before shortlisting. */
+export const SECURITY_LINES = [
+  linkLine(
+    'Trust Center',
+    'https://trust.sim.ai/',
+    'SOC 2 Type II, ISO 27001, and GDPR: reports, policies, and subprocessors'
+  ),
+  linkLine(
+    'Single sign-on',
+    `${DOCS_URL}/platform/enterprise/sso`,
+    'SAML 2.0 and OIDC, with setup guides for Okta, Microsoft Entra ID, Google Workspace, and AD FS'
+  ),
+  linkLine(
+    'Directory provisioning',
+    `${DOCS_URL}/platform/enterprise/scim`,
+    'SCIM 2.0 member and group sync from Microsoft Entra ID or Okta'
+  ),
+  linkLine(
+    'Audit logs',
+    `${DOCS_URL}/platform/enterprise/audit-logs`,
+    'Actor, time, and resource for configuration and security events, with CSV export and data drains'
+  ),
+  linkLine(
+    'Permission groups',
+    `${DOCS_URL}/platform/enterprise/access-control`,
+    'Restrict features, models, blocks, and tools by workspace and member'
+  ),
+  '',
+  'On Sim Cloud, single sign-on, directory provisioning, audit logs, and permission groups are part of the Enterprise plan.',
+]
+
 /** One llms.txt list entry: `- [title](url): description`. */
 export function linkLine(title: string, href: string, description?: string): string {
   return `- [${title}](${toSiteUrl(href)})${description ? `: ${description}` : ''}`
