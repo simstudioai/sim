@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import type { ConnectedAccount } from '@/lib/api/contracts/oauth-connections'
 import { client } from '@/lib/auth/client'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
@@ -9,17 +9,6 @@ import { getPerRequestOAuthLinkScopes } from '@/lib/oauth/utils'
 const logger = createLogger('OAuthConnectionsQuery')
 
 export const OAUTH_CONNECTIONS_STALE_TIME = 30 * 1000
-
-/**
- * Query key factory for OAuth connection queries.
- * Provides hierarchical cache keys for connections and provider-specific accounts.
- */
-export const oauthConnectionsKeys = {
-  all: ['oauthConnections'] as const,
-  connections: () => [...oauthConnectionsKeys.all, 'connections'] as const,
-  accounts: () => [...oauthConnectionsKeys.all, 'accounts'] as const,
-  account: (provider: string) => [...oauthConnectionsKeys.accounts(), provider] as const,
-}
 
 interface ConnectServiceParams {
   providerId: string
@@ -32,8 +21,6 @@ interface ConnectServiceParams {
  * Redirects the user to the provider's authorization page.
  */
 export function useConnectOAuthService() {
-  const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: async ({ providerId, callbackURL, draftId }: ConnectServiceParams) => {
       /**
@@ -103,9 +90,6 @@ export function useConnectOAuthService() {
     },
     onError: (error) => {
       logger.error('OAuth connection error:', error)
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
     },
   })
 }

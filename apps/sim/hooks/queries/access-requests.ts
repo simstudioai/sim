@@ -18,10 +18,7 @@ import {
   resolveAccessRequestContract,
   updateAccessRequestSettingsContract,
 } from '@/lib/api/contracts/access-requests'
-import type {
-  WorkspaceCreditAvailability,
-  WorkspaceUsageGate,
-} from '@/lib/api/contracts/workspaces'
+import type { WorkspaceUsageGate } from '@/lib/api/contracts/workspaces'
 import { ACCESS_REQUEST_LIST_PAGE_SIZE } from '@/ee/access-requests/lib/constants'
 import {
   ACCESS_REQUESTS_STALE_TIME,
@@ -56,14 +53,6 @@ export function useDiscoverAccessRequests(query: DiscoverAccessRequestsQuery, en
         if (usage?.scope === 'member' && usage.isExceeded) {
           void queryClient.refetchQueries(
             { queryKey: usageKey, exact: true, type: 'active', stale: true },
-            { cancelRefetch: false }
-          )
-        }
-        const creditKey = workspaceUsageKeys.creditAvailability(query.workspaceId)
-        const credit = queryClient.getQueryData<WorkspaceCreditAvailability>(creditKey)
-        if (credit?.scope === 'member') {
-          void queryClient.refetchQueries(
-            { queryKey: creditKey, exact: true, type: 'active', stale: true },
             { cancelRefetch: false }
           )
         }
