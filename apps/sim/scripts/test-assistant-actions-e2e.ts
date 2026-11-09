@@ -126,7 +126,6 @@ const catalogAccounts = [
 const token = generateShortId()
 const routes = organizationRoutes(organizationId)
 const appUrl = (path: string) => `${baseUrl.origin}${path}`
-const integrationPath = (segment: string) => `${routes.integrations}/${segment}`
 const question = 'Create the two launch follow-up tickets in Jira.'
 const answer = 'Review the two Jira issues before I create them.'
 const reviewAnswer = 'Review these keyboard and batch proposals.'
@@ -604,7 +603,7 @@ try {
       timeout: 180_000,
     })
     await integrationRow('Salesforce').click()
-    await expect(page).toHaveURL((url) => url.pathname === integrationPath('salesforce'))
+    await expect(page).toHaveURL((url) => url.pathname === routes.integration('salesforce'))
     await openAccountPermissions('taylor@acme.example', nativeCredentialId)
     await expect(connectIntegration).toHaveCount(0)
     const policy = page.getByRole('group', { name: 'Create Task in Salesforce permission' })
@@ -655,7 +654,7 @@ try {
     async () => {
       await page.goto(appUrl(routes.integrations))
       await integrationRow('Jira').click()
-      await expect(page).toHaveURL((url) => url.pathname === integrationPath('jira'))
+      await expect(page).toHaveURL((url) => url.pathname === routes.integration('jira'))
       const accountsUrl = page.url()
       const firstAccount = accountRow('taylor@acme.example', credentialId)
       const secondAccount = accountRow('launch-team@acme.example', secondCredentialId)
@@ -757,7 +756,7 @@ try {
       )
       await page.goto(appUrl(routes.integrations))
       await integrationRow('Coda').click()
-      await expect(page).toHaveURL((url) => url.pathname === integrationPath('coda'))
+      await expect(page).toHaveURL((url) => url.pathname === routes.integration('coda'))
       const detailUrl = page.url()
       const noCredentials = page
         .getByRole('main')
@@ -779,7 +778,7 @@ try {
         await page.goto(appUrl(routes.integrations))
         await expect(integrationRow('Coda')).toBeVisible()
         await integrationRow('Coda').click()
-        await expect(page).toHaveURL((url) => url.pathname === integrationPath('coda'))
+        await expect(page).toHaveURL((url) => url.pathname === routes.integration('coda'))
         await expect(noCredentials).toBeVisible()
         await expect(
           page.getByRole('main').getByText('Disabled by your organization', { exact: true })
@@ -809,7 +808,7 @@ try {
         const salesforce = integrationRow('Salesforce')
         await expect(salesforce).toBeVisible()
         await salesforce.click()
-        await expect(page).toHaveURL((url) => url.pathname === integrationPath('salesforce'))
+        await expect(page).toHaveURL((url) => url.pathname === routes.integration('salesforce'))
         await expect(noCredentials).toBeVisible()
         await expect(
           page.getByRole('main').getByText('Connections unavailable', { exact: true })
@@ -971,7 +970,7 @@ try {
     }
   )
   await check('Personal permissions persist through the account permissions page', async () => {
-    const accountPage = new URL(appUrl(integrationPath('jira')))
+    const accountPage = new URL(appUrl(routes.integration('jira')))
     accountPage.searchParams.set('account', credentialId)
     accountPage.searchParams.set('credentialTab', 'permissions')
     await page.goto(accountPage.toString(), { waitUntil: 'domcontentloaded', timeout: 180_000 })

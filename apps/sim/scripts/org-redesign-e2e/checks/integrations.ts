@@ -21,11 +21,10 @@ import {
 import { dialog } from '@/scripts/org-redesign-e2e/locators'
 
 /** A provider's detail page, under the organization's integration center. */
-const providerPath = (providerId: string) => `${org.integrations}/${encodeURIComponent(providerId)}`
 
 /** One account's own page on its provider's detail, open on the tab that holds its tools. */
 const accountPermissionsPath = (providerId: string, credentialId: string) =>
-  `${providerPath(providerId)}?${new URLSearchParams({ account: credentialId, credentialTab: 'permissions' })}`
+  `${org.integration(providerId)}?${new URLSearchParams({ account: credentialId, credentialTab: 'permissions' })}`
 
 /** The Apps destination's search, which the control bar names for the destination it filters. */
 const appSearch = (page: Page) => page.getByRole('searchbox', { name: 'Search apps' })
@@ -81,7 +80,7 @@ export async function integrationChecks() {
         await expect(jira).toBeVisible()
         await expect(page.getByRole('link', { name: /^Gmail/ })).toHaveCount(0)
         await jira.click()
-        await expect(page).toHaveURL((address) => address.pathname === providerPath('jira'))
+        await expect(page).toHaveURL((address) => address.pathname === org.integration('jira'))
         await backToIntegrations(page).click()
         await expect(page).toHaveURL(
           (address) =>
@@ -97,7 +96,7 @@ export async function integrationChecks() {
     'the document carries referrer no-referrer, which protects the Slack token',
     async () => {
       await withSession(MEMBER, async ({ page }) => {
-        for (const path of [org.integrations, providerPath('gmail')]) {
+        for (const path of [org.integrations, org.integration('gmail')]) {
           const response = await page.goto(url(path))
           const header = response?.headers()['referrer-policy']
           const meta = await page
@@ -117,7 +116,7 @@ export async function integrationChecks() {
       await page.goto(url(`${org.integrations}?integration=source:gmail&q=g`))
       await expect(page).toHaveURL(
         (address) =>
-          address.pathname === providerPath('gmail') && address.searchParams.get('q') === 'g'
+          address.pathname === org.integration('gmail') && address.searchParams.get('q') === 'g'
       )
       await expect(page.getByRole('heading', { level: 1, name: 'Gmail' })).toBeVisible()
     })
@@ -129,13 +128,13 @@ export async function integrationChecks() {
         await context.route('https://accounts.google.com/**', (route) =>
           route.fulfill({ status: 200, contentType: 'text/html', body: 'Google stand-in' })
         )
-        await page.goto(url(providerPath('gitlab')))
+        await page.goto(url(org.integration('gitlab')))
         await expect(page.getByRole('heading', { level: 1, name: 'GitLab' })).toBeVisible()
         await expect(page.getByText(/^Managed by your organization\./)).toBeVisible()
         await expect(
           page.getByRole('button', { name: 'Connect integration', exact: true })
         ).toHaveCount(0)
-        await page.goto(url(providerPath('gmail')))
+        await page.goto(url(org.integration('gmail')))
         await expect(page.getByRole('heading', { level: 1, name: 'Gmail' })).toBeVisible()
         await expect(page.getByText('No connected credentials', { exact: true })).toBeVisible()
         const authorization = context.waitForEvent('request', (request) =>
@@ -198,7 +197,7 @@ export async function integrationChecks() {
             await context.route('https://accounts.google.com/**', (route) =>
               route.fulfill({ status: 200, contentType: 'text/html', body: 'Google stand-in' })
             )
-            await page.goto(url(providerPath('gmail')))
+            await page.goto(url(org.integration('gmail')))
             const accounts = page.getByRole('region', {
               name: 'Connected credentials',
               exact: true,
@@ -232,7 +231,7 @@ export async function integrationChecks() {
             await expect(modal).not.toContainText(CONNECTED.email)
             await modal.getByRole('button', { name: 'Cancel', exact: true }).click()
 
-            await page.goto(url(providerPath('gmail')))
+            await page.goto(url(org.integration('gmail')))
             const authorization = context.waitForEvent('request', (request) =>
               request.url().startsWith('https://accounts.google.com/')
             )
@@ -246,13 +245,13 @@ export async function integrationChecks() {
   )
   await check('a stale ?account= says so', async () => {
     await withSession(CONNECTED, async ({ page }) => {
-      await page.goto(url(`${providerPath('gmail')}?account=gone`))
+      await page.goto(url(`${org.integration('gmail')}?account=gone`))
       await expect(page.getByText('This account is no longer connected.')).toBeVisible()
     })
   })
   await check('an unknown provider says it is no longer available', async () => {
     await withSession(MEMBER, async ({ page }) => {
-      await page.goto(url(providerPath('not-a-provider')))
+      await page.goto(url(org.integration('not-a-provider')))
       await expect(page.getByText('This integration is no longer available.')).toBeVisible()
     })
   })
@@ -327,7 +326,7 @@ export async function integrationChecks() {
     'member: approval notice, Allow disabled, Ask and Block selectable, saves with revision',
     async () => {
       await withSession(CONNECTED, async ({ page }) => {
-        await page.goto(url(providerPath('gmail')))
+        await page.goto(url(org.integration('gmail')))
         await page
           .getByRole('region', { name: 'Connected credential', exact: true })
           .getByRole('link', { name: new RegExp(`^${CONNECTED.email}`) })
@@ -404,7 +403,7 @@ export async function integrationChecks() {
       await expect(row).toBeVisible()
       await row.click()
       await expect(page).toHaveURL(
-        (address) => address.pathname === providerPath('generic-secrets')
+        (address) => address.pathname === org.integration('generic-secrets')
       )
       await expect(page.getByRole('heading', { level: 1 })).toContainText('Secrets')
       await expect(

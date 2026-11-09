@@ -142,7 +142,7 @@ export function mapLegacyWorkspaceUrl({
   if (head === 'integrations' && rest.length === 2 && rest[0] === 'connected')
     return `${routes.integrations}?tab=credentials`
   if (head === 'integrations' && rest.length === 1)
-    return withQuery(`${routes.integrations}/${encodeURIComponent(rest[0])}`, query)
+    return withQuery(routes.integration(rest[0]), query)
   if (head === 'upgrade' && rest.length === 0) {
     const reason = query.get('reason')
     const plans = routes.settingsSection('billing/plans')
