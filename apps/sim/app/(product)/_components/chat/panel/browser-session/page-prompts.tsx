@@ -7,6 +7,7 @@ import { SelectField, TextField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
 import { InlineNotice } from '@sim/emcn/status'
 import { useActivationDelay, type useBrowserPanel } from '@/platform/lib/data/browser-panel'
+import { formatInstantDate } from '@/platform/shared/time'
 
 type BrowserPanel = ReturnType<typeof useBrowserPanel>
 type PageDialog = NonNullable<BrowserPanel['dialog']>

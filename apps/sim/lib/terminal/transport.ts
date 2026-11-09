@@ -13,7 +13,6 @@ import {
   type DesktopZoomPercent,
   isPendingDesktopScopeId,
   type SimDesktopTerminalApi,
-  type TerminalPasteResult,
   type TerminalShortcutCommand,
 } from '@sim/desktop-bridge'
 import type {
@@ -238,7 +237,7 @@ export function writeToTerminal(
 export async function pasteIntoTerminal(
   terminalId: string,
   scopeId = currentTerminalScopeId()
-): Promise<TerminalPasteResult> {
+): Promise<boolean | 'too-large'> {
   return (await bridge()?.paste(terminalId, scopeId)) ?? false
 }
 
