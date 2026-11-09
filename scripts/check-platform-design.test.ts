@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, it } from 'vitest'
-import { allowlistReasonFindings } from './platform-allowlist-reasons'
+import { allowlistReasonFindings, staleAllowlistFindings } from './platform-allowlists'
 
 const CHECK = fileURLToPath(new URL('./check-platform-design.ts', import.meta.url))
 const ROOT = mkdtempSync(path.join(tmpdir(), 'sim-platform-design-'))
@@ -18,6 +18,15 @@ function write(file: string, content: string) {
   writeFileSync(absolute, content)
 }
 
+/** Grants `lists` the way `scripts/platform-allowlists.ts` does in the audited tree. */
+function writeAllowlists(root: string, lists: Record<string, Record<string, string>>) {
+  mkdirSync(path.join(root, 'scripts'), { recursive: true })
+  writeFileSync(
+    path.join(root, 'scripts/platform-allowlists.ts'),
+    `export const PLATFORM_ALLOWLISTS = ${JSON.stringify(lists)}\n`
+  )
+}
+
 function audit() {
   const result = spawnSync('bun', [CHECK, ROOT], { encoding: 'utf8' })
   if (result.error) throw result.error
@@ -26,6 +35,7 @@ function audit() {
 
 it('rejects design drift across real JSX, CSS and Paper ownership boundaries', () => {
   try {
+    spawnSync('git', ['init', '-q'], { cwd: ROOT })
     symlinkSync(
       path.resolve(path.dirname(CHECK), '../node_modules'),
       path.join(ROOT, 'node_modules'),
@@ -410,6 +420,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
       export const legacy = () => import('@/components/old')
       export const data = () => import('@/platform/fixtures/data')`
     )
+    writeAllowlists(ROOT, { seamHelpers: { 'lib/auth/client': 'The browser auth client' } })
     write(
       'platform/lib/data/allowed.ts',
       `import type { Principal } from '@/lib/api/contracts/primitives'
@@ -563,6 +574,7 @@ it('rejects design drift across real JSX, CSS and Paper ownership boundaries', (
 /** The smallest app the check passes on: one product page and its design system. */
 function productFixture() {
   const root = mkdtempSync(path.join(tmpdir(), 'sim-platform-product-'))
+  spawnSync('git', ['init', '-q'], { cwd: root })
   const put = (file: string, content: string) => {
     const absolute = path.join(root, 'apps/sim', file)
     mkdirSync(path.dirname(absolute), { recursive: true })
@@ -640,6 +652,15 @@ it.each([
     'app/(product)/o/[organizationId]/home/recipe.ts',
     `import '@sim/emcn/button/button.module.css'`,
   ],
+  ['family-import', 'app/(product)/o/[organizationId]/home/family.ts', `import '@sim/emcn'`],
+  [
+    'legacy-import',
+    'app/(site)/reach.module.css',
+    `.reach { composes: frame from '@/platform/styles/frame.module.css'; }`,
+  ],
+  ['legacy-import', 'platform/checks/seed.ts', `import '@sim/testing/mocks/auth.mock'`],
+  ['legacy-import', 'platform/checks/live/seed.ts', `import '@sim/db/testing/fixtures'`],
+  ['legacy-import', 'scripts/e2e.ts', `import '@/platform/checks/fields'`],
 ])(
   'fails [%s] for %s',
   (rule, file, source) => {
@@ -713,17 +734,23 @@ it('counts a variant a product page mounts through a dynamic section table', () 
   }
 }, 30_000)
 
-it("passes an action's pending label: a pendingLabel, and a Load action's Loading…", () => {
+it("passes an action's pending label, a value token, and copy nothing renders", () => {
   const { root, put, run } = productFixture()
   try {
     put(
       'app/(product)/o/[organizationId]/home/_components/panel/panel.tsx',
       `function Confirm(_: { pendingLabel: string }) { return null }
+      function ActionButton(_: { children: string }) { return null }
+      function Dialog(_: { confirmLabel: string; kind?: string }) { return null }
+      const idle = 'Loading' === 'x' ? 'Create' : 'Invite'
       export function Panel({ busy, all }: { busy: boolean; all: boolean }) {
         return <>
           <Confirm pendingLabel='Loading…' />
           <button>{busy ? 'Loading…' : 'Load more'}</button>
           <button>{busy ? (all ? 'Loading all…' : 'Loading options…') : 'Load all'}</button>
+          <ActionButton>{busy ? 'Saving…' : 'Allow'}</ActionButton>
+          <Dialog confirmLabel={busy ? 'Sending…' : 'Invite'} />
+          <Dialog confirmLabel={idle} kind='loading' />
         </>
       }
 `
@@ -793,6 +820,26 @@ it.each([
     'platform/lib/data/gate.ts',
     `export const gate = (pending: boolean) => (pending ? 'Loading Generic Secrets' : null)`,
   ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/wait.tsx',
+    `export function Wait() { return <p>please wait</p> }`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/fetch.tsx',
+    `export function Fetch({ busy }: { busy: boolean }) { return <p>{busy ? 'Fetching rows…' : 'Rows'}</p> }`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/notice.tsx',
+    `function Notice(_: { message: string }) { return null }; export const Read = () => <Notice message='Reading…' />`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/status.ts',
+    `export function status(ready: boolean) { if (!ready) return 'Checking availability'; return 'Ready' }`,
+  ],
+  [
+    'app/(product)/o/[organizationId]/home/_components/panel/save.tsx',
+    `export function Save({ busy }: { busy: boolean }) { return <p>{busy && 'SAVING CHANGES…'}</p> }`,
+  ],
 ])(
   'fails [loading-copy] for %s',
   (file, source) => {
@@ -808,3 +855,91 @@ it.each([
   },
   30_000
 )
+
+it('passes the live checks their test database guard, and a script the shared hydration helper', () => {
+  const { root, put, run } = productFixture()
+  try {
+    put('platform/checks/live/seed.ts', `import '@sim/db/testing/test-infrastructure'\nexport {}\n`)
+    put('platform/checks/test.ts', 'export const waitUntilHydrated = () => {}\n')
+    put('scripts/e2e.ts', `import '@/platform/checks/test'\nexport {}\n`)
+    expect(run()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
+it('fails [seam-closure] for legacy views and registries reached from the seam, shared, or a host module', () => {
+  const { root, put, run } = productFixture()
+  try {
+    writeAllowlists(root, {
+      seamHelpers: { 'lib/hook': 'A hook the seam runs', 'lib/rows': 'A model shared reads' },
+      platformHostModules: { 'components/host/host': 'A host module views import' },
+    })
+    put('platform/lib/data/chat.ts', `import '@/lib/hook'\nexport {}\n`)
+    put('lib/hook.ts', `import '@/components/legacy/view'\nimport '@/blocks/registry'\nexport {}\n`)
+    put('components/legacy/view.tsx', 'export const View = () => null\n')
+    put('blocks/registry.ts', 'export {}\n')
+    put('platform/shared/rows.ts', `import '@/lib/rows'\nexport {}\n`)
+    put('lib/rows.ts', `import '@/components/legacy/rows-view'\nexport {}\n`)
+    put('components/legacy/rows-view.tsx', 'export const RowsView = () => null\n')
+    put(
+      'app/(product)/o/[organizationId]/home/host-user.ts',
+      `import '@/components/host/host'\nexport {}\n`
+    )
+    put(
+      'components/host/host.tsx',
+      `import '@/components/host/part'\nimport '@/components/legacy/host-view'\nexport {}\n`
+    )
+    put('components/host/part.tsx', 'export const Part = () => null\n')
+    put('components/legacy/host-view.tsx', 'export const HostView = () => null\n')
+    const result = run()
+    expect(result.status).toBe(1)
+    for (const file of [
+      'components/legacy/view.tsx',
+      'blocks/registry.ts',
+      'components/legacy/rows-view.tsx',
+      'components/legacy/host-view.tsx',
+    ])
+      expect(result.output).toContain(`${file} [seam-closure]`)
+    expect(result.output).not.toContain('components/host/part.tsx [seam-closure]')
+    expect(result.output).not.toContain('[stale-allowlist]')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
+it('fails [stale-allowlist] for each entry no check needed', () => {
+  const { root, put, run } = productFixture()
+  try {
+    writeAllowlists(root, {
+      seamHelpers: { 'lib/used': 'Imported by the seam', 'lib/unused': 'Imported by nothing' },
+      LOADING_COPY_OWNERS: { 'platform/lib/data/quiet.ts': 'Has no loading copy' },
+      CODE_FIRST_VARIANTS: { 'Button.variant=primary': 'Has a Paper key' },
+    })
+    put('platform/lib/data/quiet.ts', `import '@/lib/used'\nexport const label = 'Ready'\n`)
+    put('lib/used.ts', 'export {}\n')
+    const result = run()
+    expect(result.status).toBe(1)
+    expect(result.output).not.toContain('names lib/used,')
+    for (const entry of [
+      'seamHelpers names lib/unused',
+      'LOADING_COPY_OWNERS names platform/lib/data/quiet.ts',
+      'CODE_FIRST_VARIANTS names Button.variant=primary',
+    ])
+      expect(result.output).toContain(`[stale-allowlist] ${entry}`)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
+it('names the allowlist entries no check consulted', () => {
+  expect(
+    staleAllowlistFindings(
+      { seamHelpers: { 'lib/a': 'used', 'lib/b': 'unused' }, LOCAL_TOKEN_OWNERS: { 'x.css': 'r' } },
+      new Map([['seamHelpers', new Set(['lib/a'])]])
+    )
+  ).toEqual([
+    'seamHelpers names lib/b, which no check needed; delete the entry',
+    'LOCAL_TOKEN_OWNERS names x.css, which no check needed; delete the entry',
+  ])
+})

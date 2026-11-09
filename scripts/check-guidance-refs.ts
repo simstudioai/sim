@@ -19,9 +19,9 @@
  *
  * Run: `bun run check:guidance-refs`
  */
-import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
+import { listRepoFiles } from './repo-files'
 import { parseRule } from './sync-skills'
 
 const ROOT = path.resolve(import.meta.dir, '..')
@@ -34,20 +34,6 @@ interface Finding {
   line: number
   kind: 'path' | 'script' | 'skill' | 'import'
   ref: string
-}
-
-/**
- * Every tracked or untracked-but-not-ignored file on disk, relative to the repo root. A file
- * deleted from the working tree but still in the index is dropped.
- */
-function repoFiles(): string[] {
-  return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    maxBuffer: 1 << 28,
-  })
-    .split('\n')
-    .filter((rel) => rel && existsSync(path.join(ROOT, rel)))
 }
 
 /** Every guidance document, deduplicated through symlinks (`AGENTS.md` -> `CLAUDE.md`). */
@@ -344,7 +330,7 @@ function auditDocument(relFile: string, workspaces: Workspaces, files: string[])
 }
 
 if (import.meta.main) {
-  const files = repoFiles()
+  const files = listRepoFiles(ROOT)
   const docs = guidanceFiles(files)
   const workspaces = readWorkspaces(files)
   const findings = docs.flatMap((doc) => auditDocument(doc, workspaces, files))
