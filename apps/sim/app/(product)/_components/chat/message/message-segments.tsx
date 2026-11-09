@@ -34,6 +34,8 @@ export interface TurnReceiptsProps {
   /** The turn is still streaming, so its receipts poll. */
   active: boolean
   mountedTurnCount: number
+  /** The turn's tool calls whose receipts are read by id when no page covers them. */
+  candidateIds: readonly string[]
   /** Actions still waiting for review, which show as review cards instead. */
   pendingIds: ReadonlySet<string>
 }

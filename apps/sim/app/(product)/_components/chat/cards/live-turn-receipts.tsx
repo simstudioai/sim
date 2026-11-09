@@ -17,6 +17,7 @@ export function LiveTurnReceipts({
   streamId,
   active,
   mountedTurnCount,
+  candidateIds,
   pendingIds,
 }: TurnReceiptsProps) {
   const { organization } = useOrganization()
@@ -26,9 +27,17 @@ export function LiveTurnReceipts({
     streamId,
     active,
     mountedTurnCount,
+    candidateIds,
   })
   const receipts = history.receipts.filter((receipt) => !pendingIds.has(receipt.id))
-  if (!receipts.length && history.status !== 'error' && !history.more) return null
+  const { recovery } = history
+  if (
+    !receipts.length &&
+    history.status !== 'error' &&
+    !history.more &&
+    (!recovery || recovery.loading)
+  )
+    return null
   return (
     <section className={styles.history} aria-label='Action history'>
       {receipts.map((receipt) => (
@@ -40,6 +49,23 @@ export function LiveTurnReceipts({
           retrying={history.retrying}
           onRetry={history.retry}
         />
+      )}
+      {recovery && !recovery.loading && (
+        <div className={styles.actions}>
+          <p className={styles.quiet} data-type='T052' role='status'>
+            Action details unavailable
+          </p>
+          {recovery.failed && (
+            <Button
+              variant='muted'
+              size='compact'
+              disabled={recovery.fetching}
+              onClick={recovery.retry}
+            >
+              Retry
+            </Button>
+          )}
+        </div>
       )}
       {history.more && (
         <div className={styles.actions}>

@@ -250,6 +250,8 @@ export interface ChatRuntime {
     active: boolean
     /** The stream each assistant turn ran on, which names that turn's receipts. */
     streamIds: ReadonlyMap<string, string>
+    /** Each assistant turn's tool calls whose receipts are read by id when no page covers them. */
+    candidates: ReadonlyMap<string, readonly string[]>
     status: 'loading' | 'ready' | 'error'
     actions: readonly AssistantReviewAction[]
     /** More actions wait behind this batch. */

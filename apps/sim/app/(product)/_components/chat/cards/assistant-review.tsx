@@ -240,6 +240,10 @@ export function AssistantReview({ turnId }: { turnId: string }) {
         streamId={streamId}
         active={review.active && ownsActions}
         mountedTurnCount={streamIds.size}
+        candidateIds={[
+          ...(review.candidates.get(turnId) ?? []),
+          ...(ownsActions ? pendingIds : []),
+        ]}
         pendingIds={ownsActions ? pendingIds : new Set()}
       />
     ) : null

@@ -11,18 +11,20 @@ import type {
   AssistantActionsResponse,
 } from '@/lib/api/contracts/assistant-actions'
 import { getLiveAssistantMessageId } from '@/lib/mothership/chat/live-message-id'
-import type { ChatMessage } from '@/lib/mothership/chat/types'
+import { type ChatMessage, ToolCallStatus } from '@/lib/mothership/chat/types'
 import type {
   AssistantReceipt,
   AssistantReviewField,
   ChatRuntime,
 } from '@/app/(product)/_components/chat/model'
 import {
+  useAssistantActionReceiptBatches,
   useAssistantActionReview,
   useAssistantActionTurnReceipts,
   useDecideAssistantAction,
   useRefreshAssistantActionReceipts,
 } from '@/hooks/queries/assistant-actions'
+import { getToolMetadata } from '@/tools/metadata'
 
 type ReceiptState = AssistantActionReceiptsResponse['receipts'][number]['state']
 
@@ -39,6 +41,40 @@ const RECEIPT_LABELS: Record<ReceiptState, string> = {
 type ReviewedField = AssistantActionsResponse['actions'][number]['fields'][number]
 
 /** A field as the review shows it: readable label, enum text, and indented JSON. */
+/**
+ * The tool calls of a message whose receipts may exist: an Assistant write, or a call that waited
+ * for review. Their receipts are read by id when the turn's pages do not cover them.
+ */
+function receiptCandidates(message: ChatMessage): string[] {
+  return (message.contentBlocks ?? []).flatMap(({ toolCall }) => {
+    const assistant = toolCall && getToolMetadata(toolCall.name)?.assistant
+    return toolCall &&
+      assistant &&
+      (assistant.effect === 'write' || toolCall.status === ToolCallStatus.awaiting_approval)
+      ? [toolCall.id]
+      : []
+  })
+}
+
+type ReceiptRow = AssistantActionReceiptsResponse['receipts'][number]
+
+function presentReceipt(receipt: ReceiptRow): AssistantReceipt {
+  const presentation = assistantActionPresentation(receipt)
+  const lead = presentation.primary[0]
+  return {
+    id: receipt.toolCallId,
+    title: presentation.title,
+    state: receipt.state,
+    stateLabel: RECEIPT_LABELS[receipt.state],
+    summary: lead ? assistantActionFieldPresentation(lead).value : undefined,
+    warning: receipt.warning ?? undefined,
+    account: receipt.account?.displayName,
+    fields: receipt.detailsAvailable
+      ? receipt.fields.filter((field) => field.value !== '').map(presentField)
+      : undefined,
+  }
+}
+
 function presentField(field: ReviewedField): AssistantReviewField {
   const display = assistantActionFieldPresentation(field)
   let value = display.value
@@ -83,6 +119,13 @@ export function useAssistantReview({
   const { data: reviewData, refetch, isError, isPending } = review
   const currentStreamId = reviewData?.streamId ?? null
   const { mutateAsync: decideAction } = decide
+  const candidates = useMemo(() => {
+    const ids = new Map<string, readonly string[]>()
+    for (const message of messages) {
+      if (message.role === 'assistant') ids.set(message.id, receiptCandidates(message))
+    }
+    return ids
+  }, [messages])
   const streamIds = useMemo(() => {
     const streams = new Map<string, string>()
     for (const message of messages) {
@@ -112,6 +155,7 @@ export function useAssistantReview({
       chatId,
       active,
       streamIds,
+      candidates,
       status: isError ? 'error' : isPending ? 'loading' : 'ready',
       pending,
       more: reviewData?.nextCursor != null,
@@ -162,6 +206,7 @@ export function useAssistantReview({
     chatId,
     active,
     streamIds,
+    candidates,
     reviewData,
     refetch,
     isError,
@@ -180,6 +225,8 @@ interface TurnReceiptsOptions {
   active: boolean
   /** How many turns read receipts at once, which spaces out their polling. */
   mountedTurnCount: number
+  /** Tool calls of the turn whose receipts are read by id when no page covers them. */
+  candidateIds: readonly string[]
 }
 
 /**
@@ -192,6 +239,7 @@ export function useTurnReceipts({
   streamId,
   active,
   mountedTurnCount,
+  candidateIds,
 }: TurnReceiptsOptions) {
   const query = useAssistantActionTurnReceipts({
     organizationId,
@@ -202,28 +250,32 @@ export function useTurnReceipts({
     mountedTurnCount,
   })
   const pages = query.data?.pages
-  const receipts = useMemo<AssistantReceipt[]>(
-    () =>
-      (pages ?? [])
-        .flatMap((page) => page.receipts)
-        .map((receipt) => {
-          const presentation = assistantActionPresentation(receipt)
-          const lead = presentation.primary[0]
-          return {
-            id: receipt.toolCallId,
-            title: presentation.title,
-            state: receipt.state,
-            stateLabel: RECEIPT_LABELS[receipt.state],
-            summary: lead ? assistantActionFieldPresentation(lead).value : undefined,
-            warning: receipt.warning ?? undefined,
-            account: receipt.account?.displayName,
-            fields: receipt.detailsAvailable
-              ? receipt.fields.filter((field) => field.value !== '').map(presentField)
-              : undefined,
-          }
-        }),
-    [pages]
-  )
+  const paged = useMemo(() => (pages ?? []).flatMap((page) => page.receipts), [pages])
+  const covered = useMemo(() => new Set(paged.map((receipt) => receipt.toolCallId)), [paged])
+  // Receipts the pages no longer carry, such as one a decision removed from the pending batch,
+  // are read by id in immutable batches, as the legacy turn recovered them.
+  const batches = useAssistantActionReceiptBatches({
+    organizationId,
+    chatId,
+    streamId,
+    candidateIds,
+    coveredIds: covered,
+    enabled: query.isSuccess || query.isError,
+    pageCount: pages?.length ?? 1,
+    mountedTurnCount,
+  })
+  const byId = new Map<string, ReceiptRow>()
+  for (const { query: batch } of batches) {
+    for (const receipt of batch.data?.receipts ?? []) byId.set(receipt.toolCallId, receipt)
+  }
+  for (const receipt of paged) byId.set(receipt.toolCallId, receipt)
+  const receipts: AssistantReceipt[] = [...byId.values()]
+    .sort(
+      (left, right) =>
+        (left.sequence ?? Number.MAX_SAFE_INTEGER) - (right.sequence ?? Number.MAX_SAFE_INTEGER)
+    )
+    .map(presentReceipt)
+  const missing = batches.filter(({ ids }) => ids.some((id) => !byId.has(id)))
   return {
     receipts,
     status: query.isError ? 'error' : query.isPending ? 'loading' : 'ready',
@@ -232,5 +284,16 @@ export function useTurnReceipts({
     more: query.hasNextPage,
     loadingMore: query.isFetchingNextPage,
     loadMore: () => void query.fetchNextPage(),
+    /** Batches still owing a receipt: read in flight, or failed and retryable. */
+    recovery: missing.length
+      ? {
+          loading: missing.some(({ query: batch }) => batch.isLoading),
+          fetching: missing.some(({ query: batch }) => batch.isFetching),
+          failed: missing.some(({ query: batch }) => batch.isError),
+          retry: () => {
+            for (const { query: batch } of missing) void batch.refetch()
+          },
+        }
+      : null,
   } as const
 }
