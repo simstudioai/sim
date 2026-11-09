@@ -10,6 +10,8 @@ import { formatCredentialSubmissionMessage } from '@/lib/mothership/chat/special
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import type { PlatformCredentialRequest } from '@/app/(product)/_components/chat/model'
+import { getMyAccessRequestHref } from '@/ee/access-requests/lib/navigation'
+import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 import {
   usePersonalEnvironment,
   useSavePersonalEnvironment,
@@ -208,5 +210,26 @@ export function useUsageLink(action: string) {
       : upgrade
         ? buildHostedUpgradeUrl()
         : HOSTED_BILLING_SETTINGS_URL,
+  }
+}
+
+/**
+ * A member refused by their credit limit can ask an admin to raise it once the server confirms the
+ * organization set them one, as legacy's `MemberLimitRequestAction` checked before offering it.
+ */
+export function useMemberLimitRequest(enabled: boolean) {
+  const { organization } = useOrganization()
+  const scope = { kind: 'organization', organizationId: organization.id } as const
+  const discovery = useDiscoverAccessRequests(
+    { ...scope, targetKind: 'usage_limit', limit: 1, offset: 0 },
+    enabled
+  )
+  const entry = discovery.data?.entries.find((candidate) => candidate.state === 'requestable')
+  if (!discovery.isSuccess || !discovery.data.enabled || !entry) return null
+  return {
+    scope,
+    target: entry.target,
+    label: entry.label,
+    requestHref: (requestId: string) => getMyAccessRequestHref(scope, requestId),
   }
 }
