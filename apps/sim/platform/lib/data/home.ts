@@ -82,7 +82,7 @@ function currentMinute() {
   return Math.floor(Date.now() / MINUTE_MS) * MINUTE_MS
 }
 
-/** Home mounts only after hydration, behind its host's gate, so no markup can disagree. */
+/** Home renders nothing from this clock until it hydrates, so no markup can disagree. */
 function useMinuteClock(): number {
   return useSyncExternalStore(subscribeToMinutes, currentMinute, currentMinute)
 }
@@ -387,7 +387,7 @@ function isHomeWidget(widget: string): widget is HomeWidget {
   return widget === 'Activity' || widget === 'Email' || widget === 'Calendar'
 }
 
-export interface HiddenHomeWidgets {
+interface HiddenHomeWidgets {
   hiddenWidgets: readonly HomeWidget[]
   setWidgetHidden: (widget: HomeWidget, hidden: boolean) => void
 }

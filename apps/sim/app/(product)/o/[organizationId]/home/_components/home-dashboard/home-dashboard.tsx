@@ -89,7 +89,9 @@ export function HomeDashboard({
               <header className={styles.greeting}>
                 <div>
                   <h1 data-type='T076'>
-                    {view.firstName ? `${view.greeting}, ${view.firstName}` : view.greeting}
+                    {view.greeting && view.firstName
+                      ? `${view.greeting}, ${view.firstName}`
+                      : view.greeting}
                   </h1>
                   <p data-type='T048'>{prompt}</p>
                 </div>
