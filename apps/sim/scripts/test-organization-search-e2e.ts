@@ -15,6 +15,7 @@ import postgres from 'postgres'
 import { searchWorkspaceKnowledgeContract } from '@/lib/api/contracts/knowledge/search'
 import { type CreateEventInput, createEvent } from '@/lib/mothership/request/session/event'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { waitUntilHydrated } from '@/platform/checks/test'
 
 /**
  * Runs against a local app and disposable PostgreSQL with member Search and Access Control enabled.
@@ -872,6 +873,18 @@ try {
     await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
     const response = await page.request.get(appUrl(`/api/mothership/chats/${deniedChatId}`))
     assert.equal(response.status(), 404)
+    // Neither the document nor the payload a client navigation reads carries the other
+    // organization's chat. Its id is the requested path, so the router state names it.
+    const payload = await (
+      await page.request.get(appUrl(routes.searchChat(deniedChatId)), { headers: { RSC: '1' } })
+    ).text()
+    for (const [source, body] of [
+      ['document', html],
+      ['RSC payload', payload],
+    ] as const) {
+      assert(!body.includes('Other organization history'), `The ${source} disclosed the chat title`)
+      assert(!body.includes(otherOrganizationId), `The ${source} disclosed the other organization`)
+    }
   })
   await check(STAGES.streamedDenied, async () => {
     const releaseScripts = createDeferred<void>()
@@ -892,6 +905,9 @@ try {
     }
     await page.waitForLoadState()
     await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible()
+    // React reports the denied boundary's recovery as it hydrates it, so the page is hydrated
+    // before Return home: a press on server markup is lost, and the report would name Home's URL.
+    await waitUntilHydrated(page)
     await page.getByRole('button', { name: 'Return home', exact: true }).click()
     await expect(page).toHaveURL(appUrl(routes.home))
     await expect(homeComposer(page)).toBeVisible()
@@ -1094,10 +1110,8 @@ try {
     const deniedRecoveries = browserErrorEvents.filter(
       (event) =>
         event.digest === 'NEXT_HTTP_ERROR_FALLBACK;404' &&
-        ((event.url === appUrl(routes.searchChat(deniedChatId)) &&
-          deniedStages.includes(event.stage)) ||
-          // React reports the recovery once hydration settles, which can be after Return home.
-          (event.url === appUrl(routes.home) && event.stage === STAGES.streamedDenied))
+        event.url === appUrl(routes.searchChat(deniedChatId)) &&
+        deniedStages.includes(event.stage)
     )
     const recoveryCount = deniedRecoveries.reduce((total, event) => total + event.count, 0)
     assert.equal(

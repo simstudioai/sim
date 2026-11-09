@@ -551,16 +551,18 @@ async function run() {
           // A chart with no reporting lines repeats the header's action in its empty state.
           const openSync = page.getByRole('button', { name: 'Directory sync', exact: true }).first()
           await openSync.click()
-          await page.getByRole('heading', { name: 'Directory sync', level: 1 }).waitFor()
-          await page.getByRole('button', { name: 'Retry', exact: true }).waitFor()
+          const syncHeading = page.getByRole('heading', { name: 'Directory sync', level: 1 })
+          await syncHeading.waitFor()
+          const syncPage = page.getByRole('main').filter({ has: syncHeading })
+          await syncPage.getByRole('button', { name: 'Retry', exact: true }).waitFor()
           await page.unroute(statusUrl)
-          await expect(page.getByText('Sync failed', { exact: true })).toBeVisible({
+          await expect(syncPage.getByText('Sync failed', { exact: true })).toBeVisible({
             timeout: 60_000,
           })
-          await expect(page.getByText(/reporting loop/)).toBeVisible()
+          await expect(syncPage.getByText(/reporting loop/)).toBeVisible()
           await page.screenshot({ path: join(screenshotDir, 'sync-failure.png') })
-          await page.getByRole('button', { name: 'Retry sync' }).click()
-          await expect(page.getByText('Connected', { exact: true })).toBeVisible()
+          await syncPage.getByRole('button', { name: 'Retry sync' }).click()
+          await expect(syncPage.getByText('Connected', { exact: true })).toBeVisible()
           await expect(page.getByText('Last successful sync')).toBeVisible()
           await page.setViewportSize({ width: 390, height: 844 })
           await page.screenshot({ path: join(screenshotDir, 'sync-recovered-mobile.png') })
@@ -590,7 +592,7 @@ async function run() {
             .getByRole('dialog', { name: 'Connect SCIM provisioning' })
             .getByRole('button', { name: 'Connect and sync' })
             .click()
-          await expect(page.getByText('Connected', { exact: true })).toBeVisible()
+          await expect(syncPage.getByText('Connected', { exact: true })).toBeVisible()
         } finally {
           await browser.close()
         }
