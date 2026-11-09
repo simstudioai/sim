@@ -290,13 +290,14 @@ export function FileView({ workspaceId, fileId }: FileViewProps) {
           </Button>
           {access.canEdit && (
             <>
-              <Button variant='quiet' size='compact' onClick={() => setDialog('share')}>
+              <Button variant='quiet' size='compact' icon='I030' onClick={() => setDialog('share')}>
                 Share
               </Button>
               <Button
                 variant='quiet'
                 size='compact'
                 destructive
+                icon='I061'
                 onClick={() => setDialog('delete')}
               >
                 Delete
