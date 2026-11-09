@@ -29,7 +29,10 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
-import { addUserToOrganization } from '@/lib/billing/organizations/membership'
+import {
+  addUserToOrganization,
+  ensureUserInOrganizationTx,
+} from '@/lib/billing/organizations/membership'
 import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
 
 const userIds: string[] = []
@@ -328,6 +331,45 @@ describe('team-only configuration on a personal organization', () => {
       )
     ).toBeUndefined()
   })
+
+  it.runIf(migrated)(
+    'refuses a join over team-only rows written around the guards, naming no table',
+    async () => {
+      const joinerId = await createUser()
+      const teamId = await team(await createUser())
+      const personalId = await personalOrganizationOf(joinerId)
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL session_replication_role = replica`)
+        await tx.insert(organizationBYOKKeys).values({
+          id: generateId(),
+          organizationId: personalId,
+          providerId: 'openai',
+          encryptedApiKey: 'ciphertext',
+        })
+      })
+
+      await expect(
+        db.transaction((tx) =>
+          ensureUserInOrganizationTx(tx, {
+            userId: joinerId,
+            organizationId: teamId,
+            role: 'member',
+            skipBillingLogic: true,
+            skipSeatValidation: true,
+          })
+        )
+      ).rejects.toMatchObject({
+        code: 'conflict',
+        message:
+          "This account's personal organization holds data that cannot move into another organization.",
+      })
+      const memberships = await db
+        .select({ organizationId: member.organizationId })
+        .from(member)
+        .where(eq(member.userId, joinerId))
+      expect(memberships).toEqual([{ organizationId: personalId }])
+    }
+  )
 
   it.runIf(migrated)('leaves no organization-scoped table unclassified', async () => {
     const rows = await db.execute<{ table_name: string }>(sql`

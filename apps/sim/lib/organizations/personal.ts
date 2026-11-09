@@ -351,13 +351,60 @@ async function moveOrganizationContentTx(
   return { moved, deleted }
 }
 
+interface CascadingReference {
+  schema: string
+  table: string
+  column: string
+}
+
+let cascadingReferences: Promise<CascadingReference[]> | undefined
+
+/**
+ * Every single-column foreign key that deletes its rows with an organization, membership aside,
+ * read from the catalog once per process (the schema only changes with a release), on the first
+ * retirement's transaction. A composite one
+ * could not be checked by organization id alone, so it fails loudly rather than being skipped.
+ */
+function loadCascadingReferences(tx: DbTransaction): Promise<CascadingReference[]> {
+  cascadingReferences ??= tx
+    .execute<{ schema_name: string; table_name: string; column_name: string; columns: number }>(sql`
+      SELECT n.nspname AS schema_name, t.relname AS table_name, a.attname AS column_name,
+        cardinality(c.conkey) AS columns
+      FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+      WHERE c.contype = 'f'
+        AND c.confrelid = 'organization'::regclass
+        AND c.confdeltype = 'c'
+        AND t.relname <> 'member'
+      ORDER BY 1, 2, 3
+    `)
+    .then((rows) => {
+      const composite = rows.find((row) => row.columns > 1)
+      if (composite) {
+        throw new Error(`Composite cascading organization reference on ${composite.table_name}`)
+      }
+      return rows.map((row) => ({
+        schema: row.schema_name,
+        table: row.table_name,
+        column: row.column_name,
+      }))
+    })
+    .catch((error: unknown) => {
+      cascadingReferences = undefined
+      throw error
+    })
+  return cascadingReferences
+}
+
 /**
  * Proves nothing would cascade away with the personal organization: every table whose rows its
- * deletion would delete must hold none of them by now (its membership aside). Every such table is
- * moved, keyed, deleted as organization-bound (above), or refused on personal organizations by
- * migrations 0456 and 0457 (`personal-organization-join.integration.ts` proves the classification
- * is complete), so this only refuses a join over rows written around those guards, rather than
- * losing them.
+ * deletion would delete must hold none of them by now (its membership aside), checked in one
+ * statement. Every such table is moved, keyed, deleted as organization-bound (above), or refused on
+ * personal organizations by migrations 0456 and 0457 (`personal-organization-join.integration.ts`
+ * proves the classification is complete), so this only refuses a join over rows written around
+ * those guards, rather than losing them.
  */
 async function assertNothingCascadesTx(tx: DbTransaction, organizationId: string) {
   const members = await tx
@@ -368,28 +415,28 @@ async function assertNothingCascadesTx(tx: DbTransaction, organizationId: string
   if (members.length > 1) {
     throw new OrchestrationError('conflict', 'A personal organization has more than one member.')
   }
-  const references = await tx.execute<{ table_name: string; column_name: string }>(sql`
-    SELECT c.conrelid::regclass::text AS table_name, a.attname AS column_name
-    FROM pg_constraint c
-    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
-    WHERE c.contype = 'f'
-      AND c.confrelid = 'organization'::regclass
-      AND c.confdeltype = 'c'
-      AND cardinality(c.conkey) = 1
-  `)
-  for (const reference of references) {
-    if (reference.table_name === 'member') continue
-    const remaining = await tx.execute(sql`
-      SELECT 1 FROM ${sql.raw(reference.table_name)}
-      WHERE ${sql.identifier(reference.column_name)} = ${organizationId}
-      LIMIT 1
-    `)
-    if (remaining.length > 0) {
-      throw new OrchestrationError(
-        'conflict',
-        `This account's personal organization holds ${reference.table_name} data that cannot move into another organization.`
-      )
-    }
+  const references = await loadCascadingReferences(tx)
+  if (references.length === 0) return
+  const probes = sql.join(
+    references.map(
+      ({ schema, table, column }) => sql`
+        SELECT ${table}::text AS table_name WHERE EXISTS (
+          SELECT 1 FROM ${sql.identifier(schema)}.${sql.identifier(table)}
+          WHERE ${sql.identifier(column)} = ${organizationId}
+        )`
+    ),
+    sql` UNION ALL `
+  )
+  const [remaining] = await tx.execute<{ table_name: string }>(sql`${probes} LIMIT 1`)
+  if (remaining) {
+    logger.error('Personal organization holds rows that would cascade away on retirement', {
+      organizationId,
+      table: remaining.table_name,
+    })
+    throw new OrchestrationError(
+      'conflict',
+      "This account's personal organization holds data that cannot move into another organization."
+    )
   }
 }
 
