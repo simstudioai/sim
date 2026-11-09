@@ -3,7 +3,7 @@
 import { Chip } from '@sim/emcn-legacy'
 import { Plus } from '@sim/emcn-legacy/icons'
 import { useQueryStates } from 'nuqs'
-import { emptyBenchmarkSelection } from '@/app/benchmark/search-params'
+import { emptyBenchmarkSelection } from '@/app/(site)/benchmark/search-params'
 import { BenchmarkDetail, CreateBenchmark } from '@/app/o/[organizationId]/benchmark/components'
 import {
   benchmarkParams,

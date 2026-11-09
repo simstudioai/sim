@@ -10,6 +10,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { getErrorMessage } from '@sim/utils/errors'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/platform/app/(shell)/_components/command-menu/page-commands'
 import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
 import {
@@ -94,7 +95,6 @@ import {
 import { platformHref } from '@/platform/lib/navigation'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
 import { formatRelativeTime } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 const ROOT_LABEL = 'Tables'
 const ROW_MIME = 'application/x-sim-workspace-table-rows'

@@ -88,7 +88,7 @@ export async function executeOAuthGetAuthLink(
       context.chatOrganizationId && context.chatId
         ? `${baseUrl}/o/${context.chatOrganizationId}/chat/${context.chatId}`
         : context.workflowId
-          ? `${baseUrl}/workspace/${workspaceId}/w/${context.workflowId}`
+          ? `${baseUrl}/workspace/${workspaceId}/workflows/${context.workflowId}`
           : context.chatId
             ? `${baseUrl}/workspace/${workspaceId}/chat/${context.chatId}`
             : `${baseUrl}/workspace/${workspaceId}`

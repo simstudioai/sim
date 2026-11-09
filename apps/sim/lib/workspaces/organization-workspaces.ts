@@ -1,9 +1,9 @@
 import { AuditAction, AuditResourceType, recordAuditBatch } from '@sim/audit'
 import { db } from '@sim/db'
-import { invitation, member, permissions, workspace } from '@sim/db/schema'
+import { invitation, member, organization, permissions, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import {
   acquireOrganizationMutationLock,
@@ -70,7 +70,8 @@ type ExternalMemberPolicy = 'reject' | 'keep-external' | 'external-all'
 
 /**
  * The single definition of "a workspace that follows this user into an
- * organization": owned (or billed) by them, not yet organization-owned, and —
+ * organization": owned (or billed) by them, in no organization or in their
+ * personal organization (whose workspaces return there first), and —
  * unless `includeArchived` — not archived. Every site that selects, locks, or
  * previews attachable workspaces must build its WHERE from this so the
  * acceptance lock plan, the attach queries, and the accept-screen preview can
@@ -89,7 +90,17 @@ export function ownedAttachableWorkspacesWhere({
     ownerMatch === 'owner'
       ? eq(workspace.ownerId, userId)
       : eq(workspace.billedAccountUserId, userId),
-    isNull(workspace.organizationId),
+    or(
+      isNull(workspace.organizationId),
+      inArray(
+        workspace.organizationId,
+        db
+          .select({ id: member.organizationId })
+          .from(member)
+          .innerJoin(organization, eq(organization.id, member.organizationId))
+          .where(and(eq(member.userId, userId), eq(organization.kind, 'personal')))
+      )
+    ),
     ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION),
     ...(includeArchived ? [] : [isNull(workspace.archivedAt)])
   )
@@ -295,11 +306,23 @@ export async function attachOwnedWorkspacesToOrganizationTx(
   const memberships =
     workspaceMemberIds.length > 0
       ? await tx
-          .select({ userId: member.userId, organizationId: member.organizationId })
+          .select({
+            userId: member.userId,
+            organizationId: member.organizationId,
+            kind: organization.kind,
+          })
           .from(member)
+          .innerJoin(organization, eq(organization.id, member.organizationId))
           .where(inArray(member.userId, workspaceMemberIds))
       : []
-  const membershipByUser = new Map(memberships.map((row) => [row.userId, row.organizationId]))
+  /**
+   * A collaborator in their own personal organization counts as belonging to no organization, as
+   * they did before personal organizations: joining retires it, their own workspaces staying
+   * theirs and private.
+   */
+  const membershipByUser = new Map(
+    memberships.filter((row) => row.kind === 'team').map((row) => [row.userId, row.organizationId])
+  )
   const differentOrgMembers = workspaceMemberIds.filter((userId) => {
     const currentOrganizationId = membershipByUser.get(userId)
     return currentOrganizationId !== undefined && currentOrganizationId !== organizationId

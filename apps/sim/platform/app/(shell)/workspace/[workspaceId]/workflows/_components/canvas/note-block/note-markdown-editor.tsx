@@ -3,12 +3,12 @@
 import { type ClipboardEvent, useLayoutEffect, useRef, useState } from 'react'
 import { cn } from '@sim/emcn/lib/cn'
 import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
+import { toast } from '@/lib/toast/sink'
 import { RichMarkdownField } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/rich-markdown-field'
 import type { NoteContentEditorProps } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/canvas/note-block/note-block'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/canvas/note-block/note-markdown-editor.module.css'
 import { useNoteImageUpload } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/canvas/note-block/use-note-image-upload'
 import { assessRawMarkdownPaste, isRoundTripSafe } from '@/platform/lib/data/workflows'
-import { toast } from '@/platform/shared/toast'
 
 const NOTE_EDITOR_PLACEHOLDER = "Add note, or press '/' for commands…"
 

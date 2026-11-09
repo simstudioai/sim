@@ -6,13 +6,13 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
+  BooleanRow,
+  SavedSettingsSection,
+} from '@/platform/app/(shell)/_components/settings-parts/saved-settings'
+import {
   ProfileForm,
   ProfileSettings,
 } from '@/platform/app/(shell)/settings/_components/profile/profile-settings'
-import {
-  BooleanRow,
-  SavedSettingsSection,
-} from '@/platform/app/(shell)/settings/_components/section-parts/saved-settings'
 import { useAppearanceSettings, useSnapToGridSetting } from '@/platform/lib/data/preferences'
 import { readAppearance } from '@/platform/lib/navigation'
 import { useProfileSettings } from '@/platform/shared/preferences'

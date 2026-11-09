@@ -12,7 +12,7 @@ import { parseAsString, useQueryState } from 'nuqs'
 import {
   FieldStack,
   SectionStack,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import type {
   CredentialGroupsData,
   WorkspaceGrant,

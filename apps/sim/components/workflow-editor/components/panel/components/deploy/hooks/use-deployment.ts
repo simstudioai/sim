@@ -1,5 +1,4 @@
 import { useCallback, useState } from 'react'
-import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import {
@@ -8,6 +7,7 @@ import {
 } from '@/components/workflow-editor/components/panel/components/deploy/hooks/deploy-action-lock'
 import { runPreDeployChecks } from '@/components/workflow-editor/components/panel/components/deploy/hooks/predeploy-checks'
 import type { DeployReadiness } from '@/components/workflow-editor/components/panel/components/deploy/hooks/use-deploy-readiness'
+import { toast } from '@/lib/toast/sink'
 import { useDeployWorkflow } from '@/hooks/queries/deployments'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 import { syncLocalDraftFromServer } from '@/stores/workflows/sync-local-draft'

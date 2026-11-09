@@ -11,6 +11,7 @@ import {
   credential,
   invitation,
   member,
+  type OrganizationKind,
   organization,
   permissionGroupMember,
   permissions,
@@ -68,6 +69,10 @@ import {
   revokePersonalApiKeysTx,
   revokeUserSessionsTx,
 } from '@/lib/organizations/members/revocation'
+import {
+  createPersonalOrganizationTx,
+  retirePersonalOrganizationTx,
+} from '@/lib/organizations/personal'
 import { reassignOrganizationProjects } from '@/lib/projects/membership'
 import {
   handoffProjectsForOrganizationDepartureTx,
@@ -683,8 +688,9 @@ export async function ensureUserInOrganizationTx(
   await acquireOrgMembershipLock(tx, userId, organizationId)
 
   const existingMemberships = await tx
-    .select({ id: member.id, organizationId: member.organizationId })
+    .select({ id: member.id, organizationId: member.organizationId, kind: organization.kind })
     .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(eq(member.userId, userId))
 
   const sameOrganization = existingMemberships.find(
@@ -698,11 +704,12 @@ export async function ensureUserInOrganizationTx(
       billingActions: emptyBillingActions,
     }
   }
-  if (existingMemberships.length > 0) {
+  const teamMemberships = existingMemberships.filter((membership) => membership.kind === 'team')
+  if (teamMemberships.length > 0) {
     return {
       success: false,
       alreadyMember: false,
-      existingOrgId: existingMemberships[0].organizationId,
+      existingOrgId: teamMemberships[0].organizationId,
       failureCode: 'already-in-other-organization',
       error:
         'User is already a member of another organization. Users can only belong to one organization at a time.',
@@ -787,6 +794,10 @@ export async function ensureUserInOrganizationTx(
         billingActions: emptyBillingActions,
       }
     }
+  }
+
+  if (existingMemberships.length > 0) {
+    await retirePersonalOrganizationTx(tx, { userId, targetOrganizationId: organizationId })
   }
 
   const memberId = generateId()
@@ -1423,6 +1434,8 @@ export async function removeUserFromOrganization(
           )
         }
         await enqueueMemoryCleanup(tx, [{ kind: 'organization_member', organizationId, userId }])
+        /** Nobody is left without an organization: the person leaves into their own. */
+        await createPersonalOrganizationTx(tx, userId)
 
         if (!skipBillingLogic) {
           await enqueueOutboxEvent(tx, MEMBER_BILLING_RECONCILIATION_EVENT_TYPE, {
@@ -2130,14 +2143,21 @@ export async function isSoleOwnerOfPaidOrganization(userId: string): Promise<{
 export async function getUserOrganization(
   userId: string,
   executor: DbOrTx = db
-): Promise<{ organizationId: string; role: string; memberId: string } | null> {
+): Promise<{
+  organizationId: string
+  role: string
+  memberId: string
+  kind: OrganizationKind
+} | null> {
   const [memberRecord] = await executor
     .select({
       organizationId: member.organizationId,
       role: member.role,
       memberId: member.id,
+      kind: organization.kind,
     })
     .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(eq(member.userId, userId))
     .limit(1)
 
@@ -2161,7 +2181,7 @@ export async function ensureUserInOrganization(
     }
   }
 
-  if (existingMembership) {
+  if (existingMembership?.kind === 'team') {
     return {
       success: false,
       alreadyMember: false,
@@ -2232,24 +2252,20 @@ export async function addUserToOrganization(params: AddMemberParams): Promise<Ad
       }
     } else {
       const existingMemberships = await db
-        .select({ organizationId: member.organizationId })
+        .select({ organizationId: member.organizationId, kind: organization.kind })
         .from(member)
+        .innerJoin(organization, eq(organization.id, member.organizationId))
         .where(eq(member.userId, userId))
 
-      if (existingMemberships.length > 0) {
-        const isAlreadyMemberOfThisOrg = existingMemberships.some(
-          (m) => m.organizationId === organizationId
-        )
-
-        if (isAlreadyMemberOfThisOrg) {
-          return {
-            success: false,
-            error: 'User is already a member of this organization',
-            failureCode: 'already-member',
-            billingActions,
-          }
+      if (existingMemberships.some((m) => m.organizationId === organizationId)) {
+        return {
+          success: false,
+          error: 'User is already a member of this organization',
+          failureCode: 'already-member',
+          billingActions,
         }
-
+      }
+      if (existingMemberships.some((m) => m.kind === 'team')) {
         return {
           success: false,
           error:
@@ -2329,29 +2345,26 @@ async function validateMembershipAddition(
   }
 
   const existingMemberships = await db
-    .select({ organizationId: member.organizationId })
+    .select({ organizationId: member.organizationId, kind: organization.kind })
     .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(eq(member.userId, userId))
 
-  if (existingMemberships.length > 0) {
-    const isAlreadyMemberOfThisOrg = existingMemberships.some(
-      (m) => m.organizationId === organizationId
-    )
-
-    if (isAlreadyMemberOfThisOrg) {
-      return {
-        canAdd: false,
-        reason: 'User is already a member of this organization',
-        failureCode: 'already-member',
-      }
+  if (existingMemberships.some((m) => m.organizationId === organizationId)) {
+    return {
+      canAdd: false,
+      reason: 'User is already a member of this organization',
+      failureCode: 'already-member',
     }
-
+  }
+  const teamMembership = existingMemberships.find((m) => m.kind === 'team')
+  if (teamMembership) {
     return {
       canAdd: false,
       reason:
         'User is already a member of another organization. Users can only belong to one organization at a time.',
       failureCode: 'already-in-other-organization',
-      existingOrgId: existingMemberships[0].organizationId,
+      existingOrgId: teamMembership.organizationId,
     }
   }
 

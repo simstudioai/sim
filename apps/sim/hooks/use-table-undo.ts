@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
@@ -8,6 +7,7 @@ import {
   type TableLocks,
   type TableMetadata,
 } from '@/lib/table/types'
+import { toast } from '@/lib/toast/sink'
 import {
   useAddTableColumn,
   useBatchCreateTableRows,

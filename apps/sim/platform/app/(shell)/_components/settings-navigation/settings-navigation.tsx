@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Chip } from '@sim/emcn/button'
 import { SearchField } from '@sim/emcn/search-field'
 import { useSearchParams } from 'next/navigation'
+import { useDesktopHost } from '@/platform/app/(shell)/_components/desktop/desktop-host'
 import type { SettingsNavGroup } from '@/platform/app/(shell)/_components/model'
 import styles from '@/platform/app/(shell)/_components/settings-navigation/settings-navigation.module.css'
 import { platformHref } from '@/platform/lib/navigation'
@@ -18,14 +19,19 @@ interface SettingsNavigationProps {
 export function SettingsNavigation({ section = 'general', groups = [] }: SettingsNavigationProps) {
   const params = useSearchParams()
   const [query, setQuery] = useState('')
+  const desktop = useDesktopHost()
   const filter = query.trim().toLowerCase()
-  const labelled = groups.map((entry) => ({
-    label: entry.label,
-    items: entry.items.map((item) => ({
-      ...item,
-      label: item.title,
-    })),
-  }))
+  const labelled = groups
+    .map((entry) => ({
+      label: entry.label,
+      items: entry.items
+        .filter((item) => !item.desktop || desktop)
+        .map((item) => ({
+          ...item,
+          label: item.title,
+        })),
+    }))
+    .filter((entry) => entry.items.length > 0)
   const matches = labelled
     .flatMap((entry) => entry.items)
     .filter(

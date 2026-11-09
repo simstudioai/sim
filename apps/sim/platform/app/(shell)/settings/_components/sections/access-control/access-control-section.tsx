@@ -17,7 +17,7 @@ import { useSearchParams } from 'next/navigation'
 import {
   ResourceList,
   SectionStack,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import type { SettingsSectionProps } from '@/platform/app/(shell)/settings/_components/section-registry'
 import { GroupDetail } from '@/platform/app/(shell)/settings/_components/sections/access-control/group-detail'
 import {

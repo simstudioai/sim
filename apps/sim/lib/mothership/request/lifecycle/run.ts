@@ -10,6 +10,7 @@ import { getBenchmarkMothershipUrl } from '@/lib/benchmarks/config'
 import {
   type AttributedBillingRequestEnvelope,
   assertBillingAttributionSnapshot,
+  attributionMatchesOrganizationScope,
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
   createAttributedBillingRequestEnvelope,
@@ -546,7 +547,7 @@ export async function runCopilotLifecycle(
         billingAttribution.actorUserId !== execContext.userId ||
         billingAttribution.workspaceId !== (execContext.workspaceId ?? null) ||
         (execContext.organizationId !== undefined &&
-          billingAttribution.organizationId !== execContext.organizationId)
+          !attributionMatchesOrganizationScope(billingAttribution, execContext.organizationId))
       ) {
         throw new Error('Copilot billing attribution does not match its actor and workspace')
       }

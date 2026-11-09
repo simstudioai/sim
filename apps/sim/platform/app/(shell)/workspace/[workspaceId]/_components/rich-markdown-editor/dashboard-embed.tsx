@@ -5,8 +5,12 @@ import { Button } from '@sim/emcn/button'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams } from 'next/navigation'
+import {
+  DashboardPanel,
+  DashboardRow,
+  DashboardStack,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/dashboard-panel/dashboard-panel'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/dashboard-embed.module.css'
-import { DashboardPanel } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/dashboard-panel'
 import {
   createDashboardCursorStore,
   DASHBOARD_RANGE_LABELS,
@@ -113,20 +117,20 @@ interface DashboardRowsProps {
 /** Panels top to bottom; a row lays its panels side by side by their `flex` weights. */
 function DashboardRows({ blocks, spec, time, workspaceId }: DashboardRowsProps) {
   return (
-    <div className={styles.rows}>
+    <DashboardStack>
       {blocks.map((block, index) =>
         'row' in block ? (
-          <div
+          <DashboardRow
             key={index}
-            className={styles.row}
-            data-metrics={block.row.every((child) => 'stat' in child) || undefined}
-          >
-            {block.row.map((child, childIndex) => (
-              <div key={childIndex} className={styles.cell} data-flex={child.flex ?? 1}>
+            metrics={block.row.every((child) => 'stat' in child)}
+            cells={block.row.map((child, childIndex) => ({
+              key: String(childIndex),
+              flex: child.flex ?? 1,
+              content: (
                 <DashboardRows blocks={[child]} spec={spec} time={time} workspaceId={workspaceId} />
-              </div>
-            ))}
-          </div>
+              ),
+            }))}
+          />
         ) : (
           <DashboardPanel
             key={index}
@@ -142,7 +146,7 @@ function DashboardRows({ blocks, spec, time, workspaceId }: DashboardRowsProps) 
           />
         )
       )}
-    </div>
+    </DashboardStack>
   )
 }
 

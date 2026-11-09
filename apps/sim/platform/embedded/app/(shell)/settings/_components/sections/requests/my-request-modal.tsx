@@ -2,9 +2,9 @@
 
 import { Modal } from '@sim/emcn/modal'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { toast } from '@/lib/toast/sink'
 import { RequestText } from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/request-text'
 import { type RequestScope, useRequestDetails } from '@/platform/embedded/lib/data/requests'
-import { toast } from '@/platform/shared/toast'
 
 interface MyRequestModalProps {
   scope: RequestScope

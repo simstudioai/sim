@@ -11,12 +11,13 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   FieldStack,
   Muted,
   SectionStack,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { GroupMappings } from '@/platform/app/(shell)/settings/_components/sections/sso/group-mappings'
 import {
   CREDENTIAL_EXPIRY_OPTIONS,
@@ -36,7 +37,6 @@ import {
 } from '@/platform/lib/data/settings-guard'
 import { plural } from '@/platform/shared/plural'
 import { formatCalendarDate, formatRelativeTime } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 function formatInstant(iso: string | null, now: number): string {
   return iso ? formatRelativeTime(new Date(iso).getTime(), now) : 'never'

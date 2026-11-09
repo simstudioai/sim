@@ -6,6 +6,7 @@ import { Checkbox } from '@sim/emcn/checkbox'
 import { FieldFrame, SelectField, TextField } from '@sim/emcn/field'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { toError } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import { columnTypeOptionsForTable } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/column-types/column-types'
 import { SelectOptionsEditor } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/select-field/select-field'
 import {
@@ -23,7 +24,6 @@ import {
   useAddTableColumn,
   useUpdateColumn,
 } from '@/platform/lib/data/tables'
-import { toast } from '@/platform/shared/toast'
 
 type ColumnType = ColumnDefinition['type']
 

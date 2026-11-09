@@ -722,7 +722,7 @@ export function WorkflowSidebarBody({
                             variant='ghost'
                             onClick={() =>
                               window.open(
-                                `/workspace/${workspaceId}/w/${selectedWorkflowId}`,
+                                `/workspace/${workspaceId}/workflows/${selectedWorkflowId}`,
                                 '_blank',
                                 'noopener,noreferrer'
                               )

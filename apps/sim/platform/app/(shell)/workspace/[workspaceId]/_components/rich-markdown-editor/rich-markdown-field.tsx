@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { formatPasteLimit, PASTE_LIMITS } from '@sim/utils/paste'
 import type { JSONContent, Range } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
+import { toast } from '@/lib/toast/sink'
 import { EditorBubbleMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/bubble-menu'
 import { createMarkdownEditorExtensions } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/rich-markdown-editor/editor-extensions'
 import {
@@ -29,7 +30,6 @@ import {
   resolveImageFileFallback,
   splitFrontmatter,
 } from '@/platform/lib/data/files/markdown'
-import { toast } from '@/platform/shared/toast'
 
 function warnRichMarkdownPasteLimit() {
   toast.warning('Paste is too large for rich-text editing', {

@@ -128,14 +128,14 @@
       "actions": ["unlock chat", "send/verify/resend code", "change email", "SSO"]
     },
     {
-      "file": "apps/sim/app/cli/auth/done/page.tsx",
+      "file": "apps/sim/app/(site)/cli/auth/done/page.tsx",
       "url": "/cli/auth/done",
       "entry": "page.tsx",
       "states": ["complete", "cancelled", "invalid outcome"],
       "actions": []
     },
     {
-      "file": "apps/sim/app/cli/auth/page.tsx",
+      "file": "apps/sim/app/(site)/cli/auth/page.tsx",
       "url": "/cli/auth",
       "entry": "page.tsx",
       "states": [
@@ -151,14 +151,14 @@
       "actions": ["copy pairing code", "select workspace", "connect"]
     },
     {
-      "file": "apps/sim/app/credential-groups/complete/page.tsx",
+      "file": "apps/sim/app/(site)/credential-groups/complete/page.tsx",
       "url": "/credential-groups/complete",
       "entry": "page.tsx",
       "states": ["complete"],
       "actions": []
     },
     {
-      "file": "apps/sim/app/credential-groups/enroll/[token]/page.tsx",
+      "file": "apps/sim/app/(site)/credential-groups/enroll/[token]/page.tsx",
       "url": "/credential-groups/enroll/[token]",
       "entry": "page.tsx",
       "states": [
@@ -173,28 +173,28 @@
       "actions": ["connect", "reconnect", "submit", "return to accounts/search"]
     },
     {
-      "file": "apps/sim/app/credential-groups/slack-complete/page.tsx",
+      "file": "apps/sim/app/(site)/credential-groups/slack-complete/page.tsx",
       "url": "/credential-groups/slack-complete",
       "entry": "page.tsx",
       "states": ["complete", "failure"],
       "actions": []
     },
     {
-      "file": "apps/sim/app/desktop/auth/page.tsx",
+      "file": "apps/sim/app/(site)/desktop/auth/page.tsx",
       "url": "/desktop/auth",
       "entry": "page.tsx",
       "states": ["signed out redirect", "approval", "pending", "refused", "failure", "handoff"],
       "actions": ["continue to desktop", "retry"]
     },
     {
-      "file": "apps/sim/app/desktop/connect/complete/page.tsx",
+      "file": "apps/sim/app/(site)/desktop/connect/complete/page.tsx",
       "url": "/desktop/connect/complete",
       "entry": "page.tsx",
       "states": ["complete", "failure"],
       "actions": []
     },
     {
-      "file": "apps/sim/app/desktop/connect/page.tsx",
+      "file": "apps/sim/app/(site)/desktop/connect/page.tsx",
       "url": "/desktop/connect",
       "entry": "page.tsx",
       "states": [
@@ -207,14 +207,14 @@
       "actions": ["open browser", "retry", "switch account"]
     },
     {
-      "file": "apps/sim/app/desktop/done/page.tsx",
+      "file": "apps/sim/app/(site)/desktop/done/page.tsx",
       "url": "/desktop/done",
       "entry": "page.tsx",
       "states": ["complete"],
       "actions": []
     },
     {
-      "file": "apps/sim/app/f/[token]/page.tsx",
+      "file": "apps/sim/app/(site)/f/[token]/page.tsx",
       "url": "/f/[token]",
       "entry": "page.tsx",
       "states": [
@@ -230,7 +230,7 @@
       "actions": ["unlock resource", "send/verify/resend code", "change email", "SSO"]
     },
     {
-      "file": "apps/sim/app/invite/[id]/page.tsx",
+      "file": "apps/sim/app/(site)/invite/[id]/page.tsx",
       "url": "/invite/[id]",
       "entry": "page.tsx",
       "states": [
@@ -257,42 +257,42 @@
       ]
     },
     {
-      "file": "apps/sim/app/knowledge/github/setup/page.tsx",
+      "file": "apps/sim/app/(site)/knowledge/github/setup/page.tsx",
       "url": "/knowledge/github/setup",
       "entry": "page.tsx",
       "states": ["loading", "available accounts", "pending", "error", "complete"],
       "actions": ["select installation", "connect"]
     },
     {
-      "file": "apps/sim/app/oauth-error/page.tsx",
+      "file": "apps/sim/app/(site)/oauth-error/page.tsx",
       "url": "/oauth-error",
       "entry": "page.tsx",
       "states": ["callback failure"],
       "actions": ["close window"]
     },
     {
-      "file": "apps/sim/app/oauth/chat-complete/page.tsx",
+      "file": "apps/sim/app/(site)/oauth/chat-complete/page.tsx",
       "url": "/oauth/chat-complete",
       "entry": "page.tsx",
       "states": ["callback processing", "handoff"],
       "actions": []
     },
     {
-      "file": "apps/sim/app/oauth/credential-connected/page.tsx",
+      "file": "apps/sim/app/(site)/oauth/credential-connected/page.tsx",
       "url": "/oauth/credential-connected",
       "entry": "page.tsx",
       "states": ["connected"],
       "actions": ["close window"]
     },
     {
-      "file": "apps/sim/app/slack-search/connect/[token]/page.tsx",
+      "file": "apps/sim/app/(site)/slack-search/connect/[token]/page.tsx",
       "url": "/slack-search/connect/[token]",
       "entry": "page.tsx",
       "states": ["invitation unavailable", "workspace choice", "connecting", "error", "complete"],
       "actions": ["connect Slack", "choose workspace"]
     },
     {
-      "file": "apps/sim/app/slack-search/install/[teamId]/page.tsx",
+      "file": "apps/sim/app/(site)/slack-search/install/[teamId]/page.tsx",
       "url": "/slack-search/install/[teamId]",
       "entry": "page.tsx",
       "states": ["signed out", "unavailable", "install confirmation"],

@@ -9,11 +9,11 @@ export const dynamic = 'force-dynamic'
 
 export default async function Page({ params }: { params: Promise<{ workspaceId: string }> }) {
   if (resolvePlatformMode() !== 'live') notFound()
-  const [{ workspaceId }, { readWorkflowTestsEnabled }, { TestList }] = await Promise.all([
+  const [{ workspaceId }, { readWorkspaceTabFlag }, { TestList }] = await Promise.all([
     params,
-    import('@/platform/lib/data/workflow-tests/flag'),
+    import('@/platform/lib/data/workspace-tab-flags'),
     import('@/platform/app/(shell)/workspace/[workspaceId]/tests/_components/test-list/test-list'),
   ])
-  if (!(await readWorkflowTestsEnabled())) notFound()
+  if (!(await readWorkspaceTabFlag('workflow-tests'))) notFound()
   return <TestList workspaceId={workspaceId} />
 }

@@ -167,5 +167,5 @@ function buildManageLink(
   workflowId: string | null
 ): string | undefined {
   if (!workspaceId || !workflowId) return undefined
-  return `${getBaseUrl()}/workspace/${workspaceId}/w/${workflowId}`
+  return `${getBaseUrl()}/workspace/${workspaceId}/workflows/${workflowId}`
 }

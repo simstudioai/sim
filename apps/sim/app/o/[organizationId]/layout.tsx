@@ -1,9 +1,8 @@
-import { Suspense } from 'react'
 import { cn } from '@sim/emcn-legacy'
 import hostBridge from '@sim/emcn-platform/styles/host-bridge.module.css'
 import { createLogger } from '@sim/logger'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
-import { cookies, headers } from 'next/headers'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { ImpersonationBanner } from '@/components/impersonation-banner'
 import { SessionExpired } from '@/components/session-expired'
@@ -18,20 +17,16 @@ import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { GlobalCommandsProvider } from '@/lib/global-commands/provider'
 import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
-import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
+import { organizationRoutes } from '@/lib/navigation/paths'
 import { OrganizationProvider } from '@/lib/organizations/provider'
 import { getOrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
-import { isPlatformOrgUiEnabled } from '@/lib/platform/rollout'
-import { LEGACY_URL_HEADER, mapLegacyOrganizationUrl } from '@/lib/platform/routes'
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 import { resolveSimLinkOrganization } from '@/lib/sim-links/application/organization'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 import { buildAuthCrossLink } from '@/app/(auth)/auth-redirect'
 import { OrganizationAccessDenied } from '@/app/o/[organizationId]/components/organization-access-denied'
-import { PlatformRouteGuard } from '@/app/o/[organizationId]/components/platform-route-guard'
-import { OrganizationToastSink } from '@/app/o/[organizationId]/components/toast-sink'
 import { OrganizationSimLinkProvider } from '@/app/o/[organizationId]/links/organization-sim-link-provider'
 import { prefetchOrganizationSidebar } from '@/app/o/[organizationId]/prefetch'
 import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
@@ -41,9 +36,8 @@ const logger = createLogger('OrganizationLayout')
 
 /**
  * The organization surface: the viewer's own view of one organization, outside
- * any workspace. Requires membership and an available organization chat surface.
- * Non-members get an explicit denial; members outside the rollout retain
- * workspace settings, including when following a saved organization link.
+ * any workspace. Every member reaches it, personal organizations included;
+ * features that need a plan gate themselves. Non-members get an explicit denial.
  */
 export default async function OrganizationLayout({
   children,
@@ -71,22 +65,8 @@ export default async function OrganizationLayout({
   if (!context) {
     return <OrganizationAccessDenied />
   }
-  // The proxy sends no legacy URL while the zone is unavailable: this organization stays here, on
-  // client navigation too, until the zone can serve it.
-  const legacyUrl = (await isPlatformOrgUiEnabled(organizationId))
-    ? (await headers()).get(LEGACY_URL_HEADER)
-    : null
-  const platformUrl = legacyUrl && mapLegacyOrganizationUrl(legacyUrl, organizationId)
-  if (platformUrl) redirect(platformUrl)
   const peopleEnabledLookup = canBrowsePeople(organizationId, context.viewer.role)
   const simLinksEnabledLookup = isSimLinksEnabled(organizationId)
-  if (
-    !context.mothershipAvailable &&
-    !context.searchAccess.memberScoped &&
-    !(await peopleEnabledLookup) &&
-    !(await simLinksEnabledLookup)
-  )
-    redirect(WORKSPACE_SETTINGS_PATH)
 
   const [
     ,
@@ -142,12 +122,6 @@ export default async function OrganizationLayout({
         }}
       >
         <OrganizationProvider context={context}>
-          <OrganizationToastSink />
-          {legacyUrl && (
-            <Suspense fallback={null}>
-              <PlatformRouteGuard organizationId={organizationId} />
-            </Suspense>
-          )}
           <OrganizationSimLinkProvider organizationId={simLinkOrganizationId}>
             <GlobalCommandsProvider>
               <WorkspaceViewport

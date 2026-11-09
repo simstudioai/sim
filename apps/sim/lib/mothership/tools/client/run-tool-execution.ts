@@ -50,7 +50,7 @@ import {
   saveExecutionPointer,
   useTerminalConsoleStore,
 } from '@/stores/terminal'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowRegistry } from '@/stores/workflows/state-port'
 
 const logger = createLogger('CopilotRunToolExecution')
 interface ActiveRunTool {

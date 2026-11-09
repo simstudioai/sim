@@ -15,8 +15,8 @@ import {
   submitHelpRequest,
   validateHelpImage,
 } from '@/lib/help/request'
+import { toast } from '@/lib/toast/sink'
 import { readFormText } from '@/platform/shared/row-links'
-import { toast } from '@/platform/shared/toast'
 
 interface SupportImage {
   id: string

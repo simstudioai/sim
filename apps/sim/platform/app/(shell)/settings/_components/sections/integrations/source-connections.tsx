@@ -22,7 +22,7 @@ import {
   FieldStack,
   ResourceList,
   SectionStack,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import type {
   SearchSource,
   SourceConnection,

@@ -6,17 +6,14 @@ import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import {
-  FieldStack,
-  Muted,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { toast } from '@/lib/toast/sink'
+import { FieldStack, Muted } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import {
   describeSsoPolicy,
   SSO_POLICY_OPTIONS,
   useOrganizationSsoPolicy,
   useUpdateOrganizationSsoPolicy,
 } from '@/platform/lib/data/sso'
-import { toast } from '@/platform/shared/toast'
 
 /**
  * Whether members must sign in through the organization's identity provider. Read when a session is

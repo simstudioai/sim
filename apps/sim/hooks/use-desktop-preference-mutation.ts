@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import type { DesktopPreferences, SimDesktopApi } from '@sim/desktop-bridge'
-import { toast } from '@sim/emcn-legacy'
 import { getDesktopBridge, setDesktopPreferencesSnapshot } from '@/lib/desktop'
+import { toast } from '@/lib/toast/sink'
 
 /**
  * The shared shape of every desktop-preference mutation: call a bridge

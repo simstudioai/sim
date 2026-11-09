@@ -1,0 +1,106 @@
+.dashboard {
+  container: run-dashboard / inline-size;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  gap: var(--ui-product-section-gap);
+}
+/* Home's columns: 24px between the charts' hover surfaces, wrapping when narrow. */
+.charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, var(--spacing-320)), 1fr));
+  align-items: start;
+  min-inline-size: 0;
+  gap: var(--ui-product-section-gap);
+  column-gap: calc(var(--ui-product-section-gap) + 2 * var(--ui-row-inset));
+}
+.section {
+  display: grid;
+  align-content: start;
+  min-inline-size: 0;
+  gap: var(--ui-widget-content-gap);
+}
+.workflows {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  margin: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+  padding: 0;
+  gap: var(--ui-list-gap);
+  list-style: none;
+}
+/* The run list's row: a name, the period strip, then the runs and success rate on the right. */
+.workflow {
+  position: relative;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 2fr) minmax(0, 3fr) calc(var(--ui-table-number) + var(--spacing-16))
+    calc(var(--ui-table-number) + var(--spacing-16));
+  align-items: center;
+  gap: var(--spacing-16);
+  min-block-size: var(--spacing-40);
+  padding: var(--spacing-8) var(--ui-row-inset);
+  border-radius: var(--radius-item);
+  color: var(--ui-ink);
+}
+.workflow:hover,
+.workflow:has(.open:focus-visible) {
+  background: var(--ui-hover);
+}
+.workflow[data-selected] {
+  background: var(--ui-selected);
+}
+.open {
+  display: flex;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.open::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  content: "";
+}
+.name {
+  display: flex;
+  min-inline-size: 0;
+}
+.strip {
+  display: block;
+  inline-size: 100%;
+  block-size: var(--spacing-16);
+}
+.segment {
+  fill: var(--ui-divider);
+}
+.segment[data-state="success"] {
+  fill: var(--status-success);
+}
+.segment[data-state="mixed"] {
+  fill: var(--status-warning);
+}
+.segment[data-state="failed"] {
+  fill: var(--control-danger);
+}
+.number {
+  color: var(--ui-secondary);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  white-space: nowrap;
+}
+@container run-dashboard (width < 36rem) {
+  .workflow {
+    grid-template-columns: minmax(0, 1fr) calc(var(--ui-table-number) + var(--spacing-16));
+  }
+  .strip,
+  .workflow > :nth-child(3) {
+    display: none;
+  }
+}

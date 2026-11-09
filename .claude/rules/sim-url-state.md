@@ -14,7 +14,7 @@ paths:
 
 # URL / Query-Param State (nuqs)
 
-URL query state is managed with [`nuqs`](https://nuqs.dev). The `NuqsAdapter` is wired once in `apps/sim/app/layout.tsx` — do not add another. This rule is the source of truth for *what* belongs in the URL and *how* to wire it.
+URL query state is managed with [`nuqs`](https://nuqs.dev). The `NuqsAdapter` is wired once in `apps/sim/app/_shell/site-root-layout.tsx` — do not add another. This rule is the source of truth for *what* belongs in the URL and *how* to wire it.
 
 ## Decision framework — where does this state live?
 

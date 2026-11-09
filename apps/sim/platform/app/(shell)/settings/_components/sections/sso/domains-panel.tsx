@@ -9,12 +9,13 @@ import { Modal } from '@sim/emcn/modal'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   FieldStack,
   Muted,
   SectionStack,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import {
   type OrganizationDomain,
@@ -23,7 +24,6 @@ import {
   useRemoveOrganizationDomain,
   useVerifyOrganizationDomain,
 } from '@/platform/lib/data/sso'
-import { toast } from '@/platform/shared/toast'
 
 interface DomainRowProps {
   organizationId: string

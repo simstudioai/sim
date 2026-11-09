@@ -320,7 +320,8 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
         if (
           billingAttribution.workspaceId !== registrationContext.workspaceId ||
           billingAttribution.actorUserId !== uploadedBy ||
-          billingAttribution.organizationId !== registrationContext.workspaceOrganizationId ||
+          (billingAttribution.organizationId !== null &&
+            billingAttribution.organizationId !== registrationContext.workspaceOrganizationId) ||
           billingAttribution.billedAccountUserId !== registrationContext.billedAccountUserId
         ) {
           throw new Error('Knowledge upload billing attribution changed before registration')

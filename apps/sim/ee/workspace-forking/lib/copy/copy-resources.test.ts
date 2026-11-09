@@ -168,7 +168,7 @@ describe('copyForkResourceContent', () => {
       data: { kb: string; nested: { wf: string }; plain: string }
     }>
     expect(inserted[0].data.kb).toBe('/workspace/child-ws/knowledge/kb-2')
-    expect(inserted[0].data.nested.wf).toBe('/workspace/child-ws/w/wf-2')
+    expect(inserted[0].data.nested.wf).toBe('/workspace/child-ws/workflows/wf-2')
     expect(inserted[0].data.plain).toBe('no url here')
     expect(inserted[0]).toEqual(expect.objectContaining({ secretProvenanceVersion: null }))
   })

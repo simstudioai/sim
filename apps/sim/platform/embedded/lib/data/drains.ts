@@ -4,6 +4,7 @@ import { toError } from '@sim/utils/errors'
 import type { CreateDataDrainBody, DataDrain } from '@/lib/api/contracts/data-drains'
 import type { OrganizationDataRetention } from '@/lib/api/contracts/organization'
 import { normalizeRuleStages } from '@/lib/guardrails/pii-entities'
+import { toast } from '@/lib/toast/sink'
 import {
   useCreateDataDrain,
   useDataDrainRuns,
@@ -25,7 +26,6 @@ import {
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { reportFailure } from '@/platform/embedded/lib/notices'
 import { useDataDrainParam } from '@/platform/shared/data-drains/params'
-import { toast } from '@/platform/shared/toast'
 
 const RECENT_RUN_LIMIT = 10
 

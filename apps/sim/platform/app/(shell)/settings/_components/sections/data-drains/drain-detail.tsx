@@ -8,12 +8,13 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { toError } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   DetailHeader,
   FieldStack,
   Muted,
   SectionStack,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import {
   CADENCE_LABELS,
   type DataDrain,
@@ -28,7 +29,6 @@ import {
   useUpdateDataDrain,
 } from '@/platform/lib/data/data-drains'
 import { formatTimestamp } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 const RECENT_RUN_LIMIT = 10
 

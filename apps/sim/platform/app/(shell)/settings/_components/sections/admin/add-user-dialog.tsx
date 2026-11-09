@@ -6,7 +6,7 @@ import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
 import { generateId } from '@sim/utils/id'
 import { isValidEmailSyntax } from '@sim/utils/string'
-import { FieldStack } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { FieldStack } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import type { DirectoryUser } from '@/platform/app/(shell)/settings/_components/sections/admin/model'
 
 const CREDENTIALS = [

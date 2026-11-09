@@ -335,7 +335,8 @@ async function fetchLogByExecutionId(
 
 export function useLogByExecutionId(
   workspaceId: string | undefined,
-  executionId: string | null | undefined
+  executionId: string | null | undefined,
+  options?: Pick<UseLogDetailOptions, 'refetchInterval'>
 ) {
   const queryClient = useQueryClient()
   return useQuery({
@@ -346,6 +347,7 @@ export function useLogByExecutionId(
       return data
     },
     enabled: Boolean(workspaceId) && Boolean(executionId),
+    refetchInterval: options?.refetchInterval ?? false,
     staleTime: LOG_BY_EXECUTION_STALE_TIME,
   })
 }

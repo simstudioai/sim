@@ -1,4 +1,3 @@
-import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -64,6 +63,7 @@ import {
   resourceScopeKey,
 } from '@/lib/core/resource-scope'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import { toast } from '@/lib/toast/sink'
 import { connectorKeys } from '@/hooks/queries/kb/connectors'
 import { folderKeys } from '@/hooks/queries/utils/folder-keys'
 import {

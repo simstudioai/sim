@@ -31,18 +31,21 @@ describe('canUserManageWorkspaceBilling', () => {
   })
 
   it('grants an admin of the hosting organization', async () => {
+    queueTableRows(schemaMock.organization, [{ id: 'organization-1' }])
     queueTableRows(schemaMock.member, [{ role: 'admin' }])
 
     await expect(canUserManageWorkspaceBilling(organizationWorkspace, 'user-1')).resolves.toBe(true)
   })
 
   it('grants the owner of the hosting organization', async () => {
+    queueTableRows(schemaMock.organization, [{ id: 'organization-1' }])
     queueTableRows(schemaMock.member, [{ role: 'owner' }])
 
     await expect(canUserManageWorkspaceBilling(organizationWorkspace, 'user-1')).resolves.toBe(true)
   })
 
   it('refuses a plain member of the hosting organization', async () => {
+    queueTableRows(schemaMock.organization, [{ id: 'organization-1' }])
     queueTableRows(schemaMock.member, [{ role: 'member' }])
 
     await expect(canUserManageWorkspaceBilling(organizationWorkspace, 'user-1')).resolves.toBe(
@@ -51,6 +54,7 @@ describe('canUserManageWorkspaceBilling', () => {
   })
 
   it('refuses a non-member, including the billed account holder, on an organization host', async () => {
+    queueTableRows(schemaMock.organization, [{ id: 'organization-1' }])
     queueTableRows(schemaMock.member, [])
 
     await expect(

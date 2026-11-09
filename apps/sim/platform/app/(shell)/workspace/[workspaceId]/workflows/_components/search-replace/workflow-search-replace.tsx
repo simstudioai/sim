@@ -14,6 +14,7 @@ import { Input } from '@sim/emcn/field/inputs'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { useShallow } from 'zustand/react/shallow'
+import { toast } from '@/lib/toast/sink'
 import { useRegisterGlobalCommands } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/global-commands/global-commands'
 import { ReplacementControls } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/search-replace/replacement-controls'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/search-replace/workflow-search-replace.module.css'
@@ -63,7 +64,6 @@ import {
   type WorkflowSearchReplaceSubflowUpdate,
   workflowSearchMatchMatchesQuery,
 } from '@/platform/lib/data/workflows'
-import { toast } from '@/platform/shared/toast'
 
 const SEARCH_PANEL_WIDTH = 360
 const SEARCH_PANEL_COLLAPSED_HEIGHT = 82

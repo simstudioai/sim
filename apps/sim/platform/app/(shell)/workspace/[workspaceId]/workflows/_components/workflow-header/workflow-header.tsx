@@ -8,12 +8,12 @@ import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
+import { toast } from '@/lib/toast/sink'
 import { RequestAccessModal } from '@/platform/app/(shell)/_components/request-access-modal/request-access-modal'
 import { CANVAS_VIEWPORT_OPTIONS } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/canvas/workflow-canvas/workflow-canvas-constants'
 import { DeployButton } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/deploy-button/deploy-button'
 import { useRegisterGlobalCommands } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/global-commands/global-commands'
-import { useOrganization } from '@/platform/lib/data/organization'
-import { legacyRoutes } from '@/platform/lib/data/organization-model'
+import { getMyAccessRequestHref } from '@/platform/lib/data/requests'
 import {
   createCommand,
   createLogger,
@@ -43,7 +43,6 @@ import {
   type WorkflowFolder,
 } from '@/platform/lib/data/workflows'
 import { platformHref } from '@/platform/lib/navigation'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('WorkflowHeader')
 
@@ -254,7 +253,6 @@ export function WorkflowTrail({ workspaceId, workflowId }: WorkflowHeaderProps) 
  */
 export function WorkflowActions({ workspaceId, workflowId }: WorkflowHeaderProps) {
   const router = useRouter()
-  const organization = useOrganization()
   const search = useSearchParams()
   const { billingEnabled } = useDeploymentShape()
   const { data: session } = useSession()
@@ -418,8 +416,11 @@ export function WorkflowActions({ workspaceId, workflowId }: WorkflowHeaderProps
           target={{ kind: 'usage_limit', id: 'member' }}
           label='Credit limit'
           onViewRequest={(requestId) =>
-            window.location.assign(
-              legacyRoutes(organization).workspaceRequest(workspaceId, requestId)
+            router.push(
+              platformHref(
+                getMyAccessRequestHref({ kind: 'workspace', workspaceId }, requestId),
+                search
+              )
             )
           }
           onClose={() => setRequestingLimit(false)}

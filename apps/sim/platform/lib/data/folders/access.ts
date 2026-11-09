@@ -30,5 +30,8 @@ export function useResourceListAccess(workspaceId: string, gate: ResourceTabGate
     exportDisabled: config.disableKnowledgeBaseExport,
     /** The policy has answered, so a hidden tab never shows its content first. */
     settled: !policy.isPending,
+    /** Reads the policy again, once an administrator may have restored access. */
+    refresh: () => void policy.refetch(),
+    refreshing: policy.isFetching,
   }
 }

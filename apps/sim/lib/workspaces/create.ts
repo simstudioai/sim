@@ -273,24 +273,29 @@ export async function createWorkspace(params: CreateWorkspaceParams) {
 }
 
 /**
- * The same default personal workspace a first visit would create.
+ * The same default personal workspace a first visit would create, in the
+ * user's personal organization when they have one.
  *
- * Runs inside an EXTERNAL transaction (the enterprise owner claim). Both
- * `organizationId` and `observedOrganizationId` are `null` by construction, so
- * no organization governs this creation and the permission-group lock is never
- * taken — which is why this path cannot deadlock against the locks the enclosing
- * transaction already holds.
+ * Runs inside an EXTERNAL transaction (the enterprise owner claim). The only
+ * organization involved is the user's own personal one, which never carries a
+ * permission-group regime, so the permission-group lock is never taken — which
+ * is why this path cannot deadlock against the locks the enclosing transaction
+ * already holds.
  */
 export async function createDefaultPersonalWorkspaceInTransaction(
   tx: DbTransaction,
-  params: { userId: string; userName: string | null | undefined }
+  params: {
+    userId: string
+    userName: string | null | undefined
+    personalOrganizationId: string | null
+  }
 ): Promise<CreatedWorkspace> {
   const firstName = params.userName?.split(' ')[0] || null
   return createWorkspaceInTransaction(tx, {
     userId: params.userId,
-    observedOrganizationId: null,
+    observedOrganizationId: params.personalOrganizationId,
     name: firstName ? `${firstName}'s Workspace` : 'My Workspace',
-    organizationId: null,
+    organizationId: params.personalOrganizationId,
     workspaceMode: WORKSPACE_MODE.PERSONAL,
     billedAccountUserId: params.userId,
     governingPermissionGroupOrganizationId: null,

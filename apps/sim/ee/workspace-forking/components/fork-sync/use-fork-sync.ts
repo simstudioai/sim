@@ -1,7 +1,6 @@
 'use client'
 
 import { type Dispatch, type SetStateAction, useCallback, useMemo, useState } from 'react'
-import { toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import type {
   ForkClearedRef,
@@ -13,6 +12,7 @@ import type {
   ForkTriggerUrlChange,
   ForkWorkflowChange,
 } from '@/lib/api/contracts/workspace-fork'
+import { toast } from '@/lib/toast/sink'
 import {
   selectVisibleClearedRefs,
   splitForkClearedRefs,

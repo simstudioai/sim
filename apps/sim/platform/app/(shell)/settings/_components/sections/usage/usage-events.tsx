@@ -3,7 +3,7 @@
 import { DataTable } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { FailureNotice } from '@sim/emcn/status'
-import { DetailHeader } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { DetailHeader } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import styles from '@/platform/app/(shell)/settings/_components/sections/usage/usage-section.module.css'
 import { useUsageEvents, useUsageView } from '@/platform/lib/data/usage'
 

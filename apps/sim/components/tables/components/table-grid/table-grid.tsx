@@ -801,7 +801,11 @@ export function TableGrid({
 
   const handleViewWorkflow = useCallback(
     (workflowId: string) => {
-      window.open(`/workspace/${workspaceId}/w/${workflowId}`, '_blank', 'noopener,noreferrer')
+      window.open(
+        `/workspace/${workspaceId}/workflows/${workflowId}`,
+        '_blank',
+        'noopener,noreferrer'
+      )
     },
     [workspaceId]
   )

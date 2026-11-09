@@ -1,4 +1,3 @@
-import { toast } from '@sim/emcn-legacy'
 import { toError } from '@sim/utils/errors'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
@@ -12,6 +11,7 @@ import {
   type WorkspaceFileFolderApi,
 } from '@/lib/api/contracts/workspace-file-folders'
 import { extractWorkspaceFileContract } from '@/lib/api/contracts/workspace-files'
+import { toast } from '@/lib/toast/sink'
 import {
   buildWorkspaceFileFolderDisplayPath,
   parseWorkspaceFileFolderDisplayPath,

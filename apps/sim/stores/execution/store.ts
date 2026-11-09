@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
+import { useWorkflowRegistry } from '@/stores/workflows/state-port'
 import {
   type BlockRunStatus,
   defaultWorkflowExecutionState,

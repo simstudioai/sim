@@ -5,11 +5,12 @@ import { Button } from '@sim/emcn/button'
 import { CopyField } from '@sim/emcn/field/value-fields'
 import { PropertyList } from '@sim/emcn/property-list'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { toast } from '@/lib/toast/sink'
 import {
   DetailHeader,
   FieldStack,
   SectionStack,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { ProviderForm } from '@/platform/app/(shell)/settings/_components/sections/sso/provider-form'
 import {
   type SsoProviderView,
@@ -17,7 +18,6 @@ import {
   ssoProviderCallbackUrl,
   useSsoOrigin,
 } from '@/platform/lib/data/sso'
-import { toast } from '@/platform/shared/toast'
 
 interface ProviderDetailProps {
   organizationId: string

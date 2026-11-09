@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import { useOrganization } from '@/lib/organizations/provider'
+import { toast } from '@/lib/toast/sink'
 import {
   useConfigureOrganizationSecretSource,
   useOrganizationSecrets,
   useRemoveOrganizationSecretSource,
   useSaveOrganizationSecrets,
 } from '@/hooks/queries/organization-secrets'
-import { toast } from '@/platform/shared/toast'
 
 /**
  * One source's Generic Secrets, read only by whom may hold them: the organization's for an admin, a

@@ -59,6 +59,7 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { createPersonalOrganizationTx } from '@/lib/organizations/personal'
 import { enqueueOrganizationResourceCleanup } from '@/lib/organizations/resource-cleanup'
 import { detachOrganizationWorkspacesTx } from '@/lib/workspaces/organization-workspaces'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
@@ -302,7 +303,13 @@ export const DELETE = withRouteHandler(
       const { detachedWorkspaceIds, auditEntries } = await db.transaction(async (tx) => {
         const detached = await detachOrganizationWorkspacesTx(tx, organizationId)
         await enqueueOrganizationResourceCleanup(tx, organizationId)
+        const formerMembers = await tx
+          .select({ userId: member.userId })
+          .from(member)
+          .where(eq(member.organizationId, organizationId))
         await tx.delete(organization).where(eq(organization.id, organizationId))
+        /** Nobody is left without an organization: each member leaves into their own. */
+        for (const { userId } of formerMembers) await createPersonalOrganizationTx(tx, userId)
         return detached
       })
 

@@ -4,6 +4,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { OrganizationDomain } from '@/lib/api/contracts/organization'
 import type { ScimGroupMappingBody } from '@/lib/api/contracts/organization-scim'
+import { toast } from '@/lib/toast/sink'
 import {
   useOrganizationWorkspaces,
   usePermissionGroups,
@@ -36,7 +37,6 @@ import { useOrganizationSsoPolicy, useUpdateOrganizationSsoPolicy } from '@/ee/s
 import { buildSsoRegistrationBody, type SsoProviderForm } from '@/ee/sso/lib/provider-form'
 import { useOrganizationPlanSeats } from '@/hooks/queries/organization-plan-seats'
 import { plural } from '@/platform/shared/plural'
-import { toast } from '@/platform/shared/toast'
 
 /** Whether members must use the identity provider, and the two ways to change it. */
 export function useSsoRequirement(organizationId: string) {

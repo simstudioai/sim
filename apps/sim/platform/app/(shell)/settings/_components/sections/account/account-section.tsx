@@ -5,14 +5,14 @@ import { Button } from '@sim/emcn/button'
 import { Modal } from '@sim/emcn/modal'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
-import { DetailHeader } from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+import { toast } from '@/lib/toast/sink'
+import { DetailHeader } from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import { AuthorizedApps } from '@/platform/app/(shell)/settings/_components/sections/account/authorized-apps'
 import { DeleteAccount } from '@/platform/app/(shell)/settings/_components/sections/account/delete-account'
 import { OrganizationAccounts } from '@/platform/app/(shell)/settings/_components/sections/account/organization-accounts'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { signOutAndLeave } from '@/platform/lib/data/session'
 import { useAccountEmail, useResetPasswordAction } from '@/platform/shared/account'
-import { toast } from '@/platform/shared/toast'
 
 interface AccountSettingsRowsProps {
   organization: PlatformOrganization

@@ -20,7 +20,7 @@ import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { slugify } from '@sim/utils/string'
-import { eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import {
   createOrganizationWithOwnerTx,
   validateOrganizationSlugOrThrow,
@@ -219,14 +219,16 @@ export async function ensureInstanceOrganization(
       if (resolved.status === 'ambiguous') return null
 
       /**
-       * The owner must not already belong to another organization — a user can
-       * hold only one membership, so provisioning would fail on the member
-       * insert. Surface it as a configuration problem instead.
+       * The owner must not already belong to another team — a user can hold
+       * only one membership, so provisioning would fail on the member insert.
+       * Surface it as a configuration problem instead. A personal organization
+       * is no obstacle: it becomes the instance organization in place.
        */
       const [ownerMembership] = await tx
         .select({ organizationId: member.organizationId })
         .from(member)
-        .where(eq(member.userId, ownerUserId))
+        .innerJoin(organization, eq(organization.id, member.organizationId))
+        .where(and(eq(member.userId, ownerUserId), eq(organization.kind, 'team')))
         .limit(1)
 
       if (ownerMembership) {
@@ -274,8 +276,9 @@ export async function ensureInstanceOrganization(
  *
  * Called from the signup hook, so it never throws: a deployment must not become
  * unable to register users because organization setup hit a problem. A user who
- * misses the join keeps working in a personal workspace and can be picked up
- * later by `apps/sim/scripts/consolidate-users-into-organization.ts`.
+ * misses the join gets their personal organization when they first open their
+ * workspaces and can be picked up later by
+ * `apps/sim/scripts/consolidate-users-into-organization.ts`.
  *
  * No-ops when the mode is off or the user is already a member — which is the
  * case for the owner, whose membership is written during provisioning.

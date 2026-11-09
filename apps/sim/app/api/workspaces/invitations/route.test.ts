@@ -174,6 +174,7 @@ describe('POST /api/workspaces/invitations/batch', () => {
       name: 'Workspace',
       ownerId: 'user-1',
       organizationId: null,
+      teamOrganizationId: null,
       workspaceMode: 'grandfathered_shared',
       billedAccountUserId: 'user-1',
     })
@@ -249,6 +250,7 @@ describe('POST /api/workspaces/invitations/batch', () => {
       name: 'Personal Workspace',
       ownerId: 'user-1',
       organizationId: null,
+      teamOrganizationId: null,
       workspaceMode: 'personal',
       billedAccountUserId: 'user-1',
     })
@@ -280,6 +282,7 @@ describe('POST /api/workspaces/invitations/batch', () => {
       name: 'Org Workspace',
       ownerId: 'user-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
@@ -336,6 +339,7 @@ describe('POST /api/workspaces/invitations/batch', () => {
       name: 'Org Workspace',
       ownerId: 'user-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
@@ -377,6 +381,7 @@ describe('POST /api/workspaces/invitations/batch', () => {
       name: 'Org Workspace',
       ownerId: 'user-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })
@@ -420,6 +425,7 @@ describe('POST /api/workspaces/invitations/batch', () => {
       name: 'Org Workspace',
       ownerId: 'user-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
       workspaceMode: 'organization',
       billedAccountUserId: 'owner-1',
     })

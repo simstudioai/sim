@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from '@/lib/toast/sink'
 import { useClearSearchHistory, useSearchHistory } from '@/hooks/queries/search-history'
-import { toast } from '@/platform/shared/toast'
 
 const HISTORY_RECENT_LIMIT = 5
 

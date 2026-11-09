@@ -1,0 +1,26 @@
+.document {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-24);
+  min-inline-size: 0;
+}
+
+.heading {
+  display: grid;
+  gap: var(--ui-stack-gap);
+  min-inline-size: 0;
+}
+
+.title {
+  margin: 0;
+  color: var(--ui-ink);
+  overflow-wrap: anywhere;
+}
+
+.text {
+  max-inline-size: var(--container-760);
+  margin: 0;
+  color: var(--ui-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

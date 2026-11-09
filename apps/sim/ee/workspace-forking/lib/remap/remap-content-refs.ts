@@ -90,19 +90,21 @@ export function rewriteForkContentRefs(content: string, maps: ForkContentRefMaps
 }
 
 /**
- * In-app `/workspace/<wsId>/(w|tables|knowledge|files)/<resourceId>` deep link - the form a TABLE
+ * In-app `/workspace/<wsId>/(workflows|w|tables|knowledge|files)/<resourceId>` deep link (`w` is the
+ * legacy workflow section stored content still carries) - the form a TABLE
  * CELL renders as a resource chip (`resolveSimResourceKind`), but ONLY when `wsId` matches the
  * current workspace. The id charset stops at delimiters.
  */
 const RESOURCE_URL_RE =
-  /\/workspace\/([A-Za-z0-9-]+)\/(w|tables|knowledge|files)\/([A-Za-z0-9_-]+)/g
+  /\/workspace\/([A-Za-z0-9-]+)\/(workflows|w|tables|knowledge|files)\/([A-Za-z0-9_-]+)/g
 
 /**
  * Rewrite the in-workspace resource deep links a copied table cell renders as a resource chip, so
  * the chip keeps resolving after a cross-workspace copy (a cell chip renders only when the URL's
  * workspace id is the current workspace, so a stale source id silently degrades to a plain link).
- * Repoints both the workspace id and the resource id at the child copy, per section: `w` ->
- * workflows, `tables` -> tables, `knowledge` -> knowledge bases, `files` -> file ids.
+ * Repoints both the workspace id and the resource id at the child copy, per section: `workflows`
+ * (or legacy `w`, rewritten to `workflows`) -> workflows, `tables` -> tables, `knowledge` ->
+ * knowledge bases, `files` -> file ids.
  *
  * Both-or-nothing: a match is rewritten ONLY when its workspace id is the mapped source AND its
  * resource id is in that section's map - otherwise it is left UNCHANGED. Emitting a child-workspace
@@ -114,6 +116,7 @@ export function rewriteForkResourceUrls(content: string, maps: ForkContentRefMap
   if (!content || !maps.workspaceId) return content
   const { from, to } = maps.workspaceId
   const idMapForSection: Record<string, ReadonlyMap<string, string> | undefined> = {
+    workflows: maps.workflows,
     w: maps.workflows,
     tables: maps.tables,
     knowledge: maps.knowledgeBases,
@@ -122,6 +125,7 @@ export function rewriteForkResourceUrls(content: string, maps: ForkContentRefMap
   return content.replace(RESOURCE_URL_RE, (full, wsId: string, section: string, id: string) => {
     if (wsId !== from) return full
     const mappedId = idMapForSection[section]?.get(id)
-    return mappedId ? `/workspace/${to}/${section}/${mappedId}` : full
+    if (!mappedId) return full
+    return `/workspace/${to}/${section === 'w' ? 'workflows' : section}/${mappedId}`
   })
 }

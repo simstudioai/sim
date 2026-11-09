@@ -1,19 +1,19 @@
-import { redirect } from 'next/navigation'
-import { platformHref } from '@/platform/lib/navigation'
+import { notFound } from 'next/navigation'
+import { resolvePlatformMode } from '@/platform/lib/data/mode'
 
 /**
- * Legacy hooks send a usage limit's Upgrade action to the workspace's upgrade page. The zone's plans
- * belong to the organization's billing, so the route forwards there with the limit that sent it.
+ * Plans belong to the organization's billing, so the usage limit that sent the viewer here goes
+ * along. Fixture servers have no workspace to resolve.
  */
 export default async function Page({
+  params,
   searchParams,
-}: PageProps<'/workspace/[workspaceId]/upgrade'>) {
-  const query = await searchParams
-  const reason =
-    typeof query.reason === 'string' ? `?reason=${encodeURIComponent(query.reason)}` : ''
-  redirect(
-    platformHref(`/settings/billing/plans${reason}`, {
-      get: (key) => (typeof query[key] === 'string' ? query[key] : null),
-    })
-  )
+}: {
+  params: Promise<{ workspaceId: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  if (resolvePlatformMode() !== 'live') notFound()
+  const [{ workspaceId }, query] = await Promise.all([params, searchParams])
+  const { redirectLegacyWorkspaceUrl } = await import('@/platform/lib/data/legacy-redirects')
+  return redirectLegacyWorkspaceUrl(workspaceId, ['upgrade'], query)
 }

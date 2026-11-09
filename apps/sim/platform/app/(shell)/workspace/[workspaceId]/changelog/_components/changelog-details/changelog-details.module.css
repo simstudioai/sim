@@ -5,3 +5,21 @@
   color: var(--ui-ink);
   overflow-wrap: anywhere;
 }
+
+.changes {
+  display: grid;
+  gap: var(--ui-stack-gap);
+  max-inline-size: var(--container-760);
+  margin: 0;
+  padding-inline-start: var(--spacing-16);
+  color: var(--ui-ink);
+  overflow-wrap: anywhere;
+}
+
+.change {
+  color: inherit;
+}
+
+.change:hover {
+  text-decoration: underline;
+}

@@ -14,6 +14,7 @@ import { organizationRoutes } from '@/lib/navigation/paths'
 import { useOrganization } from '@/lib/organizations/provider'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { organizationPlanAllowsSettingsSection } from '@/lib/settings/section-availability'
+import { toast } from '@/lib/toast/sink'
 import { useOrganizationAccessRequests } from '@/hooks/queries/access-requests'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useOrganizationAccounts } from '@/hooks/queries/organization-accounts'
@@ -73,7 +74,6 @@ import type {
 import { homeDayParam } from '@/platform/shared/home-params'
 import { isRefusal } from '@/platform/shared/query-view'
 import { currentMinute, MINUTE_MS } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 import {
   type OrganizationHomeWidget,
   useOrganizationHomeStore,

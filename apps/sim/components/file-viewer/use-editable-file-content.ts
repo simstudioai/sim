@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
-import { toast } from '@sim/emcn-legacy'
 import {
   INITIAL_TEXT_EDITOR_CONTENT_STATE,
   type SyncTextEditorContentStateOptions,
   textEditorContentReducer,
 } from '@/components/file-viewer/text-editor-state'
 import { isApiClientError } from '@/lib/api/client/errors'
+import { toast } from '@/lib/toast/sink'
 import { saveBlob } from '@/lib/uploads/client/download'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import { GENERATED_DOCUMENT_SOURCE_TYPES } from '@/lib/uploads/utils/file'

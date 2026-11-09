@@ -6,6 +6,7 @@ import { and, eq, isNotNull } from 'drizzle-orm'
 import { getAwsMarketplaceProductCode } from '@/lib/billing/aws-marketplace/config'
 import { holdsMarketplaceLicense } from '@/lib/billing/aws-marketplace/repository'
 import { isOrganizationOwnerOrAdmin } from '@/lib/billing/core/organization'
+import { resolvePayerOrganizationId } from '@/lib/billing/core/payer-organization'
 import {
   getOrganizationCoverageForMember,
   hasPaidSubscription,
@@ -171,6 +172,16 @@ export async function authorizeSubscriptionReference(
 
   if (action === 'upgrade-subscription') {
     await assertNotBilledThroughMarketplace(referenceId)
+    /**
+     * A personal organization bills its owner personally, so a plan referencing it would never
+     * apply. A Team purchase references the person instead, and its webhook turns the personal
+     * organization into the team.
+     */
+    if (!(await resolvePayerOrganizationId(db, referenceId))) {
+      throw new APIError('FORBIDDEN', {
+        message: 'Subscribe from your personal account to start a team.',
+      })
+    }
   }
 
   if (action === 'upgrade-subscription' && !isOrgPlan(plan)) {

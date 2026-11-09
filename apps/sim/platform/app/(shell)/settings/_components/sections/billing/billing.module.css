@@ -26,3 +26,7 @@ a.invoice:hover {
   color: var(--ui-secondary);
   overflow-wrap: anywhere;
 }
+
+.dimmable[data-dimmed] {
+  opacity: var(--opacity-disabled);
+}

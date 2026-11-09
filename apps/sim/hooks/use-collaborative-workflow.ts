@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef } from 'react'
-import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import {
   BLOCK_OPERATIONS,
@@ -26,6 +25,7 @@ import { useSocket } from '@/components/workspace-providers/socket-provider'
 import { requestJson } from '@/lib/api/client/request'
 import { getWorkflowStateContract } from '@/lib/api/contracts'
 import { useSession } from '@/lib/auth/client'
+import { toast } from '@/lib/toast/sink'
 import { WORKFLOW_EXTERNAL_UPDATE_EVENT } from '@/lib/workflows/external-update'
 import {
   type WorkflowSearchSubflowFieldId,

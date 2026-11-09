@@ -1,5 +1,5 @@
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
-import { toast } from '@/platform/shared/toast'
+import { toast } from '@/lib/toast/sink'
 
 /** The part of a folder the list's helpers read; every resource tree's folder has it. */
 export interface TreeFolder {

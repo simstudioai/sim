@@ -17,6 +17,7 @@ import { Disclosure } from '@sim/emcn/disclosure'
 import { Icon } from '@sim/emcn/icon'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { RequestAccessModal } from '@/platform/app/(shell)/_components/request-access-modal/request-access-modal'
 import { BlockTile } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/canvas/block-tile/block-tile'
 import { getCustomBlockTile } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/canvas/block-tile/custom-block-tile'
@@ -24,8 +25,7 @@ import type { DragItemInfo } from '@/platform/app/(shell)/workspace/[workspaceId
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/toolbar/toolbar.module.css'
 import { ToolbarItemMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/toolbar/toolbar-item-menu/toolbar-item-menu'
 import { useToolbarItemInteractions } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/toolbar/use-toolbar-item-interactions'
-import { useOrganization } from '@/platform/lib/data/organization'
-import { legacyRoutes } from '@/platform/lib/data/organization-model'
+import { getMyAccessRequestHref } from '@/platform/lib/data/requests'
 import {
   type BlockConfig,
   buildCustomBlockConfig,
@@ -44,6 +44,7 @@ import {
   useToolbarStore,
   useWorkflowScope,
 } from '@/platform/lib/data/workflows'
+import { platformHref } from '@/platform/lib/navigation'
 
 interface BlockItem {
   name: string
@@ -392,7 +393,8 @@ export interface ToolbarRef {
  */
 export const Toolbar = memo(
   forwardRef<ToolbarRef, ToolbarProps>(function Toolbar({ isActive = true }: ToolbarProps, ref) {
-    const organization = useOrganization()
+    const router = useRouter()
+    const search = useSearchParams()
     const rootRef = useRef<HTMLDivElement>(null)
     const searchRef = useRef<HTMLDivElement>(null)
     const listEdges = useScrollEdges<HTMLDivElement>()
@@ -836,8 +838,11 @@ export const Toolbar = memo(
             target={{ kind: 'integration', id: requestedBlock.type }}
             label={requestedBlock.name}
             onViewRequest={(requestId) =>
-              window.location.assign(
-                legacyRoutes(organization).workspaceRequest(workspaceId, requestId)
+              router.push(
+                platformHref(
+                  getMyAccessRequestHref({ kind: 'workspace', workspaceId }, requestId),
+                  search
+                )
               )
             }
             onClose={() => setRequestedBlockType(null)}

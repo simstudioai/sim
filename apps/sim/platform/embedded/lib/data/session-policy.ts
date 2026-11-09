@@ -3,6 +3,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import type { OrganizationSessionPolicy } from '@/lib/api/contracts/organization'
 import type { OrganizationNetwork } from '@/lib/api/contracts/organization-network'
+import { toast } from '@/lib/toast/sink'
 import {
   useOrganizationSessionPolicy,
   useRevokeOrganizationSessions,
@@ -11,7 +12,6 @@ import {
 import { parseSessionPolicyHours } from '@/ee/session-policy/lib/policy-form'
 import { useOrganizationNetwork } from '@/hooks/queries/organization-network'
 import { plural } from '@/platform/shared/plural'
-import { toast } from '@/platform/shared/toast'
 
 /**
  * The organization's session policy as the section shows it: still loading, failed with its retry,

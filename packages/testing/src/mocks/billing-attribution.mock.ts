@@ -118,6 +118,20 @@ function toUsageLimitSubscription(attribution: MockBillingAttributionSnapshot) {
   }
 }
 
+/** Faithful copy of the real `attributionMatchesOrganizationScope`. */
+function attributionMatchesOrganizationScope(
+  attribution: Pick<MockBillingAttributionSnapshot, 'organizationId' | 'billingEntity'> & {
+    workspaceId: string | null
+  },
+  organizationId: string
+): boolean {
+  return (
+    attribution.workspaceId === null &&
+    (attribution.organizationId === organizationId ||
+      (attribution.organizationId === null && attribution.billingEntity.type === 'user'))
+  )
+}
+
 /**
  * Controllable mock functions for `@/lib/billing/core/attribution`.
  *
@@ -150,6 +164,7 @@ export const billingAttributionMockFns = {
   mockSerializeAccountBillingDecisionHeader: vi.fn(serializeHeader),
   mockRequireAccountBillingDecisionHeader: vi.fn(),
   mockToUsageLimitSubscription: vi.fn(toUsageLimitSubscription),
+  mockAttributionMatchesOrganizationScope: vi.fn(attributionMatchesOrganizationScope),
   mockGetWorkspaceBilledAccountUserId: vi.fn(),
   mockResolveWorkspaceBillingPayer: vi.fn(),
   mockResolveBillingAttribution: vi.fn(),
@@ -183,6 +198,8 @@ export const billingAttributionMock = {
   COPILOT_BILLING_PROTOCOL,
   COPILOT_BILLING_PROTOCOL_HEADER,
   assertBillingAttributionSnapshot: billingAttributionMockFns.mockAssertBillingAttributionSnapshot,
+  attributionMatchesOrganizationScope:
+    billingAttributionMockFns.mockAttributionMatchesOrganizationScope,
   serializeBillingAttributionHeader:
     billingAttributionMockFns.mockSerializeBillingAttributionHeader,
   createAttributedBillingRequestEnvelope:

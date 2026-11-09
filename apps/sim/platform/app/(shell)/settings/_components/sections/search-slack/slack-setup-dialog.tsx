@@ -11,7 +11,7 @@ import {
   FieldStack,
   Muted,
   Preformatted,
-} from '@/platform/app/(shell)/settings/_components/section-parts/section-parts'
+} from '@/platform/app/(shell)/_components/settings-parts/settings-parts'
 import type { SlackSearchInstallationView } from '@/platform/lib/data/settings-slack'
 
 export interface SetupTarget {

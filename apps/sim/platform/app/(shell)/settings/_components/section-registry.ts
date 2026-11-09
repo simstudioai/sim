@@ -89,6 +89,23 @@ export const SETTINGS_SECTIONS: Record<
   billing: {
     load: () =>
       import('@/platform/app/(shell)/settings/_components/sections/billing/billing-section'),
+    subpaths: ['credit-usage'],
+  },
+  desktop: {
+    load: () =>
+      import('@/platform/app/(shell)/settings/_components/sections/desktop/desktop-section'),
+  },
+  browser: {
+    load: () =>
+      import('@/platform/app/(shell)/settings/_components/sections/browser/browser-section'),
+  },
+  terminal: {
+    load: () =>
+      import('@/platform/app/(shell)/settings/_components/sections/terminal/terminal-section'),
+  },
+  'self-host': {
+    load: () =>
+      import('@/platform/app/(shell)/settings/_components/sections/self-host/self-host-section'),
   },
   usage: {
     load: () => import('@/platform/app/(shell)/settings/_components/sections/usage/usage-section'),

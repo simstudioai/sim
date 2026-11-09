@@ -165,6 +165,7 @@ describe('organization-only invitations', () => {
         organizationId,
         role: 'member',
         memberId: 'existing-member',
+        kind: 'team',
       })
       await expect(create()).rejects.toThrow(
         organizationId === 'org-target' ? 'already a member' : 'already belongs'
@@ -178,7 +179,7 @@ describe('organization-only invitations', () => {
     queueTableRows(member, [{ role: 'owner' }])
     mocks.membership
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ organizationId: 'org-other' })
+      .mockResolvedValueOnce({ organizationId: 'org-other', kind: 'team' })
     await expect(create()).rejects.toThrow('invitee joined an organization')
     expect(mocks.lockUser).toHaveBeenCalledWith(db, {
       userId: 'existing-user',

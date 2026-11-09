@@ -27,7 +27,9 @@ beforeAll(async () => {
   await connection.unsafe(`CREATE SCHEMA "${schemaName}"`)
   await connection.unsafe(`
     CREATE TABLE member (id text PRIMARY KEY, organization_id text, user_id text, role text);
-    CREATE TABLE organization (id text PRIMARY KEY, storage_used_bytes bigint NOT NULL);
+    CREATE TABLE organization (
+      id text PRIMARY KEY, storage_used_bytes bigint NOT NULL, kind text NOT NULL DEFAULT 'team'
+    );
     CREATE TABLE project (
       id text PRIMARY KEY, owner_id text NOT NULL,
       organization_id text REFERENCES organization(id) ON DELETE RESTRICT,

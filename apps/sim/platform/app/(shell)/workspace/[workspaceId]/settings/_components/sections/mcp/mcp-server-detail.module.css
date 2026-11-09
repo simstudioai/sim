@@ -1,0 +1,12 @@
+.tool {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.parameters {
+  padding-block-end: var(--spacing-12);
+}
+
+.parameterList {
+  padding-block-start: var(--ui-section-gap);
+}

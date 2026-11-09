@@ -1,4 +1,3 @@
-import { toast } from '@sim/emcn-legacy'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { OrganizationAccountConnectionResponse } from '@/lib/api/contracts/organization-accounts'
@@ -7,6 +6,7 @@ import {
   credentialGroupOAuthCompletionChannel,
   isCredentialGroupOAuthFailure,
 } from '@/lib/credential-groups/oauth-completion'
+import { toast } from '@/lib/toast/sink'
 
 const CONNECTION_TIMEOUT_MS = 10 * 60_000
 

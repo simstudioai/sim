@@ -9,6 +9,7 @@ import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
 import type { ChatMessage, ChatRequestMode } from '@/lib/mothership/chat/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
+import { toast } from '@/lib/toast/sink'
 import { getMothershipUseChatOptions, useChat } from '@/hooks/mothership-chat/use-chat'
 import {
   useChatResourcePanel,
@@ -29,7 +30,6 @@ import { useAssistantReview } from '@/platform/lib/data/chat-review'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type SummaryRequest, useSendSummary } from '@/platform/lib/data/search-summary'
 import { plural } from '@/platform/shared/plural'
-import { toast } from '@/platform/shared/toast'
 import { useToolPermissionStore } from '@/stores/tool-permission/store'
 
 /** A running `wait` counts down, and nothing else re-renders during the pause. */

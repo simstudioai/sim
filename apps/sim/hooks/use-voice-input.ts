@@ -1,9 +1,9 @@
 'use client'
 
 import { createContext, useCallback, useContext, useRef, useState } from 'react'
-import { toast } from '@sim/emcn-legacy'
 import { diffWordsWithSpace } from 'diff'
 import { getDesktopBridge } from '@/lib/desktop'
+import { toast } from '@/lib/toast/sink'
 import { type SpeechToTextError, useSpeechToText } from '@/hooks/use-speech-to-text'
 
 /** A host surface can open its own microphone permission controls. */

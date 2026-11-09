@@ -1,0 +1,35 @@
+/* The files a run produced, as a table cell's run details list them: name and detail, then Download. */
+.files {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  gap: var(--ui-list-gap);
+  list-style: none;
+}
+.file {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  min-block-size: var(--spacing-40);
+  gap: var(--ui-row-gap);
+}
+.fileText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+  gap: var(--ui-stack-gap);
+}
+.fileName {
+  display: flex;
+  min-inline-size: 0;
+  color: var(--ui-ink);
+}
+.fileDetail,
+.note {
+  margin: 0;
+  color: var(--ui-secondary);
+  overflow-wrap: anywhere;
+}

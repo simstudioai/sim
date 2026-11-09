@@ -674,7 +674,7 @@ export const Panel = memo(function Panel() {
         folderId: sourceWorkflow.folderId,
       })
       if (result?.id) {
-        router.push(`/workspace/${workspaceId}/w/${result.id}`)
+        router.push(`/workspace/${workspaceId}/workflows/${result.id}`)
       }
     } catch (error) {
       logger.error('Error duplicating workflow:', error)

@@ -32,6 +32,7 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useRouter } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
+import { toast } from '@/lib/toast/sink'
 import { OAuthConnectModal } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/oauth-connect-modal/oauth-connect-modal'
 import { BlockMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/block-menu/block-menu'
 import {
@@ -171,7 +172,6 @@ import {
 } from '@/platform/lib/data/workflows'
 import { platformHref } from '@/platform/lib/navigation'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('Workflow')
 

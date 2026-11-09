@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { generateShortId } from '@sim/utils/id'
+import { toast } from '@/lib/toast/sink'
 import {
   type ShareAuthType,
   type ShareRecord,
@@ -11,7 +12,6 @@ import {
   useUpsertFileShare,
   validateAllowlistEntry,
 } from '@/platform/lib/data/files'
-import { toast } from '@/platform/shared/toast'
 
 export interface ShareDialogProps {
   open: boolean

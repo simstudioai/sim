@@ -65,9 +65,7 @@ describe('organization rollout during impersonation', () => {
         user: { id: 'customer-member' },
         session: { impersonatedBy: 'platform-admin', activeOrganizationId: 'customer-org' },
       }
-      await expect(resolveAppEntryPath(impersonatedSession)).resolves.toBe(
-        knowledge ? '/o/customer-org/home' : '/workspace'
-      )
+      await expect(resolveAppEntryPath(impersonatedSession)).resolves.toBe('/o/customer-org/home')
       expect(mocks.landing).toHaveBeenLastCalledWith('customer-member', 'customer-org')
       expect(mocks.platformAdmin).not.toHaveBeenCalled()
 

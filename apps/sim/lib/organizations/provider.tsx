@@ -7,6 +7,10 @@ import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
 import { SourceHistoryProvider } from '@/hooks/sim-search/source-history'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { useSeedDeploymentShape } from '@/hooks/use-seed-deployment-shape'
+import { connectWorkflowStores } from '@/stores/workflows/state-port/connect-stores'
+
+// The socket provider and the organization chat read workflow state through its port.
+connectWorkflowStores()
 
 const OrganizationContextValue = createContext<OrganizationSurfaceContext | null>(null)
 

@@ -647,16 +647,15 @@
       }
     },
     "app/workspace/layout.tsx": {
-      "modules": 1151,
+      "modules": 1222,
       "gateways": {
-        "apps/sim/components/workspace-providers/socket-provider.tsx": 1240,
+        "apps/sim/app/workspace/workspace-root.tsx": 1122,
         "apps/sim/triggers/registry.ts": 597,
-        "apps/sim/blocks/registry.ts": 397,
-        "apps/sim/blocks/registry-maps.ts": 394,
-        "apps/sim/stores/workflows/registry/store.ts": 109,
-        "apps/sim/hooks/queries/deployments.ts": 106,
-        "apps/sim/lib/workflows/comparison/describe.ts": 91,
-        "apps/sim/lib/api/contracts/index.ts": 61
+        "apps/sim/blocks/registry.ts": 422,
+        "apps/sim/blocks/registry-maps.ts": 419,
+        "apps/sim/app/_shell/site-root-layout.tsx": 58,
+        "apps/sim/triggers/plane/index.ts": 46,
+        "apps/sim/triggers/clickup/index.ts": 32
       }
     },
     "app/workspace/page.tsx": {
