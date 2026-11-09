@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
+  getOrganizationSecretsContract,
   getSecretSourceContract,
   type SaveOrganizationSecretsBody,
   saveOrganizationSecretsContract,
 } from '@/lib/api/contracts/organization-secrets'
+import type { SecretSourceMode } from '@/lib/organization-secrets/validation'
 import {
   ORGANIZATION_SECRET_STALE_TIME,
   organizationSecretKeys,
@@ -17,6 +19,26 @@ export function useOrganizationSecretSource(organizationId: string) {
       requestJson(getSecretSourceContract, { params: { id: organizationId }, signal }),
     staleTime: ORGANIZATION_SECRET_STALE_TIME,
     enabled: Boolean(organizationId),
+  })
+}
+
+export function useOrganizationSecrets(
+  organizationId: string,
+  mode: SecretSourceMode,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: organizationSecretKeys.environment(organizationId, mode),
+    queryFn: ({ signal }) =>
+      requestJson(getOrganizationSecretsContract, {
+        params: { id: organizationId },
+        query: { mode },
+        signal,
+      }),
+    staleTime: ORGANIZATION_SECRET_STALE_TIME,
+    enabled: Boolean(organizationId) && enabled,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
   })
 }
 
