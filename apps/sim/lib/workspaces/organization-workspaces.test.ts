@@ -76,7 +76,9 @@ describe('organization workspace helpers', () => {
     ])
     queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
     queueTableRows(schemaMock.permissions, [{ userId: 'owner-1' }, { userId: 'member-2' }])
-    queueTableRows(schemaMock.member, [{ userId: 'member-2', organizationId: 'org-2' }])
+    queueTableRows(schemaMock.member, [
+      { userId: 'member-2', organizationId: 'org-2', kind: 'team' },
+    ])
 
     await expect(
       attachOwnedWorkspacesToOrganization({
@@ -97,7 +99,9 @@ describe('organization workspace helpers', () => {
     ])
     queueTableRows(schemaMock.member, [{ userId: 'owner-1' }])
     queueTableRows(schemaMock.permissions, [{ userId: 'owner-1' }, { userId: 'member-2' }])
-    queueTableRows(schemaMock.member, [{ userId: 'member-2', organizationId: 'org-2' }])
+    queueTableRows(schemaMock.member, [
+      { userId: 'member-2', organizationId: 'org-2', kind: 'team' },
+    ])
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'ws-1' }])
     mockEnsureUserInOrganizationTx.mockResolvedValueOnce({
       success: true,

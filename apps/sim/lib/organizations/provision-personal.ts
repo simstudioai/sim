@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, organization, user, workspace } from '@sim/db/schema'
+import { member, organization, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
@@ -13,6 +13,7 @@ import {
   isInstanceOrganizationMode,
   joinInstanceOrganization,
 } from '@/lib/organizations/instance-org'
+import { createPersonalOrganizationTx } from '@/lib/organizations/personal'
 import { transferWorkspaceProjects } from '@/lib/projects/membership'
 
 const logger = createLogger('PersonalOrganizationProvision')
@@ -29,15 +30,6 @@ export type ProvisionPersonalOrganizationResult =
   /** Already in a team: their organization-less workspaces stay where they are. */
   | { status: 'team-member'; organizationId: string }
   | { status: 'user-missing' }
-
-/** A stable, valid, collision-free slug: users are unique, and so is their personal organization. */
-function personalOrganizationSlug(userId: string): string {
-  return `personal-${userId.toLowerCase().replace(/[^a-z0-9-_]+/g, '-')}`
-}
-
-function personalOrganizationName(row: { name: string | null; email: string }): string {
-  return row.name?.trim() || row.email.split('@')[0] || 'Personal'
-}
 
 /**
  * Gives a user outside every team their personal organization and attaches the workspaces they
@@ -93,30 +85,8 @@ export async function provisionPersonalOrganization(
     }
 
     const created = !locked
-    if (created) {
-      const [owner] = await tx
-        .select({ name: user.name, email: user.email })
-        .from(user)
-        .where(eq(user.id, userId))
-        .limit(1)
-      if (!owner) return { status: 'user-missing' }
-      const now = new Date()
-      await tx.insert(organization).values({
-        id: organizationId,
-        name: personalOrganizationName(owner),
-        slug: personalOrganizationSlug(userId),
-        kind: 'personal',
-        metadata: {},
-        createdAt: now,
-        updatedAt: now,
-      })
-      await tx.insert(member).values({
-        id: generateId(),
-        userId,
-        organizationId,
-        role: 'owner',
-        createdAt: now,
-      })
+    if (created && !(await createPersonalOrganizationTx(tx, userId, organizationId))) {
+      return { status: 'user-missing' }
     }
 
     const { attachedWorkspaceIds, skippedWorkspaceIds } = await attachUnassignedWorkspacesTx(tx, {

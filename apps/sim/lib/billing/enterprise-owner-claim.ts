@@ -918,7 +918,7 @@ export async function acceptEnterpriseOwnerClaim(params: {
       if (existingMembership?.kind === 'team') {
         return { success: false as const, kind: 'already-in-organization' as const }
       }
-      /** A personal organization dissolves into the claimed one when it is created below. */
+      /** A personal organization becomes the claimed one in place when it is created below. */
       const personalOrganizationId = existingMembership?.organizationId ?? null
       const currentWorkspaces = await tx
         .select({ id: workspace.id })

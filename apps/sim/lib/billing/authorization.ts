@@ -174,8 +174,8 @@ export async function authorizeSubscriptionReference(
     await assertNotBilledThroughMarketplace(referenceId)
     /**
      * A personal organization bills its owner personally, so a plan referencing it would never
-     * apply. A Team purchase references the person instead, and its webhook creates the team the
-     * personal organization dissolves into.
+     * apply. A Team purchase references the person instead, and its webhook turns the personal
+     * organization into the team.
      */
     if (!(await resolvePayerOrganizationId(db, referenceId))) {
       throw new APIError('FORBIDDEN', {

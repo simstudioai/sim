@@ -275,7 +275,7 @@ async function runAdmissionTransaction(
         },
       }
     }
-    /** A personal organization dissolves into the SSO organization on admission. */
+    /** A personal organization is retired on admission; its content moves with its owner. */
     if (memberships.some((membership) => membership.kind === 'team')) {
       return {
         ...attribution,

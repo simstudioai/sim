@@ -142,7 +142,7 @@ export async function ensureOrganizationForTeamSubscription(
     userId,
   })
 
-  /** A personal organization dissolves into the team this subscription creates. */
+  /** A personal organization becomes the team this subscription creates, in place. */
   const existingMembership = await db
     .select({
       id: member.id,
@@ -277,9 +277,9 @@ export async function ensureOrganizationForTeamSubscription(
   }
 
   /**
-   * Creating the team (which dissolves the buyer's personal organization into it, workspaces
-   * included) and moving the subscription onto it commit together, so those workspaces are never
-   * billed to a team without its plan.
+   * Creating the team (converting the buyer's personal organization in place, its workspaces
+   * returning to the organization-less personal state for the attach below) and moving the
+   * subscription onto it commit together.
    */
   const orgId = await db.transaction(async (tx) => {
     const { organizationId: orgId } = await createOrganizationWithOwnerTx(tx, {
