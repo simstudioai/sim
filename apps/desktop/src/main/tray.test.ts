@@ -18,18 +18,29 @@ function makeDeps(overrides: Partial<TrayDeps> = {}): TrayDeps {
 }
 
 function _chat(id: number): RecentChat {
-  return { id: `c${id}`, title: `Chat ${id}`, workspaceId: 'ws1', status: 'none' }
+  return { id: `c${id}`, title: `Chat ${id}`, route: `/o/org1/chat/c${id}`, status: 'none' }
+}
+
+/** Answers the surface read with `org1` and the chat list with `chats`. */
+function respond(chats: unknown[]) {
+  return (url: string) => ({
+    ok: true,
+    status: 200,
+    json: async () =>
+      url.includes('/api/organizations/surface')
+        ? { organization: { id: 'org1' } }
+        : { success: true, data: chats },
+  })
 }
 
 describe('parseRecentChats', () => {
   it('derives the sidebar status semantics: active > unread > none', () => {
     const payload = {
-      chats: [
+      data: [
         // Streaming right now → active, regardless of seen state.
         {
           id: 'c1',
           title: 'Streaming',
-          workspaceId: 'ws1',
           activeStreamId: 's1',
           updatedAt: '2026-07-19T10:00:00Z',
           lastSeenAt: '2026-07-19T11:00:00Z',
@@ -38,7 +49,6 @@ describe('parseRecentChats', () => {
         {
           id: 'c2',
           title: 'Fresh reply',
-          workspaceId: 'ws1',
           activeStreamId: null,
           updatedAt: '2026-07-19T10:00:00Z',
           lastSeenAt: '2026-07-19T09:00:00Z',
@@ -47,7 +57,6 @@ describe('parseRecentChats', () => {
         {
           id: 'c3',
           title: 'Never seen',
-          workspaceId: 'ws1',
           activeStreamId: null,
           updatedAt: '2026-07-19T10:00:00Z',
           lastSeenAt: null,
@@ -56,21 +65,36 @@ describe('parseRecentChats', () => {
         {
           id: 'c4',
           title: 'Caught up',
-          workspaceId: 'ws1',
           activeStreamId: null,
           updatedAt: '2026-07-19T10:00:00Z',
           lastSeenAt: '2026-07-19T11:00:00Z',
         },
         // Legacy row without the status fields → no dot.
-        { id: 'c5', title: 'Legacy', workspaceId: 'ws1' },
+        { id: 'c5', title: 'Legacy' },
       ],
     }
-    expect(parseRecentChats(payload).map((chat) => chat.status)).toEqual([
+    expect(parseRecentChats(payload, 'org1').map((chat) => chat.status)).toEqual([
       'active',
       'unread',
       'unread',
       'none',
       'none',
+    ])
+  })
+})
+
+describe('parseRecentChats routes', () => {
+  it('opens each organization chat at its page: Search for an assistant chat, Chat otherwise', () => {
+    const payload = {
+      success: true,
+      data: [
+        { id: 'c1', title: 'Build', mode: 'agent' },
+        { id: 'c2', title: 'Ask', mode: 'assistant' },
+      ],
+    }
+    expect(parseRecentChats(payload, 'org1').map((chat) => chat.route)).toEqual([
+      '/o/org1/chat/c1',
+      '/o/org1/search/chat/c2',
     ])
   })
 })
@@ -87,13 +111,9 @@ describe('installTray', () => {
     // were treated as a failure the menu would keep listing the signed-out
     // user's chat titles to whoever picks the machine up next.
     let signedIn = true
-    const fetchMock = vi.fn(async () =>
+    const fetchMock = vi.fn(async (url: string) =>
       signedIn
-        ? {
-            ok: true,
-            status: 200,
-            json: async () => ({ chats: [{ id: 'c1', title: 'Secret', workspaceId: 'ws1' }] }),
-          }
+        ? respond([{ id: 'c1', title: 'Secret', mode: 'agent' }])(url)
         : { ok: false, status: 401, json: async () => ({}) }
     )
     vi.mocked(session.fromPartition).mockReturnValue({ fetch: fetchMock } as never)
@@ -122,13 +142,9 @@ describe('installTray', () => {
     const inFlight = new Promise((resolve) => {
       release = resolve
     })
-    const fetchMock = vi.fn(async () => {
+    const fetchMock = vi.fn(async (url: string) => {
       await inFlight
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({ chats: [{ id: 'c1', title: 'Secret', workspaceId: 'ws1' }] }),
-      }
+      return respond([{ id: 'c1', title: 'Secret', mode: 'agent' }])(url)
     })
     vi.mocked(session.fromPartition).mockReturnValue({ fetch: fetchMock } as never)
 

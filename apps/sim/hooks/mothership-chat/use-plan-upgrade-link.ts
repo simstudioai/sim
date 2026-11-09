@@ -50,7 +50,7 @@ export function usePlanUpgradeLink(data: PlanUpgradeLinkInput): PlanUpgradeLink 
     ? organizationContext
       ? getOrganizationSettingsHref(organizationContext.organization.id, 'billing')
       : planRequired && hostContext
-        ? buildUpgradeHref(hostContext.workspace.id)
+        ? buildUpgradeHref()
         : getSettingsHref({ section: 'billing' })
     : data.action === 'upgrade_plan'
       ? buildHostedUpgradeUrl()

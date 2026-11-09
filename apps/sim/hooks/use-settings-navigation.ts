@@ -7,6 +7,7 @@ import type { SettingsSection } from '@/components/settings/workspace-navigation
 import { useOptionalWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-context'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/client'
+import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { popSettingsReturnUrl, rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
@@ -45,7 +46,7 @@ export function resolveSettingsHref({
     hostContext &&
     !canManageWorkspaceBilling(hostContext, viewerUserId)
   ) {
-    return `/workspace/${workspaceId}/upgrade`
+    return buildUpgradeHref()
   }
 
   const searchParams = new URLSearchParams()

@@ -15,7 +15,6 @@ import {
   notProvable,
   onHome,
   org,
-  orgUrl,
   refused,
   section,
   sql,
@@ -191,7 +190,7 @@ export async function landingChecks() {
           (address) => address.pathname === org.settingsSection('members')
         )
         await expect(page.getByRole('textbox', { name: 'Search members' })).toBeVisible()
-        await page.goto(orgUrl('/access-requests'))
+        await page.goto(url(org.accessRequests))
         await expect(page).toHaveURL(
           (address) => address.pathname === org.settingsSection('requests')
         )

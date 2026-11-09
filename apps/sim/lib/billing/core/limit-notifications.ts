@@ -290,7 +290,7 @@ export async function maybeSendLimitThresholdEmail(params: {
     const kind = desired === REACH_THRESHOLD ? 'reached' : 'warning'
     const percentUsed = Math.min(100, Math.round(percent))
     const billingPath = params.workspaceId
-      ? buildUpgradeHref(params.workspaceId, category)
+      ? buildUpgradeHref(category)
       : scope === 'organization' && params.organizationId
         ? organizationRoutes(params.organizationId).settingsSection('billing')
         : '/account/settings/billing'
