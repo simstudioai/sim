@@ -311,7 +311,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | Global command registry semantics | `global-commands-provider.tsx` | Unverified | No live check yet. Editable guard ported for `Mod+B`. The Platform has two commands and nothing claims `Mod+B` through `data-owned-shortcuts`, so no registry |
 | `Mod+K` palette | Platform only | Done | "Mod+K opens the palette" |
 | Home, Search, People, Integrations, Benchmark entries | `navigation.ts` | Done | "navigation lists what the surface grants". Integrations is listed for every organization; Search stays member-scoped (`destinations.test.ts`) |
-| Sim Links entry | `navigation.ts` | Unverified | No live check yet. Settings section `links`, gated by `navFlags.simLinks` |
+| Sim Links entry | `navigation.ts` | Unverified | No live check yet. Settings section `links`, listed in the Settings navigation's Organization group and gated by `navFlags.simLinks` |
 | Nav right click: new tab, copy link | `organization-sidebar.tsx` | Done | "navigation lists what the surface grants" |
 | Active item highlighting | `organization-sidebar.tsx` | Unverified | No live check yet. Existing `sidebar.tsx` |
 | Settings rail replaces app rail | `organization-sidebar.tsx` | Unverified | No live check yet. Existing `sidebar.tsx` |

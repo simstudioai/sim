@@ -1,44 +1,49 @@
 .page {
-  /* Everything above and below the table's own scroller, so the page itself stays still. */
+  /* Settings' breadcrumb, heading and toolbar, and their gaps: all that sits above the table's scroller. */
   --ui-table-viewport-offset: calc(
-    var(--shell-home-row-start) +
+    var(--spacing-48) +
     2 *
     var(--spacing-app-control-md) +
     3 *
-    var(--ui-product-section-gap)
+    var(--spacing-24)
   );
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
-  padding-block: var(--shell-home-row-start) var(--ui-page-inset-block);
-  gap: var(--ui-product-section-gap);
-}
-.heading,
-.actions,
-.options {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.heading {
-  justify-content: space-between;
-  gap: var(--spacing-8);
-}
-.actions {
-  gap: var(--ui-action-gap);
-}
-.options {
-  gap: var(--spacing-8);
-}
-.options > :first-child {
-  flex: 1 1 var(--spacing-128);
-  min-inline-size: 0;
+  gap: var(--spacing-24);
 }
 .favicon {
   flex: none;
   inline-size: var(--spacing-16);
   block-size: var(--spacing-16);
   border-radius: var(--radius-2);
+}
+.nameCell {
+  display: grid;
+  flex: 1;
+  min-inline-size: 0;
+}
+.summary {
+  display: none;
+  min-inline-size: 0;
+  gap: var(--spacing-2);
+  margin-block-start: var(--spacing-2);
+  color: var(--ui-secondary);
+}
+.summaryDestination {
+  display: none;
+  min-inline-size: 0;
+}
+/* The breakpoints where the table hides its columns: what leaves the row joins the name's cell. */
+@container (width < 48rem) {
+  .summary {
+    display: grid;
+  }
+}
+@container (width < 30rem) {
+  .summaryDestination {
+    display: grid;
+  }
 }
 .access {
   display: grid;

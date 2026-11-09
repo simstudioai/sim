@@ -15,13 +15,14 @@ import { FailureNotice } from '@sim/emcn/status'
 import { LinkEditor } from '@/app/(product)/_components/links-page/link-editor'
 import { LinkIcon } from '@/app/(product)/_components/links-page/link-icon'
 import { LinksFrame } from '@/app/(product)/_components/links-page/links-frame'
+import styles from '@/app/(product)/_components/links-page/links-page.module.css'
 import { type LinkRecord, linkFaviconSrc, openLink, useLinksPage } from '@/platform/lib/data/links'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 const COLUMNS = [
   { key: 'name', label: 'Name', kind: 'text' },
-  { key: 'destination', label: 'Destination', kind: 'text', showFrom: 'compact' },
-  { key: 'description', label: 'Description', kind: 'text', showFrom: 'wide' },
+  { key: 'destination', label: 'Destination', kind: 'text', showFrom: 'compact', share: '27%' },
+  { key: 'description', label: 'Description', kind: 'text', showFrom: 'wide', share: '19%' },
   { key: 'owner', label: 'Created by', kind: 'text', showFrom: 'wide' },
   { key: 'access', label: 'Access', kind: 'text', showFrom: 'wide' },
   { key: 'updated', label: 'Updated', kind: 'text', showFrom: 'wide' },
@@ -97,6 +98,28 @@ function LinkRowContextMenu({ links, children, ...actions }: LinkRowContextMenuP
   )
 }
 
+interface LinkSummaryProps {
+  link: LinkRecord
+  updated: string
+}
+
+/**
+ * What the table's hidden columns would say, under the name, so a narrow table loses nothing. Access
+ * leads its line, where truncation cannot take it.
+ */
+function LinkSummary({ link, updated }: LinkSummaryProps) {
+  const facts = [accessLabel(link), link.createdBy?.name, updated].filter(Boolean).join(' · ')
+  return (
+    <span className={styles.summary} data-type='T052'>
+      <span className={styles.summaryDestination}>
+        <OverflowText text={link.url}>{link.url}</OverflowText>
+      </span>
+      {link.description && <OverflowText text={link.description}>{link.description}</OverflowText>}
+      <OverflowText text={facts}>{facts}</OverflowText>
+    </span>
+  )
+}
+
 interface LinksTableProps extends RowActions {
   links: readonly LinkRecord[]
   loadMore: LoadMoreState
@@ -116,16 +139,20 @@ const LinksTable = memo(function LinksTable({
   const rows = useMemo(() => {
     const now = asOf ?? Date.now()
     return links.map((link) => {
+      const updated = formatRelativeTime(new Date(link.updatedAt).getTime(), now)
       return {
         id: link.id,
         values: {
           access: accessLabel(link),
-          updated: formatRelativeTime(new Date(link.updatedAt).getTime(), now),
+          updated,
         },
         cells: {
           name: (
             <TableLabel leading={<LinkIcon src={linkFaviconSrc(link)} />}>
-              <OverflowText text={link.name}>{link.name}</OverflowText>
+              <span className={styles.nameCell}>
+                <OverflowText text={link.name}>{link.name}</OverflowText>
+                <LinkSummary link={link} updated={updated} />
+              </span>
             </TableLabel>
           ),
           destination: <OverflowText text={link.url}>{link.url}</OverflowText>,
