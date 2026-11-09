@@ -7,11 +7,6 @@ import { clearBrowserUserData, RECENT_IMPERSONATIONS_STORAGE_KEY } from '@/lib/a
 import { useSession } from '@/lib/auth/client'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
-import type {
-  AdminConsole,
-  DirectoryUser,
-  NewDirectoryUser,
-} from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/model'
 import {
   type AdminUser,
   useAddUser,
@@ -25,6 +20,7 @@ import {
 } from '@/hooks/queries/admin-users'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useImportWorkflow } from '@/hooks/queries/workflow-import'
+import type { AdminConsole, DirectoryUser, NewDirectoryUser } from '@/platform/lib/data/admin-model'
 
 const MAX_RECENT = 5
 

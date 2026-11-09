@@ -9,10 +9,7 @@ import {
   FieldStack,
   Muted,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
-import type {
-  AdminConsole,
-  ImportInputs,
-} from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/model'
+import type { AdminConsole, ImportInputs } from '@/platform/lib/data/admin-model'
 
 interface WorkflowImportProps {
   importer: AdminConsole['importer']

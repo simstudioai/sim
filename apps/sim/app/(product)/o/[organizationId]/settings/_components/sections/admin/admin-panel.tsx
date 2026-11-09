@@ -9,11 +9,8 @@ import { Switch } from '@sim/emcn/switch'
 import Link from 'next/link'
 import { SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { AdminDirectory } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/admin-directory'
-import type {
-  AdminConsole,
-  ImportInputs,
-} from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/model'
 import { WorkflowImport } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/workflow-import'
+import type { AdminConsole, ImportInputs } from '@/platform/lib/data/admin-model'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 
 const ENVIRONMENTS = [

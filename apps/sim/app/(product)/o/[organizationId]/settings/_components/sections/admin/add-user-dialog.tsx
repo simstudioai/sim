@@ -6,7 +6,7 @@ import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
 import { isValidEmailSyntax } from '@sim/utils/string'
 import { FieldStack } from '@/app/(product)/_components/settings-parts/settings-parts'
-import type { NewDirectoryUser } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/model'
+import type { NewDirectoryUser } from '@/platform/lib/data/admin-model'
 
 const CREDENTIALS = [
   { value: 'set', label: 'Set a password' },

@@ -1,6 +1,5 @@
 {
   "libToViewTypes": {
-    "apps/sim/platform/lib/data/admin.ts": 1,
     "apps/sim/platform/lib/data/chat-composer.ts": 2,
     "apps/sim/platform/lib/data/chat-credentials/rows.ts": 1,
     "apps/sim/platform/lib/data/chat-draft.ts": 1,

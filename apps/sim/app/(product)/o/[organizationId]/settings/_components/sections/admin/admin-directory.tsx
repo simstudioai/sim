@@ -21,10 +21,7 @@ import {
   ADMIN_PAGE_SIZE,
   useDirectorySearch,
 } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/directory-search'
-import type {
-  AdminConsole,
-  DirectoryUser,
-} from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/model'
+import type { AdminConsole, DirectoryUser } from '@/platform/lib/data/admin-model'
 
 type UserAction = 'Ban' | 'Promote' | 'Demote'
 

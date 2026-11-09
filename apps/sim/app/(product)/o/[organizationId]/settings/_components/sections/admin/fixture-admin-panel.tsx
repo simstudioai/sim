@@ -10,11 +10,8 @@ import {
   ADMIN_PAGE_SIZE,
   useDirectorySearch,
 } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/directory-search'
-import type {
-  AdminConsole,
-  AdminExample,
-  DirectoryUser,
-} from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/model'
+import type { AdminExample } from '@/app/(product)/o/[organizationId]/settings/_components/sections/admin/model'
+import type { AdminConsole, DirectoryUser } from '@/platform/lib/data/admin-model'
 import { useSettingsFixtureDraft } from '@/platform/lib/data/settings-providers'
 
 /** The Admin section on the session's example: every edit stays in the fixture draft. */
