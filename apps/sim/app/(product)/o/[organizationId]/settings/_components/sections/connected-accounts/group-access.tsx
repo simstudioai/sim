@@ -10,23 +10,24 @@ import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { parseAsString, useQueryState } from 'nuqs'
 import { FieldStack, SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
+import type { CredentialGroupsData } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
 import type {
-  CredentialGroupsData,
+  CredentialGroupActions,
   WorkspaceGrant,
-} from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
+} from '@/platform/lib/data/credential-group-actions'
 
 interface GroupAccessProps {
   data: CredentialGroupsData
-  editable: boolean
-  onChange: (grants: WorkspaceGrant[]) => void
+  actions: CredentialGroupActions
 }
 
-export function GroupAccess({ data, editable, onChange }: GroupAccessProps) {
+export function GroupAccess({ data, actions }: GroupAccessProps) {
   const [search, setSearch] = useQueryState(
     'credential-group-workspace',
     parseAsString.withDefault('')
   )
   const [editing, setEditing] = useState<WorkspaceGrant>()
+  const [removing, setRemoving] = useState(false)
   const available = data.workspaces.filter(
     (workspace) => !data.grants.some((grant) => grant.workspaceId === workspace.id)
   )
@@ -59,11 +60,9 @@ export function GroupAccess({ data, editable, onChange }: GroupAccessProps) {
                   .join(', ')
           return (
             <SettingsRow key={workspace.id} label={workspace.name} description={description}>
-              {editable && (
-                <Button size='compact' onClick={() => setEditing(grant)}>
-                  Edit access
-                </Button>
-              )}
+              <Button size='compact' onClick={() => setEditing(grant)}>
+                Edit access
+              </Button>
             </SettingsRow>
           )
         })}
@@ -72,17 +71,15 @@ export function GroupAccess({ data, editable, onChange }: GroupAccessProps) {
             title={search.trim() ? 'No workspaces match your search' : 'No workspaces have access'}
           />
         )}
-        {editable && (
-          <SettingsRow label='Grant workspace access'>
-            <Button
-              size='compact'
-              disabled={!available.length || data.grants.length >= 1000}
-              onClick={() => setEditing({ workspaceId: '', types: [] })}
-            >
-              Add workspace
-            </Button>
-          </SettingsRow>
-        )}
+        <SettingsRow label='Grant workspace access'>
+          <Button
+            size='compact'
+            disabled={!available.length || data.grants.length >= 1000}
+            onClick={() => setEditing({ workspaceId: '', types: [] })}
+          >
+            Add workspace
+          </Button>
+        </SettingsRow>
       </SettingsSection>
       {editing && (
         <Modal
@@ -97,11 +94,15 @@ export function GroupAccess({ data, editable, onChange }: GroupAccessProps) {
           }
           confirmLabel={existing ? 'Save access' : 'Add workspace'}
           confirmDisabled={!editing.workspaceId || !editing.types.length}
+          pending={removing}
           onConfirm={() =>
-            onChange([
-              ...data.grants.filter((item) => item.workspaceId !== editing.workspaceId),
-              editing,
-            ])
+            actions.saveGrants(
+              existing
+                ? data.grants.map((item) =>
+                    item.workspaceId === editing.workspaceId ? editing : item
+                  )
+                : [...data.grants, editing]
+            )
           }
         >
           <FieldStack>
@@ -137,9 +138,18 @@ export function GroupAccess({ data, editable, onChange }: GroupAccessProps) {
             {existing && (
               <Button
                 variant='destructive'
+                disabled={removing}
                 onClick={() => {
-                  onChange(data.grants.filter((grant) => grant.workspaceId !== editing.workspaceId))
-                  setEditing(undefined)
+                  setRemoving(true)
+                  actions
+                    .saveGrants(
+                      data.grants.filter((grant) => grant.workspaceId !== editing.workspaceId)
+                    )
+                    .then(
+                      () => setEditing(undefined),
+                      () => {}
+                    )
+                    .finally(() => setRemoving(false))
                 }}
               >
                 Remove access

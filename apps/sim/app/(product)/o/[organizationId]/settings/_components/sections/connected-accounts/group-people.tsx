@@ -10,25 +10,26 @@ import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { RecipientField } from '@sim/emcn-platform/workspace-fields'
 import { parseAsString, useQueryState } from 'nuqs'
-import { toast } from '@/lib/toast/sink'
 import { FieldStack, SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { CredentialGroupsData } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
+import type { CredentialGroupActions } from '@/platform/lib/data/credential-group-actions'
 
 interface GroupPeopleProps {
   people: CredentialGroupsData['people']
   nextCursor?: string | null
-  editable: boolean
-  onChange: (people: CredentialGroupsData['people']) => void
+  /** The whole roster is already here, so search filters it without a server read. */
+  shallow: boolean
+  actions: CredentialGroupActions
 }
 
-export function GroupPeople({ people, nextCursor, editable, onChange }: GroupPeopleProps) {
+export function GroupPeople({ people, nextCursor, shallow, actions }: GroupPeopleProps) {
   const [search, setSearch] = useQueryState(
     'credential-group-people',
-    parseAsString.withDefault('').withOptions({ shallow: editable })
+    parseAsString.withDefault('').withOptions({ shallow })
   )
   const [, setCursor] = useQueryState('cursor', parseAsString.withOptions({ shallow: false }))
   const [invite, setInvite] = useState(false)
-  const [revoking, setRevoking] = useState<string>()
+  const [revoking, setRevoking] = useState<CredentialGroupsData['people'][number]>()
   const [recipients, setRecipients] = useState<{ address: string; invalid?: boolean }[]>([])
   const [limit, setLimit] = useState(50)
   const visible = people.filter((person) =>
@@ -42,38 +43,36 @@ export function GroupPeople({ people, nextCursor, editable, onChange }: GroupPeo
         onValueChange={(value) => {
           setLimit(50)
           void setSearch(value)
-          if (!editable) void setCursor(null)
+          if (!shallow) void setCursor(null)
         }}
       />
       <SettingsSection title='People'>
         {visible.slice(0, limit).map((person) => (
           <SettingsRow
-            key={person.email}
+            key={person.id}
             label={person.email}
             leading={<Avatar name={person.email} size='inline' />}
             description={person.revoked ? 'Revoked' : person.accounts.join(', ') || 'Invited'}
           >
-            {editable && (
-              <ActionMenu
-                icon='I108'
-                label={`${person.email} actions`}
-                actions={[
-                  {
-                    id: 'resend',
-                    label: 'Resend',
-                    disabled: person.revoked,
-                    onSelect: () => toast.success('Connection request renewed'),
-                  },
-                  {
-                    id: 'revoke',
-                    label: 'Revoke',
-                    destructive: true,
-                    disabled: person.revoked,
-                    onSelect: () => setRevoking(person.email),
-                  },
-                ]}
-              />
-            )}
+            <ActionMenu
+              icon='I108'
+              label={`${person.email} actions`}
+              actions={[
+                {
+                  id: 'resend',
+                  label: 'Resend',
+                  disabled: person.revoked,
+                  onSelect: () => void actions.resend(person.id),
+                },
+                {
+                  id: 'revoke',
+                  label: 'Revoke',
+                  destructive: true,
+                  disabled: person.revoked,
+                  onSelect: () => setRevoking(person),
+                },
+              ]}
+            />
           </SettingsRow>
         ))}
         {!visible.length && (
@@ -86,24 +85,22 @@ export function GroupPeople({ people, nextCursor, editable, onChange }: GroupPeo
             Load more
           </Button>
         )}
-        {!editable && nextCursor && (
+        {!shallow && nextCursor && (
           <Button size='compact' onClick={() => void setCursor(nextCursor)}>
             Next page
           </Button>
         )}
-        {editable && (
-          <SettingsRow label='Request account connections'>
-            <Button
-              size='compact'
-              onClick={() => {
-                setRecipients([])
-                setInvite(true)
-              }}
-            >
-              Request connections
-            </Button>
-          </SettingsRow>
-        )}
+        <SettingsRow label='Request account connections'>
+          <Button
+            size='compact'
+            onClick={() => {
+              setRecipients([])
+              setInvite(true)
+            }}
+          >
+            Request connections
+          </Button>
+        </SettingsRow>
       </SettingsSection>
       <Modal
         open={invite}
@@ -111,17 +108,13 @@ export function GroupPeople({ people, nextCursor, editable, onChange }: GroupPeo
         title='Request account connections'
         confirmLabel='Send requests'
         confirmDisabled={!recipients.length || recipients.some((item) => item.invalid)}
-        onConfirm={() => {
-          const addresses = new Set(recipients.map((item) => item.address.toLowerCase()))
-          onChange([
-            ...people.filter((person) => !addresses.has(person.email.toLowerCase())),
-            ...Array.from(addresses, (email) => ({
-              email,
-              revoked: false,
-              accounts:
-                people.find((person) => person.email.toLowerCase() === email)?.accounts ?? [],
-            })),
+        onConfirm={async () => {
+          const failure = await actions.invite([
+            ...new Set(recipients.map((item) => item.address.toLowerCase())),
           ])
+          if (!failure) return
+          setRecipients(failure.failed.map((address) => ({ address })))
+          throw new Error(failure.notice)
         }}
       >
         <FieldStack>
@@ -140,16 +133,12 @@ export function GroupPeople({ people, nextCursor, editable, onChange }: GroupPeo
         onOpenChange={(open) => {
           if (!open) setRevoking(undefined)
         }}
-        title={`Revoke ${revoking ?? 'account access'}`}
+        title={`Revoke ${revoking?.email ?? 'account access'}`}
         description='This removes all accounts contributed by this person from organization workflows and Search. Their organization membership remains active.'
         confirmLabel='Revoke'
-        onConfirm={() =>
-          onChange(
-            people.map((person) =>
-              person.email === revoking ? { ...person, revoked: true, accounts: [] } : person
-            )
-          )
-        }
+        onConfirm={() => {
+          if (revoking) return actions.revoke(revoking.id)
+        }}
       />
     </SectionStack>
   )

@@ -14,6 +14,7 @@ import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
+import { AccessRequired } from '@/app/(product)/workspace/[workspaceId]/_components/access-required/access-required'
 import {
   descendantIndex,
   folderLocation,
@@ -794,9 +795,11 @@ export function TableList({ workspaceId }: TableListProps) {
   return (
     <LiveWorkspacePage workspaceId={workspaceId} current='tables' controls={controls} read={read}>
       {access.hidden ? (
-        <WorkspaceEmpty
-          title='Access required'
-          description='Your organization restricts this feature.'
+        <AccessRequired
+          workspaceId={workspaceId}
+          gate='hideTablesTab'
+          refreshing={access.refreshing}
+          onRefresh={access.refresh}
         />
       ) : (
         <ResourceTable
