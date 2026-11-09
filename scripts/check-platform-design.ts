@@ -543,6 +543,8 @@ const seamHelpers = new Set([
   'lib/table/ttl-values',
   'lib/table/types',
   'lib/table/workflow-groups/deployment-mode',
+  'lib/terminal/focus',
+  'lib/terminal/resource-id',
   'lib/terminal/transport',
   'lib/browser-agent/panel-occlusion',
   'lib/browser-agent/transport',

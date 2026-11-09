@@ -25,7 +25,8 @@ interface PanelResize {
 export interface PanelResources {
   resources: readonly PlatformResource[]
   collapsed: boolean
-  onSelect: (id: string) => void
+  /** `byPointer` when the reader clicked the tab; keyboard moves along the strip keep focus there. */
+  onSelect: (id: string, byPointer: boolean) => void
   onRemove: (id: string) => void
   onExpand: () => void
   onCollapse: () => void

@@ -27,6 +27,7 @@ import type {
 } from '@sim/browser-protocol'
 import type {
   BrowserAddToChatPayload,
+  BrowserDownloadsState,
   BrowserToolbarCommand,
   DesktopAppearanceTheme,
   SimDesktopBrowserAgentApi,
@@ -384,6 +385,33 @@ export function onBrowserAppearanceThemeChanged(
   callback: (theme: DesktopAppearanceTheme) => void
 ): () => void {
   return bridge()?.onAppearanceThemeChanged(callback) ?? (() => {})
+}
+
+/** Reads one chat's recent browser downloads. */
+export async function loadBrowserDownloads(
+  scopeId = currentBrowserScopeId()
+): Promise<BrowserDownloadsState> {
+  return (await bridge()?.getDownloadsState(scopeId)) ?? { downloads: [], scopeId }
+}
+
+/** Subscribes to download starts, progress, and completion for one chat. */
+export function onBrowserDownloadsState(
+  callback: (state: BrowserDownloadsState) => void,
+  scopeId = currentBrowserScopeId()
+): () => void {
+  return (
+    bridge()?.onDownloadsState((state) => {
+      if (state.scopeId === scopeId) callback(state)
+    }) ?? (() => {})
+  )
+}
+
+/** Opens the native downloads list above the embedded browser surface. */
+export function showBrowserDownloadsMenu(
+  anchor: { x: number; y: number },
+  scopeId = currentBrowserScopeId()
+): void {
+  void bridge()?.showDownloadsMenu(anchor, scopeId)
 }
 
 /** Opens the native browser overflow menu above the embedded page. */

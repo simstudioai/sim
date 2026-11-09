@@ -14,6 +14,10 @@ import { getMothershipAttachmentUrl } from '@/lib/mothership/chat/attachment-pre
 import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import type { FileAttachmentForApi } from '@/lib/mothership/chat/types'
 import {
+  MOTHERSHIP_ADD_CONTEXT_EVENT,
+  type MothershipAddContextDetail,
+} from '@/lib/mothership/events'
+import {
   MOTHERSHIP_EFFORT_OPTIONS,
   MOTHERSHIP_MODEL_OPTIONS,
   MOTHERSHIP_SIMPLE_EFFORT_OPTIONS,
@@ -227,6 +231,27 @@ export function useLiveComposer({
   })
   const contexts: ChatContext[] = saved?.contexts ?? []
   const text = saved?.text ?? ''
+
+  // Add to chat from a terminal, the browser, a file or a table attaches its context to this draft,
+  // as legacy's input claimed it. Claiming tells the producer a mounted composer took it.
+  useEffect(() => {
+    if (assistant) return
+    const handleAddContext = (event: Event) => {
+      if (!(event instanceof CustomEvent)) return
+      const detail: MothershipAddContextDetail = event.detail
+      const incoming = detail.context ? [detail.context] : detail.contexts
+      if (!incoming?.length) return
+      event.preventDefault()
+      const store = useMothershipDraftsStore.getState()
+      const current = store.drafts[key] ?? { text: '' }
+      const present = new Set((current.contexts ?? []).map((context) => JSON.stringify(context)))
+      const added = incoming.filter((context) => !present.has(JSON.stringify(context)))
+      if (added.length)
+        store.setDraft(key, { ...current, contexts: [...(current.contexts ?? []), ...added] })
+    }
+    window.addEventListener(MOTHERSHIP_ADD_CONTEXT_EVENT, handleAddContext)
+    return () => window.removeEventListener(MOTHERSHIP_ADD_CONTEXT_EVENT, handleAddContext)
+  }, [assistant, key])
 
   useEffect(() => {
     const store = useMothershipDraftsStore.getState()

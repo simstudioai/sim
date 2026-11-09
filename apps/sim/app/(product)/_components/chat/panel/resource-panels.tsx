@@ -21,6 +21,8 @@ export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
   const { resources, collapsed, onSelect, onRemove, onExpand, onCollapse, resize } = panel
   const [expanded, setExpanded] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
+  /** Set by a press inside the panel, so a tab chosen by pointer can be told from arrow keys. */
+  const pointer = useRef(false)
   const current = resources.find((resource) => resource.active)?.id ?? resources[0]?.id ?? ''
   const tabs = resources.map((resource) => ({
     id: resource.id,
@@ -63,15 +65,21 @@ export function ResourcePanels({ panel, children }: ResourcePanelsProps) {
           aria-label='Chat panel'
           hidden={collapsed}
           data-mothership-panel=''
-          onPointerDownCapture={panel.onInteraction}
-          onKeyDownCapture={panel.onInteraction}
+          onPointerDownCapture={() => {
+            pointer.current = true
+            panel.onInteraction()
+          }}
+          onKeyDownCapture={() => {
+            pointer.current = false
+            panel.onInteraction()
+          }}
         >
           {tabs.length ? (
             <PanelTabs
               tabs={tabs}
               current={current}
               expanded={expanded}
-              onSelect={onSelect}
+              onSelect={(id) => onSelect(id, pointer.current)}
               onRemove={onRemove}
               onExpand={() => setExpanded((value) => !value)}
               onHide={() => {
