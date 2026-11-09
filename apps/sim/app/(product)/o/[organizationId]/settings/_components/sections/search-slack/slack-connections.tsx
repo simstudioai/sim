@@ -9,7 +9,12 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
 import { ActionRow, Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { SlackSearchInstallationView } from '@/platform/lib/data/settings-slack'
-import type { SetupTarget, SlackSearchConsole } from '@/platform/lib/data/slack-search-model'
+import {
+  needsSharedInstall,
+  type SetupTarget,
+  type SlackSearchConsole,
+  slackSetupFor,
+} from '@/platform/lib/data/slack-search-model'
 
 interface SlackConnectionsProps {
   connections: SlackSearchConsole
@@ -26,9 +31,6 @@ export function SlackConnections({ connections, renderSetup }: SlackConnectionsP
   const [setup, setSetup] = useState<{ target: SetupTarget; botName?: string }>()
   const [removing, setRemoving] = useState<SlackSearchInstallationView>()
   const rows = list?.installations ?? []
-  const sharedTeams = new Set(
-    rows.filter((row) => row.appKind === 'shared').map((row) => row.teamId)
-  )
   const shared = list?.sharedAppAvailable === true
   return (
     <SettingsSection title='Connection'>
@@ -44,14 +46,14 @@ export function SlackConnections({ connections, renderSetup }: SlackConnectionsP
             size='compact'
             variant='primary'
             disabled={!canSetUp}
-            onClick={() => setSetup({ target: { mode: shared ? 'shared' : 'custom' } })}
+            onClick={() => setSetup(slackSetupFor(list))}
           >
             {shared ? 'Install Sim Search' : 'Set up'}
           </Button>
         </SettingsRow>
       ) : (
         rows.map((bot) => {
-          const needsInstall = shared && bot.appKind === 'custom' && !sharedTeams.has(bot.teamId)
+          const needsInstall = needsSharedInstall(list, bot)
           const reconnect = needsInstall || bot.needsValidation
           const description = needsInstall
             ? bot.teamName
@@ -98,15 +100,7 @@ export function SlackConnections({ connections, renderSetup }: SlackConnectionsP
                       id: 'connect',
                       label: needsInstall ? 'Install Sim Search' : 'Reconnect',
                       disabled: busy || !canSetUp,
-                      onSelect: () =>
-                        setSetup({
-                          target: { mode: needsInstall ? 'shared' : bot.appKind, previous: bot },
-                          botName:
-                            bot.appKind === 'custom' && !needsInstall
-                              ? list?.bots.find((entry) => entry.id === bot.credentialId)
-                                  ?.displayName
-                              : undefined,
-                        }),
+                      onSelect: () => setSetup(slackSetupFor(list, bot)),
                     },
                     {
                       id: 'toggle',

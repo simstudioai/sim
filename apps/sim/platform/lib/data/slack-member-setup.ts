@@ -17,6 +17,7 @@ import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useSlackSearchInstallations } from '@/hooks/queries/slack-search'
 import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
 import { slackSearchKeys } from '@/hooks/queries/utils/slack-search-keys'
+import { slackSetupFor } from '@/platform/lib/data/slack-search-model'
 
 const CHANNEL_NAME = 'slack-managed-users'
 const AUTHORIZATION_TIMEOUT_MS = 10 * 60 * 1000
@@ -62,8 +63,8 @@ interface SlackMemberSetupOptions {
  * from. It verifies member permissions in a Slack popup (or the desktop app's browser), listens for
  * the callback on the same broadcast channel, and refreshes the server-read section once Slack is
  * configured. `dismissOnly` is a shared app that needs nothing more; `hidden` is one already ready,
- * which closes the setup. Installing or managing the Sim Search app itself happens on the Slack
- * Settings page.
+ * which closes the setup. Installing or managing the Sim Search app opens `appSetup`, the Slack
+ * Settings page's setup, over this one, which stays open until it closes.
  */
 export function useSlackMemberSetup({
   organizationId,
@@ -74,6 +75,9 @@ export function useSlackMemberSetup({
   const router = useRouter()
   const startAuthorization = useStartSlackCredentialGroupConfiguration()
   const [appId, setAppId] = useState('')
+  /** Taken when the setup opens, so a refetch it causes cannot swap the dialog mid-flow. */
+  const [appSetup, setAppSetup] = useState<ReturnType<typeof slackSetupFor> | null>(null)
+  const appSetupOpen = appSetup !== null
   const apps = useSlackSearchInstallations(organizationId)
   const availableApps = apps.data?.installations ?? []
   const selectedApp =
@@ -143,6 +147,7 @@ export function useSlackMemberSetup({
     authorizationTimeout.current = null
     expectedState.current = null
     setAppId('')
+    setAppSetup(null)
     setPending(false)
     startAuthorization.reset()
   }
@@ -195,8 +200,8 @@ export function useSlackMemberSetup({
   }, [sharedAppReady])
 
   useEffect(() => {
-    if (sharedAppReady) onOpenChange(false)
-  }, [sharedAppReady, onOpenChange])
+    if (sharedAppReady && !appSetupOpen) onOpenChange(false)
+  }, [sharedAppReady, appSetupOpen, onOpenChange])
 
   useEffect(
     () => () => {
@@ -315,7 +320,7 @@ export function useSlackMemberSetup({
         : null
 
   return {
-    hidden: sharedAppReady,
+    hidden: sharedAppReady && !appSetupOpen,
     dismissOnly: sharedAppInstalled && !sharedAppNeedsUpdate,
     checkingSetup,
     failure: failedSetup
@@ -348,5 +353,9 @@ export function useSlackMemberSetup({
     appOptions: availableApps.map((app) => ({ value: app.appId, label: app.teamName })),
     selectedApp,
     setAppId,
+    appSetup: appSetup && { ...appSetup, close: () => setAppSetup(null) },
+    openAppSetup: () => {
+      if (apps.data) setAppSetup(slackSetupFor(apps.data, selectedApp))
+    },
   }
 }
