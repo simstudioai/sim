@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import type { MothershipEnvironment } from '@/lib/api/contracts/user'
-import { clearBrowserUserData, RECENT_IMPERSONATIONS_STORAGE_KEY } from '@/lib/auth/browser-storage'
+import { clearBrowserUserData } from '@/lib/auth/browser-storage'
 import { useSession } from '@/lib/auth/client'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
+import { useRecentImpersonations } from '@/hooks/admin/use-recent-impersonations'
 import {
   type AdminUser,
   useAddUser,
@@ -20,36 +21,7 @@ import {
 } from '@/hooks/queries/admin-users'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useImportWorkflow } from '@/hooks/queries/workflow-import'
-import { useClientStored } from '@/hooks/use-client-stored'
 import type { AdminConsole, DirectoryUser, NewDirectoryUser } from '@/platform/lib/data/admin-model'
-
-const MAX_RECENT = 5
-
-function readStoredRecentEmails(): string | null {
-  try {
-    return localStorage.getItem(RECENT_IMPERSONATIONS_STORAGE_KEY)
-  } catch {
-    return null
-  }
-}
-
-function parseRecentEmails(stored: string | null): string[] {
-  try {
-    const parsed: unknown = JSON.parse(stored ?? '[]')
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter((e): e is string => typeof e === 'string').slice(0, MAX_RECENT)
-  } catch {
-    return []
-  }
-}
-
-function recordImpersonation(email: string) {
-  const recent = parseRecentEmails(readStoredRecentEmails())
-  const next = [email, ...recent.filter((e) => e !== email)].slice(0, MAX_RECENT)
-  try {
-    localStorage.setItem(RECENT_IMPERSONATIONS_STORAGE_KEY, JSON.stringify(next))
-  } catch {}
-}
 
 function toDirectoryUser(user: AdminUser): DirectoryUser {
   return {
@@ -80,8 +52,7 @@ export function useLiveAdminConsole(
   const impersonateUser = useImpersonateUser()
   const sendPasswordReset = useSendPasswordReset()
   const addUser = useAddUser()
-  const storedRecentEmails = useClientStored(readStoredRecentEmails, null)
-  const recentEmails = useMemo(() => parseRecentEmails(storedRecentEmails), [storedRecentEmails])
+  const { recentEmails, recordImpersonation } = useRecentImpersonations()
   const recent = useAdminUsersByEmails(recentEmails)
   const users = useAdminUsers(search.offset, search.limit, search.q)
   const [impersonatingUserId, setImpersonatingUserId] = useState<string | null>(null)

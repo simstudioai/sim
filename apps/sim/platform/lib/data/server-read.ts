@@ -12,6 +12,8 @@ const PREFETCH_TIMEOUT_MS = 2_000
 
 interface SessionViewer {
   principal: SessionPrincipal
+  /** The name a default workspace is named after. */
+  userName: string | null
   /** The session's active organization, which scopes the workspace list as its route does. */
   activeOrganizationId: string | null
 }
@@ -22,6 +24,7 @@ export const readSessionViewer = cache(async (): Promise<SessionViewer | null> =
   if (!session?.user?.id) return null
   return {
     principal: { kind: 'session', userId: session.user.id, sessionId: session.session.id },
+    userName: session.user.name ?? null,
     activeOrganizationId: getActiveOrganizationId(session),
   }
 })

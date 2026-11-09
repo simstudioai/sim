@@ -15,6 +15,7 @@ import { OverflowText } from '@sim/emcn/overflow-text'
 import { ScrollArea } from '@sim/emcn/scroll-area'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { Tooltip } from '@sim/emcn/tooltip'
+import { compareStrings } from '@sim/utils/string'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CommandMenu } from '@/app/(product)/_components/command-menu/command-menu'
 import { PageCommandsProvider } from '@/app/(product)/_components/command-menu/page-commands'
@@ -85,13 +86,14 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
   const home = surfacePath === '/home'
   const integrations = surfacePath === '/integrations' || surfacePath.startsWith('/integrations/')
   const people = surfacePath === '/people' || surfacePath.startsWith('/people/')
+  const searchPage = surfacePath === '/search' || surfacePath.startsWith('/search/')
   const workspace = data?.workspaces.find((item) => item.id === location?.id)
   const scrollingPage = home || integrations || Boolean(location && !location.detail)
   const chats = orderSidebarItems(
     liveActions ? (data?.chats ?? []) : session.chats,
     chatOrder,
     (item) => item.title,
-    (left, right) => (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '')
+    (left, right) => compareStrings(right.updatedAt ?? '', left.updatedAt ?? '')
   )
   const workspaces = orderSidebarItems(
     liveActions ? (data?.workspaces ?? []) : session.workspaces,
@@ -107,11 +109,13 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
         : 'Settings'
       : conversation
         ? chatTitle || 'New chat'
-        : integrations
-          ? 'Integrations'
-          : people
-            ? 'People'
-            : 'Home'
+        : searchPage
+          ? chatTitle || 'Search'
+          : integrations
+            ? 'Integrations'
+            : people
+              ? 'People'
+              : 'Home'
   const drawerOpen = compact && drawer
 
   useEffect(() => {

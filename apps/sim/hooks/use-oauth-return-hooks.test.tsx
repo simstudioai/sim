@@ -26,9 +26,6 @@ vi.mock('@/lib/toast/sink', () => ({ toast: emcnMockFns.mockToast }))
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/lib/desktop', () => libDesktopMock)
-vi.mock('@/hooks/queries/oauth/connections', () => ({
-  oauthConnectionsKeys: { connections: () => ['oauthConnections'] },
-}))
 vi.mock('@/hooks/queries/utils/fetch-workspace-credentials', () => ({
   requireWorkspaceCredentialListResponse: mocks.requireWorkspaceCredentialListResponse,
 }))

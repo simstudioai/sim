@@ -104,7 +104,7 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
   const profile = useUserProfile()
   const settings = useGeneralSettings()
   const chatActions = useChatListActions(organizationId)
-  const workspaceActions = useWorkspaceActions(liveWorkspaceHome)
+  const workspaceActions = useWorkspaceActions(organizationId, liveWorkspaceHome)
   const accountActions = useLiveAccountActions(organization, navigation.destinations)
   const navWarmers = useNavWarmers()
   return {
@@ -112,14 +112,12 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
       appearance: settings.data?.theme,
       organization: organization.organization,
       user: toShellUser(profile.data),
-      // An organization-less personal workspace renders in the viewer's own organization, which
-      // is the only one whose shell they can open, so it is listed beside the organization's.
-      workspaces: (workspaces.data ?? [])
-        .filter(
-          (workspace) =>
-            workspace.organizationId === organizationId || workspace.organizationId === null
-        )
-        .map((workspace) => toShellWorkspace(workspace, pinnedIds.data)),
+      // A viewer belongs to one organization, the only one whose shell they can open, and every
+      // workspace they can open renders in it (`readWorkspaceShell`): its own, an
+      // organization-less one, and another team's they collaborate on.
+      workspaces: (workspaces.data ?? []).map((workspace) =>
+        toShellWorkspace(workspace, pinnedIds.data)
+      ),
       chats: (chats.data ?? []).filter(canOpenChat).map((chat) => toShellChat(organization, chat)),
       inbox: [],
       notifications: [],

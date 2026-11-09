@@ -1,41 +1,25 @@
 import 'server-only'
-import { notFound, permanentRedirect, redirect } from 'next/navigation'
-import { getSession } from '@/lib/auth'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { mapLegacyWorkspaceUrl } from '@/lib/navigation/legacy-redirects'
+import { searchParamsQuery } from '@/lib/navigation/paths'
 import { readWorkspaceShellOrganizationId } from '@/platform/lib/data/shell-scope'
 
-type PageSearchParams = Record<string, string | string[] | undefined>
-
 /**
- * The body of every page that serves a moved workspace URL. Authorizes the viewer's access to the
- * workspace, then answers with a permanent redirect to the page in the organization the workspace
- * renders in (`readWorkspaceShellOrganizationId`: its own, or the viewer's for an
- * organization-less one), or a 404 for a workspace the viewer cannot open, so a private
- * workspace's organization never shows.
+ * The body of every page that serves a moved workspace URL: the route table's legacy workspace rule
+ * (`mapLegacyWorkspaceUrl`, which `resolveProductRedirect` runs for the same path) answers with a
+ * permanent redirect to the page in the organization the workspace renders in. A workspace the
+ * viewer cannot open, or a path with no new home, is not found, so a private workspace's
+ * organization never shows.
  */
 export async function redirectLegacyWorkspaceUrl(
   workspaceId: string,
   segments: readonly string[],
-  searchParams: PageSearchParams
+  searchParams: Record<string, string | string[] | undefined>
 ): Promise<never> {
-  const query = new URLSearchParams()
-  for (const [key, value] of Object.entries(searchParams)) {
-    if (value === undefined) continue
-    for (const item of Array.isArray(value) ? value : [value]) query.append(key, item)
-  }
-
-  const session = await getSession()
-  if (!session?.user?.id) {
-    const path = ['', 'workspace', workspaceId, ...segments].map(encodeURIComponent).join('/')
-    const search = query.toString()
-    const callbackUrl = search ? `${path}?${search}` : path
-    redirect(`/login?${new URLSearchParams({ callbackUrl })}`)
-  }
-
   const target = mapLegacyWorkspaceUrl({
     workspaceId,
     segments,
-    query,
+    query: searchParamsQuery(searchParams),
     organizationId: await readWorkspaceShellOrganizationId(workspaceId),
   })
   if (!target) notFound()

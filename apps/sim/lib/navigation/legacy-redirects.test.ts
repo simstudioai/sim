@@ -45,6 +45,8 @@ describe('mapLegacyWorkspaceUrl', () => {
     ],
     ['settings/apikeys', '/workspace/ws-1/settings/api-keys'],
     ['access-requests?requestId=req-1', '/workspace/ws-1/settings/requests?requestId=req-1'],
+    ['settings/integrations', '/o/org-1/integrations?workspace=ws-1'],
+    ['settings/skills', '/o/org-1/integrations?tab=skills&workspace=ws-1'],
   ])('sends /workspace/ws-1/%s to %s', (path, expected) => {
     expect(map(path)).toBe(expected)
   })

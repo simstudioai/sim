@@ -74,7 +74,13 @@ export const listWorkspacesQuerySchema = z.object({
 
 export type WorkspaceQueryScope = NonNullable<z.input<typeof listWorkspacesQuerySchema>['scope']>
 
-export const createWorkspaceBodySchema = createWorkspaceInputSchema
+export const createWorkspaceBodySchema = createWorkspaceInputSchema.extend({
+  /**
+   * The organization the creator is working in, which the creation policy targets in place of the
+   * session's active organization. The creation transaction re-checks the creator's membership.
+   */
+  organizationId: z.string().min(1).optional(),
+})
 
 export const workspaceParamsSchema = z.object({
   id: z.string().min(1),
@@ -320,8 +326,6 @@ export const workspaceCreditAvailabilitySchema = z.object({
   remainingDollars: z.number().nonnegative().nullable(),
   scope: z.enum(['payer', 'member', 'effective']),
 })
-
-export type WorkspaceCreditAvailability = z.output<typeof workspaceCreditAvailabilitySchema>
 
 export const getWorkspaceCreditAvailabilityContract = defineRouteContract({
   method: 'GET',

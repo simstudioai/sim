@@ -1,5 +1,5 @@
 import { type ReactNode, Suspense } from 'react'
-import { ProductSession } from '@/app/(product)/_components/product-session'
+import { FixtureProductSession } from '@/app/(product)/_components/product-session'
 
 /**
  * The one product shell, around every organization and workspace page, so the sidebar never
@@ -19,9 +19,9 @@ export async function ProductShell({
     const fixtures = await loadShellScenarios()
     return (
       <Suspense fallback={null}>
-        <ProductSession fixtures={fixtures} routePrefix={FIXTURE_ROUTE_PREFIX}>
+        <FixtureProductSession fixtures={fixtures} routePrefix={FIXTURE_ROUTE_PREFIX}>
           {children}
-        </ProductSession>
+        </FixtureProductSession>
       </Suspense>
     )
   }

@@ -361,7 +361,7 @@ function handleIntegrationSlugRedirect(request: NextRequest): NextResponse | nul
   return NextResponse.redirect(url, 308)
 }
 
-export async function proxy(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const url = request.nextUrl
 
   const mcpPath = resolveSimMcpHostPath(request.headers.get('host'), url.pathname)

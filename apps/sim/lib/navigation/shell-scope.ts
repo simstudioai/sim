@@ -1,8 +1,10 @@
+import { decodePathSegments } from '@/lib/navigation/paths'
+
 /**
  * The product shell is one instance in the product root layout, which Next renders without the
  * route's params. The proxy names the resource a request opens in this header, and the layout
- * reads it to decide which organization's shell to render. Dependency-free so the edge proxy and
- * server components read the same values.
+ * reads it to decide which organization's shell to render. Edge-safe so the edge proxy and server
+ * components read the same values.
  */
 export const SHELL_SCOPE_HEADER = 'x-sim-shell-scope'
 
@@ -29,11 +31,15 @@ export function shellScopeHeaderValue(pathname: string): string | null {
   return scoped && id ? `${scoped.prefix}:${id}` : null
 }
 
-/** The scope a header value names, or `null` for a request outside an organization or workspace. */
+/**
+ * The scope a header value names, or `null` for a request outside an organization or workspace, or
+ * one whose id is not valid percent-encoding.
+ */
 export function parseShellScope(value: string | null): ShellScope | null {
   const match = value?.match(/^(org|workspace):(.+)$/)
   if (!match) return null
-  const id = decodeURIComponent(match[2])
+  const [id] = decodePathSegments([match[2]]) ?? []
+  if (id === undefined) return null
   return match[1] === 'org'
     ? { kind: 'organization', organizationId: id }
     : { kind: 'workspace', workspaceId: id }

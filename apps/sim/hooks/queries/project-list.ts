@@ -5,7 +5,7 @@ import { listProjectsContract } from '@/lib/api/contracts/projects'
 
 const PROJECT_LIST_STALE_TIME = 30_000
 
-export const projectListKeys = {
+const projectListKeys = {
   all: ['projects'] as const,
   lists: () => [...projectListKeys.all, 'list'] as const,
   list: (organizationId: string) => [...projectListKeys.lists(), organizationId] as const,

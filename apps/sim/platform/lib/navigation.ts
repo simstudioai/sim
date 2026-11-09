@@ -15,10 +15,12 @@ interface SearchValues {
   get(key: string): string | null
 }
 
-/** Keep the selected fixture and appearance on a complete product path (`surfaceHref`, `workspacePath`). */
+/**
+ * Keep a fixture build's selected scenario and appearance on a complete product path (`surfaceHref`,
+ * `workspacePath`). A live build, and an external address from data, return the path untouched.
+ */
 export function platformHref(path: string, search: SearchValues) {
-  // An external address from data passes through untouched.
-  if (/^https?:\/\//.test(path)) return path
+  if (process.env.SIM_PLATFORM_FIXTURES !== '1' || /^https?:\/\//.test(path)) return path
   const destination = new URL(path, 'https://platform.invalid')
   const query = destination.searchParams
   const state = search.get('state')

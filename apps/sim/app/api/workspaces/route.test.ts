@@ -16,8 +16,13 @@ import {
 } from '@sim/testing/mocks/workspaces-policy.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCreateWorkspace, mockResolveRolledOutOrganizationId } = vi.hoisted(() => ({
+const {
+  mockCreateWorkspace,
+  mockListWorkspacesEnsuringDefault,
+  mockResolveRolledOutOrganizationId,
+} = vi.hoisted(() => ({
   mockCreateWorkspace: vi.fn(),
+  mockListWorkspacesEnsuringDefault: vi.fn(),
   mockResolveRolledOutOrganizationId: vi.fn(),
 }))
 
@@ -27,6 +32,7 @@ vi.mock('@/lib/auth/session-response', () => ({
 
 vi.mock('@/lib/workspaces/create', () => ({
   createWorkspace: mockCreateWorkspace,
+  listWorkspacesEnsuringDefault: mockListWorkspacesEnsuringDefault,
 }))
 
 vi.mock('@/lib/workspaces/list', () => ({
@@ -43,7 +49,6 @@ vi.mock('@sim/audit', () => auditMock)
 
 vi.mock('@/lib/workspaces/policy', () => workspacesPolicyMock)
 
-import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import { WorkspaceOwnerMissingError } from '@/lib/workspaces/policy'
 import { GET, POST } from '@/app/api/workspaces/route'
 
@@ -88,13 +93,7 @@ describe('POST /api/workspaces capability refusal', () => {
    */
   it('answers a default-workspace insert for a deleted user with 401', async () => {
     mockGetSession.mockResolvedValue({ user: { id: 'user-1', name: 'Gone' } })
-    vi.mocked(listWorkspacesForViewer).mockResolvedValue({
-      workspaces: [],
-      lastActiveWorkspaceId: null,
-      pinnedWorkspaceIds: [],
-      creationPolicy: { canCreate: true, organizationId: null, billedAccountUserId: 'user-1' },
-    } as never)
-    mockCreateWorkspace.mockRejectedValue(new WorkspaceOwnerMissingError('user-1'))
+    mockListWorkspacesEnsuringDefault.mockRejectedValue(new WorkspaceOwnerMissingError('user-1'))
 
     const response = await GET(
       createMockRequest('GET', undefined, undefined, 'http://localhost/api/workspaces?scope=active')
@@ -120,9 +119,7 @@ describe('GET /api/workspaces blocked viewer forwarding', () => {
     mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'A', email: 'a@example.com' },
     })
-    vi.mocked(listWorkspacesForViewer).mockResolvedValue(
-      blockedList as unknown as Awaited<ReturnType<typeof listWorkspacesForViewer>>
-    )
+    mockListWorkspacesEnsuringDefault.mockResolvedValue(blockedList)
   })
 
   it('names the organization that can serve a viewer with nothing to pick', async () => {

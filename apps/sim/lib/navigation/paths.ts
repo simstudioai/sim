@@ -126,3 +126,40 @@ export function isNoindexPath(pathname: string): boolean {
     NOINDEX_PATH_ROOTS.some((root) => isPathOrDescendant(pathname, root))
   )
 }
+
+/** Each URL path segment decoded, or `null` when one is not valid percent-encoding (`%ZZ`). */
+export function decodePathSegments(segments: readonly string[]): string[] | null {
+  try {
+    return segments.map(decodeURIComponent)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * The `:name` values `pattern` (`members/:id`) captures from `segments`, or `null` when it does not
+ * match: a `:name` part matches any one segment, every other part only itself.
+ */
+export function matchPathPattern(
+  pattern: string,
+  segments: readonly string[]
+): Record<string, string> | null {
+  const parts = pattern.split('/')
+  if (parts.length !== segments.length) return null
+  const params: Record<string, string> = {}
+  for (const [index, part] of parts.entries()) {
+    if (part.startsWith(':')) params[part.slice(1)] = segments[index]
+    else if (part !== segments[index]) return null
+  }
+  return params
+}
+
+/** A page's search params as a query: a repeated key's values in order, an absent one dropped. */
+export function searchParamsQuery(
+  searchParams: Readonly<Record<string, string | string[] | undefined>>
+): URLSearchParams {
+  const query = new URLSearchParams()
+  for (const [key, value] of Object.entries(searchParams))
+    for (const entry of [value ?? []].flat()) query.append(key, entry)
+  return query
+}

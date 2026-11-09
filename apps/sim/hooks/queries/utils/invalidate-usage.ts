@@ -9,15 +9,11 @@ import { workspaceUsageKeys } from '@/hooks/queries/utils/workspace-usage-keys'
 const USAGE_SETTLE_DELAY_MS = 1000
 
 /**
- * Invalidates the workspace credit/usage reads after anything that moves the balance.
- * Both families are keyed per workspace but derive from one billing account, so the
- * family prefixes are what must refetch.
+ * Invalidates the workspace usage gates after anything that moves the balance. They are keyed
+ * per workspace but derive from one billing account, so the family prefix is what must refetch.
  */
 export function invalidateWorkspaceUsage(queryClient: QueryClient) {
-  return Promise.all([
-    queryClient.invalidateQueries({ queryKey: workspaceUsageKeys.creditAvailabilities() }),
-    queryClient.invalidateQueries({ queryKey: workspaceUsageKeys.gates() }),
-  ])
+  return queryClient.invalidateQueries({ queryKey: workspaceUsageKeys.gates() })
 }
 
 /**

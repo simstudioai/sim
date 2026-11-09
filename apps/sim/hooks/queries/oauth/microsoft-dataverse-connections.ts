@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { client } from '@/lib/auth/client'
 import { OAUTH_CREDENTIAL_DRAFT_CALLBACK_PARAM } from '@/lib/credentials/draft-constants'
 import { getDesktopBridge } from '@/lib/desktop'
@@ -11,7 +11,6 @@ import {
   MICROSOFT_DATAVERSE_PROVIDER_ID,
   normalizeMicrosoftDataverseEnvironmentUrl,
 } from '@/lib/oauth/microsoft-dataverse'
-import { oauthConnectionsKeys } from '@/hooks/queries/oauth/connections'
 
 const logger = createLogger('MicrosoftDataverseOAuthConnections')
 
@@ -77,8 +76,6 @@ export function assertMicrosoftDataverseReconnectAvailable({
 }
 
 export function useConnectMicrosoftDataverseOAuthService() {
-  const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: async (params: ConnectMicrosoftDataverseOAuthParams) => {
       assertMicrosoftDataverseWebOAuthAvailable()
@@ -97,9 +94,6 @@ export function useConnectMicrosoftDataverseOAuthService() {
     },
     onError: (error) => {
       logger.error('Microsoft Dataverse OAuth connection error:', error)
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() })
     },
   })
 }

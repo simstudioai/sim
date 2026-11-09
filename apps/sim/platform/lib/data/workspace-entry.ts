@@ -8,11 +8,11 @@ import { isUpgradeReason, UPGRADE_REASON_PARAM } from '@/lib/billing/upgrade-rea
 import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
 import { resolveRolledOutOrganizationId } from '@/lib/navigation/resolve-app-entry'
 import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
-import { listWorkspacesForViewer } from '@/lib/workspaces/list'
+import { listWorkspacesEnsuringDefault } from '@/lib/workspaces/create'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { resolveOrganizationGate } from '@/platform/lib/data/route-resolution'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
-import { readShellOrganizationId } from '@/platform/lib/data/shell-scope'
+import { ensureViewerLandingOrganization } from '@/platform/lib/data/shell-scope'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 import { DEFAULT_WORKSPACE_SETTING } from '@/platform/lib/data/workspace-settings'
 
@@ -27,13 +27,12 @@ export interface WorkspaceEntryQuery {
 
 /**
  * What the bare `/workspace` URL does for a viewer: open their last workspace (or a requested
- * workflow), hand off to the organization when they have no workspace of their own, explain why one
- * cannot be created, or create their first.
+ * workflow), created first when they have none, hand off to the organization when they cannot
+ * create one, or explain why.
  */
 export type WorkspaceEntryDecision =
   | { kind: 'redirect'; href: string }
   | { kind: 'blocked'; policy: WorkspaceCreationPolicy }
-  | { kind: 'create' }
   | { kind: 'failed' }
 
 /** Where a workspace opens for the query: its upgrade or settings page, or its home tab. */
@@ -65,13 +64,13 @@ async function workflowDestination(workflowId: string, fallbackWorkspaceId: stri
 export async function resolveWorkspaceEntry(
   query: WorkspaceEntryQuery
 ): Promise<WorkspaceEntryDecision> {
-  const { principal, activeOrganizationId } = await requireSessionViewer()
-  /** The shell's organization, provisioned for an account in none, before the list decides. */
-  await readShellOrganizationId()
-  const list = await listWorkspacesForViewer({
+  const { principal, userName, activeOrganizationId } = await requireSessionViewer()
+  /** The viewer's organization, provisioned for an account in none, before the list decides. */
+  const organizationId = await ensureViewerLandingOrganization()
+  const list = await listWorkspacesEnsuringDefault({
     userId: principal.userId,
-    activeOrganizationId,
-    scope: 'active',
+    userName,
+    activeOrganizationId: organizationId,
   })
     .then((payload) => asRouteResponse(listWorkspacesContract, payload))
     .catch((error: unknown) => {
@@ -105,7 +104,7 @@ export async function resolveWorkspaceEntry(
     }
     return { kind: 'blocked', policy: creationPolicy }
   }
-  return { kind: 'create' }
+  return { kind: 'failed' }
 }
 
 /**

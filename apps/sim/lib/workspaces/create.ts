@@ -1,20 +1,24 @@
 import { db } from '@sim/db'
-import { permissions, type WorkspaceMode, workspace } from '@sim/db/schema'
+import { permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { and, eq, isNull } from 'drizzle-orm'
+import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type { DbTransaction } from '@/lib/db/types'
 import { createProjectRecord } from '@/lib/projects/membership'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { insertNewWorkflowRow } from '@/lib/workflows/persistence/new-workflow-row'
 import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import { listWorkspacesForViewer, type WorkspaceListPayload } from '@/lib/workspaces/list'
 import {
   getWorkspaceInvitePolicy,
   lockWorkspaceCreationContext,
   resolveGoverningPermissionGroupOrganization,
   resolveInviteFlags,
   WORKSPACE_MODE,
+  WorkspaceCreationContextChangedError,
   WorkspaceOwnerMissingError,
 } from '@/lib/workspaces/policy'
 
@@ -211,6 +215,29 @@ export async function createWorkspaceInTransaction(
   return (await createWorkspaceWithProjectInTransaction(tx, params)).workspace
 }
 
+/**
+ * Runs a workspace-creating transaction, answering a violation of creation's user foreign keys as
+ * {@link WorkspaceOwnerMissingError}: the acting user's row is gone.
+ */
+async function commitWorkspaceCreation<T>(
+  userId: string,
+  run: (tx: DbTransaction) => Promise<T>
+): Promise<T> {
+  try {
+    return await db.transaction(run)
+  } catch (error) {
+    if (
+      getPostgresErrorCode(error) === '23503' &&
+      WORKSPACE_USER_FK_CONSTRAINTS.has(getPostgresConstraintName(error) ?? '')
+    ) {
+      logger.warn('Workspace creation raced account deletion', { userId })
+      throw new WorkspaceOwnerMissingError(userId)
+    }
+    logger.error('Failed to create workspace', { userId, error })
+    throw error
+  }
+}
+
 /** Creates a workspace through the canonical lock-and-insert transaction. */
 export async function createWorkspace(params: CreateWorkspaceParams) {
   /**
@@ -229,22 +256,9 @@ export async function createWorkspace(params: CreateWorkspaceParams) {
           observedOrganizationId: params.observedOrganizationId,
         })
 
-  let created: CreatedWorkspace
-  try {
-    created = await db.transaction((tx) =>
-      createWorkspaceInTransaction(tx, { ...params, governingPermissionGroupOrganizationId })
-    )
-  } catch (error) {
-    if (
-      getPostgresErrorCode(error) === '23503' &&
-      WORKSPACE_USER_FK_CONSTRAINTS.has(getPostgresConstraintName(error) ?? '')
-    ) {
-      logger.warn('Workspace creation raced account deletion', { userId: params.userId })
-      throw new WorkspaceOwnerMissingError(params.userId)
-    }
-    logger.error('Failed to create workspace', { userId: params.userId, error })
-    throw error
-  }
+  const created = await commitWorkspaceCreation(params.userId, (tx) =>
+    createWorkspaceInTransaction(tx, { ...params, governingPermissionGroupOrganizationId })
+  )
 
   logger.info(
     params.skipDefaultWorkflow
@@ -272,6 +286,11 @@ export async function createWorkspace(params: CreateWorkspaceParams) {
   }
 }
 
+function defaultWorkspaceName(userName: string | null | undefined): string {
+  const firstName = userName?.split(' ')[0] || null
+  return firstName ? `${firstName}'s Workspace` : 'My Workspace'
+}
+
 /**
  * The same default personal workspace a first visit would create, in the
  * user's personal organization when they have one.
@@ -290,14 +309,84 @@ export async function createDefaultPersonalWorkspaceInTransaction(
     personalOrganizationId: string | null
   }
 ): Promise<CreatedWorkspace> {
-  const firstName = params.userName?.split(' ')[0] || null
   return createWorkspaceInTransaction(tx, {
     userId: params.userId,
     observedOrganizationId: params.personalOrganizationId,
-    name: firstName ? `${firstName}'s Workspace` : 'My Workspace',
+    name: defaultWorkspaceName(params.userName),
     organizationId: params.personalOrganizationId,
     workspaceMode: WORKSPACE_MODE.PERSONAL,
     billedAccountUserId: params.userId,
     governingPermissionGroupOrganizationId: null,
   })
+}
+
+/** Whether the user holds a permission on a workspace that is not archived. */
+async function holdsActiveWorkspace(tx: DbTransaction, userId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: workspace.id })
+    .from(permissions)
+    .innerJoin(workspace, eq(permissions.entityId, workspace.id))
+    .where(
+      and(
+        eq(permissions.userId, userId),
+        eq(permissions.entityType, 'workspace'),
+        isNull(workspace.archivedAt)
+      )
+    )
+    .limit(1)
+  return Boolean(row)
+}
+
+/**
+ * The viewer's active workspace list, with their default workspace created first when they have
+ * none and may create one. Creation is idempotent: under the locks the creation context takes, it
+ * checks again for an active workspace, so concurrent first visits (the shell's server render, the
+ * client's list read, the `/workspace` entry) create exactly one between them. The new workspace
+ * adopts the workflows the user made before workspaces existed. A membership change that races the
+ * creation lists the join's workspaces instead.
+ */
+export async function listWorkspacesEnsuringDefault({
+  userId,
+  userName,
+  activeOrganizationId,
+}: {
+  userId: string
+  userName: string | null | undefined
+  activeOrganizationId: string | null
+}): Promise<WorkspaceListPayload> {
+  const payload = await listWorkspacesForViewer({ userId, activeOrganizationId, scope: 'active' })
+  const { creationPolicy } = payload
+  if (payload.workspaces.length > 0 || !creationPolicy.canCreate) return payload
+  try {
+    const created = await commitWorkspaceCreation(userId, async (tx) => {
+      await acquireOrganizationUserMutationLocks(tx, {
+        userId,
+        organizationIds: creationPolicy.organizationId ? [creationPolicy.organizationId] : [],
+      })
+      if (await holdsActiveWorkspace(tx, userId)) return null
+      const defaultWorkspace = await createWorkspaceInTransaction(tx, {
+        userId,
+        name: defaultWorkspaceName(userName),
+        organizationId: creationPolicy.organizationId,
+        workspaceMode: creationPolicy.workspaceMode,
+        billedAccountUserId: creationPolicy.billedAccountUserId,
+        observedOrganizationId: creationPolicy.observedOrganizationId,
+        governingPermissionGroupOrganizationId:
+          creationPolicy.governingPermissionGroupOrganizationId,
+      })
+      await tx
+        .update(workflow)
+        .set({ workspaceId: defaultWorkspace.id, updatedAt: new Date() })
+        .where(and(eq(workflow.userId, userId), isNull(workflow.workspaceId)))
+      return defaultWorkspace
+    })
+    if (created) {
+      logger.info('Created default workspace', { userId, workspaceId: created.id })
+      emitWorkspaceCreatedPlatformEvent({ workspaceId: created.id, userId, name: created.name })
+    }
+  } catch (error) {
+    if (!(error instanceof WorkspaceCreationContextChangedError)) throw error
+    logger.info('Default workspace creation raced an organization membership change', { userId })
+  }
+  return listWorkspacesForViewer({ userId, activeOrganizationId, scope: 'active' })
 }

@@ -26,7 +26,6 @@ import {
   createOrganizationCredentialDraftContract,
 } from '@/lib/api/contracts/organization-credentials'
 import { environmentKeys } from '@/hooks/queries/environment'
-import { oauthConnectionsKeys } from '@/hooks/queries/oauth/connections'
 import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
 import { workspaceCredentialListQueryOptions } from '@/hooks/queries/utils/fetch-workspace-credentials'
@@ -234,7 +233,6 @@ export function useDeleteWorkspaceCredential(workspaceId?: string) {
         queryClient.invalidateQueries({ queryKey: workspaceCredentialKeys.lists() }),
         queryClient.invalidateQueries({ queryKey: OAUTH_CREDENTIALS_KEY }),
         queryClient.invalidateQueries({ queryKey: environmentKeys.all }),
-        queryClient.invalidateQueries({ queryKey: oauthConnectionsKeys.connections() }),
         invalidateSelectorQueries(queryClient),
       ]),
   })
@@ -331,7 +329,6 @@ export function useLeaveCredential() {
         workspaceCredentialKeys.detail(credentialId),
         OAUTH_CREDENTIALS_KEY,
         environmentKeys.all,
-        oauthConnectionsKeys.connections(),
       ]
       for (const queryKey of staleKeys) {
         queryClient.invalidateQueries({ queryKey, refetchType: 'none' })

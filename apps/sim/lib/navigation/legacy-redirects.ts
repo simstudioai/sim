@@ -4,7 +4,7 @@
  * read that, after authorizing the viewer, so `next.config.ts` cannot redirect them statically.
  * Pure: the page passes the organization it read, and this decides the destination.
  */
-import { organizationRoutes, WORKSPACES_PATH } from '@/lib/navigation/paths'
+import { matchPathPattern, organizationRoutes, WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { settingsAliasHref } from '@/lib/navigation/settings-aliases'
 
 interface LegacyWorkspaceUrl {
@@ -72,7 +72,8 @@ function workspaceSettings(workspaceId: string, section: string): string {
 
 /**
  * Legacy workspace Settings URLs whose page moved: sections that became organization Settings, the
- * old API keys key, and access requests. Sections that stay with the workspace keep their URL and
+ * old API keys key, access requests, and the Integrations and Skills sections, which became the
+ * organization's Integrations page scoped to the workspace. Sections that stay with the workspace keep their URL and
  * need no redirect. A legacy path listed nowhere here has no destination and answers not found.
  */
 const SETTINGS_REDIRECTS: readonly SettingsRedirect[] = [
@@ -98,21 +99,21 @@ const SETTINGS_REDIRECTS: readonly SettingsRedirect[] = [
     target: ({ workspaceId }, query) =>
       withQuery(workspaceSettings(workspaceId, 'requests'), query),
   },
+  {
+    legacy: 'settings/integrations',
+    target: ({ organizationId, workspaceId }, query) =>
+      withQuery(organizationRoutes(organizationId).integrations, inWorkspace(query, workspaceId)),
+  },
+  {
+    legacy: 'settings/skills',
+    target: ({ organizationId, workspaceId }) => skillsUrl(organizationId, workspaceId, null),
+  },
 ]
 
 function matchSettingsRedirect(segments: readonly string[]) {
   for (const redirect of SETTINGS_REDIRECTS) {
-    const pattern = redirect.legacy.split('/')
-    if (pattern.length !== segments.length) continue
-    const params: Record<string, string> = {}
-    const matches = pattern.every((part, index) => {
-      if (part.startsWith(':')) {
-        params[part.slice(1)] = segments[index]
-        return true
-      }
-      return part === segments[index]
-    })
-    if (matches) return { redirect, params }
+    const params = matchPathPattern(redirect.legacy, segments)
+    if (params) return { redirect, params }
   }
   return null
 }

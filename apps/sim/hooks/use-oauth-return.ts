@@ -32,7 +32,6 @@ import { stripMicrosoftDataverseEnvironmentFromOAuthCallback } from '@/lib/oauth
 import { searchSetupAccessParam } from '@/lib/sim-search/params'
 import { organizationSearchSetupPath } from '@/lib/sim-search/setup-navigation'
 import { toast } from '@/lib/toast/sink'
-import { oauthConnectionsKeys } from '@/hooks/queries/oauth/connections'
 import {
   organizationCredentialKeys,
   workspaceCredentialKeys,
@@ -540,9 +539,6 @@ export function useDesktopOAuthConnectListener() {
 
     return bridge.onOAuthConnectComplete((result) => {
       if (result.sourceRequestId) return
-      void queryClient.invalidateQueries({
-        queryKey: oauthConnectionsKeys.connections(),
-      })
       void queryClient.invalidateQueries({
         queryKey: workspaceCredentialKeys.all,
       })

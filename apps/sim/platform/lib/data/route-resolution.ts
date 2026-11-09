@@ -3,7 +3,12 @@ import { cookies, headers } from 'next/headers'
 import { permanentRedirect, redirect } from 'next/navigation'
 import { resourceParam } from '@/lib/mothership/chat/search-params'
 import { mapLegacyWorkspaceUrl } from '@/lib/navigation/legacy-redirects'
-import { organizationRoutes, WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
+import {
+  decodePathSegments,
+  organizationRoutes,
+  searchParamsQuery,
+  WORKSPACE_SETTINGS_PATH,
+} from '@/lib/navigation/paths'
 import { settingsAliasHref } from '@/lib/navigation/settings-aliases'
 import { SHELL_PATH_HEADER } from '@/lib/navigation/shell-scope'
 import {
@@ -15,7 +20,6 @@ import {
 import { resolveLegacyRequestLink } from '@/platform/lib/data/legacy-request-link'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { requireSessionViewer } from '@/platform/lib/data/server-read'
-import { resolveLiveSetting } from '@/platform/lib/data/settings-navigation'
 import { readWorkspaceShellOrganizationId } from '@/platform/lib/data/shell-scope'
 import { workspaceRootHref } from '@/platform/lib/workspace-navigation'
 
@@ -54,10 +58,7 @@ export function productLocation(
   pathname: string,
   searchParams: Record<string, string | string[] | undefined>
 ): ProductLocation {
-  const query = new URLSearchParams()
-  for (const [key, value] of Object.entries(searchParams))
-    for (const entry of [value ?? []].flat()) query.append(key, entry)
-  return { pathname, query }
+  return { pathname, query: searchParamsQuery(searchParams) }
 }
 
 /** The query in the shape Next hands a page: a repeated key's values as an array, in order. */
@@ -122,22 +123,23 @@ function resolveSearchEntry(
   return pinnedSearchHref(surfaceHref(organization, '/search'), queryRecord(query), remembered)
 }
 
-/** A saved access-request link into a Settings section, when the viewer may open Requests. */
+/**
+ * A saved access-request link into a Settings section lands on Requests, whose own gate then
+ * decides, as the legacy Settings did: a viewer who may not open Requests gets not found there.
+ */
 function resolveSettingsEntry(
   organization: PlatformOrganization,
   [key = 'general', ...subpath]: readonly string[],
   query: URLSearchParams
 ): string | null {
-  if (subpath.length || !resolveLiveSetting('requests', organization)) return null
+  if (subpath.length) return null
   return resolveLegacyRequestLink(organization, key, queryRecord(query))
 }
 
-function decodeSegments(segments: readonly string[]): string[] | null {
-  try {
-    return segments.map(decodeURIComponent)
-  } catch {
-    return null
-  }
+/** `href` with the query appended, after any query it already has. */
+function withQuery(href: string, query: URLSearchParams): string {
+  if (!query.size) return href
+  return `${href}${href.includes('?') ? '&' : '?'}${query}`
 }
 
 const temporary = (href: string | null): ProductRedirect | null =>
@@ -153,7 +155,7 @@ export function resolveProductRedirect(
   { organization, rememberedSearchMode, workspaceOrganizationId }: RouteContext
 ): ProductRedirect | null {
   const [, root, id, ...rest] = pathname.split('/')
-  const segments = decodeSegments(rest)
+  const segments = decodePathSegments(rest)
   if (!id || !segments) return null
 
   if (root === 'o') {
@@ -161,7 +163,8 @@ export function resolveProductRedirect(
     const gate = resolveOrganizationGate(organization)
     if (gate) return temporary(gate)
     const [section, ...subpath] = segments
-    if (section === undefined) return temporary(organizationLandingPath(organization))
+    if (section === undefined)
+      return temporary(withQuery(organizationLandingPath(organization), query))
     if (section === 'home' && !subpath.length)
       return temporary(resolveHomeEntry(organization, query))
     if (section === 'search' && (!subpath.length || subpath[0] === 'chat'))
@@ -177,7 +180,7 @@ export function resolveProductRedirect(
   }
 
   if (root === 'workspace') {
-    const workspaceId = decodeSegments([id])?.[0]
+    const workspaceId = decodePathSegments([id])?.[0]
     if (!workspaceId) return null
     if (!segments.length) return temporary(workspaceRootHref(workspaceId, 'live', query))
     const href = mapLegacyWorkspaceUrl({
@@ -209,10 +212,10 @@ export async function followProductRoute(
   organization: PlatformOrganization,
   location: ProductLocation
 ): Promise<void> {
-  const [, root, id] = location.pathname.split('/')
-  const workspaceId = root === 'workspace' && id ? decodeSegments([id])?.[0] : undefined
+  const [, root, id, section] = location.pathname.split('/')
+  const workspaceId = root === 'workspace' && id ? decodePathSegments([id])?.[0] : undefined
   const [rememberedSearchMode, workspaceOrganizationId] = await Promise.all([
-    readRememberedMode(organization),
+    root === 'o' && section === 'search' ? readRememberedMode(organization) : null,
     workspaceId ? readWorkspaceShellOrganizationId(workspaceId) : null,
   ])
   const target = resolveProductRedirect(location, {

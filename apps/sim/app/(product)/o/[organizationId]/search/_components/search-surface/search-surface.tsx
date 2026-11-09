@@ -36,7 +36,6 @@ function SearchField({ query, searching, onSubmit, onStop, newSearch }: SearchFi
         placeholder='Search your company’s knowledge…'
         value={field.value}
         onChange={field.setValue}
-        disabled={!field.hydrated}
         inputRef={field.inputRef}
       />
       {searching ? (

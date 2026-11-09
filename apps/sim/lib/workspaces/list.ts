@@ -114,9 +114,8 @@ async function buildWorkspacesWithInviteFlags(
  * workspaces with role/invite flags in visit order, the viewer's last active
  * workspace id, pins, and the workspace creation policy.
  *
- * Unlike the route, this performs no writes — no default-workspace creation and
- * no orphaned-workflow repair. Sidebar prefetch leaves empty lists uncached so
- * the client can still reach the route's default-workspace creation path.
+ * Performs no writes: `listWorkspacesEnsuringDefault` creates the default
+ * workspace first, and the route repairs orphaned workflows.
  */
 export async function listWorkspacesForViewer(params: {
   userId: string

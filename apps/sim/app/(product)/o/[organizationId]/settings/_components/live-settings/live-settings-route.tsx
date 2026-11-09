@@ -1,5 +1,5 @@
-import { notFound, permanentRedirect, redirect } from 'next/navigation'
-import { settingsAliasHref } from '@/lib/navigation/settings-aliases'
+import { notFound } from 'next/navigation'
+import { matchPathPattern } from '@/lib/navigation/paths'
 import { SettingsLeaveGuard } from '@/app/(product)/_components/session-state/settings-leave-guard'
 import {
   isClientSettingsSection,
@@ -7,8 +7,7 @@ import {
 } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import { SettingsScreen } from '@/app/(product)/o/[organizationId]/settings/_components/settings-screen/settings-screen'
 import { OrganizationSettingsSection } from '@/app/(product)/o/[organizationId]/settings/_components/settings-section/settings-section'
-import { resolveLegacyRequestLink } from '@/platform/lib/data/legacy-request-link'
-import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
+import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { resolveLiveSetting } from '@/platform/lib/data/settings-navigation'
 
 interface LiveSettingsRouteProps {
@@ -18,39 +17,31 @@ interface LiveSettingsRouteProps {
   query: Record<string, string | string[] | undefined>
 }
 
-/** The shell layout has already answered any surface failure. */
+/**
+ * The shell layout has already answered any surface failure. A live session first follows the
+ * route table, which owns Settings aliases and saved access-request links.
+ */
 export async function LiveSettingsRoute({
   path,
   query,
   organization,
   fixture,
 }: LiveSettingsRouteProps) {
+  if (!fixture) {
+    const { followProductRoute, productLocation } = await import(
+      '@/platform/lib/data/route-resolution'
+    )
+    const pathname = surfaceHref(
+      organization,
+      ['/settings', ...path.map(encodeURIComponent)].join('/')
+    )
+    await followProductRoute(organization, productLocation(pathname, query))
+  }
   const [key = 'general', ...subpath] = path
-  const params = new URLSearchParams()
-  for (const [name, value] of Object.entries(query)) {
-    for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value])
-      params.append(name, item)
-  }
-  const alias = settingsAliasHref(organization.routePrefix, path, params)
-  if (alias) permanentRedirect(alias)
-  const requestLink = !subpath.length && resolveLegacyRequestLink(organization, key, query)
-  if (requestLink) {
-    if (!resolveLiveSetting('requests', organization)) notFound()
-    redirect(requestLink)
-  }
   const setting = resolveLiveSetting(key, organization)
   if (!setting) notFound()
   const entry = SETTINGS_SECTIONS[setting.key]
-  if (
-    subpath.length &&
-    !entry.subpaths?.some((pattern) => {
-      const segments = pattern.split('/')
-      return (
-        segments.length === subpath.length &&
-        segments.every((value, index) => value.startsWith(':') || value === subpath[index])
-      )
-    })
-  )
+  if (subpath.length && !entry.subpaths?.some((pattern) => matchPathPattern(pattern, subpath)))
     notFound()
   const { Section } = entry
   return (

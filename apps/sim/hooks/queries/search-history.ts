@@ -16,8 +16,10 @@ import {
 export function useSearchHistory(organizationId: string | undefined, userId: string | undefined) {
   return useQuery({
     queryKey: searchHistoryKeys.list(organizationId, userId),
-    queryFn: ({ signal }) =>
-      requestJson(listSearchHistoryContract, { params: { id: organizationId! }, signal }),
+    queryFn: ({ signal }) => {
+      if (!organizationId) throw new Error('Search history needs an organization')
+      return requestJson(listSearchHistoryContract, { params: { id: organizationId }, signal })
+    },
     enabled: Boolean(organizationId && userId),
     staleTime: SEARCH_HISTORY_STALE_TIME,
   })
@@ -29,8 +31,10 @@ export function useRecordSearchHistory(
 ) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (body: RecordSearchHistoryBody) =>
-      requestJson(recordSearchHistoryContract, { params: { id: organizationId! }, body }),
+    mutationFn: (body: RecordSearchHistoryBody) => {
+      if (!organizationId) throw new Error('Search history needs an organization')
+      return requestJson(recordSearchHistoryContract, { params: { id: organizationId }, body })
+    },
     onSuccess: () =>
       queryClient.invalidateQueries({ queryKey: searchHistoryKeys.list(organizationId, userId) }),
   })

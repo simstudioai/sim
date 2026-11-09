@@ -17,14 +17,12 @@ import {
   revokeOrganizationAccountEnrollmentContract,
   updateOrganizationAccountWorkspaceAccessContract,
 } from '@/lib/api/contracts/organization-accounts'
-import { personalCredentialKeys } from '@/hooks/queries/personal-credentials'
-import { mcpKeys } from '@/hooks/queries/utils/mcp-keys'
+import { invalidateOrganizationAccounts } from '@/hooks/queries/organization-accounts'
 import {
   ORGANIZATION_ACCOUNTS_STALE_TIME,
   organizationAccountsKeys,
 } from '@/hooks/queries/utils/organization-accounts-keys'
 import { resetOrganizationSearchAccess } from '@/hooks/queries/utils/reset-organization-search-access'
-import { invalidateSelectorQueries } from '@/hooks/queries/utils/selector-keys'
 
 /**
  * An organization's credential-group administration: its managed MCP connectors, Databricks
@@ -53,15 +51,7 @@ export function useConfigureOrganizationMcp() {
     }: { organizationId: string } & ContractBodyInput<typeof configureOrganizationMcpContract>) =>
       requestJson(configureOrganizationMcpContract, { params: { id: organizationId }, body }),
     onSuccess: (_, { organizationId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.detail(organizationId),
-        }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
-        invalidateSelectorQueries(queryClient),
-      ]),
+      invalidateOrganizationAccounts(queryClient, organizationId),
   })
 }
 
@@ -79,15 +69,7 @@ export function useUpdateOrganizationAccountWorkspaceAccess() {
         body,
       }),
     onSuccess: (_, { organizationId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.access(organizationId),
-        }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
-        invalidateSelectorQueries(queryClient),
-      ]),
+      invalidateOrganizationAccounts(queryClient, organizationId),
   })
 }
 
@@ -145,12 +127,7 @@ export function useRevokeOrganizationAccountEnrollment() {
     onSuccess: (_, { organizationId }) =>
       Promise.all([
         resetOrganizationSearchAccess(queryClient, organizationId),
-        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
-        invalidateSelectorQueries(queryClient),
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.detail(organizationId),
-        }),
+        invalidateOrganizationAccounts(queryClient, organizationId),
       ]),
   })
 }
@@ -169,15 +146,7 @@ export function useAddOrganizationAccountMcpProvider() {
         body,
       }),
     onSuccess: (_, { organizationId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.detail(organizationId),
-        }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
-        invalidateSelectorQueries(queryClient),
-      ]),
+      invalidateOrganizationAccounts(queryClient, organizationId),
   })
 }
 
@@ -195,14 +164,6 @@ export function useRemoveOrganizationAccountMcpProvider() {
         params: { id: organizationId, connectorId },
       }),
     onSuccess: (_, { organizationId }) =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: organizationAccountsKeys.detail(organizationId),
-        }),
-        queryClient.invalidateQueries({ queryKey: organizationAccountsKeys.workspaces() }),
-        queryClient.invalidateQueries({ queryKey: personalCredentialKeys.lists() }),
-        queryClient.invalidateQueries({ queryKey: mcpKeys.managedCatalog() }),
-        invalidateSelectorQueries(queryClient),
-      ]),
+      invalidateOrganizationAccounts(queryClient, organizationId),
   })
 }

@@ -582,9 +582,9 @@
       }
     },
     "app/(product)/workspace/page.tsx": {
-      "modules": 2080,
+      "modules": 2125,
       "gateways": {
-        "apps/sim/platform/lib/data/workspace-entry.ts": 1842,
+        "apps/sim/platform/lib/data/workspace-entry.ts": 1987,
         "apps/sim/blocks/registry.ts": 947,
         "apps/sim/blocks/registry-maps.ts": 943,
         "apps/sim/triggers/index.ts": 557,

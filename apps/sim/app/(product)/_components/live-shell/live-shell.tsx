@@ -1,7 +1,5 @@
 import { type ReactNode, Suspense } from 'react'
-import { getSessionCookie } from 'better-auth/cookies'
-import { cookies, headers } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { resolveLiveDestinations } from '@/app/(product)/_components/destinations'
 import { LiveComposerHost } from '@/app/(product)/_components/live-shell/live-composer-host'
 import { StaleSession } from '@/app/(product)/_components/live-shell/stale-session'
@@ -33,21 +31,24 @@ export async function LiveShell({
   telemetry: ReactNode
   children: ReactNode
 }) {
-  const surface = await readOrganizationSurface()
+  const [surface, location, cookieStore] = await Promise.all([
+    readOrganizationSurface(),
+    readDocumentLocation(),
+    cookies(),
+  ])
   if (surface.status !== 'ok') {
-    if (surface.status === 'unauthenticated') {
-      if (getSessionCookie(await headers())) return <StaleSession loginHref={LOGIN_PATH} />
-      redirect(LOGIN_PATH)
-    }
+    // The proxy sends a request with no session cookie to login, so this one's cookie is stale.
+    if (surface.status === 'unauthenticated') return <StaleSession loginHref={LOGIN_PATH} />
     if (surface.status === 'denied')
       return <AccessDenied workspacesHref={OUTSIDE_ORGANIZATION_HREF} />
     return <SurfaceUnavailable />
   }
 
   const { organization } = surface
-  const location = await readDocumentLocation()
-  if (location) await followProductRoute(organization, location)
-  const cookieStore = await cookies()
+  const [, dehydratedState] = await Promise.all([
+    location && followProductRoute(organization, location),
+    prefetchShell(organization),
+  ])
 
   return (
     <LiveProviders
@@ -56,13 +57,12 @@ export async function LiveShell({
         destinations: resolveLiveDestinations(organization),
         settingsNavigation: resolveSettingsNavigation(organization),
       }}
-      dehydratedState={await prefetchShell(organization)}
+      dehydratedState={dehydratedState}
     >
       {telemetry}
       <Suspense fallback={null}>
         <LiveComposerHost>
           <ProductSession
-            fixtures={null}
             routePrefix={organization.routePrefix}
             banner={<SessionState />}
             sidebarCollapsed={cookieStore.get('sidebar_collapsed')?.value === '1'}
