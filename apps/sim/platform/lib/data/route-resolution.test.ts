@@ -2,7 +2,7 @@
  * @vitest-environment node
  *
  * Failure modes: a member with nothing on the organization surface sent from a `/workspace` URL to
- * workspace Settings, itself a `/workspace` URL, forever; a gate of one organization applied to
+ * the workspace entry, itself a `/workspace` URL, forever; a gate of one organization applied to
  * another whose id shares its prefix; Home with a resource painting before it hands off to the
  * chat; a bare Search URL loading without the viewer's remembered mode; a legacy workspace URL
  * reaching a renamed Settings section through a second redirect, or disclosing the organization of
@@ -18,7 +18,7 @@ vi.mock('@/platform/lib/data/shell-scope', () => ({
   readWorkspaceShellOrganizationId: vi.fn(),
 }))
 
-import { WORKSPACE_SETTINGS_PATH } from '@/lib/navigation/paths'
+import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { type RouteContext, resolveProductRedirect } from '@/platform/lib/data/route-resolution'
 
@@ -124,10 +124,10 @@ describe('resolveProductRedirect', () => {
   })
 
   it.each(['/o/org-1', '/o/org-1/home', '/o/org-1/people', '/o/org-1/settings/members'])(
-    'sends %s to workspace Settings for a member with nothing on the organization surface',
+    'sends %s to the workspace entry for a member with nothing on the organization surface',
     (href) => {
       expect(resolve(href, { access: NO_SURFACE })).toEqual({
-        href: WORKSPACE_SETTINGS_PATH,
+        href: WORKSPACES_PATH,
         permanent: false,
       })
     }
@@ -152,6 +152,10 @@ describe('resolveProductRedirect', () => {
     )
     expect(resolve('/o/org-1/home')).toBeNull()
     expect(resolve('/o/org-1/home', { access: { canBuild: false } })?.href).toBe('/o/org-1/search')
+    expect(
+      resolve('/o/org-1/home', { access: { canBuild: false, memberScoped: false, people: true } })
+        ?.href
+    ).toBe(WORKSPACES_PATH)
   })
 
   it('pins a bare Search URL to the remembered mode and leaves a named one', () => {

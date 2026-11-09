@@ -282,7 +282,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 | `/o` loading screen | `app/o/loading.tsx` | Unverified | No live check yet. The product has no `loading.tsx`: bare `/o` redirects in `next.config.ts`, and the shell's `<Suspense fallback={null}>` keeps the current page |
 | Signed-out redirect with `callbackUrl` | `O/layout.tsx` | Done | "signing in through the zone lands", "sign out ends the session". The proxy carries the visited path, so sign-in returns to the deep link |
 | Non-member denial page | `O/layout.tsx`, `organization-access-denied.tsx` | Unverified | No live check yet. Foundation: `shell-gate.tsx` |
-| Surface unavailable redirect | `O/layout.tsx` | Unverified | No live check yet. Foundation: `resolveOrganizationGate` in `lib/data/route-resolution.ts`, applied by the shell and the organization layout |
+| Surface unavailable redirect | `O/layout.tsx` | Unverified | No live check yet. Foundation: `resolveOrganizationGate` in `lib/data/route-resolution.ts`, applied by the shell and the organization layout, sends a member with nothing on the organization surface to the workspace entry, as legacy sent them into their workspace (`route-resolution.test.ts`) |
 | Org root redirect priority | `O/page.tsx` | Unverified | No live check yet. Foundation: `organizationLandingPath` in `lib/data/route-resolution.ts` |
 | Home page gate | `O/home/page.tsx` | Done | "a member who cannot build lands on Search, not an error". `resolveHomeEntry` in `lib/data/route-resolution.ts` |
 | Error boundary with retry | `O/error.tsx` | Unverified | No live check yet. Foundation: `app/(product)/error.tsx` |

@@ -7,7 +7,7 @@ import {
   decodePathSegments,
   organizationRoutes,
   searchParamsQuery,
-  WORKSPACE_SETTINGS_PATH,
+  WORKSPACES_PATH,
 } from '@/lib/navigation/paths'
 import { settingsAliasHref } from '@/lib/navigation/settings-aliases'
 import { SHELL_PATH_HEADER } from '@/lib/navigation/shell-scope'
@@ -79,11 +79,12 @@ function hasOrganizationSurface(organization: PlatformOrganization): boolean {
 
 /**
  * Where a member with nothing of theirs on the organization surface goes from any organization
- * page: workspace Settings, which is outside the organization's pages, so it never redirects again.
+ * page: their workspace, as legacy sent them. The workspace entry is outside the organization's
+ * pages and forwards back only to an organization this gate passes, so it never redirects again.
  * The organization layout applies it to a client navigation into the organization.
  */
 export function resolveOrganizationGate(organization: PlatformOrganization): string | null {
-  return hasOrganizationSurface(organization) ? null : WORKSPACE_SETTINGS_PATH
+  return hasOrganizationSurface(organization) ? null : WORKSPACES_PATH
 }
 
 /** Where the organization's bare URL sends a viewer: the legacy organization root's priority chain. */
@@ -93,19 +94,18 @@ function organizationLandingPath(organization: PlatformOrganization): string {
   if (mothershipAvailable && canBuild) return routes.home
   if (searchAccess.memberScoped) return routes.search
   if (navFlags.people) return routes.people
-  return navFlags.simLinks ? routes.simLinks : WORKSPACE_SETTINGS_PATH
+  return navFlags.simLinks ? routes.simLinks : WORKSPACES_PATH
 }
 
 /**
- * The legacy Home page's gate (a member who cannot build goes to Search, otherwise to Settings), then
- * its resource panel: Home with `?resource=` was a new chat with that panel, which the new chat owns.
+ * The legacy Home page's gate (a member who cannot build goes to Search, otherwise to their
+ * workspace), then its resource panel: Home with `?resource=` was a new chat with that panel, which
+ * the new chat owns.
  */
 function resolveHomeEntry(organization: PlatformOrganization, query: URLSearchParams) {
   const { mothershipAvailable, canBuild, searchAccess } = organization
   if (!mothershipAvailable || !canBuild)
-    return searchAccess.memberScoped
-      ? surfaceHref(organization, '/search')
-      : WORKSPACE_SETTINGS_PATH
+    return searchAccess.memberScoped ? surfaceHref(organization, '/search') : WORKSPACES_PATH
   if (!query.get(resourceParam.key)) return null
   return `${surfaceHref(organization, '/chat')}?${query}`
 }
@@ -148,7 +148,7 @@ const temporary = (href: string | null): ProductRedirect | null =>
 /**
  * The redirect `location` answers, or `null` to render it. Pure: the caller reads the context. The
  * organization gate applies only under the organization's own prefix; a `/workspace` URL is never
- * sent to workspace Settings, which is itself a `/workspace` URL.
+ * sent to the workspace entry, which is itself a `/workspace` URL.
  */
 export function resolveProductRedirect(
   { pathname, query }: ProductLocation,
