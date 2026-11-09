@@ -12,6 +12,7 @@ import {
   useState,
 } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
 import { ActionMenu, type MenuAction, PointActionMenu } from '@sim/emcn/menu/action-menu'
 import { useRegisterGlobalCommands } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/global-commands/global-commands'
@@ -610,9 +611,9 @@ export function Terminal() {
           </div>
           {executionGroups.length === 0 ? (
             hasConsoleHydrated && (
-              <p className={styles.empty} data-type='T060'>
-                No logs yet
-              </p>
+              <div className={styles.emptyFrame}>
+                <EmptyState title='No logs yet' />
+              </div>
             )
           ) : (
             <LogList

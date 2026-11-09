@@ -2,6 +2,7 @@
 
 import { type KeyboardEvent, useId, useMemo, useState } from 'react'
 import { IconButton } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { FieldFrame, fieldDescription } from '@sim/emcn/field'
 import { Input } from '@sim/emcn/field/inputs'
 import { Select } from '@sim/emcn/picker/select'
@@ -280,9 +281,9 @@ export function VariablesPanel() {
         />
       </header>
       {workflowVariables.length === 0 ? (
-        <p className={styles.empty} data-type='T060'>
-          No variables yet
-        </p>
+        <div className={styles.emptyFrame}>
+          <EmptyState title='No variables yet' />
+        </div>
       ) : (
         <div ref={scrollRef} className={styles.body}>
           {workflowVariables.map((variable, index) => (
