@@ -421,6 +421,7 @@ function firstNameOf(user: { name?: string | null; email?: string | null } | nul
  * Home's view and actions. Every widget reads the same member inventory the Integrations page reads,
  * so the two cannot disagree on what is offered. `assistant` is whether the viewer searches rather
  * than builds here, which decides whether Get started is theirs. A hidden widget reads nothing.
+ * Until hydration the greeting and attention ages, which need the viewer's zone and clock, are empty.
  */
 export function useLiveHome(
   assistant: boolean,
@@ -428,6 +429,7 @@ export function useLiveHome(
 ): { view: HomeView; actions: HomeActions; savedConnection: HomeSavedConnection | null } {
   const organization = useOrganization()
   const { data: session } = useSession()
+  const hydrated = useHydrated()
   const organizationId = organization.organization.id
   const nowMs = useMinuteClock()
   const [timeZone] = useState(getBrowserTimezone)
@@ -479,9 +481,9 @@ export function useLiveHome(
   return {
     view: {
       asOf: nowMs,
-      greeting: greetingAt(nowMs, timeZone),
+      greeting: hydrated ? greetingAt(nowMs, timeZone) : '',
       firstName: firstNameOf(session?.user),
-      attention: attention.state,
+      attention: hydrated ? attention.state : { status: 'loading' },
       /** Search has no daily count anywhere to read, so its chart is hidden rather than estimated. */
       activity: { Build: activity.state, Search: { status: 'hidden' } },
       email: email.state,

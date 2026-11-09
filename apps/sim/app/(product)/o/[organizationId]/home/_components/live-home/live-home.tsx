@@ -4,7 +4,6 @@ import type { HomeWidget } from '@/app/(product)/_components/model'
 import { SavedAccountModal } from '@/app/(product)/_components/service-account-modal/saved-account-modal'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
 import { ZoneHomeDashboard } from '@/app/(product)/o/[organizationId]/home/_components/home-dashboard/zone-home-dashboard'
-import { useHydrated } from '@/hooks/use-hydrated'
 import { useHiddenHomeWidgets, useLiveHome } from '@/platform/lib/data/home'
 
 /** Until the viewer's Customize Home choices are known, every widget they could hide stays unread. */
@@ -19,7 +18,6 @@ function keepChoices() {}
  * viewer can hide wait for their Customize Home choices, so a widget they hid never reads.
  */
 export function LiveHome() {
-  const hydrated = useHydrated()
   const widgets = useHiddenHomeWidgets()
   const preferences = useInterfacePreferences()
   const hiddenWidgets = widgets?.hiddenWidgets ?? UNKNOWN_CHOICES
@@ -30,7 +28,7 @@ export function LiveHome() {
   return (
     <>
       <ZoneHomeDashboard
-        view={hydrated ? view : { ...view, greeting: '', attention: { status: 'loading' } }}
+        view={view}
         actions={actions}
         hiddenWidgets={hiddenWidgets}
         onWidgetHiddenChange={widgets?.setWidgetHidden ?? keepChoices}
