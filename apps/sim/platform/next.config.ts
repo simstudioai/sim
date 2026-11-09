@@ -14,13 +14,6 @@ function readBasePath(value: string | undefined): string | undefined {
 const basePath = readBasePath(process.env.SIM_PLATFORM_BASE_PATH)
 const apiOrigin = process.env.SIM_PLATFORM_API_ORIGIN
 /**
- * Modules the chat hook reaches that the zone answers more cheaply. Each shim says what it drops. The
- * workflow stores are real: the Workflows tab's canvas hydrates them in the same bundle.
- */
-const canvasShims = [
-  ['@/lib/mothership/tools/client/block-name', 'lib/data/shims/block-name.ts'],
-] as const
-/**
  * The shared socket provider (and its operation queue) and the chat hook (its stream helpers, run tool,
  * execution helper and the execution store) import workflow state, and one of them is on every Platform page. The real stores
  * pull in every block and trigger, so for these importers alone a bridge stands in that reads the real
@@ -83,15 +76,6 @@ const config: NextConfig = {
     webpackConfig.resolve.alias['pdfjs-dist$'] = createRequire(import.meta.url).resolve(
       'pdfjs-dist/legacy/build/pdf.min.mjs'
     )
-    // A replacement, because tsconfig paths resolve `@/` before any alias is consulted.
-    for (const [request, shim] of canvasShims) {
-      webpackConfig.plugins.push(
-        new webpack.NormalModuleReplacementPlugin(
-          new RegExp(`^${request}$`),
-          path.join(import.meta.dirname, shim)
-        )
-      )
-    }
     // Every other importer, the canvas included, keeps the real store.
     const importers = new Set<string>(
       bridgedImporters.map((file) => path.join(import.meta.dirname, '..', file))

@@ -31,9 +31,7 @@
         "platform/checks/live/support/scripted-agent.ts",
         "platform/checks/live/support/appconfig-service.ts",
         "platform/checks/live/support/failing-zone.ts",
-        // Only webpack reaches these, through `canvasShims` in platform/next.config.ts.
-        "platform/lib/data/shims/*.ts",
-        // Same, through `workflowStateBridges` in platform/next.config.ts.
+        // Only webpack reaches these, through `workflowStateBridges` in platform/next.config.ts.
         "platform/lib/data/shims/workflow-state/*.ts",
         "background/**/*.ts",
         "scripts/**/*.{ts,tsx}",

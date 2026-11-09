@@ -552,7 +552,6 @@ const seamHelpers = new Set([
   'tools/metadata',
   'tools/normalize',
   // The chat hook and the pure modules around it: Platform drives it rather than forking it.
-  // `next.config.ts` replaces what they would otherwise reach for a canvas with a named shim.
   'hooks/use-seed-deployment-shape',
   'hooks/use-settings-browser-navigation',
   'hooks/use-settings-leave-links',
@@ -1499,8 +1498,8 @@ function resolveSource(file: string, specifier: string): string | null {
 /**
  * Walks what the seam actually bundles, past the modules it names directly. A `.tsx` under `@/app`
  * or `@/components` is legacy UI riding in behind a hook, and so is any import of the legacy EMCN
- * barrel. `next.config.ts` replaces its canvas modules at build time, so the walk stops at them the
- * same way, and skips a workflow state module where a bridged importer names it, as webpack does. The
+ * barrel. The walk skips a workflow state module where a bridged importer names it, as the zone's
+ * webpack config does. The
  * workflow seam is walked under its own exception; every other seam must reach neither the block, tool
  * or trigger registry nor legacy views. A server-only module is not walked from: it never reaches a
  * browser bundle.
@@ -1515,7 +1514,6 @@ function checkSeamClosure() {
       configSource.match(new RegExp(`const ${name} = \\[([\\s\\S]*?)\\] as const`))?.[1] ?? ''
     return new Set([...body.matchAll(pattern)].map(([, value]) => value))
   }
-  const replaced = configList('canvasShims', /\['(@\/[^']+)', 'lib\/data\/shims\//g)
   // Replaced only where these importers name them, so other importers still reach the real module.
   const bridged = configList('workflowStateBridges', /\['(@\/[^']+)', 'lib\/data\/shims\//g)
   const bridgedImporters = configList('bridgedImporters', /'([^']+\.tsx?)'/g)
@@ -1536,7 +1534,6 @@ function checkSeamClosure() {
     const queue = [...seeds]
     for (let file = queue.pop(); file; file = queue.pop()) {
       for (const specifier of runtimeImports(file)) {
-        if (replaced.has(specifier)) continue
         if (bridgedImporters.has(file) && bridged.has(specifier)) continue
         // Logic modules name glyphs from the legacy icon set (block configs, table column types,
         // enrichments). Icons are not chrome, and zone views never import them directly.

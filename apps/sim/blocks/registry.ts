@@ -9,6 +9,7 @@ import type {
   BlockTemplate,
   SuggestedSkill,
 } from '@/blocks/types'
+import { latestVersionKey, parseVersionSuffix } from '@/blocks/versions'
 import { isHiddenUnder, overlayVisibility } from '@/blocks/visibility/context'
 
 /**
@@ -171,22 +172,6 @@ export function getBlockByToolName(toolName: string): BlockConfig | undefined {
 }
 
 /**
- * The digits of a `_vN` suffix, or `undefined` when the remainder is not a
- * version.
- *
- * Matched by string comparison rather than a `RegExp` built from the caller's
- * type: `GET /api/v2/blocks/{blockId}` accepts any string, so `[`, `(`, `*` or
- * `a{2,1}` would be interpolated into the pattern and throw a `SyntaxError`
- * during compilation — an unclassified 500 on a well-formed request.
- * `tools/tool-ids.ts` resolves the same `_vN` convention the same way.
- */
-function parseVersionSuffix(suffix: string): number | undefined {
-  if (!suffix || !/^\d+$/.test(suffix)) return undefined
-  const version = Number.parseInt(suffix, 10)
-  return Number.isSafeInteger(version) ? version : undefined
-}
-
-/**
  * Resolve the canonical (highest-version) block for a base type. Handles
  * versioned variants like `confluence_v2`: callers pass `confluence` and
  * receive the latest implementation. Returns the registry key alongside the
@@ -195,17 +180,7 @@ function parseVersionSuffix(suffix: string): number | undefined {
  */
 function resolveLatest(baseType: string): { type: string; config: BlockConfig } | undefined {
   const normalized = normalizeType(baseType)
-  const prefix = `${normalized}_v`
-  let latestKey: string | undefined
-  let latestVersion = -1
-  for (const key of Object.keys(BLOCK_REGISTRY)) {
-    if (!key.startsWith(prefix)) continue
-    const version = parseVersionSuffix(key.slice(prefix.length))
-    if (version !== undefined && version > latestVersion) {
-      latestVersion = version
-      latestKey = key
-    }
-  }
+  const latestKey = latestVersionKey(Object.keys(BLOCK_REGISTRY), normalized)
   if (latestKey) return { type: latestKey, config: BLOCK_REGISTRY[latestKey]! }
   const config = ownBlock(normalized)
   return config ? { type: normalized, config } : undefined
