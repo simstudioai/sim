@@ -800,7 +800,6 @@ export function TableList({ workspaceId }: TableListProps) {
         <AccessRequired
           workspaceId={workspaceId}
           gate='hideTablesTab'
-          refreshing={access.refreshing}
           onRefresh={access.refresh}
         />
       ) : (

@@ -840,7 +840,6 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
         <AccessRequired
           workspaceId={workspaceId}
           gate='hideKnowledgeBaseTab'
-          refreshing={access.refreshing}
           onRefresh={access.refresh}
         />
       ) : (

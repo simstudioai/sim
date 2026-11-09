@@ -12,7 +12,6 @@ interface AccessRequiredProps {
   workspaceId: string
   /** The permission-group flag that closes this tab. */
   gate: 'hideTablesTab' | 'hideFilesTab' | 'hideKnowledgeBaseTab'
-  refreshing: boolean
   onRefresh: () => void
 }
 
@@ -20,7 +19,7 @@ interface AccessRequiredProps {
  * Why a workspace tab is closed to the viewer, with the request legacy's access boundary offers:
  * Request access, View request while one is pending, and Refresh access once it is allowed.
  */
-export function AccessRequired({ workspaceId, gate, refreshing, onRefresh }: AccessRequiredProps) {
+export function AccessRequired({ workspaceId, gate, onRefresh }: AccessRequiredProps) {
   const router = useRouter()
   const prompt = useFeatureAccessPrompt(workspaceId, gate)
   const [requesting, setRequesting] = useState(false)
@@ -36,11 +35,7 @@ export function AccessRequired({ workspaceId, gate, refreshing, onRefresh }: Acc
       {prompt.allowed ? (
         <WorkspaceEmpty
           title='Access updated'
-          description={
-            refreshing
-              ? 'Refreshing your permissions...'
-              : 'Refresh to load your latest permissions.'
-          }
+          description='Refresh to load your latest permissions.'
           action={{ label: 'Refresh access', onClick: onRefresh }}
         />
       ) : (

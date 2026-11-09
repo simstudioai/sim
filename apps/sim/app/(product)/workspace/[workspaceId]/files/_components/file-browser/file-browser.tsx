@@ -1079,7 +1079,6 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
         <AccessRequired
           workspaceId={workspaceId}
           gate='hideFilesTab'
-          refreshing={access.refreshing}
           onRefresh={access.refresh}
         />
       ) : (

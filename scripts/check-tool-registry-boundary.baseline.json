@@ -282,11 +282,11 @@
       "gateways": {}
     },
     "app/(product)/workspace/[workspaceId]/files/[fileId]/page.tsx": {
-      "modules": 548,
+      "modules": 575,
       "gateways": {
-        "apps/sim/app/(product)/_components/workspace/files/file-view/file-view.tsx": 552,
-        "apps/sim/components/file-viewer/file-viewer.tsx": 280,
-        "apps/sim/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 157,
+        "apps/sim/app/(product)/_components/workspace/files/file-view/file-view.tsx": 367,
+        "apps/sim/components/file-viewer/file-viewer.tsx": 275,
+        "apps/sim/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx": 152,
         "apps/sim/lib/api/contracts/index.ts": 51,
         "apps/sim/components/file-viewer/rich-markdown-editor/editor-extensions.ts": 46,
         "apps/sim/components/file-viewer/pptx-preview.tsx": 43,

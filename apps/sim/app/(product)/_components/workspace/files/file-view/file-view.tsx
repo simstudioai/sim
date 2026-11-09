@@ -23,7 +23,7 @@ import {
   isTextEditable,
 } from '@/components/file-viewer/file-viewer'
 import type { FileStreamProps, PreviewMode } from '@/components/file-viewer/types'
-import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
+import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import { ShareModal } from '@/app/(product)/_components/workspace/files/share-modal/share-modal'
@@ -155,10 +155,6 @@ export function FileView({ workspaceId, fileId, stream }: FileViewProps) {
   useEffect(() => {
     if (isNewFile) void setFilesParams({ new: null }, { history: 'replace', scroll: false })
   }, [isNewFile, setFilesParams])
-
-  useEffect(() => {
-    if (access.hideFiles && !embedded) router.replace(workspaceEntry(workspaceId))
-  }, [access.hideFiles, embedded, router, workspaceId])
 
   /** An id naming no live file falls back to the list; a chat panel tab says so instead. */
   useEffect(() => {

@@ -16,9 +16,9 @@ interface AccessBoundaryProps {
 }
 
 /**
- * Legacy's `PermissionAccessBoundary` for a page that opens one record: nothing below mounts until
- * the viewer's permission group answers, and a group that hides the tab gets the tab's frame with
- * the access prompt instead, so a hidden record's reads never start.
+ * Legacy's `PermissionAccessBoundary` for a page that opens one record: nothing paints until the
+ * viewer's permission group answers, and a group that hides the tab gets the tab's frame with the
+ * access prompt instead, so a hidden record's reads never start.
  */
 export function AccessBoundary({
   workspaceId,
@@ -28,17 +28,11 @@ export function AccessBoundary({
   children,
 }: AccessBoundaryProps) {
   const access = useResourceListAccess(workspaceId, gate)
-  if (!access.settled)
-    return <LiveWorkspacePage workspaceId={workspaceId} current={current} layout={layout} />
+  if (!access.settled) return null
   if (access.hidden)
     return (
       <LiveWorkspacePage workspaceId={workspaceId} current={current} layout={layout}>
-        <AccessRequired
-          workspaceId={workspaceId}
-          gate={gate}
-          refreshing={access.refreshing}
-          onRefresh={access.refresh}
-        />
+        <AccessRequired workspaceId={workspaceId} gate={gate} onRefresh={access.refresh} />
       </LiveWorkspacePage>
     )
   return children
