@@ -232,9 +232,12 @@ export async function homeChecks() {
           await measureCard(email, 'Gmail'),
           await measureCard(calendar, 'Google Calendar'),
         ]
-        assert(
-          calendarCard.height < mailCard.height,
-          `Calendar ${calendarCard.height}px is meant to be the shorter card, beside Email ${mailCard.height}px`
+        // Both prompts fill the shared widget height (connected-widget.module.css), so neither card
+        // stands taller than the other wherever the columns place them.
+        assert.equal(
+          calendarCard.height,
+          mailCard.height,
+          `Calendar ${calendarCard.height}px and Email ${mailCard.height}px are meant to share the widget height`
         )
         await expect(calendar.getByRole('button', { name: 'Outlook', exact: true })).toHaveCount(0)
         const authorization = context.waitForEvent('request', (request) =>
@@ -569,7 +572,7 @@ export async function homeChecks() {
     })
   })
   await check(
-    'the agent composer with its tools and the Tasks run chart, without Suggested actions',
+    'the agent composer with its tools, Suggested actions and the Tasks run chart',
     async () => {
       await onHome(ADMIN, async ({ page }) => {
         await expect(page).toHaveURL(homeUrl)
@@ -578,7 +581,9 @@ export async function homeChecks() {
         await expect(page.getByRole('button', { name: 'Add attachment' })).toBeVisible()
         await expect(page.getByRole('button', { name: 'Attach file' })).toBeVisible()
         await expect(page.getByRole('button', { name: /Skills/ }).first()).toBeVisible()
-        await expect(page.getByText('Suggested actions', { exact: true })).toHaveCount(0)
+        await expect(
+          homeRegion(page, 'Suggested actions').getByRole('listitem').first()
+        ).toBeVisible()
         await expect(homeRegion(page, 'Tasks run')).toBeVisible()
         await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeDisabled()
       })
