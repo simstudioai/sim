@@ -21,5 +21,11 @@ export default async function Page({ searchParams }: ProductPageProps<{ organiza
     loadConversationData(scenario),
     loadHomeRecentLinks(scenario),
   ])
-  return <FixtureHome data={data?.home ?? null} recentLinks={recentLinks ?? []} />
+  return (
+    <FixtureHome
+      data={data?.home ?? null}
+      recentLinks={recentLinks ?? []}
+      workspaces={data?.workspaces ?? []}
+    />
+  )
 }
