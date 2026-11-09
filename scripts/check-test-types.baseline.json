@@ -854,7 +854,6 @@
     "TS2741": 1
   },
   "apps/sim/hooks/queries/tables.test.ts": {
-    "TS2339": 1,
     "TS2345": 3,
     "TS2352": 1,
     "TS2551": 4
