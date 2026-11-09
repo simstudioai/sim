@@ -528,6 +528,19 @@
         "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-canvas/workflow-canvas-constants.ts": 149
       }
     },
+    "app/(product)/workspace/[workspaceId]/workflows/[workflowId]/versions/[version]/page.tsx": {
+      "modules": 1717,
+      "gateways": {
+        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/run-snapshot/version-snapshot.tsx": 1712,
+        "apps/sim/triggers/registry.ts": 597,
+        "apps/sim/blocks/registry.ts": 377,
+        "apps/sim/blocks/registry-maps.ts": 375,
+        "apps/sim/platform/lib/data/workflows/index.ts": 339,
+        "apps/sim/app/(product)/workspace/[workspaceId]/workflows/_components/canvas/workflow-preview/workflow-preview.tsx": 51,
+        "apps/sim/triggers/plane/index.ts": 46,
+        "apps/sim/components/workflow-editor/hooks/use-workflow-execution.ts": 39
+      }
+    },
     "app/(product)/workspace/[workspaceId]/workflows/layout.tsx": {
       "modules": 1642,
       "gateways": {
