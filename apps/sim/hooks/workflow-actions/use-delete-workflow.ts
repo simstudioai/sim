@@ -96,7 +96,7 @@ export function useDeleteWorkflow({
 
       if (isActiveWorkflowBeingDeleted) {
         if (nextWorkflowId) {
-          router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
+          router.push(`/workspace/${workspaceId}/workflows/${nextWorkflowId}`)
         } else {
           router.push(`/workspace/${workspaceId}`)
         }

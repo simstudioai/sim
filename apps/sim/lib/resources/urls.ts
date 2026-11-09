@@ -36,7 +36,7 @@ export function workspaceResourcePath(
     case 'table':
       return `${base}/tables/${resource}`
     case 'workflow':
-      return `${base}/w/${resource}`
+      return `${base}/workflows/${resource}`
   }
 }
 

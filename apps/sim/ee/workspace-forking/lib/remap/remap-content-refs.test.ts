@@ -110,7 +110,10 @@ describe('rewriteForkContentRefs - mixed and edge cases', () => {
 describe('rewriteForkResourceUrls - table cell resource chip urls', () => {
   it('rewrites the workspace id + resource id for each section when the resource is mapped', () => {
     expect(rewriteForkResourceUrls('/workspace/SRC/w/wf-src', maps())).toBe(
-      '/workspace/DST/w/wf-dst'
+      '/workspace/DST/workflows/wf-dst'
+    )
+    expect(rewriteForkResourceUrls('/workspace/SRC/workflows/wf-src', maps())).toBe(
+      '/workspace/DST/workflows/wf-dst'
     )
     expect(rewriteForkResourceUrls('/workspace/SRC/tables/tbl-src', maps())).toBe(
       '/workspace/DST/tables/tbl-dst'

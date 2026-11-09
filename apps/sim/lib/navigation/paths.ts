@@ -44,11 +44,11 @@ export function organizationRoutes(organizationId: string) {
       `${root}/integrations/accounts/${encodeURIComponent(credentialId)}`,
     benchmark: `${root}/benchmark`,
     memberSecrets: `${root}/integrations/secrets`,
-    simLinks: `${root}/links`,
+    simLinks: `${root}/settings/links`,
     people: `${root}/people`,
     person: (memberId: string) => `${root}/people/${encodeURIComponent(memberId)}`,
     organizationSecrets: `${root}/settings/integrations/secrets`,
-    skills: `${root}/skills`,
+    skills: `${root}/integrations?tab=skills`,
     settings: `${root}/settings`,
     searchProvider: (connectorType: string) =>
       `${root}/settings/integrations/providers/${encodeURIComponent(connectorType)}`,

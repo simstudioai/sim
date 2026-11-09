@@ -117,7 +117,7 @@ export function useDeleteSelection({
 
       if (needsNavigation) {
         if (nextWorkflowId) {
-          router.push(`/workspace/${workspaceId}/w/${nextWorkflowId}`)
+          router.push(`/workspace/${workspaceId}/workflows/${nextWorkflowId}`)
         } else {
           router.push(`/workspace/${workspaceId}`)
         }

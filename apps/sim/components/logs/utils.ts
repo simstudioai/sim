@@ -54,7 +54,7 @@ export function getLogWorkflowLabel(log: {
 
 /** Path to a workflow in the editor. */
 export function workflowEditorPath(workspaceId: string, workflowId: string): string {
-  return `/workspace/${workspaceId}/w/${workflowId}`
+  return `/workspace/${workspaceId}/workflows/${workflowId}`
 }
 
 export type LogStatus =

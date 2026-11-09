@@ -228,6 +228,7 @@ function extractUrlInfo(text: string): { href: string; domain: string } | null {
 /** Maps a workspace route section to the sim resource kind it addresses. */
 const SIM_RESOURCE_SECTIONS: Record<string, SimResourceType> = {
   w: 'workflow',
+  workflows: 'workflow',
   tables: 'table',
   knowledge: 'knowledge',
   files: 'file',
@@ -256,7 +257,9 @@ function extractSimResourceInfo(
   } else {
     return null
   }
-  const match = pathname.match(/^\/workspace\/([^/]+)\/(w|tables|knowledge|files)\/([^/]+)\/?$/)
+  const match = pathname.match(
+    /^\/workspace\/([^/]+)\/(w|workflows|tables|knowledge|files)\/([^/]+)\/?$/
+  )
   if (!match) return null
   const [, workspaceId, section, resourceId] = match
   return { workspaceId, resourceType: SIM_RESOURCE_SECTIONS[section], resourceId, href: pathname }

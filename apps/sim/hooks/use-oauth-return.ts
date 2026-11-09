@@ -334,7 +334,7 @@ export function useOAuthReturnRouter() {
       consumeOAuthReturnContext()
       showOAuthResultMessage(callbackError)
       if (ctx.origin === 'workflow') {
-        router.replace(`/workspace/${ctx.workspaceId}/w/${ctx.workflowId}`)
+        router.replace(`/workspace/${ctx.workspaceId}/workflows/${ctx.workflowId}`)
       } else if (ctx.origin === 'kb-connectors') {
         router.replace(
           buildKnowledgeBaseOAuthReturnUrl(
@@ -363,7 +363,7 @@ export function useOAuthReturnRouter() {
       try {
         sessionStorage.removeItem(SETTINGS_RETURN_URL_KEY)
       } catch {}
-      router.replace(`/workspace/${ctx.workspaceId}/w/${ctx.workflowId}`)
+      router.replace(`/workspace/${ctx.workspaceId}/workflows/${ctx.workflowId}`)
       return
     }
 

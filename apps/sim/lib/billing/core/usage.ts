@@ -45,7 +45,7 @@ import { Decimal, toDecimal, toNumber } from '@/lib/billing/utils/decimal'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { DbClient, DbOrTx } from '@/lib/db/types'
-import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { APP_ENTRY_PATH, organizationRoutes } from '@/lib/navigation/paths'
 import { isDeletedAccountIdentity } from '@/lib/users/deleted-identity'
 import { identityHadFreeAllowance } from '@/lib/users/free-allowance'
 import { acquireGmailInboxLock, laterGmailAliasesWithAllowance } from '@/lib/users/gmail-alias'
@@ -881,15 +881,10 @@ export async function maybeSendUsageThresholdEmail(params: {
     const upgradeCreditsLink = params.workspaceId
       ? `${baseUrl}${buildUpgradeHref(params.workspaceId, 'credits')}`
       : `${baseUrl}${APP_ENTRY_PATH}`
-    /**
-     * Organization billing is reached through the workspace the usage occurred in
-     * — that is the only plane that serves it. Without a workspace there is no such
-     * link to build, so the account page is the honest fallback rather than a guess
-     * at which workspace the recipient would want.
-     */
+    /** Organization usage is billed in the organization's settings; a user's on their account. */
     const billingSettingsLink =
-      params.scope === 'organization' && params.workspaceId
-        ? `${baseUrl}/workspace/${params.workspaceId}/settings/billing`
+      params.scope === 'organization' && params.organizationId
+        ? `${baseUrl}${organizationRoutes(params.organizationId).settingsSection('billing')}`
         : `${baseUrl}/account/settings/billing`
 
     if (threshold === 80 && !isFreeUser) {

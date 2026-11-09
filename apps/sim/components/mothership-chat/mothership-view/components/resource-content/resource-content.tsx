@@ -518,7 +518,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   }
 
   const handleOpenWorkflow = () => {
-    openInternalLink(`/workspace/${workspaceId}/w/${workflowId}`)
+    openInternalLink(`/workspace/${workspaceId}/workflows/${workflowId}`)
   }
 
   return (
@@ -884,7 +884,9 @@ function ResolveEmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowPr
         <p className='text-[var(--text-primary)]'>{canonical.name}</p>
         <Button
           variant='secondary'
-          onClick={() => openInternalLink(`/workspace/${canonical.workspaceId}/w/${workflowId}`)}
+          onClick={() =>
+            openInternalLink(`/workspace/${canonical.workspaceId}/workflows/${workflowId}`)
+          }
         >
           Open in its workspace
         </Button>
@@ -1051,7 +1053,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
             <button
               key={w.id}
               type='button'
-              onClick={() => openInternalLink(`/workspace/${workspaceId}/w/${w.id}`)}
+              onClick={() => openInternalLink(`/workspace/${workspaceId}/workflows/${w.id}`)}
               className='flex items-center gap-2 rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-4)]'
             >
               <WorkflowIcon className='size-[14px] shrink-0 text-[var(--text-icon)]' />

@@ -128,7 +128,7 @@ export function useDuplicateSelection({ workspaceId, onSuccess }: UseDuplicateSe
         })
 
         if (duplicatedWorkflowIds.length === 1 && duplicatedFolderIds.length === 0) {
-          router.push(`/workspace/${workspaceIdRef.current}/w/${duplicatedWorkflowIds[0]}`)
+          router.push(`/workspace/${workspaceIdRef.current}/workflows/${duplicatedWorkflowIds[0]}`)
         }
 
         onSuccessRef.current?.()
