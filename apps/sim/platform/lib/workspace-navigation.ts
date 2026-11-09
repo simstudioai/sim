@@ -56,7 +56,8 @@ export function workspaceTabs(mode: WorkspaceDataMode, flags: WorkspaceTabFlags 
   return WORKSPACE_TABS.filter(
     (tab) =>
       (tab.modes as readonly WorkspaceDataMode[]).includes(mode) &&
-      (mode === 'fixture' || (!('hidden' in tab) && (!('flag' in tab) || flags[tab.flag] === true)))
+      (mode === 'fixture' ||
+        (!('hidden' in tab) && (!('flag' in tab) || flags[tab.flag as WorkspaceTabFlag] === true)))
   )
 }
 
