@@ -16,11 +16,13 @@ export default defineConfig({
   testMatch: '*.spec.ts',
   testIgnore: ['**/desktop/**', '**/live/**'],
   workers: 1,
-  // A development server compiles each route on its first visit.
+  // A development server compiles each route on its first visit; `globalSetup` warms the ones the
+  // checks open, and this leaves room for any it misses.
   timeout: 90_000,
   expect: { timeout: 10_000 },
   reporter: [['list'], ['json', { outputFile: report }]],
   outputDir: path.join(path.dirname(report), 'artifacts'),
+  globalSetup: path.join(__dirname, 'warm-fixture-routes.ts'),
   use: { screenshot: 'only-on-failure', trace: 'retain-on-failure' },
   webServer: existingOrigin
     ? undefined
