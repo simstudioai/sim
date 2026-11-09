@@ -9,16 +9,3 @@
   gap: var(--ui-list-gap);
   list-style: none;
 }
-.note {
-  margin: 0;
-  color: var(--ui-secondary);
-}
-/* A setting that applies with its switch: the caption on the text edge, the switch at the end. */
-.switchRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-inline-size: 0;
-  gap: var(--ui-row-gap);
-  color: var(--ui-ink);
-}

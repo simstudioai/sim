@@ -1,23 +1,109 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
+import type { IconName } from '@sim/emcn/catalog/icon-geometry'
+import { Icon } from '@sim/emcn/icon'
 import { DirectoryHeading } from '@/platform/app/(shell)/_components/resource-directory/resource-directory'
 import {
   DetailSection,
   DetailSplit,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/detail-split/detail-split'
+import { MetadataFields } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/metadata-fields/metadata-fields'
+import {
+  type TracePaint,
+  type TraceRow,
+  TraceTree,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/trace-tree/trace-tree'
 import {
   formatComputeUnits,
   formatDuration,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/format'
 import type { WorkspaceRead } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
 import { useViewerTimeZone } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
-import { MetadataFields } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/metadata-fields/metadata-fields'
 import { RUN_STATUS_LABEL } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/run-status/run-status'
 import { SpanInspector } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/span-inspector/span-inspector'
-import { TraceTree } from '@/platform/app/(shell)/workspace/[workspaceId]/logs/_components/trace-tree/trace-tree'
 import { formatTimestamp } from '@/platform/shared/time'
 import type { RunDetail, TraceSpan } from '@/platform/shared/workspace-records'
+
+const KIND_ICON: Record<TraceSpan['kind'], IconName> = {
+  agent: 'I128',
+  model: 'I128',
+  tool: 'I127',
+  mcp: 'I126',
+  loop: 'I130',
+  iteration: 'I130',
+  parallel: 'I129',
+  branch: 'I129',
+  workflow: 'I118',
+  block: 'I127',
+}
+
+const PROVIDER_ICON: Partial<Record<string, IconName>> = { slack: 'I123', openai: 'I124' }
+/** Providers whose own mark the shared icon catalog carries. */
+const PROVIDER_MARKS = new Set(['salesforce', 'notion', 'github', 'linear', 'jira', 'hubspot'])
+
+/** A span's timing paint, from its recorded family and provider; failures take precedence. */
+function spanPaint(span: TraceSpan): TracePaint {
+  if (span.status === 'error') return 'error'
+  if (span.status === 'handled') return 'handled'
+  if (span.providerId === 'slack') return 'slack'
+  if (span.providerId === 'anthropic') return 'anthropic'
+  if (span.providerId === 'openai') return 'neutral'
+  switch (span.kind) {
+    case 'agent':
+    case 'loop':
+    case 'iteration':
+    case 'parallel':
+    case 'workflow':
+    case 'mcp':
+      return span.kind
+    default:
+      return 'neutral'
+  }
+}
+
+function spanMark(span: TraceSpan) {
+  const providerIcon = span.providerId ? PROVIDER_ICON[span.providerId] : undefined
+  if (providerIcon) return <Icon name={providerIcon} />
+  if (span.providerId && PROVIDER_MARKS.has(span.providerId))
+    return <Icon providerId={span.providerId} />
+  return <Icon name={KIND_ICON[span.kind]} />
+}
+
+/** The run's open steps in reading order, each placed on the root's one clock. */
+function traceRows(
+  spans: readonly TraceSpan[],
+  collapsed: ReadonlySet<string>,
+  totalMs: number,
+  depth = 0
+): TraceRow[] {
+  const clock = Math.max(1, totalMs)
+  const share = (ms: number) => Math.max(0, Math.min(100, (100 * ms) / clock))
+  return spans.flatMap((span) => {
+    const expandable = Boolean(span.children?.length)
+    const start = share(span.startMs)
+    const row: TraceRow = {
+      id: span.id,
+      name: span.name,
+      depth,
+      mark: spanMark(span),
+      duration: formatDuration(span.durationMs),
+      bar: {
+        start,
+        width: Math.max(0.6, Math.min(100 - start, share(span.durationMs))),
+        paint: spanPaint(span),
+      },
+      startLabel: `Started at ${formatDuration(span.startMs)}`,
+      expanded: expandable ? !collapsed.has(span.id) : undefined,
+    }
+    return [
+      row,
+      ...(span.children?.length && !collapsed.has(span.id)
+        ? traceRows(span.children, collapsed, totalMs, depth + 1)
+        : []),
+    ]
+  })
+}
 
 function findSpan(spans: readonly TraceSpan[], id: string): TraceSpan | undefined {
   for (const span of spans) {
@@ -42,9 +128,20 @@ export function RunDetails({ run, back, read, actions }: RunDetailsProps) {
   const timeZone = useViewerTimeZone()
   const root = run.trace[0]
   const [selectedId, setSelectedId] = useState(root?.id ?? '')
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
   const selected = findSpan(run.trace, selectedId) ?? root
   const shortId = run.id.slice(0, 8)
   const usage = formatComputeUnits(run.cu)
+
+  function toggle(id: string, open: boolean) {
+    setCollapsed((current) => {
+      const next = new Set(current)
+      if (open) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   return (
     <DetailSplit
       read={read}
@@ -77,10 +174,10 @@ export function RunDetails({ run, back, read, actions }: RunDetailsProps) {
         <DetailSection title='Trace'>
           <TraceTree
             label={`Run ${shortId} steps`}
-            trace={run.trace}
-            totalMs={root.durationMs}
-            selectedId={selected?.id ?? ''}
+            rows={traceRows(run.trace, collapsed, root.durationMs)}
+            selectedId={selected?.id ?? null}
             onSelect={setSelectedId}
+            onToggle={toggle}
           />
         </DetailSection>
       )}

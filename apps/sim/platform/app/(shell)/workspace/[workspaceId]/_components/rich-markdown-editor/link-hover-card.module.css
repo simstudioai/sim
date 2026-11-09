@@ -1,16 +1,9 @@
+/* The floating toolbar's surface, fixed beside the hovered link until it is placed. */
 .card {
+  composes: toolbar from "./toolbar.module.css";
   position: fixed;
   inset-block-start: 0;
   inset-inline-start: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: var(--ui-action-gap);
-  max-inline-size: calc(100vw - var(--spacing-16));
-  padding: var(--ui-popup-padding);
-  border: var(--spacing-stroke-default) solid var(--ui-border);
-  border-radius: var(--radius-menu-shared);
-  color: var(--ui-ink);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--ui-motion-color);

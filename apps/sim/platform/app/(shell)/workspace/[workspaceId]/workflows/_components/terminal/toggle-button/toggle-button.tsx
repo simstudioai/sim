@@ -1,26 +1,18 @@
 import type { MouseEvent } from 'react'
 import { IconButton } from '@sim/emcn/button'
-import styles from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/terminal/toggle-button/toggle-button.module.css'
 
 interface ToggleButtonProps {
   isExpanded: boolean
   onToggle: () => void
 }
 
-/** The terminal's collapse control: its chevron points down while open and up while folded. */
+/** The terminal's collapse control, with the open and folded chevrons EMCN's Disclosure shows. */
 export function ToggleButton({ isExpanded, onToggle }: ToggleButtonProps) {
   return (
     <IconButton
-      render={
-        <button
-          type='button'
-          className={styles.toggle}
-          aria-expanded={isExpanded}
-          data-collapsed={!isExpanded || undefined}
-        />
-      }
+      render={<button type='button' aria-expanded={isExpanded} />}
       label={isExpanded ? 'Collapse terminal' : 'Expand terminal'}
-      icon='I051'
+      icon={isExpanded ? 'I051' : 'I090'}
       size='compact'
       tooltip
       onClick={onToggle}

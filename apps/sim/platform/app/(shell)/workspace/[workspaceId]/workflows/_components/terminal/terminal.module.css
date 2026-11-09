@@ -25,16 +25,6 @@
   block-size: min(40dvh, var(--spacing-320));
 }
 
-/* The drag handle straddles the top edge without taking layout space. */
-.resizer {
-  position: absolute;
-  inset-block-start: calc(-1 * var(--spacing-4));
-  inset-inline: 0;
-  z-index: 2;
-  block-size: var(--spacing-8);
-  cursor: ns-resize;
-}
-
 .body {
   display: flex;
   flex: 1;

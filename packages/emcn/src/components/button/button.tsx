@@ -20,6 +20,8 @@ interface ButtonProps {
   variant?: 'primary' | 'secondary' | 'quiet' | 'destructive' | 'muted'
   /** Give a quiet action the menu's destructive hover and press treatment. */
   destructive?: boolean
+  /** Makes a quiet action a toggle that stays pressed while its state is on, as a Chip does. */
+  selected?: boolean
   size?: 'regular' | 'compact'
   submit?: boolean
   icon?: IconName | { providerId: string }
@@ -39,6 +41,7 @@ export function Button({
   narrowLabel,
   variant = 'secondary',
   destructive,
+  selected,
   size = 'regular',
   submit,
   icon,
@@ -60,6 +63,7 @@ export function Button({
       'data-size': size,
       'data-elevation': variant === 'secondary' ? 'control' : undefined,
       'data-type': 'T060',
+      'aria-pressed': selected,
       'aria-label':
         ariaLabel ??
         (disabled && disabledReason

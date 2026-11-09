@@ -1,8 +1,7 @@
 'use client'
 
 import type { RefObject } from 'react'
-import type { MenuAction } from '@sim/emcn/menu/action-menu'
-import { PointerMenu } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/pointer-menu/pointer-menu'
+import { type MenuAction, PointActionMenu } from '@sim/emcn/menu/action-menu'
 
 /**
  * Props for CanvasMenu component
@@ -180,11 +179,10 @@ export function CanvasMenu({
   }
 
   return (
-    <PointerMenu
+    <PointActionMenu
       label='Canvas actions'
-      isOpen={isOpen}
-      position={position}
-      menuRef={menuRef}
+      point={isOpen ? position : null}
+      popupRef={menuRef}
       onClose={onClose}
       actions={buildActions}
     />

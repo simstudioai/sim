@@ -1,21 +1,24 @@
 'use client'
 
-import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { CopyButton } from '@sim/emcn/button/copy-button'
 import { Icon, type IconName } from '@sim/emcn/icon'
 import { FALLBACK_PROVIDER_MARK, providerMark } from '@sim/emcn/icon/provider-marks'
-import { OverflowText } from '@sim/emcn/overflow-text'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
-import { Tooltip } from '@sim/emcn/tooltip'
 import { formatDuration } from '@sim/utils/formatting'
+import {
+  type MetadataField,
+  MetadataFields,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/metadata-fields/metadata-fields'
+import {
+  type TracePaint,
+  type TraceRow,
+  TraceTree,
+} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/trace-tree/trace-tree'
 import { useViewerTimeZone } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/execution-details/execution-details.module.css'
-import {
-  type Fact,
-  Facts,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/execution-details/facts'
 import { Payload } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/execution-details/payload'
 import {
   collectAllIds,
@@ -36,7 +39,6 @@ import {
   parseTime,
   spanDuration,
   spanFailed,
-  spanMatchesQuery,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/tables/[tableId]/_components/execution-details/trace'
 import { formatCreditCost, normalizeToolId, type TraceSpan } from '@/platform/lib/data/tables'
 import { isCustomBlockType } from '@/platform/lib/data/workflows'
@@ -88,7 +90,7 @@ function SpanMark({ span }: { span: TraceSpan }) {
 }
 
 /** The timing paint of a span's bar; a failure takes precedence. */
-function spanPaint(span: TraceSpan, failed: boolean): string {
+function spanPaint(span: TraceSpan, failed: boolean): TracePaint {
   if (failed) return 'error'
   const type = span.type?.toLowerCase() ?? ''
   if (type === 'agent' || type === 'model') return 'agent'
@@ -107,31 +109,13 @@ function percentLabel(value: number): string {
   return `${value.toFixed(value >= 10 ? 0 : 1)}%`
 }
 
-interface TraceRowProps {
-  entry: FlatSpanEntry
-  selected: boolean
-  expanded: boolean
-  expandable: boolean
-  matchQuery: string
-  runStartMs: number
+/** A visible span as a row on the run's one clock, with its fuller timing on hover. */
+function traceRow(
+  entry: FlatSpanEntry,
+  expanded: ReadonlySet<string>,
+  runStartMs: number,
   runTotalMs: number
-  onSelect: (id: string) => void
-  onToggle: (id: string) => void
-  onKeyDown: (event: KeyboardEvent<HTMLDivElement>, entry: FlatSpanEntry) => void
-}
-
-function TraceRow({
-  entry,
-  selected,
-  expanded,
-  expandable,
-  matchQuery,
-  runStartMs,
-  runTotalMs,
-  onSelect,
-  onToggle,
-  onKeyDown,
-}: TraceRowProps) {
+): TraceRow {
   const { span, depth, parentDuration } = entry
   const id = getSpanId(span)
   const duration = spanDuration(span)
@@ -140,7 +124,6 @@ function TraceRow({
   const offsetMs = runStartMs > 0 ? Math.max(0, parseTime(span.startTime) - runStartMs) : 0
   const offsetPct = runTotalMs > 0 ? Math.min(100 - MIN_BAR_PCT, (offsetMs / runTotalMs) * 100) : 0
   const rawPct = runTotalMs > 0 ? (duration / runTotalMs) * 100 : 0
-  const widthPct = Math.max(MIN_BAR_PCT, Math.min(100 - offsetPct, rawPct))
   const ofTotal = runTotalMs > 0 ? (duration / runTotalMs) * 100 : null
   const ofParent = parentDuration && parentDuration > 0 ? (duration / parentDuration) * 100 : null
   const timing = [
@@ -152,81 +135,27 @@ function TraceRow({
   ]
     .filter(Boolean)
     .join(' · ')
-  return (
-    <div
-      className={styles.spanRow}
-      role='treeitem'
-      tabIndex={selected ? 0 : -1}
-      aria-selected={selected}
-      aria-expanded={expandable ? expanded : undefined}
-      aria-level={depth + 1}
-      data-span-id={id}
-      data-selected={selected || undefined}
-      onClick={() => onSelect(id)}
-      onKeyDown={(event) => onKeyDown(event, entry)}
-    >
-      <span className={styles.spanLine}>
-        {Array.from({ length: depth }, (_, level) => (
-          <span key={level} className={styles.spanGuide} aria-hidden='true' />
-        ))}
-        {expandable ? (
-          <button
-            type='button'
-            className={styles.spanDisclosure}
-            tabIndex={-1}
-            aria-label={expanded ? 'Collapse' : 'Expand'}
-            onClick={(event) => {
-              event.stopPropagation()
-              onToggle(id)
-            }}
-          >
-            <Icon name={expanded ? 'I051' : 'I090'} />
-          </button>
-        ) : (
-          <span className={styles.spanDisclosure} aria-hidden='true' />
-        )}
-        {!isIterationType(span.type) && (
-          <span className={styles.spanMark} aria-hidden='true'>
-            <SpanMark span={span} />
-          </span>
-        )}
-        <Tooltip label={timing}>
-          <span
-            className={styles.spanName}
-            data-type='T060'
-            data-failed={failed || undefined}
-            data-match={(Boolean(matchQuery) && spanMatchesQuery(span, matchQuery)) || undefined}
-          >
-            <OverflowText text={name}>{name}</OverflowText>
-          </span>
-        </Tooltip>
-        <span className={styles.spanDuration} data-type='T052'>
-          {formatDuration(duration, { precision: 2 })}
-        </span>
-      </span>
-      <svg
-        className={styles.spanTimeline}
-        role='img'
-        aria-label={`Started at +${durationLabel(offsetMs)}`}
-      >
-        <line className={styles.track} x1='0' x2='100%' y1='50%' y2='50%' />
-        <rect
-          className={styles.spanBar}
-          data-paint={spanPaint(span, failed)}
-          x={`${offsetPct}%`}
-          y='0'
-          width={`${widthPct}%`}
-          height='100%'
-          rx='2'
-        />
-      </svg>
-    </div>
-  )
+  return {
+    id,
+    name,
+    depth,
+    mark: isIterationType(span.type) ? undefined : <SpanMark span={span} />,
+    duration: formatDuration(duration, { precision: 2 }) ?? '',
+    bar: {
+      start: offsetPct,
+      width: Math.max(MIN_BAR_PCT, Math.min(100 - offsetPct, rawPct)),
+      paint: spanPaint(span, failed),
+    },
+    startLabel: `Started at +${durationLabel(offsetMs)}`,
+    timing,
+    failed,
+    expanded: getDisplayChildren(span).length > 0 ? expanded.has(id) : undefined,
+  }
 }
 
 /** The facts the legacy span detail lists, in its order; per-span cost is never shown. */
-function spanFacts(span: TraceSpan, duration: number): Fact[] {
-  const facts: Fact[] = [
+function spanFacts(span: TraceSpan, duration: number): MetadataField[] {
+  const facts: MetadataField[] = [
     { id: 'type', label: 'Type', value: isCustomBlockType(span.type) ? 'custom block' : span.type },
   ]
   const childRunState = span.childTraceAccess ?? (span.childTraceDisabled ? 'disabled' : undefined)
@@ -295,7 +224,7 @@ function SpanInspector({ span }: { span: TraceSpan }) {
           </span>
         </span>
       </header>
-      <Facts label={`${name} facts`} facts={spanFacts(span, duration)} />
+      <MetadataFields label={`${name} facts`} fields={spanFacts(span, duration)} />
       {span.input != null && <Payload label='Input' data={span.input} />}
       {span.output != null && (
         <Payload label={directError ? 'Error' : 'Output'} data={span.output} />
@@ -393,43 +322,14 @@ export function TraceView({ traceSpans, runCostDollars }: TraceViewProps) {
     })
   }
 
-  // The selected row comes into view, and keeps keyboard focus while the reader moves through the tree.
+  // The selected row comes into view, as when Jump to error selects a step out of sight.
   useEffect(() => {
     const list = treeElement.current
     if (!selectedId || !list) return
-    const row = list.querySelector<HTMLElement>(`[data-span-id="${CSS.escape(selectedId)}"]`)
-    row?.scrollIntoView({ block: 'nearest' })
-    if (row && list.contains(document.activeElement)) row.focus()
+    list
+      .querySelector<HTMLElement>(`[data-trace-id="${CSS.escape(selectedId)}"]`)
+      ?.scrollIntoView({ block: 'nearest' })
   }, [selectedId])
-
-  function onRowKeyDown(event: KeyboardEvent<HTMLDivElement>, entry: FlatSpanEntry) {
-    const id = getSpanId(entry.span)
-    const index = rows.findIndex((row) => getSpanId(row.span) === id)
-    const expandable = getDisplayChildren(entry.span).length > 0
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      setSelectedId(id)
-    } else if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      const next = rows[Math.min(rows.length - 1, index + 1)]
-      if (next) setSelectedId(getSpanId(next.span))
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      const previous = rows[Math.max(0, index - 1)]
-      if (previous) setSelectedId(getSpanId(previous.span))
-    } else if (event.key === 'ArrowLeft') {
-      if (expandable && expanded.has(id)) {
-        event.preventDefault()
-        toggle(id, false)
-      } else if (entry.parentIds.length > 0) {
-        event.preventDefault()
-        setSelectedId(entry.parentIds[entry.parentIds.length - 1])
-      }
-    } else if (event.key === 'ArrowRight' && expandable && !expanded.has(id)) {
-      event.preventDefault()
-      toggle(id, true)
-    }
-  }
 
   return (
     <div className={styles.trace}>
@@ -473,25 +373,14 @@ export function TraceView({ traceSpans, runCostDollars }: TraceViewProps) {
           No matching spans
         </p>
       ) : (
-        <div ref={tree} className={styles.tree} role='tree' aria-label='Trace spans'>
-          {rows.map((entry) => {
-            const id = getSpanId(entry.span)
-            return (
-              <TraceRow
-                key={id}
-                entry={entry}
-                selected={id === selectedId}
-                expanded={expanded.has(id)}
-                expandable={getDisplayChildren(entry.span).length > 0}
-                matchQuery={query}
-                runStartMs={runStartMs}
-                runTotalMs={totalDuration}
-                onSelect={setSelectedId}
-                onToggle={toggle}
-                onKeyDown={onRowKeyDown}
-              />
-            )
-          })}
+        <div ref={tree} className={styles.tree}>
+          <TraceTree
+            label='Trace spans'
+            rows={rows.map((entry) => traceRow(entry, expanded, runStartMs, totalDuration))}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onToggle={toggle}
+          />
         </div>
       )}
       {selectedSpan ? (

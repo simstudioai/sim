@@ -1,9 +1,11 @@
 import { type ReactNode, Suspense } from 'react'
-import { cookies } from 'next/headers'
+import { getSessionCookie } from 'better-auth/cookies'
+import { cookies, headers } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { AccessDenied, SurfaceUnavailable } from '@/platform/app/_components/shell-gate/shell-gate'
 import { resolveLiveDestinations } from '@/platform/app/(shell)/_components/destinations'
 import { LiveComposerHost } from '@/platform/app/(shell)/_components/live-shell/live-composer-host'
+import { StaleSession } from '@/platform/app/(shell)/_components/live-shell/stale-session'
 import { ProductSession } from '@/platform/app/(shell)/_components/product-session'
 import { SessionState } from '@/platform/app/(shell)/_components/session-state/session-state'
 import { hasOrganizationSurface, legacyRoutes } from '@/platform/lib/data/organization-model'
@@ -19,7 +21,10 @@ import { legacyUrl, loginUrl, readOrganizationSurface } from '@/platform/lib/dat
 export async function LiveShell({ children }: { children: ReactNode }) {
   const surface = await readOrganizationSurface()
   if (surface.status !== 'ok') {
-    if (surface.status === 'unauthenticated') redirect(loginUrl())
+    if (surface.status === 'unauthenticated') {
+      if (getSessionCookie(await headers())) return <StaleSession loginHref={loginUrl()} />
+      redirect(loginUrl())
+    }
     if (surface.status === 'denied')
       return <AccessDenied workspacesHref={legacyUrl('/workspace')} />
     return <SurfaceUnavailable />

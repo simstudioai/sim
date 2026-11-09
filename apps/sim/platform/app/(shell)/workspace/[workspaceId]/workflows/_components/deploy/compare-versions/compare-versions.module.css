@@ -158,11 +158,6 @@
   display: inline-flex;
   flex: none;
   color: var(--ui-secondary);
-  transform: rotate(-90deg);
-  transition: transform var(--ui-motion-position);
-}
-.chevron[data-open] {
-  transform: none;
 }
 .cardBody {
   display: flex;

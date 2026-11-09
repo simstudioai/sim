@@ -14,6 +14,7 @@ import type { WorkspaceRead } from '@/platform/app/(shell)/workspace/[workspaceI
 import {
   useScrollMemory,
   useWorkspaceDataMode,
+  useWorkspaceTabFlags,
 } from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/workspace-session'
 import { useLiveWorkspace } from '@/platform/lib/data/workspace-summary'
 import { platformHref } from '@/platform/lib/navigation'
@@ -58,7 +59,7 @@ export function WorkspacePage({
 }: WorkspacePageProps) {
   const search = useSearchParams()
   const scrollMemory = useScrollMemory<HTMLElement>()
-  const destinations = workspaceTabs(useWorkspaceDataMode()).map((tab) => ({
+  const destinations = workspaceTabs(useWorkspaceDataMode(), useWorkspaceTabFlags()).map((tab) => ({
     section: tab.section,
     label: tab.label,
     href: platformHref(workspacePath(workspace.id, tab.section), search),
