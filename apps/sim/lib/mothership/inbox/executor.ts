@@ -66,7 +66,6 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     .select({
       id: workspace.id,
       ownerId: workspace.ownerId,
-      organizationId: workspace.organizationId,
       inboxProviderId: workspace.inboxProviderId,
       inboxSecretScope: workspace.inboxSecretScope,
       inboxMountedSecrets: workspace.inboxMountedSecrets,
@@ -300,7 +299,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
     const responseMessageId = await sendInboxResponse(
       updatedTask,
       { success: result.success, content: cleanContent, error: errorStr },
-      { inboxProviderId: ws.inboxProviderId, workspaceId: ws.id, organizationId: ws.organizationId }
+      { inboxProviderId: ws.inboxProviderId, workspaceId: ws.id }
     )
     responseSent = responseMessageId !== null
 
@@ -342,11 +341,7 @@ export async function executeInboxTask(taskId: string): Promise<void> {
             content: '',
             error: getErrorMessage(error, 'Execution failed'),
           },
-          {
-            inboxProviderId: ws.inboxProviderId,
-            workspaceId: ws.id,
-            organizationId: ws.organizationId,
-          }
+          { inboxProviderId: ws.inboxProviderId, workspaceId: ws.id }
         )
       } catch (emailError) {
         logger.error('Failed to send error email', { taskId, emailError })
