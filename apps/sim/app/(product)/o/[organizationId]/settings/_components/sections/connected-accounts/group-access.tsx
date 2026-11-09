@@ -1,0 +1,153 @@
+'use client'
+
+import { useState } from 'react'
+import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { Modal } from '@sim/emcn/modal'
+import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
+import { SearchField } from '@sim/emcn/search-field'
+import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
+import { parseAsString, useQueryState } from 'nuqs'
+import { FieldStack, SectionStack } from '@/app/(product)/_components/settings-parts/settings-parts'
+import type {
+  CredentialGroupsData,
+  WorkspaceGrant,
+} from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
+
+interface GroupAccessProps {
+  data: CredentialGroupsData
+  editable: boolean
+  onChange: (grants: WorkspaceGrant[]) => void
+}
+
+export function GroupAccess({ data, editable, onChange }: GroupAccessProps) {
+  const [search, setSearch] = useQueryState(
+    'credential-group-workspace',
+    parseAsString.withDefault('')
+  )
+  const [editing, setEditing] = useState<WorkspaceGrant>()
+  const available = data.workspaces.filter(
+    (workspace) => !data.grants.some((grant) => grant.workspaceId === workspace.id)
+  )
+  const visible = data.workspaces.filter(
+    (workspace) =>
+      workspace.name.toLowerCase().includes(search.trim().toLowerCase()) &&
+      data.grants.some((grant) => grant.workspaceId === workspace.id)
+  )
+  const existing = editing && data.grants.some((grant) => grant.workspaceId === editing.workspaceId)
+  return (
+    <SectionStack>
+      <SearchField
+        label='Search workspaces'
+        value={search}
+        onValueChange={(value) => void setSearch(value)}
+      />
+      <SettingsSection title='Workspaces'>
+        {visible.map((workspace) => {
+          const grant = data.grants.find((item) => item.workspaceId === workspace.id)
+          if (!grant) return null
+          const description =
+            grant.types === 'all'
+              ? 'All integrations'
+              : grant.types
+                  .map(
+                    (type) =>
+                      data.credentialTypes.find((item) => item.value === type)?.label ?? type
+                  )
+                  .sort()
+                  .join(', ')
+          return (
+            <SettingsRow key={workspace.id} label={workspace.name} description={description}>
+              {editable && (
+                <Button size='compact' onClick={() => setEditing(grant)}>
+                  Edit access
+                </Button>
+              )}
+            </SettingsRow>
+          )
+        })}
+        {!visible.length && (
+          <EmptyState
+            title={search.trim() ? 'No workspaces match your search' : 'No workspaces have access'}
+          />
+        )}
+        {editable && (
+          <SettingsRow label='Grant workspace access'>
+            <Button
+              size='compact'
+              disabled={!available.length || data.grants.length >= 1000}
+              onClick={() => setEditing({ workspaceId: '', types: [] })}
+            >
+              Add workspace
+            </Button>
+          </SettingsRow>
+        )}
+      </SettingsSection>
+      {editing && (
+        <Modal
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditing(undefined)
+          }}
+          title={
+            existing
+              ? `Edit ${data.workspaces.find((item) => item.id === editing.workspaceId)?.name} access`
+              : 'Add workspace'
+          }
+          confirmLabel={existing ? 'Save access' : 'Add workspace'}
+          confirmDisabled={!editing.workspaceId || !editing.types.length}
+          onConfirm={() =>
+            onChange([
+              ...data.grants.filter((item) => item.workspaceId !== editing.workspaceId),
+              editing,
+            ])
+          }
+        >
+          <FieldStack>
+            {!existing && (
+              <SearchableSelect
+                label='Workspace'
+                searchLabel='Search workspaces'
+                placeholder='Select workspace'
+                options={available.map((item) => ({ value: item.id, label: item.name }))}
+                value={editing.workspaceId || null}
+                onValueChange={(value) => setEditing({ ...editing, workspaceId: value ?? '' })}
+              />
+            )}
+            <MultiSelect
+              label='Integrations'
+              searchLabel='Search integrations'
+              placeholder='Select integrations'
+              options={[{ value: 'all', label: 'All integrations' }, ...data.credentialTypes]}
+              value={editing.types === 'all' ? ['all'] : editing.types}
+              onValueChange={(values) =>
+                setEditing({
+                  ...editing,
+                  types:
+                    editing.types !== 'all' && values.includes('all')
+                      ? 'all'
+                      : values.filter((value) => value !== 'all'),
+                })
+              }
+              hint={
+                editing.types === 'all' ? 'Includes integrations added in the future.' : undefined
+              }
+            />
+            {existing && (
+              <Button
+                variant='destructive'
+                onClick={() => {
+                  onChange(data.grants.filter((grant) => grant.workspaceId !== editing.workspaceId))
+                  setEditing(undefined)
+                }}
+              >
+                Remove access
+              </Button>
+            )}
+          </FieldStack>
+        </Modal>
+      )}
+    </SectionStack>
+  )
+}

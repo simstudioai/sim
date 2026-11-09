@@ -4,12 +4,12 @@ import { useMemo, useState } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
 import { assistantActionPresentation } from '@/components/assistant-actions/presentation'
 import type { ChatMessage } from '@/lib/mothership/chat/types'
+import type { ChatRuntime } from '@/app/(product)/_components/chat/model'
 import {
   useAssistantActionReview,
   useAssistantActionTurnReceipts,
   useDecideAssistantAction,
 } from '@/hooks/queries/assistant-actions'
-import type { ChatRuntime } from '@/platform/app/(shell)/_components/chat/model'
 
 const RECEIPT_LABELS: Record<string, string> = {
   pending: 'Waiting for review',

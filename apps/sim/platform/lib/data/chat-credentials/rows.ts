@@ -8,6 +8,7 @@ import { getDesktopBridge } from '@/lib/desktop'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { formatCredentialSubmissionMessage } from '@/lib/mothership/chat/special-tags'
 import { toast } from '@/lib/toast/sink'
+import type { PlatformCredentialRequest } from '@/app/(product)/_components/chat/model'
 import {
   usePersonalEnvironment,
   useSavePersonalEnvironment,
@@ -19,7 +20,6 @@ import {
 } from '@/hooks/queries/organization-secrets'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
-import type { PlatformCredentialRequest } from '@/platform/app/(shell)/_components/chat/model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
 

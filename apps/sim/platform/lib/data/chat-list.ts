@@ -4,6 +4,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
 import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { toast } from '@/lib/toast/sink'
+import type { ShellChatActions } from '@/app/(product)/_components/model'
 import {
   MothershipChatDeleteError,
   mothershipChatHistoryQueryOptions,
@@ -15,7 +16,6 @@ import {
   useSetMothershipChatPinned,
 } from '@/hooks/queries/mothership-chats'
 import { prefetchQueryOnIntent } from '@/hooks/queries/utils/prefetch-query-on-intent'
-import type { ShellChatActions } from '@/platform/app/(shell)/_components/model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { canOpenOrganizationChat } from '@/platform/shared/chat-open'
 

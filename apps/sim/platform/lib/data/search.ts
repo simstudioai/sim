@@ -21,6 +21,8 @@ import {
 } from '@/lib/organizations/search-params'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 import { toast } from '@/lib/toast/sink'
+import type { PlatformResource } from '@/app/(product)/_components/chat/model'
+import type { SearchResultsData, SearchSourceRow } from '@/app/(product)/_components/search/model'
 import { useWorkspaceKnowledgeSearch } from '@/hooks/queries/kb/knowledge'
 import {
   useClearSearchHistory,
@@ -28,11 +30,6 @@ import {
   useSearchHistory,
 } from '@/hooks/queries/search-history'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
-import type { PlatformResource } from '@/platform/app/(shell)/_components/chat/model'
-import type {
-  SearchResultsData,
-  SearchSourceRow,
-} from '@/platform/app/(shell)/_components/search/model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
 import { useSummaryQueue } from '@/platform/lib/data/search-summary'

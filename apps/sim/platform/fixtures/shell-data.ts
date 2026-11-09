@@ -1,5 +1,5 @@
 import 'server-only'
-import type { ShellData } from '@/platform/app/(shell)/_components/model'
+import type { ShellData } from '@/app/(product)/_components/model'
 import type { Scenario } from '@/platform/fixtures'
 import { workspaceHomePath } from '@/platform/lib/workspace-navigation'
 

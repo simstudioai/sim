@@ -2,13 +2,13 @@
 
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
+import type { PlatformResource } from '@/app/(product)/_components/chat/model'
+import type { PanelResources } from '@/app/(product)/_components/chat/panel/model'
 import type { useChat } from '@/hooks/mothership-chat/use-chat'
 import type {
   useChatResourcePanel,
   useResourcePanelController,
 } from '@/hooks/mothership-chat/use-resource-panel'
-import type { PlatformResource } from '@/platform/app/(shell)/_components/chat/model'
-import type { PanelResources } from '@/platform/app/(shell)/_components/chat/panel/model'
 import { useOrganization } from '@/platform/lib/data/organization'
 
 const RESOURCE_KIND: Partial<Record<string, string>> = {

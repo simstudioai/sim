@@ -11,6 +11,13 @@ import {
 } from '@/lib/credential-groups/member-integrations'
 import { hasSearchIntegrationReady } from '@/lib/credential-groups/search-readiness'
 import { toast } from '@/lib/toast/sink'
+import type { HomeWidget } from '@/app/(product)/_components/model'
+import type {
+  AttentionItem,
+  EmailItem,
+  HomeActions,
+  HomeView,
+} from '@/app/(product)/o/[organizationId]/home/_components/model'
 import { useOrganizationAccessRequests } from '@/hooks/queries/access-requests'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useHasSearchAuthorization } from '@/hooks/queries/oauth-provider'
@@ -24,13 +31,6 @@ import { useRemoveSearchHistorySource, useSearchHistory } from '@/hooks/queries/
 import { useSearchIntegrations } from '@/hooks/queries/search-integrations'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useHydrated } from '@/hooks/use-hydrated'
-import type { HomeWidget } from '@/platform/app/(shell)/_components/model'
-import type {
-  AttentionItem,
-  EmailItem,
-  HomeActions,
-  HomeView,
-} from '@/platform/app/(shell)/home/_components/model'
 import { useCanOpenOrganizationChat } from '@/platform/lib/data/chat-list'
 import {
   type CollapsedRecent,

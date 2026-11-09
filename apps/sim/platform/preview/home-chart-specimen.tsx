@@ -1,5 +1,5 @@
 import { ChartTooltip } from '@sim/emcn/chart/tooltip'
-import { HomeActivityChart } from '@/platform/app/(shell)/home/_components/activity-chart/activity-chart'
+import { HomeActivityChart } from '@/app/(product)/o/[organizationId]/home/_components/activity-chart/activity-chart'
 import type { PreviewData } from '@/platform/fixtures'
 import { formatCalendarDate } from '@/platform/shared/time'
 

@@ -18,7 +18,10 @@ import {
   getCredentialGroupProviderId,
 } from '@/lib/credential-groups/providers'
 import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
-import type { AttentionItem, EmailItem } from '@/platform/app/(shell)/home/_components/model'
+import type {
+  AttentionItem,
+  EmailItem,
+} from '@/app/(product)/o/[organizationId]/home/_components/model'
 import { placeMeeting } from '@/platform/shared/calendar-meeting'
 import type {
   CalendarMeeting,

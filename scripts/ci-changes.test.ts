@@ -437,7 +437,7 @@ describe('CI task attribution through real Turborepo', () => {
     expect(plan.flags).toMatchObject({ build: true, e2e_build: true, integration: true })
   })
   it.each([
-    'apps/sim/platform/app/(shell)/home/page.tsx',
+    'apps/sim/app/(product)/o/[organizationId]/home/page.tsx',
     'apps/sim/platform/lib/data/home.ts',
     'apps/sim/platform/fixtures/index.ts',
     'apps/sim/platform/checks/live/home.spec.ts',

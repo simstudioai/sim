@@ -1,4 +1,5 @@
 import type { Workspace, WorkspaceCreationPolicy } from '@/lib/api/contracts'
+import type { ShellChat, ShellData, ShellWorkspace } from '@/app/(product)/_components/model'
 import type { UserProfile } from '@/hooks/queries/current-user-data'
 import { useGeneralSettings } from '@/hooks/queries/general-settings'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
@@ -9,7 +10,6 @@ import {
   usePinnedWorkspaceIds,
   useWorkspaceCreationPolicy,
 } from '@/hooks/queries/workspace'
-import type { ShellChat, ShellData, ShellWorkspace } from '@/platform/app/(shell)/_components/model'
 import { useCanOpenOrganizationChat, useChatListActions } from '@/platform/lib/data/chat-list'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { canListOrganizationChats } from '@/platform/lib/data/organization-model'

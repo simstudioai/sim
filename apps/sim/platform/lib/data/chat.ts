@@ -10,6 +10,7 @@ import type { ChatMessage, ChatRequestMode } from '@/lib/mothership/chat/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
 import { toast } from '@/lib/toast/sink'
+import type { ChatRuntime, ToolDecision } from '@/app/(product)/_components/chat/model'
 import { getMothershipUseChatOptions, useChat } from '@/hooks/mothership-chat/use-chat'
 import {
   useChatResourcePanel,
@@ -22,7 +23,6 @@ import {
   useMarkMothershipChatRead,
   useMothershipChatHistory,
 } from '@/hooks/queries/mothership-chats'
-import type { ChatRuntime, ToolDecision } from '@/platform/app/(shell)/_components/chat/model'
 import { platformUrl } from '@/platform/lib/data/base-path'
 import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { isRunningWait, toPlatformTurns } from '@/platform/lib/data/chat-model'

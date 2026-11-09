@@ -48,8 +48,8 @@ import type {
   PlatformSegment,
   PlatformTool,
   PlatformTurn,
-} from '@/platform/app/(shell)/_components/chat/model'
-import type { ChatAttachment } from '@/platform/app/(shell)/_components/composer/model'
+} from '@/app/(product)/_components/chat/model'
+import type { ChatAttachment } from '@/app/(product)/_components/composer/model'
 import { getToolMetadata } from '@/tools/metadata'
 
 /** Tool payloads are diagnostic text, never the whole of a file a tool wrote. */

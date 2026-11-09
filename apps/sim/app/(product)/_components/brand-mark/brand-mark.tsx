@@ -1,0 +1,24 @@
+import type { ComponentType } from 'react'
+import { Icon } from '@sim/emcn/icon'
+import { providerMark } from '@sim/emcn/icon/provider-marks'
+import styles from '@/app/(product)/_components/brand-mark/brand-mark.module.css'
+
+const GENERIC_MARK = 'I070'
+
+interface BrandMarkProps {
+  providerId?: string
+  /** The app's brand icon, for a provider the design system has no mark for. */
+  icon?: ComponentType<{ className?: string }>
+}
+
+export function BrandMark({ providerId, icon: BrandIcon }: BrandMarkProps) {
+  if (providerId && providerMark(providerId) !== GENERIC_MARK)
+    return <Icon providerId={providerId} />
+  return BrandIcon ? (
+    <span className={styles.mark}>
+      <BrandIcon />
+    </span>
+  ) : (
+    <Icon name={GENERIC_MARK} />
+  )
+}

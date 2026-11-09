@@ -12,7 +12,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionContext, type SessionHookResult } from '@/lib/auth/session-context'
-import type { SearchSourceRow } from '@/platform/app/(shell)/_components/search/model'
+import type { SearchSourceRow } from '@/app/(product)/_components/search/model'
 import { type SummaryRequest, useSendSummary } from '@/platform/lib/data/search-summary'
 
 const mocks = vi.hoisted(() => ({

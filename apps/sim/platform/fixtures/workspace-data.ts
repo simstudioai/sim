@@ -1,5 +1,5 @@
 import 'server-only'
-import type { ShellWorkspace } from '@/platform/app/(shell)/_components/model'
+import type { ShellWorkspace } from '@/app/(product)/_components/model'
 import type {
   DashboardContent,
   DashboardData,
@@ -12,7 +12,7 @@ import type {
   IssueSummary,
   StatusText,
   WorkspaceSummary,
-} from '@/platform/app/(shell)/workspace/[workspaceId]/_components/workspace-session/model'
+} from '@/app/(product)/workspace/[workspaceId]/_components/workspace-session/model'
 import type { Scenario } from '@/platform/fixtures'
 import { FIXTURE_NOW } from '@/platform/fixtures/clock'
 import nina from '@/platform/fixtures/media/attendee-1.jpg'
