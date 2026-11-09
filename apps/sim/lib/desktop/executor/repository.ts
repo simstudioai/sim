@@ -5,14 +5,11 @@ import {
   copilotChats,
   copilotRuns,
   desktopDevices,
-  session,
 } from '@sim/db/schema'
-import { TERMINAL_TOOL_NAME } from '@sim/terminal-protocol'
 import {
   and,
   asc,
   eq,
-  gt,
   inArray,
   isNotNull,
   isNull,
@@ -177,27 +174,6 @@ export async function getBoundDesktopDevice(
     )
     .limit(1)
   return row ?? null
-}
-
-/**
- * Whether the user has a desktop that registered a background executor and is still signed in:
- * its session exists and has not expired.
- */
-export async function hasSignedInDesktopExecutor(userId: string): Promise<boolean> {
-  const [row] = await db
-    .select({ id: desktopDevices.id })
-    .from(desktopDevices)
-    .innerJoin(session, eq(session.id, desktopDevices.sessionId))
-    .where(
-      and(
-        eq(desktopDevices.userId, userId),
-        isNull(desktopDevices.revokedAt),
-        gt(session.expiresAt, new Date()),
-        registersExecutor()
-      )
-    )
-    .limit(1)
-  return Boolean(row)
 }
 
 /** Display and support only; written at most once a minute per device. */
@@ -469,65 +445,4 @@ export async function listOverdueDesktopToolCalls(input: { slackMs: number; limi
     .orderBy(...persistOrder())
     .limit(input.limit)
   return rows.map((row) => row.toolCallId)
-}
-
-/**
- * The caller's live device-bound runs in a workspace, newest first, each with whether one of its
- * calls waits on the user: a call held for their approval (Sim asked, and they have not answered),
- * or a running call that handed control to them (a terminal handoff, a browser takeover).
- */
-export async function listDesktopActivityRows(input: { userId: string; workspaceId: string }) {
-  const runs = await db
-    .select({
-      runId: copilotRuns.id,
-      chatId: copilotRuns.chatId,
-      streamId: copilotRuns.streamId,
-      deviceId: desktopDevices.id,
-      deviceName: desktopDevices.name,
-    })
-    .from(copilotRuns)
-    .innerJoin(desktopDevices, eq(desktopDevices.id, copilotRuns.desktopDeviceId))
-    .where(
-      and(
-        eq(copilotRuns.userId, input.userId),
-        eq(copilotRuns.workspaceId, input.workspaceId),
-        isNotNull(copilotRuns.desktopDeviceId),
-        sql`${copilotRuns.startedAt} > now() - make_interval(hours => ${DESKTOP_INBOX_HORIZON_HOURS})`,
-        inArray(copilotRuns.status, LIVE_RUN_STATUSES),
-        isNull(copilotRuns.toolAdmissionClosedAt)
-      )
-    )
-    .orderBy(sql`${copilotRuns.startedAt} DESC`)
-    .limit(INBOX_ROW_LIMIT)
-  if (runs.length === 0) return []
-  const waitingOnUser = await db
-    .selectDistinct({ runId: copilotAsyncToolCalls.runId })
-    .from(copilotAsyncToolCalls)
-    .where(
-      and(
-        inArray(
-          copilotAsyncToolCalls.runId,
-          runs.map((run) => run.runId)
-        ),
-        or(
-          and(
-            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.pending),
-            isNotNull(copilotAsyncToolCalls.permissionRequestedAt),
-            isNull(copilotAsyncToolCalls.permissionDecision)
-          ),
-          and(
-            eq(copilotAsyncToolCalls.status, ASYNC_TOOL_STATUS.running),
-            or(
-              eq(copilotAsyncToolCalls.toolName, 'browser_request_takeover'),
-              and(
-                eq(copilotAsyncToolCalls.toolName, TERMINAL_TOOL_NAME),
-                sql`${copilotAsyncToolCalls.args} ->> 'operation' = 'handoff'`
-              )
-            )
-          )
-        )
-      )
-    )
-  const needsInput = new Set(waitingOnUser.map((row) => row.runId))
-  return runs.map((run) => ({ ...run, needsInput: needsInput.has(run.runId) }))
 }

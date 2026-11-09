@@ -8,7 +8,7 @@ import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 export function useAccessibleReferencePrefixes(blockId?: string | null): Set<string> | undefined {
   // The GRAPH only — this runs on every keystroke in every reference-aware sub-block editor,
   // and reachability cannot change with the values being typed.
-  const { blocks, edges, loops, parallels, unrestricted } = useWorkflowReferenceGraph()
+  const { blocks, edges, loops, parallels } = useWorkflowReferenceGraph()
 
   return useMemo(() => {
     if (!blockId) {
@@ -16,16 +16,8 @@ export function useAccessibleReferencePrefixes(blockId?: string | null): Set<str
     }
 
     const accessibleIds = new Set<string>()
-    if (unrestricted) {
-      // The referencing block is not in this graph, so there is no path to walk. Every block
-      // is offered instead of none — see `WorkflowReferenceScope.unrestricted`.
-      Object.keys(blocks).forEach((id) => accessibleIds.add(id))
-    } else {
-      const graphEdges = edges.map((edge) => ({ source: edge.source, target: edge.target }))
-      BlockPathCalculator.findAllPathNodes(graphEdges, blockId).forEach((id) =>
-        accessibleIds.add(id)
-      )
-    }
+    const graphEdges = edges.map((edge) => ({ source: edge.source, target: edge.target }))
+    BlockPathCalculator.findAllPathNodes(graphEdges, blockId).forEach((id) => accessibleIds.add(id))
     accessibleIds.add(blockId)
 
     Object.values(loops as Record<string, Loop>).forEach((loop) => {
@@ -48,5 +40,5 @@ export function useAccessibleReferencePrefixes(blockId?: string | null): Set<str
     SYSTEM_REFERENCE_PREFIXES.forEach((prefix) => prefixes.add(prefix))
 
     return prefixes
-  }, [blockId, blocks, edges, loops, parallels, unrestricted])
+  }, [blockId, blocks, edges, loops, parallels])
 }

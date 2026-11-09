@@ -542,6 +542,7 @@ const seamHelpers = new Set([
   'stores/connector-setup/store',
   'stores/dashboards/cursor/store',
   'stores/folders/types',
+  'stores/in-flight-uploads/store',
   'stores/mothership-drafts/store',
   'stores/mothership-effort/store',
   'stores/organization-home/store',

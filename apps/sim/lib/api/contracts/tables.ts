@@ -2200,8 +2200,6 @@ export const deleteTableViewContract = defineRouteContract({
   },
 })
 
-export type TableViewWire = z.output<typeof tableViewSchema>
-export type TableViewConfigInput = z.input<typeof tableViewConfigSchema>
 export type CreateTableViewBody = z.input<typeof createTableViewBodySchema>
 export type UpdateTableViewBody = z.input<typeof updateTableViewBodySchema>
 

@@ -93,12 +93,6 @@ export const copilotToolPermissionBodySchema = z.object({
 })
 export type CopilotToolPermissionBody = z.input<typeof copilotToolPermissionBodySchema>
 
-export const createWorkflowCopilotChatBodySchema = z.object({
-  workspaceId: z.string().min(1),
-  workflowId: z.string().min(1),
-})
-export type CreateWorkflowCopilotChatBody = z.input<typeof createWorkflowCopilotChatBodySchema>
-
 export const addCopilotChatResourceBodySchema = z
   .object({
     chatId: requiredFieldSchema('chatId cannot be empty'),
@@ -226,11 +220,6 @@ export const copilotChatStopBodySchema = z.object({
   requestId: z.string().optional(),
 })
 export type CopilotChatStopBody = z.input<typeof copilotChatStopBodySchema>
-
-export const deleteCopilotChatBodySchema = z.object({
-  chatId: z.string(),
-})
-export type DeleteCopilotChatBody = z.input<typeof deleteCopilotChatBodySchema>
 
 export const validateCopilotApiKeyHeadersSchema = z.object({
   [BILLING_ACCOUNT_DECISION_HEADER]: z
@@ -420,19 +409,6 @@ export const validateCopilotByokContract = defineRouteContract({
   response: { mode: 'empty' },
 })
 
-export const createWorkflowCopilotChatContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/copilot/chats',
-  body: createWorkflowCopilotChatBodySchema,
-  response: {
-    mode: 'json',
-    schema: z.object({
-      success: z.literal(true),
-      id: z.string(),
-    }),
-  },
-})
-
 export const copilotConfirmContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/confirm',
@@ -519,13 +495,6 @@ export const copilotChatStopContract = defineRouteContract({
   method: 'POST',
   path: '/api/copilot/chat/stop',
   body: copilotChatStopBodySchema,
-  response: { mode: 'json', schema: successFlagSchema },
-})
-
-export const deleteCopilotChatContract = defineRouteContract({
-  method: 'DELETE',
-  path: '/api/copilot/chat/delete',
-  body: deleteCopilotChatBodySchema,
   response: { mode: 'json', schema: successFlagSchema },
 })
 

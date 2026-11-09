@@ -30,13 +30,3 @@ export const useInFlightUploadsStore = create<InFlightUploadsState>()(
     { name: 'in-flight-uploads-store' }
   )
 )
-
-/** Counts `work` as an in-flight upload until it settles, whether it resolves or rejects. */
-export async function trackUpload<T>(work: () => Promise<T>): Promise<T> {
-  const release = useInFlightUploadsStore.getState().begin()
-  try {
-    return await work()
-  } finally {
-    release()
-  }
-}

@@ -25,11 +25,6 @@ import {
   sourceSiteName,
 } from '@/components/mothership-chat/message-content/components/source-chip'
 import type { SourceTagData } from '@/components/mothership-chat/message-content/components/special-tags'
-import {
-  useOpenSimLinkForm,
-  useSimLinkOrganizationId,
-} from '@/components/sim-links/sim-link-organization-provider'
-import { SimLinkMenuItem } from '@/components/sim-links/sim-link-shortcut'
 import { findTermMatches, queryTerms } from '@/lib/knowledge/search/snippet'
 import { useSourceNavigation } from '@/hooks/sim-search/source-history'
 
@@ -92,8 +87,6 @@ interface SourceActionsProps {
 
 function SourceActions({ source, onSummarize }: SourceActionsProps) {
   const { copied, copy } = useCopyToClipboard({ resetMs: 1500 })
-  const simLinkOrganizationId = useSimLinkOrganizationId()
-  const openSimLinkForm = useOpenSimLinkForm()
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -117,13 +110,6 @@ function SourceActions({ source, onSummarize }: SourceActionsProps) {
           <LinkIcon className='size-[14px]' />
           Copy link
         </DropdownMenuItem>
-        {simLinkOrganizationId && (
-          <SimLinkMenuItem
-            organizationId={simLinkOrganizationId}
-            url={source.url}
-            onCreate={() => openSimLinkForm(source.url, sourceLabel(source))}
-          />
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

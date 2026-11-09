@@ -5,7 +5,6 @@ import {
   ORGANIZATION_SETTINGS_ITEMS,
   type OrganizationSettingsFeatures,
   type OrganizationSettingsSection,
-  parseSettingsPathSection,
   type SettingsNavigationItem,
 } from '@/components/settings/navigation'
 import { organizationSupportsSettingsSection } from '@/lib/settings/section-availability'
@@ -19,23 +18,6 @@ import { organizationSupportsSettingsSection } from '@/lib/settings/section-avai
  */
 const ORGANIZATION_SURFACE_ACCOUNT_ITEMS: SettingsNavigationItem<AccountSettingsSection>[] =
   ACCOUNT_SETTINGS_ITEMS.filter((item) => item.id === 'general' || item.group === 'platform')
-
-export function resolveOrganizationSettingsSection(
-  path: string
-): OrganizationSettingsSection | null {
-  return parseSettingsPathSection<OrganizationSettingsSection, null>({
-    path,
-    items: ORGANIZATION_SETTINGS_ITEMS,
-    defaultSection: null,
-    aliases: {
-      organization: 'members',
-      team: 'members',
-      subscription: 'billing',
-      domains: 'sso',
-      sessions: 'security',
-    },
-  })
-}
 
 export function organizationSettingsNavigation(
   isAdmin: boolean,
