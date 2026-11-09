@@ -28,10 +28,10 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminForbiddenResponse,
-  adminInternalErrorResponse,
   adminInvalidJsonResponse,
   adminNotFoundResponse,
   adminValidationErrorResponse,
+  adminWriteErrorResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -119,7 +119,7 @@ export const PATCH = withRouteHandler(
       return singleResponse({ success: true as const, organizationId })
     } catch (error) {
       logger.error('Admin API: Failed to update whitelabel settings', { error, organizationId })
-      return adminInternalErrorResponse('Failed to update whitelabel settings')
+      return adminWriteErrorResponse(error, 'Failed to update whitelabel settings')
     }
   })
 )

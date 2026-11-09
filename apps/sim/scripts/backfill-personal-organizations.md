@@ -1,16 +1,50 @@
-# Personal organizations: rollout
+# Personal organizations: rollout and rollback
 
 Every account outside a team gets a personal organization (`organization.kind = 'personal'`)
 that holds its personal workspaces. The release that introduces it must roll out in this order.
 
+## Rollout
+
 1. **Migrations** `0455_personal_organizations` (adds `organization.kind`, default `team`),
    `0456_personal_organization_team_settings` and `0457_personal_organization_team_only_tables`
    (refuse team configuration, and organization rows that could not follow a person into a team,
-   on personal organizations). All are additive; the previous release keeps working against them.
+   on personal organizations) and `0458_personal_organization_single_owner` (a personal
+   organization has exactly one member, its owner). All are additive; the previous release keeps
+   working against them. The migrator (`packages/db/scripts/migrate.ts`) runs DDL under a short
+   `lock_timeout`, so installing a trigger fails fast instead of queueing traffic behind its lock;
+   rerun on a timeout.
 2. **Every process on the new release, fully rolled out**: the app, background workers and
-   Trigger.dev tasks. Deploy workers and tasks with or before the app, never after it.
-3. **Then** run `scripts/backfill-personal-organizations.ts` (dry run first, then `--apply`).
-   It is idempotent and resumable (`--after <cursor>`).
+   Trigger.dev tasks. Deploy workers and tasks with or before the app, never after it. The
+   `personal-organizations` flag is still off, so nothing creates a personal organization yet.
+3. **Turn the `personal-organizations` flag on** (AppConfig `enabled: true`; self-hosted
+   deployments set `PERSONAL_ORGANIZATIONS=true`). From here signup, the product shell, leaving a
+   team and the backfill create personal organizations, and new personal workspaces land in them.
+4. **Dry run** `scripts/backfill-personal-organizations.ts` (no `--apply`): prints the number of
+   accounts still to provision.
+5. **Backfill** with `--apply --report <path>`, in batches (`--batch-size`, default 200). It is
+   idempotent and resumable (`--after <cursor>` from the last printed cursor); rerun until the dry
+   run reports zero, and review `skippedWorkspaceIds` (Projects shared across owners) and
+   `failures` in the report.
+6. **Verify** (read-only):
+
+   ```sql
+   -- Accounts in no organization (expect only accounts created since, which the shell
+   -- provisions on their first visit):
+   SELECT count(*) FROM "user" u WHERE NOT EXISTS (SELECT 1 FROM member m WHERE m.user_id = u.id);
+   -- Personal organizations without exactly one member (expect 0):
+   SELECT o.id FROM organization o LEFT JOIN member m ON m.organization_id = o.id
+   WHERE o.kind = 'personal' GROUP BY o.id HAVING count(m.id) <> 1;
+   -- Personal-organization owners still owning organization-less workspaces (expect only the
+   -- report's skipped shared-Project workspaces):
+   SELECT count(*) FROM workspace w JOIN member m ON m.user_id = w.owner_id
+   JOIN organization o ON o.id = m.organization_id
+   WHERE o.kind = 'personal' AND w.organization_id IS NULL;
+   -- Workspaces in a personal organization in organization mode (expect 0):
+   SELECT count(*) FROM workspace w JOIN organization o ON o.id = w.organization_id
+   WHERE o.kind = 'personal' AND w.workspace_mode <> 'personal';
+   ```
+
+7. **Open the Platform UI** to everyone.
 
 ## Why the order matters
 
@@ -25,14 +59,31 @@ payer:
 - invitations, SSO admission and the organization creation route refuse the owner as
   "already in another organization".
 
-Before the backfill runs, the new release creates personal organizations for new signups, for
-members removed from a team, and for any account in no organization that opens a product page (the
-product shell provisions one so every page has an organization to open in). Each of these creates
-the organization and its owner membership only: it never attaches an existing workspace, so no
-existing workspace changes payer bookkeeping before the backfill. Workspaces those accounts create
-afterwards land in the personal organization; they are new and billed to their creator as before,
-so the exposure during a rolling deploy is limited to those new workspaces' storage counters.
-Accounts that already own workspaces keep them organization-less (they open inside the personal
-organization's shell, billed exactly as before) until the backfill attaches them, which is why it
-runs only after step 2 completes: every existing paid account stays off the previous release's code
-path.
+The flag keeps every personal organization from existing until no process runs that code. Once it
+is on, accounts that already own workspaces keep them organization-less (they open inside the
+personal organization's shell, billed exactly as before) until the backfill attaches them; the
+backfill is the only path that moves existing workspaces (and their payer bookkeeping) into
+personal organizations, and attaching changes no payer. Workspace chats stay keyed to their
+workspace and the organization's chat list shows each person's workspace chats, so neither the
+backfill nor a rollback touches chats.
+
+## Rollback
+
+Revert in the reverse order, before rolling the release back:
+
+1. **Turn the `personal-organizations` flag off**, so nothing creates a personal organization again
+   and new personal workspaces are created organization-less.
+2. **Dry run** `scripts/revert-personal-organizations.ts` (no `--apply`): prints the number of
+   personal organizations still to revert. `--apply` refuses while the flag is on.
+3. **Revert** with `--apply --report <path>` (batched, idempotent, resumable with `--after`). Each
+   personal organization's workspaces (and Projects) return to organization-less personal, its
+   invitations are released, and the organization and its owner membership are deleted, under the
+   backfill's locks. A personal organization holding its owner's own content (organization chats,
+   memory spaces, Search, go links, ...) is skipped and listed in `skippedWithContent` with the
+   first table found; decide, then rerun with `--delete-content` to delete that content with its
+   organization, or leave those organizations in place.
+4. **Verify**: `SELECT count(*) FROM organization WHERE kind = 'personal'` equals the number of
+   organizations deliberately kept, and the first verification query above counts every account
+   whose personal organization was reverted.
+5. **Roll the release back.** Migrations 0455 to 0458 stay: they are additive, and with no
+   personal organizations left their triggers never fire.

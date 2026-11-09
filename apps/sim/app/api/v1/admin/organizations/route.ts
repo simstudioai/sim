@@ -6,6 +6,7 @@
  * Query Parameters:
  *   - limit: number (default: 50, max: 250)
  *   - offset: number (default: 0)
+ *   - kind: 'team' | 'personal' (default: 'team')
  *
  * Response: AdminListResponse<AdminOrganization>
  *
@@ -30,7 +31,7 @@ import { db, dbReplica } from '@sim/db'
 import { member, organization, user } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { slugify } from '@sim/utils/string'
-import { count, eq } from 'drizzle-orm'
+import { and, count, eq } from 'drizzle-orm'
 import {
   adminV1CreateOrganizationContract,
   adminV1ListOrganizationsContract,
@@ -72,16 +73,17 @@ export const GET = withRouteHandler(
     )
     if (!parsed.success) return parsed.response
 
-    const { limit, offset } = parsed.data.query
+    const { limit, offset, kind } = parsed.data.query
 
     try {
       const [countResult, organizations] = await Promise.all([
-        dbReplica.select({ total: count() }).from(organization),
+        dbReplica.select({ total: count() }).from(organization).where(eq(organization.kind, kind)),
         dbReplica
           .select({
             id: organization.id,
             name: organization.name,
             slug: organization.slug,
+            kind: organization.kind,
             logo: organization.logo,
             orgUsageLimit: organization.orgUsageLimit,
             storageUsedBytes: organization.storageUsedBytes,
@@ -89,6 +91,7 @@ export const GET = withRouteHandler(
             updatedAt: organization.updatedAt,
           })
           .from(organization)
+          .where(eq(organization.kind, kind))
           .orderBy(organization.name)
           .limit(limit)
           .offset(offset),
@@ -134,10 +137,12 @@ export const POST = withRouteHandler(
         return adminNotFoundResponse('Owner user')
       }
 
+      /** A personal organization is no obstacle: it becomes the new team in place. */
       const [existingMembership] = await db
         .select({ organizationId: member.organizationId })
         .from(member)
-        .where(eq(member.userId, ownerId))
+        .innerJoin(organization, eq(organization.id, member.organizationId))
+        .where(and(eq(member.userId, ownerId), eq(organization.kind, 'team')))
         .limit(1)
 
       if (existingMembership) {

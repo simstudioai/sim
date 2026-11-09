@@ -22,7 +22,7 @@ import {
 } from '@sim/db/schema'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 import { getOrganizationBillingSummary } from '@/lib/billing/application/organization-billing/get-organization-billing-summary'
 import {
@@ -38,6 +38,7 @@ import {
   removeUserFromOrganization,
 } from '@/lib/billing/organizations/membership'
 import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
+import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import { provisionPersonalOrganization } from '@/lib/organizations/provision-personal'
 import { deleteUserAccount, getAccountDeletionPlan } from '@/lib/users/account-deletion'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
@@ -325,6 +326,55 @@ describe('personal organization provisioning', () => {
   })
 })
 
+describe('chats in a personal organization', () => {
+  it('lists the workspace chats a person already had, on their own and shared workspaces, in their organization', async () => {
+    const ownerId = await createUser()
+    const guestId = await createUser()
+    const own = await createLegacyPersonalWorkspace(ownerId, 'Own')
+    const shared = await createLegacyPersonalWorkspace(guestId, 'Shared')
+    const revoked = await createLegacyPersonalWorkspace(guestId, 'Revoked')
+    const now = new Date()
+    for (const entityId of [shared, revoked]) {
+      await db.insert(permissions).values({
+        id: generateId(),
+        userId: ownerId,
+        entityType: 'workspace',
+        entityId,
+        permissionType: 'write',
+        createdAt: now,
+        updatedAt: now,
+      })
+    }
+    const chats = await db
+      .insert(copilotChats)
+      .values(
+        [own, shared, revoked].map((workspaceId) => ({
+          userId: ownerId,
+          workspaceId,
+          type: 'mothership' as const,
+          title: workspaceId,
+        }))
+      )
+      .returning({ id: copilotChats.id, workspaceId: copilotChats.workspaceId })
+    await db
+      .delete(permissions)
+      .where(and(eq(permissions.entityId, revoked), eq(permissions.userId, ownerId)))
+
+    const provisioned = await provisionPersonalOrganization(ownerId)
+    if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
+    const listed = await listMothershipChats(ownerId, {
+      organizationId: provisioned.organizationId,
+    })
+
+    expect(listed.map((chat) => chat.id).sort()).toEqual(
+      chats
+        .filter((chat) => chat.workspaceId !== revoked)
+        .map((chat) => chat.id)
+        .sort()
+    )
+  })
+})
+
 describe('billing in a personal organization', () => {
   it('keeps a Pro owner on their own plan, pool and storage ledger after attach', async () => {
     const ownerId = await createUser()
@@ -360,7 +410,7 @@ describe('billing in a personal organization', () => {
 })
 
 describe('joining another organization', () => {
-  it('returns personal workspaces to personal and moves organization-level content, losing nothing', async () => {
+  it('returns personal workspaces to personal, moves private organization content and drops shared Knowledge files', async () => {
     const teamOwnerId = await createUser()
     const joinerId = await createUser()
     const { organizationId: teamId } = await createOrganizationWithOwner({
@@ -399,7 +449,7 @@ describe('joining another organization', () => {
     expect(await userStorage(joinerId)).toBe(2048)
     expect(await organizationContentOwners(content)).toEqual({
       chat: { organizationId: teamId, userId: joinerId },
-      file: { organizationId: teamId, userId: joinerId },
+      file: undefined,
       memorySpace: { organizationId: teamId, userId: joinerId },
     })
   })
@@ -609,8 +659,8 @@ describe('deleting an account', () => {
   })
 })
 
-describe('joining another organization, refused cleanly', () => {
-  it('refuses with a conflict when moved content collides with the target, changing nothing', async () => {
+describe('joining another organization over colliding content', () => {
+  it('admits an SSO or invitation join whose personal go link shares a name with the team’s, keeping the team’s', async () => {
     const teamOwnerId = await createUser()
     const joinerId = await createUser()
     const { organizationId: teamId } = await createOrganizationWithOwner({
@@ -620,35 +670,37 @@ describe('joining another organization, refused cleanly', () => {
     })
     const provisioned = await provisionPersonalOrganization(joinerId)
     if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
-    for (const [organizationId, createdBy] of [
-      [teamId, teamOwnerId],
-      [provisioned.organizationId, joinerId],
+    const teamLinkId = generateId()
+    for (const [id, organizationId, createdBy, url] of [
+      [teamLinkId, teamId, teamOwnerId, 'https://example.com/team-docs'],
+      [generateId(), provisioned.organizationId, joinerId, 'https://example.com/private-docs'],
     ]) {
       await db.insert(simLink).values({
-        id: generateId(),
+        id,
         organizationId,
         name: 'docs',
         normalizedName: 'docs',
-        url: 'https://example.com/docs',
+        url,
         createdBy,
       })
     }
 
-    await expect(
-      db.transaction((tx) =>
-        ensureUserInOrganizationTx(tx, {
-          userId: joinerId,
-          organizationId: teamId,
-          role: 'member',
-          skipBillingLogic: true,
-          skipSeatValidation: true,
-        })
-      )
-    ).rejects.toMatchObject({ code: 'conflict' })
-    expect(await membershipOf(joinerId)).toMatchObject({
-      organizationId: provisioned.organizationId,
-      kind: 'personal',
-    })
+    await db.transaction((tx) =>
+      ensureUserInOrganizationTx(tx, {
+        userId: joinerId,
+        organizationId: teamId,
+        role: 'member',
+        skipBillingLogic: true,
+        skipSeatValidation: true,
+      })
+    )
+
+    expect(await membershipOf(joinerId)).toMatchObject({ organizationId: teamId, kind: 'team' })
+    const links = await db
+      .select({ id: simLink.id, url: simLink.url })
+      .from(simLink)
+      .where(inArray(simLink.organizationId, [teamId, provisioned.organizationId]))
+    expect(links).toEqual([{ id: teamLinkId, url: 'https://example.com/team-docs' }])
   })
 
   it('never lets anyone join a personal organization', async () => {

@@ -710,8 +710,8 @@ interface WorkspaceTierAccessOptions {
  *
  * Entitlement follows the workspace's billing entity — not the acting user — so
  * any workspace admin (including an external member) qualifies when the
- * workspace's organization, or its billed account for personal workspaces, is on
- * a qualifying plan.
+ * workspace's team organization, or its billed account for a personal workspace
+ * (organization-less or in a personal organization), is on a qualifying plan.
  *
  * This is the single payer resolution behind every workspace-scoped tier gate.
  * Callers supply only the tier predicate and their own feature's env override;
@@ -740,9 +740,9 @@ async function hasWorkspaceTierAccess(
   if (!ws) return onMissingWorkspace
 
   if (intent === 'retention') {
-    if (ws.organizationId) {
+    if (ws.teamOrganizationId) {
       const { getOrganizationSubscription } = await import('@/lib/billing/core/billing')
-      const orgSub = await getOrganizationSubscription(ws.organizationId, readOptions)
+      const orgSub = await getOrganizationSubscription(ws.teamOrganizationId, readOptions)
       return !!orgSub && isTierEntitled(orgSub.plan)
     }
 
@@ -753,10 +753,10 @@ async function hasWorkspaceTierAccess(
     return !!billedSub && isTierEntitled(billedSub.plan)
   }
 
-  if (ws.organizationId) {
+  if (ws.teamOrganizationId) {
     const [billingBlocked, orgSub] = await Promise.all([
-      isOrganizationBillingBlocked(ws.organizationId),
-      getOrganizationSubscriptionUsable(ws.organizationId, readOptions),
+      isOrganizationBillingBlocked(ws.teamOrganizationId),
+      getOrganizationSubscriptionUsable(ws.teamOrganizationId, readOptions),
     ])
     if (!orgSub) return false
     if (!hasUsableSubscriptionAccess(orgSub.status, billingBlocked)) return false

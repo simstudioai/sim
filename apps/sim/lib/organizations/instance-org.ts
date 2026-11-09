@@ -272,52 +272,42 @@ export async function ensureInstanceOrganization(
 }
 
 /**
- * Adds a user to the instance organization, provisioning it if needed.
+ * Adds a user to the instance organization, provisioning it if needed, and reports whether they
+ * belong to it afterwards: false when the mode is off, the organization cannot be provisioned, or
+ * the membership is refused (they already belong to a team), so the caller can fall back to their
+ * personal organization rather than leave them in none. Already being a member counts as joined,
+ * which is the case for the owner, whose membership is written during provisioning. Unexpected
+ * failures throw; signup catches them so a deployment never becomes unable to register users.
  *
- * Called from the signup hook, so it never throws: a deployment must not become
- * unable to register users because organization setup hit a problem. A user who
- * misses the join gets their personal organization when they first open their
- * workspaces and can be picked up later by
- * `apps/sim/scripts/consolidate-users-into-organization.ts`.
- *
- * No-ops when the mode is off or the user is already a member — which is the
- * case for the owner, whose membership is written during provisioning.
- *
- * The membership module is imported lazily to keep the organization and billing
- * graph out of the auth module's load path.
+ * The membership module is imported lazily to keep the organization and billing graph out of the
+ * auth module's load path.
  */
-export async function joinInstanceOrganization(userId: string): Promise<void> {
-  if (!isInstanceOrganizationMode()) return
+export async function joinInstanceOrganization(userId: string): Promise<boolean> {
+  if (!isInstanceOrganizationMode()) return false
 
-  try {
-    const organizationId = await ensureInstanceOrganization(userId)
-    if (!organizationId) return
+  const organizationId = await ensureInstanceOrganization(userId)
+  if (!organizationId) return false
 
-    const { ensureUserInOrganization } = await import('@/lib/billing/organizations/membership')
-    const result = await ensureUserInOrganization({
-      userId,
-      organizationId,
-      role: 'member',
-      skipBillingLogic: true,
-      skipSeatValidation: true,
-    })
+  const { ensureUserInOrganization } = await import('@/lib/billing/organizations/membership')
+  const result = await ensureUserInOrganization({
+    userId,
+    organizationId,
+    role: 'member',
+    skipBillingLogic: true,
+    skipSeatValidation: true,
+  })
 
-    if (!result.success) {
-      logger.error('Failed to add user to the instance organization', {
-        userId,
-        organizationId,
-        reason: result.error,
-      })
-      return
-    }
-
-    if (!result.alreadyMember) {
-      logger.info('Added user to the instance organization', { userId, organizationId })
-    }
-  } catch (error) {
+  if (!result.success) {
     logger.error('Failed to add user to the instance organization', {
       userId,
-      error: getErrorMessage(error),
+      organizationId,
+      reason: result.error,
     })
+    return false
   }
+
+  if (!result.alreadyMember) {
+    logger.info('Added user to the instance organization', { userId, organizationId })
+  }
+  return true
 }

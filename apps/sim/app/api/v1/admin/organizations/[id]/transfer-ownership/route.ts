@@ -13,6 +13,7 @@ import {
   adminInternalErrorResponse,
   adminNotFoundResponse,
   adminValidationErrorResponse,
+  adminWriteErrorResponse,
   singleResponse,
 } from '@/app/api/v1/admin/responses'
 
@@ -139,7 +140,7 @@ export const POST = withRouteHandler(
         organizationId,
         error,
       })
-      return adminInternalErrorResponse('Failed to transfer ownership')
+      return adminWriteErrorResponse(error, 'Failed to transfer ownership')
     }
   })
 )

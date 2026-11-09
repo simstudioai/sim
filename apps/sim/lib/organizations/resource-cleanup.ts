@@ -89,39 +89,18 @@ async function enqueueFilePages(tx: DbTransaction, organizationId: string, scope
 }
 
 /**
- * Captures canonical bindings before the org FK cascade removes them: every stored object of the
- * organization's Knowledge files and of its chats' Copilot uploads, the documents of its knowledge
- * bases, and its chats. The org row lock excludes new
- * direct resources; a rebound or reused object is kept by the worker's reference check. Each
- * keyset page becomes its own bounded outbox event in the caller's delete transaction, so rollback
- * cannot leave cleanup work behind. The members' private Mothership memory in the organization,
- * memory spaces included, is erased the same way.
+ * Queues every stored object of the organization's Knowledge files (connector caches) and of its
+ * knowledge bases' documents, in the caller's transaction and before the rows that name them are
+ * deleted. The caller holds the organization row lock.
  */
-export async function enqueueOrganizationResourceCleanup(
+export async function enqueueOrganizationStoredObjectCleanup(
   tx: DbTransaction,
   organizationId: string
 ): Promise<void> {
-  const [owner] = await tx
-    .select({ id: organization.id })
-    .from(organization)
-    .where(eq(organization.id, organizationId))
-    .for('update')
-    .limit(1)
-  if (!owner) throw new Error('Organization no longer exists')
-
-  const organizationChats = tx
-    .select({ id: copilotChats.id })
-    .from(copilotChats)
-    .where(and(eq(copilotChats.organizationId, organizationId), isNull(copilotChats.workspaceId)))
   await enqueueFilePages(
     tx,
     organizationId,
     and(eq(workspaceFiles.organizationId, organizationId), isNull(workspaceFiles.workspaceId))
-  )
-  await enqueueFilePages(
-    tx,
-    organizationId,
-    and(isNull(workspaceFiles.workspaceId), inArray(workspaceFiles.chatId, organizationChats))
   )
 
   let documentCursor: string | undefined
@@ -148,6 +127,39 @@ export async function enqueueOrganizationResourceCleanup(
     documentCursor = documents[documents.length - 1].id
     if (documents.length < CLEANUP_BATCH_SIZE) break
   }
+}
+
+/**
+ * Captures canonical bindings before the org FK cascade removes them: every stored object of the
+ * organization's Knowledge files and of its chats' Copilot uploads, the documents of its knowledge
+ * bases, and its chats. The org row lock excludes new
+ * direct resources; a rebound or reused object is kept by the worker's reference check. Each
+ * keyset page becomes its own bounded outbox event in the caller's delete transaction, so rollback
+ * cannot leave cleanup work behind. The members' private Mothership memory in the organization,
+ * memory spaces included, is erased the same way.
+ */
+export async function enqueueOrganizationResourceCleanup(
+  tx: DbTransaction,
+  organizationId: string
+): Promise<void> {
+  const [owner] = await tx
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+    .for('update')
+    .limit(1)
+  if (!owner) throw new Error('Organization no longer exists')
+
+  await enqueueOrganizationStoredObjectCleanup(tx, organizationId)
+  const organizationChats = tx
+    .select({ id: copilotChats.id })
+    .from(copilotChats)
+    .where(and(eq(copilotChats.organizationId, organizationId), isNull(copilotChats.workspaceId)))
+  await enqueueFilePages(
+    tx,
+    organizationId,
+    and(isNull(workspaceFiles.workspaceId), inArray(workspaceFiles.chatId, organizationChats))
+  )
 
   let chatCursor: string | undefined
   while (true) {

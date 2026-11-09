@@ -22,7 +22,8 @@
  * back to their own billing account with their storage ledger transferred — and
  * survive the delete.
  *
- * Refuses with 409 when a subscription still references the organization.
+ * Refuses with 409 when a subscription still references the organization, and PATCH and DELETE
+ * refuse personal organizations with 409.
  *
  * Query:
  *   - confirmSlug: string - Must equal the organization's slug
@@ -53,7 +54,7 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { deleteOrganizationRehomingMembers } from '@/lib/organizations/deletion'
+import { deleteTeamOrganization } from '@/lib/organizations/deletion'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminBadRequestResponse,
@@ -71,6 +72,10 @@ import {
 } from '@/app/api/v1/admin/types'
 
 const logger = createLogger('AdminOrganizationDetailAPI')
+
+/** A personal organization follows its owner's account: it converts or retires, never by hand. */
+const PERSONAL_ORGANIZATION_REFUSAL =
+  'Personal organizations cannot be renamed or deleted: they convert into a team when their owner starts one and retire when their owner joins one.'
 
 interface RouteParams {
   id: string
@@ -145,6 +150,9 @@ export const PATCH = withRouteHandler(
 
       if (!existing) {
         return adminNotFoundResponse('Organization')
+      }
+      if (existing.kind === 'personal') {
+        return adminConflictResponse(PERSONAL_ORGANIZATION_REFUSAL)
       }
 
       const updateData: Record<string, unknown> = {
@@ -224,13 +232,21 @@ export const DELETE = withRouteHandler(
 
     try {
       const [existing] = await db
-        .select({ id: organization.id, name: organization.name, slug: organization.slug })
+        .select({
+          id: organization.id,
+          name: organization.name,
+          slug: organization.slug,
+          kind: organization.kind,
+        })
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)
 
       if (!existing) {
         return adminNotFoundResponse('Organization')
+      }
+      if (existing.kind === 'personal') {
+        return adminConflictResponse(PERSONAL_ORGANIZATION_REFUSAL)
       }
 
       if (confirmSlug !== existing.slug) {
@@ -278,7 +294,7 @@ export const DELETE = withRouteHandler(
         .from(member)
         .where(eq(member.organizationId, organizationId))
 
-      const { detachedWorkspaceIds } = await deleteOrganizationRehomingMembers(organizationId)
+      const { detachedWorkspaceIds } = await deleteTeamOrganization(organizationId)
 
       logger.info(`Admin API: Deleted organization ${organizationId}`, {
         slug: existing.slug,

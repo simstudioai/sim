@@ -4,11 +4,13 @@
  * Gives every account outside a team its personal organization and attaches the workspaces it
  * owns without one (with their Projects), so every person belongs to an organization.
  *
- * Deploy order (see scripts/backfill-personal-organizations.md): migrations 0455 to 0457, then the
+ * Deploy order (see scripts/backfill-personal-organizations.md): migrations 0455 to 0458, then the
  * app, background workers and Trigger.dev tasks on the release that reads `organization.kind`,
- * all fully rolled out; only then run this script. That release bills a personal organization's
- * workspaces to their owner exactly as before; the previous one would bill them to an
- * organization with no plan. New signups get their personal organization at signup, and the
+ * all fully rolled out, then the `personal-organizations` flag on; only then run this script
+ * (`--apply` refuses while the flag is off; `scripts/revert-personal-organizations.ts` undoes it).
+ * That release bills a personal organization's workspaces to their owner exactly as before; the
+ * previous one would bill them to an organization with no plan. With the flag on, new signups get
+ * their personal organization at signup, and the
  * product shell provisions one for anyone in no organization who opens a product page before this
  * script reaches them. Both create the organization and its owner membership only; neither attaches
  * an existing workspace, so this script is the only path that moves existing workspaces (and their
@@ -51,6 +53,7 @@ import { member, organization, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, count, eq, exists, gt, isNull, notExists, or, type SQL } from 'drizzle-orm'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
   isInstanceOrganizationMode,
   joinInstanceOrganization,
@@ -154,6 +157,9 @@ async function main(): Promise<void> {
     return
   }
   const instanceMode = isInstanceOrganizationMode()
+  if (options.apply && !instanceMode && !(await isFeatureEnabled('personal-organizations'))) {
+    throw new Error('Turn the personal-organizations flag on before applying the backfill')
+  }
 
   const report: BackfillReport = {
     apply: options.apply,
@@ -185,7 +191,9 @@ async function main(): Promise<void> {
       for (const userId of batch) {
         try {
           if (instanceMode) {
-            await joinInstanceOrganization(userId)
+            if (!(await joinInstanceOrganization(userId))) {
+              throw new Error('The instance organization did not admit this user')
+            }
             report.provisioned += 1
             continue
           }

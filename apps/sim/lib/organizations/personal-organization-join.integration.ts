@@ -10,6 +10,7 @@
  */
 import { db } from '@sim/db'
 import {
+  auditLog,
   copilotChats,
   invitation,
   knowledgeExternalDirectory,
@@ -19,13 +20,14 @@ import {
   organizationBYOKKeys,
   organizationSearchMcpInvocation,
   organizationSecretSource,
+  outboxEvent,
   user,
   userStats,
 } from '@sim/db/schema'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
@@ -34,6 +36,8 @@ import {
   ensureUserInOrganizationTx,
 } from '@/lib/billing/organizations/membership'
 import type { DbTransaction } from '@/lib/db/types'
+import { personalOrganizationAuditOutboxHandlers } from '@/lib/organizations/lifecycle-audit'
+import { PERSONAL_ORGANIZATION_AUDIT_EVENT } from '@/lib/organizations/lifecycle-audit-event'
 import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
 
 const userIds: string[] = []
@@ -155,7 +159,58 @@ describe('joining a team from a personal organization', () => {
       .select({ organizationId: knowledgeExternalDirectory.organizationId })
       .from(knowledgeExternalDirectory)
       .where(inArray(knowledgeExternalDirectory.organizationId, [personalId, teamId]))
-    expect(directories).toEqual([{ organizationId: teamId }])
+    expect(directories).toEqual([])
+  })
+})
+
+describe('auditing a personal organization’s retirement', () => {
+  it('records the retirement with what moved and what was deleted, once the join commits', async () => {
+    const joinerId = await createUser()
+    const teamId = await team(await createUser())
+    const personalId = await personalOrganizationOf(joinerId)
+    await db.insert(copilotChats).values({ userId: joinerId, organizationId: personalId })
+
+    await addUserToOrganization({
+      userId: joinerId,
+      organizationId: teamId,
+      role: 'member',
+      skipBillingLogic: true,
+      skipSeatValidation: true,
+    })
+    const events = await db
+      .select({ id: outboxEvent.id, payload: outboxEvent.payload })
+      .from(outboxEvent)
+      .where(
+        and(
+          eq(outboxEvent.eventType, PERSONAL_ORGANIZATION_AUDIT_EVENT),
+          sql`${outboxEvent.payload}->>'organizationId' = ${personalId}`
+        )
+      )
+    for (const event of events) {
+      await personalOrganizationAuditOutboxHandlers[PERSONAL_ORGANIZATION_AUDIT_EVENT](
+        event.payload,
+        { eventId: event.id } as Parameters<
+          (typeof personalOrganizationAuditOutboxHandlers)[typeof PERSONAL_ORGANIZATION_AUDIT_EVENT]
+        >[1]
+      )
+    }
+
+    const entries = await db
+      .select({ action: auditLog.action, metadata: auditLog.metadata })
+      .from(auditLog)
+      .where(eq(auditLog.resourceId, personalId))
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        { action: 'organization.created', metadata: expect.objectContaining({ kind: 'personal' }) },
+        {
+          action: 'organization.deleted',
+          metadata: expect.objectContaining({
+            targetOrganizationId: teamId,
+            movedCounts: expect.objectContaining({ copilot_chats: 1 }),
+          }),
+        },
+      ])
+    )
   })
 })
 
@@ -370,6 +425,45 @@ describe('team-only configuration on a personal organization', () => {
       )
     ).toBeUndefined()
   })
+
+  it.runIf(migrated)(
+    'refuses a join over team-only rows written around the guards, naming no table',
+    async () => {
+      const joinerId = await createUser()
+      const teamId = await team(await createUser())
+      const personalId = await personalOrganizationOf(joinerId)
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL session_replication_role = replica`)
+        await tx.insert(organizationBYOKKeys).values({
+          id: generateId(),
+          organizationId: personalId,
+          providerId: 'openai',
+          encryptedApiKey: 'ciphertext',
+        })
+      })
+
+      await expect(
+        db.transaction((tx) =>
+          ensureUserInOrganizationTx(tx, {
+            userId: joinerId,
+            organizationId: teamId,
+            role: 'member',
+            skipBillingLogic: true,
+            skipSeatValidation: true,
+          })
+        )
+      ).rejects.toMatchObject({
+        code: 'conflict',
+        message:
+          "This account's personal organization holds data that cannot move into another organization.",
+      })
+      const memberships = await db
+        .select({ organizationId: member.organizationId })
+        .from(member)
+        .where(eq(member.userId, joinerId))
+      expect(memberships).toEqual([{ organizationId: personalId }])
+    }
+  )
 
   it.runIf(migrated)('leaves no organization-scoped table unclassified', async () => {
     const rows = await db.execute<{ table_name: string }>(sql`

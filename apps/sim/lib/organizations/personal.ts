@@ -5,7 +5,6 @@ import {
   copilotOrganizationRequestStops,
   copilotRuns,
   credential,
-  customBlock,
   invitation,
   knowledgeBase,
   knowledgeConnectorMember,
@@ -29,13 +28,15 @@ import {
   workspaceFiles,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, getTableName, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, getTableName, inArray, type SQL, sql } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { enqueuePersonalOrganizationAuditTx } from '@/lib/organizations/lifecycle-audit'
+import { enqueueOrganizationStoredObjectCleanup } from '@/lib/organizations/resource-cleanup'
 import { transferWorkspaceProjects } from '@/lib/projects/membership'
 
 const logger = createLogger('PersonalOrganization')
@@ -80,14 +81,18 @@ function personalOrganizationName(row: { name: string | null; email: string }): 
 
 /**
  * Creates the personal organization of a user who belongs to no organization, with them as owner.
- * Returns null, writing nothing, when they already belong to one or no longer exist. Takes the
- * user's billing-identity lock, the fence every membership change holds.
+ * Returns null, writing nothing, when they already belong to one, no longer exist, or the
+ * `personal-organizations` flag is off: until every process runs the release that bills a personal
+ * organization to its owner, nothing creates one (signup, the product shell, leaving a team, the
+ * backfill), and those accounts stay organization-less as before. Takes the user's
+ * billing-identity lock, the fence every membership change holds.
  */
 export async function createPersonalOrganizationTx(
   tx: DbTransaction,
   userId: string,
   organizationId = `org_${generateId()}`
 ): Promise<string | null> {
+  if (!(await isFeatureEnabled('personal-organizations'))) return null
   await acquireUserBillingIdentityLock(tx, userId)
   const [existing] = await tx
     .select({ id: member.id })
@@ -117,6 +122,12 @@ export async function createPersonalOrganizationTx(
     organizationId,
     role: 'owner',
     createdAt: now,
+  })
+  await enqueuePersonalOrganizationAuditTx(tx, {
+    change: 'created',
+    organizationId,
+    userId,
+    metadata: {},
   })
   return organizationId
 }
@@ -203,6 +214,12 @@ export async function convertPersonalOrganizationToTeamTx(
     .set({ kind: 'team', name, slug, metadata, updatedAt: new Date() })
     .where(eq(organization.id, personal.organizationId))
 
+  await enqueuePersonalOrganizationAuditTx(tx, {
+    change: 'converted',
+    organizationId: personal.organizationId,
+    userId,
+    metadata: { detachedWorkspaceIds },
+  })
   logger.info('Converted personal organization into a team', {
     userId,
     organizationId: personal.organizationId,
@@ -215,32 +232,37 @@ export async function convertPersonalOrganizationToTeamTx(
   }
 }
 
-/** Organization-level content a person owns, which follows them into the organization they join. */
-const OWNED_ORGANIZATION_CONTENT: ReadonlyArray<{ table: PgTable; organizationId: PgColumn }> = [
+/**
+ * What retiring a personal organization does with each organization-scoped table, decided by who
+ * can see its rows. Collisions with the target cannot refuse a join (SSO JIT, SCIM, invitation
+ * acceptance and admin adds all reach it), and nothing the person kept to themselves may become
+ * visible to the team they join.
+ *
+ * - {@link OWNER_PRIVATE_CONTENT} is read only by its owner (every read filters on the owner's user
+ *   id as well as the organization): organization chats and their runs, memory spaces, benchmarks.
+ *   It moves into the target unchanged, still visible only to its owner. None of these tables holds
+ *   a unique key scoped by organization, so moving can never collide.
+ * - {@link KEYED_OWNER_STATE} is per-person state keyed within the organization. It moves except
+ *   where the person already holds a row under the same key in the target, which stays
+ *   authoritative.
+ * - {@link ORGANIZATION_BOUND_CONTENT} is shared with every member, or belongs to something that is:
+ *   the organization's Search index (its knowledge base, connector caches, per-member connector
+ *   state, external directory mirrors and the connections that sync it), its go links, its managed
+ *   MCP servers, credential grants and connect drafts on its connections, its Search MCP activity
+ *   log, access-request opt-out and the access requests filed against it. Moving any of it would
+ *   publish it to the team (and collide with the team's own Search index and go link names), and
+ *   none of it has a workspace to stay with or any meaning outside the organization, so it is
+ *   deleted with the personal organization; stored objects of its files and documents are queued
+ *   for cleanup in the same transaction.
+ */
+const OWNER_PRIVATE_CONTENT: ReadonlyArray<{ table: PgTable; organizationId: PgColumn }> = [
   { table: copilotChats, organizationId: copilotChats.organizationId },
   { table: copilotRuns, organizationId: copilotRuns.organizationId },
-  { table: workspaceFiles, organizationId: workspaceFiles.organizationId },
-  { table: knowledgeBase, organizationId: knowledgeBase.organizationId },
   { table: mothershipMemorySpaces, organizationId: mothershipMemorySpaces.organizationId },
   { table: mothershipBenchmarks, organizationId: mothershipBenchmarks.organizationId },
-  { table: mcpServers, organizationId: mcpServers.organizationId },
-  { table: mcpServerOauth, organizationId: mcpServerOauth.organizationId },
-  { table: credential, organizationId: credential.organizationId },
-  { table: simLink, organizationId: simLink.organizationId },
-  { table: assistantToolPermission, organizationId: assistantToolPermission.organizationId },
-  { table: pendingCredentialDraft, organizationId: pendingCredentialDraft.organizationId },
-  /** A members-mode connector's per-member sync state, which follows its knowledge base. */
-  { table: knowledgeConnectorMember, organizationId: knowledgeConnectorMember.organizationId },
 ]
 
-/**
- * Rows keyed within their organization: they move too, except where the target already holds a row
- * under the same key, which stays authoritative. Per-person state the person holds in the target
- * from an earlier membership, and the mirrors of an external identity directory the moved
- * knowledge bases' connectors read (the target's mirror of the same directory is equivalent, and
- * the next connector sync refreshes it).
- */
-const KEYED_ORGANIZATION_STATE: ReadonlyArray<{
+const KEYED_OWNER_STATE: ReadonlyArray<{
   table: PgTable
   organizationId: PgColumn
   key: PgColumn[]
@@ -260,29 +282,21 @@ const KEYED_ORGANIZATION_STATE: ReadonlyArray<{
     organizationId: copilotOrganizationRequestStops.organizationId,
     key: [copilotOrganizationRequestStops.userId, copilotOrganizationRequestStops.streamId],
   },
-  {
-    table: knowledgeExternalDirectory,
-    organizationId: knowledgeExternalDirectory.organizationId,
-    key: [knowledgeExternalDirectory.providerId, knowledgeExternalDirectory.tenantId],
-  },
-  {
-    table: knowledgeExternalGroup,
-    organizationId: knowledgeExternalGroup.organizationId,
-    key: [
-      knowledgeExternalGroup.providerId,
-      knowledgeExternalGroup.tenantId,
-      knowledgeExternalGroup.externalGroupId,
-    ],
-  },
 ]
 
-/**
- * Rows meaningful only inside the personal organization, which nothing in the target could read:
- * its Search MCP activity log, its access-request opt-out, and the access requests filed against
- * it (personal workspaces leave for the organization-less state, where access requests never
- * existed). They go with it.
- */
-const PERSONAL_ORGANIZATION_ONLY: ReadonlyArray<{ table: PgTable; organizationId: PgColumn }> = [
+/** Deleted in this order, dependents before what they reference. */
+const ORGANIZATION_BOUND_CONTENT: ReadonlyArray<{ table: PgTable; organizationId: PgColumn }> = [
+  { table: assistantToolPermission, organizationId: assistantToolPermission.organizationId },
+  { table: pendingCredentialDraft, organizationId: pendingCredentialDraft.organizationId },
+  { table: knowledgeConnectorMember, organizationId: knowledgeConnectorMember.organizationId },
+  { table: knowledgeBase, organizationId: knowledgeBase.organizationId },
+  { table: knowledgeExternalGroup, organizationId: knowledgeExternalGroup.organizationId },
+  { table: knowledgeExternalDirectory, organizationId: knowledgeExternalDirectory.organizationId },
+  { table: workspaceFiles, organizationId: workspaceFiles.organizationId },
+  { table: mcpServerOauth, organizationId: mcpServerOauth.organizationId },
+  { table: mcpServers, organizationId: mcpServers.organizationId },
+  { table: credential, organizationId: credential.organizationId },
+  { table: simLink, organizationId: simLink.organizationId },
   {
     table: organizationSearchMcpInvocation,
     organizationId: organizationSearchMcpInvocation.organizationId,
@@ -294,60 +308,153 @@ const PERSONAL_ORGANIZATION_ONLY: ReadonlyArray<{ table: PgTable; organizationId
   { table: permissionAccessRequest, organizationId: permissionAccessRequest.organizationId },
 ]
 
-async function moveOrganizationContentTx(tx: DbTransaction, from: string, to: string) {
-  for (const { table, organizationId } of OWNED_ORGANIZATION_CONTENT) {
-    /** A savepoint, so a name or account the target already holds refuses the join cleanly. */
-    try {
-      await tx.transaction((savepoint) =>
-        savepoint.execute(sql`
-          UPDATE ${table} SET ${sql.identifier(organizationId.name)} = ${to}
-          WHERE ${organizationId} = ${from}
-        `)
-      )
-    } catch (error) {
-      if (getPostgresErrorCode(error) !== '23505') throw error
-      throw new OrchestrationError(
-        'conflict',
-        `Something in this account's personal organization (${getTableName(table)}) has the same name as something in the organization being joined. Rename or remove it, then try again.`
-      )
-    }
+/** Rows each table moved into the target or had deleted, keyed by table name. */
+type OrganizationContentCounts = Record<string, number>
+
+async function countedTx(tx: DbTransaction, statement: SQL): Promise<number> {
+  const [{ count }] = await tx.execute<{ count: number }>(
+    sql`WITH changed AS (${statement} RETURNING 1) SELECT count(*)::int AS count FROM changed`
+  )
+  return count
+}
+
+async function moveOrganizationContentTx(
+  tx: DbTransaction,
+  from: string,
+  to: string
+): Promise<{ moved: OrganizationContentCounts; deleted: OrganizationContentCounts }> {
+  const moved: OrganizationContentCounts = {}
+  const deleted: OrganizationContentCounts = {}
+  for (const { table, organizationId } of OWNER_PRIVATE_CONTENT) {
+    moved[getTableName(table)] = await countedTx(
+      tx,
+      sql`UPDATE ${table} SET ${sql.identifier(organizationId.name)} = ${to} WHERE ${organizationId} = ${from}`
+    )
   }
-  for (const { table, organizationId, key } of KEYED_ORGANIZATION_STATE) {
+  for (const { table, organizationId, key } of KEYED_OWNER_STATE) {
     const keyMatch = sql.join(
       key.map((column) => sql`existing.${sql.identifier(column.name)} = ${column}`),
       sql` AND `
     )
-    await tx.execute(sql`
-      UPDATE ${table} SET ${sql.identifier(organizationId.name)} = ${to}
-      WHERE ${organizationId} = ${from}
-        AND NOT EXISTS (
-          SELECT 1 FROM ${table} AS existing
-          WHERE existing.${sql.identifier(organizationId.name)} = ${to} AND ${keyMatch}
-        )
-    `)
+    moved[getTableName(table)] = await countedTx(
+      tx,
+      sql`
+        UPDATE ${table} SET ${sql.identifier(organizationId.name)} = ${to}
+        WHERE ${organizationId} = ${from}
+          AND NOT EXISTS (
+            SELECT 1 FROM ${table} AS existing
+            WHERE existing.${sql.identifier(organizationId.name)} = ${to} AND ${keyMatch}
+          )
+      `
+    )
     await tx.execute(sql`DELETE FROM ${table} WHERE ${organizationId} = ${from}`)
   }
-  for (const { table, organizationId } of PERSONAL_ORGANIZATION_ONLY) {
-    await tx.execute(sql`DELETE FROM ${table} WHERE ${organizationId} = ${from}`)
+  await enqueueOrganizationStoredObjectCleanup(tx, from)
+  for (const { table, organizationId } of ORGANIZATION_BOUND_CONTENT) {
+    deleted[getTableName(table)] = await countedTx(
+      tx,
+      sql`DELETE FROM ${table} WHERE ${organizationId} = ${from}`
+    )
   }
-  /**
-   * A pending invitation to a personal workspace keeps inviting to it, recorded without an
-   * organization as an organization-less workspace's invitation is; one to the personal
-   * organization itself has nothing left to admit anyone to.
-   */
+  await releasePersonalOrganizationInvitationsTx(tx, from)
+  return { moved, deleted }
+}
+
+/**
+ * A pending invitation to a personal workspace keeps inviting to it, recorded without an
+ * organization as an organization-less workspace's invitation is; one to the personal organization
+ * itself has nothing left to admit anyone to.
+ */
+export async function releasePersonalOrganizationInvitationsTx(
+  tx: DbTransaction,
+  organizationId: string
+) {
   await tx
     .update(invitation)
     .set({ organizationId: null, updatedAt: new Date() })
-    .where(and(eq(invitation.organizationId, from), eq(invitation.kind, 'workspace')))
-  await tx.delete(invitation).where(eq(invitation.organizationId, from))
+    .where(and(eq(invitation.organizationId, organizationId), eq(invitation.kind, 'workspace')))
+  await tx.delete(invitation).where(eq(invitation.organizationId, organizationId))
+}
+
+interface CascadingReference {
+  schema: string
+  table: string
+  column: string
+}
+
+let cascadingReferences: Promise<CascadingReference[]> | undefined
+
+/**
+ * Every single-column foreign key that deletes its rows with an organization, membership aside,
+ * read from the catalog once per process (the schema only changes with a release), on the first
+ * retirement's transaction. A composite one
+ * could not be checked by organization id alone, so it fails loudly rather than being skipped.
+ */
+function loadCascadingReferences(tx: DbTransaction): Promise<CascadingReference[]> {
+  cascadingReferences ??= tx
+    .execute<{ schema_name: string; table_name: string; column_name: string; columns: number }>(sql`
+      SELECT n.nspname AS schema_name, t.relname AS table_name, a.attname AS column_name,
+        cardinality(c.conkey) AS columns
+      FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+      JOIN pg_namespace n ON n.oid = t.relnamespace
+      JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+      WHERE c.contype = 'f'
+        AND c.confrelid = 'organization'::regclass
+        AND c.confdeltype = 'c'
+        AND t.relname <> 'member'
+      ORDER BY 1, 2, 3
+    `)
+    .then((rows) => {
+      const composite = rows.find((row) => row.columns > 1)
+      if (composite) {
+        throw new Error(`Composite cascading organization reference on ${composite.table_name}`)
+      }
+      return rows.map((row) => ({
+        schema: row.schema_name,
+        table: row.table_name,
+        column: row.column_name,
+      }))
+    })
+    .catch((error: unknown) => {
+      cascadingReferences = undefined
+      throw error
+    })
+  return cascadingReferences
+}
+
+/**
+ * The first table, by name, still holding rows that deleting the organization would delete with it
+ * (its membership aside), or null when there are none: one statement over every cascading
+ * reference.
+ */
+export async function findCascadingOrganizationContentTx(
+  tx: DbTransaction,
+  organizationId: string
+): Promise<string | null> {
+  const references = await loadCascadingReferences(tx)
+  if (references.length === 0) return null
+  const probes = sql.join(
+    references.map(
+      ({ schema, table, column }) => sql`
+        SELECT ${table}::text AS table_name WHERE EXISTS (
+          SELECT 1 FROM ${sql.identifier(schema)}.${sql.identifier(table)}
+          WHERE ${sql.identifier(column)} = ${organizationId}
+        )`
+    ),
+    sql` UNION ALL `
+  )
+  const [remaining] = await tx.execute<{ table_name: string }>(sql`${probes} LIMIT 1`)
+  return remaining?.table_name ?? null
 }
 
 /**
  * Proves nothing would cascade away with the personal organization: every table whose rows its
- * deletion would delete must hold none of them by now (its membership aside). Every such table is
- * moved, keyed, personal-only (above), or refused on personal organizations by migrations 0456 and
- * 0457 (`personal-organizations.integration.ts` proves the classification is complete), so this
- * only refuses a join over rows written around those guards, rather than losing them.
+ * deletion would delete must hold none of them by now (its membership aside), checked in one
+ * statement. Every such table is moved, keyed, deleted as organization-bound (above), or refused on
+ * personal organizations by migrations 0456 and 0457 (`personal-organization-join.integration.ts`
+ * proves the classification is complete), so this only refuses a join over rows written around
+ * those guards, rather than losing them.
  */
 async function assertNothingCascadesTx(tx: DbTransaction, organizationId: string) {
   const members = await tx
@@ -358,34 +465,26 @@ async function assertNothingCascadesTx(tx: DbTransaction, organizationId: string
   if (members.length > 1) {
     throw new OrchestrationError('conflict', 'A personal organization has more than one member.')
   }
-  const references = await tx.execute<{ table_name: string; column_name: string }>(sql`
-    SELECT c.conrelid::regclass::text AS table_name, a.attname AS column_name
-    FROM pg_constraint c
-    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
-    WHERE c.contype = 'f'
-      AND c.confrelid = 'organization'::regclass
-      AND c.confdeltype = 'c'
-      AND cardinality(c.conkey) = 1
-  `)
-  for (const reference of references) {
-    if (reference.table_name === 'member') continue
-    const remaining = await tx.execute(sql`
-      SELECT 1 FROM ${sql.raw(reference.table_name)}
-      WHERE ${sql.identifier(reference.column_name)} = ${organizationId}
-      LIMIT 1
-    `)
-    if (remaining.length > 0) {
-      throw new OrchestrationError(
-        'conflict',
-        `This account's personal organization holds ${reference.table_name} data that cannot move into another organization.`
-      )
-    }
+  const table = await findCascadingOrganizationContentTx(tx, organizationId)
+  if (table) {
+    logger.error('Personal organization holds rows that would cascade away on retirement', {
+      organizationId,
+      table,
+    })
+    throw new OrchestrationError(
+      'conflict',
+      "This account's personal organization holds data that cannot move into another organization."
+    )
   }
 }
 
 export interface RetirePersonalOrganizationResult {
   retiredOrganizationId: string | null
   detachedWorkspaceIds: string[]
+  /** Owner-private rows moved into the target, by table. */
+  movedCounts: OrganizationContentCounts
+  /** Organization-bound rows deleted with the personal organization, by table. */
+  deletedCounts: OrganizationContentCounts
 }
 
 /**
@@ -393,9 +492,11 @@ export interface RetirePersonalOrganizationResult {
  * one-membership-per-user rule holds without refusing the join and without losing anything:
  * their workspaces return to the organization-less personal state they had before personal
  * organizations (still theirs, still private, still billed to them; an invitation acceptance
- * then moves the ones it disclosed, as it always has), their organization-level content (chats,
- * files, knowledge bases, memory spaces, ...) moves into the organization they join with the same
- * owner, and only then are the personal membership and organization deleted.
+ * then moves the ones it disclosed, as it always has), their owner-private organization-level
+ * content (chats, memory spaces, ...) moves into the organization they join with the same owner,
+ * what was shared within the personal organization is deleted with it (see
+ * {@link OWNER_PRIVATE_CONTENT}), and only then are the personal membership and organization
+ * deleted. Nothing the target holds can refuse the join.
  *
  * The caller holds the target's organization lock and the user's billing-identity lock, which
  * workspace creation in the personal organization also takes. A no-op without a personal
@@ -406,40 +507,55 @@ export async function retirePersonalOrganizationTx(
   { userId, targetOrganizationId }: { userId: string; targetOrganizationId: string }
 ): Promise<RetirePersonalOrganizationResult> {
   const personalOrganizationId = await getPersonalOrganizationId(userId, tx)
-  if (!personalOrganizationId) return { retiredOrganizationId: null, detachedWorkspaceIds: [] }
+  if (!personalOrganizationId) {
+    return {
+      retiredOrganizationId: null,
+      detachedWorkspaceIds: [],
+      movedCounts: {},
+      deletedCounts: {},
+    }
+  }
   if (personalOrganizationId === targetOrganizationId) {
     throw new Error('A personal organization cannot be retired into itself')
   }
   await lockPersonalOrganizationTx(tx, personalOrganizationId)
 
-  const [publishedBlock] = await tx
-    .select({ id: customBlock.id })
-    .from(customBlock)
-    .where(eq(customBlock.organizationId, personalOrganizationId))
-    .limit(1)
-  if (publishedBlock) {
-    throw new OrchestrationError(
-      'conflict',
-      'Custom blocks published from your personal workspaces would run inside the organization you are joining while those workspaces stay private. Unpublish them, then try again.'
-    )
-  }
-
   const detachedWorkspaceIds = await detachPersonalOrganizationWorkspacesTx(
     tx,
     personalOrganizationId
   )
-  await moveOrganizationContentTx(tx, personalOrganizationId, targetOrganizationId)
+  const { moved, deleted } = await moveOrganizationContentTx(
+    tx,
+    personalOrganizationId,
+    targetOrganizationId
+  )
   await assertNothingCascadesTx(tx, personalOrganizationId)
   await tx
     .delete(member)
     .where(and(eq(member.userId, userId), eq(member.organizationId, personalOrganizationId)))
   await tx.delete(organization).where(eq(organization.id, personalOrganizationId))
 
+  await enqueuePersonalOrganizationAuditTx(tx, {
+    change: 'retired',
+    organizationId: personalOrganizationId,
+    userId,
+    metadata: {
+      targetOrganizationId,
+      detachedWorkspaceIds,
+      movedCounts: moved,
+      deletedCounts: deleted,
+    },
+  })
   logger.info('Retired personal organization on joining another organization', {
     userId,
     personalOrganizationId,
     targetOrganizationId,
     detachedWorkspaceCount: detachedWorkspaceIds.length,
   })
-  return { retiredOrganizationId: personalOrganizationId, detachedWorkspaceIds }
+  return {
+    retiredOrganizationId: personalOrganizationId,
+    detachedWorkspaceIds,
+    movedCounts: moved,
+    deletedCounts: deleted,
+  }
 }
