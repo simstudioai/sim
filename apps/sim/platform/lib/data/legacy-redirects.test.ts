@@ -9,16 +9,12 @@ import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getSession } from '@/lib/auth'
 
-const { resolveWorkspaceShellOrganizationId } = vi.hoisted(() => ({
-  resolveWorkspaceShellOrganizationId: vi.fn(),
+const { readWorkspaceShellOrganizationId } = vi.hoisted(() => ({
+  readWorkspaceShellOrganizationId: vi.fn(),
 }))
 vi.mock('server-only', () => ({}))
-vi.mock('next/headers', () => ({ headers: async () => new Headers() }))
 vi.mock('next/navigation', () => nextNavigationMock)
-vi.mock('@/lib/workspaces/shell-organization', () => ({ resolveWorkspaceShellOrganizationId }))
-vi.mock('@/lib/organizations/provision-personal', () => ({
-  resolveOrProvisionLandingOrganization: vi.fn(),
-}))
+vi.mock('@/platform/lib/data/shell-scope', () => ({ readWorkspaceShellOrganizationId }))
 
 import { redirectLegacyWorkspaceUrl } from '@/platform/lib/data/legacy-redirects'
 
@@ -27,25 +23,21 @@ const SESSION = { user: { id: 'viewer' }, session: { id: 'session-1' } } as NonN
 >
 
 beforeEach(() => {
-  resolveWorkspaceShellOrganizationId.mockReset()
+  readWorkspaceShellOrganizationId.mockReset()
   vi.mocked(getSession).mockResolvedValue(SESSION)
 })
 
 describe('redirectLegacyWorkspaceUrl', () => {
   it('redirects into the organization the workspace opens in for the viewer', async () => {
-    resolveWorkspaceShellOrganizationId.mockResolvedValue('viewer-org')
+    readWorkspaceShellOrganizationId.mockResolvedValue('viewer-org')
     await expect(
       redirectLegacyWorkspaceUrl('ws-1', ['upgrade'], { reason: 'credits' })
     ).rejects.toThrow('NEXT_REDIRECT:/o/viewer-org/settings/billing/plans?reason=credits')
-    expect(resolveWorkspaceShellOrganizationId).toHaveBeenCalledWith(
-      'ws-1',
-      'viewer',
-      expect.any(Function)
-    )
+    expect(readWorkspaceShellOrganizationId).toHaveBeenCalledWith('ws-1')
   })
 
   it('answers not found for a workspace the viewer cannot open', async () => {
-    resolveWorkspaceShellOrganizationId.mockResolvedValue(null)
+    readWorkspaceShellOrganizationId.mockResolvedValue(null)
     await expect(redirectLegacyWorkspaceUrl('ws-1', ['home'], {})).rejects.toThrow('NEXT_NOT_FOUND')
   })
 })

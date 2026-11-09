@@ -202,21 +202,11 @@ export async function createPersonalOrganization(userId: string): Promise<string
 /**
  * Puts a user who belongs to no organization into one and returns it: the instance organization on
  * an instance-organization deployment, otherwise their personal organization
- * ({@link createPersonalOrganization}, which attaches no workspace). Covers a signup whose
- * provisioning failed, an account the backfill has not reached yet, and someone who left a team.
+ * ({@link createPersonalOrganization}, which attaches no workspace). Surfaces reach it only through
+ * the `ensureViewerOrganization` command.
  */
 export async function ensureUserOrganization(userId: string): Promise<string | null> {
   if (!isInstanceOrganizationMode()) return createPersonalOrganization(userId)
   await joinInstanceOrganization(userId)
   return resolveOrganizationLanding(userId, null)
-}
-
-/**
- * The organization the product shell opens in for a viewer: the one they land in, or, when they
- * belong to none yet, the one {@link ensureUserOrganization} puts them in.
- */
-export async function resolveOrProvisionLandingOrganization(
-  userId: string
-): Promise<string | null> {
-  return (await resolveOrganizationLanding(userId, null)) ?? ensureUserOrganization(userId)
 }

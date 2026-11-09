@@ -21,13 +21,16 @@ import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
+import { ensureViewerOrganization } from '@/lib/organizations/application/viewer-organization'
 import {
   ensureUserOrganization,
   provisionPersonalOrganization,
-  resolveOrProvisionLandingOrganization,
 } from '@/lib/organizations/provision-personal'
+import {
+  isWorkspaceShellRefusal,
+  readWorkspaceShell,
+} from '@/lib/workspaces/application/workspace-shell'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
-import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/shell-organization'
 
 const userIds: string[] = []
 
@@ -96,13 +99,27 @@ async function workspaceOrganizationId(workspaceId: string): Promise<string | nu
   return row.organizationId
 }
 
+function viewer(userId: string) {
+  return { kind: 'session' as const, userId, sessionId: `session-${userId}` }
+}
+
+/** The landing command the shell runs for a viewer in no organization. */
+function landingOrganization(userId: string) {
+  return ensureViewerOrganization.execute({ principal: viewer(userId), input: {} })
+}
+
 /** The product shell's resolution: `readWorkspaceShellOrganizationId` composes exactly these. */
-function shellOrganization(workspaceId: string, userId: string) {
-  return resolveWorkspaceShellOrganizationId(
-    workspaceId,
-    userId,
-    resolveOrProvisionLandingOrganization
-  )
+async function shellOrganization(workspaceId: string, userId: string) {
+  try {
+    const shell = await readWorkspaceShell.execute({
+      principal: viewer(userId),
+      input: { workspaceId },
+    })
+    return shell.organizationId ?? (await landingOrganization(userId))
+  } catch (error) {
+    if (isWorkspaceShellRefusal(error)) return null
+    throw error
+  }
 }
 
 afterAll(async () => {
@@ -179,6 +196,19 @@ describe('the organization a workspace opens in', () => {
     expect(await membershipsOf(strangerId)).toEqual([])
   })
 
+  it('reads the shell of an account in no organization without provisioning one', async () => {
+    const ownerId = await createUser()
+    const legacy = await createWorkspace(ownerId, null)
+
+    expect(
+      await readWorkspaceShell.execute({
+        principal: viewer(ownerId),
+        input: { workspaceId: legacy },
+      })
+    ).toEqual({ organizationId: null })
+    expect(await membershipsOf(ownerId)).toEqual([])
+  })
+
   it('opens the workspaces of an account in no organization in a personal one made on demand', async () => {
     const ownerId = await createUser()
     const legacy = await createWorkspace(ownerId, null)
@@ -214,9 +244,7 @@ describe('on-demand personal organization provisioning', () => {
   it('creates one organization for concurrent first page loads', async () => {
     const ownerId = await createUser()
 
-    const results = await Promise.all(
-      Array.from({ length: 5 }, () => resolveOrProvisionLandingOrganization(ownerId))
-    )
+    const results = await Promise.all(Array.from({ length: 5 }, () => landingOrganization(ownerId)))
 
     const memberships = await membershipsOf(ownerId)
     expect(memberships).toHaveLength(1)
@@ -231,7 +259,7 @@ describe('on-demand personal organization provisioning', () => {
       slug: `team-${generateId()}`.toLowerCase(),
     })
 
-    expect(await resolveOrProvisionLandingOrganization(ownerId)).toBe(teamId)
+    expect(await landingOrganization(ownerId)).toBe(teamId)
     expect(await membershipsOf(ownerId)).toEqual([
       { organizationId: teamId, role: 'owner', kind: 'team' },
     ])
