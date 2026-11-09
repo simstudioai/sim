@@ -8,6 +8,7 @@ import { InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { toError } from '@sim/utils/errors'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from '@/lib/toast/sink'
 import { ApiInfoModal } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/api-tab/api-info-modal'
 import { ApiTab } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/api-tab/api-tab'
 import { CreateApiKeyModal } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/deploy/api-tab/create-api-key-modal'
@@ -56,7 +57,6 @@ import {
   useWorkflowRegistry,
   useWorkflowStore,
 } from '@/platform/lib/data/workflows'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('DeployModal')
 

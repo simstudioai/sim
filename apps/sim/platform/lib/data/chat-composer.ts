@@ -17,6 +17,7 @@ import {
   type MothershipEffort,
   resolveMothershipModelSettings,
 } from '@/lib/mothership/model-options'
+import { toast } from '@/lib/toast/sink'
 import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
 import {
   ASSISTANT_IMAGE_MAX_BYTES,
@@ -47,7 +48,6 @@ import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { attachmentKind } from '@/platform/lib/data/chat-model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { useStartSearch } from '@/platform/lib/data/search'
-import { toast } from '@/platform/shared/toast'
 import { useMothershipDraftsStore } from '@/stores/mothership-drafts/store'
 import {
   useMothershipEffortStore,

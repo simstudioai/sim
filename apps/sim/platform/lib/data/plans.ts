@@ -21,9 +21,9 @@ import {
   PRO_PLAN_FEATURES,
 } from '@/lib/billing/plan-configs'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
+import { toast } from '@/lib/toast/sink'
 import { useOrganizationBillingSummary } from '@/hooks/queries/organization-billing-summary'
 import { useWorkspaceHostContextQuery } from '@/hooks/queries/workspace-host'
-import { toast } from '@/platform/shared/toast'
 
 /** Enterprise "Talk to sales" books time with the sales team on Cal.com. */
 const SALES_CAL_URL = 'https://cal.com/team/sim/demo'

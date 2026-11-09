@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { toast } from '@/lib/toast/sink'
 import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
 import {
   LiveWorkspacePage,
@@ -50,7 +51,6 @@ import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { folderChain } from '@/platform/lib/folder-chain'
 import { publicAssetPath } from '@/platform/lib/navigation'
 import { workspaceEntry, workspacePath } from '@/platform/lib/workspace-navigation'
-import { toast } from '@/platform/shared/toast'
 
 interface FileViewProps {
   workspaceId: string

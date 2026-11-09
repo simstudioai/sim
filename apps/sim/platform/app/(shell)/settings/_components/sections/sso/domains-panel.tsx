@@ -9,6 +9,7 @@ import { Modal } from '@sim/emcn/modal'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   FieldStack,
@@ -23,7 +24,6 @@ import {
   useRemoveOrganizationDomain,
   useVerifyOrganizationDomain,
 } from '@/platform/lib/data/sso'
-import { toast } from '@/platform/shared/toast'
 
 interface DomainRowProps {
   organizationId: string

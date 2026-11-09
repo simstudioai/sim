@@ -9,6 +9,7 @@ import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 import { useOrganization } from '@/lib/organizations/provider'
 import { captureEvent } from '@/lib/posthog/client'
+import { toast } from '@/lib/toast/sink'
 import { useRenameOrganization } from '@/hooks/queries/organization'
 import { useUploadOrganizationLogo } from '@/hooks/queries/organization-logo'
 import {
@@ -19,7 +20,6 @@ import {
 } from '@/hooks/use-desktop-update-state'
 import type { ShellActions } from '@/platform/embedded/lib/data/shell-view'
 import { openLinkInNewTab } from '@/platform/embedded/lib/row-links'
-import { toast } from '@/platform/shared/toast'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 /** The only desktop build offered is for macOS. iPadOS reports itself as a Mac, but with touch. */

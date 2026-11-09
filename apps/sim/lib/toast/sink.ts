@@ -31,8 +31,10 @@ function withVariant(variant: NonNullable<ToastInput['variant']>) {
 }
 
 /**
- * The same call shape as the legacy `toast`, delivered to whichever toaster the surface connects: the
- * zone's notification tray or `/o`'s host toaster. A call with nothing connected is dropped.
+ * The same call shape as the legacy `toast`, delivered to whichever toaster the page's root connects:
+ * the Platform's notification tray, or the site's legacy toaster (`app/_shell/toast-sink.tsx`). Modules
+ * both trees reach, such as query hooks, raise toasts here so neither tree bundles the other's toaster.
+ * A call with nothing connected is dropped.
  */
 export const toast = Object.assign((input: ToastInput) => deliver(input), {
   success: withVariant('success'),

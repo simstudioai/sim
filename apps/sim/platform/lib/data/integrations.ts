@@ -8,6 +8,7 @@ import {
   integrationViewParsers,
   serializeIntegrationView,
 } from '@/lib/organizations/integrations-search-params'
+import { toast } from '@/lib/toast/sink'
 import {
   useAssistantToolPermissions,
   useUpdateAssistantToolPermissions,
@@ -31,7 +32,6 @@ import {
 import { useOrganization } from '@/platform/lib/data/organization'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
 import type { OrganizationIntegration, ToolPermissionChange } from '@/platform/shared/integrations'
-import { toast } from '@/platform/shared/toast'
 
 const ACTION_NOTICE_ID = 'integrations-action'
 

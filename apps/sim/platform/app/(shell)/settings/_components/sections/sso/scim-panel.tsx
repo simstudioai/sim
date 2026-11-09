@@ -11,6 +11,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   FieldStack,
@@ -36,7 +37,6 @@ import {
 } from '@/platform/lib/data/settings-guard'
 import { plural } from '@/platform/shared/plural'
 import { formatCalendarDate, formatRelativeTime } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 function formatInstant(iso: string | null, now: number): string {
   return iso ? formatRelativeTime(new Date(iso).getTime(), now) : 'never'

@@ -17,6 +17,7 @@ import {
   groupByOrganization,
   PERSONAL_ACCOUNT_STATUS_LABELS,
 } from '@/lib/organizations/personal-accounts'
+import { toast } from '@/lib/toast/sink'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { useAccountDeletionPlan, useDeleteAccount } from '@/hooks/queries/account-deletion'
 import { useAuthorizedApps, useRevokeAuthorizedApp } from '@/hooks/queries/oauth-provider'
@@ -29,7 +30,6 @@ import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { loadMoreOf, queryView } from '@/platform/shared/query-view'
 import { formatInstantDate } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('PlatformAccount')
 

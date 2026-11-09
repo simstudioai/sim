@@ -18,10 +18,10 @@ import {
 } from '@/components/sim-links/sim-link-organization-provider'
 import { useExistingSimLink } from '@/components/sim-links/sim-link-shortcut'
 import type { SourceTagData } from '@/lib/mothership/chat/special-tags'
+import { toast } from '@/lib/toast/sink'
 import { useSourceNavigation } from '@/hooks/sim-search/source-history'
 import { useHydrated } from '@/hooks/use-hydrated'
 import styles from '@/platform/embedded/app/(shell)/_components/search/search.module.css'
-import { toast } from '@/platform/shared/toast'
 
 /**
  * The Sim link entry of a source's menu: copies the link that already opens this address, or offers

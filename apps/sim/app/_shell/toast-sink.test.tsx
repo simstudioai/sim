@@ -6,10 +6,10 @@ import { ToastProvider } from '@sim/emcn-legacy'
 import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import '@/app/o/[organizationId]/components/toast-sink'
-import { toast } from '@/platform/shared/toast'
+import '@/app/_shell/toast-sink'
+import { toast } from '@/lib/toast/sink'
 
-describe('the organization toast sink', () => {
+describe('the site toast sink', () => {
   let container: HTMLDivElement
   let root: Root
 
@@ -27,7 +27,7 @@ describe('the organization toast sink', () => {
     container.remove()
   })
 
-  it('shows a view toast on the host toaster with its description and action', async () => {
+  it('shows a shared module toast on the site toaster with its description and action', async () => {
     await act(async () => {
       toast.error('Could not save', {
         description: 'Try again',
@@ -39,7 +39,7 @@ describe('the organization toast sink', () => {
     expect(document.body.textContent).toContain('Retry')
   })
 
-  it('dismisses by the id the host toaster returned and reports the dismissal', async () => {
+  it('dismisses by the id the site toaster returned and reports the dismissal', async () => {
     const onDismiss = vi.fn()
     let id = ''
     await act(async () => {

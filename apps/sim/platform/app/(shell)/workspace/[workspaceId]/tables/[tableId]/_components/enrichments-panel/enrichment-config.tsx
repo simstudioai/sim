@@ -6,6 +6,7 @@ import { SwitchField, TextField } from '@sim/emcn/field'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { toast } from '@/lib/toast/sink'
 import {
   SidePanel,
   SidePanelNote,
@@ -26,7 +27,6 @@ import {
   type WorkflowGroup,
   type WorkflowGroupOutput,
 } from '@/platform/lib/data/tables'
-import { toast } from '@/platform/shared/toast'
 
 const INPUT_TYPE_LABEL: Record<EnrichmentDefinition['inputs'][number]['type'], string> = {
   string: 'Text',

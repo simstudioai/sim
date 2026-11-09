@@ -1,7 +1,6 @@
 'use client'
 
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
-import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -11,6 +10,7 @@ import {
   getMothershipAttachmentUrl,
 } from '@/lib/mothership/chat/attachment-preview'
 import type { ChatRequestMode, FileAttachmentForApi } from '@/lib/mothership/chat/types'
+import { toast } from '@/lib/toast/sink'
 import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
 import { runWithConcurrency, WHOLE_FILE_PARALLEL_UPLOADS } from '@/lib/uploads/client/concurrency'
 import { uploadInternalFileSession } from '@/lib/uploads/client/session-upload'

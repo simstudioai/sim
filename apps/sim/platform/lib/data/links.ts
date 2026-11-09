@@ -27,6 +27,7 @@ import {
   simLinkOrigin,
   toSimLinkName,
 } from '@/lib/sim-links/validation'
+import { toast } from '@/lib/toast/sink'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   useCreateSimLink,
@@ -37,7 +38,6 @@ import {
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import { useUrlSort } from '@/hooks/use-url-sort'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('SimLinks')
 const COPY_NOTICE_ID = 'sim-link-copy'

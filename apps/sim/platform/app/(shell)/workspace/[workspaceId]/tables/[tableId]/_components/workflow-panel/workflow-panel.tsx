@@ -9,6 +9,7 @@ import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { toast } from '@/lib/toast/sink'
 import {
   SidePanel,
   SidePanelNote,
@@ -45,7 +46,6 @@ import {
 } from '@/platform/lib/data/tables'
 import { useDeployedWorkflowState } from '@/platform/lib/data/workflows'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
-import { toast } from '@/platform/shared/toast'
 
 /**
  * A workflow group the user built (`manual`) or one spawned from a shared enrichment template

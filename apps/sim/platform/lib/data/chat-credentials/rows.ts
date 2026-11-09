@@ -7,6 +7,7 @@ import { buildHostedUpgradeUrl, HOSTED_BILLING_SETTINGS_URL } from '@/lib/billin
 import { getDesktopBridge } from '@/lib/desktop'
 import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-target'
 import { formatCredentialSubmissionMessage } from '@/lib/mothership/chat/special-tags'
+import { toast } from '@/lib/toast/sink'
 import {
   usePersonalEnvironment,
   useSavePersonalEnvironment,
@@ -21,7 +22,6 @@ import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-c
 import type { PlatformCredentialRequest } from '@/platform/app/(shell)/_components/chat/model'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { legacyRoutes } from '@/platform/lib/data/organization-model'
-import { toast } from '@/platform/shared/toast'
 
 /** The card's workspace target, read by the connection hooks in place of a workspace route. */
 export const CredentialWorkspaceProvider = CredentialWorkspaceContext.Provider

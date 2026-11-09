@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { isApiClientError } from '@/lib/api/client/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   useCreateWorkspace,
   useToggleWorkspacePin,
   useUpdateWorkspace,
 } from '@/hooks/queries/workspace'
 import type { ShellWorkspaceActions } from '@/platform/app/(shell)/_components/model'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('PlatformWorkspaces')
 

@@ -7,6 +7,7 @@ import { useSession } from '@/lib/auth/client'
 import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
 import { useOrganization } from '@/lib/organizations/provider'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { toast } from '@/lib/toast/sink'
 import {
   useRemoveWorkspaceMember,
   useUpdateWorkspacePermissions,
@@ -28,7 +29,6 @@ import { useOpenBillingPortal } from '@/hooks/queries/subscription'
 import { reportFailure } from '@/platform/embedded/lib/notices'
 import { toRosterModel, toSeatsModel, type WorkspacePermission } from '@/platform/shared/members'
 import { useBrowserTimezone } from '@/platform/shared/preferences'
-import { toast } from '@/platform/shared/toast'
 
 /** Shows a failed background mutation: the row controls have no dialog of their own to hold it. */
 async function reportingFailure(work: Promise<unknown>, message: string): Promise<void> {

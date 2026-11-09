@@ -8,6 +8,7 @@ import { SecretField } from '@sim/emcn/field/value-fields'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { InlineNotice } from '@sim/emcn/status'
 import { toError } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   DetailHeader,
@@ -30,7 +31,6 @@ import {
   useCreateDataDrain,
 } from '@/platform/lib/data/data-drains'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
-import { toast } from '@/platform/shared/toast'
 
 const DEFAULT_SOURCE = 'workflow_logs' satisfies (typeof SOURCE_TYPES)[number]
 const DEFAULT_CADENCE = 'daily' satisfies (typeof CADENCE_TYPES)[number]

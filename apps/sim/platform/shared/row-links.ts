@@ -1,5 +1,5 @@
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
-import { toast } from '@/platform/shared/toast'
+import { toast } from '@/lib/toast/sink'
 
 /**
  * Row actions for a link. `resolveHref` supplies what the browser will not add for a new tab or the

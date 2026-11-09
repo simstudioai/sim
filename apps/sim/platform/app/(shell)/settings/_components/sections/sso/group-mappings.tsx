@@ -9,6 +9,7 @@ import { Select } from '@sim/emcn/picker/select'
 import { SettingsRow } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   Muted,
@@ -31,7 +32,6 @@ import {
 } from '@/platform/lib/data/scim'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { plural } from '@/platform/shared/plural'
-import { toast } from '@/platform/shared/toast'
 
 type PermissionGroups = NonNullable<ReturnType<typeof usePermissionGroups>['data']>
 type Workspaces = NonNullable<ReturnType<typeof useOrganizationWorkspaces>['data']>

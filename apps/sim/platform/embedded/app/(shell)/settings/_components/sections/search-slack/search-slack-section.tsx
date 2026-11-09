@@ -10,6 +10,7 @@ import { InlineNotice, StatusTag } from '@sim/emcn/status'
 import { errorMessageOr, QueryBoundary } from '@sim/emcn/status/query-boundary'
 import { useQueryState } from 'nuqs'
 import { slackSetupResultParam } from '@/lib/organizations/slack-setup-params'
+import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   Muted,
@@ -18,7 +19,6 @@ import {
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import { SlackSetupWizard } from '@/platform/embedded/app/(shell)/settings/_components/sections/search-slack/slack-setup-wizard'
 import { useSlackSearchConnections } from '@/platform/embedded/lib/data/slack-search-handoff'
-import { toast } from '@/platform/shared/toast'
 
 interface WizardState {
   mode?: 'custom' | 'shared'

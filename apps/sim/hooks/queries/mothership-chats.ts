@@ -1,4 +1,3 @@
-import { toast } from '@sim/emcn-legacy'
 import { toError } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import { backoffWithJitter } from '@sim/utils/retry'
@@ -42,6 +41,7 @@ import {
 } from '@/lib/mothership/request/session/file-preview-session-contract'
 import { isStreamBatchEvent, type StreamBatchEvent } from '@/lib/mothership/request/session/types'
 import type { MothershipResource } from '@/lib/mothership/resources/types'
+import { toast } from '@/lib/toast/sink'
 import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { useMothershipEffortStore } from '@/stores/mothership-effort/store'
 import { useMothershipOutgoingStore } from '@/stores/mothership-outgoing/store'

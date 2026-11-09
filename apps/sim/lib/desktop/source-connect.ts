@@ -1,5 +1,4 @@
 import type { DesktopOAuthConnectResult } from '@sim/desktop-bridge'
-import { toast } from '@sim/emcn-legacy'
 import { toError } from '@sim/utils/errors'
 import { requestJson } from '@/lib/api/client/request'
 import {
@@ -7,6 +6,7 @@ import {
   type DesktopSourceRequest,
 } from '@/lib/api/contracts/desktop-source-connect'
 import { getDesktopBridge } from '@/lib/desktop'
+import { toast } from '@/lib/toast/sink'
 
 const CONNECTION_TIMEOUT_MS = 10 * 60_000
 

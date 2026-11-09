@@ -7,6 +7,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { toError } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   ResourceList,
   SectionStack,
@@ -36,7 +37,6 @@ import {
   withoutOverride,
 } from '@/platform/lib/data/data-retention'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
-import { toast } from '@/platform/shared/toast'
 
 function snapshotFrom(data: DataRetentionResponse): RetentionSnapshot {
   const rules = data.configured.piiRedaction?.rules ?? []

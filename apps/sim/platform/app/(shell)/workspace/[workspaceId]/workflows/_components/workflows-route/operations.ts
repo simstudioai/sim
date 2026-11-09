@@ -7,6 +7,7 @@ import { compareStrings } from '@sim/utils/string'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { toast } from '@/lib/toast/sink'
 import {
   useCreateFolder,
   useDuplicateFolderMutation,
@@ -41,7 +42,6 @@ import {
 } from '@/platform/lib/data/workflows'
 import { platformHref } from '@/platform/lib/navigation'
 import { workspacePath } from '@/platform/lib/workspace-navigation'
-import { toast } from '@/platform/shared/toast'
 
 const logger = createLogger('WorkflowListOperations')
 

@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@sim/emcn-legacy', () => emcnMock)
+vi.mock('@/lib/toast/sink', () => ({ toast: emcnMockFns.mockToast }))
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/api/client/request', () => apiClientRequestMock)
 vi.mock('@/lib/desktop', () => libDesktopMock)

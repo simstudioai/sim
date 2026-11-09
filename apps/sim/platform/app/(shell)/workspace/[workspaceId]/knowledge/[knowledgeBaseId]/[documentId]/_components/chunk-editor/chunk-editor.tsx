@@ -3,6 +3,7 @@
 import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { Switch } from '@sim/emcn/switch'
+import { toast } from '@/lib/toast/sink'
 import { useNotificationTrayClearance } from '@/platform/app/(shell)/_components/notification-tray/tray-clearance'
 import styles from '@/platform/app/(shell)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/chunk-editor/chunk-editor.module.css'
 import {
@@ -14,7 +15,6 @@ import {
   useUpdateChunk,
 } from '@/platform/lib/data/knowledge'
 import { getAccurateTokenCount, getTokenStrings } from '@/platform/lib/data/knowledge/tokens'
-import { toast } from '@/platform/shared/toast'
 
 /** The longest chunk the API accepts. */
 const MAX_CHUNK_LENGTH = 10_000

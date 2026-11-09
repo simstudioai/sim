@@ -4,7 +4,6 @@
  * React Query hooks for managing user-defined tables.
  */
 
-import { toast } from '@sim/emcn-legacy'
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import {
@@ -116,6 +115,7 @@ import {
   optimisticallyScheduleNewlyEligibleGroups,
 } from '@/lib/table/deps'
 import { sanitizeName } from '@/lib/table/import'
+import { toast } from '@/lib/toast/sink'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import { uploadFileSession } from '@/lib/uploads/client/upload-session'
 import { useTimezone } from '@/hooks/queries/general-settings'

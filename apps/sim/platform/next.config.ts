@@ -13,7 +13,6 @@ function readBasePath(value: string | undefined): string | undefined {
 
 const basePath = readBasePath(process.env.SIM_PLATFORM_BASE_PATH)
 const apiOrigin = process.env.SIM_PLATFORM_API_ORIGIN
-const emcnShim = path.join(import.meta.dirname, 'lib/data/emcn-shim.ts')
 /**
  * Modules the chat hook reaches that the zone answers more cheaply. Each shim says what it drops. The
  * workflow stores are real: the Workflows tab's canvas hydrates them in the same bundle.
@@ -78,8 +77,6 @@ const config: NextConfig = {
     if (!isServer) {
       webpackConfig.plugins.push(new webpack.IgnorePlugin({ resourceRegExp: /^node:async_hooks$/ }))
     }
-    // Only the legacy barrel is shimmed; shared foundation subpaths remain independently importable.
-    webpackConfig.resolve.alias['@sim/emcn-legacy$'] = emcnShim
     // pdf.js ships a webpack bundle whose top-level `var __webpack_exports__` shadows webpack's own
     // module parameter when it is bundled again; the minified build mangles that name. The legacy
     // build matches the self-polyfilling worker the PDF viewer loads.

@@ -1,4 +1,3 @@
-import { toast } from '@sim/emcn-legacy'
 import { getErrorMessage } from '@sim/utils/errors'
 import {
   keepPreviousData,
@@ -27,6 +26,7 @@ import {
   resendInvitationContract,
 } from '@/lib/api/contracts/invitations'
 import { updateWorkspacePermissionsContract } from '@/lib/api/contracts/workspaces'
+import { toast } from '@/lib/toast/sink'
 import { organizationKeys } from '@/hooks/queries/organization'
 import { refreshSessionQuery } from '@/hooks/queries/session'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'

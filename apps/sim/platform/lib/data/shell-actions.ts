@@ -12,6 +12,7 @@ import {
   validateHelpImage,
 } from '@/lib/help/request'
 import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
+import { toast } from '@/lib/toast/sink'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
 import { useRenameOrganization } from '@/hooks/queries/organization'
 import { useUploadOrganizationLogo } from '@/hooks/queries/organization-logo'
@@ -25,7 +26,6 @@ import type { PlatformOrganization } from '@/platform/lib/data/organization-mode
 import { signOutAndLeave } from '@/platform/lib/data/session'
 import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
 import type { ShellDestination } from '@/platform/shared/shell'
-import { toast } from '@/platform/shared/toast'
 
 function useOrganizationActions(organization: PlatformOrganization): ShellOrganizationActions {
   const router = useRouter()

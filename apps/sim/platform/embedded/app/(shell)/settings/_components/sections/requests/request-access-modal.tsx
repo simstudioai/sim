@@ -4,13 +4,13 @@ import { useState } from 'react'
 import { TextAreaField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
+import { toast } from '@/lib/toast/sink'
 import { RequestText } from '@/platform/embedded/app/(shell)/settings/_components/sections/requests/request-text'
 import {
   type RequestScope,
   type RequestTarget,
   useRequestAccess,
 } from '@/platform/embedded/lib/data/requests'
-import { toast } from '@/platform/shared/toast'
 
 interface RequestAccessModalProps {
   scope: RequestScope

@@ -6,6 +6,7 @@ import { CopyField } from '@sim/emcn/field/value-fields'
 import { PropertyList } from '@sim/emcn/property-list'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import type { SsoProviderView } from '@/lib/api/contracts/auth'
+import { toast } from '@/lib/toast/sink'
 import { ssoFormFromProvider, ssoProviderCallbackUrl } from '@/ee/sso/lib/provider-form'
 import {
   DetailHeader,
@@ -14,7 +15,6 @@ import {
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { ProviderForm } from '@/platform/embedded/app/(shell)/settings/_components/sections/sso/provider-form'
 import { useSsoOrigin } from '@/platform/embedded/lib/data/sso/params'
-import { toast } from '@/platform/shared/toast'
 
 interface ProviderDetailProps {
   organizationId: string

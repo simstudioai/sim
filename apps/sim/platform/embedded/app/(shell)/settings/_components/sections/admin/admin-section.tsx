@@ -12,6 +12,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { InlineNotice, StatusTag } from '@sim/emcn/status'
 import { Switch } from '@sim/emcn/switch'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   ADMIN_PAGE_SIZE,
   MOTHERSHIP_ENV_OPTIONS,
@@ -26,7 +27,6 @@ import {
   SectionStack,
 } from '@/platform/embedded/app/(shell)/_components/section-parts/section-parts'
 import { AddUserModal } from '@/platform/embedded/app/(shell)/settings/_components/sections/admin/add-user-modal'
-import { toast } from '@/platform/shared/toast'
 
 const USER_COLUMNS = [
   { key: 'name', label: 'Name', kind: 'text', showFrom: 'compact' },

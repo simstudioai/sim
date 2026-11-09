@@ -11,6 +11,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { StatusTag } from '@sim/emcn/status'
 import { parseAsInteger, parseAsString, useQueryStates } from 'nuqs'
+import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   FieldStack,
@@ -22,7 +23,6 @@ import type {
   AdminExample,
   DirectoryUser,
 } from '@/platform/app/(shell)/settings/_components/sections/admin/model'
-import { toast } from '@/platform/shared/toast'
 
 const SEARCH_PARAMS = {
   q: parseAsString.withDefault(''),

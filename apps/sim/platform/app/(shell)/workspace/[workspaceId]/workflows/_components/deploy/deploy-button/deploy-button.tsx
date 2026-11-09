@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/platform/app/(shell)/_components/command-menu/page-commands'
 import {
   DeployModal,
@@ -25,7 +26,6 @@ import {
   useWorkflowMap,
   useWorkflowRegistry,
 } from '@/platform/lib/data/workflows'
-import { toast } from '@/platform/shared/toast'
 
 interface DeployButtonProps {
   workspaceId: string

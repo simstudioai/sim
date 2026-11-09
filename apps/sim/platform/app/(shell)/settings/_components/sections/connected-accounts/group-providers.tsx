@@ -14,6 +14,7 @@ import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { parseAsString, useQueryState } from 'nuqs'
+import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   FieldStack,
@@ -25,7 +26,6 @@ import type {
   DatabricksConfiguration,
 } from '@/platform/app/(shell)/settings/_components/sections/connected-accounts/model'
 import { platformHref } from '@/platform/lib/navigation'
-import { toast } from '@/platform/shared/toast'
 
 interface GroupProvidersProps {
   databricks?: DatabricksConfiguration

@@ -6,6 +6,7 @@ import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
+import { toast } from '@/lib/toast/sink'
 import { CodeField } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/code-field'
 import { highlightSyntax } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/code-field/highlight'
 import { GeneratePrompt } from '@/platform/app/(shell)/workspace/[workspaceId]/workflows/_components/editor/generate-prompt/generate-prompt'
@@ -26,7 +27,6 @@ import {
   useUpdateCustomTool,
   validateCustomToolSchema,
 } from '@/platform/lib/data/workflow-editor/tool-input'
-import { toast } from '@/platform/shared/toast'
 
 const DELETE_DESCRIPTION =
   'This will permanently delete the tool and remove it from any workflows that are using it. This action cannot be undone.'

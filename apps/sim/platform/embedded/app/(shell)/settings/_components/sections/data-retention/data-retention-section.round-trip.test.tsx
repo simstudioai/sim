@@ -64,9 +64,9 @@ vi.mock(
   })
 )
 
+import { toast } from '@/lib/toast/sink'
 import type { SettingsSectionProps } from '@/platform/embedded/app/(shell)/settings/_components/section-registry'
 import DataRetentionSection from '@/platform/embedded/app/(shell)/settings/_components/sections/data-retention/data-retention-section'
-import { toast } from '@/platform/shared/toast'
 
 const days = (count: number) => count * 24
 

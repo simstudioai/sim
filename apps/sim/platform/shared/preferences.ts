@@ -11,12 +11,12 @@ import {
   getBrowserTelemetryPreference,
   setBrowserTelemetryPreference,
 } from '@/lib/telemetry/browser-preference'
+import { toast } from '@/lib/toast/sink'
 import type { GeneralSettings } from '@/hooks/queries/current-user-data'
 import { useGeneralSettings, useUpdateGeneralSetting } from '@/hooks/queries/general-settings'
 import { useUpdateUserProfile, useUserProfile } from '@/hooks/queries/user-profile'
 import { useProfilePictureUpload } from '@/hooks/use-profile-picture-upload'
 import { queryView } from '@/platform/shared/query-view'
-import { toast } from '@/platform/shared/toast'
 
 const SNAP_TO_GRID_VALUES = [0, 10, 20, 30, 40, 50] as const
 

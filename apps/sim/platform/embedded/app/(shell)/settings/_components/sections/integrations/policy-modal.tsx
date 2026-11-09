@@ -19,6 +19,7 @@ import {
   normalizeLiveSearchPolicy,
 } from '@/lib/sim-search/live/policy-schema'
 import { searchSetupParam, serializeSearchSetup } from '@/lib/sim-search/params'
+import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   Muted,
@@ -27,7 +28,6 @@ import {
   useSearchPolicySave,
   useServiceAccountConnections,
 } from '@/platform/embedded/lib/data/integrations'
-import { toast } from '@/platform/shared/toast'
 
 interface PolicyModalProps {
   organizationId: string

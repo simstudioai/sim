@@ -13,6 +13,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { toast } from '@/lib/toast/sink'
 import { ControlBar } from '@/platform/app/(shell)/_components/control-bar/control-bar'
 import {
   type ResourceColumn,
@@ -61,7 +62,6 @@ import {
 } from '@/platform/lib/data/knowledge'
 import { folderChain } from '@/platform/lib/folder-chain'
 import { publicAssetPath } from '@/platform/lib/navigation'
-import { toast } from '@/platform/shared/toast'
 
 /** Chunk search feels snappier than the shared window, as it does on the legacy page. */
 const SEARCH_DEBOUNCE_MS = 200

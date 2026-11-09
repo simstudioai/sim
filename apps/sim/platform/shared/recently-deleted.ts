@@ -1,5 +1,6 @@
 'use client'
 
+import { toast } from '@/lib/toast/sink'
 import {
   useOrganizationMothershipChats,
   useRestoreMothershipChat,
@@ -7,7 +8,6 @@ import {
 import { useSettingsSearch } from '@/hooks/use-settings-search'
 import { queryView } from '@/platform/shared/query-view'
 import { formatInstantDate } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 export function useDeletedChats(organizationId: string) {
   const [search, setSearch] = useSettingsSearch()

@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { toast } from '@/platform/shared/toast'
+import { toast } from '@/lib/toast/sink'
 
 interface Notice {
   id: string

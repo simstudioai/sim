@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { pasteRejectionLimit } from '@/lib/core/utils/paste-admission'
-import { toast } from '@/platform/shared/toast'
+import { toast } from '@/lib/toast/sink'
 
 /**
  * The main app's last-resort paste admission, for the zone's editable fields: the capture listener

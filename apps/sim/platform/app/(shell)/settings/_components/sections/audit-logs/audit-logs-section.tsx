@@ -12,6 +12,7 @@ import { LoadMoreFooter } from '@sim/emcn/scroll-area/load-more-footer'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   Muted,
@@ -34,7 +35,6 @@ import {
   useAuditLogFeed,
 } from '@/platform/lib/data/audit-logs'
 import { formatTimestamp } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 type AuditEntry = ReturnType<typeof useAuditLogFeed>['entries'][number]
 

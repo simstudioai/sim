@@ -10,6 +10,7 @@ import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { SettingsSection } from '@sim/emcn/settings-section'
 import { getErrorMessage } from '@sim/utils/errors'
+import { toast } from '@/lib/toast/sink'
 import {
   ActionRow,
   DetailHeader,
@@ -36,7 +37,6 @@ import {
   useSsoOrigin,
   validateSsoProviderForm,
 } from '@/platform/lib/data/sso'
-import { toast } from '@/platform/shared/toast'
 
 const PROVIDER_TYPE_OPTIONS = [
   { label: 'OIDC', value: 'oidc' },

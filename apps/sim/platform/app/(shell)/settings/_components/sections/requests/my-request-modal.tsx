@@ -3,8 +3,8 @@
 import { DetailsField } from '@sim/emcn/field/details-field'
 import { Modal } from '@sim/emcn/modal'
 import { FailureNotice, StatusTag } from '@sim/emcn/status'
+import { toast } from '@/lib/toast/sink'
 import { type RequestScope, useRequestDetails } from '@/platform/lib/data/requests'
-import { toast } from '@/platform/shared/toast'
 
 interface MyRequestModalProps {
   scope: RequestScope

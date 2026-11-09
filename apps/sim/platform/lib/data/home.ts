@@ -10,6 +10,7 @@ import {
   memberIntegrationEntries,
 } from '@/lib/credential-groups/member-integrations'
 import { hasSearchIntegrationReady } from '@/lib/credential-groups/search-readiness'
+import { toast } from '@/lib/toast/sink'
 import { useOrganizationAccessRequests } from '@/hooks/queries/access-requests'
 import { useOrganizationMothershipChats } from '@/hooks/queries/mothership-chats'
 import { useHasSearchAuthorization } from '@/hooks/queries/oauth-provider'
@@ -68,7 +69,6 @@ import type {
 import { homeDayParam } from '@/platform/shared/home-params'
 import { isRefusal } from '@/platform/shared/query-view'
 import { MINUTE_MS } from '@/platform/shared/time'
-import { toast } from '@/platform/shared/toast'
 
 /** Long enough to fit the 7, 30 and 90 day chart windows in one read of daily buckets. */
 const ACTIVITY_DAYS = 90
