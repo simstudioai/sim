@@ -150,7 +150,11 @@ export function ChatsSection({ chats, status, activeChat, actions, navigate }: C
   /** A removal that only partly lands narrows the dialog to what is left and reports the rest. */
   async function confirmRemoval(targets: readonly ShellChat[]) {
     const { removedIds, failure } = await actions.remove(targets.map((chat) => chat.id))
-    if (activeChat && removedIds.includes(activeChat)) navigate(surfaceHref(scope, '/home'))
+    const removedActive = targets.find(
+      (chat) => chat.id === activeChat && removedIds.includes(chat.id)
+    )
+    if (removedActive)
+      navigate(surfaceHref(scope, removedActive.mode === 'assistant' ? '/search' : '/home'))
     if (!failure) {
       setSelected(NO_SELECTION)
       return
