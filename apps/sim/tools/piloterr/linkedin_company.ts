@@ -1,19 +1,38 @@
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
-import { toArray, toRecord } from '@sim/utils/object'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   PiloterrLinkedinCompanyLink,
   PiloterrLinkedinCompanyParams,
   PiloterrLinkedinCompanyResponse,
+  PiloterrLinkedinHeadquarter,
 } from '@/tools/piloterr/types'
 import {
   PILOTERR_LINKEDIN_COMPANY_LINK_OUTPUT_PROPERTIES,
   PILOTERR_LINKEDIN_HEADQUARTER_OUTPUT_PROPERTIES,
 } from '@/tools/piloterr/types'
-import {
-  mapPiloterrLinkedinCompanyLink,
-  mapPiloterrLinkedinHeadquarter,
-} from '@/tools/piloterr/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `PiloterrLinkedinHeadquarter` from an untyped Piloterr API payload. */
+function mapPiloterrLinkedinHeadquarter(value: unknown): PiloterrLinkedinHeadquarter | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    line1: toStringOrNull(record.line1),
+    city: toStringOrNull(record.city),
+    postalCode: toStringOrNull(record.postal_code),
+    country: toStringOrNull(record.country),
+  }
+}
+
+/** Reads a `PiloterrLinkedinCompanyLink` from an untyped Piloterr API payload. */
+function mapPiloterrLinkedinCompanyLink(value: unknown): PiloterrLinkedinCompanyLink | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    companyName: toStringOrNull(record.company_name),
+    companyUrl: toStringOrNull(record.company_url),
+  }
+}
 
 export const piloterrLinkedinCompanyTool: ToolConfig<
   PiloterrLinkedinCompanyParams,

@@ -1,13 +1,34 @@
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
-import { toArray, toRecord } from '@sim/utils/object'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   PiloterrEbayListing,
   PiloterrEbaySearchParams,
   PiloterrEbaySearchResponse,
 } from '@/tools/piloterr/types'
 import { PILOTERR_EBAY_LISTING_OUTPUT_PROPERTIES } from '@/tools/piloterr/types'
-import { mapPiloterrEbayListing } from '@/tools/piloterr/utils'
+import { mapPiloterrEbaySeller } from '@/tools/piloterr/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `PiloterrEbayListing` from an untyped Piloterr API payload. */
+function mapPiloterrEbayListing(value: unknown): PiloterrEbayListing | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    position: toNumberOrNull(record.position),
+    itemId: toStringOrNull(record.item_id),
+    title: toStringOrNull(record.title),
+    subtitle: toStringOrNull(record.subtitle),
+    url: toStringOrNull(record.url),
+    price: toNumberOrNull(record.price),
+    currency: toStringOrNull(record.currency),
+    priceDisplay: toStringOrNull(record.price_display),
+    condition: toStringOrNull(record.condition),
+    buyingFormat: toStringOrNull(record.buying_format),
+    shipping: toStringOrNull(record.shipping),
+    imageUrl: toStringOrNull(record.image_url),
+    seller: mapPiloterrEbaySeller(record.seller),
+  }
+}
 
 export const piloterrEbaySearchTool: ToolConfig<
   PiloterrEbaySearchParams,

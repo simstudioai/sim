@@ -305,31 +305,32 @@ export const PiloterrBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => `piloterr_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = context?.operation ?? params.operation
         const result: Record<string, unknown> = {}
-        if (params.operation === 'render_html') {
+        if (operation === 'render_html') {
           result.waitInSeconds = parseOptionalNumberInput(params.waitInSeconds, 'Wait', { min: 0 })
         }
-        if (params.operation === 'screenshot') {
+        if (operation === 'screenshot') {
           result.viewportWidth = parseOptionalNumberInput(params.viewportWidth, 'Viewport Width', {
             integer: true,
             min: 1,
           })
         }
-        if (params.operation === 'screenshot') {
+        if (operation === 'screenshot') {
           result.viewportHeight = parseOptionalNumberInput(
             params.viewportHeight,
             'Viewport Height',
             { integer: true, min: 1 }
           )
         }
-        if (params.operation === 'screenshot') {
+        if (operation === 'screenshot') {
           result.delay = parseOptionalNumberInput(params.delay, 'Delay', { min: 0 })
         }
-        if (['google_search', 'amazon_search', 'ebay_search'].includes(params.operation)) {
+        if (['google_search', 'amazon_search', 'ebay_search'].includes(operation)) {
           result.page = parseOptionalNumberInput(params.page, 'Page', { integer: true, min: 1 })
         }
-        if (params.operation === 'google_search') {
+        if (operation === 'google_search') {
           result.numResults = parseOptionalNumberInput(params.numResults, 'Results per Page', {
             integer: true,
             min: 1,

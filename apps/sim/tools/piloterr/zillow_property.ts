@@ -1,13 +1,22 @@
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
-import { toArray, toRecord } from '@sim/utils/object'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   PiloterrZillowPhoto,
   PiloterrZillowPropertyParams,
   PiloterrZillowPropertyResponse,
 } from '@/tools/piloterr/types'
 import { PILOTERR_ZILLOW_PHOTO_OUTPUT_PROPERTIES } from '@/tools/piloterr/types'
-import { mapPiloterrZillowPhoto } from '@/tools/piloterr/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `PiloterrZillowPhoto` from an untyped Piloterr API payload. */
+function mapPiloterrZillowPhoto(value: unknown): PiloterrZillowPhoto | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    url: toStringOrNull(record.url),
+    width: toNumberOrNull(record.width),
+  }
+}
 
 export const piloterrZillowPropertyTool: ToolConfig<
   PiloterrZillowPropertyParams,

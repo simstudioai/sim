@@ -1,13 +1,27 @@
-import { toBooleanOrNull, toNumberOrNull } from '@sim/utils/coerce'
-import { toArray, toRecord } from '@sim/utils/object'
+import { toBooleanOrNull, toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   PiloterrGoogleSearchParams,
   PiloterrGoogleSearchResponse,
   PiloterrSearchResult,
 } from '@/tools/piloterr/types'
 import { PILOTERR_SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/piloterr/types'
-import { mapPiloterrSearchResult } from '@/tools/piloterr/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `PiloterrSearchResult` from an untyped Piloterr API payload. */
+function mapPiloterrSearchResult(value: unknown): PiloterrSearchResult | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    position: toNumberOrNull(record.position),
+    title: toStringOrNull(record.title),
+    link: toStringOrNull(record.link),
+    domain: toStringOrNull(record.domain),
+    displayedLink: toStringOrNull(record.displayed_link),
+    source: toStringOrNull(record.source),
+    snippet: toStringOrNull(record.snippet),
+  }
+}
 
 export const piloterrGoogleSearchTool: ToolConfig<
   PiloterrGoogleSearchParams,
@@ -16,7 +30,7 @@ export const piloterrGoogleSearchTool: ToolConfig<
   id: 'piloterr_google_search',
   name: 'Piloterr Google Search',
   description:
-    'Search Google and get organic results with their position, title, link and snippet, the knowledge graph and the estimated total.',
+    'Search Google and get organic results with their position, title, link and snippet, and the estimated total.',
   version: '1.0.0',
 
   params: {

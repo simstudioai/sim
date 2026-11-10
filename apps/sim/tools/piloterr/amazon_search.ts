@@ -1,12 +1,27 @@
-import { toArray } from '@sim/utils/object'
+import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { toArray, toRecordOrNull } from '@sim/utils/object'
 import type {
   PiloterrAmazonProduct,
   PiloterrAmazonSearchParams,
   PiloterrAmazonSearchResponse,
 } from '@/tools/piloterr/types'
 import { PILOTERR_AMAZON_PRODUCT_OUTPUT_PROPERTIES } from '@/tools/piloterr/types'
-import { mapPiloterrAmazonProduct } from '@/tools/piloterr/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `PiloterrAmazonProduct` from an untyped Piloterr API payload. */
+function mapPiloterrAmazonProduct(value: unknown): PiloterrAmazonProduct | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    asin: toStringOrNull(record.asin),
+    title: toStringOrNull(record.title),
+    url: toStringOrNull(record.url),
+    price: toNumberOrNull(record.price),
+    realPrice: toNumberOrNull(record.real_price),
+    rating: toNumberOrNull(record.rating),
+    reviewsCount: toNumberOrNull(record.reviews_count),
+  }
+}
 
 export const piloterrAmazonSearchTool: ToolConfig<
   PiloterrAmazonSearchParams,

@@ -1,12 +1,40 @@
-import { toArray, toRecord } from '@sim/utils/object'
+import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   PiloterrDetectTechnologiesParams,
   PiloterrDetectTechnologiesResponse,
   PiloterrTechnology,
+  PiloterrTechnologyCategory,
 } from '@/tools/piloterr/types'
 import { PILOTERR_TECHNOLOGY_OUTPUT_PROPERTIES } from '@/tools/piloterr/types'
-import { mapPiloterrTechnology } from '@/tools/piloterr/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `PiloterrTechnologyCategory` from an untyped Piloterr API payload. */
+function mapPiloterrTechnologyCategory(value: unknown): PiloterrTechnologyCategory | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    name: toStringOrNull(record.name),
+    slug: toStringOrNull(record.slug),
+  }
+}
+
+/** Reads a `PiloterrTechnology` from an untyped Piloterr API payload. */
+function mapPiloterrTechnology(value: unknown): PiloterrTechnology | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    name: toStringOrNull(record.name),
+    slug: toStringOrNull(record.slug),
+    version: toStringOrNull(record.version),
+    website: toStringOrNull(record.website),
+    description: toStringOrNull(record.description),
+    confidence: toNumberOrNull(record.confidence),
+    categories: toArray(record.categories)
+      .map(mapPiloterrTechnologyCategory)
+      .filter((item): item is PiloterrTechnologyCategory => item !== null),
+  }
+}
 
 export const piloterrDetectTechnologiesTool: ToolConfig<
   PiloterrDetectTechnologiesParams,

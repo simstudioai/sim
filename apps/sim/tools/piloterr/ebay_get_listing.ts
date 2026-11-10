@@ -1,5 +1,5 @@
 import { toBooleanOrNull, toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
-import { toArray, toRecord } from '@sim/utils/object'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   PiloterrEbayGetListingParams,
   PiloterrEbayGetListingResponse,
@@ -9,8 +9,18 @@ import {
   PILOTERR_EBAY_SELLER_OUTPUT_PROPERTIES,
   PILOTERR_EBAY_SPECIFICATION_OUTPUT_PROPERTIES,
 } from '@/tools/piloterr/types'
-import { mapPiloterrEbaySeller, mapPiloterrEbaySpecification } from '@/tools/piloterr/utils'
+import { mapPiloterrEbaySeller } from '@/tools/piloterr/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `PiloterrEbaySpecification` from an untyped Piloterr API payload. */
+function mapPiloterrEbaySpecification(value: unknown): PiloterrEbaySpecification | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    name: toStringOrNull(record.name),
+    value: toStringOrNull(record.value),
+  }
+}
 
 export const piloterrEbayGetListingTool: ToolConfig<
   PiloterrEbayGetListingParams,

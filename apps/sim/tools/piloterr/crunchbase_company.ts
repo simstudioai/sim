@@ -1,5 +1,5 @@
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
-import { toArray, toRecord } from '@sim/utils/object'
+import { toArray, toRecord, toRecordOrNull } from '@sim/utils/object'
 import type {
   PiloterrCrunchbaseCategory,
   PiloterrCrunchbaseCompanyParams,
@@ -14,13 +14,48 @@ import {
   PILOTERR_CRUNCHBASE_LOCATION_OUTPUT_PROPERTIES,
   PILOTERR_CRUNCHBASE_PRODUCT_OUTPUT_PROPERTIES,
 } from '@/tools/piloterr/types'
-import {
-  mapPiloterrCrunchbaseCategory,
-  mapPiloterrCrunchbaseInvestor,
-  mapPiloterrCrunchbaseLocation,
-  mapPiloterrCrunchbaseProduct,
-} from '@/tools/piloterr/utils'
 import type { ToolConfig } from '@/tools/types'
+
+/** Reads a `PiloterrCrunchbaseCategory` from an untyped Piloterr API payload. */
+function mapPiloterrCrunchbaseCategory(value: unknown): PiloterrCrunchbaseCategory | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    name: toStringOrNull(record.name),
+    permalink: toStringOrNull(record.permalink),
+  }
+}
+
+/** Reads a `PiloterrCrunchbaseLocation` from an untyped Piloterr API payload. */
+function mapPiloterrCrunchbaseLocation(value: unknown): PiloterrCrunchbaseLocation | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    name: toStringOrNull(record.name),
+    type: toStringOrNull(record.type),
+  }
+}
+
+/** Reads a `PiloterrCrunchbaseInvestor` from an untyped Piloterr API payload. */
+function mapPiloterrCrunchbaseInvestor(value: unknown): PiloterrCrunchbaseInvestor | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    name: toStringOrNull(toRecord(record.investor_identifier).value),
+    permalink: toStringOrNull(toRecord(record.investor_identifier).permalink),
+    fundingRound: toStringOrNull(toRecord(record.funding_round_identifier).value),
+  }
+}
+
+/** Reads a `PiloterrCrunchbaseProduct` from an untyped Piloterr API payload. */
+function mapPiloterrCrunchbaseProduct(value: unknown): PiloterrCrunchbaseProduct | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    name: toStringOrNull(record.name),
+    description: toStringOrNull(record.description),
+  }
+}
 
 export const piloterrCrunchbaseCompanyTool: ToolConfig<
   PiloterrCrunchbaseCompanyParams,
