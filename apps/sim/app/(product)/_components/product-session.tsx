@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
 import { useSearchParams } from 'next/navigation'
 import { SuggestionListProvider } from '@/components/file-viewer/rich-markdown-editor/suggestion-list'
@@ -42,6 +42,11 @@ interface SessionTreeProps extends SessionFrameProps {
   theme: Appearance
   /** Example data: its scenario resets the session's preferences and edits. */
   scenario?: Scenario
+  /**
+   * Example data's session edits. They wrap the shell, not the page, because the shell remounts a
+   * scrolling page on every navigation.
+   */
+  Edits?: ComponentType<{ children: ReactNode }>
 }
 
 function SessionTree({
@@ -52,7 +57,13 @@ function SessionTree({
   data,
   theme,
   scenario,
+  Edits,
 }: SessionTreeProps) {
+  const shell = (
+    <PlatformShell data={data} banner={banner}>
+      {children}
+    </PlatformShell>
+  )
   return (
     <SurfaceScopeProvider routePrefix={routePrefix}>
       <InterfacePreferences key={scenario}>
@@ -64,9 +75,7 @@ function SessionTree({
                 <ComposerSession>
                   <PlatformSurface theme={theme}>
                     <SuggestionListProvider list={EditorSuggestions}>
-                      <PlatformShell data={data} banner={banner}>
-                        {children}
-                      </PlatformShell>
+                      {Edits ? <Edits>{shell}</Edits> : shell}
                     </SuggestionListProvider>
                   </PlatformSurface>
                 </ComposerSession>
@@ -76,6 +85,14 @@ function SessionTree({
         </SidebarLayout>
       </InterfacePreferences>
     </SurfaceScopeProvider>
+  )
+}
+
+function FixtureEdits({ children }: { children: ReactNode }) {
+  return (
+    <IntegrationChanges>
+      <IntegrationCenterChanges>{children}</IntegrationCenterChanges>
+    </IntegrationChanges>
   )
 }
 
@@ -109,10 +126,9 @@ export function FixtureProductSession({
       }}
       theme={readAppearance(search.get('theme'))}
       scenario={scenario}
+      Edits={FixtureEdits}
     >
-      <IntegrationChanges>
-        <IntegrationCenterChanges>{children}</IntegrationCenterChanges>
-      </IntegrationChanges>
+      {children}
     </SessionTree>
   )
 }
