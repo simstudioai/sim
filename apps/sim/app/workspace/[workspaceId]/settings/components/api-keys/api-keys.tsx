@@ -49,8 +49,12 @@ function formatLastUsed(dateString?: string | null): string {
   return formatDate(new Date(dateString))
 }
 
+interface ApiKeyRowBadgeProps {
+  apiKey: ApiKey
+}
+
 /** The row caption: last use and expiry, after a tag when the key is read-only. */
-function ApiKeyRowBadge({ apiKey }: { apiKey: ApiKey }) {
+function ApiKeyRowBadge({ apiKey }: ApiKeyRowBadgeProps) {
   const parts = [`last used ${formatLastUsed(apiKey.lastUsed).toLowerCase()}`]
   if (apiKey.expiresAt) {
     const expiresAt = new Date(apiKey.expiresAt)
