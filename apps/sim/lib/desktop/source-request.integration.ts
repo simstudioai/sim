@@ -73,7 +73,12 @@ describe.skipIf(!redisUrl)('desktop source request transport', () => {
   it('rejects non-session callers and oversized requests', async () => {
     await expect(
       createDesktopSourceRequest.execute({
-        principal: { kind: 'workspace_api_key', workspaceId: generateId(), keyId: generateId() },
+        principal: {
+          kind: 'workspace_api_key',
+          workspaceId: generateId(),
+          keyId: generateId(),
+          access: 'write',
+        },
         input: { requestId: generateShortId(32), payload: '{}' },
       })
     ).rejects.toThrow('Session authentication required')

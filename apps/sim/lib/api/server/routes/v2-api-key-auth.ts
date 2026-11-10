@@ -1,5 +1,6 @@
 import {
   ANONYMOUS_USER_ID,
+  type ApiKeyAccess,
   type OAuthAccessTokenPrincipal,
   type PersonalApiKeyPrincipal,
   type WorkspaceApiKeyPrincipal,
@@ -10,6 +11,7 @@ import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
 import type { V2CredentialHeaders } from '@/lib/api/server/routes/v2-credential-headers'
 import { hashApiKey } from '@/lib/api-key/crypto'
+import { API_KEY_EXPIRED } from '@/lib/api-key/policy-messages'
 import { updateApiKeyLastUsed } from '@/lib/api-key/service'
 import {
   InvalidOAuthAccessTokenError,
@@ -73,14 +75,16 @@ interface ApiKeyRow {
   userId: string
   workspaceId: string | null
   type: string
+  access: ApiKeyAccess
   expiresAt: Date | null
   userBanned: boolean | null
   userSuspendedAt: Date | null
 }
 
 function requireValidRow(row: ApiKeyRow | undefined): ApiKeyRow {
-  if (!row || (row.expiresAt && row.expiresAt < new Date())) {
-    throw new V2ApiKeyUnauthenticatedError()
+  if (!row) throw new V2ApiKeyUnauthenticatedError()
+  if (row.expiresAt && row.expiresAt < new Date()) {
+    throw new V2ApiKeyUnauthenticatedError(API_KEY_EXPIRED)
   }
   if (row.type === 'personal' && row.workspaceId === null) {
     if (row.userBanned === null) {
@@ -110,6 +114,7 @@ async function authenticateApiKey(apiKeyHeader: string): Promise<V2ApiKeyAuthCon
       userId: apiKey.userId,
       workspaceId: apiKey.workspaceId,
       type: apiKey.type,
+      access: apiKey.access,
       expiresAt: apiKey.expiresAt,
       userBanned: user.banned,
       userSuspendedAt: user.suspendedAt,
@@ -125,7 +130,12 @@ async function authenticateApiKey(apiKeyHeader: string): Promise<V2ApiKeyAuthCon
 
   if (row.type === 'personal') {
     return {
-      principal: { kind: 'personal_api_key', userId: row.userId, keyId: row.id },
+      principal: {
+        kind: 'personal_api_key',
+        userId: row.userId,
+        keyId: row.id,
+        access: row.access,
+      },
       rateLimitSubjectIds: [`api-key:${row.id}`, `user:${row.userId}`],
       rateLimitSubscription: await personalSubscription(row.userId),
       keyType: 'personal',
@@ -142,7 +152,7 @@ async function authenticateApiKey(apiKeyHeader: string): Promise<V2ApiKeyAuthCon
     throw new Error(`Workspace ${workspaceId} is missing its billing owner`)
   }
   return {
-    principal: { kind: 'workspace_api_key', workspaceId, keyId: row.id },
+    principal: { kind: 'workspace_api_key', workspaceId, keyId: row.id, access: row.access },
     rateLimitSubjectIds: [`api-key:${row.id}`, `workspace:${workspaceId}`],
     rateLimitSubscription: payer.payerSubscription
       ? {
@@ -203,6 +213,7 @@ export async function authenticateV2ApiKey(
         kind: 'personal_api_key',
         userId: ANONYMOUS_USER_ID,
         keyId: 'auth-disabled',
+        access: 'write',
       },
       rateLimitSubjectIds: [`user:${ANONYMOUS_USER_ID}`],
       rateLimitSubscription: null,

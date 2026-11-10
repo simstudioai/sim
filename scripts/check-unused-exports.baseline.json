@@ -1153,7 +1153,6 @@
   "apps/sim/lib/api-key/auth.ts#formatApiKeyForDisplay",
   "apps/sim/lib/api-key/auth.ts#getApiKeyLast4",
   "apps/sim/lib/api-key/byok-entitlement.ts#ORGANIZATION_BYOK_ENTITLEMENT_TTL_MS",
-  "apps/sim/lib/api-key/orchestration/index.ts#ApiKeyOrchestrationErrorCode",
   "apps/sim/lib/api-key/orchestration/index.ts#CreatedApiKey",
   "apps/sim/lib/api/contracts/access-requests.ts#ACCESS_REQUEST_MAX_PAGE_SIZE",
   "apps/sim/lib/api/contracts/access-requests.ts#AccessRequestDecision",

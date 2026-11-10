@@ -17,7 +17,11 @@ import {
   SUPPORTED_PROTOCOL_VERSIONS,
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js'
-import { isUserCredentialPrincipal, type WorkflowExecutionPrincipal } from '@sim/auth/principal'
+import {
+  isReadOnlyApiKeyPrincipal,
+  isUserCredentialPrincipal,
+  type WorkflowExecutionPrincipal,
+} from '@sim/auth/principal'
 import { db } from '@sim/db'
 import {
   workflow,
@@ -37,7 +41,7 @@ import {
   mcpServeRouteParamsSchema,
   mcpToolCallParamsSchema,
 } from '@/lib/api/contracts/mcp'
-import { PERSONAL_KEY_DENIED } from '@/lib/api-key/policy-messages'
+import { PERSONAL_KEY_DENIED, READ_ONLY_API_KEY_DENIED } from '@/lib/api-key/policy-messages'
 import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
 import {
   InvalidOAuthAccessTokenError,
@@ -604,13 +608,24 @@ async function authorizeMcpServeRequest(
   }
 }
 
-/** Calling a tool runs a workflow, so an OAuth token needs `api:write`. */
+/**
+ * Calling a tool runs a workflow, so an OAuth token needs `api:write` and a
+ * read-only API key is refused outright: it has no scope to step up to.
+ */
 function insufficientToolCallScopeResponse(
   id: RequestId,
   serverId: string,
   executeAuthContext: ExecuteAuthContext | null
 ): NextResponse | null {
   const principal = executeAuthContext?.principal
+  if (principal && isReadOnlyApiKeyPrincipal(principal)) {
+    return NextResponse.json(
+      createError(id, ErrorCode.InvalidRequest, READ_ONLY_API_KEY_DENIED, {
+        code: 'READ_ONLY_API_KEY',
+      }),
+      { status: 403 }
+    )
+  }
   if (principal?.kind !== 'oauth_access_token') return null
   if (oauthScopeSatisfies(principal.scopes, OAUTH_API_WRITE_SCOPE)) return null
   return insufficientScopeResponse(

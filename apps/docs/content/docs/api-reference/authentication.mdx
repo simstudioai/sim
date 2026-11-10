@@ -24,7 +24,7 @@ Workspace Admins can turn off **Allow personal API keys**. The workspace policy 
 ## Create and store a key [#generating-api-keys]
 
 1. Open **Account settings → Sim API keys** to create a personal key, or **Workspace settings → Sim API keys** to create a workspace key.
-2. Select **Create API key**, enter a name, and create it. Workspace-key creation requires workspace **Admin** access and the applicable key-management permission.
+2. Select **Create API key** and enter a name. Choose its **Access** and when it **Expires**, then create it. Workspace-key creation requires workspace **Admin** access and the applicable key-management permission.
 3. Copy the key and store it in a server-side environment variable such as `SIM_API_KEY`.
 
 <Callout type="warn">
@@ -32,6 +32,19 @@ Sim shows the complete key once, immediately after creation. Copy it before clos
 </Callout>
 
 Delete a key from the same settings page to revoke it. Update applications that used it with a replacement key.
+
+### Access [#key-access]
+
+| Access | Allows |
+| --- | --- |
+| **Full access** | Everything the key's identity can do: reads, changes, deploys, and workflow runs |
+| **Read only** | The operations the [`api:read` scope](#oauth-access-tokens) allows, including searches sent as POST requests |
+
+A read-only key cannot run, resume, or cancel workflows, or create, change, or delete anything. Those requests fail with `403` and `error.details.code` `READ_ONLY_API_KEY`. Access narrows a key; it never grants more than the key's identity already has. Access is fixed at creation, so create a new key to change it. Keys created before access levels existed have full access. Keys created from the deploy modal or for a workflow MCP server always have full access, because they exist to run workflows.
+
+### Expiration [#key-expiration]
+
+A key expires 30 days, 90 days, or 1 year after creation, or never. The settings page defaults to 90 days. After it expires, every request with the key fails with `401` and the message `API key has expired`; create a replacement before then. The key list shows each key's expiration date. `GET /api/v2/meta` reports the calling key's `expiresAt` and `scopes`.
 
 ## Send an API key [#using-api-keys]
 

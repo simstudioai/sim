@@ -1,9 +1,10 @@
-import type { OAuthAccessTokenPrincipal } from '@sim/auth/principal'
+import type { OAuthAccessTokenPrincipal, PersonalApiKeyPrincipal } from '@sim/auth/principal'
 import { describe, expect, it, vi } from 'vitest'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application/authorized-workspace-use-case'
 import {
   InsufficientScopeError,
   OAuthAccessTokenExpiredError,
+  ReadOnlyApiKeyError,
   requireOAuthOperationScope,
 } from '@/lib/core/application/oauth-authorization'
 import { defineOperation } from '@/lib/core/application/operation'
@@ -61,9 +62,45 @@ describe('semantic OAuth policy', () => {
     ).not.toThrow()
     expect(() =>
       requireOAuthOperationScope(
-        { kind: 'personal_api_key', userId: 'user-1', keyId: 'k-1' },
+        { kind: 'personal_api_key', userId: 'user-1', keyId: 'k-1', access: 'write' },
         writeOperation
       )
+    ).not.toThrow()
+  })
+
+  it('holds a read-only key to api:read and refuses an operation that declares no scope', () => {
+    const readKey: PersonalApiKeyPrincipal = {
+      kind: 'personal_api_key',
+      userId: 'user-1',
+      keyId: 'k-1',
+      access: 'read',
+    }
+    const unscopedOperation = defineWorkspaceOperation({
+      id: 'test.unscoped_key_operation',
+      capability: 'none',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      principalKinds: ['session', 'personal_api_key'],
+    })
+
+    for (const oauthScope of ['api:read', 'search:read'] as const) {
+      expect(() =>
+        requireOAuthOperationScope(readKey, { ...writeOperation, oauthScope })
+      ).not.toThrow()
+    }
+    for (const operation of [writeOperation, unscopedOperation]) {
+      let refusal: unknown
+      try {
+        requireOAuthOperationScope(readKey, operation)
+      } catch (error) {
+        refusal = error
+      }
+      expect(refusal).toBeInstanceOf(ReadOnlyApiKeyError)
+      expect(refusal).not.toBeInstanceOf(InsufficientScopeError)
+      expect(refusal).toMatchObject({ detailCode: 'READ_ONLY_API_KEY' })
+    }
+    expect(() =>
+      requireOAuthOperationScope({ ...readKey, access: 'write' }, unscopedOperation)
     ).not.toThrow()
   })
 

@@ -2,6 +2,7 @@ import type { WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
 import { API_KEY_HEADER, BEARER_PREFIX } from '@/lib/api/server/credential-headers'
+import { API_KEY_EXPIRED } from '@/lib/api-key/policy-messages'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { getSession } from '@/lib/auth'
 import { type InternalSandboxProfile, verifyInternalToken } from '@/lib/auth/internal'
@@ -214,12 +215,17 @@ export async function checkHybridAuth(
       const apiKeyHeader = request.headers.get(API_KEY_HEADER) ?? ''
       const result = await authenticateApiKeyFromHeader(apiKeyHeader)
       if (result.success) {
-        if (!result.keyId || !result.keyType || !result.userId) {
+        if (!result.keyId || !result.keyType || !result.userId || !result.access) {
           throw new Error('API key authentication returned incomplete identity')
         }
         let principal: WorkflowExecutionPrincipal
         if (result.keyType === 'personal') {
-          principal = { kind: 'personal_api_key', userId: result.userId, keyId: result.keyId }
+          principal = {
+            kind: 'personal_api_key',
+            userId: result.userId,
+            keyId: result.keyId,
+            access: result.access,
+          }
         } else {
           if (!result.workspaceId) {
             throw new Error('Workspace API key authentication returned no workspace scope')
@@ -228,6 +234,7 @@ export async function checkHybridAuth(
             kind: 'workspace_api_key',
             workspaceId: result.workspaceId,
             keyId: result.keyId,
+            access: result.access,
           }
         }
         updateApiKeyLastUsed(result.keyId)
@@ -243,7 +250,7 @@ export async function checkHybridAuth(
 
       return {
         success: false,
-        error: 'Invalid API key',
+        error: result.error === API_KEY_EXPIRED ? API_KEY_EXPIRED : 'Invalid API key',
       }
     }
 

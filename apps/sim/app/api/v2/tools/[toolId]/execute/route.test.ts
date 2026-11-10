@@ -23,7 +23,12 @@ import { POST } from '@/app/api/v2/tools/[toolId]/execute/route'
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
 
 const auth = {
-  principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' },
+  principal: {
+    kind: 'personal_api_key' as const,
+    userId: 'user-1',
+    keyId: 'key-1',
+    access: 'write' as const,
+  },
   rateLimitSubjectIds: ['api-key:key-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,

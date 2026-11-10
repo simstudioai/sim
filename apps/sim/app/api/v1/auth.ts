@@ -29,6 +29,7 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
         kind: 'personal_api_key',
         userId: ANONYMOUS_USER_ID,
         keyId: 'auth-disabled',
+        access: 'write',
       },
     }
   }
@@ -53,7 +54,7 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
       }
     }
 
-    if (!result.keyId || !result.userId || !result.keyType) {
+    if (!result.keyId || !result.userId || !result.keyType || !result.access) {
       throw new Error('Authenticated v1 API key is missing its canonical identity')
     }
     let principal: PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipal
@@ -65,12 +66,14 @@ export async function authenticateV1Request(request: NextRequest): Promise<AuthR
         kind: 'workspace_api_key',
         workspaceId: result.workspaceId,
         keyId: result.keyId,
+        access: result.access,
       }
     } else {
       principal = {
         kind: 'personal_api_key',
         userId: result.userId,
         keyId: result.keyId,
+        access: result.access,
       }
     }
 

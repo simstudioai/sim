@@ -39,6 +39,7 @@ const auth = {
     kind: 'workspace_api_key' as const,
     workspaceId: WORKSPACE_ID,
     keyId: 'key-1',
+    access: 'write' as const,
   },
   rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
   rateLimitSubscription: null,
@@ -139,7 +140,7 @@ describe('POST /api/v2/credentials', () => {
   beforeEach(() => {
     v2RouteMocks.authenticate.mockResolvedValue({
       ...auth,
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1', access: 'write' },
       keyType: 'personal',
     })
     v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
@@ -184,7 +185,7 @@ describe('POST /api/v2/credentials', () => {
     expect(JSON.stringify(body)).not.toContain('client-secret')
     expect(JSON.stringify(body)).not.toContain('must-not-leak')
     expect(mocks.create).toHaveBeenCalledWith({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1', access: 'write' },
       input: {
         workspaceId: WORKSPACE_ID,
         providerId: 'zoom-service-account',
@@ -236,7 +237,7 @@ describe('POST /api/v2/credentials', () => {
 
     expect(response.status).toBe(201)
     expect(mocks.create).toHaveBeenCalledWith({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1', access: 'write' },
       input: expect.objectContaining({
         providerId: 'oci-api-key-service-account',
         tenancyOcid: 'ocid1.tenancy.oc1..tenant',

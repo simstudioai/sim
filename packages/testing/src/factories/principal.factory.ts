@@ -29,18 +29,30 @@ export function createSessionPrincipal(
   return { kind: 'session', userId: 'user-1', sessionId: 'session-1', ...overrides }
 }
 
-/** A personal-API-key principal. Defaults: `user-1` / `key-1`. */
+/** A personal-API-key principal. Defaults: `user-1` / `key-1`, write access. */
 export function createPersonalApiKeyPrincipal(
   overrides: Partial<PersonalApiKeyPrincipal> = {}
 ): PersonalApiKeyPrincipal {
-  return { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1', ...overrides }
+  return {
+    kind: 'personal_api_key',
+    userId: 'user-1',
+    keyId: 'key-1',
+    access: 'write',
+    ...overrides,
+  }
 }
 
-/** A workspace-API-key principal. Defaults: `workspace-1` / `key-1`. */
+/** A workspace-API-key principal. Defaults: `workspace-1` / `key-1`, write access. */
 export function createWorkspaceApiKeyPrincipal(
   overrides: Partial<WorkspaceApiKeyPrincipal> = {}
 ): WorkspaceApiKeyPrincipal {
-  return { kind: 'workspace_api_key', workspaceId: 'workspace-1', keyId: 'key-1', ...overrides }
+  return {
+    kind: 'workspace_api_key',
+    workspaceId: 'workspace-1',
+    keyId: 'key-1',
+    access: 'write',
+    ...overrides,
+  }
 }
 
 /**

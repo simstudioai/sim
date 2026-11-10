@@ -55,8 +55,10 @@ A personal key uses your current access in the workspaces you can reach. A works
 
 The Cursor process must receive `SIM_API_KEY` for its environment interpolation to work. For a self-hosted deployment, replace the Cloud URL in both examples with your server URL.
 
+For an agent that only reads, create a **Read only** key: it reaches the operations `api:read` allows, and a write tool call fails with `READ_ONLY_API_KEY`. See [key access](/api-reference/authentication#key-access).
+
 <Callout type="warn">
-  Keys created in Sim settings have no default expiration. Revoke a key when it is no longer needed. Prefer OAuth for an app that
+  Keys created in Sim settings expire after 90 days unless you choose otherwise. Revoke a key when it is no longer needed. Prefer OAuth for an app that
   supports browser sign-in, and store keys in your app's secret or environment
   settings rather than in a shared config file.
 </Callout>

@@ -42,6 +42,7 @@ const principal: PersonalApiKeyPrincipal = {
   kind: 'personal_api_key',
   userId: 'user-1',
   keyId: 'key-1',
+  access: 'write',
 }
 const auth = {
   principal,

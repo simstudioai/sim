@@ -173,6 +173,7 @@ describe('listCredentialGroupCredentials', () => {
       kind: 'workspace_api_key',
       workspaceId: 'workspace-1',
       keyId: 'workspace-key-1',
+      access: 'write',
     }
 
     await listCredentialGroupCredentials.execute({ principal, input })

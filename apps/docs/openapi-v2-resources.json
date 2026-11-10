@@ -4714,7 +4714,7 @@
       "get": {
         "operationId": "getApiMeta",
         "summary": "Get API status",
-        "description": "Get the calling credential’s type and expiry. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.",
+        "description": "Get the calling credential’s type, expiry, and API scopes. Requires a valid API key or OAuth access token. `v2Enabled` is true whenever this endpoint is served; the response does not enumerate resource permissions.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "meta.capabilities.read",
         "x-oauth-scope": "api:read",
         "tags": ["Meta"],
@@ -4752,7 +4752,8 @@
                       "data": {
                         "v2Enabled": true,
                         "keyType": "personal",
-                        "expiresAt": null
+                        "expiresAt": null,
+                        "scopes": ["api:read", "api:write"]
                       }
                     }
                   }
@@ -14574,6 +14575,7 @@
           "PERMISSION_GROUP_CAPABILITY_BLOCKED",
           "INTEGRATION_NOT_ALLOWED",
           "INSUFFICIENT_SCOPE",
+          "READ_ONLY_API_KEY",
           "SCIM_MANAGED_MEMBERSHIP"
         ],
         "title": "Forbidden detail code",
@@ -18320,9 +18322,17 @@
               }
             ],
             "description": "ISO 8601 timestamp when the calling credential expires, or null when it does not."
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["api:read", "api:write", "search:read"]
+            },
+            "description": "API scopes the calling credential holds. A read-only API key holds only api:read and is refused every operation that changes state; a full-access key holds api:read and api:write; an OAuth access token holds what it was granted."
           }
         },
-        "required": ["v2Enabled", "keyType", "expiresAt"],
+        "required": ["v2Enabled", "keyType", "expiresAt", "scopes"],
         "additionalProperties": false,
         "title": "API status",
         "description": "API availability and lifecycle facts about the calling credential."
@@ -18338,13 +18348,14 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "API status response",
-        "description": "API availability, credential type, and expiry for the caller.",
+        "description": "API availability, credential type, expiry, and scopes for the caller.",
         "examples": [
           {
             "data": {
               "v2Enabled": true,
               "keyType": "personal",
-              "expiresAt": null
+              "expiresAt": null,
+              "scopes": ["api:read", "api:write"]
             }
           }
         ]

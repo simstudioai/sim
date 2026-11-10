@@ -88,6 +88,7 @@ describe('internal workflow read auth', () => {
       success: true,
       keyId: 'key-1',
       keyType: 'workspace',
+      access: 'write',
       userId: 'forged-route-user',
       workspaceId: 'workspace-1',
     })
@@ -103,6 +104,7 @@ describe('internal workflow read auth', () => {
       kind: 'workspace_api_key',
       workspaceId: 'workspace-1',
       keyId: 'key-1',
+      access: 'write',
     })
     expect(mocks.updateLastUsed).toHaveBeenCalledWith('key-1')
   })

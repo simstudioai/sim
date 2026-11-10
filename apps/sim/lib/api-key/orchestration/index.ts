@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import type { ApiKeyAccess } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { apiKey } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
@@ -11,16 +12,59 @@ import { PlatformEvents } from '@/lib/core/telemetry'
 
 const logger = createLogger('ApiKeyOrchestration')
 
-export type ApiKeyOrchestrationErrorCode = 'conflict' | 'internal'
+export type ApiKeyOrchestrationErrorCode = 'validation' | 'conflict' | 'internal'
 
 export interface CreatedApiKey {
   id: string
   name: string
   key: string
+  access: ApiKeyAccess
   createdAt: Date
+  expiresAt: Date | null
 }
 
-export interface PerformCreateWorkspaceApiKeyParams {
+/** The HTTP status a failed key creation answers with. */
+export function apiKeyCreationErrorStatus(code: ApiKeyOrchestrationErrorCode | undefined): number {
+  if (code === 'validation') return 400
+  if (code === 'conflict') return 409
+  return 500
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000
+/** The shortest lifetime a key may be created with. */
+const MIN_API_KEY_LIFETIME_MS = DAY_MS
+/** The longest lifetime a key may be created with: a year, with a day of slack for time zones. */
+const MAX_API_KEY_LIFETIME_MS = 366 * DAY_MS
+
+/**
+ * The settings every key is issued with. Both default to a key that has always
+ * existed: full access, never expiring.
+ */
+interface ApiKeyIssueSettings {
+  access?: ApiKeyAccess
+  /** ISO 8601 timestamp, or `null`/absent for a key that never expires. */
+  expiresAt?: string | null
+}
+
+type ResolvedExpiry = { ok: true; expiresAt: Date | null } | { ok: false; error: string }
+
+function resolveApiKeyExpiry(expiresAt: string | null | undefined): ResolvedExpiry {
+  if (expiresAt === null || expiresAt === undefined) return { ok: true, expiresAt: null }
+  const date = new Date(expiresAt)
+  const lifetimeMs = date.getTime() - Date.now()
+  if (!Number.isFinite(lifetimeMs)) {
+    return { ok: false, error: 'Expiration must be a valid date' }
+  }
+  if (lifetimeMs < MIN_API_KEY_LIFETIME_MS) {
+    return { ok: false, error: 'Expiration must be at least one day from now' }
+  }
+  if (lifetimeMs > MAX_API_KEY_LIFETIME_MS) {
+    return { ok: false, error: 'Expiration must be within one year' }
+  }
+  return { ok: true, expiresAt: date }
+}
+
+export interface PerformCreateWorkspaceApiKeyParams extends ApiKeyIssueSettings {
   workspaceId: string
   userId: string
   name: string
@@ -38,7 +82,7 @@ export interface PerformCreateWorkspaceApiKeyResult {
   key?: CreatedApiKey
 }
 
-export interface PerformCreatePersonalApiKeyParams {
+export interface PerformCreatePersonalApiKeyParams extends ApiKeyIssueSettings {
   userId: string
   name: string
   source?: string
@@ -66,6 +110,9 @@ export interface PerformCreatePersonalApiKeyResult {
 export async function performCreatePersonalApiKey(
   params: PerformCreatePersonalApiKeyParams
 ): Promise<PerformCreatePersonalApiKeyResult> {
+  const expiry = resolveApiKeyExpiry(params.expiresAt)
+  if (!expiry.ok) return { success: false, errorCode: 'validation', error: expiry.error }
+  const access = params.access ?? 'write'
   try {
     const existing = await db
       .select({ id: apiKey.id })
@@ -102,13 +149,17 @@ export async function performCreatePersonalApiKey(
         key: encryptedKey,
         keyHash: hashApiKey(plainKey),
         type: 'personal',
+        access,
+        expiresAt: expiry.expiresAt,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
       .returning({
         id: apiKey.id,
         name: apiKey.name,
+        access: apiKey.access,
         createdAt: apiKey.createdAt,
+        expiresAt: apiKey.expiresAt,
       })
 
     recordAudit({
@@ -124,6 +175,8 @@ export async function performCreatePersonalApiKey(
       metadata: {
         keyName: params.name,
         keyType: 'personal',
+        access,
+        expiresAt: expiry.expiresAt?.toISOString() ?? null,
         source: params.source ?? 'settings',
       },
       request: params.request,
@@ -141,11 +194,16 @@ export async function performCreatePersonalApiKey(
 export async function performCreateWorkspaceApiKey(
   params: PerformCreateWorkspaceApiKeyParams
 ): Promise<PerformCreateWorkspaceApiKeyResult> {
+  const expiry = resolveApiKeyExpiry(params.expiresAt)
+  if (!expiry.ok) return { success: false, errorCode: 'validation', error: expiry.error }
+  const access = params.access ?? 'write'
   try {
     const key = await createWorkspaceApiKey({
       workspaceId: params.workspaceId,
       userId: params.userId,
       name: params.name,
+      access,
+      expiresAt: expiry.expiresAt,
     })
 
     if (params.captureAnalytics !== false) {
@@ -177,6 +235,8 @@ export async function performCreateWorkspaceApiKey(
         metadata: {
           keyName: params.name,
           keyType: 'workspace',
+          access,
+          expiresAt: expiry.expiresAt?.toISOString() ?? null,
           source: params.source ?? 'settings',
         },
       })
