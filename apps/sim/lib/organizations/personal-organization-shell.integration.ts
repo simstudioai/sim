@@ -194,8 +194,8 @@ describe('the organization a workspace opens in', () => {
   it("opens a guest's view of someone's personal workspace in the guest's own organization", async () => {
     const ownerId = await createUser()
     const guestId = await createUser()
-    const ownerOrganizationId = await ensureUserOrganization(ownerId)
-    const guestOrganizationId = await ensureUserOrganization(guestId)
+    const ownerOrganizationId = await ensureUserOrganization(ownerId, { atSignup: false })
+    const guestOrganizationId = await ensureUserOrganization(guestId, { atSignup: false })
     const shared = await createWorkspace(ownerId, ownerOrganizationId)
     await grantWorkspace(guestId, shared)
 
@@ -211,7 +211,7 @@ describe('the organization a workspace opens in', () => {
       name: 'Team',
       slug: `team-${generateId()}`.toLowerCase(),
     })
-    const externalOrganizationId = await ensureUserOrganization(externalId)
+    const externalOrganizationId = await ensureUserOrganization(externalId, { atSignup: false })
     const teamWorkspace = await createWorkspace(teamOwnerId, teamId)
     await grantWorkspace(externalId, teamWorkspace)
 
@@ -222,7 +222,7 @@ describe('the organization a workspace opens in', () => {
   it('names no organization for a workspace the viewer cannot open', async () => {
     const ownerId = await createUser()
     const strangerId = await createUser()
-    const ownerOrganizationId = await ensureUserOrganization(ownerId)
+    const ownerOrganizationId = await ensureUserOrganization(ownerId, { atSignup: false })
     const privateWorkspace = await createWorkspace(ownerId, ownerOrganizationId)
 
     expect(await shellOrganization(privateWorkspace, strangerId)).toBeNull()
@@ -261,7 +261,7 @@ describe('on-demand personal organization provisioning', () => {
     const first = await createWorkspace(ownerId, null)
     const second = await createWorkspace(ownerId, null)
 
-    const organizationId = await ensureUserOrganization(ownerId)
+    const organizationId = await ensureUserOrganization(ownerId, { atSignup: false })
 
     expect(await membershipsOf(ownerId)).toEqual([
       { organizationId, role: 'owner', kind: 'personal' },
@@ -324,7 +324,7 @@ describe('the organization surface a shell renders', () => {
   it('refuses an organization the viewer does not belong to', async () => {
     const viewerId = await createUser()
     const ownerId = await createUser()
-    await ensureUserOrganization(viewerId)
+    await ensureUserOrganization(viewerId, { atSignup: false })
     const { organizationId: othersId } = await createOrganizationWithOwner({
       ownerUserId: ownerId,
       name: 'Others',

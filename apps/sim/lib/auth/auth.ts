@@ -442,7 +442,7 @@ export const auth = betterAuth({
             const { ensureUserOrganization } = await import(
               '@/lib/organizations/provision-personal'
             )
-            await ensureUserOrganization(user.id)
+            await ensureUserOrganization(user.id, { atSignup: true })
           } catch (error) {
             logger.error('[databaseHooks.user.create.after] Failed to provision an organization', {
               userId: user.id,

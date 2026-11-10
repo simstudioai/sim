@@ -2,8 +2,9 @@
  * The personal-organization backfill's candidate selection, against real PostgreSQL. Failure
  * modes: a team member, or a personal-organization owner with nothing left to attach, selected
  * (wasted or wrong writes); a personal-organization owner who still owns an organization-less
- * workspace skipped (that workspace never moves); instance mode selecting anyone already in an
- * organization; cursor paging that skips or repeats a user; an out-of-range `--batch-size`.
+ * workspace skipped (that workspace never moves); instance mode selecting a team member, or
+ * skipping a personal-organization owner (stranded outside the instance organization); cursor
+ * paging that skips or repeats a user; an out-of-range `--batch-size`.
  */
 import { db } from '@sim/db'
 import { member, organization, project, user, userStats, workspace } from '@sim/db/schema'
@@ -121,9 +122,14 @@ describe('backfill candidate selection', () => {
     )
   })
 
-  it('selects only users in no organization on an instance-organization deployment', async () => {
+  it('selects everyone outside a team on an instance-organization deployment', async () => {
     expect(new Set(await seededCandidates(true))).toEqual(
-      new Set([seeded.noOrganization, seeded.secondNoOrganization])
+      new Set([
+        seeded.noOrganization,
+        seeded.personalWithWork,
+        seeded.personalDone,
+        seeded.secondNoOrganization,
+      ])
     )
   })
 

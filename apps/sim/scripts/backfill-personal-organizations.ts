@@ -16,8 +16,11 @@
  * an existing workspace, so this script is the only path that moves existing workspaces (and their
  * payer bookkeeping) into personal organizations. The order of users does not matter.
  *
- * On an instance-organization deployment (`INSTANCE_ORG_NAME`), users outside every organization
- * join the instance organization instead, as signup does there.
+ * On an instance-organization deployment (`INSTANCE_ORG_NAME`), users outside every team join the
+ * instance organization instead, as signup does there, their personal organization retiring into
+ * it; that covers a deployment that enabled the mode after personal organizations existed. The
+ * script never provisions the instance organization with an arbitrary user as its owner: when it
+ * does not exist yet, set `INSTANCE_ORG_OWNER_EMAIL` first.
  *
  * Every write goes through `provisionPersonalOrganization`, which only this script calls: one
  * short transaction per user under the invitation, organization and billing-identity locks every
@@ -83,8 +86,8 @@ interface BackfillReport {
 
 /**
  * Users the backfill still has work for: in no organization, or in their personal organization
- * while still owning a workspace that has none. On an instance-organization deployment, only users
- * in no organization.
+ * while still owning a workspace that has none. On an instance-organization deployment, every user
+ * in no organization or in their personal organization, who all belong in the instance one.
  */
 function candidateUsersWhere(cursor: string | null, instanceMode: boolean): SQL | undefined {
   const inPersonalOrganization = exists(
@@ -104,7 +107,7 @@ function candidateUsersWhere(cursor: string | null, instanceMode: boolean): SQL 
     db.select({ id: member.id }).from(member).where(eq(member.userId, user.id))
   )
   const candidate = instanceMode
-    ? inNoOrganization
+    ? or(inNoOrganization, inPersonalOrganization)
     : or(inNoOrganization, and(inPersonalOrganization, ownsUnassignedWorkspace))
   return cursor ? and(gt(user.id, cursor), candidate) : candidate
 }
@@ -194,7 +197,7 @@ async function main(): Promise<void> {
       for (const userId of batch) {
         try {
           if (instanceMode) {
-            if (!(await joinInstanceOrganization(userId))) {
+            if (!(await joinInstanceOrganization(userId, { atSignup: false }))) {
               throw new Error('The instance organization did not admit this user')
             }
             report.provisioned += 1

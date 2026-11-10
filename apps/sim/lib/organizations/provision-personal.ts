@@ -205,12 +205,18 @@ export async function createPersonalOrganization(userId: string): Promise<string
 }
 
 /**
- * Puts a user who belongs to no organization into one and returns it: the instance organization on
- * an instance-organization deployment, otherwise (or when the instance organization cannot admit
- * them) their personal organization ({@link createPersonalOrganization}, which attaches no
- * workspace). Surfaces reach it only through the `ensureViewerOrganization` command.
+ * Puts a user who belongs to no organization, or only to their personal one, into one and returns
+ * it: the instance organization on an instance-organization deployment (retiring the personal
+ * organization into it), otherwise (or when the instance organization cannot admit them) their
+ * personal organization ({@link createPersonalOrganization}, which attaches no workspace). Only
+ * signup passes `atSignup`, the one caller that may provision the instance organization with this
+ * user as its owner. Surfaces reach it only through the `ensureViewerOrganization` command.
  */
-export async function ensureUserOrganization(userId: string): Promise<string | null> {
-  if (await joinInstanceOrganization(userId)) return resolveOrganizationLanding(userId, null)
+export async function ensureUserOrganization(
+  userId: string,
+  options: { atSignup: boolean }
+): Promise<string | null> {
+  if (await joinInstanceOrganization(userId, options))
+    return resolveOrganizationLanding(userId, null)
   return createPersonalOrganization(userId)
 }

@@ -130,7 +130,33 @@ describe('instance organization', () => {
         error: 'User is already a member of another organization.',
       })
 
-      await expect(joinInstanceOrganization('user-2')).resolves.toBe(false)
+      await expect(joinInstanceOrganization('user-2', { atSignup: true })).resolves.toBe(false)
+    })
+
+    it('never recreates a missing instance organization with a visitor as its owner', async () => {
+      queueRows([]) // the instance organization was deleted
+
+      await expect(joinInstanceOrganization('visitor-1', { atSignup: false })).resolves.toBe(false)
+
+      expect(mockCreateOrganizationWithOwnerTx).not.toHaveBeenCalled()
+      expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+    })
+
+    it('recreates a missing instance organization for its configured owner on a visit', async () => {
+      setInstanceEnv({ INSTANCE_ORG_OWNER_EMAIL: 'owner@acme.test' })
+      queueRows([]) // the instance organization was deleted
+      queueRows([{ id: 'owner-1' }]) // the configured owner
+      queueRows([]) // still missing under the lock
+      queueRows([]) // the owner belongs to no team
+      mockCreateOrganizationWithOwnerTx.mockResolvedValueOnce({ organizationId: 'org_instance' })
+      mockEnsureUserInOrganization.mockResolvedValueOnce({ success: true, alreadyMember: false })
+
+      await expect(joinInstanceOrganization('visitor-1', { atSignup: false })).resolves.toBe(true)
+
+      expect(mockCreateOrganizationWithOwnerTx).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ ownerUserId: 'owner-1' })
+      )
     })
   })
 })
