@@ -8,7 +8,7 @@ import { FileField } from '@sim/emcn/field/file-field'
 import { SecretField } from '@sim/emcn/field/value-fields'
 import { Modal } from '@sim/emcn/modal'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
-import { FailureNotice } from '@sim/emcn/status'
+import { InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import Link from 'next/link'
 import { toast } from '@/lib/toast/sink'
@@ -156,7 +156,6 @@ export function ImportModal({ organizationId, onClose, onOpenSync }: ImportModal
       confirmLabel={
         done ? 'Done' : preview ? `Import ${plural(preview.updated, 'profile')}` : 'Preview import'
       }
-      pending={pending}
       confirmDisabled={pending || (!preview && !ready)}
       onBack={preview ? () => setPreview(null) : undefined}
       onConfirm={
@@ -248,46 +247,45 @@ export function ImportModal({ organizationId, onClose, onOpenSync }: ImportModal
               </ExternalLink>
             </>
           )}
-          {source === 'directory' && connection.failed && (
-            <FailureNotice
-              message='Could not load your provisioning connection.'
-              retrying={connection.fetching}
-              onRetry={connection.refresh}
-            />
-          )}
-          {source === 'directory' && !connection.failed && !connection.loading && (
+          {source === 'directory' && (
             <>
-              <p className={styles.secondary} data-type='T060'>
-                {!connection.active
-                  ? 'Enable SCIM provisioning and assign accounts in your provider to import their profiles.'
-                  : connection.userCount === 0
-                    ? 'Your connection is active. Assign accounts to Sim in your identity provider, then refresh here.'
-                    : `Your connection has ${plural(connection.userCount, 'provisioned account')}. Preview the profile fields and reporting lines sent by your provider.`}
-              </p>
-              <div className={styles.links}>
-                {canOpenProvisioningSettings && (
+              {!connection.loading && (
+                <p className={styles.secondary} data-type='T060'>
+                  {connection.failed
+                    ? 'Could not load your provisioning connection.'
+                    : !connection.active
+                      ? 'Enable SCIM provisioning and assign accounts in your provider to import their profiles.'
+                      : connection.userCount === 0
+                        ? 'Your connection is active. Assign accounts to Sim in your identity provider, then refresh here.'
+                        : `Your connection has ${plural(connection.userCount, 'provisioned account')}. Preview the profile fields and reporting lines sent by your provider.`}
+                </p>
+              )}
+              {!connection.loading && (
+                <div className={styles.links}>
+                  {canOpenProvisioningSettings && !connection.failed && (
+                    <Button
+                      variant='quiet'
+                      size='compact'
+                      render={<Link href={provisioningSettingsHref} />}
+                    >
+                      {connection.active ? 'Manage provisioning' : 'Set up provisioning'}
+                    </Button>
+                  )}
+                  {!connection.active && (
+                    <ExternalLink href='https://docs.sim.ai/platform/enterprise/scim'>
+                      Provisioning guide
+                    </ExternalLink>
+                  )}
                   <Button
                     variant='quiet'
                     size='compact'
-                    render={<Link href={provisioningSettingsHref} />}
+                    disabled={connection.fetching}
+                    onClick={connection.refresh}
                   >
-                    {connection.active ? 'Manage provisioning' : 'Set up provisioning'}
+                    {connection.failed ? 'Retry connection' : 'Refresh'}
                   </Button>
-                )}
-                {!connection.active && (
-                  <ExternalLink href='https://docs.sim.ai/platform/enterprise/scim'>
-                    Provisioning guide
-                  </ExternalLink>
-                )}
-                <Button
-                  variant='quiet'
-                  size='compact'
-                  disabled={connection.fetching}
-                  onClick={connection.refresh}
-                >
-                  Refresh
-                </Button>
-              </div>
+                </div>
+              )}
             </>
           )}
           {source === 'file' && (
@@ -303,6 +301,7 @@ export function ImportModal({ organizationId, onClose, onOpenSync }: ImportModal
                 error={fileError}
                 hint='CSV or Excel with an email column, plus any of title, department, location, start date, and manager email.'
               />
+              {reading && <InlineNotice message='Reading…' />}
               <div>
                 <Button variant='quiet' size='compact' onClick={downloadImportTemplate}>
                   Download template
