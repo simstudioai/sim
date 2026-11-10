@@ -12,7 +12,7 @@ import styles from '@/app/(product)/_components/chat/conversation/conversation.m
 import { useChatFind } from '@/app/(product)/_components/chat/find/use-chat-find'
 import { ResponseMessage } from '@/app/(product)/_components/chat/message/response-message'
 import { UserMessage } from '@/app/(product)/_components/chat/message/user-message'
-import { ChatPanelTrigger } from '@/app/(product)/_components/chat/panel/chat-panels'
+import { ChatPanelTrigger } from '@/app/(product)/_components/chat/panel/chat-panel-trigger'
 import { MessageComposer } from '@/app/(product)/_components/composer/message-composer'
 import { ChatRuntimeProvider } from '@/app/(product)/_components/session/chat-runtime'
 import type { ChatRuntime, PlatformTurn } from '@/platform/lib/data/models/chat'

@@ -1,11 +1,12 @@
 'use client'
 
-import { createContext, type ReactNode, useContext, useRef, useState } from 'react'
+import { type ReactNode, useRef, useState } from 'react'
 import { IconButton } from '@sim/emcn/button'
 import type { TabItem } from '@sim/emcn/tabs'
 import { generateShortId } from '@sim/utils/id'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { workspaceEntry } from '@/lib/navigation/paths'
+import { OpenPanel } from '@/app/(product)/_components/chat/panel/chat-panel-trigger'
 import { PanelContent } from '@/app/(product)/_components/chat/panel/panel-content'
 import { PanelTabs } from '@/app/(product)/_components/chat/panel/panel-tabs'
 import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
@@ -27,23 +28,6 @@ const tabs: Record<PanelDestination, Pick<TabItem, 'label' | 'icon'>> = {
   terminal: { label: 'Terminal', icon: 'I107' },
   file: { label: 'File', icon: 'I015' },
   website: { label: 'Browser', icon: 'I041' },
-}
-
-export const OpenPanel = createContext<((element: HTMLButtonElement) => void) | null>(null)
-
-/** The control that opens the chat panel, absent while the surface holds the panel back. */
-export function ChatPanelTrigger() {
-  const open = useContext(OpenPanel)
-  if (!open) return null
-  return (
-    <span className={styles.openTrigger}>
-      <IconButton
-        icon='I038'
-        label='Open chat panel'
-        onClick={(event) => open(event.currentTarget)}
-      />
-    </span>
-  )
 }
 
 interface ChatPanelsProps {

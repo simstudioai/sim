@@ -2,7 +2,6 @@
 
 import type { ComponentType, ReactNode } from 'react'
 import { PlatformSurface } from '@sim/emcn-platform/surface/platform-surface'
-import { useSearchParams } from 'next/navigation'
 import { SuggestionListProvider } from '@/components/file-viewer/rich-markdown-editor/suggestion-list'
 import { DesktopHost } from '@/app/(product)/_components/desktop/desktop-host'
 import { EditorSuggestions } from '@/app/(product)/_components/editor-suggestions/editor-suggestions'
@@ -11,23 +10,15 @@ import { PlatformShell } from '@/app/(product)/_components/platform-shell/platfo
 import { ChatChangesProvider } from '@/app/(product)/_components/session/chat-changes'
 import { ComposerDrafts } from '@/app/(product)/_components/session/composer-drafts'
 import { ComposerSession } from '@/app/(product)/_components/session/composer-host'
-import { IntegrationCenterChanges } from '@/app/(product)/_components/session/integration-center-changes'
-import { IntegrationChanges } from '@/app/(product)/_components/session/integration-changes'
 import { InterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
 import { SidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layout'
 import type { Scenario } from '@/platform/fixtures'
-import type { SettingsNavGroup, ShellData } from '@/platform/lib/data/models/shell'
+import type { ShellData } from '@/platform/lib/data/models/shell'
 import { useLiveShellData } from '@/platform/lib/data/shell-context'
-import {
-  type Appearance,
-  type PreviewPlan,
-  readAppearance,
-  readPreviewPlan,
-  readScenario,
-} from '@/platform/lib/navigation'
+import type { Appearance } from '@/platform/lib/navigation'
 import { SurfaceScopeProvider } from '@/platform/lib/surface-scope'
 
-interface SessionFrameProps {
+export interface SessionFrameProps {
   /** `/o/<organizationId>`: what every organization route's path needs in front of it. */
   routePrefix: string
   /** Above the shell, inside the theme: session states only a live session has. */
@@ -49,7 +40,8 @@ interface SessionTreeProps extends SessionFrameProps {
   Edits?: ComponentType<{ children: ReactNode }>
 }
 
-function SessionTree({
+/** The providers and shell every session renders, live or example data. */
+export function SessionTree({
   children,
   routePrefix,
   banner,
@@ -85,51 +77,6 @@ function SessionTree({
         </SidebarLayout>
       </InterfacePreferences>
     </SurfaceScopeProvider>
-  )
-}
-
-function FixtureEdits({ children }: { children: ReactNode }) {
-  return (
-    <IntegrationChanges>
-      <IntegrationCenterChanges>{children}</IntegrationCenterChanges>
-    </IntegrationChanges>
-  )
-}
-
-/**
- * A fixture build's session: the scenario, plan and theme its URL selects. Only this path reads the
- * query, so a live session never re-renders on a query change.
- */
-export function FixtureProductSession({
-  fixtures,
-  routePrefix,
-  banner,
-  sidebarCollapsed,
-  children,
-}: SessionFrameProps & {
-  fixtures: Record<
-    Scenario,
-    ShellData & { settingsByPlan: Record<PreviewPlan, SettingsNavGroup[]> }
-  >
-}) {
-  const search = useSearchParams()
-  const scenario = readScenario(search.get('state'))
-  const fixture = fixtures[scenario]
-  return (
-    <SessionTree
-      routePrefix={routePrefix}
-      banner={banner}
-      sidebarCollapsed={sidebarCollapsed}
-      data={{
-        ...fixture,
-        settingsNavigation: fixture.settingsByPlan[readPreviewPlan(search.get('plan'))],
-      }}
-      theme={readAppearance(search.get('theme'))}
-      scenario={scenario}
-      Edits={FixtureEdits}
-    >
-      {children}
-    </SessionTree>
   )
 }
 
