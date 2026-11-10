@@ -9,7 +9,6 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = [
@@ -36,7 +35,6 @@ export const semrushUrlOrganicKeywordsTool: ToolConfig<
   name: 'Semrush URL Organic Keywords',
   description: 'List the keywords a single URL ranks for in Google organic search.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

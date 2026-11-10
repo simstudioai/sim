@@ -1,7 +1,6 @@
 import { SemrushIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { withSavedCredential } from '@/blocks/utils'
 
 const DATABASE_OPTIONS = [
   { label: 'United States (us)', id: 'us' },
@@ -349,8 +348,6 @@ Return ONLY the 8-character value - no explanations, no quotes, no extra text.`,
 
 export const SemrushBlock: BlockConfig = {
   type: 'semrush',
-  hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'semrush_v2' },
   name: 'Semrush',
   description: 'Research SEO and paid search data with Semrush',
   authMode: AuthMode.ApiKey,
@@ -1051,17 +1048,3 @@ export const SemrushBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
-
-export const SemrushV2Block: BlockConfig = {
-  ...SemrushBlock,
-  type: 'semrush_v2',
-  authMode: AuthMode.OAuth,
-  hideFromToolbar: false,
-  sunset: undefined,
-  ...withSavedCredential(SemrushBlock, {
-    id: 'credential',
-    type: 'oauth-input',
-    serviceId: 'semrush',
-    title: 'Semrush Credential',
-  }),
-}

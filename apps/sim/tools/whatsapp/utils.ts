@@ -9,7 +9,7 @@ export function buildMessagesUrl(phoneNumberId: string | undefined): string {
   if (!phoneNumberId) {
     throw new Error('WhatsApp Phone Number ID is required')
   }
-  return `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/${phoneNumberId.trim()}/messages`
+  return `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/${encodeURIComponent(phoneNumberId.trim())}/messages`
 }
 
 /** Build the media upload endpoint for a given business phone number ID. */

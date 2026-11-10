@@ -4,7 +4,6 @@ import type {
   SemrushKeywordOverviewAllRow,
 } from '@/tools/semrush/types'
 import { buildSemrushUrl, readSemrushReport, SEMRUSH_ANALYTICS_URL } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Dt', 'Db', 'Ph', 'Nq', 'Cp', 'Co', 'Nr', 'In', 'Kd'] as const
@@ -18,7 +17,6 @@ export const semrushKeywordOverviewAllTool: ToolConfig<
   description:
     'Get search volume, CPC, and competition for a keyword across every regional Semrush database.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

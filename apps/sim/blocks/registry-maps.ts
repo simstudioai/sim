@@ -362,7 +362,7 @@ import {
   SecretsManagerBlockMeta,
   SecretsManagerV2Block,
 } from '@/blocks/blocks/secrets_manager'
-import { SemrushBlock, SemrushBlockMeta, SemrushV2Block } from '@/blocks/blocks/semrush'
+import { SemrushBlock, SemrushBlockMeta } from '@/blocks/blocks/semrush'
 import { SendblueBlock, SendblueBlockMeta } from '@/blocks/blocks/sendblue'
 import { SendGridBlock, SendGridBlockMeta, SendGridV2Block } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryBlockMeta, SentryV2Block } from '@/blocks/blocks/sentry'
@@ -820,7 +820,6 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   secrets_manager: SecretsManagerBlock,
   secrets_manager_v2: SecretsManagerV2Block,
   semrush: SemrushBlock,
-  semrush_v2: SemrushV2Block,
   sendblue: SendblueBlock,
   sendgrid: SendGridBlock,
   sendgrid_v2: SendGridV2Block,

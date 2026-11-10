@@ -9,7 +9,6 @@ import {
   readSemrushReportWithHeader,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const MAX_COMPARED_DOMAINS = 5
@@ -83,7 +82,6 @@ export const semrushDomainVsDomainTool: ToolConfig<
   description:
     'Compare up to five domains on the keywords they rank for, returning each domain’s position side by side.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

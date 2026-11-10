@@ -9,7 +9,6 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = [
@@ -39,7 +38,6 @@ export const semrushDomainOrganicKeywordsTool: ToolConfig<
   description:
     'List the keywords a domain ranks for in Google organic search, with position, volume, and traffic share.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

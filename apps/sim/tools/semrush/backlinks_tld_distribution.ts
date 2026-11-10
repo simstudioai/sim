@@ -9,7 +9,6 @@ import {
   readSemrushReport,
   SEMRUSH_BACKLINKS_URL,
 } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['zone', 'domains_num', 'backlinks_num'] as const
@@ -23,7 +22,6 @@ export const semrushBacklinksTldDistributionTool: ToolConfig<
   description:
     'Break a target’s backlink profile down by the top-level domain of its referring domains.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

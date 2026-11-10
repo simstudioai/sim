@@ -252,7 +252,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   schedule: 'Schedule',
   search: 'Search',
   secrets_manager_v2: 'AWS Secrets Manager',
-  semrush_v2: 'Semrush',
+  semrush: 'Semrush',
   sendblue: 'Sendblue',
   sendgrid_v2: 'SendGrid',
   sentry_v2: 'Sentry',

@@ -93,7 +93,6 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   rocketlane: 'rocketlane-service-account',
   rootly: 'rootly-service-account',
   salesforce: 'salesforce-service-account',
-  semrush: 'semrush-service-account',
   sendgrid: 'sendgrid-service-account',
   sentry: 'sentry-service-account',
   shopify: 'shopify-service-account',

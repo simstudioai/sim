@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   validateAshbyServiceAccount,
   validateBrexServiceAccount,
+  validateElevenLabsServiceAccount,
   validateFlintServiceAccount,
   validateInstantlyServiceAccount,
   validateResendServiceAccount,
@@ -235,6 +236,41 @@ describe('Vercel saved token verification', () => {
 
     await expect(validateVercelServiceAccount({ apiToken: 'scoped' })).resolves.toMatchObject({
       displayName: 'Vercel',
+    })
+  })
+})
+
+describe('ElevenLabs saved API key verification', () => {
+  it('accepts a valid key without the user permission', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ detail: { status: 'missing_permissions', message: 'user_read' } }, 401)
+        )
+    )
+
+    await expect(
+      validateElevenLabsServiceAccount({ apiToken: 'sk_scoped' })
+    ).resolves.toMatchObject({ displayName: 'ElevenLabs' })
+  })
+
+  it('rejects an unknown key', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            { detail: { status: 'invalid_api_key', message: 'API key is invalid.' } },
+            400
+          )
+        )
+    )
+
+    await expect(validateElevenLabsServiceAccount({ apiToken: 'sk_bad' })).rejects.toMatchObject({
+      code: 'invalid_credentials',
     })
   })
 })

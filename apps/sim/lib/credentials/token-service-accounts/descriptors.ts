@@ -91,7 +91,6 @@ export const TYPEFORM_SERVICE_ACCOUNT_PROVIDER_ID = 'typeform-service-account' a
 export const TELEGRAM_SERVICE_ACCOUNT_PROVIDER_ID = 'telegram-service-account' as const
 export const STRIPE_SERVICE_ACCOUNT_PROVIDER_ID = 'stripe-service-account' as const
 export const SENTRY_SERVICE_ACCOUNT_PROVIDER_ID = 'sentry-service-account' as const
-export const SEMRUSH_SERVICE_ACCOUNT_PROVIDER_ID = 'semrush-service-account' as const
 export const ROOTLY_SERVICE_ACCOUNT_PROVIDER_ID = 'rootly-service-account' as const
 export const RESEND_SERVICE_ACCOUNT_PROVIDER_ID = 'resend-service-account' as const
 export const PAGERDUTY_SERVICE_ACCOUNT_PROVIDER_ID = 'pagerduty-service-account' as const
@@ -198,7 +197,6 @@ export type TokenServiceAccountProviderId =
   | typeof TELEGRAM_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof STRIPE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SENTRY_SERVICE_ACCOUNT_PROVIDER_ID
-  | typeof SEMRUSH_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ROOTLY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof RESEND_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof PAGERDUTY_SERVICE_ACCOUNT_PROVIDER_ID
@@ -1520,7 +1518,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/ashby',
     helpText:
-      'Create an API key in Ashby under Settings > API Keys and grant read and write access to the modules your workflows use.',
+      'Create an API key in Ashby under Admin > API Keys and grant read and write access to the modules your workflows use.',
     invalidCredentialsHelp:
       'Ashby rejected this key. Check that it was copied in full and has not been deactivated.',
   },
@@ -1665,20 +1663,6 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       'Use a Global or Team API key. A Personal key stops working if the person who created it leaves the organization.',
     invalidCredentialsHelp:
       'Rootly rejected this key. Check that it was copied in full and has not been revoked.',
-  },
-  [SEMRUSH_SERVICE_ACCOUNT_PROVIDER_ID]: {
-    providerId: SEMRUSH_SERVICE_ACCOUNT_PROVIDER_ID,
-    serviceLabel: 'Semrush',
-    tokenNoun: 'API key',
-    connectNoun: 'API key',
-    fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Semrush API key', secret: true },
-    ],
-    docsUrl: 'https://docs.sim.ai/integrations/semrush',
-    helpText:
-      'API access needs a Semrush subscription with API units. Checking the key uses no units.',
-    invalidCredentialsHelp:
-      'Semrush rejected this key. Check that it was copied in full and belongs to an account with API access.',
   },
   [SENTRY_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SENTRY_SERVICE_ACCOUNT_PROVIDER_ID,

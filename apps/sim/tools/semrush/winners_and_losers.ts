@@ -9,7 +9,6 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = [
@@ -38,7 +37,6 @@ export const semrushWinnersAndLosersTool: ToolConfig<
   description:
     'List the domains that gained or lost the most organic and paid search visibility in a database.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,7 +2,7 @@
 title: Semrush
 description: Research SEO and paid search data with Semrush
 integration:
-  type: "semrush_v2"
+  type: "semrush"
   color: "#FFFFFF"
 ---
 
@@ -37,6 +37,7 @@ Get the Semrush rank plus organic and paid search totals for a domain in one reg
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `domain` | string | Yes | Domain to analyze, for example example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `displayDate` | string | No | Historical month in YYYYMM15 format |
@@ -67,6 +68,7 @@ Get organic and paid search totals for a domain across every regional Semrush da
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `domain` | string | Yes | Domain to analyze, for example example.com |
 | `database` | string | No | Regional database code to restrict the report to, for example us |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -103,6 +105,7 @@ Get the historical trend of a domain rank plus its organic and paid search total
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `domain` | string | Yes | Domain to analyze, for example example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -136,6 +139,7 @@ List the keywords a domain ranks for in Google organic search, with position, vo
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `domain` | string | Yes | Domain to analyze, for example example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -178,6 +182,7 @@ List the keywords a domain buys in Google Ads, with ad position, copy, and traff
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `domain` | string | Yes | Domain to analyze, for example example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -219,6 +224,7 @@ List the unique Google Ads creatives a domain runs, with title, description, and
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `domain` | string | Yes | Domain to analyze, for example example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -249,6 +255,7 @@ List a domain’s past Google Ads placements month by month, with the copy used 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `domain` | string | Yes | Domain to analyze, for example example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -284,6 +291,7 @@ List the domains competing with a target domain in Google organic search results
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `domain` | string | Yes | Domain to analyze, for example example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -316,6 +324,7 @@ List the domains competing with a target domain in Google paid search results.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `domain` | string | Yes | Domain to analyze, for example example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -348,6 +357,7 @@ List the keywords that trigger a domain’s product listing ads, with the promot
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `domain` | string | Yes | Domain to analyze, for example example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -383,6 +393,7 @@ List the unique product listing ads a domain runs, with product title, price, an
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `domain` | string | Yes | Domain to analyze, for example example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -410,6 +421,7 @@ Compare up to five domains on the keywords they rank for, returning each domain�
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `domains` | string | Yes | Comma-separated list of up to five domains to compare |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `competitionType` | string | No | Which keyword set to compare: or for organic or ad for paid |
@@ -442,6 +454,7 @@ Get the organic and paid search totals for a subdomain in one regional database.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `subdomain` | string | Yes | Subdomain to analyze, for example blog.example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `displayDate` | string | No | Historical month in YYYYMM15 format |
@@ -472,6 +485,7 @@ Get organic and paid search totals for a subdomain across every regional Semrush
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `subdomain` | string | Yes | Subdomain to analyze, for example blog.example.com |
 | `database` | string | No | Regional database code to restrict the report to, for example us |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -508,6 +522,7 @@ Get the historical trend of a subdomain’s organic and paid search totals.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `subdomain` | string | Yes | Subdomain to analyze, for example blog.example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -541,6 +556,7 @@ List the keywords a subdomain ranks for in Google organic search.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `subdomain` | string | Yes | Subdomain to analyze, for example blog.example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -583,6 +599,7 @@ List the keywords a subdomain buys in Google Ads.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `subdomain` | string | Yes | Subdomain to analyze, for example blog.example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -624,6 +641,7 @@ List the unique Google Ads creatives a subdomain runs.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `subdomain` | string | Yes | Subdomain to analyze, for example blog.example.com |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -654,6 +672,7 @@ Get the organic and paid search totals for a single URL in one regional database
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `url` | string | Yes | Full URL to analyze, for example https://example.com/pricing |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `displayDate` | string | No | Historical month in YYYYMM15 format |
@@ -684,6 +703,7 @@ Get organic and paid search totals for a single URL across every regional Semrus
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `url` | string | Yes | Full URL to analyze, for example https://example.com/pricing |
 | `database` | string | No | Regional database code to restrict the report to, for example us |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -720,6 +740,7 @@ Get the historical trend of a URL’s organic and paid search totals.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `url` | string | Yes | Full URL to analyze, for example https://example.com/pricing |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -753,6 +774,7 @@ List the keywords a single URL ranks for in Google organic search.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `url` | string | Yes | Full URL to analyze, for example https://example.com/pricing |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -792,6 +814,7 @@ List the keywords a single URL is advertised on in Google Ads, with the ad copy 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `url` | string | Yes | Full URL to analyze, for example https://example.com/pricing |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -830,6 +853,7 @@ Get search volume, CPC, competition, difficulty, and intent for a single keyword
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `phrase` | string | Yes | Keyword to analyze |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `displayDate` | string | No | Historical month in YYYYMM15 format |
@@ -860,6 +884,7 @@ Get search volume, CPC, and competition for a keyword across every regional Semr
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `phrase` | string | Yes | Keyword to analyze |
 | `database` | string | No | Regional database code to restrict the report to, for example us |
 
@@ -890,6 +915,7 @@ Get search volume, CPC, competition, difficulty, and intent for up to 100 keywor
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `phrases` | string | Yes | Semicolon-separated list of keywords, for example ebay;seo |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `displayDate` | string | No | Historical month in YYYYMM15 format |
@@ -920,6 +946,7 @@ Get the Keyword Difficulty Index for up to 100 keywords at once.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `phrases` | string | Yes | Semicolon-separated list of keywords, for example ebay;seo |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 
@@ -943,6 +970,7 @@ Find keywords semantically related to a seed keyword, with volume, difficulty, a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `phrase` | string | Yes | Keyword to analyze |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -978,6 +1006,7 @@ Find broad-match and phrase-match variations of a seed keyword, with volume and 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `phrase` | string | Yes | Keyword to analyze |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -1012,6 +1041,7 @@ Find question-form keywords containing a seed keyword, with volume and difficult
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `phrase` | string | Yes | Keyword to analyze |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -1045,6 +1075,7 @@ List the domains and URLs ranking in Google organic search results for a keyword
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `phrase` | string | Yes | Keyword to analyze |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -1075,6 +1106,7 @@ List the domains and URLs advertising on a keyword in Google paid search results
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `phrase` | string | Yes | Keyword to analyze |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -1102,6 +1134,7 @@ List which domains advertised on a keyword month by month, with the copy each on
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `phrase` | string | Yes | Keyword to analyze |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -1132,6 +1165,7 @@ List the domains that gained or lost the most organic and paid search visibility
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
 | `offset` | number | No | Number of rows to skip, for pagination |
@@ -1170,6 +1204,7 @@ List the highest-ranked domains in a regional database by Semrush rank.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `database` | string | Yes | Regional database code, for example us, uk, de, or fr |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
 | `offset` | number | No | Number of rows to skip, for pagination |
@@ -1202,6 +1237,7 @@ Get the Authority Score and backlink profile totals for a domain, subdomain, or 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
 | `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 
@@ -1237,6 +1273,7 @@ List the backlinks pointing at a domain, subdomain, or URL, with source page, an
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
 | `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -1272,6 +1309,7 @@ List the domains linking to a target, with Authority Score, backlink count, and 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
 | `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -1304,6 +1342,7 @@ List the IP addresses linking to a target, with the domain and backlink counts b
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
 | `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -1334,6 +1373,7 @@ Break a target’s backlink profile down by the top-level domain of its referrin
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
 | `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -1361,6 +1401,7 @@ Break a target’s backlink profile down by the country of its referring domains
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
 | `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -1388,6 +1429,7 @@ List the anchor texts used in backlinks to a target, with domain and backlink co
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
 | `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -1417,6 +1459,7 @@ List the pages of a target that attract backlinks, with response code and link c
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
 | `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |
@@ -1449,6 +1492,7 @@ List domains with a backlink profile similar to the target, ranked by shared ref
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
+| `apiKey` | string | Yes | Semrush API key |
 | `target` | string | Yes | Root domain, subdomain, or URL to analyze |
 | `targetType` | string | No | Scope of the target: root_domain, domain, or url. Defaults to root_domain |
 | `limit` | number | No | Maximum number of rows to return, capped at 100,000 |

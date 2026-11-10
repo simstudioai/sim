@@ -9,7 +9,6 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Tt', 'Ds', 'Vu', 'Ur', 'Pc'] as const
@@ -23,7 +22,6 @@ export const semrushDomainAdCopiesTool: ToolConfig<
   description:
     'List the unique Google Ads creatives a domain runs, with title, description, and keyword count.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

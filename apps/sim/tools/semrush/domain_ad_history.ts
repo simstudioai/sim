@@ -9,7 +9,6 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Ph', 'Dt', 'Po', 'Cp', 'Nq', 'Tr', 'Ur', 'Tt', 'Ds', 'Vu'] as const
@@ -23,7 +22,6 @@ export const semrushDomainAdHistoryTool: ToolConfig<
   description:
     'List a domain’s past Google Ads placements month by month, with the copy used each time.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

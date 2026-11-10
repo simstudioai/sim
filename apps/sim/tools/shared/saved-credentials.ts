@@ -218,7 +218,6 @@ export const RESEND_CREDENTIAL_OAUTH = tokenCredentialOAuth('resend', {
   resendApiKey: 'accessToken',
 })
 export const ROOTLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('rootly', { apiKey: 'accessToken' })
-export const SEMRUSH_CREDENTIAL_OAUTH = tokenCredentialOAuth('semrush', { apiKey: 'accessToken' })
 export const SENTRY_CREDENTIAL_OAUTH = tokenCredentialOAuth('sentry', { apiKey: 'accessToken' })
 export const STRIPE_CREDENTIAL_OAUTH = tokenCredentialOAuth('stripe', { apiKey: 'accessToken' })
 export const TELEGRAM_CREDENTIAL_OAUTH = tokenCredentialOAuth('telegram', {
@@ -307,7 +306,6 @@ export const SAVED_CREDENTIAL_OAUTH = {
   pagerduty: PAGERDUTY_CREDENTIAL_OAUTH,
   resend: RESEND_CREDENTIAL_OAUTH,
   rootly: ROOTLY_CREDENTIAL_OAUTH,
-  semrush: SEMRUSH_CREDENTIAL_OAUTH,
   sentry: SENTRY_CREDENTIAL_OAUTH,
   stripe: STRIPE_CREDENTIAL_OAUTH,
   telegram: TELEGRAM_CREDENTIAL_OAUTH,

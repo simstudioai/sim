@@ -22,6 +22,12 @@ describe('WhatsApp request URL and headers', () => {
       /Phone Number ID is required/
     )
   })
+
+  it('keeps a phone number ID inside its own path segment', () => {
+    const url = sendMessageTool.request.url({ ...auth, phoneNumberId: '../../999/register#' })
+
+    expect(new URL(url as string).pathname).toBe('/v25.0/..%2F..%2F999%2Fregister%23/messages')
+  })
 })
 
 describe('sendMessageTool body', () => {

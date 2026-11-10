@@ -118,7 +118,6 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   router: 'router_v2',
   s3: 's3_v2',
   secrets_manager: 'secrets_manager_v2',
-  semrush: 'semrush_v2',
   sendgrid: 'sendgrid_v2',
   sentry: 'sentry_v2',
   servicenow: 'servicenow_v2',

@@ -25050,7 +25050,7 @@
       "updatedAt": "2026-09-08"
     },
     {
-      "type": "semrush_v2",
+      "type": "semrush",
       "slug": "semrush",
       "name": "Semrush",
       "description": "Research SEO and paid search data with Semrush",
@@ -25239,8 +25239,7 @@
       "operationCount": 44,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "oauth",
-      "oauthServiceId": "semrush",
+      "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["seo", "marketing", "data-analytics"],

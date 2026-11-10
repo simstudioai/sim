@@ -227,7 +227,8 @@ export const validateDubServiceAccount = tokenCheckValidator({
 
 /**
  * ElevenLabs returns the key owner's account for a valid key and 400/401 for a bad one. A key
- * restricted to other endpoints gets 403, which still proves it authenticated.
+ * without the user permission gets a 401 naming `missing_permissions`, or a 403, both of which
+ * still prove it authenticated.
  */
 export const validateElevenLabsServiceAccount = tokenCheckValidator({
   serviceLabel: 'ElevenLabs',
@@ -236,6 +237,7 @@ export const validateElevenLabsServiceAccount = tokenCheckValidator({
     headers: { 'xi-api-key': apiToken, Accept: 'application/json' },
   }),
   forbiddenMeansScoped: true,
+  provesKey: (errorBody) => toRecord(toRecord(errorBody).detail).status === 'missing_permissions',
 })
 
 /** Enrich's credit-balance endpoint costs no credits and succeeds only for a valid key. */
@@ -710,15 +712,13 @@ export const validateZepServiceAccount = tokenCheckValidator({
 })
 
 /**
- * Listing Ashby candidate sources answers 200 for a valid key and 401 for an
- * unknown one. A valid key without the module's read permission gets a JSON 403
- * naming `missing_endpoint_permission`, which still proves the key; Ashby
- * documents 403 for a wrong or deactivated key too, so any other error envelope
- * rejects it.
+ * Listing Ashby candidate sources answers 200 for a valid key. Ashby refuses an
+ * unknown, wrong or deactivated key with 401 or 403; a valid key without the
+ * module's read permission gets an error naming `missing_endpoint_permission`,
+ * which still proves the key.
  */
 export const validateAshbyServiceAccount = tokenCheckValidator({
   serviceLabel: 'Ashby',
-  forbiddenMeansScoped: true,
   request: ({ apiToken }) => ({
     url: 'https://api.ashbyhq.com/source.list',
     method: 'POST',
@@ -729,19 +729,7 @@ export const validateAshbyServiceAccount = tokenCheckValidator({
     },
     body: '{}',
   }),
-  rejectsKey: (errorBody) => {
-    const envelope = toRecord(errorBody)
-    if (envelope.success !== false) return false
-    const codes = [
-      toRecord(envelope.errorInfo).code,
-      ...toArray(envelope.errors).map((entry) =>
-        typeof entry === 'string' ? entry : toRecord(entry).message
-      ),
-    ]
-    return !codes.some(
-      (code) => typeof code === 'string' && code.includes('missing_endpoint_permission')
-    )
-  },
+  provesKey: (errorBody) => JSON.stringify(errorBody).includes('missing_endpoint_permission'),
 })
 
 /**
@@ -834,33 +822,18 @@ export const validatePagerDutyServiceAccount = tokenCheckValidator({
 })
 
 /**
- * Resend's list-domains endpoint answers 200 for a full-access key. A sending-access key gets a
- * JSON 401 named `restricted_api_key`, which still proves Resend authenticated it; an unknown key
- * gets a `validation_error` (400, or 401 on sending endpoints) and an inactive or suspended one a
- * 403, all of which reject it.
+ * Resend's list-domains endpoint answers 200 for a full-access key. A sending-only key gets a 401
+ * named `restricted_api_key`, which still proves Resend authenticated it; an unknown key gets a
+ * `validation_error` and an inactive or suspended one a 403, both of which reject it.
  */
-export async function validateResendServiceAccount(
-  fields: TokenServiceAccountFields
-): Promise<TokenServiceAccountValidationResult> {
-  const response = await fetchProvider(
-    'https://api.resend.com/domains',
-    {
-      headers: { Authorization: `Bearer ${fields.apiToken.trim()}`, Accept: 'application/json' },
-      redirect: 'error',
-    },
-    'verify'
-  )
-  if (response.status === 401) {
-    const body = toRecord(await readJsonBody(response, 'Resend').catch(() => null))
-    if (body.name === 'restricted_api_key') {
-      return { displayName: 'Resend', principal: null, auditMetadata: {} }
-    }
-    throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
-  }
-  await throwForProviderResponse(response, 'verify')
-  await response.body?.cancel().catch(() => undefined)
-  return { displayName: 'Resend', principal: null, auditMetadata: {} }
-}
+export const validateResendServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Resend',
+  request: ({ apiToken }) => ({
+    url: 'https://api.resend.com/domains',
+    headers: { Authorization: `Bearer ${apiToken.trim()}`, Accept: 'application/json' },
+  }),
+  provesKey: (errorBody) => toRecord(errorBody).name === 'restricted_api_key',
+})
 
 /**
  * Listing one Rootly severity (a read every key role has) answers 200 for a valid key and 401
@@ -872,19 +845,6 @@ export const validateRootlyServiceAccount = tokenCheckValidator({
   request: ({ apiToken }) => ({
     url: 'https://api.rootly.com/v1/severities?page%5Bsize%5D=1',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/vnd.api+json' },
-  }),
-})
-
-/**
- * Semrush's API-units balance check is free, answers 200 for a valid key and 400 for a bad one.
- * It lives on www.semrush.com, not the report host, and takes the key as the same `key` query
- * parameter the report tools send.
- */
-export const validateSemrushServiceAccount = tokenCheckValidator({
-  serviceLabel: 'Semrush',
-  request: ({ apiToken }) => ({
-    url: `https://www.semrush.com/users/countapiunits.html?key=${encodeURIComponent(apiToken)}`,
-    headers: { Accept: 'text/plain' },
   }),
 })
 
@@ -925,14 +885,12 @@ export const validateTelegramServiceAccount = tokenCheckValidator({
 })
 
 /**
- * Listing one form answers 200 for a valid token. Typeform answers an unknown
- * token with a 403 `AUTHENTICATION_FAILED`, so only a JSON 403 naming another
- * code is read as a valid token without the forms:read scope.
+ * Listing one form answers 200 for a token with the forms:read scope the
+ * Typeform tools need. Typeform answers an unknown token with a 403, so every
+ * refusal rejects it.
  */
 export const validateTypeformServiceAccount = tokenCheckValidator({
   serviceLabel: 'Typeform',
-  forbiddenMeansScoped: true,
-  rejectsKey: (errorBody) => toRecord(errorBody).code === 'AUTHENTICATION_FAILED',
   request: ({ apiToken }) => ({
     url: 'https://api.typeform.com/forms?page_size=1',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },

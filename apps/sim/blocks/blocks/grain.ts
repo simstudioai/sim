@@ -26,8 +26,8 @@ export const GrainBlock: BlockConfig = {
   description: 'Access meeting recordings, transcripts, and AI summaries',
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
-  // Superseded by grain_v2 (Grain API v1 sunsets 2026-09-07); existing blocks
-  // keep rendering, new blocks come from the v2 entry.
+  // Superseded (Grain API v1 sunsets 2026-09-07); existing blocks keep rendering,
+  // new blocks come from the current version.
   hideFromToolbar: true,
   sunset: { status: 'legacy', replacedBy: 'grain_v3' },
   longDescription:

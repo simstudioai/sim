@@ -694,7 +694,6 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   secrets_manager: SecretsManagerIcon,
   secrets_manager_v2: SecretsManagerIcon,
   semrush: SemrushIcon,
-  semrush_v2: SemrushIcon,
   sendblue: SendblueIcon,
   sendgrid: SendgridIcon,
   sendgrid_v2: SendgridIcon,

@@ -9,7 +9,6 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Ph', 'Po', 'Nq', 'Cp', 'Co', 'Tg', 'Tr', 'Tc', 'Nr', 'Td', 'Tt', 'Ds'] as const
@@ -23,7 +22,6 @@ export const semrushUrlPaidKeywordsTool: ToolConfig<
   description:
     'List the keywords a single URL is advertised on in Google Ads, with the ad copy used.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

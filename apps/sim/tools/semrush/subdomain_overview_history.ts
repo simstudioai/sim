@@ -9,7 +9,6 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Dt', 'Rk', 'Or', 'Ot', 'Oc', 'Ad', 'At', 'Ac'] as const
@@ -22,7 +21,6 @@ export const semrushSubdomainOverviewHistoryTool: ToolConfig<
   name: 'Semrush Subdomain Overview History',
   description: 'Get the historical trend of a subdomain’s organic and paid search totals.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

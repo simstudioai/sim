@@ -9,7 +9,6 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Ph', 'Nq', 'Cp', 'Co', 'Nr', 'Kd', 'Rr', 'Fk', 'In', 'Td'] as const
@@ -23,7 +22,6 @@ export const semrushRelatedKeywordsTool: ToolConfig<
   description:
     'Find keywords semantically related to a seed keyword, with volume, difficulty, and relevance.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

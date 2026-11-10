@@ -75,7 +75,6 @@ import { RocketlaneBlock, RocketlaneV2Block } from '@/blocks/blocks/rocketlane'
 import { RootlyBlock, RootlyV2Block } from '@/blocks/blocks/rootly'
 import { S3Block, S3V2Block } from '@/blocks/blocks/s3'
 import { SecretsManagerBlock, SecretsManagerV2Block } from '@/blocks/blocks/secrets_manager'
-import { SemrushBlock, SemrushV2Block } from '@/blocks/blocks/semrush'
 import { SendGridBlock, SendGridV2Block } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryV2Block } from '@/blocks/blocks/sentry'
 import { SESBlock, SESV2Block } from '@/blocks/blocks/ses'
@@ -257,7 +256,6 @@ const VERSIONS: Array<{
   { legacy: PagerDutyBlock, successor: PagerDutyV2Block, secretIds: ['apiKey'] },
   { legacy: ResendBlock, successor: ResendV2Block, secretIds: ['resendApiKey'] },
   { legacy: RootlyBlock, successor: RootlyV2Block, secretIds: ['apiKey'] },
-  { legacy: SemrushBlock, successor: SemrushV2Block, secretIds: ['apiKey'] },
   { legacy: SentryBlock, successor: SentryV2Block, secretIds: ['apiKey'] },
   { legacy: StripeBlock, successor: StripeV2Block, secretIds: ['apiKey'] },
   { legacy: TelegramBlock, successor: TelegramV2Block, secretIds: ['botToken'] },

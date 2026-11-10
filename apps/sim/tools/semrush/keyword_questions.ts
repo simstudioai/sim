@@ -9,7 +9,6 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Ph', 'Nq', 'Cp', 'Co', 'Nr', 'Kd', 'In', 'Td'] as const
@@ -22,7 +21,6 @@ export const semrushKeywordQuestionsTool: ToolConfig<
   name: 'Semrush Keyword Questions',
   description: 'Find question-form keywords containing a seed keyword, with volume and difficulty.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

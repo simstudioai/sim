@@ -4,7 +4,6 @@ import type {
   SemrushSubdomainOverviewRow,
 } from '@/tools/semrush/types'
 import { buildSemrushUrl, readSemrushReport, SEMRUSH_ANALYTICS_URL } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Dn', 'Rk', 'Or', 'Ot', 'Oc', 'Ad', 'At', 'Ac'] as const
@@ -17,7 +16,6 @@ export const semrushSubdomainOverviewTool: ToolConfig<
   name: 'Semrush Subdomain Overview',
   description: 'Get the organic and paid search totals for a subdomain in one regional database.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

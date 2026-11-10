@@ -9,7 +9,6 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Po', 'Pt', 'Dn', 'Ur', 'Fk', 'Fp'] as const
@@ -22,7 +21,6 @@ export const semrushOrganicResultsTool: ToolConfig<
   name: 'Semrush Organic Results',
   description: 'List the domains and URLs ranking in Google organic search results for a keyword.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -128,7 +128,6 @@ import {
   RocketlaneIcon,
   RootlyIcon,
   SalesforceIcon,
-  SemrushIcon,
   SendgridIcon,
   SentryIcon,
   ShopifyIcon,
@@ -2814,7 +2813,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     services: {
       calendly: {
         name: 'Calendly',
-        description: 'Manage Calendly event types, scheduled events, invitees, and webhooks.',
+        description: 'Manage Calendly event types, scheduled events, and invitees.',
         providerId: 'calendly',
         serviceAccountProviderId: 'calendly-service-account',
         icon: CalendlyIcon,
@@ -2962,23 +2961,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'rootly',
-  },
-  semrush: {
-    name: 'Semrush',
-    icon: SemrushIcon,
-    services: {
-      semrush: {
-        name: 'Semrush',
-        description: 'Query Semrush domain, keyword, and backlink reports.',
-        providerId: 'semrush',
-        serviceAccountProviderId: 'semrush-service-account',
-        icon: SemrushIcon,
-        baseProviderIcon: SemrushIcon,
-        scopes: [],
-        authType: 'service_account',
-      },
-    },
-    defaultService: 'semrush',
   },
   sentry: {
     name: 'Sentry',

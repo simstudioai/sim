@@ -9,7 +9,6 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Dn', 'Ur', 'Vu'] as const
@@ -22,7 +21,6 @@ export const semrushPaidResultsTool: ToolConfig<
   name: 'Semrush Paid Results',
   description: 'List the domains and URLs advertising on a keyword in Google paid search results.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
