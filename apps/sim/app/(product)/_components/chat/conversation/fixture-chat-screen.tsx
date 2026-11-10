@@ -21,8 +21,8 @@ export async function FixtureChatScreen({ scenario, chatId }: FixtureChatScreenP
   ])
   return (
     <ChatScreen>
-      <ChatPanels workspaces={shell?.workspaces ?? []} data={panel} key={chatId ?? 'new'}>
-        <FixtureChat data={data?.chat ?? null} chatId={chatId} />
+      <ChatPanels workspaces={shell.workspaces} data={panel} key={chatId ?? 'new'}>
+        <FixtureChat data={data.chat} chatId={chatId} />
       </ChatPanels>
     </ChatScreen>
   )

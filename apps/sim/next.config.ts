@@ -27,7 +27,7 @@ const MARKDOWN_REQUEST = {
 
 /**
  * The value every bundle inlines as `process.env.SIM_PLATFORM_FIXTURES`: `'1'` makes a fixture build,
- * which renders Platform's example data with no sign-in (`lib/core/config/platform-fixtures.ts`).
+ * which renders Platform's example data with no sign-in (`platform/lib/data/mode.ts`).
  * Always a string, since Next inlines an `env` entry only when it is set and an unset one would
  * leave the reads to the server's own environment. A production image never carries example data.
  */

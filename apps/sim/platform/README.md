@@ -25,7 +25,7 @@ A workspace row, a command-search result or a workspace in the chat panel opens 
 
 ## Data modes
 
-The build decides the mode: `next.config.ts` inlines `SIM_PLATFORM_FIXTURES` into every bundle (`lib/core/config/platform-fixtures.ts`), and a normal build compiles every fixture branch away.
+The build decides the mode: `next.config.ts` inlines `SIM_PLATFORM_FIXTURES` into every bundle (`lib/data/mode.ts`), and a normal build compiles every fixture branch away.
 
 | Mode | When | Data |
 | --- | --- | --- |

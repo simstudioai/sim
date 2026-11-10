@@ -12,7 +12,8 @@ import {
   useSyncExternalStore,
 } from 'react'
 import type { IssueState } from '@/app/(product)/_components/workspace/workspace-session/model'
-import type { WorkspaceDataMode, WorkspaceTabFlags } from '@/platform/lib/workspace-navigation'
+import type { PlatformMode } from '@/platform/lib/data/mode'
+import type { WorkspaceTabFlags } from '@/platform/lib/workspace-navigation'
 
 /**
  * What a reader changes in a workspace during one product session: example decisions on issues and
@@ -63,7 +64,7 @@ interface RevealTarget {
 
 const Session = createContext<ReturnType<typeof useSessionState> | null>(null)
 
-const DataMode = createContext<WorkspaceDataMode>('fixture')
+const DataMode = createContext<PlatformMode>('fixture')
 
 const NO_TAB_FLAGS: WorkspaceTabFlags = {}
 
@@ -71,7 +72,7 @@ const TabFlags = createContext<WorkspaceTabFlags>(NO_TAB_FLAGS)
 
 interface WorkspaceSessionProps {
   /** Where this server's workspace data comes from, which decides the tabs it serves. */
-  mode: WorkspaceDataMode
+  mode: PlatformMode
   /** The organization's rollout flags a tab depends on; a flag left out hides its tab. */
   tabFlags?: WorkspaceTabFlags
   children: ReactNode

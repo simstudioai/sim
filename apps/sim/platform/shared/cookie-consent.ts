@@ -4,10 +4,7 @@ import { useState } from 'react'
 import { useConsentManager, useHeadlessConsentUI } from '@c15t/nextjs/headless'
 import { getErrorMessage } from '@sim/utils/errors'
 import { CONSENT_CATEGORY_COPY } from '@/lib/consent/copy'
-import { ConsentStoreProvider } from '@/lib/consent/store-provider'
 import { toast } from '@/lib/toast/sink'
-
-export const CookieConsentProvider = ConsentStoreProvider
 
 export const cookieChoices = Object.entries(CONSENT_CATEGORY_COPY).flatMap(([name, copy]) =>
   copy ? [{ name, ...copy, locked: name === 'necessary' }] : []

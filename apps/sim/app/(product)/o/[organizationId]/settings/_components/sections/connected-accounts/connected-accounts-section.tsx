@@ -15,7 +15,7 @@ export default async function ConnectedAccountsSection({
       import('@/platform/fixtures'),
     ])
     const data = await loadCredentialGroupsData(readScenario(query.state))
-    return data && <FixtureCredentialGroups data={data} />
+    return <FixtureCredentialGroups data={data} />
   }
   const organizationId = organization.organization.id
   const tab = typeof query.tab === 'string' ? query.tab : 'providers'

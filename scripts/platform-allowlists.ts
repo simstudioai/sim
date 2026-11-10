@@ -125,8 +125,6 @@ const serverSeamHelpers: ReasonedAllowlist = {
     "The billing summary use case behind the billing route, prefetched for Settings' Billing",
   'lib/core/application/organization-authorization':
     'OrganizationMembershipNotFoundError, which readOrganizationSurface answers as not found',
-  'lib/core/config/platform-fixtures':
-    "The fixture build's inlined switch, which `lib/data/mode.ts` reads",
   'lib/core/utils/deadline': 'withinDeadline, the budget server-read holds a first-paint read to',
   'lib/core/orchestration/types':
     "asOrchestrationError, which reads a legacy credential link's not found or forbidden as not found",
@@ -182,6 +180,8 @@ const serverSeamHelpers: ReasonedAllowlist = {
  */
 const platformHostModules: ReasonedAllowlist = {
   'lib/toast/sink': 'The one toast sink each root connects its own toaster to',
+  'components/paste-guard/paste-guard':
+    'The one paste admission guard each root mounts, raising its notice through the toast sink',
   'hooks/mothership-chat/desktop-tool-lifetimes': 'The one desktop tool lifetime both apps share',
   'lib/navigation/paths': "The app's path builders",
   'lib/navigation/settings-aliases': 'The one table of renamed Settings sections',
@@ -903,7 +903,7 @@ const FIXTURE_BRANCH_VIEWS: ReasonedAllowlist = {
   [`${ORGANIZATION_ROUTES}settings/_components/sections/preferences/preferences-section.tsx`]:
     'A client view below a server section, which cannot pass it the fixture theme (the URL) and read-only profile as callbacks',
   [`${ORGANIZATION_ROUTES}settings/_components/sections/privacy/cookie-preferences.tsx`]:
-    'The consent runtime loads only here, lazily; its fixture variant reads session choices without that runtime',
+    "Reads the root's consent store on live data; its fixture variant reads session choices without that runtime",
   'platform/lib/data/billing.ts':
     'The billing adapter swaps cancel and restore for the fixture settings context and hides portal and invoice links',
   'platform/lib/data/members.ts':

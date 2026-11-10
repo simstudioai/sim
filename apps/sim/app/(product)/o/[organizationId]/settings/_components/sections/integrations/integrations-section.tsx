@@ -19,11 +19,10 @@ export default async function IntegrationsSection({
     ])
     const inventory = await loadSourceSettings(readScenario(query.state))
     if (
-      !inventory ||
-      (subpath[0] === 'providers' &&
-        !inventory.sources.some(
-          (source) => source.id === subpath[1] && source.supportedModes.includes('service_account')
-        ))
+      subpath[0] === 'providers' &&
+      !inventory.sources.some(
+        (source) => source.id === subpath[1] && source.supportedModes.includes('service_account')
+      )
     )
       notFound()
     return <SourcesView initial={inventory} subpath={subpath} />
