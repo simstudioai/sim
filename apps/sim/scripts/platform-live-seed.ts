@@ -10,6 +10,7 @@ import {
   organization,
   organizationSearchHistory,
   organizationSearchIntegration,
+  permissionGroup,
   permissions,
   project,
   resourcePolicy,
@@ -45,6 +46,9 @@ const OFF_ORGANIZATION_ID = required('PLATFORM_LIVE_OFF_ORGANIZATION_ID')
 const OFF_EMAIL = required('PLATFORM_LIVE_OFF_EMAIL')
 const PASSWORD = required('PLATFORM_LIVE_PASSWORD')
 const CONNECTED_EMAIL = required('PLATFORM_LIVE_CONNECTED_EMAIL')
+/** An organization whose permission group withholds Chat from everyone in it, admins included. */
+const NO_CHAT_ORGANIZATION_ID = `${ORGANIZATION_ID}-no-chat`
+const NO_CHAT_EMAIL = required('PLATFORM_LIVE_NO_CHAT_EMAIL')
 
 const PEOPLE = [
   {
@@ -78,10 +82,12 @@ const userId = (key: string) => `platform-live-user-${key}`
 const OUTSIDER_ID = userId('outsider')
 const OUTSIDER_EMAIL = required('PLATFORM_LIVE_REFUSED_INVITE_EMAIL')
 const OFF_OWNER_ID = userId('off-owner')
+const NO_CHAT_ID = userId('no-chat')
 const EVERYONE = [
   ...PEOPLE.map(({ key, email, name }) => ({ id: userId(key), email, name })),
   { id: OUTSIDER_ID, email: OUTSIDER_EMAIL, name: 'Otto Outsider' },
   { id: OFF_OWNER_ID, email: OFF_EMAIL, name: 'Odessa Off' },
+  { id: NO_CHAT_ID, email: NO_CHAT_EMAIL, name: 'Noor Nochat' },
 ]
 const allUserIds = EVERYONE.map(({ id }) => id)
 const WORKSPACES = [
@@ -129,7 +135,12 @@ await db.transaction(async (tx) => {
   await tx
     .delete(organization)
     .where(
-      inArray(organization.id, [ORGANIZATION_ID, OUTSIDE_ORGANIZATION_ID, OFF_ORGANIZATION_ID])
+      inArray(organization.id, [
+        ORGANIZATION_ID,
+        OUTSIDE_ORGANIZATION_ID,
+        OFF_ORGANIZATION_ID,
+        NO_CHAT_ORGANIZATION_ID,
+      ])
     )
   await tx.delete(user).where(inArray(user.id, allUserIds))
 
@@ -167,6 +178,7 @@ await db.transaction(async (tx) => {
     },
     { id: OUTSIDE_ORGANIZATION_ID, name: 'Outside', slug: 'platform-live-outside', createdAt: now },
     { id: OFF_ORGANIZATION_ID, name: 'Off Rollout', slug: 'platform-live-off', createdAt: now },
+    { id: NO_CHAT_ORGANIZATION_ID, name: 'No Chat', slug: 'platform-live-no-chat', createdAt: now },
   ])
   await tx.insert(member).values([
     ...PEOPLE.map(({ key, role }) => ({
@@ -187,11 +199,18 @@ await db.transaction(async (tx) => {
       organizationId: OFF_ORGANIZATION_ID,
       role: 'owner',
     },
+    {
+      id: 'platform-live-member-no-chat',
+      userId: NO_CHAT_ID,
+      organizationId: NO_CHAT_ORGANIZATION_ID,
+      role: 'member',
+    },
   ])
   await tx.insert(subscription).values(
     [
       { id: 'platform-live-subscription', referenceId: ORGANIZATION_ID },
       { id: 'platform-live-subscription-off', referenceId: OFF_ORGANIZATION_ID },
+      { id: 'platform-live-subscription-no-chat', referenceId: NO_CHAT_ORGANIZATION_ID },
     ].map(({ id, referenceId }) => ({
       id,
       plan: 'enterprise',
@@ -203,6 +222,17 @@ await db.transaction(async (tx) => {
       periodEnd: new Date(now.getTime() + 30 * 86_400_000),
     }))
   )
+
+  // Organization-level capabilities read the default group alone, so Chat is withheld from the whole
+  // organization; its member keeps member-scoped Search, which is where they land.
+  await tx.insert(permissionGroup).values({
+    id: 'platform-live-group-no-chat',
+    organizationId: NO_CHAT_ORGANIZATION_ID,
+    name: 'No Chat',
+    config: { hideCopilot: true },
+    createdBy: NO_CHAT_ID,
+    isDefault: true,
+  })
 
   const ownerId = userId('owner')
   for (const { id, name } of WORKSPACES) {

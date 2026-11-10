@@ -1,6 +1,7 @@
 /**
  * The organization `test-org-redesign-e2e.ts` runs against, shared with its seed: Enterprise, a
- * small admin team over a large group of members who cannot build, and made-up names throughout.
+ * small admin team over a large group of members, and made-up names throughout. Every member may
+ * chat: the default permission group leaves Chat on, and role never decides it.
  */
 export const ORGANIZATION_ID = 'org-redesign-organization'
 export const OUTSIDE_ORGANIZATION_ID = 'org-redesign-outside'
@@ -124,7 +125,7 @@ export const MEMBER_WRITE_WORKSPACE = WORKSPACES[1]
 const uuid = (digit: string) =>
   `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`
 
-/** The member's chats: assistant ones live under Search, and an agent one they can no longer open. */
+/** The member's chats: assistant ones live under Search, and an agent one under Chat. */
 export const MEMBER_CHATS = {
   assistant: { id: uuid('1'), title: 'Warranty coverage', mode: 'assistant', seen: true },
   unread: { id: uuid('2'), title: 'Dealer onboarding', mode: 'assistant', seen: false },

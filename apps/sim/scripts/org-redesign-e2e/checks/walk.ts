@@ -37,21 +37,15 @@ import { stubConnectedHome } from '@/scripts/org-redesign-e2e/stubs'
 const settingsRoutes = (sections: readonly string[]) =>
   sections.map((section) => ({ name: `settings-${section}`, path: org.settingsSection(section) }))
 
-/** Who can build here, and so has Home; everyone else lands on Search (org-parity.md:255). */
-const BUILDERS: readonly Persona[] = [ADMIN, OWNER]
-
 interface WalkRoute {
   name: string
   path: string
-  /** Where the route settles when it redirects by design. */
-  lands?: string
 }
 
 /** Each persona's routes, as full paths from the organization's route builder. */
 function routesFor(persona: Persona): WalkRoute[] {
-  const home: WalkRoute = BUILDERS.includes(persona)
-    ? { name: 'home', path: org.home }
-    : { name: 'home', path: org.home, lands: org.search }
+  // Every member here may chat, so everyone has Home (org-parity.md, "Home page gate").
+  const home: WalkRoute = { name: 'home', path: org.home }
   const shared: WalkRoute[] = [
     home,
     { name: 'search', path: `${org.search}?mode=search` },
@@ -153,7 +147,7 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
             failures.push(`${route.name}: ${getErrorMessage(error)}`)
             return null
           })
-          if (route.name === 'home' && !route.lands)
+          if (route.name === 'home')
             await composer(page)
               .waitFor({ timeout: 20_000 })
               .catch(() => failures.push('home never left its skeleton'))
@@ -210,7 +204,7 @@ async function walkOne(persona: Persona, viewport: Viewport, theme: Theme) {
           })
           if ((response?.status() ?? 500) >= 400)
             failures.push(`${route.name} status ${response?.status()}`)
-          const expectedPathname = route.lands ?? route.path.split('?')[0]
+          const expectedPathname = route.path.split('?')[0]
           if (new URL(page.url()).pathname !== expectedPathname)
             failures.push(`${route.name} landed on ${pathOf(page.url())}`)
           if (facts.dark !== (theme === 'dark')) failures.push(`${route.name} wrong theme`)

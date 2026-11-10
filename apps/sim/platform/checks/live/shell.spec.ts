@@ -87,13 +87,12 @@ test('navigation lists what the surface grants, and leaves for legacy routes in 
   const surfaceResponse = await page.request.get('/api/organizations/surface')
   const surface = (await surfaceResponse.json()) as {
     mothershipAvailable: boolean
-    canBuild: boolean
     searchAccess: { memberScoped: boolean }
     navFlags: { people: boolean; benchmark: boolean }
   }
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
   const granted: Record<string, boolean> = {
-    Home: surface.mothershipAvailable && surface.canBuild,
+    Home: surface.mothershipAvailable,
     Search: surface.searchAccess.memberScoped,
     People: surface.navFlags.people,
     Integrations: true,

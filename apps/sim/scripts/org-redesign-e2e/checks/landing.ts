@@ -17,9 +17,7 @@ import {
   org,
   refused,
   section,
-  sql,
   url,
-  withRestore,
   withSession,
 } from '@/scripts/org-redesign-e2e/harness'
 import {
@@ -31,40 +29,29 @@ import {
 
 export async function landingChecks() {
   section('1 Where they land')
-  // A member who cannot build has no Home: they land on Search, and their chats open under it
-  // (platform/docs/org-parity.md:18, :255, :348). Builders still land on Home.
-  const landsOnSearch = (address: URL) => address.pathname === org.search
-  await check('a member who cannot build signs in to Search', async () => {
+  // Chat follows the permission group, never the role: every member here may chat, so everyone
+  // lands on Home, and Assistant chats still open under Search (platform/docs/org-parity.md).
+  const landsOnHome = (address: URL) => address.pathname === org.home
+  await check('a member signs in to Home', async () => {
     await withSession(null, async ({ page }) => {
       await page.goto(url('/login'))
       await page.locator('#email').fill(MEMBER.email)
       await page.locator('#password').fill(PASSWORD)
       await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-      // Polled rather than awaited as a navigation: /home streams its redirect, which Next answers
-      // with both a client navigation and a meta refresh, and the one that loses is aborted.
-      await expect.poll(() => landsOnSearch(new URL(page.url())), { timeout: 45_000 }).toBe(true)
-      await expect(searchField(page)).toBeVisible()
+      // Polled rather than awaited as a navigation: the organization root streams its redirect,
+      // which Next answers with both a client navigation and a meta refresh, and the loser aborts.
+      await expect.poll(() => landsOnHome(new URL(page.url())), { timeout: 45_000 }).toBe(true)
+      await expect(composer(page)).toBeVisible()
     })
   })
-  for (const persona of [ADMIN, OWNER]) {
+  for (const persona of [ADMIN, OWNER, MEMBER, NARROW]) {
     await check(`${persona.key}: /o and /o/[id] and /home reach Home`, async () => {
-      await withSession(persona, async ({ page }) => {
-        for (const path of ['/o', org.root, '/home']) {
-          await page.goto(url(path))
-          await expect(page).toHaveURL(url(org.home))
-        }
-        await expect(composer(page)).toBeVisible()
-      })
-    })
-  }
-  for (const persona of [MEMBER, NARROW]) {
-    await check(`${persona.key}: /o and /o/[id] and /home reach Search`, async () => {
       await withSession(persona, async ({ page }) => {
         for (const path of ['/o', org.root, '/home', org.home]) {
           await page.goto(url(path))
-          await expect(page).toHaveURL(landsOnSearch)
+          await expect(page).toHaveURL(landsOnHome)
         }
-        await expect(searchField(page)).toBeVisible()
+        await expect(composer(page)).toBeVisible()
       })
     })
   }
@@ -86,38 +73,21 @@ export async function landingChecks() {
     })
   })
   await check(
-    "a member's agent chat lands on Search or is not found, unread, and renders for an admin",
+    "a member's agent chat opens as a chat, is absent under Search, and lists in the rail",
     async () => {
       await withSession(MEMBER, async (session) => {
         const { page } = session
         const transcript = page.getByText(`Here is what I found about ${MEMBER_CHATS.agent.title}.`)
-        // Agent routes send a member who cannot build to Search before any chat is read.
         await page.goto(url(org.chat(MEMBER_CHATS.agent.id)))
-        await expect(page).toHaveURL(landsOnSearch)
-        await expect(searchField(page)).toBeVisible()
-        await expect(transcript).toHaveCount(0)
+        await expect(page).toHaveURL(url(org.chat(MEMBER_CHATS.agent.id)))
+        await expect(transcript).toBeVisible()
         // Search only opens assistant chats, so an agent chat there is absent, as in legacy.
         await page.goto(url(org.searchChat(MEMBER_CHATS.agent.id)))
         await expectPageNotFound(page)
         await expect(transcript).toHaveCount(0)
-        await withRestore(
-          () =>
-            sql`update copilot_chats set last_seen_at = now() where id = ${MEMBER_CHATS.agent.id}`,
-          async () => {
-            await sql`update copilot_chats set last_seen_at = null where id = ${MEMBER_CHATS.agent.id}`
-            await page.goto(url(org.search))
-            await expect(railLink(page, MEMBER_CHATS.assistant.title)).toBeVisible()
-            await session.settle()
-            await expect(railLink(page, MEMBER_CHATS.agent.title)).toHaveCount(0)
-          }
-        )
-      })
-      await withSession(ADMIN, async ({ page }) => {
-        await page.goto(url(org.searchChat(ADMIN_CHATS.agent.id)))
-        await expect(page).toHaveURL(url(org.chat(ADMIN_CHATS.agent.id)))
-        await expect(
-          page.getByText(`Here is what I found about ${ADMIN_CHATS.agent.title}.`)
-        ).toBeVisible()
+        await page.goto(url(org.home))
+        await session.settle()
+        await expect(railLink(page, MEMBER_CHATS.agent.title)).toBeVisible()
       })
     },
     {
@@ -130,20 +100,23 @@ export async function landingChecks() {
     async () => {
       await withSession(MEMBER, async ({ page }) => {
         await page.goto(url(org.chat(ADMIN_CHATS.agent.id)))
-        await expect(page).toHaveURL(landsOnSearch)
+        await expectPageNotFound(page)
         await expect(
           page.getByText(`Here is what I found about ${ADMIN_CHATS.agent.title}.`)
         ).toHaveCount(0)
         await page.goto(url(org.searchChat(ADMIN_CHATS.assistant.id)))
         await expectPageNotFound(page)
         await page.getByRole('button', { name: 'Return home', exact: true }).click()
-        await expect(page).toHaveURL(landsOnSearch)
-        await expect(searchField(page)).toBeVisible()
+        await expect(page).toHaveURL(landsOnHome)
+        await expect(composer(page)).toBeVisible()
       })
     },
     {
-      // Someone else's assistant chat, which must read as absent.
-      allow: [refused(404, 'GET', org.searchChat(ADMIN_CHATS.assistant.id))],
+      // Someone else's chats, which must read as absent.
+      allow: [
+        refused(404, 'GET', org.chat(ADMIN_CHATS.agent.id)),
+        refused(404, 'GET', org.searchChat(ADMIN_CHATS.assistant.id)),
+      ],
     }
   )
   await check('signed out, every organization route goes to login', async () => {
