@@ -6382,6 +6382,16 @@ import {
   vantaUploadDocumentFileTool,
 } from '@/tools/vanta'
 import {
+  veilleCheckDomainTool,
+  veilleCheckEmailTool,
+  veilleCheckIpTool,
+  veilleGetExchangeRatesTool,
+  veilleValidateIbanTool,
+  veilleValidatePhoneTool,
+  veilleVerifyEmailTool,
+  veilleVerifyVatTool,
+} from '@/tools/veille'
+import {
   vercelAddDomainTool,
   vercelAddProjectDomainTool,
   vercelCancelDeploymentTool,
@@ -10848,6 +10858,14 @@ export const tools: Record<string, ExecutableToolConfig> = {
   vanta_get_vulnerable_asset: vantaGetVulnerableAssetTool,
   vanta_list_risk_scenarios: vantaListRiskScenariosTool,
   vanta_get_risk_scenario: vantaGetRiskScenarioTool,
+  veille_verify_email: veilleVerifyEmailTool,
+  veille_check_email: veilleCheckEmailTool,
+  veille_validate_phone: veilleValidatePhoneTool,
+  veille_check_ip: veilleCheckIpTool,
+  veille_check_domain: veilleCheckDomainTool,
+  veille_verify_vat: veilleVerifyVatTool,
+  veille_validate_iban: veilleValidateIbanTool,
+  veille_get_exchange_rates: veilleGetExchangeRatesTool,
   vercel_list_deployments: vercelListDeploymentsTool,
   vercel_get_deployment: vercelGetDeploymentTool,
   vercel_create_deployment: vercelCreateDeploymentTool,

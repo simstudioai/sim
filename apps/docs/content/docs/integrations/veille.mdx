@@ -1,0 +1,331 @@
+---
+title: Veille
+description: Validate emails, phones, IPs, domains, VAT numbers and IBANs
+integration:
+  type: "veille"
+  color: "#FFFFFF"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[Veille](https://www.veille.io/) is a validation and fraud-signal API for emails, phone numbers, IP addresses, domains, EU VAT numbers and IBANs.
+
+With the Veille block, you can:
+
+- **Screen signups and forms**: verify that an email can receive mail, flag disposable, role, webmail and relay addresses, and score an IP address for VPN, proxy, Tor and datacenter traffic
+- **Check contact details**: validate phone numbers and inspect a domain's DNS health, WHOIS dates and age
+- **Verify business details**: check EU VAT numbers against VIES and validate IBANs with their bank and BIC
+- **Convert currencies**: read the European Central Bank's daily exchange rates for any base currency
+
+Create an API key in the [Veille dashboard](https://app.veille.io/) and paste it into the block.
+
+In Sim, the Veille block lets your agents stop fake signups, clean lead lists before a campaign, and check B2B customers before invoicing them.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Check signups and forms for fraud with Veille: verify email deliverability, flag disposable, role and webmail addresses, validate phone numbers, score IP addresses for VPN, proxy and Tor traffic, inspect domains, verify EU VAT numbers and IBANs, and read the European Central Bank's daily exchange rates.
+
+## Actions
+
+### Veille Verify Email
+
+Verify that an email address can receive mail with an SMTP inbox test and catch-all detection, and get a verdict with a 0-100 risk score.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | The email address to check \(e.g., "jane@company.com"\) |
+| `apiKey` | string | Yes | Veille API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `qualification` | string | Verdict: valid, invalid, risky, disposable or unknown |
+| `smtpValid` | boolean | Whether the inbox accepted mail in the SMTP test |
+| `email` | string | The email address that was checked |
+| `normalizedEmail` | string | The address in lowercase, as checked |
+| `domain` | string | Domain of the address |
+| `riskScore` | number | Risk score from 0 \(safe\) to 100 \(risky\) |
+| `disposable` | boolean | Whether the address uses a disposable or temporary inbox |
+| `roleAccount` | boolean | Whether the address is a role account, such as contact@ or support@ |
+| `roleType` | string | Role of a role account, such as contact or support |
+| `publicDomain` | boolean | Whether the domain is a public webmail provider |
+| `relayDomain` | boolean | Whether the domain is an email relay or forwarding service |
+| `isAlias` | boolean | Whether the address is an alias, such as a plus address |
+| `education` | boolean | Whether the domain belongs to an education institution |
+| `hasGravatar` | boolean | Whether the address has a Gravatar profile |
+| `dns` | object | DNS health of the domain: MX, SPF and DMARC records |
+|   ↳ `mx` | boolean | Whether the domain has MX records |
+|   ↳ `spf` | string | SPF record of the domain |
+|   ↳ `spfValid` | boolean | Whether the SPF record is valid |
+|   ↳ `dmarc` | string | DMARC record of the domain |
+|   ↳ `dmarcValid` | boolean | Whether the DMARC record is valid |
+|   ↳ `mxRecords` | array | MX records of the domain |
+|     ↳ `hostname` | string | Mail server hostname |
+|     ↳ `priority` | number | MX priority, lower is preferred |
+
+</ReferenceDetails>
+
+### Veille Check Email
+
+Check an email address without an SMTP test: disposable or temporary inbox, role account, public webmail, relay or alias, DNS health and a 0-100 risk score.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `email` | string | Yes | The email address to check \(e.g., "jane@company.com"\) |
+| `apiKey` | string | Yes | Veille API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `email` | string | The email address that was checked |
+| `normalizedEmail` | string | The address in lowercase, as checked |
+| `domain` | string | Domain of the address |
+| `riskScore` | number | Risk score from 0 \(safe\) to 100 \(risky\) |
+| `disposable` | boolean | Whether the address uses a disposable or temporary inbox |
+| `roleAccount` | boolean | Whether the address is a role account, such as contact@ or support@ |
+| `roleType` | string | Role of a role account, such as contact or support |
+| `publicDomain` | boolean | Whether the domain is a public webmail provider |
+| `relayDomain` | boolean | Whether the domain is an email relay or forwarding service |
+| `isAlias` | boolean | Whether the address is an alias, such as a plus address |
+| `education` | boolean | Whether the domain belongs to an education institution |
+| `hasGravatar` | boolean | Whether the address has a Gravatar profile |
+| `dns` | object | DNS health of the domain: MX, SPF and DMARC records |
+|   ↳ `mx` | boolean | Whether the domain has MX records |
+|   ↳ `spf` | string | SPF record of the domain |
+|   ↳ `spfValid` | boolean | Whether the SPF record is valid |
+|   ↳ `dmarc` | string | DMARC record of the domain |
+|   ↳ `dmarcValid` | boolean | Whether the DMARC record is valid |
+|   ↳ `mxRecords` | array | MX records of the domain |
+|     ↳ `hostname` | string | Mail server hostname |
+|     ↳ `priority` | number | MX priority, lower is preferred |
+
+</ReferenceDetails>
+
+### Veille Validate Phone
+
+Validate a phone number in E.164 format and get its line type, carrier, country, time zones, virtual or disposable flags and a 0-100 risk score.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `phone` | string | Yes | The phone number in E.164 format, starting with + \(e.g., "+33142928100"\) |
+| `apiKey` | string | Yes | Veille API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `isValid` | boolean | Whether the number is valid |
+| `e164Format` | string | The number in E.164 format |
+| `internationalFormat` | string | The number in international format |
+| `nationalFormat` | string | The number in national format |
+| `lineType` | string | Line type, such as mobile, fixed_line or voip |
+| `carrier` | string | Carrier of the number |
+| `carrierType` | string | Carrier type |
+| `country` | string | ISO 3166-1 alpha-2 country code of the number |
+| `countryName` | string | Country of the number |
+| `callingCode` | string | International calling code, without + |
+| `region` | string | City or region the number is registered to |
+| `timezones` | array | Time zones of the number |
+| `isVirtual` | boolean | Whether the number is virtual |
+| `isDisposable` | boolean | Whether the number is a disposable number |
+| `isSpam` | boolean | Whether the number is reported for spam |
+| `isThreat` | boolean | Whether the number is reported as a threat |
+| `riskScore` | number | Risk score from 0 \(safe\) to 100 \(risky\) |
+
+</ReferenceDetails>
+
+### Veille Check IP
+
+Check an IPv4 or IPv6 address for VPN, proxy, Tor exit, datacenter, abuse and crawler traffic, with its network owner, location and a 0-100 threat score.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `ip` | string | Yes | The IPv4 or IPv6 address \(e.g., "8.8.8.8"\) |
+| `apiKey` | string | Yes | Veille API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `ip` | string | The IP address that was checked |
+| `threatScore` | number | Threat score from 0 \(safe\) to 100 \(risky\) |
+| `isVpn` | boolean | Whether the address belongs to a VPN |
+| `isProxy` | boolean | Whether the address is a proxy |
+| `isTor` | boolean | Whether the address is a Tor exit node |
+| `isDatacenter` | boolean | Whether the address belongs to a datacenter or hosting provider |
+| `isAbuser` | boolean | Whether the address is reported for abuse |
+| `isCrawler` | boolean | Whether the address belongs to a known crawler |
+| `isMobile` | boolean | Whether the address belongs to a mobile network |
+| `isBogon` | boolean | Whether the address is a bogon \(reserved or unassigned\) address |
+| `asn` | object | Network that owns the address |
+|   ↳ `asn` | number | Autonomous system number |
+|   ↳ `org` | string | Organization that owns the network |
+|   ↳ `type` | string | Network type, such as hosting, isp or business |
+|   ↳ `route` | string | IP range announced for the network |
+|   ↳ `domain` | string | Domain of the network owner |
+|   ↳ `country` | string | Country code of the network owner |
+|   ↳ `abuse` | string | Abuse contact email of the network |
+|   ↳ `active` | boolean | Whether the network is active |
+| `location` | object | Geolocation of the address |
+|   ↳ `city` | string | City |
+|   ↳ `state` | string | State or region |
+|   ↳ `country` | string | Country name |
+|   ↳ `countryCode` | string | ISO 3166-1 alpha-2 country code |
+|   ↳ `continent` | string | Continent code |
+|   ↳ `zip` | string | Postal code |
+|   ↳ `latitude` | number | Latitude |
+|   ↳ `longitude` | number | Longitude |
+|   ↳ `timezone` | string | IANA time zone |
+|   ↳ `isEuMember` | boolean | Whether the country is a member of the European Union |
+|   ↳ `currencyCode` | string | ISO 4217 code of the local currency |
+
+</ReferenceDetails>
+
+### Veille Check Domain
+
+Check whether a domain hosts disposable, public webmail, relay or education email, with its DNS health, WHOIS dates and age.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | A domain, URL or email address; the domain is extracted \(e.g., "mailinator.com"\) |
+| `apiKey` | string | Yes | Veille API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `domain` | string | The domain that was checked |
+| `disposable` | boolean | Whether the domain provides disposable or temporary inboxes |
+| `publicDomain` | boolean | Whether the domain is a public webmail provider |
+| `relayDomain` | boolean | Whether the domain is an email relay or forwarding service |
+| `education` | boolean | Whether the domain belongs to an education institution |
+| `isSubdomain` | boolean | Whether the domain is a subdomain |
+| `domainAgeDays` | number | Age of the domain in days |
+| `tags` | array | Labels for the domain, such as disposable |
+| `sources` | array | Lists that report the domain |
+| `firstSeen` | string | When Veille first saw the domain |
+| `lastSeen` | string | When Veille last saw the domain |
+| `whois` | object | Registration dates and registrar |
+|   ↳ `registrar` | string | Registrar of the domain |
+|   ↳ `creationDate` | string | Date the domain was registered |
+|   ↳ `updatedDate` | string | Date the registration was last updated |
+|   ↳ `expirationDate` | string | Date the registration expires |
+| `dns` | object | DNS health of the domain: MX, SPF and DMARC records |
+|   ↳ `mx` | boolean | Whether the domain has MX records |
+|   ↳ `spf` | string | SPF record of the domain |
+|   ↳ `spfValid` | boolean | Whether the SPF record is valid |
+|   ↳ `dmarc` | string | DMARC record of the domain |
+|   ↳ `dmarcValid` | boolean | Whether the DMARC record is valid |
+|   ↳ `mxRecords` | array | MX records of the domain |
+|     ↳ `hostname` | string | Mail server hostname |
+|     ↳ `priority` | number | MX priority, lower is preferred |
+
+</ReferenceDetails>
+
+### Veille Verify VAT Number
+
+Check an EU VAT number against VIES and get whether it is valid, with the registered company name and address when the member state shares them.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `vatNumber` | string | Yes | The VAT number with its country prefix \(e.g., "FR40303265045"\) |
+| `apiKey` | string | Yes | Veille API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `valid` | boolean | Whether the number is valid |
+| `vatNumber` | string | The VAT number without its country prefix |
+| `countryCode` | string | Country code of the number |
+| `companyName` | string | Registered company name, when the member state shares it |
+| `companyAddress` | string | Registered company address, when the member state shares it |
+
+</ReferenceDetails>
+
+### Veille Validate IBAN
+
+Check an IBAN's structure and checksum and get its bank name, BIC, bank and branch codes, country and SEPA membership.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `iban` | string | Yes | The IBAN, with or without spaces \(e.g., "FR7630006000011234567890189"\) |
+| `apiKey` | string | Yes | Veille API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `valid` | boolean | Whether the IBAN is valid |
+| `iban` | string | The IBAN without spaces |
+| `bic` | string | BIC of the bank |
+| `bankName` | string | Name of the bank |
+| `bankCode` | string | Bank code |
+| `branchCode` | string | Branch code |
+| `accountNumber` | string | Account number |
+| `bban` | string | Basic bank account number |
+| `checksumDigits` | string | Checksum digits |
+| `countryCode` | string | Country code of the IBAN |
+| `countryName` | string | Country of the IBAN |
+| `inSepaZone` | boolean | Whether the country is in the SEPA zone |
+
+</ReferenceDetails>
+
+### Veille Get Exchange Rates
+
+Get the European Central Bank's daily exchange rates for a base currency, optionally limited to some target currencies.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `base` | string | No | ISO 4217 code of the base currency; defaults to EUR \(e.g., "USD"\) |
+| `symbols` | string | No | Comma-separated ISO 4217 codes to keep \(e.g., "EUR,GBP"\) |
+| `apiKey` | string | Yes | Veille API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `base` | string | Base currency of the rates |
+| `date` | string | Date of the rates \(YYYY-MM-DD\) |
+| `rates` | json | Rates keyed by ISO 4217 currency code, for one unit of the base currency |
+
+</ReferenceDetails>
+
+
