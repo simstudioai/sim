@@ -2,15 +2,14 @@
 
 import { useState } from 'react'
 import { ActivityRow } from '@sim/emcn/activity-row'
-import { TextAreaField, TextField } from '@sim/emcn/field'
 import { Icon } from '@sim/emcn/icon'
 import { Modal } from '@sim/emcn/modal'
 import { getErrorMessage } from '@sim/utils/errors'
+import { type SkillDraft, SkillFields } from '@/app/(product)/_components/skill-fields/skill-fields'
 import { IntegrationTemplates } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-capabilities/integration-capabilities'
 import styles from '@/app/(product)/o/[organizationId]/integrations/_components/integration-capabilities/integration-capabilities.module.css'
 import {
   isSkillNameConflictError,
-  SKILL_DESCRIPTION_MAX_LENGTH,
   type SkillDefinition,
   useCreateSkill,
   useDeleteSkill,
@@ -20,7 +19,6 @@ import {
 import type { IntegrationCatalogEntry } from '@/platform/lib/integrations/catalog-model'
 
 type CatalogSkill = IntegrationCatalogEntry['skills'][number]
-type SkillDraft = { name: string; description: string; content: string }
 
 interface WorkspaceCapabilitiesProps {
   workspaceId: string
@@ -159,36 +157,7 @@ function SuggestedSkillEditor({
             : undefined
         }
       >
-        <TextField
-          label='Name'
-          placeholder='Skill name'
-          name='name'
-          value={draft.name}
-          onChange={(name) => setDraft({ ...draft, name })}
-          viewOnly={!editable}
-          required
-          maxLength={64}
-        />
-        <TextAreaField
-          label='Description'
-          placeholder='Describe what this is for'
-          name='description'
-          value={draft.description}
-          onChange={(description) => setDraft({ ...draft, description })}
-          viewOnly={!editable}
-          required
-          maxLength={SKILL_DESCRIPTION_MAX_LENGTH}
-        />
-        <TextAreaField
-          label='Instructions'
-          placeholder='Describe what this skill should do'
-          name='instructions'
-          defaultSize='large'
-          value={draft.content}
-          onChange={(content) => setDraft({ ...draft, content })}
-          viewOnly={!editable}
-          required
-        />
+        <SkillFields draft={draft} onEdit={setDraft} viewOnly={!editable} />
       </Modal>
       {removing && installed && (
         <Modal

@@ -48,9 +48,13 @@ async function LiveIntegrationsSection({
     if ((await readGenericSecretSourceMode(organization.organization.id)) !== 'organization')
       redirect(sourcesHref)
     const { SecretsEditor } = await import(
-      '@/app/(product)/o/[organizationId]/_components/secrets-editor/secrets-editor'
+      '@/app/(product)/_components/secrets-editor/secrets-editor'
     )
-    return <SecretsEditor organizationId={organization.organization.id} mode='organization' />
+    return (
+      <SecretsEditor
+        scope={{ kind: 'organization', organizationId: organization.organization.id }}
+      />
+    )
   }
   if (kind === 'providers') {
     const { resolveProviderRoute } = await import(

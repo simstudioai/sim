@@ -3,6 +3,7 @@
 import {
   type ComponentType,
   type CSSProperties,
+  type HTMLAttributes,
   type ReactNode,
   type Ref,
   useCallback,
@@ -40,7 +41,6 @@ import {
   getCursorSourceHandleId,
   getCursorSourceHandlePosition,
 } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/source-handle'
-import { StatusBadge } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/status-badge'
 import { SubBlockRowView } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/sub-block-row-view'
 import type { BlockRunStatus } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/types'
 import { useActionMenuSwell } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/use-action-menu-swell'
@@ -53,6 +53,41 @@ import {
   WORKFLOW_TARGET_HANDLE_ID,
   type WorkflowConnectionSide,
 } from '@/platform/lib/data/workflows'
+
+const STATUS_BADGE_COLOR = {
+  red: styles.statusRed,
+  amber: styles.statusAmber,
+  orange: styles.statusOrange,
+} as const
+
+interface StatusBadgeProps
+  extends Omit<HTMLAttributes<HTMLDivElement>, 'children' | 'className' | 'style'> {
+  color: keyof typeof STATUS_BADGE_COLOR
+  /** The cursor the legacy caller set: a pointer when clicking acts, not-allowed when it is gated. */
+  cursor?: 'pointer' | 'not-allowed'
+  children: ReactNode
+}
+
+/**
+ * The legacy dotted status `Badge` (size md) the card paints in its header: sunset, child deploy,
+ * disabled schedule or webhook, and the webhook trigger.
+ */
+function StatusBadge({ color, cursor, children, ...props }: StatusBadgeProps) {
+  return (
+    <div
+      className={cn(
+        styles.statusBadge,
+        STATUS_BADGE_COLOR[color],
+        cursor === 'pointer' && styles.statusPointer,
+        cursor === 'not-allowed' && styles.statusNotAllowed
+      )}
+      {...props}
+    >
+      <div className={styles.statusDot} />
+      {children}
+    </div>
+  )
+}
 
 const getHandleStyle = (position: 'horizontal' | 'vertical') => {
   if (position === 'horizontal') {

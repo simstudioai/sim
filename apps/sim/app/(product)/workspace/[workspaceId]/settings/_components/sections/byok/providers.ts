@@ -19,7 +19,7 @@ import {
   ZaiIcon,
 } from '@/platform/lib/data/byok'
 
-export interface ByokProvider {
+interface ByokProvider {
   id: BYOKProviderId
   name: string
   /** Brand artwork for a provider the design system has no mark for. */

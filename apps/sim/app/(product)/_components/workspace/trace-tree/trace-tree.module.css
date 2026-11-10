@@ -150,3 +150,15 @@ button.disclosure:hover {
     grid-column: 2 / -1;
   }
 }
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  min-inline-size: 0;
+  gap: var(--ui-action-gap);
+}
+.toolbarSearch {
+  display: flex;
+  flex: 1;
+  min-inline-size: 0;
+}

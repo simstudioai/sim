@@ -17,6 +17,7 @@ import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
+import { RenameDialog } from '@/app/(product)/_components/rename-dialog/rename-dialog'
 import { AccessRequired } from '@/app/(product)/_components/workspace/access-required/access-required'
 import { BaseTagsModal } from '@/app/(product)/_components/workspace/knowledge/base-tags-modal/base-tags-modal'
 import {
@@ -42,7 +43,6 @@ import {
   noResults,
   sortActions,
 } from '@/app/(product)/_components/workspace/resource-table/list-menus'
-import { RenameDialog } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import {
   OwnerCell,
   type ResourceColumn,

@@ -22,30 +22,6 @@
   padding-block: calc(0.25rem * 0.5);
 }
 
-.floating {
-  pointer-events: auto;
-  top: -40px;
-  right: 0;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 2px;
-  border-style: solid;
-  border-width: 1.5px;
-  border-color: var(--wf-border-1);
-  background-color: var(--wf-surface-2);
-  padding: 3px;
-  opacity: 0;
-  transition-property: opacity;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 0.15s;
-}
-
-/* Legacy `group-hover:` keyed on the card root, which fills its React Flow node. */
-.floating:is(:where([class~="react-flow__node"]):hover *) {
-  opacity: 1;
-}
-
 .row {
   position: relative;
   display: flex;
@@ -75,10 +51,6 @@
   inset-block: 0;
   right: 0;
   overflow: hidden;
-}
-
-.hatchPlain {
-  left: 26px;
 }
 
 .hatchSwell {

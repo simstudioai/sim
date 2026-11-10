@@ -8,7 +8,6 @@ export interface WorkspaceSettingsSectionProps {
   workspaceId: string
   /** Segments after the section's key, limited to its declared `subpaths`. */
   subpath: readonly string[]
-  query: Record<string, string | string[] | undefined>
 }
 
 /**

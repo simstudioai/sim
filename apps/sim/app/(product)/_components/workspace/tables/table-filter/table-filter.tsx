@@ -66,26 +66,17 @@ function createRule(columns: ColumnDefinition[]): FilterRule {
 interface TableFilterProps {
   columns: ColumnDefinition[]
   filter: TablePredicate | null
-  /** Applies each complete edit at once instead of waiting for Apply. */
-  autoApply?: boolean
   onChange: (filter: TablePredicate | null) => void
-  onClose?: () => void
 }
 
 /**
  * The table's filter builder, an inline panel above the grid: a "Where" rule followed by AND/OR
  * rules, each a column, an operator for that column's type and a value. Incomplete rules are held
- * back from the applied filter. With `autoApply`, every complete edit applies at once, a rule whose
+ * back from the applied filter. Every complete edit applies at once, a rule whose
  * operator change left it incomplete keeps applying its previous complete form until the new one
  * is finished, and nothing is applied that matches what is already applied.
  */
-export function TableFilter({
-  columns,
-  filter,
-  autoApply = false,
-  onChange,
-  onClose,
-}: TableFilterProps) {
+export function TableFilter({ columns, filter, onChange }: TableFilterProps) {
   const lastAppliedFilterRef = useRef<string | undefined>(undefined)
   const deferredAppliedRulesRef = useRef<Map<string, FilterRule> | null>(null)
   const deferredAppliedRules = (deferredAppliedRulesRef.current ??= new Map())
@@ -107,7 +98,6 @@ export function TableFilter({
       const nextRules = update(currentRules)
       rulesRef.current = nextRules
       setRules(nextRules)
-      if (!autoApply) return
 
       const deferredRule = nextRules.find((rule) => rule.id === deferIncompleteRuleId)
       if (deferredRule && !isCompleteRule(deferredRule)) {
@@ -140,7 +130,7 @@ export function TableFilter({
       lastAppliedFilterRef.current = signature
       onChange(nextFilter)
     },
-    [autoApply, columns, onChange]
+    [columns, onChange]
   )
 
   // `value` is the filter's field key (the column id); `label` is what the reader sees.
@@ -159,20 +149,6 @@ export function TableFilter({
 
   const handleRemove = useCallback(
     (id: string) => {
-      if (!autoApply) {
-        const nextRules = rulesRef.current.filter((rule) => rule.id !== id)
-        if (nextRules.length > 0) {
-          rulesRef.current = nextRules
-          setRules(nextRules)
-          return
-        }
-        const resetRules = [createRule(columns)]
-        rulesRef.current = resetRules
-        setRules(resetRules)
-        onChange(null)
-        onClose?.()
-        return
-      }
       applyRules((current) => {
         const removedIndex = current.findIndex((rule) => rule.id === id)
         const removedRule = current[removedIndex]
@@ -183,7 +159,7 @@ export function TableFilter({
         return next.length > 0 ? next : [createRule(columns)]
       })
     },
-    [applyRules, autoApply, columns, onChange, onClose]
+    [applyRules, columns]
   )
 
   const handleUpdate = useCallback(
@@ -236,17 +212,6 @@ export function TableFilter({
     [applyRules, columnById]
   )
 
-  const handleApply = useCallback(() => {
-    onChange(toAppliedPredicate(rulesRef.current, columns))
-  }, [columns, onChange])
-
-  function handleClear() {
-    const resetRules = [createRule(columns)]
-    rulesRef.current = resetRules
-    setRules(resetRules)
-    onChange(null)
-  }
-
   return (
     <div className={styles.filter}>
       <div className={styles.rules}>
@@ -260,8 +225,6 @@ export function TableFilter({
             onUpdate={handleUpdate}
             onColumnChange={handleColumnChange}
             onRemove={handleRemove}
-            autoApply={autoApply}
-            onApply={handleApply}
             onToggleLogical={handleToggleLogical}
           />
         ))}
@@ -270,18 +233,6 @@ export function TableFilter({
         <Button variant='quiet' size='compact' icon='I074' onClick={handleAdd}>
           Add filter
         </Button>
-        {!autoApply && (
-          <div className={styles.apply}>
-            {filter !== null && (
-              <Button variant='quiet' size='compact' onClick={handleClear}>
-                Clear filters
-              </Button>
-            )}
-            <Button variant='secondary' size='compact' onClick={handleApply}>
-              Apply filter
-            </Button>
-          </div>
-        )}
       </div>
     </div>
   )
@@ -295,8 +246,6 @@ interface FilterRuleRowProps {
   onUpdate: (id: string, field: keyof FilterRule, value: string) => void
   onColumnChange: (id: string, columnId: string) => void
   onRemove: (id: string) => void
-  autoApply: boolean
-  onApply: () => void
   onToggleLogical: (id: string) => void
 }
 
@@ -308,8 +257,6 @@ const FilterRuleRow = memo(function FilterRuleRow({
   onUpdate,
   onColumnChange,
   onRemove,
-  autoApply,
-  onApply,
   onToggleLogical,
 }: FilterRuleRowProps) {
   // A column id no longer in the table (removed since) stays selectable and visible while the rule
@@ -387,25 +334,11 @@ const FilterRuleRow = memo(function FilterRuleRow({
           placeholder='Select a value'
           searchLabel='Search options'
         />
-      ) : autoApply ? (
+      ) : (
         <FilterValueInput
           value={rule.value}
           onCommit={(value) => onUpdate(rule.id, 'value', value)}
         />
-      ) : (
-        <span
-          className={styles.value}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') onApply()
-          }}
-        >
-          <Input
-            label='Value'
-            value={rule.value}
-            onChange={(value) => onUpdate(rule.id, 'value', value)}
-            placeholder='Enter a value'
-          />
-        </span>
       )}
 
       <IconButton label='Remove filter' icon='I105' onClick={() => onRemove(rule.id)} />

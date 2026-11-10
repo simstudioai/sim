@@ -10,6 +10,7 @@ import { ActionMenu, ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { useSearchParams } from 'next/navigation'
 import { workspaceEntry } from '@/lib/navigation/paths'
+import { RenameDialog } from '@/app/(product)/_components/rename-dialog/rename-dialog'
 import { SidebarSortMenu } from '@/app/(product)/_components/sidebar/collection-order'
 import { pinAction } from '@/app/(product)/_components/sidebar/row-links'
 import { SectionStatus } from '@/app/(product)/_components/sidebar/section-status'
@@ -154,27 +155,14 @@ export function WorkspacesSection({
           />
         </Modal>
       )}
-      {renaming && rename && (
-        <Modal
-          open
-          onOpenChange={() => setRenamingId(null)}
-          title='Rename workspace'
-          confirmLabel='Save'
-          onConfirm={async (values) => {
-            const name = readFormText(values, 'name')
-            if (!name) throw new Error('Enter a workspace name.')
-            if (name !== renaming.name) await rename(renaming.id, name)
-          }}
-        >
-          <TextField
-            placeholder='Workspace name'
-            label='Workspace name'
-            name='name'
-            required
-            maxLength={WORKSPACE_NAME_MAX_LENGTH}
-            defaultValue={renaming.name}
-          />
-        </Modal>
+      {rename && (
+        <RenameDialog
+          target={renaming ?? null}
+          noun='workspace'
+          maxLength={WORKSPACE_NAME_MAX_LENGTH}
+          onClose={() => setRenamingId(null)}
+          onRename={rename}
+        />
       )}
     </>
   )

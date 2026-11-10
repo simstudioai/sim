@@ -11,13 +11,21 @@ import { ActionMenu, ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import type { LoadMoreState } from '@sim/emcn/scroll-area/use-load-more'
+import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice } from '@sim/emcn/status'
 import { LinkEditor } from '@/app/(product)/_components/links-page/link-editor'
 import { LinkIcon } from '@/app/(product)/_components/links-page/link-icon'
-import { LinksFrame } from '@/app/(product)/_components/links-page/links-frame'
 import styles from '@/app/(product)/_components/links-page/links-page.module.css'
+import { SectionToolbar } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { useMinuteClock } from '@/platform/lib/data/clock'
-import { type LinkRecord, linkFaviconSrc, openLink, useLinksPage } from '@/platform/lib/data/links'
+import {
+  type LinkRecord,
+  linkFaviconSrc,
+  openChromeStore,
+  openLink,
+  useLinksHosted,
+  useLinksPage,
+} from '@/platform/lib/data/links'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 const COLUMNS = [
@@ -206,20 +214,46 @@ interface LinksPageProps {
   organizationId: string
 }
 
+/**
+ * Links' actions, then its search and sort, painted before the first read of links settles. Links is
+ * a Settings section, so the Settings screen owns the page's column, landmark and one heading; the
+ * actions sit beneath it where the page header held them, above the options row.
+ */
 export function LinksPage({ organizationId }: LinksPageProps) {
   const links = useLinksPage(organizationId)
+  const hosted = useLinksHosted()
   const [editing, setEditing] = useState<LinkRecord | null>(null)
   const [deleting, setDeleting] = useState<LinkRecord | null>(null)
   const unsettled = links.status === 'pending' || (links.isPlaceholder && links.rows.length === 0)
 
   return (
-    <LinksFrame
-      search={links.search}
-      onSearch={links.setSearch}
-      onCreate={links.startCreate}
-      sortLabel={links.sortLabel}
-      sortActions={links.sortActions}
-    >
+    <div className={styles.page}>
+      <SectionToolbar>
+        {hosted && (
+          <Button icon='I041' onClick={openChromeStore}>
+            Install Sim for Chrome
+          </Button>
+        )}
+        <Button variant='primary' icon='I074' onClick={links.startCreate}>
+          New link
+        </Button>
+      </SectionToolbar>
+      <div className={styles.options}>
+        <SearchField
+          variant='quiet'
+          label='Search links'
+          placeholder='Search links…'
+          value={links.search}
+          onValueChange={links.setSearch}
+        />
+        <ActionMenu
+          label={links.sortLabel}
+          icon={null}
+          triggerSize='compact'
+          align='end'
+          actions={links.sortActions}
+        />
+      </div>
       {links.status === 'error' ? (
         <FailureNotice message={links.error ?? 'Failed to load links'} onRetry={links.retry} />
       ) : unsettled ? null : links.rows.length === 0 ? (
@@ -279,6 +313,6 @@ export function LinksPage({ organizationId }: LinksPageProps) {
         description={`${deleting?.name ?? 'This link'} will stop working for everyone in your organization.`}
         onConfirm={() => (deleting ? links.remove(deleting.id) : undefined)}
       />
-    </LinksFrame>
+    </div>
   )
 }

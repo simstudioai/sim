@@ -1,5 +1,4 @@
 import { type ReactNode, Suspense } from 'react'
-import { FixtureProductSession } from '@/app/(product)/_components/product-session'
 
 /**
  * The one product shell, around every organization and workspace page, so the sidebar never
@@ -16,6 +15,9 @@ export async function ProductShell({
   // Inlined at build time, so a normal build carries neither this branch nor the example data.
   if (process.env.SIM_PLATFORM_FIXTURES === '1') {
     const { FIXTURE_ROUTE_PREFIX, loadShellScenarios } = await import('@/platform/fixtures')
+    const { FixtureProductSession } = await import(
+      '@/app/(product)/_components/fixture-product-session'
+    )
     const fixtures = await loadShellScenarios()
     return (
       <Suspense fallback={null}>

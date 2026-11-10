@@ -59,7 +59,6 @@ function WorkflowPreviewSubflowInner({ data, id }: NodeProps<WorkflowPreviewSubf
       diffStatus={
         data.diffStatus === 'added' ? 'new' : data.diffStatus === 'modified' ? 'edited' : undefined
       }
-      nestingLevel={0}
       canEditWorkflow={false}
       onSelect={() => undefined}
     />

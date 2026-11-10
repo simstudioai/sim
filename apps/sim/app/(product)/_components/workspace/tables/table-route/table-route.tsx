@@ -13,8 +13,8 @@ import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
+import { RenameDialog } from '@/app/(product)/_components/rename-dialog/rename-dialog'
 import { folderTrail } from '@/app/(product)/_components/workspace/resource-table/list-menus'
-import { RenameDialog } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import {
   type ColumnConfig,
   ColumnConfigPanel,
@@ -846,9 +846,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
                 key={filterSeed}
                 columns={columns}
                 filter={effectiveFilter}
-                autoApply
                 onChange={setFilter}
-                onClose={() => setFilterOpen(false)}
               />
             </div>
           )}

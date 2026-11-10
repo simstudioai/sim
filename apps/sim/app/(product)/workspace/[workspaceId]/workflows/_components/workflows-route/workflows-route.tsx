@@ -12,6 +12,7 @@ import { parseAsString, useQueryStates } from 'nuqs'
 import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
+import { RenameDialog } from '@/app/(product)/_components/rename-dialog/rename-dialog'
 import {
   descendantIndex,
   folderLocation,
@@ -31,7 +32,6 @@ import {
   noResults,
   sortActions,
 } from '@/app/(product)/_components/workspace/resource-table/list-menus'
-import { RenameDialog } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import {
   type ResourceColumn,
   type ResourceRow,

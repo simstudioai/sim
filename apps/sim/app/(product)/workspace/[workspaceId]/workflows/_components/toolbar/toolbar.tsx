@@ -15,6 +15,7 @@ import { IconButton } from '@sim/emcn/button'
 import { ControlRow } from '@sim/emcn/button/control-row'
 import { Disclosure } from '@sim/emcn/disclosure'
 import { Icon } from '@sim/emcn/icon'
+import { ContextActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -23,7 +24,6 @@ import { BlockTile } from '@/app/(product)/_components/workspace/workflows/canva
 import { getCustomBlockTile } from '@/app/(product)/_components/workspace/workflows/canvas/block-tile/custom-block-tile'
 import type { DragItemInfo } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/toolbar/drag-preview'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/toolbar/toolbar.module.css'
-import { ToolbarItemMenu } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/toolbar/toolbar-item-menu/toolbar-item-menu'
 import { useToolbarItemInteractions } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/toolbar/use-toolbar-item-interactions'
 import { getMyAccessRequestHref } from '@/platform/lib/data/requests'
 import {
@@ -154,14 +154,24 @@ const ToolbarItem = memo(function ToolbarItem({
   if (item.restricted) return row
 
   return (
-    <ToolbarItemMenu
-      label={item.name}
-      onAddToCanvas={addToCanvas}
-      onViewDocumentation={viewDocumentation}
-      showViewDocumentation={Boolean(docsLink)}
+    <ContextActionMenu
+      label={`Actions for ${item.name}`}
+      actions={() => [
+        { id: 'add-to-canvas', label: 'Add to canvas', icon: 'I074', onSelect: addToCanvas },
+        ...(docsLink
+          ? [
+              {
+                id: 'view-documentation',
+                label: 'View documentation',
+                icon: 'I082',
+                onSelect: viewDocumentation,
+              } satisfies MenuAction,
+            ]
+          : []),
+      ]}
     >
       {row}
-    </ToolbarItemMenu>
+    </ContextActionMenu>
   )
 })
 

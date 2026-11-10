@@ -14,8 +14,8 @@ import {
   type MetadataField,
   MetadataFields,
 } from '@/app/(product)/_components/workspace/metadata-fields/metadata-fields'
+import { Payload } from '@/app/(product)/_components/workspace/span-inspector/span-inspector'
 import styles from '@/app/(product)/_components/workspace/tables/execution-details/execution-details.module.css'
-import { Payload } from '@/app/(product)/_components/workspace/tables/execution-details/payload'
 import { findLeafErrorSpan } from '@/app/(product)/_components/workspace/tables/execution-details/trace'
 import { TraceView } from '@/app/(product)/_components/workspace/tables/execution-details/trace-view'
 import {
@@ -24,7 +24,7 @@ import {
   SidePanelSection,
 } from '@/app/(product)/_components/workspace/tables/side-panel/side-panel'
 import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
-import { resolveLogWorkflowId } from '@/platform/lib/data/logs'
+import { resolveLogWorkflowId, tracePayload } from '@/platform/lib/data/logs'
 import {
   apportionCredits,
   BASE_EXECUTION_CHARGE,
@@ -197,6 +197,10 @@ function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProp
     return isRecordLike(raw) ? raw : { input: raw }
   }, [log.executionData])
   const cost = useMemo(() => costBreakdown(log), [log])
+  const showRunPayloads = isWorkflowExecutionLog && traceShown
+  const inputPayload = showRunPayloads && workflowInput ? tracePayload(workflowInput) : undefined
+  const outputPayload =
+    showRunPayloads && workflowOutput != null ? tracePayload(workflowOutput) : undefined
 
   const workflowId = resolveLogWorkflowId(log)
   const startedAt = Date.parse(log.createdAt)
@@ -270,12 +274,8 @@ function ExecutionContent({ log, workspaceId, traceShown }: ExecutionContentProp
         />
       )}
       <MetadataFields label='Run facts' fields={facts} />
-      {isWorkflowExecutionLog && workflowInput && traceShown && (
-        <Payload label='Workflow input' data={workflowInput} />
-      )}
-      {isWorkflowExecutionLog && workflowOutput != null && traceShown && (
-        <Payload label='Workflow output' data={workflowOutput} />
-      )}
+      {inputPayload && <Payload label='Workflow input' payload={inputPayload} />}
+      {outputPayload && <Payload label='Workflow output' payload={outputPayload} />}
       {log.files && log.files.length > 0 && (
         <SidePanelSection title={`Files (${log.files.length})`}>
           <ul className={styles.files}>

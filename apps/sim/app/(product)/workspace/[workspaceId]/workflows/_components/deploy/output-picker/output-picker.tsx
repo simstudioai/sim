@@ -3,28 +3,50 @@
 import { useMemo } from 'react'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { BlockTile } from '@/app/(product)/_components/workspace/workflows/canvas/block-tile/block-tile'
-import { useWorkflowOutputOptions } from '@/platform/lib/data/workflow-editor/selectors'
+import { useSubBlockValue, useWorkflowRegistry } from '@/platform/lib/data/workflow-editor'
+import {
+  publicOutputValue,
+  useWorkflowOutputOptions,
+} from '@/platform/lib/data/workflow-editor/selectors'
+
+type WorkflowOutputOption = ReturnType<typeof useWorkflowOutputOptions>[number]
+
+/**
+ * What a selection stores: the internal id (chat), the display label (the API's examples), or the
+ * public `block.path` selector (a block's streamed outputs).
+ */
+type OutputValueMode = 'id' | 'label' | 'public'
+
+function storedValue(output: WorkflowOutputOption, mode: OutputValueMode): string {
+  if (mode === 'label') return output.label
+  if (mode === 'id') return output.id
+  return publicOutputValue(output)
+}
+
+const NO_OUTPUTS: string[] = []
 
 interface OutputPickerProps {
   workflowId: string | null
   label: string
-  /** Stored selections: internal ids or display labels, both of which a legacy value may hold. */
+  /** Shows the label to assistive technology only, as a sub-block's own title already names it. */
+  labelHidden?: boolean
+  /** Stored selections, in any of the forms a legacy value may hold; each is rewritten in `valueMode`. */
   value: readonly string[]
   onValueChange: (value: string[]) => void
-  /** What a selection stores: the internal id (chat) or the display label (the API's examples). */
-  valueMode: 'id' | 'label'
+  valueMode: OutputValueMode
   placeholder?: string
   disabled?: boolean
   error?: string
 }
 
 /**
- * Picks block outputs of the open workflow and of the workflows its Workflow blocks call, as the
- * legacy chat and API output selectors did.
+ * Picks block outputs of the open workflow and of the workflows its Workflow blocks call, each named
+ * by its path through them, as the legacy chat, API and streamed-output selectors did.
  */
 export function OutputPicker({
   workflowId,
   label,
+  labelHidden,
   value,
   onValueChange,
   valueMode,
@@ -36,7 +58,7 @@ export function OutputPicker({
   const options = useMemo(
     () =>
       outputs.map((output) => ({
-        value: valueMode === 'label' ? output.label : output.id,
+        value: storedValue(output, valueMode),
         label: `${output.groupLabel} · ${output.path}`,
         leading: (
           <BlockTile
@@ -52,16 +74,19 @@ export function OutputPicker({
     () =>
       value.flatMap((stored) => {
         const output = outputs.find(
-          (candidate) => candidate.id === stored || candidate.label === stored
+          (candidate) =>
+            candidate.id === stored ||
+            candidate.label === stored ||
+            publicOutputValue(candidate) === stored
         )
-        if (!output) return []
-        return [valueMode === 'label' ? output.label : output.id]
+        return output ? [storedValue(output, valueMode)] : []
       }),
     [value, outputs, valueMode]
   )
   return (
     <MultiSelect
       label={label}
+      labelHidden={labelHidden}
       options={options}
       value={selected}
       onValueChange={onValueChange}
@@ -69,6 +94,43 @@ export function OutputPicker({
       searchLabel='Search outputs'
       disabled={disabled || outputs.length === 0}
       error={error}
+    />
+  )
+}
+
+interface SubBlockOutputPickerProps {
+  blockId: string
+  subBlockId: string
+  isPreview?: boolean
+  previewValue?: unknown
+  disabled?: boolean
+  placeholder?: string
+}
+
+/** The outputs a workflow streams back, held in a block's sub-block as public selectors. */
+export function SubBlockOutputPicker({
+  blockId,
+  subBlockId,
+  isPreview = false,
+  previewValue,
+  disabled = false,
+  placeholder,
+}: SubBlockOutputPickerProps) {
+  const workflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const [stored, setStored] = useSubBlockValue<string[]>(blockId, subBlockId)
+  const source = isPreview ? previewValue : stored
+  return (
+    <OutputPicker
+      workflowId={workflowId}
+      label='Outputs'
+      labelHidden
+      value={Array.isArray(source) ? source.map(String) : NO_OUTPUTS}
+      onValueChange={(values) => {
+        if (!isPreview && !disabled) setStored(values)
+      }}
+      valueMode='public'
+      placeholder={placeholder}
+      disabled={disabled || isPreview}
     />
   )
 }

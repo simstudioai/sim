@@ -15,7 +15,7 @@ interface RenameDialogProps {
   onRename: (id: string, name: string) => Promise<unknown>
 }
 
-/** Renames the open folder from its breadcrumb, where it has no row to edit in place. */
+/** Renames one named thing: a folder, a table, a chat, a workspace or a knowledge base. */
 export function RenameDialog({ target, noun, maxLength, onClose, onRename }: RenameDialogProps) {
   const label = `${noun.charAt(0).toUpperCase()}${noun.slice(1)} name`
   return (

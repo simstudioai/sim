@@ -16,12 +16,10 @@ import {
   type ByokManagerCapabilities,
   type ByokManagerKey,
 } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/byok/byok-key-manager'
-import { PROVIDERS } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/byok/providers'
 import {
   type BYOKProviderId,
   byokScopeParam,
   byokScopeUrlKeys,
-  MAX_BYOK_KEYS_PER_PROVIDER,
   useBYOKKeys,
   useDeleteBYOKKey,
   useDeleteOrganizationBYOKKey,
@@ -141,10 +139,8 @@ export default function ByokSection({ workspaceId }: WorkspaceSettingsSectionPro
       ) : activeQuery.isPending ? null : (
         <ByokKeyManager
           key={`${workspaceId}:${isOrganizationScope ? 'organization' : 'workspace'}`}
-          providers={PROVIDERS}
           inheritedProviderIds={inheritedProviderIds}
           keysByProvider={keysByProvider}
-          maxKeysPerProvider={MAX_BYOK_KEYS_PER_PROVIDER}
           capabilities={capabilities}
           searchTerm={searchTerm}
           scopeLabel={isOrganizationScope ? 'this organization' : 'this workspace'}

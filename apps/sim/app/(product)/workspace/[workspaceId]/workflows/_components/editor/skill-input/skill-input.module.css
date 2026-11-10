@@ -4,7 +4,3 @@
   gap: var(--ui-list-gap);
   min-inline-size: 0;
 }
-
-.contentField {
-  display: contents;
-}

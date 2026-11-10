@@ -18,6 +18,7 @@ import {
   usePageCommands,
 } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
+import { RenameDialog } from '@/app/(product)/_components/rename-dialog/rename-dialog'
 import { AddConnectorModal } from '@/app/(product)/_components/workspace/knowledge/add-connector-modal/add-connector-modal'
 import { AddDocumentsModal } from '@/app/(product)/_components/workspace/knowledge/add-documents-modal/add-documents-modal'
 import { BaseTagsModal } from '@/app/(product)/_components/workspace/knowledge/base-tags-modal/base-tags-modal'
@@ -37,7 +38,6 @@ import {
   formatTokens,
   knowledgeListHref,
 } from '@/app/(product)/_components/workspace/knowledge/knowledge-base/model'
-import { RenameModal } from '@/app/(product)/_components/workspace/knowledge/rename-modal/rename-modal'
 import {
   activeTagFilters,
   TagFilter,
@@ -727,41 +727,34 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
       </LiveWorkspacePage>
 
       <BaseTagsModal open={tagsOpen} onOpenChange={setTagsOpen} knowledgeBaseId={knowledgeBaseId} />
-      {renamingBase && knowledgeBase && (
-        <RenameModal
-          title='Rename knowledge base'
-          label='Name'
-          initialName={knowledgeBase.name}
-          maxLength={100}
-          onClose={() => setRenamingBase(false)}
-          onSave={(next) =>
-            updateBase.mutateAsync({ knowledgeBaseId, updates: { name: next } }).then(() => {})
+      <RenameDialog
+        target={renamingBase && knowledgeBase ? knowledgeBase : null}
+        noun='knowledge base'
+        maxLength={100}
+        onClose={() => setRenamingBase(false)}
+        onRename={(_, next) => updateBase.mutateAsync({ knowledgeBaseId, updates: { name: next } })}
+      />
+      <RenameDialog
+        target={renaming && { id: renaming.id, name: renaming.filename }}
+        noun='document'
+        maxLength={255}
+        onClose={() => setRenaming(null)}
+        onRename={async (_, next) => {
+          if (!renaming) return
+          const previous = renaming.filename
+          list.updateDocument(renaming.id, { filename: next })
+          try {
+            await updateDocument.mutateAsync({
+              knowledgeBaseId,
+              documentId: renaming.id,
+              updates: { filename: next },
+            })
+          } catch (error) {
+            list.updateDocument(renaming.id, { filename: previous })
+            throw error
           }
-        />
-      )}
-      {renaming && (
-        <RenameModal
-          title='Rename document'
-          label='Name'
-          initialName={renaming.filename}
-          maxLength={255}
-          onClose={() => setRenaming(null)}
-          onSave={async (next) => {
-            const previous = renaming.filename
-            list.updateDocument(renaming.id, { filename: next })
-            try {
-              await updateDocument.mutateAsync({
-                knowledgeBaseId,
-                documentId: renaming.id,
-                updates: { filename: next },
-              })
-            } catch (error) {
-              list.updateDocument(renaming.id, { filename: previous })
-              throw error
-            }
-          }}
-        />
-      )}
+        }}
+      />
       {taggingId && (
         <DocumentTagsModal
           open

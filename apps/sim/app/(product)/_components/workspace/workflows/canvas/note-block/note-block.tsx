@@ -1610,7 +1610,6 @@ export const NoteBlock = memo(function NoteBlock({ id, data, selected }: NodePro
             blockId={id}
             blockType={type}
             disabled={!canEditWorkflow}
-            variant='swell'
             isWorkflowRunning={isWorkflowRunning}
             noteColor={noteColor}
             onNoteColorChange={handleColorChange}

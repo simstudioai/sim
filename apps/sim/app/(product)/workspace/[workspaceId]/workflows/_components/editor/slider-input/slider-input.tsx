@@ -11,7 +11,8 @@ interface SliderInputProps {
   label: string
   min?: number
   max?: number
-  defaultValue?: number
+  /** Shown until a value is stored. */
+  defaultValue: number
   step?: number
   integer?: boolean
   isPreview?: boolean
@@ -33,14 +34,11 @@ export function SliderInput({
   previewValue,
   disabled = false,
 }: SliderInputProps) {
-  const computedDefaultValue = defaultValue ?? (max <= 1 ? 0.7 : (min + max) / 2)
   const [storeValue, setStoreValue] = useSubBlockValue<number>(blockId, subBlockId)
   const raw = isPreview ? previewValue : storeValue
   const value = typeof raw === 'number' ? raw : raw == null || raw === '' ? null : Number(raw)
   const normalizedValue =
-    value !== null && Number.isFinite(value)
-      ? Math.max(min, Math.min(max, value))
-      : computedDefaultValue
+    value !== null && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : defaultValue
 
   useEffect(() => {
     if (!isPreview && value !== null && Number.isFinite(value) && value !== normalizedValue) {

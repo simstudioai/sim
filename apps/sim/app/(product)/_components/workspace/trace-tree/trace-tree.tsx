@@ -1,10 +1,13 @@
 'use client'
 
 import type { KeyboardEvent, ReactNode } from 'react'
+import { Button } from '@sim/emcn/button'
+import { CopyButton } from '@sim/emcn/button/copy-button'
 import { Icon } from '@sim/emcn/icon'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { Tooltip } from '@sim/emcn/tooltip'
 import styles from '@/app/(product)/_components/workspace/trace-tree/trace-tree.module.css'
+import type { TraceSpan } from '@/platform/shared/workspace-records'
 
 /** A step's timing paint, from its family or provider; a failure takes precedence. */
 export type TracePaint =
@@ -19,6 +22,26 @@ export type TracePaint =
   | 'mcp'
   | 'slack'
   | 'anthropic'
+
+/** A step's timing paint, from its recorded family and provider; failures take precedence. */
+export function spanPaint(span: Pick<TraceSpan, 'status' | 'kind' | 'providerId'>): TracePaint {
+  if (span.status === 'error') return 'error'
+  if (span.status === 'handled') return 'handled'
+  if (span.providerId === 'slack') return 'slack'
+  if (span.providerId === 'anthropic') return 'anthropic'
+  if (span.providerId === 'openai') return 'neutral'
+  switch (span.kind) {
+    case 'agent':
+    case 'loop':
+    case 'iteration':
+    case 'parallel':
+    case 'workflow':
+    case 'mcp':
+      return span.kind
+    default:
+      return 'neutral'
+  }
+}
 
 /** One open row of a trace, in reading order. */
 export interface TraceRow {
@@ -147,5 +170,30 @@ export function TraceTree({ label, rows, selectedId, onSelect, onToggle }: Trace
         )
       })}
     </ol>
+  )
+}
+
+interface TraceToolbarProps {
+  /** A filter over the steps, first in the row. */
+  search?: ReactNode
+  /** The whole trace, as Copy trace puts it on the clipboard. */
+  copyText: string
+  onExpandAll: () => void
+  onCollapseAll: () => void
+}
+
+/** The trace's own actions: copy it whole, and open or close every step at once. */
+export function TraceToolbar({ search, copyText, onExpandAll, onCollapseAll }: TraceToolbarProps) {
+  return (
+    <div className={styles.toolbar}>
+      <span className={styles.toolbarSearch}>{search}</span>
+      <CopyButton label='Copy raw trace' text={copyText} />
+      <Button variant='quiet' size='compact' onClick={onExpandAll}>
+        Expand all
+      </Button>
+      <Button variant='quiet' size='compact' onClick={onCollapseAll}>
+        Collapse all
+      </Button>
+    </div>
   )
 }

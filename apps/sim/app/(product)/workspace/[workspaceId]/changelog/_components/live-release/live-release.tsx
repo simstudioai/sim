@@ -81,7 +81,6 @@ function Release({ workspaceId, releaseId, back }: LiveReleaseProps) {
           key={release.revision}
           workspaceId={workspaceId}
           release={release}
-          open={editing}
           onOpenChange={setEditing}
         />
       )}

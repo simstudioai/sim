@@ -55,12 +55,7 @@ export default async function Page({
     notFound()
   return (
     <LiveWorkspaceSettings workspaceId={workspaceId} section={key}>
-      <WorkspaceSettingsSection
-        section={key}
-        workspaceId={workspaceId}
-        subpath={subpath}
-        query={query}
-      />
+      <WorkspaceSettingsSection section={key} workspaceId={workspaceId} subpath={subpath} />
     </LiveWorkspaceSettings>
   )
 }

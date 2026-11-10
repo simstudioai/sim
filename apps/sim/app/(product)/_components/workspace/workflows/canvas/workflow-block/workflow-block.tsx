@@ -1307,7 +1307,6 @@ export const WorkflowBlock = memo(function WorkflowBlock({
             blockId={id}
             blockType={type}
             disabled={!canEditWorkflow}
-            variant='swell'
             isRunning={isExecuting}
             isWorkflowRunning={isWorkflowRunning}
           />

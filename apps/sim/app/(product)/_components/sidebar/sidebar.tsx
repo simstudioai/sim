@@ -177,7 +177,7 @@ export function Sidebar({
             </IdentityButton>
           ))}
         <div className={styles.help}>
-          <HelpMenu iconOnly help={actions.help} />
+          <HelpMenu help={actions.help} />
         </div>
       </footer>
     </aside>
