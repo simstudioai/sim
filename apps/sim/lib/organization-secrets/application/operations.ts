@@ -34,7 +34,7 @@ export const organizationSecretOperations = {
     principalKinds: ['session'],
     capability: 'secrets.manage',
   }),
-  /** permission-group-exempt: runtime use is governed by the authorized Build conversation, independently of secret-management UI access. */
+  /** A member whose permission group revokes secrets gets no shared names, as with the values. */
   listNames: defineOrganizationOperation({
     id: 'organization_secrets.names',
     contentDelivery: 'none',
@@ -42,9 +42,8 @@ export const organizationSecretOperations = {
     principalKinds: ['organization_delegated'],
     delegationAudience: ORGANIZATION_SECRETS_AUDIENCE,
     delegatedServices: ['copilot'],
-    capability: 'none',
+    capability: 'secrets.manage',
   }),
-  /** permission-group-exempt: runtime use is governed by the authorized Build conversation, independently of secret-management UI access. */
   mount: defineOrganizationOperation({
     id: 'organization_secrets.mount',
     contentDelivery: 'none',
@@ -52,6 +51,6 @@ export const organizationSecretOperations = {
     principalKinds: ['organization_delegated'],
     delegationAudience: ORGANIZATION_SECRETS_AUDIENCE,
     delegatedServices: ['copilot'],
-    capability: 'none',
+    capability: 'secrets.manage',
   }),
 } as const

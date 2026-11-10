@@ -43,10 +43,7 @@ import {
   noResults,
   sortActions,
 } from '@/app/(product)/_components/workspace/resource-table/list-menus'
-import {
-  RenameDialog,
-  useMinuteClock,
-} from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
+import { RenameDialog } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import {
   OwnerCell,
   type ResourceColumn,
@@ -66,6 +63,7 @@ import type { WorkspaceRead } from '@/app/(product)/_components/workspace/worksp
 import { CreateBaseModal } from '@/app/(product)/workspace/[workspaceId]/knowledge/_components/create-base-modal/create-base-modal'
 import { DeleteBaseModal } from '@/app/(product)/workspace/[workspaceId]/knowledge/_components/delete-base-modal/delete-base-modal'
 import { EditBaseModal } from '@/app/(product)/workspace/[workspaceId]/knowledge/_components/edit-base-modal/edit-base-modal'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   type ResourceFolder,
   SEARCH_DEBOUNCE_MS,
@@ -98,7 +96,7 @@ import {
 } from '@/platform/lib/data/knowledge'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/platform/lib/data/pins'
 import { platformHref } from '@/platform/lib/navigation'
-import { formatRelativeTime } from '@/platform/shared/time'
+import { formatRelativeTime, LOCALE } from '@/platform/shared/time'
 
 const ROOT_LABEL = 'Knowledge bases'
 const ROW_MIME = 'application/x-sim-workspace-knowledge-rows'
@@ -673,8 +671,8 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
       pinned: pinnedBases.has(base.id),
       href: baseHref(base.id),
       cells: {
-        documents: (base.docCount ?? 0).toLocaleString(),
-        tokens: (base.tokenCount ?? 0).toLocaleString(),
+        documents: (base.docCount ?? 0).toLocaleString(LOCALE),
+        tokens: (base.tokenCount ?? 0).toLocaleString(LOCALE),
         connectors: connectorsCell(base.connectorTypes),
         created: formatRelativeTime(timeOf(base.createdAt), now),
         owner: owner && <OwnerCell name={owner.name} image={owner.image} />,

@@ -176,7 +176,6 @@ export default function AccessControlSection({ organization }: SettingsSectionPr
           hosted={organization.deployment.hosted}
           projectsEnabled={organization.featureFlags.projects}
           workspaceOptions={workspaceOptions}
-          organizationWorkspaces={organizationWorkspaces}
           workspacesLoading={workspaces.isPending}
           onBack={params.closeGroup}
         />

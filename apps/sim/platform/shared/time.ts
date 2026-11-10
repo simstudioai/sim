@@ -1,4 +1,5 @@
-const LOCALE = 'en-US'
+/** The one locale Platform formats in, so server and client markup agree. */
+export const LOCALE = 'en-US'
 export const MINUTE_MS = 60_000
 export const DAY_MS = 24 * 60 * MINUTE_MS
 
@@ -47,8 +48,19 @@ export function formatInstantDate(instant: string | number | Date, timeZone?: st
   }).format(new Date(instant))
 }
 
-/** Use the same reference instant for a surface's server and client renders. */
-export function formatRelativeTime(timestampMs: number, referenceMs: number) {
+const TEXT_ORDER = new Intl.Collator(LOCALE)
+
+/** Orders names by the Platform locale, so a sorted list reads the same on server and client. */
+export function compareText(left: string, right: string) {
+  return TEXT_ORDER.compare(left, right)
+}
+
+/**
+ * Use the same reference instant for a surface's server and client renders. Without one (`null`,
+ * before the client knows its clock) the age is empty.
+ */
+export function formatRelativeTime(timestampMs: number, referenceMs: number | null) {
+  if (referenceMs === null) return ''
   const elapsed = referenceMs - timestampMs
   if (elapsed < MINUTE_MS) return 'now'
   const minutes = Math.floor(elapsed / MINUTE_MS)

@@ -37,6 +37,7 @@ import { getWorkflowListQueryOptions } from '@/hooks/queries/utils/workflow-list
 import { useTraceVisibility, useTroubleshootRun } from '@/platform/lib/data/tables/execution'
 import { useWorkspaceUserPermissions } from '@/platform/lib/data/tables/permissions'
 import type { runListParams } from '@/platform/lib/workspace-views'
+import { LOCALE } from '@/platform/shared/time'
 import {
   queryRead,
   type RunCost,
@@ -240,20 +241,26 @@ function spanContext(span: LogTraceSpan): TraceSpan['context'] {
   return [
     ...(span.type !== spanKind(span.type) ? [{ id: 'type', label: 'Type', value: span.type }] : []),
     ...(tokens?.input !== undefined
-      ? [{ id: 'input-tokens', label: 'Input tokens', value: tokens.input.toLocaleString() }]
+      ? [{ id: 'input-tokens', label: 'Input tokens', value: tokens.input.toLocaleString(LOCALE) }]
       : []),
     ...(tokens?.output !== undefined
-      ? [{ id: 'output-tokens', label: 'Output tokens', value: tokens.output.toLocaleString() }]
+      ? [
+          {
+            id: 'output-tokens',
+            label: 'Output tokens',
+            value: tokens.output.toLocaleString(LOCALE),
+          },
+        ]
       : []),
     ...(tokens?.total !== undefined
-      ? [{ id: 'tokens', label: 'Total tokens', value: tokens.total.toLocaleString() }]
+      ? [{ id: 'tokens', label: 'Total tokens', value: tokens.total.toLocaleString(LOCALE) }]
       : []),
     ...(span.cost?.total !== undefined
       ? [
           {
             id: 'usage',
             label: 'Compute Units',
-            value: dollarsToCredits(span.cost.total).toLocaleString(),
+            value: dollarsToCredits(span.cost.total).toLocaleString(LOCALE),
           },
         ]
       : []),

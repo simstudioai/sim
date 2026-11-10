@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { member, permissions } from '@sim/db/schema'
+import { member, organization, permissions } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { isOrgAdminRole, type PermissionType } from './predicates'
 
@@ -7,9 +7,10 @@ export * from './predicates'
 
 /**
  * Resolves the effective workspace permission under the governance inheritance
- * model: the owners/admins of the organization that owns the workspace are
+ * model: the owners/admins of the team organization that owns the workspace are
  * derived workspace admins. Returns the higher of any explicit grant and the
- * org-admin derivation.
+ * org-admin derivation. A personal organization derives nothing: it can hold a
+ * collaborator's fork of its owner's workspace, which its owner has no say over.
  *
  * The workspace owner is intentionally NOT a special case: every owner already
  * holds an explicit `admin` row in `permissions` (added at creation, verified
@@ -48,9 +49,16 @@ export async function resolveEffectiveWorkspacePermission(
     const memberQuery = executor
       .select({ role: member.role })
       .from(member)
-      .where(and(eq(member.userId, userId), eq(member.organizationId, workspaceOrganizationId)))
+      .innerJoin(organization, eq(organization.id, member.organizationId))
+      .where(
+        and(
+          eq(member.userId, userId),
+          eq(member.organizationId, workspaceOrganizationId),
+          eq(organization.kind, 'team')
+        )
+      )
     const [memberRow] = options?.forUpdate
-      ? await memberQuery.for('update').limit(1)
+      ? await memberQuery.for('update', { of: member }).limit(1)
       : await memberQuery.limit(1)
     if (isOrgAdminRole(memberRow?.role)) {
       return 'admin'

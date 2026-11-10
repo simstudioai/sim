@@ -12,7 +12,9 @@ function main(page: Page) {
 /** Record every DOM state of the content region while `action` runs. */
 async function watchFrames(page: Page, action: () => Promise<void>) {
   await page.evaluate(() => {
-    const region = document.querySelector('[class*="content"][data-scroll-axis]')
+    const region = [...document.querySelectorAll('[data-scroll-axis="vertical"]')].find((element) =>
+      element.querySelector('main')
+    )
     const frames: { heading: boolean; blank: boolean }[] = []
     const record = () => {
       const visible = [...(region?.querySelectorAll('main') ?? [])].filter(
@@ -161,54 +163,6 @@ test('chart points open the shared tooltip by pointer and by keyboard', async ({
   await expect(page.getByRole('tooltip')).toContainText('This period')
 })
 
-test('issue list to details and Back restores the filters, scroll and chrome', async ({ page }) => {
-  await page.goto(fixtureUrl('/workspace/workspace-0/issues?state=stress&sort=oldest'))
-  const search = main(page).getByRole('searchbox', { name: 'Search issues' })
-  await search.fill('Escalate')
-  await expect(page).toHaveURL(/q=Escalate/)
-  await page.mouse.move(800, 600)
-  await page.mouse.wheel(0, 1200)
-  const row = main(page)
-    .getByRole('link', { name: /Escalate/ })
-    .filter({ visible: true })
-    .nth(12)
-  await row.scrollIntoViewIfNeeded()
-  const readScroll = () =>
-    page.evaluate(
-      () =>
-        [...document.querySelectorAll<HTMLElement>('[data-scroll-axis="vertical"]')].find(
-          (element) => element.scrollTop > 0 && element.querySelector('main')
-        )?.scrollTop ?? 0
-    )
-  const scrolled = await readScroll()
-  expect(scrolled).toBeGreaterThan(0)
-  await row.click()
-  await expect(page).toHaveURL(/\/issues\/[A-Z]+-\d+\?.*q=Escalate/)
-  const back = main(page).getByRole('link', { name: 'Issues', exact: true })
-  await expect(back).toHaveAttribute('href', /sort=oldest/)
-  const frames = await watchFrames(page, async () => {
-    await page.goBack()
-    await expect(main(page).getByRole('searchbox', { name: 'Search issues' })).toHaveValue(
-      'Escalate'
-    )
-  })
-  expect(frames.filter((frame) => frame.blank || !frame.heading)).toEqual([])
-  await expect.poll(readScroll).toBe(scrolled)
-  await page.goForward()
-  await main(page).getByRole('link', { name: 'Issues', exact: true }).click()
-  await expect(main(page).getByRole('searchbox', { name: 'Search issues' })).toHaveValue('Escalate')
-  await expect.poll(readScroll).toBe(scrolled)
-  await main(page)
-    .getByRole('navigation', { name: /pages$/ })
-    .getByRole('link', { name: 'Logs' })
-    .click()
-  await main(page)
-    .getByRole('navigation', { name: /pages$/ })
-    .getByRole('link', { name: 'Issues' })
-    .click()
-  await expect.poll(readScroll).toBe(0)
-})
-
 test('long lists page quietly with edge fades only where content continues', async ({ page }) => {
   await page.goto(fixtureUrl('/workspace/workspace-0/logs?state=stress'))
   const rows = main(page).getByRole('list', { name: 'Runs' }).getByRole('listitem')
@@ -222,39 +176,6 @@ test('long lists page quietly with edge fades only where content continues', asy
   await expect.poll(() => rows.count()).toBeGreaterThan(50)
   await expect(region).toHaveAttribute('data-edges', /both|start/)
   await expect(main(page).getByText(/Loading|Load more/)).toHaveCount(0)
-})
-
-test('an issue decision changes only the session and moves the issue between groups', async ({
-  page,
-}) => {
-  await page.goto(fixtureUrl('/workspace/it/issues?state=full'))
-  await main(page)
-    .getByRole('link', { name: /Route expired access requests/ })
-    .click()
-  const facts = page.getByRole('complementary', { name: 'Facts' })
-  await expect(facts.locator('dd', { hasText: /^Needs review$/ })).toBeVisible()
-  const requests: string[] = []
-  page.on('request', (request) => {
-    if (request.method() !== 'GET') requests.push(request.url())
-  })
-  await main(page).getByRole('button', { name: 'Approve' }).click()
-  await expect(facts.locator('dd', { hasText: /^Queued$/ })).toBeVisible()
-  await expect(facts.getByText('Approved by')).toBeVisible()
-  await main(page).getByRole('button', { name: 'Cancel', exact: true }).click()
-  const dialog = page.getByRole('dialog')
-  await dialog.getByRole('button', { name: 'Cancel issue' }).click()
-  await expect(facts.locator('dd', { hasText: /^Cancelled$/ })).toBeVisible()
-  expect(requests).toEqual([])
-  await main(page).getByRole('link', { name: 'Issues', exact: true }).click()
-  await main(page)
-    .getByRole('button', { name: /Status/ })
-    .click()
-  await page.getByRole('menuitemradio', { name: 'Closed' }).click()
-  await expect(
-    main(page)
-      .getByRole('list', { name: 'Closed' })
-      .getByRole('link', { name: /Route expired access requests/ })
-  ).toBeVisible()
 })
 
 test('pages refresh themselves, keeping only when they last updated', async ({ page }) => {

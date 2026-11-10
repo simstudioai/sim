@@ -1,10 +1,11 @@
 import { useEffect } from 'react'
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import {
   type MentionListFamily,
   searchOrganizationMentionsContract,
 } from '@/lib/api/contracts/organization-mentions'
+import { keepPreviousDataWithin } from '@/hooks/queries/utils/placeholder'
 
 /** Short: a resource created elsewhere should reach the picker on its next opening. */
 const ORGANIZATION_MENTIONS_STALE_TIME = 10 * 1000
@@ -18,10 +19,12 @@ interface MentionRequest {
 const organizationMentionKeys = {
   all: ['organization-mentions'] as const,
   searches: () => [...organizationMentionKeys.all, 'search'] as const,
+  /** One organization's mention reads, the bound a read's placeholder may cross. */
+  organizationSearches: (organizationId: string) =>
+    [...organizationMentionKeys.searches(), organizationId] as const,
   search: (organizationId: string, request: MentionRequest) =>
     [
-      ...organizationMentionKeys.searches(),
-      organizationId,
+      ...organizationMentionKeys.organizationSearches(organizationId),
       request.query,
       request.family ?? '',
       request.limit,
@@ -50,7 +53,9 @@ export function useOrganizationMentions(
 ) {
   return useQuery({
     ...mentionQueryOptions(organizationId, request, options.enabled),
-    placeholderData: keepPreviousData,
+    placeholderData: keepPreviousDataWithin(
+      organizationMentionKeys.organizationSearches(organizationId)
+    ),
   })
 }
 

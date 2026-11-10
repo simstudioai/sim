@@ -8,6 +8,7 @@ import { getPostgresErrorCode } from '@sim/utils/errors'
 import { NextResponse } from 'next/server'
 import type { z } from 'zod'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type {
   AdminErrorResponse,
   AdminListResponse,
@@ -93,10 +94,14 @@ export function adminInternalErrorResponse(message = 'Internal server error'): N
 /**
  * A failed organization write: one the database refused by a check constraint or trigger (a
  * personal organization takes no team configuration and no member beyond its owner) is a 409
- * conflict with the organization's kind, anything else a 500.
+ * conflict with the organization's kind, a domain conflict (a personal organization that refuses
+ * to retire into the target) a 409 with its reason, anything else a 500.
  */
 export function adminWriteErrorResponse(error: unknown, message: string): NextResponse {
   if (getPostgresErrorCode(error) === '23514') return adminPersonalOrganizationConflictResponse()
+  if (error instanceof OrchestrationError && error.code === 'conflict') {
+    return adminConflictResponse(error.message)
+  }
   return adminInternalErrorResponse(message)
 }
 

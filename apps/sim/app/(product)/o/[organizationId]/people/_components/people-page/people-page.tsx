@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import { PeopleDirectory } from '@/app/(product)/o/[organizationId]/people/_components/directory/directory'
 import { PeopleFrame } from '@/app/(product)/o/[organizationId]/people/_components/people-page/people-frame'
 import styles from '@/app/(product)/o/[organizationId]/people/_components/people-page/people-page.module.css'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import { usePeopleViewer } from '@/platform/lib/data/people'
 import {
   type SyncSource,
@@ -55,6 +56,7 @@ export function PeoplePage({ organizationId }: PeoplePageProps) {
   const showActions =
     isAdmin && (currentView !== 'chart' || (roots.settled && status.settled && !firstUse))
   const lastSuccessAt = status.sync?.lastSuccessAt
+  const now = useMinuteClock()
   const modals = (
     <>
       {importing && isAdmin && (
@@ -101,9 +103,9 @@ export function PeoplePage({ organizationId }: PeoplePageProps) {
       actions={
         showActions ? (
           <>
-            {lastSuccessAt && (
+            {lastSuccessAt && now !== null && (
               <span className={styles.updated} data-type='T050'>
-                Updated {formatRelativeTime(Date.parse(lastSuccessAt), Date.now())}
+                Updated {formatRelativeTime(Date.parse(lastSuccessAt), now)}
               </span>
             )}
             <Button icon='I065' onClick={openSync}>

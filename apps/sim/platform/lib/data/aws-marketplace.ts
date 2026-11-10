@@ -1,7 +1,7 @@
 'use client'
 
 import { useAwsMarketplaceLicenses } from '@/hooks/queries/aws-marketplace'
-import { formatInstantDate } from '@/platform/shared/time'
+import { formatInstantDate, LOCALE } from '@/platform/shared/time'
 
 const STATUS = {
   active: { label: 'Active', intent: 'success' },
@@ -25,7 +25,7 @@ export function useAwsMarketplaceSubscription(organizationId: string | null) {
       statusIntent: STATUS[license.status].intent,
       rows: [
         { label: 'Plan', value: license.dimension ?? 'Not specified' },
-        { label: 'Quantity', value: license.quantity?.toLocaleString() ?? 'Not specified' },
+        { label: 'Quantity', value: license.quantity?.toLocaleString(LOCALE) ?? 'Not specified' },
         {
           label: 'Expires',
           value: license.expiresAt ? formatInstantDate(license.expiresAt) : 'No expiry',

@@ -17,7 +17,7 @@ import {
   CONNECTOR_STATUS,
   connectorMark,
 } from '@/app/(product)/_components/workspace/knowledge/knowledge-base/model'
-import { useMinuteClock } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   CONNECTOR_META_REGISTRY,
   type ConnectorData,

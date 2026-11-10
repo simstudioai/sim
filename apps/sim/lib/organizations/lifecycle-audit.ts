@@ -19,7 +19,7 @@ export type PersonalOrganizationAuditActor = z.output<typeof actorSchema>
 
 const personalOrganizationAuditSchema = z
   .object({
-    change: z.enum(['created', 'converted', 'retired', 'reverted']),
+    change: z.enum(['created', 'converted', 'retired', 'reverted', 'deleted']),
     organizationId: z.string().min(1),
     userId: z.string().min(1),
     /** Absent only on events queued before the actor was carried. */
@@ -49,10 +49,15 @@ const AUDIT_ENTRY = {
     action: AuditAction.ORGANIZATION_DELETED,
     description: 'Personal organization removed by the personal organization rollback',
   },
+  deleted: {
+    action: AuditAction.ORGANIZATION_DELETED,
+    description: 'Personal organization deleted with its owner’s account',
+  },
 } as const
 
 /**
- * Records a personal organization's creation, conversion into a team, retirement or rollback once the
+ * Records a personal organization's creation, conversion into a team, retirement, rollback or
+ * deletion with its owner's account once the
  * caller's transaction commits: the entry is queued in that transaction, so a rollback records
  * nothing, and written by the outbox worker after commit, keyed by the event so a retry writes it
  * once. Every lifecycle change happens inside a membership transaction its many callers own, which

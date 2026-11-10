@@ -1,8 +1,5 @@
-'use client'
-
 import type { QueryClient } from '@tanstack/react-query'
-import { parseAsStringLiteral, useQueryStates } from 'nuqs'
-import { z } from 'zod'
+import { parseAsInteger, parseAsString, parseAsStringLiteral, useQueryStates } from 'nuqs'
 import {
   type MothershipEnv,
   mothershipKeys,
@@ -30,56 +27,44 @@ export const MOTHERSHIP_VIEWS = [
 const parameters = {
   tab: parseAsStringLiteral(['overview', 'licenses', 'byok']).withDefault('overview'),
   env: parseAsStringLiteral(['dev', 'staging', 'prod', 'default']).withDefault('dev'),
+  /** The page of recent requests, from 1. */
+  page: parseAsInteger.withDefault(1),
+  /** The recent request whose details are open. */
+  request: parseAsString.withDefault(''),
+  /**
+   * The reporting period's UTC minutes (`yyyy-MM-ddTHH:mm`). Nullable: the default is the week
+   * before the page opened, a moving value the panel derives.
+   */
+  start: parseAsString,
+  end: parseAsString,
 }
 
+/** A reporting period in UTC minutes, as the range picker edits it. */
+export interface MothershipRange {
+  start: string
+  end: string
+}
+
+/**
+ * The Mothership tab's view: which tab and environment, the reporting period, and the page and
+ * request open in Overview. Changing what Overview reports returns it to its first page.
+ */
 export function useMothershipView() {
-  const [params, setParams] = useQueryStates(parameters)
+  const [params, setParams] = useQueryStates(parameters, {
+    history: 'replace',
+    clearOnDefault: true,
+  })
   const requestLeave = useSettingsDirtyStore((state) => state.requestLeave)
   return {
     ...params,
-    change: (next: Partial<typeof params>) => requestLeave(() => void setParams(next)),
+    change: (next: Partial<Pick<typeof params, 'tab' | 'env'>>) =>
+      requestLeave(() => void setParams({ ...next, page: null, request: null })),
+    setRange: (range: MothershipRange) => void setParams({ ...range, page: null, request: null }),
+    setPage: (page: number) => void setParams({ page, request: null }),
+    openRequest: (request: string) => void setParams({ request }, { history: 'push' }),
+    closeRequest: () => void setParams({ request: null }, { history: 'replace' }),
   }
 }
-
-const instant = z.string().refine((date) => Number.isFinite(Date.parse(date)))
-const breakdown = z.object({
-  total_requests: z.number(),
-  total_users: z.number(),
-  users: z.array(
-    z.object({
-      user_id: z.string(),
-      request_count: z.number(),
-      total_cost: z.number(),
-      last_request: instant.nullish(),
-    })
-  ),
-})
-const requests = z.object({
-  count: z.number(),
-  requests: z.array(
-    z.object({
-      request_id: z.string(),
-      model: z.string().nullish(),
-      duration_ms: z.number().nullish(),
-      billed_total_cost: z.number().nullish(),
-      tool_call_count: z.number().nullish(),
-      error: z.boolean().nullish(),
-      aborted: z.boolean().nullish(),
-      created_at: instant,
-    })
-  ),
-})
-const licenses = z.object({
-  licenses: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string(),
-      count: z.number(),
-      expiration_date: instant.nullish(),
-      created_at: instant,
-    })
-  ),
-})
 
 export interface LicenseDraft {
   name: string
@@ -87,24 +72,19 @@ export interface LicenseDraft {
   expirationDate: string | null
 }
 
-/** The admin proxy forwards upstream JSON. Check each read before displaying it. */
+/** A read as the panel shows it: another period's rows never stand in for this one's. */
 function readResponse<T>(
-  query: Parameters<typeof queryView>[0] & { isPlaceholderData: boolean },
-  schema: z.ZodType<T>
+  query: Parameters<typeof queryView>[0] & { data: T | undefined; isPlaceholderData: boolean }
 ) {
   const view = queryView(query)
   if (query.isPlaceholderData) return { ...view, data: undefined, status: 'pending' as const }
-  if (view.status !== 'success') return { ...view, data: undefined }
-  const parsed = schema.safeParse(query.data)
-  return parsed.success
-    ? { ...view, data: parsed.data }
-    : { ...view, data: undefined, status: 'error' as const }
+  return { ...view, data: view.status === 'success' ? query.data : undefined }
 }
 
 export function useMothershipOverview(env: MothershipEnv, start: string, end: string) {
   const summary = useMothershipUserBreakdown(env, start, end)
   const recent = useMothershipRequests(env, start, end)
-  return { breakdown: readResponse(summary, breakdown), requests: readResponse(recent, requests) }
+  return { breakdown: readResponse(summary), requests: readResponse(recent) }
 }
 
 export function refreshMothershipLicenses(client: QueryClient, env: MothershipEnv) {
@@ -117,5 +97,5 @@ export function licenseGeneratorHref(env: MothershipEnv) {
 }
 
 export function useLicenseList(env: MothershipEnv) {
-  return readResponse(useMothershipLicenses(env), licenses)
+  return readResponse(useMothershipLicenses(env))
 }

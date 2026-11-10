@@ -4,14 +4,7 @@
 
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import {
-  keepPreviousData,
-  skipToken,
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
+import { skipToken, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { requestJson } from '@/lib/api/client/request'
 import { revertToDeploymentVersionContract } from '@/lib/api/contracts/deployments'
 import {
@@ -28,6 +21,7 @@ import { fetchDeploymentVersionState } from '@/hooks/queries/utils/fetch-deploym
 import { fetchWorkflowEnvelope } from '@/hooks/queries/utils/fetch-workflow-envelope'
 import { getFolderMap } from '@/hooks/queries/utils/folder-cache'
 import { invalidateWorkflowLists } from '@/hooks/queries/utils/invalidate-workflow-lists'
+import { keepPreviousDataWithin } from '@/hooks/queries/utils/placeholder'
 import { recentlyDeletedKeys } from '@/hooks/queries/utils/recently-deleted-keys'
 import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-sort-order'
 import { getWorkflows, removeWorkflowFromActiveCache } from '@/hooks/queries/utils/workflow-cache'
@@ -124,7 +118,7 @@ export function useWorkflows(
     queryKey: workflowKeys.list(workspaceId, scope),
     queryFn: workspaceId ? getWorkflowListQueryOptions(workspaceId, scope).queryFn : skipToken,
     enabled: options?.enabled ?? true,
-    placeholderData: keepPreviousData,
+    placeholderData: keepPreviousDataWithin(workflowKeys.workspaceLists(workspaceId)),
     staleTime: WORKFLOW_LIST_STALE_TIME,
   })
 }
@@ -143,7 +137,7 @@ export function useWorkflowMap(workspaceId?: string, options?: { scope?: Workflo
   return useQuery({
     queryKey: workflowKeys.list(workspaceId, scope),
     queryFn: workspaceId ? getWorkflowListQueryOptions(workspaceId, scope).queryFn : skipToken,
-    placeholderData: keepPreviousData,
+    placeholderData: keepPreviousDataWithin(workflowKeys.workspaceLists(workspaceId)),
     staleTime: WORKFLOW_LIST_STALE_TIME,
     select: selectWorkflowMap,
   })

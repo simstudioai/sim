@@ -40,7 +40,7 @@ describe('sidebar width CSS variables', () => {
     try {
       window.innerWidth = 1200
       useSidebarStore.getState().setSidebarWidth(300)
-      useSidebarStore.getState().toggleCollapsed()
+      useSidebarStore.setState({ isCollapsed: true })
       window.innerWidth = 800
       useSidebarStore.getState().syncWidth()
 
@@ -48,8 +48,8 @@ describe('sidebar width CSS variables', () => {
       expect(useSidebarStore.getState().sidebarWidth).toBe(300)
 
       window.innerWidth = 1200
+      useSidebarStore.setState({ isCollapsed: false })
       useSidebarStore.getState().syncWidth()
-      useSidebarStore.getState().toggleCollapsed()
       expect(widthVars()).toEqual({ width: '300px', expanded: '300px' })
     } finally {
       window.innerWidth = innerWidth

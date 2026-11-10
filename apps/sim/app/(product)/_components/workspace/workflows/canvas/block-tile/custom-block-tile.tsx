@@ -1,6 +1,6 @@
 'use client'
 
-import { memo, type SVGProps } from 'react'
+import { LRUCache } from 'lru-cache'
 import styles from '@/app/(product)/_components/workspace/workflows/canvas/block-tile/custom-block-tile.module.css'
 import {
   type BlockIcon,
@@ -9,7 +9,10 @@ import {
   CUSTOM_BLOCK_TILE_COLOR,
 } from '@/platform/lib/data/workflows'
 
-const imageIcons = new Map<string, BlockIcon>()
+/** Distinct custom-block images a session keeps components for; an evicted one is rebuilt on use. */
+const MAX_IMAGE_ICONS = 500
+
+const imageIcons = new LRUCache<string, BlockIcon>({ max: MAX_IMAGE_ICONS })
 
 /**
  * A block icon drawn from an uploaded image. Cached by URL so every node and tile of the same custom
@@ -18,13 +21,11 @@ const imageIcons = new Map<string, BlockIcon>()
 function imageIcon(url: string): BlockIcon {
   const cached = imageIcons.get(url)
   if (cached) return cached
-  const ImageIcon = memo(({ className }: SVGProps<SVGSVGElement>) => (
+  const ImageIcon: BlockIcon = ({ className }) => (
     <img src={url} alt='' className={className ? `${styles.image} ${className}` : styles.image} />
-  ))
-  // double-cast-allowed: an <img> renderer must satisfy the SVG-typed BlockIcon slot, as in legacy
-  const icon = ImageIcon as unknown as BlockIcon
-  imageIcons.set(url, icon)
-  return icon
+  )
+  imageIcons.set(url, ImageIcon)
+  return ImageIcon
 }
 
 /**

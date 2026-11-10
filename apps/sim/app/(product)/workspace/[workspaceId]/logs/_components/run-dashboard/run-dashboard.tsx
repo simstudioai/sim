@@ -20,7 +20,7 @@ import {
   type SegmentPickMode,
   type SegmentSelection,
 } from '@/platform/shared/run-segments'
-import { formatTimestamp } from '@/platform/shared/time'
+import { formatTimestamp, LOCALE } from '@/platform/shared/time'
 
 interface RunDashboardProps {
   totals: { runs: number; errors: number; latencyMs: number }
@@ -89,8 +89,8 @@ export function RunDashboard({ totals, runs, errors, latency, workflows }: RunDa
     <div className={styles.dashboard}>
       <MetricGroup
         metrics={[
-          { label: 'Runs', value: shownTotals.runs.toLocaleString() },
-          { label: 'Errors', value: shownTotals.errors.toLocaleString() },
+          { label: 'Runs', value: shownTotals.runs.toLocaleString(LOCALE) },
+          { label: 'Errors', value: shownTotals.errors.toLocaleString(LOCALE) },
           { label: 'Average latency', value: formatDuration(shownTotals.latencyMs) },
         ]}
       />
@@ -161,7 +161,7 @@ export function RunDashboard({ totals, runs, errors, latency, workflows }: RunDa
                   })}
                 </div>
                 <span className={styles.number} data-type='T060'>
-                  {workflow.runs.toLocaleString()}
+                  {workflow.runs.toLocaleString(LOCALE)}
                 </span>
                 <span className={styles.number} data-type='T060'>
                   {rate}

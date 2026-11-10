@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test'
+import type postgres from 'postgres'
 import {
   memberEmail,
   noChatMemberEmail,
@@ -17,11 +18,18 @@ import {
 import { liveRoute, liveRoutePattern } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
+/** The seeded organization's credential group (`scripts/platform-live-seed.ts`). */
+const CREDENTIAL_GROUP = 'platform-live-credential-group'
+
 test.describe('Home on real data', () => {
   test.beforeEach(async ({ page }) => {
     await signInAsAdmin(page, liveRoute('/home'))
   })
 
+  /**
+   * The seeded administrator holds no Google or Microsoft account, and the organization's credential
+   * group offers Gmail, Google Calendar and Outlook (`scripts/platform-live-seed.ts`).
+   */
   test('the Email and Calendar widgets each settle in a state the member can act on', async ({
     page,
   }) => {
@@ -29,42 +37,34 @@ test.describe('Home on real data', () => {
       const widget = page.getByRole('region', { name: title, exact: true })
       await expect(widget).toBeVisible()
       await expect(widget.getByRole('status', { name: /Loading/i })).toHaveCount(0)
-      const noun = title.toLowerCase()
       await expect(
-        widget
-          .getByText(`Connect your ${noun}`, { exact: true })
-          .or(widget.getByText(`Your organization has not turned on ${noun}`, { exact: true }))
-          .or(widget.getByText(`Reconnect your ${noun}`, { exact: true }))
-          .or(widget.getByText(`Your ${noun} could not load`, { exact: true }))
-          .or(
-            title === 'Email'
-              ? widget.getByRole('region', { name: 'Email messages' })
-              : widget.getByRole('region', { name: 'Calendar schedule' })
-          )
-          .or(widget.getByText('No email yet', { exact: true }))
+        widget.getByText(`Connect your ${title.toLowerCase()}`, { exact: true })
       ).toBeVisible()
     }
   })
 
   test('a widget’s connect options are exactly what the organization offers', async ({ page }) => {
-    const accounts = await page.request.get(
-      `/api/organizations/${organizationId()}/connected-accounts`
-    )
-    expect(accounts.status()).toBe(200)
-    const { credentialGroup, viewerAccounts } = (await accounts.json()) as {
-      credentialGroup: { options: { provider: string; status: string }[] } | null
-      viewerAccounts?: { providerId: string }[]
-    }
     const email = page.getByRole('region', { name: 'Email', exact: true })
-    const prompt = email.getByText('Connect your email', { exact: true })
-    if (viewerAccounts?.length || !(await prompt.isVisible())) return
-    const offered = new Set(credentialGroup?.options.map((option) => option.provider))
-    await expect(email.getByRole('button', { name: 'Gmail', exact: true })).toHaveCount(
-      offered.has('gmail') ? 1 : 0
-    )
-    await expect(email.getByRole('button', { name: 'Outlook', exact: true })).toHaveCount(
-      offered.has('outlook') ? 1 : 0
-    )
+    await expect(email.getByText('Connect your email', { exact: true })).toBeVisible()
+    await expect(email.getByRole('button', { name: 'Gmail', exact: true })).toHaveCount(1)
+    await expect(email.getByRole('button', { name: 'Outlook', exact: true })).toHaveCount(1)
+    // Withdrawing Outlook from the group withdraws it here, though Sim can still connect it.
+    await withLiveDatabase(async (sql) => {
+      const [before] = await sql<{ options: postgres.JSONValue }[]>`
+        select options from credential_group where id = ${CREDENTIAL_GROUP}`
+      try {
+        await sql`update credential_group set options = (
+            select jsonb_agg(option) from jsonb_array_elements(options) option
+            where option->>'provider' <> 'outlook')
+          where id = ${CREDENTIAL_GROUP}`
+        await page.reload()
+        await expect(email.getByRole('button', { name: 'Gmail', exact: true })).toHaveCount(1)
+        await expect(email.getByRole('button', { name: 'Outlook', exact: true })).toHaveCount(0)
+      } finally {
+        await sql`update credential_group set options = ${sql.json(before.options)}
+          where id = ${CREDENTIAL_GROUP}`
+      }
+    })
   })
 
   test('Home charts the activity summary the seeded administrator may read', async ({ page }) => {

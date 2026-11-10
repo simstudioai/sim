@@ -40,8 +40,8 @@ interface SubscriptionTransferResult {
  * Moves the caller's own Team or Enterprise subscription onto an organization they administer.
  *
  * Runs under the organization mutation lock, taken first so the move serializes with Enterprise
- * issuance and membership mutations; the subscription and organization rows are locked before the
- * caller's administrator role is checked against the same transaction.
+ * issuance and membership mutations; the caller's administrator role is checked under it before
+ * anything about the subscription or the organization is read, so an outsider learns nothing.
  */
 export const transferSubscriptionToOrganization: OperationUseCase<
   typeof subscriptionTransferOperation,
@@ -53,6 +53,12 @@ export const transferSubscriptionToOrganization: OperationUseCase<
     const { subscriptionId, organizationId } = input
     const result = await db.transaction(async (tx): Promise<SubscriptionTransferResult> => {
       await acquireOrganizationMutationLock(tx, organizationId)
+      const { userId } = await authorizeOrganizationOperation(
+        principal,
+        subscriptionTransferOperation,
+        { organizationId },
+        { executor: tx }
+      )
 
       const [sub] = await tx
         .select()
@@ -80,13 +86,6 @@ export const transferSubscriptionToOrganization: OperationUseCase<
           'A subscription cannot be transferred to a personal organization.'
         )
       }
-
-      const { userId } = await authorizeOrganizationOperation(
-        principal,
-        subscriptionTransferOperation,
-        { organizationId },
-        { executor: tx }
-      )
 
       if (sub.referenceId === organizationId) {
         return { transferred: false, message: 'Subscription already belongs to this organization' }

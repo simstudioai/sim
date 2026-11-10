@@ -219,32 +219,25 @@ function OverviewTab({
             <span className='w-[100px] text-right'>Cost</span>
             <span className='w-[160px] text-right'>Last Request</span>
           </div>
-          {breakdown.users.map(
-            (u: {
-              user_id: string
-              request_count: number
-              total_cost: number
-              last_request: string
-            }) => (
-              <div
-                key={u.user_id}
-                className='flex items-center gap-3 border-[var(--border)] border-b px-3 py-2 text-small last:border-b-0'
-              >
-                <span className='flex-1 truncate font-mono text-[var(--text-primary)] text-caption'>
-                  {u.user_id}
-                </span>
-                <span className='w-[100px] text-right text-[var(--text-secondary)]'>
-                  {u.request_count}
-                </span>
-                <span className='w-[100px] text-right text-[var(--text-secondary)]'>
-                  {formatCost(u.total_cost)}
-                </span>
-                <span className='w-[160px] text-right text-[var(--text-tertiary)] text-caption'>
-                  {formatDate(u.last_request)}
-                </span>
-              </div>
-            )
-          )}
+          {breakdown.users.map((u) => (
+            <div
+              key={u.user_id}
+              className='flex items-center gap-3 border-[var(--border)] border-b px-3 py-2 text-small last:border-b-0'
+            >
+              <span className='flex-1 truncate font-mono text-[var(--text-primary)] text-caption'>
+                {u.user_id}
+              </span>
+              <span className='w-[100px] text-right text-[var(--text-secondary)]'>
+                {u.request_count}
+              </span>
+              <span className='w-[100px] text-right text-[var(--text-secondary)]'>
+                {formatCost(u.total_cost)}
+              </span>
+              <span className='w-[160px] text-right text-[var(--text-tertiary)] text-caption'>
+                {formatDate(u.last_request)}
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
@@ -269,53 +262,40 @@ function OverviewTab({
               <span className='w-[70px] text-right'>Status</span>
               <span className='flex-1 text-right'>Time</span>
             </div>
-            {requests.requests
-              .slice(0, 100)
-              .map(
-                (r: {
-                  request_id: string
-                  model: string
-                  duration_ms: number
-                  billed_total_cost: number
-                  tool_call_count: number
-                  error: boolean
-                  aborted: boolean
-                  created_at: string
-                }) => (
-                  <div
-                    key={r.request_id}
-                    className='flex items-center gap-3 border-[var(--border)] border-b px-3 py-1.5 text-small last:border-b-0'
-                  >
-                    <span className='w-[180px] truncate font-mono text-[var(--text-primary)] text-caption'>
-                      {r.request_id ?? '—'}
-                    </span>
-                    <span className='w-[80px] truncate text-[var(--text-secondary)] text-caption'>
-                      {(r.model ?? '').replace('claude-', '')}
-                    </span>
-                    <span className='w-[80px] text-right text-[var(--text-secondary)] text-caption'>
-                      {r.duration_ms ? `${(r.duration_ms / 1000).toFixed(1)}s` : '—'}
-                    </span>
-                    <span className='w-[80px] text-right text-[var(--text-secondary)] text-caption'>
-                      {formatCost(r.billed_total_cost ?? 0)}
-                    </span>
-                    <span className='w-[60px] text-right text-[var(--text-secondary)] text-caption'>
-                      {r.tool_call_count ?? 0}
-                    </span>
-                    <span className='w-[70px] text-right'>
-                      {r.error ? (
-                        <Badge variant='red'>Error</Badge>
-                      ) : r.aborted ? (
-                        <Badge variant='amber'>Abort</Badge>
-                      ) : (
-                        <Badge variant='green'>OK</Badge>
-                      )}
-                    </span>
-                    <span className='flex-1 text-right text-[var(--text-tertiary)] text-caption'>
-                      {formatDate(r.created_at)}
-                    </span>
-                  </div>
-                )
-              )}
+            {requests.requests.slice(0, 100).map((r) => (
+              <div
+                key={r.request_id}
+                className='flex items-center gap-3 border-[var(--border)] border-b px-3 py-1.5 text-small last:border-b-0'
+              >
+                <span className='w-[180px] truncate font-mono text-[var(--text-primary)] text-caption'>
+                  {r.request_id ?? '—'}
+                </span>
+                <span className='w-[80px] truncate text-[var(--text-secondary)] text-caption'>
+                  {(r.model ?? '').replace('claude-', '')}
+                </span>
+                <span className='w-[80px] text-right text-[var(--text-secondary)] text-caption'>
+                  {r.duration_ms ? `${(r.duration_ms / 1000).toFixed(1)}s` : '—'}
+                </span>
+                <span className='w-[80px] text-right text-[var(--text-secondary)] text-caption'>
+                  {formatCost(r.billed_total_cost ?? 0)}
+                </span>
+                <span className='w-[60px] text-right text-[var(--text-secondary)] text-caption'>
+                  {r.tool_call_count ?? 0}
+                </span>
+                <span className='w-[70px] text-right'>
+                  {r.error ? (
+                    <Badge variant='red'>Error</Badge>
+                  ) : r.aborted ? (
+                    <Badge variant='amber'>Abort</Badge>
+                  ) : (
+                    <Badge variant='green'>OK</Badge>
+                  )}
+                </span>
+                <span className='flex-1 text-right text-[var(--text-tertiary)] text-caption'>
+                  {formatDate(r.created_at)}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -425,31 +405,21 @@ function LicensesTab({ environment }: { environment: MothershipEnv }) {
           {data.licenses.length === 0 && (
             <SettingsEmptyState variant='inline'>No licenses found.</SettingsEmptyState>
           )}
-          {data.licenses.map(
-            (lic: {
-              id: string
-              name: string
-              count: number
-              expiration_date?: string
-              created_at: string
-            }) => (
-              <div
-                key={lic.id}
-                className='flex items-center gap-3 border-[var(--border)] border-b px-3 py-2 text-small last:border-b-0'
-              >
-                <span className='flex-1 text-[var(--text-primary)]'>{lic.name}</span>
-                <span className='w-[100px] text-right text-[var(--text-secondary)]'>
-                  {lic.count}
-                </span>
-                <span className='w-[140px] text-right text-[var(--text-tertiary)] text-caption'>
-                  {lic.expiration_date ? formatDate(lic.expiration_date) : 'Never'}
-                </span>
-                <span className='w-[140px] text-right text-[var(--text-tertiary)] text-caption'>
-                  {formatDate(lic.created_at)}
-                </span>
-              </div>
-            )
-          )}
+          {data.licenses.map((lic) => (
+            <div
+              key={lic.id}
+              className='flex items-center gap-3 border-[var(--border)] border-b px-3 py-2 text-small last:border-b-0'
+            >
+              <span className='flex-1 text-[var(--text-primary)]'>{lic.name}</span>
+              <span className='w-[100px] text-right text-[var(--text-secondary)]'>{lic.count}</span>
+              <span className='w-[140px] text-right text-[var(--text-tertiary)] text-caption'>
+                {lic.expiration_date ? formatDate(lic.expiration_date) : 'Never'}
+              </span>
+              <span className='w-[140px] text-right text-[var(--text-tertiary)] text-caption'>
+                {formatDate(lic.created_at)}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>

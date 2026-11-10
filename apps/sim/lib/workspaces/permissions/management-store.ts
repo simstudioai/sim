@@ -8,6 +8,7 @@ import {
 } from '@sim/platform-authz/workspace'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { resolvePayerOrganizationId } from '@/lib/billing/core/payer-organization'
 import { ForbiddenOperationError } from '@/lib/core/application'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { syncWorkspaceEnvCredentials } from '@/lib/credentials/environment'
@@ -219,7 +220,9 @@ export async function updateWorkspacePermissionRecords(
 
   const emailByUserId = new Map(existingPerms.map((row) => [row.userId, row.email]))
 
-  const orgAdminUserIds = await loadOrgAdminTargets(db, organizationId, targetUserIds)
+  /** Only a team organization's admins inherit workspace admin; a personal organization's owner does not. */
+  const inheritedAdminOrganizationId = await resolvePayerOrganizationId(db, organizationId)
+  const orgAdminUserIds = await loadOrgAdminTargets(db, inheritedAdminOrganizationId, targetUserIds)
 
   /**
    * Membership is checked before anything else about the target, so the
@@ -294,11 +297,16 @@ export async function updateWorkspacePermissionRecords(
      * admin able to land between the guard and the write.
      */
     let orgAdminUserIds: ReadonlySet<string> = new Set()
-    if (organizationId) {
+    if (inheritedAdminOrganizationId) {
       const lockedMembers = await tx
         .select({ userId: member.userId, role: member.role })
         .from(member)
-        .where(and(eq(member.organizationId, organizationId), inArray(member.userId, lockUserIds)))
+        .where(
+          and(
+            eq(member.organizationId, inheritedAdminOrganizationId),
+            inArray(member.userId, lockUserIds)
+          )
+        )
         .orderBy(member.userId)
         .for('update')
       orgAdminUserIds = new Set(
@@ -311,7 +319,11 @@ export async function updateWorkspacePermissionRecords(
        * connection enabled mid-request cannot slip a change past it.
        */
       for (const userId of targetUserIds) {
-        await assertMembershipNotScimManaged({ organizationId, userId, executor: tx })
+        await assertMembershipNotScimManaged({
+          organizationId: inheritedAdminOrganizationId,
+          userId,
+          executor: tx,
+        })
       }
     }
 

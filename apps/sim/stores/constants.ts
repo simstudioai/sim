@@ -1,8 +1,6 @@
 /** Sidebar width constraints */
 export const SIDEBAR_WIDTH = {
   DEFAULT: 224,
-  /** The organization rail's design width (`--container-sidebar`), used until a width is saved. */
-  ORGANIZATION_DEFAULT: 280,
   /** Narrowest expanded rail width across every surface. */
   MIN: 224,
   /** Width when sidebar is collapsed to icon-only mode */

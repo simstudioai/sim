@@ -10,6 +10,7 @@ import {
   type GitLabPermissionForm,
 } from '@/platform/lib/data/knowledge/connectors'
 import { saveFile } from '@/platform/lib/data/search-sources'
+import { LOCALE } from '@/platform/shared/time'
 
 interface GitLabFieldsProps {
   form: GitLabPermissionForm
@@ -54,7 +55,7 @@ export function GitLabCsvUploads({ form, disabled }: GitLabFieldsProps) {
                       name: filename,
                       detail:
                         count !== undefined && !selected?.loading
-                          ? `${count.toLocaleString()} ${count === 1 ? 'row' : 'rows'} · ${selected?.upload ? 'Ready to save' : 'Saved'}`
+                          ? `${count.toLocaleString(LOCALE)} ${count === 1 ? 'row' : 'rows'} · ${selected?.upload ? 'Ready to save' : 'Saved'}`
                           : undefined,
                     }
                   : undefined

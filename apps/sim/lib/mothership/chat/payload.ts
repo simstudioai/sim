@@ -42,6 +42,7 @@ import { getToolEntry } from '@/lib/mothership/tool-executor/router'
 import { getCopilotToolDescription } from '@/lib/mothership/tools/descriptions'
 import { listOrganizationSecretNames } from '@/lib/organization-secrets/application/use-cases'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 import { getUserPermissionConfigForOrganization } from '@/lib/permission-groups/resolve.server'
 import { requiresScopedRetrieval } from '@/lib/sim-search/live/policy-schema'
 import { livePolicyFor, loadLiveSearchPolicies } from '@/lib/sim-search/live/policy-store'
@@ -418,7 +419,7 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
       ]
 
   if ((effectiveMode === 'build' || effectiveMode === 'plan') && params.organizationId && chatId) {
-    const { names } = await executeOrganizationSecretUseCase(
+    const names = await executeOrganizationSecretUseCase(
       {
         userId,
         organizationId: params.organizationId,
@@ -429,6 +430,13 @@ export async function buildCopilotRequestPayload(params: BuildPayloadParams): Pr
       },
       listOrganizationSecretNames,
       {}
+    ).then(
+      (inventory) => inventory.names,
+      (error: unknown) => {
+        // A member whose permission group revokes secrets still chats, without shared secrets.
+        if (error instanceof PermissionGroupCapabilityError) return []
+        throw error
+      }
     )
     if (names.length)
       allContexts.push({

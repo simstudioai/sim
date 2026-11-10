@@ -52,15 +52,21 @@ export async function checkCredentialFields(
     expect(new Set(paints.flat().map((paint) => JSON.stringify(paint))).size).toBe(1)
   }
   const value = await field.inputValue()
+  // A copied indicator dwells four seconds (`useClipboard`). The page's clock stands still from the
+  // copy, so the dwell is measured in the page's time rather than the runner's.
+  await page.clock.install()
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1_000))
   await copy.click()
-  const copiedAt = Date.now()
   await expect.poll(readClipboard).toBe(value)
   const copied = page.getByRole('button', { name: 'Copied', exact: true })
   const name = page.getByRole('textbox', { name: 'Display name', exact: true })
   await name.click()
   await expect(copied).toBeVisible()
-  await expect.poll(() => copied.count(), { timeout: 5500 }).toBe(0)
-  expect(Date.now() - copiedAt).toBeGreaterThanOrEqual(3500)
+  await page.clock.runFor(3_900)
+  await expect(copied).toBeVisible()
+  await page.clock.runFor(200)
+  await expect(copied).toHaveCount(0)
+  await page.clock.resume()
   await expect
     .poll(() => copy.evaluate((element) => element.checkVisibility({ opacityProperty: true })))
     .toBe(true)

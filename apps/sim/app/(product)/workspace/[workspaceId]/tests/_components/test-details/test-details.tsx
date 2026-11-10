@@ -17,13 +17,13 @@ import {
   DetailSection,
   DetailSplit,
 } from '@/app/(product)/_components/workspace/detail-split/detail-split'
-import { useMinuteClock } from '@/app/(product)/_components/workspace/resource-table/rename-dialog'
 import { formatDuration } from '@/app/(product)/_components/workspace/workspace-session/format'
 import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
 import {
   type CaseState,
   CaseStatus,
 } from '@/app/(product)/workspace/[workspaceId]/tests/_components/test-status/test-status'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   testDetailParsers,
   useRunWorkflowTests,
@@ -34,7 +34,7 @@ import {
 } from '@/platform/lib/data/workflow-tests'
 import { platformHref } from '@/platform/lib/navigation'
 import { TEST_RETURN_PARAM } from '@/platform/shared/test-return'
-import { formatRelativeTime } from '@/platform/shared/time'
+import { formatRelativeTime, LOCALE } from '@/platform/shared/time'
 
 type RunDetail = NonNullable<WorkflowTestDetail['latestRun']>
 type RunSummary = WorkflowTestDetail['history'][number]
@@ -91,7 +91,7 @@ function runResult(run: RunSummary) {
 /** What is off about the run on screen; a finished, current run needs no notice. */
 function freshness(
   run: RunDetail | null,
-  now: number
+  now: number | null
 ): { title: string; message: string; intent: 'neutral' | 'warning' | 'danger' } | null {
   if (!run)
     return { title: 'Not run yet', message: 'Run this test to see its results.', intent: 'neutral' }
@@ -243,7 +243,9 @@ export function TestDetails({ workspaceId, name }: TestDetailsProps) {
   })
   const hasResults = running || Boolean(run?.report)
   const count = (state: CaseState) =>
-    hasResults ? cases.filter((testCase) => testCase.state === state).length.toLocaleString() : '—'
+    hasResults
+      ? cases.filter((testCase) => testCase.state === state).length.toLocaleString(LOCALE)
+      : '—'
   const durationMs = run?.report?.tests.reduce((total, result) => total + result.durationMs, 0)
   const notice = freshness(run, now)
   const layoutAction = nextLayoutAction(layout, canEdit)

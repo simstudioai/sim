@@ -12,7 +12,12 @@ import {
   getFieldTypeForSlot,
   type TagDefinitionData,
 } from '@/platform/lib/data/knowledge'
-import { calendarDayFormatter, formatCalendarDate, formatTimestamp } from '@/platform/shared/time'
+import {
+  calendarDayFormatter,
+  formatCalendarDate,
+  formatTimestamp,
+  LOCALE,
+} from '@/platform/shared/time'
 
 /** Where a document's indexing stands, and whether a finished one is searchable. */
 export function DocumentStatus({
@@ -88,7 +93,7 @@ function documentTagValues(
         ? String(raw)
         : formatCalendarDate(String(raw).slice(0, 10), 'full')
     } else if (type === 'boolean') value = raw ? 'Yes' : 'No'
-    else if (type === 'number' && typeof raw === 'number') value = raw.toLocaleString()
+    else if (type === 'number' && typeof raw === 'number') value = raw.toLocaleString(LOCALE)
     else value = String(raw)
     if (value) values.push({ slot, name: definition?.displayName || slot, value })
   }

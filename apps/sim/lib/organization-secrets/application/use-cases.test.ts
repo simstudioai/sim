@@ -207,6 +207,25 @@ describe('Generic Secrets authorization', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.mount).toHaveBeenCalledOnce()
   })
+  it('withholds shared names and values from a chat member whose group revokes secrets', async () => {
+    mocks.config.mockResolvedValue({ hideSecretsTab: true })
+    queueTableRows(member, [{ role: 'member' }])
+    await expect(
+      listOrganizationSecretNames.execute({
+        principal: delegated(),
+        input: { organizationId: 'org' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    queueTableRows(member, [{ role: 'member' }])
+    await expect(
+      mountOrganizationSecrets.execute({
+        principal: delegated(),
+        input: { organizationId: 'org', names: ['TOKEN'] },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.names).not.toHaveBeenCalled()
+    expect(mocks.mount).not.toHaveBeenCalled()
+  })
   it.each([
     { organizationId: 'other' },
     { audience: 'sim:knowledge' },

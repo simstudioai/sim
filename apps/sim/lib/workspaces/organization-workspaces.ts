@@ -14,7 +14,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
-import { transferWorkspaceProjects } from '@/lib/projects/membership'
+import { findSplitProjectWorkspaceIds, transferWorkspaceProjects } from '@/lib/projects/membership'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { getOrganizationOwnerId, WORKSPACE_MODE } from '@/lib/workspaces/policy'
 
@@ -137,6 +137,12 @@ interface AttachOwnedWorkspacesToOrganizationParams {
    * later can never resurface a personal workspace outside the organization.
    */
   includeArchived?: boolean
+  /**
+   * Leave a workspace whose Project also holds an environment outside the sweep where it is,
+   * instead of failing the whole attach on it. For sweeps nobody asked for, such as a Team
+   * subscription's billing webhook.
+   */
+  skipSplitProjects?: boolean
 }
 
 export async function attachOwnedWorkspacesToOrganization({
@@ -144,6 +150,7 @@ export async function attachOwnedWorkspacesToOrganization({
   organizationId,
   externalMemberPolicy = 'reject',
   includeArchived = false,
+  skipSplitProjects = false,
   actor,
 }: AttachOwnedWorkspacesToOrganizationParams): Promise<AttachOwnedWorkspacesToOrganizationResult> {
   const ownedWorkspaces = await db
@@ -168,10 +175,20 @@ export async function attachOwnedWorkspacesToOrganization({
     })
     await acquireOrganizationMutationLock(tx, organizationId)
     await lockWorkspaceRowsForPayerChanges(tx, ownedWorkspaceIds)
+    const splitWorkspaceIds = skipSplitProjects
+      ? await findSplitProjectWorkspaceIds(tx, ownedWorkspaceIds)
+      : new Set<string>()
+    if (splitWorkspaceIds.size > 0) {
+      logger.warn('Left workspaces outside the organization: their Project spans owners', {
+        ownerUserId,
+        organizationId,
+        skippedWorkspaceIds: [...splitWorkspaceIds],
+      })
+    }
     return attachOwnedWorkspacesToOrganizationTx(tx, {
       ownerUserId,
       organizationId,
-      workspaceIds: ownedWorkspaceIds,
+      workspaceIds: ownedWorkspaceIds.filter((id) => !splitWorkspaceIds.has(id)),
       externalMemberPolicy,
       ownerMatch: 'owner',
       includeArchived,

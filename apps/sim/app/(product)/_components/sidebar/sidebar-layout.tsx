@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, type ReactNode, useContext, useState } from 'react'
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from 'react'
 import type { SidebarOrder } from '@/app/(product)/_components/sidebar/collection-order'
 
 const COLLAPSED_COOKIE_MAX_AGE_SECONDS = 31536000
@@ -14,27 +14,34 @@ function useLayoutState(initialCollapsed: boolean | undefined) {
   const [chatsOpen, setChatsOpen] = useState(true)
   const [filter, setFilter] = useState('all')
   const [read, setRead] = useState<ReadonlySet<string>>(() => new Set())
-  function setCollapsed(next: boolean) {
-    setCollapsedState(next)
-    if (initialCollapsed !== undefined)
-      document.cookie = `sidebar_collapsed=${next ? '1' : '0'}; path=/; max-age=${COLLAPSED_COOKIE_MAX_AGE_SECONDS}; samesite=lax`
-  }
-  return {
-    collapsed,
-    setCollapsed,
-    workspacesOpen,
-    setWorkspacesOpen,
-    chatsOpen,
-    setChatsOpen,
-    workspaceOrder,
-    setWorkspaceOrder,
-    chatOrder,
-    setChatOrder,
-    filter,
-    setFilter,
-    read,
-    setRead,
-  }
+  const setCollapsed = useCallback(
+    (next: boolean) => {
+      setCollapsedState(next)
+      if (initialCollapsed !== undefined)
+        document.cookie = `sidebar_collapsed=${next ? '1' : '0'}; path=/; max-age=${COLLAPSED_COOKIE_MAX_AGE_SECONDS}; samesite=lax`
+    },
+    [initialCollapsed]
+  )
+  // One object for every consumer of the shell's context; rebuilt only when a value in it changes.
+  return useMemo(
+    () => ({
+      collapsed,
+      setCollapsed,
+      workspacesOpen,
+      setWorkspacesOpen,
+      chatsOpen,
+      setChatsOpen,
+      workspaceOrder,
+      setWorkspaceOrder,
+      chatOrder,
+      setChatOrder,
+      filter,
+      setFilter,
+      read,
+      setRead,
+    }),
+    [collapsed, setCollapsed, workspacesOpen, chatsOpen, workspaceOrder, chatOrder, filter, read]
+  )
 }
 
 const SidebarContext = createContext<ReturnType<typeof useLayoutState> | null>(null)

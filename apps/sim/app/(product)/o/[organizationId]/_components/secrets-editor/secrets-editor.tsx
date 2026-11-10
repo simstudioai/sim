@@ -45,6 +45,7 @@ import {
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import { memberSecretMetadata } from '@/platform/lib/integrations/metadata.generated'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
+import { LOCALE } from '@/platform/shared/time'
 
 const MAX_ENV_PASTE_ROWS = 10_000
 
@@ -345,7 +346,7 @@ function SecretRows({ header, mode, refreshFailure, variables, save, isSaving }:
     if (countPasteRows(text, MAX_ENV_PASTE_ROWS) > MAX_ENV_PASTE_ROWS) {
       event.preventDefault()
       toast.warning('Paste has too many secrets', {
-        description: `Add up to ${MAX_ENV_PASTE_ROWS.toLocaleString()} rows at once.`,
+        description: `Add up to ${MAX_ENV_PASTE_ROWS.toLocaleString(LOCALE)} rows at once.`,
       })
       return
     }

@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import { escapeRegExp } from '@sim/utils/string'
-import { organizationId, seedSession, signInAsAdmin } from '@/platform/checks/live/session'
+import { organizationId, seedSession, signIn, signInAsAdmin } from '@/platform/checks/live/session'
 import { withLiveDatabase, withPerson } from '@/platform/checks/live/support/database'
 import { liveRoute } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
@@ -40,6 +40,27 @@ test('two first page loads at once give an account in no organization exactly on
     } finally {
       await Promise.all(contexts.map((context) => context.close()))
     }
+  })
+})
+
+test('an account in no organization opening /home lands on Home in its own new organization', async ({
+  page,
+}) => {
+  await withPerson('orgless-home', undefined, async (person) => {
+    await signIn(page, person.email, '/home')
+    await expect(page).toHaveURL(/\/o\/[^/?]+\/home(?:\?|$)/)
+    const memberships = await withLiveDatabase(
+      (sql) => sql<{ organizationId: string; kind: string; role: string }[]>`
+        select m.organization_id as "organizationId", o.kind, m.role
+        from member m join organization o on o.id = m.organization_id
+        where m.user_id = ${person.id}`
+    )
+    expect(memberships).toEqual([
+      { organizationId: expect.any(String), kind: 'personal', role: 'owner' },
+    ])
+    await expect(page).toHaveURL(
+      new RegExp(`/o/${escapeRegExp(memberships[0].organizationId)}/home(?:\\?|$)`)
+    )
   })
 })
 

@@ -5,6 +5,10 @@ import { and, eq } from 'drizzle-orm'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/identity-lock'
 import type { DbTransaction } from '@/lib/db/types'
 import {
+  enqueuePersonalOrganizationAuditTx,
+  type PersonalOrganizationAuditActor,
+} from '@/lib/organizations/lifecycle-audit'
+import {
   detachPersonalOrganizationWorkspacesTx,
   getPersonalOrganizationId,
 } from '@/lib/organizations/personal'
@@ -40,16 +44,32 @@ export async function deleteTeamOrganization(
  * Deletes a departing account's personal organization in the caller's transaction, once its
  * workspaces have returned to the organization-less personal state: the organization's own files,
  * knowledge documents, chats and memory are queued for cleanup, which the account's storage sweep
- * leaves to it, and the organization goes.
+ * leaves to it, the deletion is queued for its lifecycle audit, and the organization goes. Unlike
+ * retirement it does not refuse over content the deletion would cascade away: the account goes, and
+ * its organization's content with it.
  */
 export async function deletePersonalOrganizationTx(
   tx: DbTransaction,
-  personalOrganizationId: string
+  {
+    organizationId,
+    userId,
+    actor,
+  }: { organizationId: string; userId: string; actor: PersonalOrganizationAuditActor }
 ): Promise<void> {
-  await enqueueOrganizationResourceCleanup(tx, personalOrganizationId)
-  await tx
+  await enqueueOrganizationResourceCleanup(tx, organizationId)
+  const deleted = await tx
     .delete(organization)
-    .where(and(eq(organization.id, personalOrganizationId), eq(organization.kind, 'personal')))
+    .where(and(eq(organization.id, organizationId), eq(organization.kind, 'personal')))
+    .returning({ id: organization.id })
+  if (deleted.length > 0) {
+    await enqueuePersonalOrganizationAuditTx(tx, {
+      change: 'deleted',
+      organizationId,
+      userId,
+      actor,
+      metadata: {},
+    })
+  }
 }
 
 /**
@@ -64,6 +84,10 @@ export async function deletePersonalOrganizationOfRemovedUser(userId: string): P
     if (!personalOrganizationId) return
     await acquireOrganizationMutationLock(tx, personalOrganizationId)
     await detachPersonalOrganizationWorkspacesTx(tx, personalOrganizationId)
-    await deletePersonalOrganizationTx(tx, personalOrganizationId)
+    await deletePersonalOrganizationTx(tx, {
+      organizationId: personalOrganizationId,
+      userId,
+      actor: { type: 'system', name: 'Admin user removal' },
+    })
   })
 }

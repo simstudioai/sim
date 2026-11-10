@@ -291,8 +291,9 @@ export async function ensureInstanceOrganization(
  * signup catches them so a deployment never becomes unable to register users.
  *
  * Only signup (`atSignup`) may provision the organization with this user as its owner; anyone else
- * provisions it only for the configured owner ({@link ensureInstanceOrganization}). `actor` is who
- * caused the join: the person themselves at signup or on a visit, or the backfill.
+ * provisions it only for the configured owner ({@link ensureInstanceOrganization}). Callers are
+ * signup and the backfill script only: a visit never joins, so a removed member stays out. `actor` is
+ * who caused the join: the person themselves at signup, or the backfill.
  *
  * The membership module is imported lazily to keep the organization and billing graph out of the
  * auth module's load path.

@@ -1071,7 +1071,13 @@ export async function deleteUserAccount(
 
     if (recordIdentity) await recordDeletedAccountIdentities(tx, userId)
 
-    if (personalOrganizationId) await deletePersonalOrganizationTx(tx, personalOrganizationId)
+    if (personalOrganizationId) {
+      await deletePersonalOrganizationTx(tx, {
+        organizationId: personalOrganizationId,
+        userId,
+        actor: { type: 'system', name: 'Account deletion' },
+      })
+    }
 
     try {
       await tx.delete(user).where(eq(user.id, userId))
