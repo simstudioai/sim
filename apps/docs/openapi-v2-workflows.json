@@ -3958,7 +3958,7 @@
       "post": {
         "operationId": "executeWorkflowV2",
         "summary": "Execute workflow",
-        "description": "Run the active deployment, or set `run.source: \"manual\"` to run the saved draft. Deployed execution requires workspace read access and OAuth `api:write` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse `async: true` for a queue receipt, or `stream: true` for SSE. For a synchronous run with both flags false, send `Accept: application/x-ndjson` for heartbeat frames and a final frame containing `data`. With `waitTimeoutSeconds`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: `202` on a JSON response, or a closing `detached` frame on an NDJSON stream, which keeps its `200`. Timeouts return `200` with `status: \"failed\"` and `error.code: \"TIMEOUT\"`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. Input descriptions specify compatible modes; invalid combinations return `400`.\n\nSupply `X-Run-Id` to prevent duplicate execution. Reuse returns `409`, without replaying results. A `503` with `error.details.code: \"ASYNC_ENQUEUE_AMBIGUOUS\"` omits `Retry-After` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.\n\nOAuth scope: `api:write`.",
+        "description": "Run the active deployment, set `run: { source: \"deployment\", version }` to run an earlier deployment version, or set `run.source: \"manual\"` to run the saved draft. Deployed execution requires workspace read access and OAuth `api:write` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Running a chosen version requires workspace write access and an API key or OAuth access token; an unknown version returns `404`. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse `async: true` for a queue receipt, or `stream: true` for SSE. For a synchronous run with both flags false, send `Accept: application/x-ndjson` for heartbeat frames and a final frame containing `data`. With `waitTimeoutSeconds`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: `202` on a JSON response, or a closing `detached` frame on an NDJSON stream, which keeps its `200`. Timeouts return `200` with `status: \"failed\"` and `error.code: \"TIMEOUT\"`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. Input descriptions specify compatible modes; invalid combinations return `400`.\n\nSupply `X-Run-Id` to prevent duplicate execution. Reuse returns `409`, without replaying results. A `503` with `error.details.code: \"ASYNC_ENQUEUE_AMBIGUOUS\"` omits `Retry-After` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.execute",
         "x-oauth-scope": "api:write",
         "tags": ["Workflows"],
@@ -4405,7 +4405,7 @@
       "get": {
         "operationId": "getWorkflowRunV2",
         "summary": "Get workflow run",
-        "description": "Read current run state with workspace read access. Request final output and files with `includeOutput`, or block outputs with `selectedOutputs`. Organization permission groups can hide output, files, or cost.\n\n`includeFileBase64` inlines file bytes. A file or the total above 16 MiB returns `413` naming a download path; download large files individually. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.\n\nOAuth scope: `api:read`.",
+        "description": "Read current run state with workspace read access. Request final output and files with `includeOutput`, or block outputs with `selectedOutputs`. Organization permission groups can hide output, files, or cost. A paused run lists every pause point in `paused.points`, with the fields a human pause asks for and its content with resolved secrets redacted; resume one with Resume workflow run.\n\n`includeFileBase64` inlines file bytes. A file or the total above 16 MiB returns `413` naming a download path; download large files individually. `HEAD` checks access with the same authorization as `GET` but skips side effects, returning an empty `200` without payload headers on success.\n\nOAuth scope: `api:read`.",
         "x-sim-operation": "workflows.runs.read",
         "x-oauth-scope": "api:read",
         "tags": ["Workflow Runs"],
@@ -4517,6 +4517,7 @@
                         "startedAt": "2026-08-09T18:04:10.000Z",
                         "endedAt": "2026-08-09T18:04:11.000Z",
                         "durationMs": 1000,
+                        "version": 3,
                         "paused": null,
                         "cost": {
                           "total": 12
@@ -4691,7 +4692,7 @@
       "post": {
         "operationId": "resumeWorkflowRunV2",
         "summary": "Resume workflow run",
-        "description": "Resume one human-in-the-loop pause with workspace write access. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.",
+        "description": "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.\n\nOAuth scope: `api:write`.",
         "x-sim-operation": "workflows.runs.resume",
         "x-oauth-scope": "api:write",
         "tags": ["Workflow Runs"],
@@ -14916,7 +14917,7 @@
             }
           },
           "run": {
-            "description": "Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.",
+            "description": "Workflow state and entry point to execute. Omit for the active deployment; `source: \"deployment\"` with `version` runs that deployment version. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.",
             "oneOf": [
               {
                 "type": "object",
@@ -14924,7 +14925,13 @@
                   "source": {
                     "type": "string",
                     "const": "deployment",
-                    "description": "Execute the active deployed workflow state."
+                    "description": "Execute a deployed workflow version."
+                  },
+                  "version": {
+                    "description": "Deployment version to execute instead of the active one. Requires an API key or OAuth access token with workspace write access, and the workflow must be deployed. An unknown version returns `404`.",
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 2147483647
                   }
                 },
                 "required": ["source"],
@@ -15244,6 +15251,222 @@
           }
         ]
       },
+      "WorkflowRunPausePoint": {
+        "type": "object",
+        "properties": {
+          "contextId": {
+            "type": "string",
+            "description": "Pause context to name in `contextId` when resuming this point."
+          },
+          "blockId": {
+            "type": "string",
+            "description": "Workflow block that paused."
+          },
+          "blockName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Name of the block in the deployment version the run executed, or null for a manual run or when the version no longer exists."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["human", "time"],
+            "description": "`human` waits for a resume request; `time` resumes automatically at `resumeAt`."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["paused", "queued", "resuming", "resumed", "failed"],
+            "description": "Resume state of this point: waiting, queued behind another resume, resuming, resumed, or a failed resume attempt."
+          },
+          "registeredAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 timestamp when the run paused at this point, or null for a point recorded without one.",
+            "format": "date-time"
+          },
+          "resumeAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 automatic-resume timestamp for a time pause, otherwise null.",
+            "format": "date-time"
+          },
+          "parallel": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "parallelId": {
+                    "type": "string",
+                    "description": "Parallel block containing the pause."
+                  },
+                  "branchIndex": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Zero-based branch that paused."
+                  },
+                  "branchTotal": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": -9007199254740991,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Number of branches, or null when unrecorded."
+                  }
+                },
+                "required": ["parallelId", "branchIndex", "branchTotal"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Parallel branch of the pause, or null outside a parallel."
+          },
+          "loop": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "loopId": {
+                    "type": "string",
+                    "description": "Loop block containing the pause."
+                  },
+                  "iteration": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "description": "Zero-based iteration that paused."
+                  }
+                },
+                "required": ["loopId", "iteration"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Loop iteration of the pause, or null outside a loop."
+          },
+          "inputFields": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/WorkflowRunPauseInputField"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Fields a human pause asks for, without default values. Labels and descriptions are resolved, so they are withheld when organization permission groups hide execution data. Null then, for a time pause, a pause with no declared form, fields over 64 KiB or not provably free of secrets, or one recorded before pause details were captured."
+          },
+          "display": {
+            "anyOf": [
+              {
+                "description": "Reviewer content value."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Content the pause presents to its reviewer, with the run's resolved secrets redacted. Null unless `includeOutput=true`, when hidden by organization permission groups, for a time pause, for content over 64 KiB or not provably free of secrets, or for a pause recorded before pause details were captured."
+          },
+          "queuePosition": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Position among pending resume requests for this run, or null when none waits."
+          }
+        },
+        "required": [
+          "contextId",
+          "blockId",
+          "blockName",
+          "kind",
+          "status",
+          "registeredAt",
+          "resumeAt",
+          "parallel",
+          "loop",
+          "inputFields",
+          "display",
+          "queuePosition"
+        ],
+        "additionalProperties": false,
+        "title": "Workflow run pause point",
+        "description": "One point at which a paused run waits."
+      },
+      "WorkflowRunPauseInputField": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Key to supply this field under in the resume `input`."
+          },
+          "label": {
+            "type": "string",
+            "description": "Display label for the field."
+          },
+          "type": {
+            "type": "string",
+            "description": "Declared value type, such as `string`, `number`, or `boolean`."
+          },
+          "description": {
+            "description": "Field help text, when configured.",
+            "type": "string"
+          },
+          "placeholder": {
+            "description": "Placeholder text, when configured.",
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether the field is marked required."
+          },
+          "options": {
+            "description": "Selectable options, when the field offers a fixed set.",
+            "type": "array",
+            "items": {
+              "description": "One selectable option."
+            }
+          }
+        },
+        "required": ["name", "label", "type", "required"],
+        "additionalProperties": false,
+        "title": "Pause input field",
+        "description": "One field a human pause asks the resumer to fill."
+      },
       "V2RunFile": {
         "type": "object",
         "properties": {
@@ -15361,6 +15584,19 @@
             ],
             "description": "Run duration in milliseconds, or null while active."
           },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deployment version the run executed. Null for a manual run, a queued run not yet started, or a run whose version no longer exists."
+          },
           "paused": {
             "anyOf": [
               {
@@ -15437,6 +15673,13 @@
                   "resumedCount": {
                     "type": "number",
                     "description": "Number of pause points that have resumed."
+                  },
+                  "points": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/WorkflowRunPausePoint"
+                    },
+                    "description": "Every point the run is paused at, earliest first, at most 100. Resume one with Resume workflow run, naming its `contextId` and supplying `input`."
                   }
                 },
                 "required": [
@@ -15447,7 +15690,8 @@
                   "blockedOnBlockId",
                   "automaticResumeWaitingReason",
                   "pausePointCount",
-                  "resumedCount"
+                  "resumedCount",
+                  "points"
                 ],
                 "additionalProperties": false
               },
@@ -15538,6 +15782,7 @@
           "startedAt",
           "endedAt",
           "durationMs",
+          "version",
           "paused",
           "cost",
           "error",
@@ -15571,6 +15816,7 @@
               "startedAt": "2026-08-09T18:04:10.000Z",
               "endedAt": "2026-08-09T18:04:11.000Z",
               "durationMs": 1000,
+              "version": 3,
               "paused": null,
               "cost": {
                 "total": 12

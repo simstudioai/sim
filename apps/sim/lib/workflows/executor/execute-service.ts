@@ -88,7 +88,10 @@ export interface ExecuteWorkflowServiceParams {
   /** Pre-fetched workflow row (already authorized by the caller). */
   workflowRecord?: WorkflowRecord
   upstreamBillingAttribution?: BillingAttributionSnapshot
-  /** Pin execution to a specific deployment version (MCP bridge). */
+  /**
+   * Run this deployment version instead of the active one (MCP bridge, v2 execute
+   * with `version`). The id must already be validated against `workflowId`.
+   */
   deploymentVersionId?: string
   includeFileBase64?: boolean
   base64MaxBytes?: number
@@ -473,6 +476,7 @@ export async function executeWorkflowService(
         enforceCredentialAccess: useAuthenticatedUserAsActor,
         isPublicApiAccess,
         executionTimeoutMs: preprocessResult.executionTimeout.async,
+        pinnedDeploymentVersionId: deploymentVersionId,
       })
       executionIdClaimCommitted = enqueue.retainExecutionClaim
       if (enqueue.outcome === 'rejected') {
@@ -627,6 +631,7 @@ export async function executeWorkflowService(
               triggerBlockId,
               useDraftState,
               draftState,
+              pinnedDeploymentVersionId: deploymentVersionId,
               runFromBlock,
               stopAfterBlockId,
               onStream,
@@ -678,6 +683,7 @@ export async function executeWorkflowService(
       triggerType,
       triggerBlockId,
       useDraftState,
+      pinnedDeploymentVersionId: deploymentVersionId,
       startTime: new Date().toISOString(),
       isClientSession: false,
       enforceCredentialAccess: useAuthenticatedUserAsActor,

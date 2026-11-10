@@ -95,6 +95,16 @@ export const workflowsPersistenceUtilsMock = {
   findPreviousDeploymentVersion: workflowsPersistenceUtilsMockFns.mockFindPreviousDeploymentVersion,
   getWorkflowDeploymentVersion: workflowsPersistenceUtilsMockFns.mockGetWorkflowDeploymentVersion,
   NoActiveDeploymentError: MockNoActiveDeploymentError,
+  /** Real behavior: a snapshot's own variables, or the saved ones for a pre-snapshot version. */
+  resolveDeployedRunVariables: (
+    deployedState: { variables?: Record<string, unknown>; variablesSnapshotted?: boolean },
+    savedVariables: unknown
+  ): Record<string, unknown> =>
+    deployedState.variablesSnapshotted
+      ? (deployedState.variables ?? {})
+      : savedVariables && typeof savedVariables === 'object' && !Array.isArray(savedVariables)
+        ? (savedVariables as Record<string, unknown>)
+        : {},
   /** Real value: the sub-block ids that hold a credential reference. */
   CREDENTIAL_SUBBLOCK_IDS: new Set([
     'credential',

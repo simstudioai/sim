@@ -1,5 +1,11 @@
 import { db } from '@sim/db'
-import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
+import {
+  pausedExecutions,
+  resumeQueue,
+  workflowDeploymentVersion,
+  workflowExecutionLogs,
+} from '@sim/db/schema'
+import { compareStrings } from '@sim/utils/string'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
@@ -15,8 +21,10 @@ import {
   WORKFLOW_EXECUTION_JOB_ID_PREFIX,
 } from '@/lib/workflows/executor/execution-job-ids'
 import { normalizePausePoints } from '@/lib/workflows/executor/execution-state'
+import { PauseResumeManager } from '@/lib/workflows/executor/human-in-the-loop-manager'
 import { getAutomaticResumeWaitingMetadata } from '@/lib/workflows/executor/paused-execution-metadata'
-import type { PausePoint } from '@/executor/types'
+import type { PauseInputField, PausePoint, ResumeStatus } from '@/executor/types'
+import { extractBaseBlockId } from '@/executor/utils/subflow-node-id-codec'
 
 /**
  * Reads a single execution's status resource — the log row, the paused-state
@@ -89,7 +97,8 @@ function extractJobFinalOutput(output: unknown): unknown | null {
 
 function projectQueueJob(
   job: Job,
-  input: Pick<GetWorkflowExecutionStatusInput, 'executionId' | 'includeOutput' | 'workflowId'>
+  input: Pick<GetWorkflowExecutionStatusInput, 'executionId' | 'includeOutput' | 'workflowId'>,
+  deploymentVersion: number | null
 ): WorkflowExecutionStatusResponse {
   const status: WorkflowExecutionStatusResponse['status'] =
     job.status === 'pending' ? 'queued' : job.status === 'processing' ? 'running' : job.status
@@ -105,6 +114,7 @@ function projectQueueJob(
     startedAt: startedAt.toISOString(),
     endedAt: endedAt?.toISOString() ?? null,
     totalDurationMs: endedAt ? endedAt.getTime() - startedAt.getTime() : null,
+    deploymentVersion,
     paused: null,
     cost: null,
     error: status === 'failed' ? (job.error ?? 'Execution failed') : null,
@@ -241,6 +251,11 @@ function projectExecutionStatus(
 export interface ProjectedWorkflowExecutionStatus {
   status: WorkflowExecutionStatusResponse
   projection: LogFieldProjection
+  /**
+   * The execution whose recorded state answered: the run itself, or the parent run a settled
+   * resume attempt continued. Further reads of the run's state (its pause points) use this id.
+   */
+  stateExecutionId: string
 }
 
 /**
@@ -260,14 +275,18 @@ export interface ProjectedWorkflowExecutionStatus {
 export async function getProjectedWorkflowExecutionStatus(
   input: GetWorkflowExecutionStatusInput
 ): Promise<ProjectedWorkflowExecutionStatus | null> {
-  const status = await readWorkflowExecutionStatus(input)
-  if (!status) return null
+  const resolved = await readWorkflowExecutionStatus(input)
+  if (!resolved) return null
   const projection = await resolveLogFieldProjection(
     input.viewerUserId,
     input.workspaceId,
     input.workspaceOrganizationId
   )
-  return { status: projectExecutionStatus(status, projection), projection }
+  return {
+    status: projectExecutionStatus(resolved.status, projection),
+    projection,
+    stateExecutionId: resolved.stateExecutionId,
+  }
 }
 
 /**
@@ -298,9 +317,40 @@ function executionDataReadByPoll(
   )
 }
 
+/** The deployment version number a run's log recorded, or null when it recorded none. */
+async function readRunDeploymentVersion(
+  workflowId: string,
+  executionId: string
+): Promise<number | null> {
+  const [row] = await db
+    .select({ version: workflowDeploymentVersion.version })
+    .from(workflowExecutionLogs)
+    .innerJoin(
+      workflowDeploymentVersion,
+      eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
+    )
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  return row?.version ?? null
+}
+
+/**
+ * A status resource and the execution whose recorded state answered it: the run itself, or
+ * for a settled resume attempt with no log row of its own, the parent run it continued.
+ */
+interface ResolvedExecutionStatus {
+  status: WorkflowExecutionStatusResponse
+  stateExecutionId: string
+}
+
 async function readWorkflowExecutionStatus(
   input: GetWorkflowExecutionStatusInput
-): Promise<WorkflowExecutionStatusResponse | null> {
+): Promise<ResolvedExecutionStatus | null> {
   const { workflowId, executionId, includeOutput, selectedOutputs } = input
 
   const [logRow] = await db
@@ -316,8 +366,13 @@ async function readWorkflowExecutionStatus(
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
       executionData: executionDataReadByPoll(input),
       costTotal: workflowExecutionLogs.costTotal,
+      deploymentVersion: workflowDeploymentVersion.version,
     })
     .from(workflowExecutionLogs)
+    .leftJoin(
+      workflowDeploymentVersion,
+      eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
+    )
     .where(
       and(
         eq(workflowExecutionLogs.executionId, executionId),
@@ -360,18 +415,31 @@ async function readWorkflowExecutionStatus(
     ...(!logRow ? [`${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`] : []),
   ]
 
+  /**
+   * An active resume continues its parent run on the version the parent admitted, so it
+   * reports that version before it has a log row of its own, as it does once it settles.
+   */
+  const deploymentVersion =
+    logRow?.deploymentVersion ??
+    (projectedResume
+      ? await readRunDeploymentVersion(workflowId, projectedResume.parentExecutionId)
+      : null)
+
   if (queueJobIds.length > 0) {
     const jobQueue = await getJobQueue()
     for (const jobId of queueJobIds) {
       const job = await jobQueue.getJob(jobId)
       if (!job || job.metadata.workflowId !== workflowId) continue
-      return projectQueueJob(job, { executionId, includeOutput, workflowId })
+      return {
+        status: projectQueueJob(job, { executionId, includeOutput, workflowId }, deploymentVersion),
+        stateExecutionId: executionId,
+      }
     }
   }
 
   if (projectedResume) {
     const startedAt = projectedResume.claimedAt ?? projectedResume.queuedAt
-    return {
+    const status: WorkflowExecutionStatusResponse = {
       executionId,
       workflowId,
       status: 'queued',
@@ -380,12 +448,14 @@ async function readWorkflowExecutionStatus(
       startedAt: startedAt.toISOString(),
       endedAt: null,
       totalDurationMs: null,
+      deploymentVersion,
       paused: null,
       cost: null,
       error: null,
       finalOutput: null,
       blockOutputs: null,
     }
+    return { status, stateExecutionId: executionId }
   }
 
   if (!logRow) {
@@ -394,7 +464,12 @@ async function readWorkflowExecutionStatus(
       ...input,
       executionId: resumeAttempt.parentExecutionId,
     })
-    return run ? projectSettledResumeAttempt(executionId, resumeAttempt, run) : null
+    return run
+      ? {
+          status: projectSettledResumeAttempt(executionId, resumeAttempt, run.status),
+          stateExecutionId: run.stateExecutionId,
+        }
+      : null
   }
 
   const [pausedRow] = await db
@@ -452,6 +527,7 @@ async function readWorkflowExecutionStatus(
     startedAt: logRow.startedAt.toISOString(),
     endedAt: logRow.endedAt?.toISOString() ?? null,
     totalDurationMs: logRow.totalDurationMs ?? null,
+    deploymentVersion: logRow.deploymentVersion ?? null,
     paused,
     cost,
   }
@@ -460,7 +536,10 @@ async function readWorkflowExecutionStatus(
   const readsExecutionData =
     selectedOutputs.length > 0 || statusesReadingExecutionData(includeOutput).includes(status)
   if (!readsExecutionData) {
-    return { ...resource, error: null, finalOutput: null, blockOutputs: null }
+    return {
+      status: { ...resource, error: null, finalOutput: null, blockOutputs: null },
+      stateExecutionId: executionId,
+    }
   }
 
   const requestedBlockIds = [
@@ -489,5 +568,150 @@ async function readWorkflowExecutionStatus(
       ? pickSelectedOutputs(selectedOutputs, materialized.blockOutputs)
       : null
 
-  return { ...resource, error, finalOutput, blockOutputs }
+  return {
+    status: { ...resource, error, finalOutput, blockOutputs },
+    stateExecutionId: executionId,
+  }
+}
+
+/** Most pause points a run detail lists; a run over it lists its earliest registered points. */
+const MAX_PAUSED_RUN_POINTS = 100
+
+/** One pause point of a paused run, as a caller reading the run may see it. */
+export interface PausedRunPoint {
+  contextId: string
+  blockId: string
+  blockName: string | null
+  kind: 'human' | 'time'
+  status: ResumeStatus
+  /** Null for a point recorded without a registration time. */
+  registeredAt: string | null
+  resumeAt: string | null
+  parallel: { parallelId: string; branchIndex: number; branchTotal: number | null } | null
+  loop: { loopId: string; iteration: number } | null
+  inputFields: PauseInputField[] | null
+  display: unknown
+  queuePosition: number | null
+}
+
+/**
+ * Names of `blockIds` in the deployment version the run executed, read inside the
+ * database so the version's state never leaves it. Empty for a run with no recorded
+ * version (a manual run) or whose version no longer exists.
+ */
+async function readRunBlockNames(
+  workflowId: string,
+  executionId: string,
+  blockIds: string[]
+): Promise<Map<string, string>> {
+  if (blockIds.length === 0) return new Map()
+  const [row] = await db
+    .select({
+      names: sql<Record<string, string | null> | null>`(
+        select jsonb_object_agg(b.key, b.value ->> 'name')
+        from json_each(${workflowDeploymentVersion.state} -> 'blocks') as b
+        where b.key in (${sql.join(
+          blockIds.map((id) => sql`${id}`),
+          sql`, `
+        )})
+      )`,
+    })
+    .from(workflowExecutionLogs)
+    .innerJoin(
+      workflowDeploymentVersion,
+      eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
+    )
+    .where(
+      and(
+        eq(workflowExecutionLogs.executionId, executionId),
+        eq(workflowExecutionLogs.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  const names = new Map<string, string>()
+  for (const [id, name] of Object.entries(row?.names ?? {})) {
+    if (typeof name === 'string' && name) names.set(id, name)
+  }
+  return names
+}
+
+/**
+ * The pause points of a paused run, earliest registered first and capped at
+ * {@link MAX_PAUSED_RUN_POINTS}, or null when the run has no paused record.
+ *
+ * Reads only `pause_points`, never the execution snapshot. `display` and
+ * `inputFields` come only from points scrubbed of the run's resolved secrets when
+ * they were captured; an older point's stored response was never scrubbed, so both
+ * are null for it. Resume links and API-mode response status and headers are never
+ * part of a point.
+ */
+export async function readPausedRunPoints(input: {
+  workflowId: string
+  executionId: string
+}): Promise<PausedRunPoint[] | null> {
+  const { workflowId, executionId } = input
+  const [row] = await db
+    .select({ pausePoints: pausedExecutions.pausePoints })
+    .from(pausedExecutions)
+    .where(
+      and(
+        eq(pausedExecutions.executionId, executionId),
+        eq(pausedExecutions.workflowId, workflowId)
+      )
+    )
+    .limit(1)
+  if (!row) return null
+
+  // Positions count the whole pending queue, so it is read unpaged: it holds a few columns per
+  // waiting point, never more than the `pause_points` already loaded above.
+  const pendingResumes = await db
+    .select({
+      contextId: resumeQueue.contextId,
+      status: resumeQueue.status,
+      queuedAt: resumeQueue.queuedAt,
+    })
+    .from(resumeQueue)
+    .where(and(eq(resumeQueue.parentExecutionId, executionId), eq(resumeQueue.status, 'pending')))
+    .orderBy(resumeQueue.queuedAt)
+  const queuePositions = PauseResumeManager.computeQueuePositions(
+    pendingResumes.map((entry) => ({
+      contextId: entry.contextId,
+      status: entry.status,
+      queuedAt: entry.queuedAt?.toISOString() ?? null,
+    }))
+  )
+
+  const points = PauseResumeManager.mapPausePoints(row.pausePoints, queuePositions)
+    .sort((a, b) => compareStrings(a.registeredAt ?? '', b.registeredAt ?? ''))
+    .slice(0, MAX_PAUSED_RUN_POINTS)
+  const baseBlockId = (point: PausePoint) => extractBaseBlockId(point.blockId ?? point.contextId)
+  const names = await readRunBlockNames(workflowId, executionId, [
+    ...new Set(points.map(baseBlockId)),
+  ])
+
+  return points.map((point) => {
+    const blockId = baseBlockId(point)
+    return {
+      contextId: point.contextId,
+      blockId,
+      blockName: names.get(blockId) ?? null,
+      kind: point.pauseKind === 'time' ? 'time' : 'human',
+      status: point.resumeStatus,
+      registeredAt: point.registeredAt ?? null,
+      resumeAt: point.resumeAt ?? null,
+      parallel: point.parallelScope
+        ? {
+            parallelId: point.parallelScope.parallelId,
+            branchIndex: point.parallelScope.branchIndex,
+            branchTotal: point.parallelScope.branchTotal ?? null,
+          }
+        : null,
+      loop: point.loopScope
+        ? { loopId: point.loopScope.loopId, iteration: point.loopScope.iteration }
+        : null,
+      inputFields: point.inputFields ?? null,
+      display: point.display ?? null,
+      queuePosition: point.queuePosition ?? null,
+    }
+  })
 }

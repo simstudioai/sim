@@ -1282,7 +1282,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.execute,
       operationId: 'executeWorkflowV2',
       summary: 'Execute workflow',
-      description: `Run the active deployment, or set \`run.source: "manual"\` to run the saved draft. Deployed execution requires workspace read access and OAuth \`api:write\` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse \`async: true\` for a queue receipt, or \`stream: true\` for SSE. For a synchronous run with both flags false, send \`Accept: application/x-ndjson\` for heartbeat frames and a final frame containing \`data\`. With \`waitTimeoutSeconds\`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: \`202\` on a JSON response, or a closing \`detached\` frame on an NDJSON stream, which keeps its \`200\`. Timeouts return \`200\` with \`status: "failed"\` and \`error.code: "TIMEOUT"\`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. ${EXECUTE_OPTION_CONSTRAINTS}\n\nSupply \`X-Run-Id\` to prevent duplicate execution. Reuse returns \`409\`, without replaying results. A \`503\` with \`error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"\` omits \`Retry-After\` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.`,
+      description: `Run the active deployment, set \`run: { source: "deployment", version }\` to run an earlier deployment version, or set \`run.source: "manual"\` to run the saved draft. Deployed execution requires workspace read access and OAuth \`api:write\` scope or an API key; public deployments also allow anonymous synchronous or streamed runs. Running a chosen version requires workspace write access and an API key or OAuth access token; an unknown version returns \`404\`. Manual runs require personal-key or OAuth write access and cannot be async.\n\nUse \`async: true\` for a queue receipt, or \`stream: true\` for SSE. For a synchronous run with both flags false, send \`Accept: application/x-ndjson\` for heartbeat frames and a final frame containing \`data\`. With \`waitTimeoutSeconds\`, a synchronous run still going when the wait elapses continues in the background and answers with its run receipt instead: \`202\` on a JSON response, or a closing \`detached\` frame on an NDJSON stream, which keeps its \`200\`. Timeouts return \`200\` with \`status: "failed"\` and \`error.code: "TIMEOUT"\`; inspect run status. See [Streaming](/workflows/deployment/api#streaming) for event formats. ${EXECUTE_OPTION_CONSTRAINTS}\n\nSupply \`X-Run-Id\` to prevent duplicate execution. Reuse returns \`409\`, without replaying results. A \`503\` with \`error.details.code: "ASYNC_ENQUEUE_AMBIGUOUS"\` omits \`Retry-After\` because the run may already have started. Reconcile using the returned run ID; do not start another run with a new or omitted ID.`,
       errors: [
         'BadRequest',
         'Unauthorized',
@@ -1366,7 +1366,7 @@ const declaredRoutes = [
       applicationOperation: workflowOperations.readRun,
       operationId: 'getWorkflowRunV2',
       summary: 'Get workflow run',
-      description: `Read current run state with workspace read access. Request final output and files with \`includeOutput\`, or block outputs with \`selectedOutputs\`. Organization permission groups can hide output, files, or cost.\n\n\`includeFileBase64\` inlines file bytes. A file or the total above 16 MiB returns \`413\` naming a download path; download large files individually. ${HEAD_MIRRORS_GET}`,
+      description: `Read current run state with workspace read access. Request final output and files with \`includeOutput\`, or block outputs with \`selectedOutputs\`. Organization permission groups can hide output, files, or cost. A paused run lists every pause point in \`paused.points\`, with the fields a human pause asks for and its content with resolved secrets redacted; resume one with Resume workflow run.\n\n\`includeFileBase64\` inlines file bytes. A file or the total above 16 MiB returns \`413\` naming a download path; download large files individually. ${HEAD_MIRRORS_GET}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow run status.'),
     }),
@@ -1388,6 +1388,7 @@ const declaredRoutes = [
               startedAt: '2026-08-09T18:04:10.000Z',
               endedAt: '2026-08-09T18:04:11.000Z',
               durationMs: 1_000,
+              version: 3,
               paused: null,
               cost: { total: 12 },
               error: null,
@@ -1435,7 +1436,7 @@ const declaredRoutes = [
       operationId: 'resumeWorkflowRunV2',
       summary: 'Resume workflow run',
       description:
-        'Resume one human-in-the-loop pause with workspace write access. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.',
+        "Resume one human-in-the-loop pause with workspace write access, naming a `contextId` from the run's `paused.points`. The resumed attempt receives a new run ID and returns a synchronous result or queue receipt. A run that originally streamed resumes asynchronously through v2; this endpoint returns no SSE stream.",
       errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded', 'Conflict', 'PayloadTooLarge'],
       success: {
         byStatus: {
