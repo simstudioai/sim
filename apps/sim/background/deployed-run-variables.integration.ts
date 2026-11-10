@@ -12,6 +12,7 @@ import {
   workflow,
   workflowDeploymentVersion,
   workflowExecutionLogs,
+  workflowExecutionSnapshots,
   workflowSchedule,
   workspace,
 } from '@sim/db/schema'
@@ -246,6 +247,9 @@ afterAll(async () => {
     await db
       .delete(workflowExecutionLogs)
       .where(inArray(workflowExecutionLogs.workflowId, workflowIds))
+    await db
+      .delete(workflowExecutionSnapshots)
+      .where(inArray(workflowExecutionSnapshots.workflowId, workflowIds))
   }
   await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   await db.delete(user).where(eq(user.id, ownerId))

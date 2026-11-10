@@ -11,6 +11,7 @@ import {
   workflow,
   workflowDeploymentVersion,
   workflowExecutionLogs,
+  workflowExecutionSnapshots,
   workspace,
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
@@ -168,6 +169,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.delete(workflowExecutionLogs).where(eq(workflowExecutionLogs.workflowId, workflowId))
+  await db
+    .delete(workflowExecutionSnapshots)
+    .where(eq(workflowExecutionSnapshots.workflowId, workflowId))
   if (jobIds.length > 0) await db.delete(asyncJobs).where(inArray(asyncJobs.id, jobIds))
   await deleteWorkspaceFixture(db, eq(workspace.id, workspaceId))
   await db.delete(user).where(eq(user.id, ownerId))
