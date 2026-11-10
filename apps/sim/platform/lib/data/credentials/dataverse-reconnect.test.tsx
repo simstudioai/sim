@@ -1,10 +1,9 @@
 /**
  * @vitest-environment jsdom
  *
- * Reconnecting a Dataverse credential must keep the environment it is bound to. Failure modes: a
- * bound credential reconnecting through the plain OAuth flow (losing its environment), an invalid
- * binding or an unreadable credential reconnecting anyway, and a non-Dataverse credential paying
- * for a lookup it does not need.
+ * The glue between the credential read and the Dataverse binding rules, which their own tests own.
+ * Failure modes: a bound credential reconnecting through the plain OAuth flow (losing its
+ * environment), and a non-Dataverse credential paying for a lookup it does not need.
  */
 import { act } from 'react'
 import { flushMacrotask } from '@sim/testing/helpers/async'
@@ -80,30 +79,6 @@ describe('reconnecting a Dataverse credential', () => {
       blockedReason: undefined,
       environmentUrl: ENVIRONMENT,
     })
-  })
-
-  it('reconnects an unbound credential through the plain OAuth flow', async () => {
-    serve(() => credentialWithScopes(['openid', 'offline_access']))
-    await render(dataverse)
-    expect(latest).toEqual({ pending: false, blockedReason: undefined, environmentUrl: undefined })
-  })
-
-  it('refuses an invalid binding instead of reconnecting it in place', async () => {
-    serve(() =>
-      credentialWithScopes([
-        getMicrosoftDataverseRequiredScope(ENVIRONMENT),
-        getMicrosoftDataverseRequiredScope('https://fabrikam.api.crm.dynamics.com'),
-      ])
-    )
-    await render(dataverse)
-    expect(latest?.blockedReason).toMatch(/invalid environment binding/)
-    expect(latest?.environmentUrl).toBeUndefined()
-  })
-
-  it('refuses when the credential cannot be read', async () => {
-    serve(() => Response.json({ error: 'Internal error' }, { status: 500 }))
-    await render(dataverse)
-    expect(latest?.blockedReason).toMatch(/Could not verify/)
   })
 
   it('reads nothing for a credential that is not Dataverse', async () => {

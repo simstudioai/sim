@@ -18,6 +18,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 vi.mock('next/navigation', () => nextNavigationMock)
 
+import { sessionKeys } from '@/hooks/queries/utils/session-keys'
 import { useLiveComposer } from '@/platform/lib/data/chat-composer'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { LiveProviders } from '@/platform/lib/data/providers'
@@ -110,7 +111,7 @@ const SAVED_DRAFT: DraftPayload = {
 /** The session entry `prefetchShell` seeds, under the key the session query reads. */
 function seededSession(): DehydratedState {
   const client = new QueryClient()
-  client.setQueryData(['session', 'detail'], {
+  client.setQueryData(sessionKeys.detail(), {
     user: { id: VIEWER_ID, email: 'home@example.com', name: 'Hal Home', image: null },
     session: { id: 'session-home', userId: VIEWER_ID, activeOrganizationId: ORGANIZATION_ID },
   })

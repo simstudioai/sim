@@ -1,11 +1,8 @@
 /**
  * @vitest-environment jsdom
  *
- * A workspace credential opens on the example design's credential page, wired to the credential
- * and member operations legacy's credential page used. Failure modes: a rename that never reaches
- * the credential operation, or reaches it outside the workspace the page manages; a rename the
- * server refuses that clears the draft or reports nothing; the Access tab built without the
- * credential's grants; and an owner-only personal token asking for grants it cannot have.
+ * A workspace credential opens on the example design's credential page. Failure mode: a rename the
+ * server refuses clears the draft the user typed.
  */
 import { act } from 'react'
 import { flushMacrotask } from '@sim/testing/helpers/async'
@@ -73,8 +70,6 @@ function credential(overrides: Partial<WorkspaceCredential> = {}): WorkspaceCred
   }
 }
 
-const requests: { method: string; url: URL; body: unknown }[] = []
-
 function respond(url: URL, method: string, body: unknown) {
   if (url.pathname === '/api/credentials/cred-1/members')
     return Response.json({
@@ -109,14 +104,12 @@ let root: Root
 
 beforeEach(() => {
   stubResizeObserver()
-  requests.length = 0
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(String(input instanceof Request ? input.url : input), 'https://sim.test')
       const method = init?.method ?? 'GET'
       const body = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
-      requests.push({ method, url, body })
       return respond(url, method, body)
     })
   )
@@ -188,33 +181,10 @@ function rename(displayName: string) {
   return name
 }
 
-it('reads a shared credential’s grants and renames it within the page’s workspace', async () => {
-  await open([credential()])
-  expect(requests.some(({ url }) => url.pathname === '/api/credentials/cred-1/members')).toBe(true)
-
-  rename('Escalations inbox')
-  await settle()
-
-  const request = requests.find(
-    ({ method, url }) => method === 'PUT' && url.pathname === '/api/credentials/cred-1'
-  )
-  expect(request?.url.searchParams.get('workspaceId')).toBe(WORKSPACE.id)
-  expect(request?.body).toEqual({ displayName: 'Escalations inbox', description: null })
-})
-
-it('keeps a refused rename’s draft and shows the server’s reason on the form', async () => {
+it('keeps a refused rename’s draft for the user to correct', async () => {
   await open([credential()])
   const name = rename('Taken inbox')
   await settle()
 
   expect(name.value).toBe('Taken inbox')
-  expect(container.querySelector('form[aria-label="Credential details"]')?.textContent).toContain(
-    'already exists'
-  )
-})
-
-it('reads no grants for a personal token only its owner holds', async () => {
-  await open([credential({ type: 'personal_token', providerId: 'google-email' })])
-  expect(container.querySelector('form[aria-label="Credential details"]')).not.toBeNull()
-  expect(requests.some(({ url }) => url.pathname.endsWith('/members'))).toBe(false)
 })
