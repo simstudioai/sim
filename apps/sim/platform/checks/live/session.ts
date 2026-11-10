@@ -96,9 +96,14 @@ export async function seedSession(email: string): Promise<SeededSession> {
   }
 }
 
-/** Opens `target` as `email`, on a session seeded for this call, and returns that session. */
+/**
+ * Opens `target` as `email`, on a session seeded for this call, and returns that session. Signs out
+ * first, as a person switching accounts does: Better Auth serves its cached session cookie without
+ * matching it to the token, so a check signing in again would otherwise stay the earlier person.
+ */
 export async function signIn(page: Page, email: string, target: string): Promise<SeededSession> {
   const session = await seedSession(email)
+  await page.context().clearCookies({ name: /^better-auth\./ })
   await page.context().addCookies([session.cookie])
   await page.goto(target)
   return session
