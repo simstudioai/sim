@@ -18,7 +18,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 vi.mock('next/navigation', () => nextNavigationMock)
 
 import { ForkSyncDetail } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/forks/fork-sync-detail'
-import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
+import { useSettingsDirtyStore } from '@/platform/lib/data/settings-guard'
 
 const PARENT = { id: 'parent-a', name: 'Parent', organizationId: null, viewerAccessible: true }
 

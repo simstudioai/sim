@@ -15,8 +15,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ProviderForm } from '@/app/(product)/o/[organizationId]/settings/_components/sections/sso/provider-form'
+import { useSettingsDirtyStore } from '@/platform/lib/data/settings-guard'
 import { DEFAULT_SSO_FORM } from '@/platform/lib/data/sso'
-import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 const FILLED_FORM = {
   ...DEFAULT_SSO_FORM,

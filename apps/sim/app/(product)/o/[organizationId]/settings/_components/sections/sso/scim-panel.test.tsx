@@ -13,7 +13,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { ScimPanel } from '@/app/(product)/o/[organizationId]/settings/_components/sections/sso/scim-panel'
-import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
+import { useSettingsDirtyStore } from '@/platform/lib/data/settings-guard'
 
 const CONNECTION = {
   id: 'connection-a',

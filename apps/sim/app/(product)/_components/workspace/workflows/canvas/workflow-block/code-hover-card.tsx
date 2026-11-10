@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { cn } from '@sim/emcn/lib/cn'
 import { createPortal } from 'react-dom'
 import {
   calculateGutterWidth,
@@ -24,6 +25,7 @@ import {
 } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/floating-layer'
 import { isTextClipped } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/text-clip'
 import type { CodePreview } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/types'
+import { CANVAS_CODE_TOKENS_CLASS } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/canvas-token-scope'
 
 const OPEN_DELAY_MS = 300
 const TRIGGER_EXIT_GRACE_MS = 600
@@ -243,7 +245,7 @@ function CodeViewer({ code, language }: CodePreview) {
 
   return (
     <div className={styles.viewer}>
-      <div className={styles.theme}>
+      <div className={cn(styles.theme, CANVAS_CODE_TOKENS_CLASS)}>
         <div className={styles.grid} style={{ gridTemplateColumns: `${gutterWidth}px 1fr` }}>
           {highlighted.map((html, index) => (
             <CodeLine key={index} lineNumber={index + 1} html={html} />

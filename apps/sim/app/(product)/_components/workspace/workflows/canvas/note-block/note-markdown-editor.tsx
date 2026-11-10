@@ -8,6 +8,7 @@ import { toast } from '@/lib/toast/sink'
 import type { NoteContentEditorProps } from '@/app/(product)/_components/workspace/workflows/canvas/note-block/note-block'
 import styles from '@/app/(product)/_components/workspace/workflows/canvas/note-block/note-markdown-editor.module.css'
 import { useNoteImageUpload } from '@/app/(product)/_components/workspace/workflows/canvas/note-block/use-note-image-upload'
+import { CANVAS_CODE_TOKENS_CLASS } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/canvas-token-scope'
 import { assessRawMarkdownPaste, isRoundTripSafe } from '@/platform/lib/data/workflows'
 
 const NOTE_EDITOR_PLACEHOLDER = "Add note, or press '/' for commands…"
@@ -102,7 +103,7 @@ export function NoteMarkdownEditor({
 }: NoteContentEditorProps) {
   const uploadImage = useNoteImageUpload()
   const [isSafe] = useState(() => isRoundTripSafe(value))
-  const proseClassName = cn(styles.prose, selectionClassName)
+  const proseClassName = cn(styles.prose, CANVAS_CODE_TOKENS_CLASS, selectionClassName)
 
   return isSafe ? (
     <div className={cn(proseClassName, caretClassName)}>

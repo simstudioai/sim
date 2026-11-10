@@ -14,7 +14,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
 import SecuritySection from '@/app/(product)/o/[organizationId]/settings/_components/sections/security/security-section'
-import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
+import { useSettingsDirtyStore } from '@/platform/lib/data/settings-guard'
 
 const MAX_HOURS = 'Max session lifetime (hours)'
 const SAVED = { isEnterprise: true, configured: { maxSessionHours: 720, idleTimeoutHours: null } }

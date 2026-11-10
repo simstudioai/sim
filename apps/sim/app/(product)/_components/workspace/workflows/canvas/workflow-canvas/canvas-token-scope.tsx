@@ -7,6 +7,9 @@ import tokens from '@/app/(product)/_components/workspace/workflows/canvas/workf
 import { usePlatformColorMode } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-canvas/use-platform-color-mode'
 import { season } from '@/platform/lib/data/workflows'
 
+/** The code-highlight tokens, for a canvas surface that renders outside this scope, such as a portaled card. */
+export const CANVAS_CODE_TOKENS_CLASS = tokens.codeTokens
+
 type CanvasColorMode = ReturnType<typeof usePlatformColorMode>
 
 interface CanvasTokenScopeProps {
