@@ -13,6 +13,7 @@ import { getGitHubInstallationConfiguration } from '@/lib/oauth/github-installat
 import { GITHUB_INSTALLATION_PROVIDER_ID } from '@/lib/oauth/github-installation-types'
 import type { OAuthServiceMetadata } from '@/lib/oauth/types'
 import { getAllOAuthServices } from '@/lib/oauth/utils'
+import { resolveAccessControlBlockType } from '@/lib/permission-groups/integration-allowlist'
 import { getBlock } from '@/blocks/registry'
 import { isHiddenUnder } from '@/blocks/visibility/context'
 
@@ -157,13 +158,15 @@ export function createIntegrationCredentialVisibility({
       return oauthOwnersByProviderId.get(providerId)?.some(isManagedOAuthServiceVisible) ?? false
     }
     if (type === 'personal_token') {
+      // Personal tokens belong to the GitLab integration, whichever block version is current.
+      const gitlabType = resolveAccessControlBlockType('gitlab')
       if (
         providerId !== 'gitlab' ||
-        (allowedIntegrationTypes && !allowedIntegrationTypes.has('gitlab'))
+        (allowedIntegrationTypes && !allowedIntegrationTypes.has(gitlabType))
       )
         return false
-      const block = getBlock('gitlab')
-      const availability = availabilityByType.get('gitlab')
+      const block = getBlock(gitlabType)
+      const availability = availabilityByType.get(gitlabType)
       if (!block || block.hideFromToolbar || isHiddenUnder(blockVisibility, block) || !availability)
         return false
       const state = resolveIntegrationAvailabilityStateForVisibility(availability, blockVisibility)

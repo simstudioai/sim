@@ -175,7 +175,7 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
   const [oauthOpen, setOAuthOpen] = useState(false)
   const [personalTokenOpen, setPersonalTokenOpen] = useState(false)
   const personalTokenAvailable =
-    integration.type === 'gitlab' &&
+    integration.slug === 'gitlab' &&
     (availability?.state === 'ready' || availability?.state === 'limited')
 
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
@@ -191,16 +191,21 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
    * `providerId`s instead hides it from all of them.
    */
   const connectedCredentials = useMemo(() => {
-    if (integration.type === 'gitlab')
-      return credentials.filter((c) => c.type === 'personal_token' && c.providerId === 'gitlab')
-    if (!oauthService) return []
-    return credentials.filter(
-      (c) =>
-        (c.type === 'oauth' || c.type === 'service_account') &&
-        c.providerId &&
-        credentialProviderMatchesService(c.providerId, oauthService)
-    )
-  }, [credentials, oauthService, integration.type])
+    const serviceCredentials = oauthService
+      ? credentials.filter(
+          (c) =>
+            (c.type === 'oauth' || c.type === 'service_account') &&
+            c.providerId &&
+            credentialProviderMatchesService(c.providerId, oauthService)
+        )
+      : []
+    if (integration.slug !== 'gitlab') return serviceCredentials
+    // GitLab also has personal tokens, which Copilot acts with on the person's behalf.
+    return [
+      ...credentials.filter((c) => c.type === 'personal_token' && c.providerId === 'gitlab'),
+      ...serviceCredentials,
+    ]
+  }, [credentials, oauthService, integration.slug])
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
   const serviceAccountTarget = useServiceAccountConnectTarget({
     serviceAccountProviderId: oauthService?.serviceAccountProviderId,
