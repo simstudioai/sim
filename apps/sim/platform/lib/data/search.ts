@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useIsFetching, useQueryClient } from '@tanstack/react-query'
 import { usePathname, useRouter } from 'next/navigation'
-import { useQueryStates } from 'nuqs'
+import { createSerializer, useQueryStates } from 'nuqs'
 import type { WorkspaceSearchFilters } from '@/lib/api/contracts/knowledge'
 import { useSession } from '@/lib/auth/client'
 import { type ResourceScope, resourceScopeKey } from '@/lib/core/resource-scope'
@@ -142,6 +142,8 @@ function readSearchModeCookie(organizationId: string) {
     ?.slice(prefix.length)
 }
 
+const serializeSearchMode = createSerializer(organizationSearchParsers)
+
 /** Everything the Search route reads: the URL, the query, the viewer's history and the mode. */
 export function useSearchSurface(chatId: string | undefined) {
   const organization = useOrganization()
@@ -265,9 +267,15 @@ export function useSearchSurface(chatId: string | undefined) {
       }
       startNewTransition(() => {
         setConversationInstance((current) => current + 1)
-        router.push(assistantAvailable ? `${routes.search}?mode=${mode}` : routes.search, {
-          scroll: false,
-        })
+        const freshMode = assistantAvailable ? mode : null
+        if (pathname === routes.search) {
+          void setParams(
+            { q: null, mode: freshMode, source: null, updated: null, from: null, to: null },
+            { history: 'push', scroll: false }
+          )
+        } else {
+          router.push(serializeSearchMode(routes.search, { mode: freshMode }), { scroll: false })
+        }
       })
     },
     conversationInstance,
