@@ -4,8 +4,8 @@ import { useRef } from 'react'
 import { IconButton } from '@sim/emcn/button'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { Inbox } from '@/app/(product)/_components/inbox/inbox'
-import type { InboxItem } from '@/app/(product)/_components/model'
 import styles from '@/app/(product)/_components/sidebar/sidebar.module.css'
+import type { InboxItem } from '@/platform/lib/data/models/shell'
 
 interface SidebarToolbarProps {
   items: readonly InboxItem[]

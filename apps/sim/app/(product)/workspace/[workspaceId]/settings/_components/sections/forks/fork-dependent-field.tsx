@@ -6,6 +6,7 @@ import { Input, TextArea } from '@sim/emcn/field/inputs'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import { EnvVarDropdown } from '@/app/(product)/_components/env-var-dropdown/env-var-dropdown'
+import styles from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/forks/forks.module.css'
 import { checkEnvVarTrigger } from '@/platform/lib/data/credentials'
 import {
   applyDependentRepick,
@@ -138,7 +139,8 @@ interface DependentTextFieldProps {
 
 /**
  * A typed dependent value. `{{` offers the secrets of the workspace the value is written INTO, so
- * the suggestion is one that resolves there at run time.
+ * the suggestion is one that resolves there at run time. A host around the EMCN control finds its
+ * text element and follows the caret through the bubbling select event.
  */
 function DependentTextField({
   title,
@@ -175,32 +177,38 @@ function DependentTextField({
 
   return (
     <>
-      {multiline ? (
-        <TextArea
-          label={title}
-          placeholder={placeholder}
-          value={value}
-          onChange={change}
-          spellCheck={false}
-          inputRef={(element) => {
-            field.current = element
-          }}
-          onSelect={(event) => setCaret(event.currentTarget.selectionStart ?? value.length)}
-        />
-      ) : (
-        <Input
-          label={title}
-          placeholder={placeholder}
-          value={value}
-          onChange={change}
-          autoComplete='off'
-          spellCheck={false}
-          inputRef={(element) => {
-            field.current = element
-          }}
-          onSelect={(event) => setCaret(event.currentTarget.selectionStart ?? value.length)}
-        />
-      )}
+      <span
+        className={styles.textEntry}
+        ref={(host) => {
+          field.current =
+            host?.querySelector<HTMLInputElement | HTMLTextAreaElement>('input, textarea') ?? null
+        }}
+        onSelect={(event) => {
+          const target = event.target
+          if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+            setCaret(target.selectionStart ?? value.length)
+          }
+        }}
+      >
+        {multiline ? (
+          <TextArea
+            label={title}
+            placeholder={placeholder}
+            value={value}
+            onChange={change}
+            spellCheck={false}
+          />
+        ) : (
+          <Input
+            label={title}
+            placeholder={placeholder}
+            value={value}
+            onChange={change}
+            autoComplete='off'
+            spellCheck={false}
+          />
+        )}
+      </span>
       {trigger?.show && caret !== null && (
         <EnvVarDropdown
           visible

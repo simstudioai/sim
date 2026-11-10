@@ -1,14 +1,11 @@
 'use client'
 
 import { SegmentedControl } from '@sim/emcn/segmented-control'
-import type { HomeWidget } from '@/app/(product)/_components/model'
 import { useInterfacePreferences } from '@/app/(product)/_components/session/interface-preferences'
 import { HomeComposer } from '@/app/(product)/o/[organizationId]/home/_components/home-composer/home-composer'
 import { HomeDashboard } from '@/app/(product)/o/[organizationId]/home/_components/home-dashboard/home-dashboard'
-import type {
-  HomeActions,
-  HomeView,
-} from '@/app/(product)/o/[organizationId]/home/_components/model'
+import type { HomeActions, HomeView } from '@/platform/lib/data/models/home'
+import type { HomeWidget } from '@/platform/lib/data/models/shell'
 
 const PROMPT = 'Your company’s knowledge and work, connected by Sim.'
 

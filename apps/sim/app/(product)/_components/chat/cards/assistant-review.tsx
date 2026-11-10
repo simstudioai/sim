@@ -9,12 +9,12 @@ import { FailureNotice, InlineNotice, StatusTag } from '@sim/emcn/status'
 import { omit } from '@sim/utils/object'
 import styles from '@/app/(product)/_components/chat/cards/cards.module.css'
 import { useChatCards } from '@/app/(product)/_components/chat/message/message-segments'
+import { useChatInteractions } from '@/app/(product)/_components/session/chat-runtime'
 import type {
   AssistantReceipt,
   AssistantReviewAction,
   AssistantReviewField,
-} from '@/app/(product)/_components/chat/model'
-import { useChatInteractions } from '@/app/(product)/_components/session/chat-runtime'
+} from '@/platform/lib/data/models/chat'
 
 type Edits = Record<string, Record<string, string>>
 type Decision = 'allow' | 'skip'

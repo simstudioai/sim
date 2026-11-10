@@ -1,15 +1,19 @@
 ---
 description: UI copy conventions — no default subtitles or helper text under headings, labels, cards, or settings
 paths:
-  - "apps/sim/**/*.tsx"
-  - "packages/emcn/**/*.tsx"
+  - "apps/sim/components/**/*.tsx"
+  - "apps/sim/ee/**/*.tsx"
+  - "apps/sim/app/_shell/**/*.tsx"
+  - "apps/sim/app/(interfaces)/**/*.tsx"
+  - "apps/sim/app/(site)/**/*.tsx"
+  - "packages/emcn-legacy/**/*.tsx"
 ---
 
 # UI Copy
 
 **Do not add subtitles, helper text, or descriptive copy beneath headings, labels, cards, or settings by default.** Prefer one concise, self-explanatory heading or label. Only add supporting copy when the user explicitly asks for it, or when it is necessary to prevent misunderstanding or error — and never use it to restate the heading.
 
-This applies to product surfaces: settings rows, modals, panels, cards, list rows, empty states, form fields, and section headers. Marketing surfaces (`app/(landing)`, docs) are governed by `constitution.md` instead.
+This applies to app UI outside the Platform: settings rows, modals, panels, cards, list rows, empty states, form fields, and section headers. Platform views (`app/(product)`, `platform`) follow `apps/sim/platform/AGENTS.md`; marketing surfaces (`app/(landing)`, docs) follow `constitution.md`.
 
 **Carve-out — settings section metadata.** `SettingsNavigationItem.description` in `components/settings/navigation.ts` stays required, and `SettingsPanel` keeps rendering it as the page subtitle. Settings sections are reached through a nav list where the description is the only thing distinguishing adjacent sections, so it earns its place by the "prevents misunderstanding" test. Keep those descriptions verb-first and one line, per `sim-settings-pages.md`. Everything else on a settings page — inline `<p>` blurbs under section headings, field hints, modal bodies, row subtitles — follows the default rule above.
 
@@ -44,4 +48,4 @@ Everything else — restatements, "Manage your X", "Configure your Y", feature b
 
 ## Component APIs
 
-Description/hint slots on shared components are **optional**, never required, and must reserve no layout space when omitted. A component that forces every consumer to supply a subtitle forces every consumer to violate this rule. When adding a new shared component, ship it without a description slot and add one only once a real caller meets the bar above.
+Description/hint slots on shared components are **optional**, never required, and must reserve no layout space when omitted. A component that forces every consumer to supply a subtitle forces every consumer to violate this rule. EMCN is frozen, so a new shared component lives with its nearest product owner (`packages/emcn/AGENTS.md`); ship it without a description slot and add one only once a real caller meets the bar above.

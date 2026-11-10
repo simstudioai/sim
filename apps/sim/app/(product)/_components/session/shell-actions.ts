@@ -1,11 +1,11 @@
 import { useState } from 'react'
+import { useChatChanges } from '@/app/(product)/_components/session/chat-changes'
 import type {
   ShellActions,
   ShellChat,
   ShellData,
   ShellHelp,
-} from '@/app/(product)/_components/model'
-import { useChatChanges } from '@/app/(product)/_components/session/chat-changes'
+} from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'

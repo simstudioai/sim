@@ -15,7 +15,6 @@ import { DOCS_URL, SLACK_COMMUNITY_URL } from '@/lib/help-links'
 import { captureClientEvent } from '@/lib/posthog/client'
 import { toast } from '@/lib/toast/sink'
 import { LOGO_ACCEPT_ATTRIBUTE } from '@/lib/uploads/client/logo-file'
-import type { ShellHelp, ShellOrganizationActions } from '@/app/(product)/_components/model'
 import { useRenameOrganization } from '@/hooks/queries/organization'
 import { useUploadOrganizationLogo } from '@/hooks/queries/organization-logo'
 import {
@@ -23,6 +22,7 @@ import {
   hasAvailableDesktopUpdate,
   useDesktopUpdateState,
 } from '@/hooks/use-desktop-update-state'
+import type { ShellHelp, ShellOrganizationActions } from '@/platform/lib/data/models/shell'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { signOutAndLeave } from '@/platform/lib/data/session'
 import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'

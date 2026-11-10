@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext } from 'react'
-import type { ShellActions, ShellData } from '@/app/(product)/_components/model'
+import type { ShellActions, ShellData } from '@/platform/lib/data/models/shell'
 
 export interface LiveShell {
   data: ShellData

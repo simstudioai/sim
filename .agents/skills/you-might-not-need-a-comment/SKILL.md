@@ -21,7 +21,7 @@ This codebase's convention: **TSDoc for documentation; an inline `//` only for a
 ## Anti-patterns to detect
 
 1. **Restates the code**: `// increment counter` above `counter++`, `// return the result` above `return result`, `// loop over items`. Delete.
-2. **Narrates the obvious from names**: the function is `fetchUserById`, the comment says `// fetches a user by id`. The identifier already said it. Delete.
+2. **Narrates the obvious from names**: the function is named fetchUserById and the comment says `// fetches a user by id`. The identifier already said it. Delete.
 3. **Section-divider / banner comments**: `// ==== Helpers ====`, `// --- state ---`, `// #region`. Against convention. Delete (the code's structure is the structure).
 4. **Commented-out code**: dead code left as a comment. Delete — git is the history.
 5. **Redundant type/param echo in prose comments**: `// takes a string and returns a number` when the signature already says so. Delete.

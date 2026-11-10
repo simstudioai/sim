@@ -228,14 +228,9 @@ const BANNED_PATTERNS: Array<{
   },
 ]
 
+/** Every source file under `dir`; a missing directory throws, so a moved root fails the check. */
 async function walk(dir: string, results: string[] = []): Promise<string[]> {
-  let entries
-  try {
-    entries = await readdir(dir, { withFileTypes: true })
-  } catch {
-    return results
-  }
-  for (const entry of entries) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
     if (SKIP_DIRS.has(entry.name)) continue
     const full = path.join(dir, entry.name)
     if (entry.isDirectory()) {

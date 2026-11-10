@@ -9,20 +9,7 @@ import { StatusText } from '@sim/emcn/status'
 import { toast } from '@/lib/toast/sink'
 import styles from '@/app/(product)/_components/source-row/source-row.module.css'
 import { onExternalLinkClick } from '@/platform/lib/data/external-link'
-
-/** One document a search found or an answer cited; without a `url` it has no page to open. */
-export interface SourceRowData {
-  id: string
-  url?: string
-  title: string
-  meta?: string
-  snippet?: string
-  /** The document no longer opens for this reader, as when it was deleted after it was cited. */
-  unavailable?: boolean
-}
-
-/** A source row with a page to open. */
-export type LinkedSourceRow = SourceRowData & { url: string }
+import type { LinkedSourceRow, SourceRowData } from '@/platform/lib/data/models/source-row'
 
 export interface SourceActionsProps {
   row: LinkedSourceRow

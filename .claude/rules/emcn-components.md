@@ -9,10 +9,4 @@ paths:
 
 # Modern EMCN
 
-EMCN is frozen: only the design owner (`@emir-karabeg` in CODEOWNERS) changes `packages/emcn` or `packages/emcn-platform`, and `bun run check:emcn-surface` fails on any change to their public surface (`scripts/emcn-surface.json`). Compose the components as they stand; a part a second feature needs moves to `apps/sim/app/(product)/_components/`.
-
-Read `packages/emcn/AGENTS.md` and `packages/emcn/README.md`. The modern system derives from the new Platform UI. Shared primitives and foundations live in the EMCN package; Auth, Docs and Platform own only their specific compositions. `@sim/emcn-legacy` serves unreplaced routes and cannot enter the new package graph.
-
-Import the public family (`@sim/emcn/button`, `@sim/emcn-auth/shell`) rather than an aggregate or a private source file. Keep each component's CSS and private helpers in its family folder. Use Base UI for complex interaction behavior, shared semantic roles for paint and geometry, and props for supported states. Keep data, permissions, routing and fixtures in the applications.
-
-Unreplaced legacy routes follow `emcn-legacy-components.md` and `sim-styling.md`. Its chip recipes do not describe modern EMCN.
+Read [`packages/emcn/AGENTS.md`](../../packages/emcn/AGENTS.md) (ownership and the freeze) and [`packages/emcn/README.md`](../../packages/emcn/README.md) (public imports, styles, verification) before touching or composing these packages. Unreplaced legacy routes follow `emcn-legacy-components.md` and `sim-styling.md` instead.

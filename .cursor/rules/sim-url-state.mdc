@@ -7,7 +7,7 @@ globs: ["apps/sim/app/**/*.tsx","apps/sim/app/(product)/**/*.ts","apps/sim/platf
 
 # URL / Query-Param State (nuqs)
 
-URL query state is managed with [`nuqs`](https://nuqs.dev). The `NuqsAdapter` is wired once in `apps/sim/app/_shell/site-root-layout.tsx` — do not add another. This rule is the source of truth for *what* belongs in the URL and *how* to wire it.
+URL query state is managed with [`nuqs`](https://nuqs.dev). Each React tree mounts one `NuqsAdapter`, at its root: `apps/sim/app/_shell/site-root-layout.tsx` for the site, landing, auth and interface roots; `LiveProviders` (`apps/sim/platform/lib/data/providers.tsx`) for live Platform routes; and, for fixture sessions, which never mount `LiveProviders`, the fixture provider (`apps/sim/platform/lib/data/settings-providers.tsx`) or the fixture route component that renders the example page (`issues-route.tsx`, `logs-route.tsx`). A feature component reads URL state under the adapter its root already provides. This rule is the source of truth for *what* belongs in the URL and *how* to wire it.
 
 ## Decision framework — where does this state live?
 
@@ -133,7 +133,7 @@ If a client param must be re-read server-side after a change, set `shallow: fals
 
 `useQueryState`/`useQueryStates` read `useSearchParams` internally, so any client component using them must sit under a `<Suspense>` boundary (Next.js requirement).
 
-**Platform product routes** (`app/(product)/**`) have no `loading.tsx` and paint nothing while loading: the shell's unkeyed `<Suspense fallback={null}>` around the page keeps the current page on screen through a client navigation, and a lazily loaded part sits in its own `<Suspense fallback={null}>` inside the page's chrome (`apps/sim/platform/AGENTS.md`, Phase 3 data seam).
+**Platform product routes** (`app/(product)/**`) have no `loading.tsx` and paint nothing while loading: the shell's unkeyed `<Suspense fallback={null}>` around the page keeps the current page on screen through a client navigation, and a lazily loaded part sits in its own `<Suspense fallback={null}>` inside the page's chrome (`apps/sim/platform/AGENTS.md`).
 
 **Every other route**: wrap the page entry with a real-chrome fallback so a suspend never flashes a blank frame. Never `fallback={null}` on a page entry. The route's co-located `loading.tsx` default export, or the section's loading view, *is* the correct fallback — one skeleton serves both the route-level navigation transition (which Next renders automatically) and the in-page suspend (which this boundary renders). If the segment has no `loading.tsx`, add one; the route transition needs it anyway. Import it absolutely (`sim-imports.md`):
 

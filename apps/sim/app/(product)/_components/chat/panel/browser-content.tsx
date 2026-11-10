@@ -6,8 +6,8 @@ import { Input } from '@sim/emcn/field/inputs'
 import { BrowserActionsMenu } from '@sim/emcn/menu/action-menu'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
-import type { PanelData } from '@/app/(product)/_components/chat/panel/model'
 import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
+import type { PanelData } from '@/platform/lib/data/models/chat-panel'
 
 interface BrowserContentProps {
   children: ReactNode

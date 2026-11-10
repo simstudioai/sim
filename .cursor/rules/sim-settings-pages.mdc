@@ -1,6 +1,6 @@
 ---
 description: "Settings page layout and SettingsPanel design-system compliance"
-globs: ["apps/sim/app/(site)/{account,selfhost}/settings/**","apps/sim/components/resource-tile/**","apps/sim/components/settings/**","apps/sim/ee/**/components/**"]
+globs: ["apps/sim/app/(site)/{account,selfhost}/settings/**","apps/sim/components/resource-tile/**","apps/sim/components/settings/**","apps/sim/ee/access-requests/components/**"]
 ---
 
 <!-- Generated from .claude/rules/sim-settings-pages.md by `bun run skills:sync`. Edit the source, not this file. -->
@@ -9,7 +9,7 @@ globs: ["apps/sim/app/(site)/{account,selfhost}/settings/**","apps/sim/component
 
 These rules cover the settings outside the Platform: the account and self-hosted settings
 (`app/(site)/account/settings/`, `app/(site)/selfhost/settings/`) and the `components/settings` and
-`ee/**/components` modules in this rule's paths. Platform Settings follow
+`ee/access-requests/components` modules in this rule's paths. Platform Settings follow
 `sim-platform-views.md`. Each layout mounts `StandaloneSettingsShell`
 (`@/components/settings/standalone-settings-shell`), which owns page chrome via
 `SettingsHeaderShell` — a fixed header bar (a left back chip + right-aligned
@@ -94,27 +94,12 @@ return (
 ## Title + description live in navigation metadata
 
 `apps/sim/components/settings/navigation.ts` is the single source of truth. Each
-`SETTINGS_SECTION_REGISTRY` entry's one-line description is
-`unified.description` (a plane projection's `planes.<plane>.description` overrides it where that
-plane's scope differs), or, for a section that exists only on a standalone plane, its
-`planes.<plane>.description`; `SettingsPanel`
-resolves both via `getSettingsSectionMeta(plane, section)` and the
+`SETTINGS_SECTION_REGISTRY` entry projects onto a plane through `planes.<plane>`, and that
+projection's one-line description is `planes.<plane>.description`, falling back to
+`unified.description`; `SettingsPanel` resolves it via `getSettingsSectionMeta(plane, section)` and the
 `SettingsSectionProvider` that `standalone-settings-shell.tsx` wraps around the active section.
 
-Adding a new settings page:
-
-1. Add the section id to the `UnifiedSettingsSection` union + a `SETTINGS_SECTION_REGISTRY`
-   entry (with `label` **and** its description, as described above) in `components/settings/navigation.ts`. Keep descriptions verb-first, one line,
-   ~40–55 chars, in the product voice (see `.claude/rules/constitution.md`).
-2. Render it from its plane's renderer: `components/settings/account-settings-renderer.tsx`
-   or `components/settings/selfhost-settings-renderer.tsx`, loading anything but the default
-   section through `next/dynamic`, and gate it in that plane's `[section]/page.tsx` if needed.
-3. Build the component body inside `<SettingsPanel>` — no shell, no title block.
-4. When a real second consumer or server boundary needs it, extract client-safe React Query options;
-   otherwise keep them with the hook. Approved intent warmers reuse those exact options and must keep
-   `check-tool-registry-boundary` green. Warm only authorized destinations, preserve the current
-   section during the transition, and follow `sim-react-performance.md` recovery rules; never render
-   temporary default data that will be replaced after load.
+Adding a page is the `add-settings-page` skill's Mode A.
 
 ## Text-scale tokens (no literal pixel sizes)
 

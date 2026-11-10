@@ -1,9 +1,11 @@
 ---
 description: List and menu ordering that mirrors the toolbar or settings nav, encoded once, with one separator before the destructive action
 paths:
-  - "apps/sim/app/**/*.tsx"
-  - "apps/sim/ee/**/*.tsx"
   - "apps/sim/components/**/*.tsx"
+  - "apps/sim/ee/**/*.tsx"
+  - "apps/sim/app/_shell/**/*.tsx"
+  - "apps/sim/app/(interfaces)/**/*.tsx"
+  - "apps/sim/app/(site)/**/*.tsx"
 ---
 
 # List & Menu Ordering
@@ -30,8 +32,8 @@ Platform-only entries (desktop **Browser** and **Terminal**) trail the shared se
 
 Order is governed above. **Separators are governed here.**
 
-A `DropdownMenuSeparator` earns its place when the next group stops acting on the thing the user
-clicked. That is the whole test — one question, asked the same way in every menu:
+A separator (`separatorBefore` on an `ActionMenu` entry; `DropdownMenuSeparator` in legacy UI) earns
+its place when the next group stops acting on the thing the user clicked. That is the whole test — one question, asked the same way in every menu:
 
 | The group | Gets a rule before it |
 | --- | --- |
@@ -44,8 +46,8 @@ Most row menus only ever have the one transition, so they carry one rule, immedi
 more, because there is no third thing a menu acts on.
 
 Do **not** band by verb. "Navigation", "status", "edit", "copy" are categories of *what the verb
-is*, not of *what it touches*, and the user meets no such taxonomy anywhere else — every toolbar
-in the app is a flat `gap-1` chip row with no dividers. Menus banded that way put the same action
+is*, not of *what it touches*, and the user meets no such taxonomy anywhere else: toolbars carry no
+dividers. Menus banded that way put the same action
 in different groups depending on which siblings happened to be visible.
 
 The consequential group trails in almost every menu. It leads in exactly one: the **logs row

@@ -5,12 +5,12 @@ import { IconButton } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import Link from 'next/link'
 import { OpenPanel } from '@/app/(product)/_components/chat/panel/chat-panels'
-import type { PanelResources } from '@/app/(product)/_components/chat/panel/model'
 import { EmptyPanelHeader, PanelTabs } from '@/app/(product)/_components/chat/panel/panel-tabs'
 import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
 import { ResourceContent } from '@/app/(product)/_components/chat/panel/resource-content'
 import { referenceOptions } from '@/app/(product)/_components/composer/reference-options'
 import { ResourceMenu } from '@/app/(product)/_components/composer/resource-menu'
+import type { PanelResources } from '@/platform/lib/data/models/chat-panel'
 
 interface ResourcePanelsProps {
   panel: PanelResources

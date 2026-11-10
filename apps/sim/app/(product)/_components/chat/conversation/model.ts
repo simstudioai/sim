@@ -2,7 +2,7 @@ import type {
   ChatAttachment,
   ChatTurn,
   ComposerInventory,
-} from '@/app/(product)/_components/composer/model'
+} from '@/platform/lib/data/models/composer'
 
 export interface ConversationData {
   threads: { id: string; title: string; turns: ChatTurn[] }[]

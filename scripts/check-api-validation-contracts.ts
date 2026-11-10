@@ -6,7 +6,6 @@ const ROOT = path.resolve(import.meta.dir, '..')
 const API_DIR = path.join(ROOT, 'apps/sim/app/api')
 const CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts')
 const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
-const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 /**
  * `totalRoutes` is reported, never gated.
@@ -43,7 +42,6 @@ const BOUNDARY_POLICY_BASELINE = {
 
 const INDIRECT_ZOD_ROUTES = new Set([
   /** Shared MCP protocol factory validates the owner and JSON-RPC envelope before SDK dispatch. */
-  'apps/sim/app/api/mcp/search/[workspaceId]/route.ts',
   'apps/sim/app/api/mcp/search/organizations/[organizationId]/route.ts',
   'apps/sim/app/api/mcp/route.ts',
   // SCIM discovery documents (RFC 7644 section 4). Each serves a fixed document
@@ -74,7 +72,6 @@ const INDIRECT_ZOD_ROUTES = new Set([
   'apps/sim/app/api/desktop/update/download/route.ts',
   'apps/sim/app/api/invitations/route.ts',
   'apps/sim/app/api/logs/export/route.ts',
-  'apps/sim/app/api/tools/docusign/route.ts',
   // Better Auth handles its own validation for the catch-all route below.
   'apps/sim/app/api/auth/[...all]/route.ts',
   /** OAuth protocol routes use bounded form or bearer parsing instead of JSON contracts. */
@@ -435,15 +432,9 @@ async function walkAllSourceFiles(root: string, includePackages: boolean): Promi
   return results
 }
 
+/** Collects source files under `dir`; a missing directory throws, so a moved root fails the audit. */
 async function walkSourceTree(dir: string, results: string[]): Promise<void> {
-  let entries
-  try {
-    entries = await readdir(dir, { withFileTypes: true })
-  } catch {
-    return
-  }
-
-  for (const entry of entries) {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
     if (SOURCE_SKIP_DIRS.has(entry.name)) continue
 
     const fullPath = path.join(dir, entry.name)
@@ -644,9 +635,7 @@ function findUntypedResponseFindings(
 
 function isClientHookFile(filePath: string): boolean {
   const normalized = filePath.replace(/\\/g, '/')
-  return (
-    normalized.startsWith(`${QUERY_HOOKS_DIR}/`) || normalized.startsWith(`${SELECTOR_HOOKS_DIR}/`)
-  )
+  return normalized.startsWith(`${QUERY_HOOKS_DIR}/`)
 }
 
 /**
