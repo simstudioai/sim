@@ -70,6 +70,6 @@ React re-renders immediately with the corrected state without committing the sta
 
 Only convert a `useState` to a `useRef` when the value is **never read during render/JSX and is never a hook dependency** — a value in a `useEffect`/`useMemo`/`useCallback` dep array must re-run the hook on change, so it stays state (see also `rerender-state-only-in-handlers` in `sim-components.md`). Convert only set-only values read solely inside handlers or effect bodies (e.g. a prompt-history index, a pending-upload URL). If a ref feeds render, mutating it won't re-render and the UI goes stale.
 
-Model mutually-exclusive flags as ONE `status` enum, not several contradictory booleans. `isLoading`/`isVerified`/`isInvalidOtp` describing one machine collapse to `status: 'idle' | 'verifying' | 'verified' | 'error'` (+ `errorMessage`); derive any boolean a consumer still needs (`status === 'error'`).
+Model mutually-exclusive flags as ONE `status` enum, not several contradictory booleans. `isLoading`/`isVerified`/`isInvalid<Code>` describing one machine collapse to `status: 'idle' | 'verifying' | 'verified' | 'error'` (+ `errorMessage`); derive any boolean a consumer still needs (`status === 'error'`).
 
 Derive busy/success from the mutation object — never duplicate `mutation.isPending`/`mutation.isSuccess` into local `useState`. Read them directly (`mutation.isSuccess`) and reset with `mutation.reset()`. A distinct phase the mutation doesn't cover — e.g. a pre-submit captcha/Turnstile gate that runs before `mutate()` — is not a duplicate; keep that flag.

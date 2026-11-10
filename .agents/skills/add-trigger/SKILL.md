@@ -53,7 +53,7 @@ apps/sim/lib/webhooks/
 
 This file contains all service-specific helpers used by triggers.
 
-```typescript
+```typescript illustrative
 import type { SubBlockConfig } from '@/blocks/types'
 import type { TriggerOutput } from '@/triggers/types'
 
@@ -106,7 +106,7 @@ export function build{Service}Outputs(): Record<string, TriggerOutput> {
 
 **Primary trigger** — MUST include `includeDropdown: true`:
 
-```typescript
+```typescript illustrative
 import { {Service}Icon } from '@/components/icons'
 import { buildTriggerSubBlocks } from '@/triggers/subblocks'
 import { build{Service}ExtraFields, build{Service}Outputs, {service}SetupInstructions, {service}TriggerOptions } from '@/triggers/{service}/utils'
@@ -133,7 +133,7 @@ export const {service}EventATrigger: TriggerConfig = {
 
 **Secondary triggers** — NO `includeDropdown` (it's already in the primary):
 
-```typescript
+```typescript illustrative
 export const {service}EventBTrigger: TriggerConfig = {
   // Same as above but: id: '{service}_event_b', no includeDropdown
 }
@@ -143,14 +143,14 @@ export const {service}EventBTrigger: TriggerConfig = {
 
 ### `apps/sim/triggers/{service}/index.ts`
 
-```typescript
+```typescript illustrative
 export { {service}EventATrigger } from './event_a'
 export { {service}EventBTrigger } from './event_b'
 ```
 
 ### `apps/sim/triggers/registry.ts`
 
-```typescript
+```typescript illustrative
 import { {service}EventATrigger, {service}EventBTrigger } from '@/triggers/{service}'
 
 export const TRIGGER_REGISTRY: TriggerRegistry = {
@@ -215,7 +215,7 @@ If none apply, you don't need a handler. The default handler provides bearer tok
 
 ### Example Handler
 
-```typescript
+```typescript illustrative
 import { createLogger } from '@sim/logger'
 import { safeCompare } from '@sim/security/compare'
 import { hmacSha256Hex } from '@sim/security/hmac'
@@ -379,7 +379,7 @@ apps/sim/lib/webhooks/polling/
 
 ### Polling Handler (`apps/sim/lib/webhooks/polling/{service}.ts`)
 
-```typescript
+```typescript illustrative
 import { pollingIdempotency } from '@/lib/core/idempotency/service'
 import type { PollingProviderHandler, PollOutcome, PollWebhookContext } from '@/lib/webhooks/polling/types'
 import { markWebhookFailed, markWebhookSuccess, resolveOAuthCredential, updateWebhookProviderConfig } from '@/lib/webhooks/polling/utils'
@@ -429,7 +429,7 @@ export const {service}PollingHandler: PollingProviderHandler = {
 
 ### Trigger Config (`apps/sim/triggers/{service}/poller.ts`)
 
-```typescript
+```typescript illustrative
 import { {Service}Icon } from '@/components/icons'
 import type { TriggerConfig } from '@/triggers/types'
 
@@ -464,7 +464,7 @@ export const {service}PollingTrigger: TriggerConfig = {
 
 Add to `helm/sim/values.yaml` under the existing polling cron jobs:
 
-```yaml
+```yaml illustrative
 {service}WebhookPoll:
   enabled: true
   name: {service}-webhook-poll

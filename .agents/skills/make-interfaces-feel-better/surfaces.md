@@ -76,7 +76,7 @@ Use slightly less padding on the icon side to make the button feel balanced. A r
 }
 ```
 
-```tsx
+```tsx illustrative
 // Tailwind
 <button className="pl-4 pr-3.5 flex items-center gap-2">
   <span>Continue</span>
@@ -104,7 +104,7 @@ Play icons are triangular and their geometric center is not their visual center.
 
 Some icons have uneven visual weight. The best fix is adjusting the SVG directly so no extra margin/padding is needed in the component code.
 
-```tsx
+```tsx illustrative
 // Best — fix in the SVG itself
 // Adjust the viewBox or path to visually center the icon
 
@@ -246,7 +246,7 @@ Interactive elements should have a minimum hit area of 44×44px (WCAG) or at lea
 
 ### Tailwind Example
 
-```tsx
+```tsx illustrative
 <button className="relative size-5 after:absolute after:top-1/2 after:left-1/2 after:size-10 after:-translate-1/2">
   <CheckIcon />
 </button>

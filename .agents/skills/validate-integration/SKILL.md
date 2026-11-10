@@ -122,7 +122,7 @@ For **every** tool file, check:
 - [ ] Has response interfaces for every tool (extending `ToolResponse`)
 - [ ] Optional params use `?` in the interface (e.g., `replyTo?: string`)
 - [ ] Field names in types match actual API field names
-- [ ] Shared response types are properly reused (e.g., `XTweetResponse` shared across tweet tools)
+- [ ] Shared response types are properly reused (e.g., one `<Service>Response` shared by every tool returning that shape)
 
 ### Barrel Export (index.ts)
 - [ ] Every tool is exported

@@ -293,7 +293,7 @@ path). A subblock whose meaning changes based on what the string looks like is i
 about, forces the params function to sniff the value, and makes the field's type meaningless. Give
 each alternative its own subblock outside the pair:
 
-```typescript
+```typescript illustrative
 // ✓ Good — the pair is "a file"; other sources are their own fields
 { id: 'mediaFile',    type: 'file-upload', canonicalParamId: 'media', mode: 'basic' },
 { id: 'mediaFileRef', type: 'short-input', canonicalParamId: 'media', mode: 'advanced' },
@@ -377,7 +377,7 @@ inputs: {
 
 For multiple file uploads:
 
-```typescript
+```typescript illustrative
 {
   id: 'attachments',
   title: 'Attachments',
@@ -660,7 +660,7 @@ outputs: {
 
 When creating V2 blocks (alongside legacy V1):
 
-```typescript
+```typescript illustrative
 // V1 Block - mark as legacy
 export const ServiceBlock: BlockConfig = {
   type: 'service',
@@ -700,7 +700,7 @@ export const ServiceV2Block: BlockConfig = {
 
 Register the block in `apps/sim/blocks/registry-maps.ts` — add the import and an entry to each map alphabetically:
 
-```typescript
+```typescript illustrative
 import { ServiceBlock, ServiceBlockMeta } from '@/blocks/blocks/{service}'
 
 export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
@@ -716,7 +716,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
 
 ## Complete Example
 
-```typescript
+```typescript illustrative
 import { ServiceIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
@@ -814,7 +814,7 @@ export const ServiceBlock: BlockConfig = {
 
 If the service supports webhooks, connect the block to its triggers.
 
-```typescript
+```typescript illustrative
 import { getTrigger } from '@/triggers'
 
 export const ServiceBlock: BlockConfig = {
@@ -1031,7 +1031,7 @@ A sub-block gets its choices from exactly one of two places. There is no third.
 `apps/sim/lib/selectors/server/internal.ts`. Point the sub-block at that key. All remote selectors
 execute through `selectors.execute`; never add a client provider module or selector-only fetch route.
 
-```ts
+```ts illustrative
 { id: 'triggerCredentials', type: 'oauth-input', canonicalParamId: 'oauthCredential', mode: 'trigger' },
 { id: 'labelIds', type: 'dropdown', multiSelect: true,
   selectorKey: 'gmail.labels', dependsOn: ['triggerCredentials'], mode: 'trigger' },
@@ -1048,7 +1048,7 @@ legacy source id must be retained.
 
 **`options` — everything else.** A static array, or a pure function of the block's own values for a list that narrows to a sibling's selection. No I/O.
 
-```ts
+```ts illustrative
 options: (params) => {
   const model = params?.values.model
   return typeof model === 'string' ? effortsFor(model) : DEFAULT_EFFORTS

@@ -323,7 +323,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
 
 ### Trigger Registry (`apps/sim/triggers/registry.ts`) - If triggers exist
 
-```typescript
+```typescript illustrative
 // Add import (alphabetically)
 import {
   {service}EventATrigger,
@@ -618,7 +618,7 @@ tools: {
 
 #### 3. Define and register the in-process operation
 
-```typescript
+```typescript illustrative
 export const {service}UploadTool: InternalToolConfig<Params, Response> = {
   id: '{service}_upload',
   // ...

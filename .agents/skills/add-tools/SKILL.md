@@ -66,7 +66,7 @@ case with trusted execution context; use the `migrate-application-operation` ski
 
 Use this structure only for an absolute external provider API:
 
-```typescript
+```typescript illustrative
 import type {
   {ServiceName}{Action}Params,
   {ServiceName}{Action}Response,
@@ -406,7 +406,7 @@ output: {
 
 Create `types.ts` with interfaces for all params and responses:
 
-```typescript
+```typescript illustrative
 import type { ToolResponse } from '@/tools/types'
 
 // Parameter interfaces
@@ -430,7 +430,7 @@ Each response interface is imported by its tool's config: `ToolConfig<Params, Re
 
 ## Index.ts Barrel Export Pattern
 
-```typescript
+```typescript illustrative
 // Export all tools
 export { serviceTool1 } from './{action1}'
 export { serviceTool2 } from './{action2}'
@@ -444,7 +444,7 @@ export * from './types'
 After creating tools:
 1. Import tools in `apps/sim/tools/registry.ts`
 2. Add to the `tools` object with snake_case keys (alphabetically):
-```typescript
+```typescript illustrative
 import { serviceActionTool } from '@/tools/{service}'
 
 export const tools = {
@@ -499,7 +499,7 @@ If the block uses an operation dropdown, add an option for each new tool:
 
 For each new tool, add subBlocks covering all its required params (and optional ones where useful). Apply `condition` to show them only for the right operation, and mark required params with `required`:
 
-```typescript
+```typescript illustrative
 // Required param for new_action
 {
   id: 'someParam',
@@ -560,7 +560,7 @@ Name each subBlock (or its `canonicalParamId`) exactly after the tool param it f
 
 Add any new fields returned by the new tools to the block `outputs`:
 
-```typescript
+```typescript illustrative
 outputs: {
   // existing outputs...
   newField: { type: 'string', description: 'Description of new field' },
@@ -571,7 +571,7 @@ outputs: {
 
 Add new subBlock param IDs to the block `inputs` section:
 
-```typescript
+```typescript illustrative
 inputs: {
   // existing inputs...
   someParam: { type: 'string', description: 'Param description' },

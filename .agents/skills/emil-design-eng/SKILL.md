@@ -142,7 +142,7 @@ Springs feel more natural than duration-based animations because they simulate r
 
 Tying visual changes directly to mouse position feels artificial because it lacks motion. Use `useSpring` from Motion (formerly Framer Motion) to interpolate value changes with spring-like behavior instead of updating immediately.
 
-```jsx
+```jsx illustrative
 import { useSpring } from 'framer-motion';
 
 // Without spring: feels artificial, instant
@@ -258,7 +258,7 @@ Tooltips should delay before appearing to prevent accidental activation. But onc
 
 CSS transitions can be interrupted and retargeted mid-animation. Keyframes restart from zero. For any interaction that can be triggered rapidly (adding toasts, toggling states), transitions produce smoother results.
 
-```css
+```css illustrative
 /* Interruptible - good for UI */
 .toast {
   transition: transform 400ms ease;
@@ -430,7 +430,7 @@ Overlay two images. Clip the top one with `clip-path: inset(0 50% 0 0)`. Adjust 
 
 Don't require dragging past a threshold. Calculate velocity: `Math.abs(dragDistance) / elapsedTime`. If velocity exceeds ~0.11, dismiss regardless of distance. A quick flick should be enough.
 
-```js
+```js illustrative
 const timeTaken = new Date().getTime() - dragStartTime.current.getTime();
 const velocity = Math.abs(swipeAmount) / timeTaken;
 

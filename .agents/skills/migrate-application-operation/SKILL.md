@@ -190,7 +190,7 @@ projection end to end.
 
 Use `defineAuthorizedWorkspaceUseCase` directly or a thin domain binding that supplies domain-specific authorization options:
 
-```ts
+```ts illustrative
 export const renameWidget = defineAuthorizedWorkspaceUseCase({
   operation: widgetOperations.rename,
   resolveContext: ({ input }: { input: RenameWidgetInput }) =>
@@ -254,7 +254,7 @@ Copilot is a surface adapter, not a separate application layer. If an HTTP or ot
 
 Create one domain-level Copilot application adapter with `createCopilotApplicationAdapter` instead of constructing delegated principals in every tool:
 
-```ts
+```ts illustrative
 executeCopilotWidgetUseCase(context, renameWidget, input, { resourceId })
 ```
 
@@ -272,7 +272,7 @@ Never construct authoritative delegation from model-provided workspace IDs, user
 
 Tool handlers own argument aliases, resumable legacy names, abort checks, tool-call reporting, and tool-specific presentation. They must not query managers directly for protected operations, manually authorize, or implement protected business behavior. If a Copilot-only compound action expresses real domain behavior, define a surface-neutral domain operation and application use case for it.
 
-A Copilot reference helper may translate a path to a resource only by calling an authorized application resolver under the intended semantic operation. Passing a code-defined operation object is acceptable; passing a model-provided operation string is not. An immediate same-request resolver followed by the operation may reuse one trusted principal, though the application operation still performs its own canonical authorization. Fresh authentication and authorization are required across lifecycle boundaries such as resumed tool calls, executor callbacks, queued or background work, upload control legs and finalization, durable completion, and long-running provider operations. When resolution and execution form one business operation, need a consistent snapshot, or appear repeatedly together, prefer a top-level application use case such as `renameWidgetByReference`.
+A Copilot reference helper may translate a path to a resource only by calling an authorized application resolver under the intended semantic operation. Passing a code-defined operation object is acceptable; passing a model-provided operation string is not. An immediate same-request resolver followed by the operation may reuse one trusted principal, though the application operation still performs its own canonical authorization. Fresh authentication and authorization are required across lifecycle boundaries such as resumed tool calls, executor callbacks, queued or background work, upload control legs and finalization, durable completion, and long-running provider operations. When resolution and execution form one business operation, need a consistent snapshot, or appear repeatedly together, prefer a top-level application use case such as `rename<Resource>ByReference`.
 
 Surface adapters must not compose protected mutations. An atomic compound action requires one top-level semantic domain operation and application use case that owns the transaction and authoritative result. An explicitly best-effort application command may coordinate multiple operations only when it defines hard input and expansion caps, cancellation checkpoints, partial-result semantics, audit behavior, and rate/quota policy. Keep composition exceptional and explicit; ordinary tools should use the shared execution adapter.
 

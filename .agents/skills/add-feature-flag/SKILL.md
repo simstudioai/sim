@@ -43,7 +43,7 @@ Critically, **none of this is expressible in code** — gating (especially `admi
 
 2. **Define the flag.** Add one entry to the `FEATURE_FLAGS` registry in `apps/sim/lib/core/config/feature-flags.ts`. Each entry is the flag's whole definition — name (kebab-case key), `description`, and the `fallback` secret consulted when AppConfig isn't the source of truth (truthy ⇒ on globally):
 
-   ```ts
+   ```ts illustrative
    const FEATURE_FLAGS = {
      '<flag-name>': {
        description: '<what this gates>',

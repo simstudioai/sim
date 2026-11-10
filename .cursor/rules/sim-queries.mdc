@@ -31,7 +31,7 @@ Never use inline query keys — always use the factory.
 
 ## Server-importable query primitives must NOT live in a `'use client'` module
 
-Next.js rewrites **every** export of a `'use client'` module into a *client reference* in the server bundle. Server-evaluated code — RSC `page.tsx`/`layout.tsx`, `prefetch.ts`, route handlers, **block definitions**, triggers/workers — can only *render* such an export as a component or pass it as a prop; **calling** one throws at runtime (`Attempted to call X from the server but X is on the client` — for an object export it surfaces as `X.list is not a function`). `next build` does **not** catch this — only SSR/runtime does.
+Next.js rewrites **every** export of a `'use client'` module into a *client reference* in the server bundle. Server-evaluated code — RSC `page.tsx`/`layout.tsx`, `prefetch-*.ts` modules, route handlers, **block definitions**, triggers/workers — can only *render* such an export as a component or pass it as a prop; **calling** one throws at runtime (`Attempted to call X from the server but X is on the client` — for an object export it surfaces as `X.list is not a function`). `next build` does **not** catch this — only SSR/runtime does.
 
 So any **query-key factory, standalone `requestJson` fetcher, mapper, or constant** that a server module imports must live in a **non-`'use client'`** module:
 
@@ -52,11 +52,11 @@ The `'use client'` hook module then imports these back for its hooks. **Never** 
 ## Query Hook
 
 - Every `queryFn` must destructure and forward `signal` for request cancellation
-- Every query must have an explicit `staleTime`, assigned from a named exported constant (`ENTITY_LIST_STALE_TIME`), never an inline numeric literal. A server-side prefetch (`prefetch.ts`) hydrating the same query key must import and reuse that constant, not restate the number — this is what keeps a prefetched cache entry from going stale out of sync with the client hook that reads it
+- Every query must have an explicit `staleTime`, assigned from a named exported constant (`ENTITY_LIST_STALE_TIME`), never an inline numeric literal. A server-side prefetch (`prefetch-*.ts`) hydrating the same query key must import and reuse that constant, not restate the number — this is what keeps a prefetched cache entry from going stale out of sync with the client hook that reads it
 - Use `keepPreviousData` only on variable-key queries (where params change), never on static keys
 - Same-origin JSON calls must go through `requestJson(contract, ...)` from `@/lib/api/client/request` against the contract in `@/lib/api/contracts/**`
 
-```typescript
+```typescript illustrative
 import { requestJson } from '@/lib/api/client/request'
 import { listEntitiesContract, type EntityList } from '@/lib/api/contracts/<domain>'
 
@@ -88,7 +88,7 @@ export function useEntityList(workspaceId?: string, options?: { enabled?: boolea
 - Use `onSuccess` invalidation for plain mutations; use `onSettled` for optimistic mutations so the cache is reconciled on both success and error (see Optimistic Updates below)
 - `mutationFn` calls go through `requestJson(contract, { body, signal })` from `@/lib/api/client/request` — same boundary rule as queries
 
-```typescript
+```typescript illustrative
 export function useCreateEntity() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -104,7 +104,7 @@ export function useCreateEntity() {
 
 For optimistic mutations, use `onSettled` (not `onSuccess`) for cache reconciliation — `onSettled` fires on both success and error, ensuring the cache is always reconciled with the server.
 
-```typescript
+```typescript illustrative
 export function useUpdateEntity() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -130,9 +130,9 @@ For optimistic mutations syncing with Zustand, use `createOptimisticMutationHand
 
 ## useCallback Dependencies
 
-Never include mutation objects (e.g., `createEntity`) in `useCallback` dependency arrays — the mutation object is not referentially stable and changes on every state update. The `.mutate()` and `.mutateAsync()` functions are stable in TanStack Query v5.
+Never include mutation objects (e.g., `create<Entity>`) in `useCallback` dependency arrays — the mutation object is not referentially stable and changes on every state update. The `.mutate()` and `.mutateAsync()` functions are stable in TanStack Query v5.
 
-```typescript
+```typescript illustrative
 // ✗ Bad — causes unnecessary recreations
 const handler = useCallback(() => {
   createEntity.mutate(data)
@@ -167,9 +167,9 @@ Hooks import named type aliases from `@/lib/api/contracts/**` and never import `
 ## Naming
 
 - **Keys**: `entityKeys`
-- **Query hooks**: `useEntity`, `useEntityList`
-- **Mutation hooks**: `useCreateEntity`, `useUpdateEntity`, `useDeleteEntity`
-- **Fetch functions**: `fetchEntity`, `fetchEntities` (private)
+- **Query hooks**: `use<Entity>`, `use<Entity>List`
+- **Mutation hooks**: `useCreate<Entity>`, `useUpdate<Entity>`, `useDelete<Entity>`
+- **Fetch functions**: `fetch<Entity>`, `fetch<Entities>` (private)
 
 ## Enforcement
 

@@ -165,7 +165,7 @@ Describe the checks, tests, and E2E artifacts run
 Use this command structure:
 
 ```bash
-gh pr create --base staging --title "COMMIT_MESSAGE" --body "PR_BODY"
+gh pr create --base staging --title "<commit message>" --body "<PR body>"
 ```
 
 ## Important Notes

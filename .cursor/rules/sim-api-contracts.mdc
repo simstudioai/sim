@@ -36,7 +36,7 @@ Placement: the annotation must immediately precede the call or cast; up to three
 const response = await fetch(`/api/copilot/chat/stream?chatId=${chatId}`, { signal })
 ```
 
-```ts
+```ts illustrative
 // double-cast-allowed: legacy provider type lacks the discriminator field we need
 const provider = config as unknown as LegacyProvider
 ```
@@ -67,7 +67,7 @@ Routes never `import { z } from 'zod'` and never define route-local boundary sch
 
 ### Ordinary authorized JSON route
 
-```typescript
+```typescript illustrative
 export const PATCH = defineInternalJsonRoute({
   contract: renameWidgetContract,
   auth: internalSessionAuth,

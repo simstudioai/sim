@@ -400,7 +400,7 @@ contentHash: `confluence:${page.id}:${page.version.number}`
 
 ### Implementation Pattern
 
-```typescript
+```typescript illustrative
 // 1. Create a stub function (sync, no API calls)
 function fileToStub(file: ServiceFile): ExternalDocument {
   return {

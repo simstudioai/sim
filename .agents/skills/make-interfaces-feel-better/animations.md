@@ -30,7 +30,7 @@ Users change intent mid-interaction. If animations aren't interruptible, the int
 /* Clicking again mid-animation smoothly reverses — no jank */
 ```
 
-```css
+```css illustrative
 /* Bad — keyframe animation for interactive element */
 .drawer.open {
   animation: slideIn 200ms ease-out forwards;
@@ -98,7 +98,7 @@ function PageHeader() {
 
 ### CSS-Only Stagger
 
-```css
+```css illustrative
 .stagger-item {
   opacity: 0;
   transform: translateY(12px);
@@ -218,7 +218,7 @@ If the project doesn't use Motion (Framer Motion), keep both icons in the DOM an
 
 The trick: one icon is absolutely positioned on top of the other. Toggling state cross-fades them — the entering icon scales up from `0.25` while the exiting icon scales down to `0.25`, both with opacity and blur.
 
-```tsx
+```tsx illustrative
 function IconButton({ isActive, ActiveIcon, InactiveIcon }) {
   return (
     <button>

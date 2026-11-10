@@ -883,7 +883,7 @@ The sections below are vendored reference content. They give the agent real inst
 
 ## Appendix A - Install Commands per Design System
 
-```bash
+```bash illustrative
 # Material Web (Material 3)
 npm install @material/web
 

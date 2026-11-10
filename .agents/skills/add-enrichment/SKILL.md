@@ -64,7 +64,7 @@ Why it matters: the cascade runner only bills (and only reads `output.cost.total
 
 Create `apps/sim/enrichments/{id}/{id}.ts` and a barrel `index.ts`. Mirror the entries registered in `enrichments/registry.ts`.
 
-```typescript
+```typescript illustrative
 import { SomeIcon } from '@sim/emcn-legacy/icons'
 import { filterUndefined } from '@sim/utils/object'
 import { normalizeDomain, splitName, str, toolProvider } from '@/enrichments/providers'
@@ -105,7 +105,7 @@ export const myEnrichment: EnrichmentConfig = {
 }
 ```
 
-```typescript
+```typescript illustrative
 // apps/sim/enrichments/{id}/index.ts
 export { myEnrichment } from './my-enrichment'
 ```
@@ -119,7 +119,7 @@ Rules:
 
 In `apps/sim/enrichments/registry.ts`, import and add the entry (catalog order is registration order):
 
-```typescript
+```typescript illustrative
 import { myEnrichment } from '@/enrichments/{id}'
 
 export const ENRICHMENT_REGISTRY: EnrichmentRegistry = {
