@@ -120,6 +120,30 @@ function isOperationApplicable(
   }
 }
 
+const OPERATION_TYPES = new Set<string>(Object.values(UNDO_REDO_OPERATIONS))
+
+type PersistedStacks = Pick<UndoRedoState, 'stacks' | 'capacity'>
+
+/**
+ * Drops persisted entries whose operation the editor no longer performs (the removed copilot diff's
+ * `apply-diff`, `accept-diff` and `reject-diff`): undoing one does nothing, so Mod+Z would silently
+ * spend a step on it.
+ */
+function dropRetiredOperations(persisted: unknown): PersistedStacks {
+  const state = persisted as Partial<PersistedStacks> | null
+  const stacks: UndoRedoState['stacks'] = {}
+  for (const [key, stack] of Object.entries(state?.stacks ?? {})) {
+    const known = (entry: OperationEntry) =>
+      OPERATION_TYPES.has(entry.operation?.type) && OPERATION_TYPES.has(entry.inverse?.type)
+    stacks[key] = {
+      ...stack,
+      undo: (stack.undo ?? []).filter(known),
+      redo: (stack.redo ?? []).filter(known),
+    }
+  }
+  return { stacks, capacity: state?.capacity ?? DEFAULT_CAPACITY }
+}
+
 export const useUndoRedoStore = create<UndoRedoState>()(
   persist(
     (set, get) => ({
@@ -464,6 +488,8 @@ export const useUndoRedoStore = create<UndoRedoState>()(
     }),
     {
       name: 'workflow-undo-redo',
+      version: 1,
+      migrate: dropRetiredOperations,
       storage: createJSONStorage(() => safeStorageAdapter),
       partialize: (state) => ({
         stacks: state.stacks,

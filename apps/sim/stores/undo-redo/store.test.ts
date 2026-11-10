@@ -351,4 +351,42 @@ describe('useUndoRedoStore', () => {
       expect(getStackSizes(workflowId, userId).undoSize).toBe(1)
     })
   })
+
+  describe('persisted history', () => {
+    it('drops entries of operations the editor no longer performs when it loads', async () => {
+      const kept = createAddBlockEntry('block-1', { workflowId, userId })
+      const retiredOperation = (type: string) => ({
+        id: `op-${type}`,
+        type,
+        timestamp: 1,
+        workflowId,
+        userId,
+        data: {},
+      })
+      const retired = {
+        id: 'entry-diff',
+        createdAt: 1,
+        operation: retiredOperation('apply-diff'),
+        inverse: retiredOperation('reject-diff'),
+      }
+      localStorage.setItem(
+        'workflow-undo-redo',
+        JSON.stringify({
+          state: {
+            stacks: { [`${workflowId}:${userId}`]: { undo: [kept, retired], redo: [retired] } },
+            capacity: 100,
+          },
+          version: 0,
+        })
+      )
+
+      await useUndoRedoStore.persist.rehydrate()
+
+      expect(useUndoRedoStore.getState().getStackSizes(workflowId, userId)).toEqual({
+        undoSize: 1,
+        redoSize: 0,
+      })
+      expect(useUndoRedoStore.getState().undo(workflowId, userId)?.id).toBe(kept.id)
+    })
+  })
 })
