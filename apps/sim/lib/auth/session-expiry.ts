@@ -15,19 +15,29 @@ import { useSession } from '@/lib/auth/client'
  * session that was live settles to `null`. A signed-out visitor never arms it (there was no session
  * to lose), and `error` is excluded so an offline blip or a 5xx can never masquerade as an expiry.
  *
+ * Another tab signing in as someone else swaps the shared cookie under this one, so a session
+ * that comes back as a different user is the end of this viewer's session too: `leaveForNewUser`
+ * drops what this tab holds and reloads, without signing the new user out.
+ *
  * `recover` must keep a stable identity, and resolves false when sign-out failed and the surface
- * should offer a retry.
+ * should offer a retry. `leaveForNewUser` must keep a stable identity too.
  */
-export function useSessionExpiry(recover: () => Promise<boolean>) {
+export function useSessionExpiry(
+  recover: () => Promise<boolean>,
+  leaveForNewUser: () => Promise<void>
+) {
   const { data: session, isPending, error } = useSession()
   const startedRef = useRef(false)
-  const [sawSession, setSawSession] = useState(false)
+  const leavingRef = useRef(false)
+  const [viewerId, setViewerId] = useState<string | null>(null)
   const [wasImpersonation, setWasImpersonation] = useState(false)
   const [failed, setFailed] = useState(false)
 
-  if (!sawSession && session?.user) {
-    setSawSession(true)
+  if (viewerId === null && session?.user) {
+    setViewerId(session.user.id)
   }
+  const sawSession = viewerId !== null
+  const userChanged = sawSession && Boolean(session?.user) && session?.user.id !== viewerId
   if (!wasImpersonation && session?.session?.impersonatedBy) {
     setWasImpersonation(true)
   }
@@ -46,6 +56,12 @@ export function useSessionExpiry(recover: () => Promise<boolean>) {
     startedRef.current = true
     attemptRecovery()
   }, [expired, attemptRecovery])
+
+  useEffect(() => {
+    if (!userChanged || leavingRef.current) return
+    leavingRef.current = true
+    void leaveForNewUser()
+  }, [userChanged, leaveForNewUser])
 
   return { expired, failed, wasImpersonation, attemptRecovery }
 }
