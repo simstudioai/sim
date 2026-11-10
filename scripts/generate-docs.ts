@@ -4262,7 +4262,9 @@ function hasWrappedToolBase(toolName: string, content: string): boolean {
 
 export async function getToolInfo(
   toolName: string,
-  userSettableParamIds: readonly string[] | null = null
+  userSettableParamIds: readonly string[] | null = null,
+  /** The block signs in with a saved credential, so params that credential supplies are not inputs. */
+  credentialOnly = false
 ): Promise<{
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
@@ -4416,8 +4418,11 @@ export async function getToolInfo(
      * authoritative form of the check; the source-side filter remains for tools with no metadata
      * entry. A null set means the block's subBlocks could not be read, so nothing is filtered.
      */
+    const credentialSupplied = new Set(
+      credentialOnly ? (metadata.oauth?.credentialSuppliedParams ?? []) : []
+    )
     const params = Object.entries(metadata.params ?? {})
-      .filter(([name]) => name !== 'accessToken')
+      .filter(([name]) => name !== 'accessToken' && !credentialSupplied.has(name))
       .filter(
         ([name, param]) =>
           userSettableParamIdSet === null ||
@@ -4647,7 +4652,7 @@ async function generateMarkdownForBlock(
       toolsSection += `${actionHeading} ${heading ?? stripVersionSuffix(tool)}\n\n`
 
       console.log(`Getting info for tool: ${tool}`)
-      const toolInfo = await getToolInfo(tool, userSettableParamIds)
+      const toolInfo = await getToolInfo(tool, userSettableParamIds, Boolean(oauthCredential))
 
       if (toolInfo) {
         if (toolInfo.description && toolInfo.description !== 'No description available') {

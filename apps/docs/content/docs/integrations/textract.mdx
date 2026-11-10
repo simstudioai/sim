@@ -31,8 +31,6 @@ Parse documents using AWS Textract OCR and document analysis
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | AWS Access Key ID |
-| `secretAccessKey` | string | Yes | AWS Secret Access Key |
 | `region` | string | Yes | AWS region for Textract service \(e.g., us-east-1\) |
 | `processingMode` | string | No | Document type: single-page or multi-page. Defaults to single-page. |
 | `file` | file | No | Document to be processed \(JPEG, PNG, or single-page PDF\). |
@@ -89,8 +87,6 @@ Extract structured invoice and receipt fields using AWS Textract AnalyzeExpense
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | AWS Access Key ID |
-| `secretAccessKey` | string | Yes | AWS Secret Access Key |
 | `region` | string | Yes | AWS region for Textract service \(e.g., us-east-1\) |
 | `processingMode` | string | No | Document type: single-page or multi-page. Defaults to single-page. |
 | `file` | file | No | Invoice or receipt to be processed \(JPEG, PNG, or single-page PDF\). |
@@ -124,8 +120,6 @@ Extract identity document fields using AWS Textract AnalyzeID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `accessKeyId` | string | Yes | AWS Access Key ID |
-| `secretAccessKey` | string | Yes | AWS Secret Access Key |
 | `region` | string | Yes | AWS region for Textract service \(e.g., us-east-1\) |
 | `file` | file | No | Front of the identity document \(JPEG, PNG, or PDF\). |
 | `filePath` | string | No | URL to the front of the identity document, if not uploaded directly. |
