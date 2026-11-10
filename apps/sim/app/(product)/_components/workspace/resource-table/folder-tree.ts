@@ -1,5 +1,6 @@
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { toast } from '@/lib/toast/sink'
+import { compareText } from '@/platform/shared/time'
 
 /** The part of a folder the list's helpers read; every resource tree's folder has it. */
 export interface TreeFolder {
@@ -132,10 +133,10 @@ export function compareEntries(
     const order =
       typeof left.key === 'number' && typeof right.key === 'number'
         ? left.key - right.key
-        : String(left.key).localeCompare(String(right.key))
+        : compareText(String(left.key), String(right.key))
     if (order !== 0) return direction === 'asc' ? order : -order
   }
-  return left.name.localeCompare(right.name)
+  return compareText(left.name, right.name)
 }
 
 export function sortEntries<T>(entries: SortEntry<T>[], direction: 'asc' | 'desc') {
@@ -187,7 +188,7 @@ export function moveDestinations(options: {
     [...(byParent.get(parentId) ?? [])]
       .sort(
         (left, right) =>
-          (left.sortOrder ?? 0) - (right.sortOrder ?? 0) || left.name.localeCompare(right.name)
+          (left.sortOrder ?? 0) - (right.sortOrder ?? 0) || compareText(left.name, right.name)
       )
       .map((folder, index): MenuAction => {
         const children = branch(folder.id)

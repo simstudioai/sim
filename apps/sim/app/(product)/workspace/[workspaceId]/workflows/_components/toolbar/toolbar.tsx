@@ -45,6 +45,7 @@ import {
   useWorkflowScope,
 } from '@/platform/lib/data/workflows'
 import { usePlatformHref } from '@/platform/lib/navigation'
+import { compareText } from '@/platform/shared/time'
 
 interface BlockItem {
   name: string
@@ -217,7 +218,7 @@ function getTriggers(overlayVersion: number): BlockItem[] {
       if (aHasPriority && bHasPriority) return aIndex - bIndex
       if (aHasPriority) return -1
       if (bHasPriority) return 1
-      return a.name.localeCompare(b.name)
+      return compareText(a.name, b.name)
     })
 
     cachedTriggers = sortedTriggers.map((trigger) => ({
@@ -288,8 +289,8 @@ function ensureBlockCaches() {
     bgColor: block.bgColor,
   }))
 
-  regularBlockItems.sort((a, b) => a.name.localeCompare(b.name))
-  toolItems.sort((a, b) => a.name.localeCompare(b.name))
+  regularBlockItems.sort((a, b) => compareText(a.name, b.name))
+  toolItems.sort((a, b) => compareText(a.name, b.name))
 
   cachedBlocks = regularBlockItems
   cachedTools = toolItems
@@ -533,7 +534,7 @@ export const Toolbar = memo(
             bgColor,
           } satisfies BlockItem
         })
-        .sort((a, b) => a.name.localeCompare(b.name))
+        .sort((a, b) => compareText(a.name, b.name))
     }, [customBlocksData, currentWorkflowId])
 
     const handleRequestItemClick = useCallback((type: string) => {

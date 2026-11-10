@@ -27,6 +27,7 @@ import {
 } from '@/platform/lib/workspace-views'
 import {
   calendarDayFormatter,
+  compareText,
   DAY_MS,
   formatCalendarDate,
   formatClockTime,
@@ -76,7 +77,7 @@ export function ChangelogFeed({ data, read, empty, older }: ChangelogFeedProps) 
         entry.contributor ? [[entry.contributor.id, entry.contributor] as const] : []
       )
     ).values(),
-  ].sort((left, right) => left.name.localeCompare(right.name))
+  ].sort((left, right) => compareText(left.name, right.name))
   // A contributor no longer in the history, from an old link, reads as everyone.
   const contributor = contributors.some((person) => person.id === view.contributor)
     ? view.contributor

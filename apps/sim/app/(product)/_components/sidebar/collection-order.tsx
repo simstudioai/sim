@@ -1,4 +1,5 @@
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
+import { compareText } from '@/platform/shared/time'
 
 const ORDERS = ['recent', 'ascending', 'descending'] as const
 export type SidebarOrder = (typeof ORDERS)[number]
@@ -14,7 +15,7 @@ export function orderSidebarItems<T extends { isPinned?: boolean }>(
     const byPin = Number(Boolean(right.isPinned)) - Number(Boolean(left.isPinned))
     if (byPin) return byPin
     if (order === 'recent') return compareRecent?.(left, right) ?? 0
-    const byName = name(left).localeCompare(name(right))
+    const byName = compareText(name(left), name(right))
     return order === 'ascending' ? byName : -byName
   })
 }
