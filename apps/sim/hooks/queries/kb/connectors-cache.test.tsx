@@ -25,7 +25,6 @@ const KNOWLEDGE_BASE_ID = 'knowledge-base-1'
 const CONNECTOR_ID = 'connector-1'
 const DOCUMENT_ID = 'document-1'
 const ACCOUNT_SUMMARY_KEY = credentialGroupKeys.workspace(WORKSPACE_ID)
-const ACCOUNT_DETAIL_KEY = credentialGroupKeys.detail(WORKSPACE_ID, 'group-1')
 const SEARCH_KEY = knowledgeKeys.search(WORKSPACE_ID, 'handbook')
 const SOURCE_LIST_KEY = searchSourceKeys.list(WORKSPACE_ID)
 const UNRELATED_KEY = ['unrelated-resource', 'sentinel'] as const
@@ -33,10 +32,6 @@ const SEARCH_STALE_TIME = 60_000
 
 const cachedData = {
   accountSummary: { credentialGroup: { id: 'group-1', options: [] } },
-  accountDetail: {
-    pages: [{ credentialGroup: { id: 'group-1', options: [] }, enrollments: [] }],
-    pageParams: [null],
-  },
   search: [{ documentId: DOCUMENT_ID, filename: 'handbook.pdf' }],
   unrelated: { value: 'leave intact' },
 }
@@ -58,7 +53,6 @@ function createQueryClient() {
   queryClients.push(queryClient)
   queryClient.setQueryDefaults(SEARCH_KEY, { staleTime: SEARCH_STALE_TIME })
   queryClient.setQueryData(ACCOUNT_SUMMARY_KEY, cachedData.accountSummary)
-  queryClient.setQueryData(ACCOUNT_DETAIL_KEY, cachedData.accountDetail)
   queryClient.setQueryData(SOURCE_LIST_KEY, [{ connectorId: CONNECTOR_ID, isSyncing: false }])
   queryClient.setQueryData(SEARCH_KEY, cachedData.search)
   queryClient.setQueryData(UNRELATED_KEY, cachedData.unrelated)
