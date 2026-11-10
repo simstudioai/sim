@@ -48,7 +48,14 @@ export async function validateGitLabServiceAccount(
         logUrlValidationDetails: false,
       }
     )
-  } catch {
+  } catch (error) {
+    // Only ENOTFOUND proves the host doesn't exist; other lookup and network failures may pass.
+    if ((error as { cause?: { code?: unknown } })?.cause?.code === 'ENOTFOUND') {
+      throw new TokenServiceAccountValidationError('site_not_found', 400, {
+        step: 'verify',
+        reason: 'host does not resolve',
+      })
+    }
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'verify',
       reason: 'could not reach the GitLab host',

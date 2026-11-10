@@ -107,7 +107,10 @@ export const validateAshbyServiceAccount = tokenCheckValidator({
   }),
   provesKey: (errorBody) => {
     const { errorInfo, errors } = toRecord(errorBody)
-    return [toRecord(errorInfo).code, ...toArray(errors)].includes('missing_endpoint_permission')
+    const messages = toArray(errors).map((entry) =>
+      typeof entry === 'string' ? entry : toRecord(entry).message
+    )
+    return [toRecord(errorInfo).code, ...messages].includes('missing_endpoint_permission')
   },
 })
 

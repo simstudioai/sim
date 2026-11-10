@@ -62,6 +62,18 @@ describe('GitLab saved token verification', () => {
     ).rejects.toMatchObject({ code: 'provider_unavailable' })
   })
 
+  it('reports a host that does not exist as not found, so the user fixes it instead of retrying', async () => {
+    fetch.mockRejectedValue(
+      new Error('url hostname could not be resolved', {
+        cause: Object.assign(new Error('getaddrinfo ENOTFOUND'), { code: 'ENOTFOUND' }),
+      })
+    )
+
+    await expect(
+      validateGitLabServiceAccount({ apiToken: 'glpat-x', domain: 'gitlab.exmaple.com' })
+    ).rejects.toMatchObject({ code: 'site_not_found' })
+  })
+
   it('reports an unreachable GitLab instance as unavailable, not as a bad token', async () => {
     fetch.mockResolvedValue(jsonResponse({ message: 'Bad Gateway' }, 502))
 

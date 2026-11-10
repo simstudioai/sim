@@ -155,6 +155,24 @@ describe('Ashby saved API key verification', () => {
     })
   })
 
+  it('accepts a valid key whose missing permission Ashby names in its errors list', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            { success: false, errors: [{ message: 'missing_endpoint_permission' }] },
+            403
+          )
+        )
+    )
+
+    await expect(validateAshbyServiceAccount({ apiToken: 'scoped' })).resolves.toMatchObject({
+      displayName: 'Ashby',
+    })
+  })
+
   it('rejects a deactivated key Ashby answers with a 403', async () => {
     vi.stubGlobal(
       'fetch',
