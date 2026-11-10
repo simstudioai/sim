@@ -281,6 +281,7 @@ import { PeopleDataLabsBlock, PeopleDataLabsBlockMeta } from '@/blocks/blocks/pe
 import { PerplexityBlock, PerplexityBlockMeta } from '@/blocks/blocks/perplexity'
 import { PersonaBlock, PersonaBlockMeta } from '@/blocks/blocks/persona'
 import { PiBlock } from '@/blocks/blocks/pi'
+import { PiloterrBlock, PiloterrBlockMeta } from '@/blocks/blocks/piloterr'
 import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
 import { PitchBookBlock, PitchBookBlockMeta } from '@/blocks/blocks/pitchbook'
@@ -650,6 +651,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   perplexity: PerplexityBlock,
   persona: PersonaBlock,
   pi: PiBlock,
+  piloterr: PiloterrBlock,
   pinecone: PineconeBlock,
   pipedrive: PipedriveBlock,
   pitchbook: PitchBookBlock,
@@ -997,6 +999,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   peopledatalabs: PeopleDataLabsBlockMeta,
   perplexity: PerplexityBlockMeta,
   persona: PersonaBlockMeta,
+  piloterr: PiloterrBlockMeta,
   pinecone: PineconeBlockMeta,
   pipedrive: PipedriveBlockMeta,
   pitchbook: PitchBookBlockMeta,

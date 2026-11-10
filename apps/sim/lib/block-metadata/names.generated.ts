@@ -212,6 +212,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   perplexity: 'Perplexity',
   persona: 'Persona',
   pi: 'Pi Coding Agent',
+  piloterr: 'Piloterr',
   pinecone: 'Pinecone',
   pipedrive: 'Pipedrive',
   pitchbook: 'PitchBook',
