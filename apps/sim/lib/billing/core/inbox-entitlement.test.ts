@@ -33,6 +33,7 @@ beforeEach(() => {
     id: 'workspace-1',
     billedAccountUserId: 'payer-1',
     organizationId: null,
+    teamOrganizationId: null,
   })
   mockGetPersonalSubscription.mockResolvedValue(null)
   mockGetOrganizationSubscription.mockResolvedValue(null)
@@ -86,6 +87,7 @@ describe('Sim Mailer hosted entitlement', () => {
         id: 'workspace-1',
         billedAccountUserId: 'payer-1',
         organizationId: 'org-1',
+        teamOrganizationId: 'org-1',
       })
       dbChainMockFns.limit.mockResolvedValueOnce([{ plan, status: 'active' }])
       mockGetOrganizationSubscription.mockResolvedValue({ plan, status: 'active' })
@@ -140,6 +142,7 @@ describe('Sim Mailer cleanup uncertainty', () => {
       id: 'workspace-1',
       billedAccountUserId: 'payer-1',
       organizationId: 'org-1',
+      teamOrganizationId: 'org-1',
     })
     mockGetOrganizationSubscription.mockResolvedValue({ plan: 'team_25000', status: 'past_due' })
 
