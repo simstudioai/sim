@@ -66,6 +66,7 @@ import { toDecimal } from '@/lib/billing/utils/decimal'
 import { countPendingSeatInvitations } from '@/lib/billing/validation/seat-management'
 import { env } from '@/lib/core/config/env'
 import { executeTransactionallyIdempotent } from '@/lib/core/idempotency/transaction'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
@@ -342,6 +343,7 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
         email: user.email,
         organizationId: organization.id,
         organizationName: organization.name,
+        organizationKind: organization.kind,
       })
       .from(user)
       .leftJoin(member, eq(member.userId, user.id))
@@ -351,8 +353,11 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
       .limit(limit)
       .offset(offset),
   ])
-  const organizationIds = [...new Set(rows.flatMap((row) => row.organizationId ?? []))]
-  const personalUserIds = rows.filter((row) => !row.organizationId).map((row) => row.id)
+  /** A personal organization bills its owner's own plan, so only a team bills as an organization. */
+  const billingOrganizationIdOf = (row: (typeof rows)[number]) =>
+    row.organizationKind === 'team' ? row.organizationId : null
+  const organizationIds = [...new Set(rows.flatMap((row) => billingOrganizationIdOf(row) ?? []))]
+  const personalUserIds = rows.filter((row) => !billingOrganizationIdOf(row)).map((row) => row.id)
   const [organizationSubscriptions, personalSubscriptions] = await Promise.all([
     organizationIds.length === 0
       ? Promise.resolve([])
@@ -405,8 +410,9 @@ export async function listDashboardUsers({ search, limit, offset }: PaginationIn
 
   return {
     data: rows.map((row) => {
-      const usageDollars = row.organizationId
-        ? (organizationSpend.get(row.organizationId)?.get(row.id) ?? 0)
+      const billingOrganizationId = billingOrganizationIdOf(row)
+      const usageDollars = billingOrganizationId
+        ? (organizationSpend.get(billingOrganizationId)?.get(row.id) ?? 0)
         : (personalSpend.get(row.id) ?? 0)
       return {
         id: row.id,
@@ -484,11 +490,13 @@ async function getDashboardOrganizationSummary(organizationId: string) {
   }
 }
 
+/** Team organizations only, as the v1 Admin API lists by default: personal ones follow a user. */
 export async function listDashboardOrganizations({ search, limit, offset }: PaginationInput) {
   const trimmed = search.trim()
+  const isTeam = eq(organization.kind, 'team')
   const where = trimmed
-    ? or(ilike(organization.name, `%${trimmed}%`), eq(organization.id, trimmed))
-    : undefined
+    ? and(isTeam, or(ilike(organization.name, `%${trimmed}%`), eq(organization.id, trimmed)))
+    : isTeam
   const [totalRow, orgRows] = await Promise.all([
     db.select({ total: count() }).from(organization).where(where),
     db
@@ -1061,6 +1069,10 @@ export async function retryDashboardEnterpriseConfigurationUpdate(
   })
 }
 
+/** A personal organization bills its owner's own plan, so it carries no organization balance or limits. */
+const PERSONAL_ORGANIZATION_BILLING_REFUSAL =
+  "Personal organizations bill their owner's own plan: change the user's balance or limits instead."
+
 export async function updateDashboardOrganizationLimits(
   organizationId: string,
   values: {
@@ -1079,6 +1091,9 @@ export async function updateDashboardOrganizationLimits(
       .for('update')
       .limit(1)
     if (!org) throw new Error('Organization not found')
+    if (org.kind === 'personal') {
+      throw new OrchestrationError('conflict', PERSONAL_ORGANIZATION_BILLING_REFUSAL)
+    }
     const [subscriptionRow] = await tx
       .select()
       .from(subscription)
@@ -1213,6 +1228,9 @@ export async function grantDashboardOrganizationBalance(
           .for('update')
           .limit(1)
         if (!org) throw new Error('Organization not found')
+        if (org.kind === 'personal') {
+          throw new OrchestrationError('conflict', PERSONAL_ORGANIZATION_BILLING_REFUSAL)
+        }
         const [subscriptionRow] = await tx
           .select({ plan: subscription.plan, metadata: subscription.metadata })
           .from(subscription)
@@ -1588,6 +1606,7 @@ export async function removeDashboardOrganizationMember(
     userId: existing.userId,
     organizationId,
     memberId,
+    actor: actor.id ? { type: 'user', userId: actor.id } : { type: 'system', name: actor.name },
   })
   deliverRunStops(result.stoppedRuns)
   if (!result.success) throw new Error(result.error ?? 'Failed to remove member')

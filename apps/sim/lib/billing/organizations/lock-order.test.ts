@@ -264,6 +264,7 @@ describe('workspace payer-change transaction lock ordering', () => {
     })
 
     await attachOwnedWorkspacesToOrganizationTx(tx as unknown as DbOrTx, {
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: 'user-1',
       organizationId: 'org-1',
       workspaceIds: ['workspace-1'],

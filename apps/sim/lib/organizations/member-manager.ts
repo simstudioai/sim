@@ -96,6 +96,7 @@ export async function removeOrganizationMemberRecord(input: {
   const { stoppedRuns, ...removal } = await removeUserFromOrganization({
     ...input,
     memberId: target.id,
+    actor: { type: 'user', userId: input.actorUserId },
     onError: 'throw',
   })
   deliverRunStops(stoppedRuns)

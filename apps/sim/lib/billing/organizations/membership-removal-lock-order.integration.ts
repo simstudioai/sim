@@ -85,6 +85,7 @@ describe('organization member removal lock order', () => {
 
     const writerPid = await holdingWorkspace.promise
     const removal = removeUserFromOrganization({
+      actor: { type: 'system', name: 'Test' },
       organizationId,
       userId: departingId,
       memberId,

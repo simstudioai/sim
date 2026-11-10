@@ -1667,6 +1667,9 @@ export async function issueEnterpriseProvisioning(
         name: organizationToCreate.name,
         slug: slugifyOrganizationName(organizationToCreate.name, organizationToCreate.id),
         metadata: {},
+        actor: input.requestedByUserId
+          ? { type: 'user', userId: input.requestedByUserId }
+          : { type: 'system', name: input.requestedByName ?? 'Admin Panel' },
       })
     } else if (organizationToCreate) {
       const now = new Date()

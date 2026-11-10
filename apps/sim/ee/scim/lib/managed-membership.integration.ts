@@ -314,6 +314,7 @@ describe('SCIM managed membership in PostgreSQL', () => {
         )
       await expect(
         removeUserFromOrganization({
+          actor: { type: 'system', name: 'Test' },
           userId: managedUserId,
           organizationId: orgId,
           memberId: previousOwner.id,

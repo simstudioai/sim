@@ -8,6 +8,8 @@
  * Body: partial whitelabel settings; provided keys are merged over the current
  * value and an explicit `null` clears a key.
  *
+ * Refuses personal organizations, which hold no team configuration, with 409.
+ *
  * Response: AdminSingleResponse<{ success, organizationId }>
  */
 
@@ -30,6 +32,7 @@ import {
   adminForbiddenResponse,
   adminInvalidJsonResponse,
   adminNotFoundResponse,
+  adminPersonalOrganizationConflictResponse,
   adminValidationErrorResponse,
   adminWriteErrorResponse,
   singleResponse,
@@ -59,7 +62,11 @@ export const PATCH = withRouteHandler(
 
     try {
       const [existing] = await db
-        .select({ name: organization.name, whitelabelSettings: organization.whitelabelSettings })
+        .select({
+          name: organization.name,
+          kind: organization.kind,
+          whitelabelSettings: organization.whitelabelSettings,
+        })
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)
@@ -67,6 +74,7 @@ export const PATCH = withRouteHandler(
       if (!existing) {
         return adminNotFoundResponse('Organization')
       }
+      if (existing.kind === 'personal') return adminPersonalOrganizationConflictResponse()
 
       /**
        * Same entitlement gate the settings UI applies. An admin key

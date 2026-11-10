@@ -17,6 +17,9 @@ import { transferWorkspaceProjects } from '@/lib/projects/membership'
 
 const logger = createLogger('PersonalOrganizationProvision')
 
+/** The backfill script, an operator action with no signed-in user behind it. */
+const BACKFILL_ACTOR = { type: 'system', name: 'Personal organization backfill' } as const
+
 export type ProvisionPersonalOrganizationResult =
   | {
       status: 'provisioned'
@@ -91,7 +94,10 @@ export async function provisionPersonalOrganization(
     }
 
     const created = !locked
-    if (created && !(await createPersonalOrganizationTx(tx, userId, organizationId))) {
+    if (
+      created &&
+      !(await createPersonalOrganizationTx(tx, userId, BACKFILL_ACTOR, organizationId))
+    ) {
       return { status: 'user-missing' }
     }
 
@@ -199,18 +205,27 @@ async function attachUnassignedWorkspacesTx(
  */
 export async function createPersonalOrganization(userId: string): Promise<string | null> {
   if (!(await isFeatureEnabled('pause-personal-organizations'))) {
-    await db.transaction((tx) => createPersonalOrganizationTx(tx, userId))
+    await db.transaction((tx) => createPersonalOrganizationTx(tx, userId, { type: 'user', userId }))
   }
   return resolveOrganizationLanding(userId, null)
 }
 
 /**
- * Puts a user who belongs to no organization into one and returns it: the instance organization on
- * an instance-organization deployment, otherwise (or when the instance organization cannot admit
- * them) their personal organization ({@link createPersonalOrganization}, which attaches no
- * workspace). Surfaces reach it only through the `ensureViewerOrganization` command.
+ * Puts a user who belongs to no organization, or only to their personal one, into one and returns
+ * it: the instance organization on an instance-organization deployment (retiring the personal
+ * organization into it), otherwise (or when the instance organization cannot admit them) their
+ * personal organization ({@link createPersonalOrganization}, which attaches no workspace). Only
+ * signup passes `atSignup`, the one caller that may provision the instance organization with this
+ * user as its owner. Surfaces reach it only through the `ensureViewerOrganization` command.
  */
-export async function ensureUserOrganization(userId: string): Promise<string | null> {
-  if (await joinInstanceOrganization(userId)) return resolveOrganizationLanding(userId, null)
+export async function ensureUserOrganization(
+  userId: string,
+  options: { atSignup: boolean }
+): Promise<string | null> {
+  const joined = await joinInstanceOrganization(userId, {
+    atSignup: options.atSignup,
+    actor: { type: 'user', userId },
+  })
+  if (joined) return resolveOrganizationLanding(userId, null)
   return createPersonalOrganization(userId)
 }

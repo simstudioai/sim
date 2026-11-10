@@ -29,6 +29,7 @@ import { env } from '@/lib/core/config/env'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { acquireAdvisoryXactLock } from '@/lib/db/advisory-locks'
 import type { DbOrTx } from '@/lib/db/types'
+import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
 
 const logger = createLogger('InstanceOrganization')
 
@@ -144,14 +145,15 @@ async function resolveInstanceOrganizationBySlug(
  * Picks the user who will own the instance organization.
  *
  * `INSTANCE_ORG_OWNER_EMAIL` wins when it names an existing user. Otherwise the
- * user who triggered provisioning takes ownership, which on a fresh deployment
- * is whoever signs up first. Ownership can be moved later through
+ * signing-up user who triggered provisioning takes ownership, which on a fresh
+ * deployment is whoever signs up first; with no such user (`null`), nobody does
+ * and nothing is provisioned. Ownership can be moved later through
  * `POST /api/v1/admin/organizations/[id]/transfer-ownership`.
  */
 async function resolveOwnerUserId(
   config: InstanceOrganizationConfig,
-  fallbackUserId: string
-): Promise<string> {
+  fallbackUserId: string | null
+): Promise<string | null> {
   if (!config.ownerEmail) return fallbackUserId
 
   const [owner] = await db
@@ -163,7 +165,7 @@ async function resolveOwnerUserId(
   if (owner) return owner.id
 
   logger.warn(
-    'INSTANCE_ORG_OWNER_EMAIL does not match any user yet; assigning ownership to the provisioning user instead',
+    'INSTANCE_ORG_OWNER_EMAIL does not match any user yet; assigning ownership to the signing-up user instead, if any',
     { ownerEmail: config.ownerEmail }
   )
   return fallbackUserId
@@ -177,12 +179,18 @@ async function resolveOwnerUserId(
  * after the lock is held, so two replicas racing on the first signup produce
  * one organization rather than two or a unique-violation crash.
  *
- * Returns `null` when the mode is off, or when provisioning failed — callers
- * treat that as "no instance org" and carry on rather than failing the signup
- * that triggered it.
+ * `signupUserId` is the user whose signup triggered provisioning, who owns the
+ * organization when no configured owner exists; any other caller passes `null`,
+ * so a later visitor never recreates a deleted instance organization as its
+ * owner.
+ *
+ * Returns `null` when the mode is off, when there is no owner to provision it
+ * for, or when provisioning failed — callers treat that as "no instance org" and
+ * carry on rather than failing the signup that triggered it.
  */
 export async function ensureInstanceOrganization(
-  provisioningUserId: string
+  signupUserId: string | null,
+  actor: PersonalOrganizationAuditActor
 ): Promise<string | null> {
   const config = getInstanceOrganizationConfig()
   if (!config) return null
@@ -191,7 +199,8 @@ export async function ensureInstanceOrganization(
   if (existing) return existing
 
   try {
-    const ownerUserId = await resolveOwnerUserId(config, provisioningUserId)
+    const ownerUserId = await resolveOwnerUserId(config, signupUserId)
+    if (!ownerUserId) return null
 
     /**
      * The re-check and the insert share one transaction so the advisory lock
@@ -244,6 +253,7 @@ export async function ensureInstanceOrganization(
         name: config.name,
         slug: config.slug,
         metadata: { instanceOrganization: true },
+        actor,
       })
 
       logger.info('Provisioned the instance organization', {
@@ -275,17 +285,25 @@ export async function ensureInstanceOrganization(
  * Adds a user to the instance organization, provisioning it if needed, and reports whether they
  * belong to it afterwards: false when the mode is off, the organization cannot be provisioned, or
  * the membership is refused (they already belong to a team), so the caller can fall back to their
- * personal organization rather than leave them in none. Already being a member counts as joined,
- * which is the case for the owner, whose membership is written during provisioning. Unexpected
- * failures throw; signup catches them so a deployment never becomes unable to register users.
+ * personal organization rather than leave them in none. A personal organization is retired into
+ * it, as joining any team retires one. Already being a member counts as joined, which is the case
+ * for the owner, whose membership is written during provisioning. Unexpected failures throw;
+ * signup catches them so a deployment never becomes unable to register users.
+ *
+ * Only signup (`atSignup`) may provision the organization with this user as its owner; anyone else
+ * provisions it only for the configured owner ({@link ensureInstanceOrganization}). `actor` is who
+ * caused the join: the person themselves at signup or on a visit, or the backfill.
  *
  * The membership module is imported lazily to keep the organization and billing graph out of the
  * auth module's load path.
  */
-export async function joinInstanceOrganization(userId: string): Promise<boolean> {
+export async function joinInstanceOrganization(
+  userId: string,
+  { atSignup, actor }: { atSignup: boolean; actor: PersonalOrganizationAuditActor }
+): Promise<boolean> {
   if (!isInstanceOrganizationMode()) return false
 
-  const organizationId = await ensureInstanceOrganization(userId)
+  const organizationId = await ensureInstanceOrganization(atSignup ? userId : null, actor)
   if (!organizationId) return false
 
   const { ensureUserInOrganization } = await import('@/lib/billing/organizations/membership')
@@ -293,6 +311,7 @@ export async function joinInstanceOrganization(userId: string): Promise<boolean>
     userId,
     organizationId,
     role: 'member',
+    actor,
     skipBillingLogic: true,
     skipSeatValidation: true,
   })

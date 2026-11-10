@@ -55,11 +55,11 @@ import { type StoppedRun, stopLiveRunsTx } from '@/lib/mothership/async-runs/rep
 import { enqueueMemoryCleanup } from '@/lib/mothership/memories/cleanup-outbox'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { getMothershipBaseURL } from '@/lib/mothership/server/agent-url'
+import { deletePersonalOrganizationTx } from '@/lib/organizations/deletion'
 import {
   detachPersonalOrganizationWorkspacesTx,
   getPersonalOrganizationId,
 } from '@/lib/organizations/personal'
-import { enqueueOrganizationResourceCleanup } from '@/lib/organizations/resource-cleanup'
 import {
   getProjectAccountDeletionBlockers,
   prepareProjectsForAccountDeletion,
@@ -1071,16 +1071,7 @@ export async function deleteUserAccount(
 
     if (recordIdentity) await recordDeletedAccountIdentities(tx, userId)
 
-    if (personalOrganizationId) {
-      /**
-       * The personal organization's own files, knowledge documents, chats and memory go with its
-       * row, which the account's storage sweep deliberately leaves to the organization's cleanup.
-       */
-      await enqueueOrganizationResourceCleanup(tx, personalOrganizationId)
-      await tx
-        .delete(organization)
-        .where(and(eq(organization.id, personalOrganizationId), eq(organization.kind, 'personal')))
-    }
+    if (personalOrganizationId) await deletePersonalOrganizationTx(tx, personalOrganizationId)
 
     try {
       await tx.delete(user).where(eq(user.id, userId))

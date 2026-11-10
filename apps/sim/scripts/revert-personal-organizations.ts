@@ -181,6 +181,7 @@ export async function revertPersonalOrganization(
         change: 'reverted',
         organizationId,
         userId: owner.userId,
+        actor: { type: 'system', name: 'Personal organization rollback' },
         metadata: {
           detachedWorkspaceIds,
           deletedContent: table !== null,

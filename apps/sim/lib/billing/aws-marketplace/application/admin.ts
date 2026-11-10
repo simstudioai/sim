@@ -7,10 +7,10 @@ import {
 } from '@/lib/billing/aws-marketplace/application/use-cases'
 import {
   countUnlinkedLicenses,
+  getOrganizationKind,
   linkLicenseForTeam,
   listUnlinkedLicenses,
   lockLicense,
-  organizationExists,
 } from '@/lib/billing/aws-marketplace/repository'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -51,8 +51,13 @@ export async function linkAwsMarketplaceLicenseAsAdmin(
     const locked = await lockLicense(tx, input.licenseId)
     if (!locked) throw new OrchestrationError('not_found', 'License')
     requireLinkableTo(locked, input.organizationId)
-    if (!(await organizationExists(tx, input.organizationId))) {
-      throw new OrchestrationError('not_found', 'Organization')
+    const kind = await getOrganizationKind(tx, input.organizationId)
+    if (!kind) throw new OrchestrationError('not_found', 'Organization')
+    if (kind === 'personal') {
+      throw new OrchestrationError(
+        'conflict',
+        "A personal organization bills its owner's own plan and cannot hold an AWS Marketplace subscription."
+      )
     }
     if (locked.organizationId === input.organizationId) {
       return { license: locked, newlyLinked: false }

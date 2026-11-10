@@ -691,6 +691,7 @@ describe('Project foundation at the database and application boundary', () => {
       })
       await db.update(project).set({ ownerId: f.teammateId }).where(eq(project.id, f.projectId))
       const result = await removeUserFromOrganization({
+        actor: { type: 'system', name: 'Test' },
         userId: f.teammateId,
         organizationId: organizationId,
         memberId,

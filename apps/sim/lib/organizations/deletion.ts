@@ -1,7 +1,13 @@
 import { recordAuditBatch } from '@sim/audit'
 import { db } from '@sim/db'
 import { organization } from '@sim/db/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
+import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/identity-lock'
+import type { DbTransaction } from '@/lib/db/types'
+import {
+  detachPersonalOrganizationWorkspacesTx,
+  getPersonalOrganizationId,
+} from '@/lib/organizations/personal'
 import { enqueueOrganizationResourceCleanup } from '@/lib/organizations/resource-cleanup'
 import { detachOrganizationWorkspacesTx } from '@/lib/workspaces/organization-workspaces'
 
@@ -28,4 +34,36 @@ export async function deleteTeamOrganization(
   })
   recordAuditBatch(auditEntries)
   return { detachedWorkspaceIds }
+}
+
+/**
+ * Deletes a departing account's personal organization in the caller's transaction, once its
+ * workspaces have returned to the organization-less personal state: the organization's own files,
+ * knowledge documents, chats and memory are queued for cleanup, which the account's storage sweep
+ * leaves to it, and the organization goes.
+ */
+export async function deletePersonalOrganizationTx(
+  tx: DbTransaction,
+  personalOrganizationId: string
+): Promise<void> {
+  await enqueueOrganizationResourceCleanup(tx, personalOrganizationId)
+  await tx
+    .delete(organization)
+    .where(and(eq(organization.id, personalOrganizationId), eq(organization.kind, 'personal')))
+}
+
+/**
+ * Deletes the user's personal organization ahead of a user delete that bypasses account deletion
+ * (Better Auth's admin `/admin/remove-user`), whose membership cascade would otherwise leave the
+ * organization behind with no member and no payer. Its workspaces return to the organization-less
+ * personal state first, as account deletion does. A no-op without a personal organization.
+ */
+export async function deletePersonalOrganizationOfRemovedUser(userId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    const personalOrganizationId = await getPersonalOrganizationId(userId, tx)
+    if (!personalOrganizationId) return
+    await acquireOrganizationMutationLock(tx, personalOrganizationId)
+    await detachPersonalOrganizationWorkspacesTx(tx, personalOrganizationId)
+    await deletePersonalOrganizationTx(tx, personalOrganizationId)
+  })
 }

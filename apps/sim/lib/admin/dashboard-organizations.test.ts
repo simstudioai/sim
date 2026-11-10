@@ -66,6 +66,7 @@ vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 import {
   getDashboardMemberTransferPreflight,
   listDashboardOrganizations,
+  listDashboardUsers,
   toDashboardConfigurationUpdate,
   updateDashboardEnterpriseReportingPeriod,
   updateDashboardEnterpriseSeats,
@@ -196,6 +197,32 @@ describe('toDashboardConfigurationUpdate', () => {
       retryable: true,
       error: null,
     })
+  })
+})
+
+describe('listDashboardUsers', () => {
+  beforeEach(() => {
+    resetDbChainMock()
+  })
+
+  it('reads a personal-organization owner’s usage from their own plan, not as organization spend', async () => {
+    queueTableRows(user, [{ total: 1 }])
+    queueTableRows(user, [
+      {
+        id: 'user-1',
+        name: 'Owner',
+        email: 'owner@example.com',
+        organizationId: 'org-personal',
+        organizationName: 'Owner',
+        organizationKind: 'personal',
+      },
+    ])
+    queueTableRows(subscription, [])
+    queueTableRows(usageLog, [{ entityId: 'user-1', cost: '3' }])
+
+    const result = await listDashboardUsers({ search: '', limit: 50, offset: 0 })
+
+    expect(result.data[0]).toMatchObject({ id: 'user-1', usageDollars: 3 })
   })
 })
 
@@ -344,6 +371,21 @@ describe('updateDashboardOrganizationLimits', () => {
       )
     ).rejects.toThrow('cannot be below its prepaid balance')
     expect(mocks.enqueueOutboxEvent).not.toHaveBeenCalled()
+  })
+
+  it('refuses a personal organization as a conflict without writing a limit', async () => {
+    queueTableRows(organization, [
+      { id: 'org-1', kind: 'personal', creditBalance: '0', orgUsageLimit: null },
+    ])
+
+    await expect(
+      updateDashboardOrganizationLimits(
+        'org-1',
+        { usageLimitDollars: 50 },
+        { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
+      )
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 })
 

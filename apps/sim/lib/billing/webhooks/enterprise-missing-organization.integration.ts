@@ -92,10 +92,13 @@ function createTestAuth() {
           plans: [],
           onSubscriptionUpdate: async ({ event, subscription: updated }) => {
             const stripeSubscription = event.data.object as Stripe.Subscription
-            await ensureOrganizationForTeamSubscription({
-              ...updated,
-              enterpriseOperationId: stripeSubscription.metadata?.enterpriseOperationId ?? null,
-            })
+            await ensureOrganizationForTeamSubscription(
+              {
+                ...updated,
+                enterpriseOperationId: stripeSubscription.metadata?.enterpriseOperationId ?? null,
+              },
+              { type: 'system', name: 'Billing System' }
+            )
           },
         },
         onEvent: async (event) => {

@@ -25,6 +25,7 @@ import {
 } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
+import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
 import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
 import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
@@ -491,6 +492,9 @@ async function applyMembership(
 ): Promise<MemberOperationPayload['progress']> {
   if (payload.progress.memberId) return payload.progress
   const request = payload.request
+  const lifecycleActor: PersonalOrganizationAuditActor = request.actor.id
+    ? { type: 'user', userId: request.actor.id }
+    : { type: 'system', name: request.actor.name }
   const [currentMembership] = await db
     .select({ id: member.id, role: member.role, organizationId: member.organizationId })
     .from(member)
@@ -514,6 +518,7 @@ async function applyMembership(
       role: request.role,
       usageLimitDollars: request.usageLimitDollars,
       setBy: request.actor.id ?? undefined,
+      actor: lifecycleActor,
     })
     deliverRunStops(transferred.stoppedRuns)
     if (!transferred.success || !transferred.memberId) {
@@ -540,6 +545,7 @@ async function applyMembership(
         userId: request.userId,
         organizationId: request.organizationId,
         role: request.role,
+        actor: lifecycleActor,
         skipSeatValidation: organizationSubscription?.plan.startsWith('team') ?? false,
       })
       if (!membershipResult.success || !membershipResult.memberId) {

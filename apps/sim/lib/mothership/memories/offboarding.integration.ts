@@ -103,6 +103,7 @@ it('queues private memory erasure with each committed departure and organization
   // A removal whose actor lacks authority rolls back with nothing queued.
   await expect(
     runtime.membership.removeUserFromOrganization({
+      actor: { type: 'system', name: 'Test' },
       organizationId,
       userId: memberId,
       memberId: membershipId,
@@ -114,6 +115,7 @@ it('queues private memory erasure with each committed departure and organization
   expect(await queued()).toEqual([])
 
   await runtime.membership.removeUserFromOrganization({
+    actor: { type: 'system', name: 'Test' },
     organizationId,
     userId: memberId,
     memberId: membershipId,

@@ -172,6 +172,7 @@ export const provisionScimUser = defineAuthorizedScimUseCase({
           userId,
           organizationId: context.organizationId,
           role: 'member',
+          actor: { type: 'system', name: 'SCIM' },
           ...seatPolicy,
         })
         if (!membership.success) throw membershipFailure(membership.failureCode)

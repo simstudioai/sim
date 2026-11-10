@@ -32,7 +32,11 @@ import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import { enqueuePersonalOrganizationAuditTx } from '@/lib/organizations/lifecycle-audit'
+import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import {
+  enqueuePersonalOrganizationAuditTx,
+  type PersonalOrganizationAuditActor,
+} from '@/lib/organizations/lifecycle-audit'
 import { rehomePersonalOrganizationChatsTx } from '@/lib/organizations/personal-chats'
 import { enqueueOrganizationStoredObjectCleanup } from '@/lib/organizations/resource-cleanup-event'
 import { transferWorkspaceProjects } from '@/lib/projects/membership'
@@ -68,6 +72,35 @@ async function lockPersonalOrganizationTx(tx: DbTransaction, organizationId: str
     .for('update')
 }
 
+/**
+ * Takes the workspace advisory locks an invitation acceptance or a workspace move holds while it
+ * row-locks a workspace, for every workspace of this personal organization, so a retirement (which
+ * row-locks them) queues behind an in-flight acceptance instead of inverting with it.
+ */
+async function acquireOrganizationWorkspaceLocksTx(tx: DbTransaction, organizationId: string) {
+  const rows = await tx
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(eq(workspace.organizationId, organizationId))
+  await acquireInvitationMutationLocks(tx, {
+    invitationIds: [],
+    workspaceIds: rows.map((row) => row.id),
+  })
+}
+
+/**
+ * {@link acquireOrganizationWorkspaceLocksTx} for the user's personal organization, if any. A join
+ * takes these before the organization and billing-identity locks, the order every attach path
+ * uses; the retirement inside it re-takes them, a no-op once held.
+ */
+export async function acquirePersonalOrganizationWorkspaceLocksTx(
+  tx: DbTransaction,
+  userId: string
+): Promise<void> {
+  const personalOrganizationId = await getPersonalOrganizationId(userId, tx)
+  if (personalOrganizationId) await acquireOrganizationWorkspaceLocksTx(tx, personalOrganizationId)
+}
+
 /** A stable, valid, collision-free slug: users are unique, and so is their personal organization. */
 function personalOrganizationSlug(userId: string): string {
   return `personal-${userId.toLowerCase().replace(/[^a-z0-9-_]+/g, '-')}`
@@ -87,6 +120,7 @@ function personalOrganizationName(row: { name: string | null; email: string }): 
 export async function createPersonalOrganizationTx(
   tx: DbTransaction,
   userId: string,
+  actor: PersonalOrganizationAuditActor,
   organizationId = `org_${generateId()}`
 ): Promise<string | null> {
   await acquireUserBillingIdentityLock(tx, userId)
@@ -123,6 +157,7 @@ export async function createPersonalOrganizationTx(
     change: 'created',
     organizationId,
     userId,
+    actor,
     metadata: {},
   })
   return organizationId
@@ -189,7 +224,14 @@ export async function convertPersonalOrganizationToTeamTx(
     name,
     slug,
     metadata,
-  }: { userId: string; name: string; slug: string; metadata: Record<string, unknown> }
+    actor,
+  }: {
+    userId: string
+    name: string
+    slug: string
+    metadata: Record<string, unknown>
+    actor: PersonalOrganizationAuditActor
+  }
 ): Promise<ConvertPersonalOrganizationResult | null> {
   await acquireUserBillingIdentityLock(tx, userId)
   const [personal] = await tx
@@ -214,6 +256,7 @@ export async function convertPersonalOrganizationToTeamTx(
     change: 'converted',
     organizationId: personal.organizationId,
     userId,
+    actor,
     metadata: { detachedWorkspaceIds },
   })
   logger.info('Converted personal organization into a team', {
@@ -499,7 +542,11 @@ export interface RetirePersonalOrganizationResult {
  */
 export async function retirePersonalOrganizationTx(
   tx: DbTransaction,
-  { userId, targetOrganizationId }: { userId: string; targetOrganizationId: string }
+  {
+    userId,
+    targetOrganizationId,
+    actor,
+  }: { userId: string; targetOrganizationId: string; actor: PersonalOrganizationAuditActor }
 ): Promise<RetirePersonalOrganizationResult> {
   const personalOrganizationId = await getPersonalOrganizationId(userId, tx)
   if (!personalOrganizationId) {
@@ -514,6 +561,7 @@ export async function retirePersonalOrganizationTx(
   if (personalOrganizationId === targetOrganizationId) {
     throw new Error('A personal organization cannot be retired into itself')
   }
+  await acquireOrganizationWorkspaceLocksTx(tx, personalOrganizationId)
   await lockPersonalOrganizationTx(tx, personalOrganizationId)
 
   const chats = await rehomePersonalOrganizationChatsTx(tx, {
@@ -539,6 +587,7 @@ export async function retirePersonalOrganizationTx(
     change: 'retired',
     organizationId: personalOrganizationId,
     userId,
+    actor,
     metadata: {
       targetOrganizationId,
       detachedWorkspaceIds,

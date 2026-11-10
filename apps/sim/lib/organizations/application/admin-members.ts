@@ -25,6 +25,8 @@ import {
 
 const logger = createLogger('AdminOrganizationMembersAPI')
 
+const ADMIN_API_ACTOR = { type: 'system', name: 'Admin API' } as const
+
 /**
  * The deployment operator's organization-membership administration, reached only through the
  * Admin API key. These are not the member-facing `organizations.members.*` operations: the operator
@@ -306,6 +308,7 @@ export const addAdminOrganizationMember: OperationUseCase<
         userId,
         organizationId,
         role,
+        actor: ADMIN_API_ACTOR,
         skipBillingLogic: !isBillingEnabled,
         skipSeatValidation: isBillingEnabled && !organizationHasFixedSeats,
       })
@@ -342,6 +345,7 @@ export const addAdminOrganizationMember: OperationUseCase<
         externalMemberPolicy: 'external-all',
         ownerMatch: 'owner',
         includeArchived: true,
+        actor: ADMIN_API_ACTOR,
       })
       return {
         membership,

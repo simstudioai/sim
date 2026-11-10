@@ -39,6 +39,7 @@ import {
 } from '@/lib/billing/organizations/membership'
 import { resolveStorageBillingContext } from '@/lib/billing/storage/context'
 import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
+import { deletePersonalOrganizationOfRemovedUser } from '@/lib/organizations/deletion'
 import { provisionPersonalOrganization } from '@/lib/organizations/provision-personal'
 import { deleteUserAccount, getAccountDeletionPlan } from '@/lib/users/account-deletion'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
@@ -46,6 +47,8 @@ import { getUsersWithPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceCreationPolicy } from '@/lib/workspaces/policy'
 
 const userIds: string[] = []
+
+const BILLING_WEBHOOK = { type: 'system', name: 'Billing System' } as const
 
 async function createUser(): Promise<string> {
   const id = `personal-org-user-${generateId()}`
@@ -201,7 +204,9 @@ afterAll(async () => {
     .select({ id: member.organizationId })
     .from(member)
     .where(inArray(member.userId, userIds))
-  await db.delete(subscription).where(inArray(subscription.referenceId, userIds))
+  await db
+    .delete(subscription)
+    .where(inArray(subscription.referenceId, [...userIds, ...organizations.map((row) => row.id)]))
   if (workspaces.length > 0) {
     await db.delete(workspace).where(
       inArray(
@@ -288,6 +293,7 @@ describe('personal organization provisioning', () => {
     const ownerId = await createUser()
     const legacy = await createLegacyPersonalWorkspace(ownerId, 'Legacy')
     const { organizationId: teamId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: ownerId,
       name: 'Team',
       slug: `team-${generateId()}`.toLowerCase(),
@@ -414,6 +420,7 @@ describe('joining another organization', () => {
     const teamOwnerId = await createUser()
     const joinerId = await createUser()
     const { organizationId: teamId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: teamOwnerId,
       name: 'Joined Team',
       slug: `joined-${generateId()}`.toLowerCase(),
@@ -425,6 +432,7 @@ describe('joining another organization', () => {
     const content = await createOrganizationContent(joinerId, provisioned.organizationId)
 
     const joined = await addUserToOrganization({
+      actor: { type: 'system', name: 'Test' },
       userId: joinerId,
       organizationId: teamId,
       role: 'member',
@@ -458,17 +466,20 @@ describe('joining another organization', () => {
     const firstOwnerId = await createUser()
     const secondOwnerId = await createUser()
     await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: firstOwnerId,
       name: 'First Team',
       slug: `first-${generateId()}`.toLowerCase(),
     })
     const { organizationId: secondTeamId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: secondOwnerId,
       name: 'Second Team',
       slug: `second-${generateId()}`.toLowerCase(),
     })
 
     const joined = await addUserToOrganization({
+      actor: { type: 'system', name: 'Test' },
       userId: firstOwnerId,
       organizationId: secondTeamId,
       role: 'member',
@@ -484,7 +495,7 @@ describe('joining another organization', () => {
 })
 
 describe('starting a team from a personal organization', () => {
-  it('converts the personal organization in place and seats collaborators as today', async () => {
+  it('converts the personal organization in place and keeps a collaborator with their own as an external member', async () => {
     const ownerId = await createUser()
     const collaboratorId = await createUser()
     const ownerWorkspace = await createLegacyPersonalWorkspace(ownerId, 'Owner workspace')
@@ -519,13 +530,10 @@ describe('starting a team from a personal organization', () => {
       seats: 5,
     })
 
-    const upgraded = await ensureOrganizationForTeamSubscription({
-      id: teamSubscriptionId,
-      plan: 'team',
-      referenceId: ownerId,
-      status: 'active',
-      seats: 5,
-    })
+    const upgraded = await ensureOrganizationForTeamSubscription(
+      { id: teamSubscriptionId, plan: 'team', referenceId: ownerId, status: 'active', seats: 5 },
+      BILLING_WEBHOOK
+    )
 
     const teamId = ownerPersonal.organizationId
     expect(upgraded.referenceId).toBe(teamId)
@@ -554,19 +562,55 @@ describe('starting a team from a personal organization', () => {
     expect(await userStorage(ownerId)).toBe(0)
 
     expect(await membershipOf(collaboratorId)).toEqual({
-      organizationId: teamId,
-      role: 'member',
-      kind: 'team',
+      organizationId: collaboratorPersonal.organizationId,
+      role: 'owner',
+      kind: 'personal',
     })
-    expect(await organizationExists(collaboratorPersonal.organizationId)).toBe(false)
     expect(await workspaceRow(collaboratorWorkspace)).toMatchObject({
-      organizationId: null,
-      workspaceMode: 'personal',
+      organizationId: collaboratorPersonal.organizationId,
       billedAccountUserId: collaboratorId,
     })
-    expect((await organizationContentOwners(collaboratorContent)).chat).toEqual({
+    expect(await organizationContentOwners(collaboratorContent)).toEqual({
+      chat: { organizationId: collaboratorPersonal.organizationId, userId: collaboratorId },
+      file: { organizationId: collaboratorPersonal.organizationId, userId: collaboratorId },
+      memorySpace: { organizationId: collaboratorPersonal.organizationId, userId: collaboratorId },
+    })
+    const [collaboratorAccess] = await db
+      .select({ permissionType: permissions.permissionType })
+      .from(permissions)
+      .where(and(eq(permissions.userId, collaboratorId), eq(permissions.entityId, ownerWorkspace)))
+    expect(collaboratorAccess).toEqual({ permissionType: 'write' })
+  })
+
+  it('attaches the owner’s workspaces when the webhook retries after the first attach failed', async () => {
+    const ownerId = await createUser()
+    const ownerWorkspace = await createLegacyPersonalWorkspace(ownerId, 'Owner workspace')
+    const personal = await provisionPersonalOrganization(ownerId)
+    if (personal.status !== 'provisioned') throw new Error('expected provisioning')
+    // The first delivery committed the team and the subscription transfer, then its attach threw.
+    const { organizationId: teamId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
+      ownerUserId: ownerId,
+      name: 'Team',
+      slug: `team-${generateId()}`.toLowerCase(),
+      metadata: { createdForTeamPlan: true, originalUserId: ownerId },
+    })
+    const teamSubscription = {
+      id: generateId(),
+      plan: 'team',
+      referenceId: teamId,
+      status: 'active',
+      seats: 5,
+    }
+    await db.insert(subscription).values(teamSubscription)
+    expect((await workspaceRow(ownerWorkspace)).organizationId).toBeNull()
+
+    await ensureOrganizationForTeamSubscription(teamSubscription, BILLING_WEBHOOK)
+
+    expect(await workspaceRow(ownerWorkspace)).toMatchObject({
       organizationId: teamId,
-      userId: collaboratorId,
+      workspaceMode: 'organization',
+      billedAccountUserId: ownerId,
     })
   })
 })
@@ -606,11 +650,13 @@ describe('leaving a team', () => {
     const teamOwnerId = await createUser()
     const leaverId = await createUser()
     const { organizationId: teamId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: teamOwnerId,
       name: 'Left Team',
       slug: `left-${generateId()}`.toLowerCase(),
     })
     const joined = await addUserToOrganization({
+      actor: { type: 'system', name: 'Test' },
       userId: leaverId,
       organizationId: teamId,
       role: 'member',
@@ -620,6 +666,7 @@ describe('leaving a team', () => {
     if (!joined.success || !joined.memberId) throw new Error('expected the join to succeed')
 
     const removed = await removeUserFromOrganization({
+      actor: { type: 'system', name: 'Test' },
       userId: leaverId,
       organizationId: teamId,
       memberId: joined.memberId,
@@ -657,6 +704,19 @@ describe('deleting an account', () => {
       .where(eq(member.organizationId, provisioned.organizationId))
     expect(membership).toBeUndefined()
   })
+
+  /** Drives the handler Better Auth runs as the user delete's `before` hook, then its bare delete. */
+  it('leaves no memberless personal organization behind when the admin plugin removes the user', async () => {
+    const ownerId = await createUser()
+    const provisioned = await provisionPersonalOrganization(ownerId)
+    if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
+    await createOrganizationContent(ownerId, provisioned.organizationId)
+
+    await deletePersonalOrganizationOfRemovedUser(ownerId)
+    await db.delete(user).where(eq(user.id, ownerId))
+
+    expect(await organizationExists(provisioned.organizationId)).toBe(false)
+  })
 })
 
 describe('joining another organization over colliding content', () => {
@@ -664,6 +724,7 @@ describe('joining another organization over colliding content', () => {
     const teamOwnerId = await createUser()
     const joinerId = await createUser()
     const { organizationId: teamId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: teamOwnerId,
       name: 'Colliding Team',
       slug: `colliding-${generateId()}`.toLowerCase(),
@@ -687,6 +748,7 @@ describe('joining another organization over colliding content', () => {
 
     await db.transaction((tx) =>
       ensureUserInOrganizationTx(tx, {
+        actor: { type: 'system', name: 'Test' },
         userId: joinerId,
         organizationId: teamId,
         role: 'member',
@@ -710,6 +772,7 @@ describe('joining another organization over colliding content', () => {
     if (provisioned.status !== 'provisioned') throw new Error('expected provisioning')
 
     const joined = await addUserToOrganization({
+      actor: { type: 'system', name: 'Test' },
       userId: outsiderId,
       organizationId: provisioned.organizationId,
       role: 'member',
@@ -816,6 +879,7 @@ describe('billing settings of a personal organization', () => {
   it('reads a team’s billing as the organization’s', async () => {
     const ownerId = await createUser()
     const { organizationId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: ownerId,
       name: 'Billed Team',
       slug: `billed-${generateId()}`.toLowerCase(),

@@ -2,11 +2,13 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { grantDashboardOrganizationBalance } from '@/lib/admin/dashboard'
 import { adminDashboardGrantBalanceContract } from '@/lib/api/contracts/v1/admin/dashboard'
 import { parseRequest } from '@/lib/api/server'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { getAdminAuditActor } from '@/app/api/v1/admin/dashboard/actor'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminBadRequestResponse,
+  adminConflictResponse,
   adminInvalidJsonResponse,
   adminValidationErrorResponse,
   singleResponse,
@@ -29,6 +31,8 @@ export const POST = withRouteHandler(
       )
       return singleResponse({ success: true as const, ...result })
     } catch (error) {
+      const refusal = asOrchestrationError(error)
+      if (refusal?.code === 'conflict') return adminConflictResponse(refusal.message)
       return adminBadRequestResponse(getErrorMessage(error, 'Failed to grant prepaid balance'))
     }
   })

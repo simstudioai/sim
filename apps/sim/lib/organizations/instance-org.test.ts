@@ -46,6 +46,8 @@ const { select: mockSelect, execute: mockExecute } = dbChainMockFns
 const { mockEnsureUserInOrganization } = organizationMembershipMockFns
 
 const ORIGINAL_ENV = { ...process.env }
+const SIGNUP_ACTOR = { type: 'user', userId: 'user-1' } as const
+const VISITOR_ACTOR = { type: 'user', userId: 'visitor-1' } as const
 
 function setInstanceEnv(values: Record<string, string | undefined>): void {
   for (const [key, value] of Object.entries(values)) {
@@ -93,7 +95,7 @@ describe('instance organization', () => {
       queueRows([{ id: 'org_a' }, { id: 'org_b' }]) // pre-transaction lookup
       queueRows([{ id: 'org_a' }, { id: 'org_b' }]) // re-check under the lock
 
-      const result = await ensureInstanceOrganization('user-1')
+      const result = await ensureInstanceOrganization('user-1', SIGNUP_ACTOR)
 
       expect(result).toBeNull()
       /** Must not add a third row to a set the operator already has to untangle. */
@@ -104,7 +106,7 @@ describe('instance organization', () => {
       queueRows([]) // first lookup misses
       queueRows([{ id: 'org_raced' }]) // re-check under the lock finds it
 
-      const result = await ensureInstanceOrganization('user-1')
+      const result = await ensureInstanceOrganization('user-1', SIGNUP_ACTOR)
 
       expect(result).toBe('org_raced')
       expect(mockCreateOrganizationWithOwnerTx).not.toHaveBeenCalled()
@@ -115,7 +117,7 @@ describe('instance organization', () => {
       queueRows([])
       queueRows([{ organizationId: 'org_other' }])
 
-      const result = await ensureInstanceOrganization('user-1')
+      const result = await ensureInstanceOrganization('user-1', SIGNUP_ACTOR)
 
       expect(result).toBeNull()
       expect(mockCreateOrganizationWithOwnerTx).not.toHaveBeenCalled()
@@ -130,7 +132,39 @@ describe('instance organization', () => {
         error: 'User is already a member of another organization.',
       })
 
-      await expect(joinInstanceOrganization('user-2')).resolves.toBe(false)
+      await expect(
+        joinInstanceOrganization('user-2', { atSignup: true, actor: SIGNUP_ACTOR })
+      ).resolves.toBe(false)
+    })
+
+    it('never recreates a missing instance organization with a visitor as its owner', async () => {
+      queueRows([]) // the instance organization was deleted
+
+      await expect(
+        joinInstanceOrganization('visitor-1', { atSignup: false, actor: VISITOR_ACTOR })
+      ).resolves.toBe(false)
+
+      expect(mockCreateOrganizationWithOwnerTx).not.toHaveBeenCalled()
+      expect(mockEnsureUserInOrganization).not.toHaveBeenCalled()
+    })
+
+    it('recreates a missing instance organization for its configured owner on a visit', async () => {
+      setInstanceEnv({ INSTANCE_ORG_OWNER_EMAIL: 'owner@acme.test' })
+      queueRows([]) // the instance organization was deleted
+      queueRows([{ id: 'owner-1' }]) // the configured owner
+      queueRows([]) // still missing under the lock
+      queueRows([]) // the owner belongs to no team
+      mockCreateOrganizationWithOwnerTx.mockResolvedValueOnce({ organizationId: 'org_instance' })
+      mockEnsureUserInOrganization.mockResolvedValueOnce({ success: true, alreadyMember: false })
+
+      await expect(
+        joinInstanceOrganization('visitor-1', { atSignup: false, actor: VISITOR_ACTOR })
+      ).resolves.toBe(true)
+
+      expect(mockCreateOrganizationWithOwnerTx).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ ownerUserId: 'owner-1' })
+      )
     })
   })
 })

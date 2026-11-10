@@ -170,10 +170,12 @@ export const createTeamOrganization: OperationUseCase<
             ownerUserId: userId,
             organizationId: existingOrganizationId,
             includeArchived: true,
+            actor: { type: 'user', userId },
           })
         } else {
           await requireSubscriptionHomedOn(
             activeOrgSubscription,
+            userId,
             existingOrganizationId,
             'Organization recovery resolved to an unexpected subscription owner'
           )
@@ -189,12 +191,14 @@ export const createTeamOrganization: OperationUseCase<
       const organizationName = input.name || owner?.name || null
       const organizationId = await createOrganizationForTeamPlan(
         userId,
+        { type: 'user', userId },
         organizationName || undefined,
         owner?.email,
         input.slug || undefined
       )
       await requireSubscriptionHomedOn(
         activeOrgSubscription,
+        userId,
         organizationId,
         'Failed to link the new organization to the active subscription'
       )
@@ -240,10 +244,14 @@ export const createTeamOrganization: OperationUseCase<
 /** Re-homes the subscription onto the organization, failing when it resolves anywhere else. */
 async function requireSubscriptionHomedOn(
   subscription: Parameters<typeof ensureOrganizationForTeamSubscription>[0],
+  userId: string,
   organizationId: string,
   failure: string
 ): Promise<void> {
-  const resolved = await ensureOrganizationForTeamSubscription(subscription)
+  const resolved = await ensureOrganizationForTeamSubscription(subscription, {
+    type: 'user',
+    userId,
+  })
   if (resolved.referenceId === organizationId) return
   logger.error('Team subscription resolved to an unexpected organization', {
     expectedOrganizationId: organizationId,

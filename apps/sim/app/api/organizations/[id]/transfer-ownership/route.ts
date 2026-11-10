@@ -149,6 +149,7 @@ export const POST = withRouteHandler(
         userId: session.user.id,
         organizationId,
         memberId: selfMember.id,
+        actor: { type: 'user', userId: session.user.id },
         actorUserId: session.user.id,
         spareSessionToken: session.session.token,
       })

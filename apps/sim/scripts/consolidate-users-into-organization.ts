@@ -83,6 +83,9 @@ const logger = createLogger('ConsolidateUsersIntoOrganization')
 /** Keeps `IN (...)` lists well under Postgres's 65535 bound-parameter ceiling. */
 const QUERY_CHUNK_SIZE = 1000
 
+/** An operator run with no signed-in user behind it. */
+const CONSOLIDATION_ACTOR = { type: 'system', name: 'Organization consolidation script' } as const
+
 interface Options {
   orgId?: string
   orgSlug?: string
@@ -457,6 +460,7 @@ async function main(): Promise<void> {
       ownerUserId: target.ownerUserId,
       name: target.name,
       slug: target.slug,
+      actor: CONSOLIDATION_ACTOR,
     })
     organizationId = created.organizationId
     console.log(`Created organization ${organizationId}`)
@@ -471,6 +475,7 @@ async function main(): Promise<void> {
         userId: candidate.id,
         organizationId,
         role: 'member',
+        actor: CONSOLIDATION_ACTOR,
         skipBillingLogic: !isBillingEnabled,
         skipSeatValidation: !isBillingEnabled,
       })
@@ -503,6 +508,7 @@ async function main(): Promise<void> {
           ownerUserId: ownerId,
           organizationId,
           externalMemberPolicy: 'keep-external',
+          actor: CONSOLIDATION_ACTOR,
         })
         workspacesAttached += result.attachedWorkspaceIds.length
       } catch (error) {

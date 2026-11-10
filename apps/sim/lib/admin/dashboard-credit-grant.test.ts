@@ -114,6 +114,23 @@ describe('grantDashboardOrganizationBalance', () => {
       expect.objectContaining({ resourceId: 'org-1', action: 'credit.issued' })
     )
   })
+
+  it('refuses a personal organization as a conflict without granting', async () => {
+    queueTableRows(organization, [
+      { id: 'org-1', kind: 'personal', creditBalance: '0', orgUsageLimit: null },
+    ])
+
+    await expect(
+      grantDashboardOrganizationBalance(
+        'org-1',
+        5,
+        undefined,
+        '0c1f8d7e-3c0b-4a4e-9d0f-7a6b2c1e5f40',
+        { id: 'admin-1', name: 'Admin', email: 'admin@sim.ai' }
+      )
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(dbChainMockFns.set).not.toHaveBeenCalled()
+  })
 })
 
 describe('grantDashboardUserBalance', () => {

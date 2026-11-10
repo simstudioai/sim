@@ -13,6 +13,7 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
+import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
 import { transferWorkspaceProjects } from '@/lib/projects/membership'
 import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
 import { getOrganizationOwnerId, WORKSPACE_MODE } from '@/lib/workspaces/policy'
@@ -54,10 +55,10 @@ export class WorkspaceOrganizationMembershipConflictError extends Error {
  * How to treat workspace collaborators that are not members of the target
  * organization when attaching workspaces:
  *   - `reject` (default): throw a conflict when any collaborator belongs to a
- *     *different* organization — used by manual org creation.
- *   - `keep-external`: collaborators in a *different* organization stay
- *     external workspace members and the attach proceeds; org-less
- *     collaborators are joined into the organization — used by the Pro→Team
+ *     *different* team organization — used by manual org creation.
+ *   - `keep-external`: collaborators in a *different* team organization stay
+ *     external workspace members and the attach proceeds; collaborators in no
+ *     organization at all are joined into it — used by the Pro→Team
  *     conversion, which must not abort just because a personal workspace
  *     already has an external collaborator.
  *   - `external-all`: nobody joins the organization as a side effect — every
@@ -65,6 +66,9 @@ export class WorkspaceOrganizationMembershipConflictError extends Error {
  *     member. Used when a joining member's owned workspaces follow them into
  *     the organization: membership (and its seat) only ever comes from an
  *     invitation the person accepted or an explicit admin action.
+ *
+ * Under every policy a collaborator holding their own personal organization stays
+ * an external workspace member.
  */
 type ExternalMemberPolicy = 'reject' | 'keep-external' | 'external-all'
 
@@ -125,6 +129,8 @@ async function lockWorkspaceRowsForPayerChanges(tx: DbOrTx, workspaceIds: string
 interface AttachOwnedWorkspacesToOrganizationParams {
   ownerUserId: string
   organizationId: string
+  /** Who triggered the attach, recorded when it joins a collaborator in no organization. */
+  actor: PersonalOrganizationAuditActor
   externalMemberPolicy?: ExternalMemberPolicy
   /**
    * Also attach archived workspaces. Join-attach sweeps them so unarchiving
@@ -138,6 +144,7 @@ export async function attachOwnedWorkspacesToOrganization({
   organizationId,
   externalMemberPolicy = 'reject',
   includeArchived = false,
+  actor,
 }: AttachOwnedWorkspacesToOrganizationParams): Promise<AttachOwnedWorkspacesToOrganizationResult> {
   const ownedWorkspaces = await db
     .select({ id: workspace.id })
@@ -168,6 +175,7 @@ export async function attachOwnedWorkspacesToOrganization({
       externalMemberPolicy,
       ownerMatch: 'owner',
       includeArchived,
+      actor,
     })
   })
 
@@ -224,6 +232,7 @@ export async function attachOwnedWorkspacesToOrganizationTx(
     externalMemberPolicy = 'keep-external',
     ownerMatch = 'billing-account',
     includeArchived = false,
+    actor,
   }: {
     ownerUserId: string
     organizationId: string
@@ -231,6 +240,7 @@ export async function attachOwnedWorkspacesToOrganizationTx(
     externalMemberPolicy?: ExternalMemberPolicy
     ownerMatch?: 'owner' | 'billing-account'
     includeArchived?: boolean
+    actor: PersonalOrganizationAuditActor
   }
 ): Promise<AttachOwnedWorkspacesToOrganizationTxResult> {
   if (workspaceIds.length === 0) {
@@ -315,13 +325,16 @@ export async function attachOwnedWorkspacesToOrganizationTx(
           .innerJoin(organization, eq(organization.id, member.organizationId))
           .where(inArray(member.userId, workspaceMemberIds))
       : []
-  /**
-   * A collaborator in their own personal organization counts as belonging to no organization, as
-   * they did before personal organizations: joining retires it, their own workspaces staying
-   * theirs and private.
-   */
   const membershipByUser = new Map(
     memberships.filter((row) => row.kind === 'team').map((row) => [row.userId, row.organizationId])
+  )
+  /**
+   * A collaborator in their own personal organization stays an external workspace member under
+   * every policy, never a conflict and never joined: joining would retire their personal
+   * organization (deleting its shared content, pausing their Pro) over someone else's upgrade.
+   */
+  const personalMemberIds = new Set(
+    memberships.filter((row) => row.kind === 'personal').map((row) => row.userId)
   )
   const differentOrgMembers = workspaceMemberIds.filter((userId) => {
     const currentOrganizationId = membershipByUser.get(userId)
@@ -341,14 +354,18 @@ export async function attachOwnedWorkspacesToOrganizationTx(
       reason: 'Already a member of another organization; kept as external workspace member',
     })
   )
-  if (externalMemberPolicy === 'external-all') {
-    for (const userId of workspaceMemberIds) {
-      if (membershipByUser.get(userId) === undefined) {
-        skippedMembers.push({
-          userId,
-          reason: 'Not an organization member; kept as external workspace member',
-        })
-      }
+  for (const userId of workspaceMemberIds) {
+    if (membershipByUser.has(userId)) continue
+    if (personalMemberIds.has(userId)) {
+      skippedMembers.push({
+        userId,
+        reason: 'Holds a personal organization; kept as external workspace member',
+      })
+    } else if (externalMemberPolicy === 'external-all') {
+      skippedMembers.push({
+        userId,
+        reason: 'Not an organization member; kept as external workspace member',
+      })
     }
   }
   const skippedUserIds = new Set(skippedMembers.map((row) => row.userId))
@@ -362,6 +379,7 @@ export async function attachOwnedWorkspacesToOrganizationTx(
       organizationId,
       role: userId === ownerMembership.userId ? 'owner' : 'member',
       skipSeatValidation: true,
+      actor,
     })
     if (!result.success) {
       throw new Error(result.error || 'Failed to sync workspace member into organization')

@@ -673,6 +673,7 @@ describe('owner-scoped indexed file search on PostgreSQL and stored bytes', () =
       .where(and(eq(member.organizationId, f.organizationId), eq(member.userId, f.readerId)))
     if (!creatorMembership) throw new Error('Creator membership missing')
     const removal = await removeUserFromOrganization({
+      actor: { type: 'system', name: 'Test' },
       userId: f.readerId,
       organizationId: f.organizationId,
       memberId: creatorMembership.id,

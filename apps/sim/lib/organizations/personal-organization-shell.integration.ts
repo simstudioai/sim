@@ -198,8 +198,8 @@ describe('the organization a workspace opens in', () => {
   it("opens a guest's view of someone's personal workspace in the guest's own organization", async () => {
     const ownerId = await createUser()
     const guestId = await createUser()
-    const ownerOrganizationId = await ensureUserOrganization(ownerId)
-    const guestOrganizationId = await ensureUserOrganization(guestId)
+    const ownerOrganizationId = await ensureUserOrganization(ownerId, { atSignup: false })
+    const guestOrganizationId = await ensureUserOrganization(guestId, { atSignup: false })
     const shared = await createWorkspace(ownerId, ownerOrganizationId)
     await grantWorkspace(guestId, shared)
 
@@ -211,11 +211,12 @@ describe('the organization a workspace opens in', () => {
     const teamOwnerId = await createUser()
     const externalId = await createUser()
     const { organizationId: teamId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: teamOwnerId,
       name: 'Team',
       slug: `team-${generateId()}`.toLowerCase(),
     })
-    const externalOrganizationId = await ensureUserOrganization(externalId)
+    const externalOrganizationId = await ensureUserOrganization(externalId, { atSignup: false })
     const teamWorkspace = await createWorkspace(teamOwnerId, teamId)
     await grantWorkspace(externalId, teamWorkspace)
 
@@ -226,7 +227,7 @@ describe('the organization a workspace opens in', () => {
   it('names no organization for a workspace the viewer cannot open', async () => {
     const ownerId = await createUser()
     const strangerId = await createUser()
-    const ownerOrganizationId = await ensureUserOrganization(ownerId)
+    const ownerOrganizationId = await ensureUserOrganization(ownerId, { atSignup: false })
     const privateWorkspace = await createWorkspace(ownerId, ownerOrganizationId)
 
     expect(await shellOrganization(privateWorkspace, strangerId)).toBeNull()
@@ -265,7 +266,7 @@ describe('on-demand personal organization provisioning', () => {
     const first = await createWorkspace(ownerId, null)
     const second = await createWorkspace(ownerId, null)
 
-    const organizationId = await ensureUserOrganization(ownerId)
+    const organizationId = await ensureUserOrganization(ownerId, { atSignup: false })
 
     expect(await membershipsOf(ownerId)).toEqual([
       { organizationId, role: 'owner', kind: 'personal' },
@@ -292,7 +293,10 @@ describe('on-demand personal organization provisioning', () => {
       firstWritten = resolve
     })
     const first = db.transaction(async (tx) => {
-      const organizationId = await createPersonalOrganizationTx(tx, ownerId)
+      const organizationId = await createPersonalOrganizationTx(tx, ownerId, {
+        type: 'user',
+        userId: ownerId,
+      })
       firstWritten()
       await firstHeld
       return organizationId
@@ -312,6 +316,7 @@ describe('on-demand personal organization provisioning', () => {
   it('leaves a team member in their team', async () => {
     const ownerId = await createUser()
     const { organizationId: teamId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: ownerId,
       name: 'Team',
       slug: `team-${generateId()}`.toLowerCase(),
@@ -328,8 +333,9 @@ describe('the organization surface a shell renders', () => {
   it('refuses an organization the viewer does not belong to', async () => {
     const viewerId = await createUser()
     const ownerId = await createUser()
-    await ensureUserOrganization(viewerId)
+    await ensureUserOrganization(viewerId, { atSignup: false })
     const { organizationId: othersId } = await createOrganizationWithOwner({
+      actor: { type: 'system', name: 'Test' },
       ownerUserId: ownerId,
       name: 'Others',
       slug: `others-${generateId()}`.toLowerCase(),
