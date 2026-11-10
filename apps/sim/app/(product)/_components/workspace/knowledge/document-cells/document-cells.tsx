@@ -4,6 +4,7 @@ import { OverflowText } from '@sim/emcn/overflow-text'
 import { StatusText } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
 import styles from '@/app/(product)/_components/workspace/knowledge/document-cells/document-cells.module.css'
+import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import {
   ALL_TAG_SLOTS,
   type DocumentData,
@@ -50,15 +51,14 @@ export function DocumentStatus({
   }
 }
 
-const viewerZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone
-
-/** The upload day, with the full date and time on hover. */
+/** The upload day, with the full date and time on hover, in the viewer's zone once hydrated. */
 export function UploadedDate({ instant }: { instant: string }) {
+  const timeZone = useViewerTimeZone()
   const time = new Date(instant).getTime()
   if (Number.isNaN(time)) return null
-  const day = formatCalendarDate(calendarDayFormatter(viewerZone())(time))
+  const day = formatCalendarDate(calendarDayFormatter(timeZone)(time))
   return (
-    <Tooltip label={formatTimestamp(time)}>
+    <Tooltip label={formatTimestamp(time, timeZone)}>
       <span className={styles.explained}>{day}</span>
     </Tooltip>
   )
