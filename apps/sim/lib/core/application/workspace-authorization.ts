@@ -54,6 +54,7 @@ export function capabilityGovernedPrincipalUserId(principal: Principal): string 
     case 'scim_connection':
     case 'slack_installation':
     case 'slack_app':
+    case 'admin_api_key':
       return null
     case 'resource_delegated':
     case 'organization_delegated':

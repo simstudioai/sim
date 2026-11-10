@@ -297,6 +297,8 @@ async function principalUserId(principal: Principal, workspaceId?: string): Prom
         'forbidden',
         'Directory provisioning credentials cannot create uploads'
       )
+    case 'admin_api_key':
+      throw new UploadSessionError('forbidden', 'The Admin API key cannot create uploads')
   }
 }
 

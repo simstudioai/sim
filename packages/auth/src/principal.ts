@@ -11,6 +11,22 @@ export type Principal =
   | ScimConnectionPrincipal
   | SlackInstallationPrincipal
   | SlackAppPrincipal
+  | AdminApiKeyPrincipal
+
+/**
+ * The deployment operator, authenticated by the shared `ADMIN_API_KEY` secret on `/api/v1/admin`.
+ *
+ * Its own kind rather than a `system` variant: every `system` principal is a workflow-execution
+ * identity bound to one workspace and workflow, persisted with the run and admitted by execution
+ * code, while this caller has neither a workspace nor a workflow and must never start or resume a
+ * run. It carries no fields because the key is one deployment-wide secret with no row, owner, or
+ * scope: whoever holds it acts for the operator across every organization and workspace, and no
+ * human subject stands behind it, so no user, billing owner, or creator is ever substituted for it.
+ * Operations admit it only by naming it, and audit records it under the `'admin-api'` actor.
+ */
+export interface AdminApiKeyPrincipal {
+  kind: 'admin_api_key'
+}
 
 /** Verified app-wide ingress authority; installation lookup grants no human access. */
 interface SlackAppPrincipal {
@@ -689,6 +705,7 @@ export type PrincipalActor =
       connectionId: string
       credentialId: string
     }
+  | AdminApiKeyPrincipal
 
 export interface PrincipalAttribution {
   actor: PrincipalActor
@@ -698,10 +715,12 @@ export interface PrincipalAttribution {
 /**
  * The audit actor for an authenticated operation.
  *
- * `actorId` is only populated when the principal represents a real user. A
- * workspace API key is deliberately actor-less in the audit table: its key and
- * workspace identity remain available in `actor`, while `actorName` keeps the
- * row readable without pretending the billing owner performed the action.
+ * `actorId` is only populated when the principal represents a real user, or
+ * with the Admin API's `'admin-api'` sentinel, which `recordAudit` stores as a
+ * null actor named "Admin API". A workspace API key is deliberately actor-less
+ * in the audit table: its key and workspace identity remain available in
+ * `actor`, while `actorName` keeps the row readable without pretending the
+ * billing owner performed the action.
  */
 export interface PrincipalAuditAttribution {
   actor: PrincipalActor
@@ -745,6 +764,7 @@ export function resolvePrincipalSubject(principal: Principal): PrincipalSubject 
     case 'scim_connection':
     case 'slack_installation':
     case 'slack_app':
+    case 'admin_api_key':
       return null
   }
 }
@@ -837,6 +857,8 @@ export function toPrincipalActor(principal: Principal): PrincipalActor {
         connectionId: principal.connectionId,
         credentialId: principal.credentialId,
       }
+    case 'admin_api_key':
+      return { kind: principal.kind }
   }
 }
 
@@ -888,6 +910,13 @@ export function resolvePrincipalAuditAttribution(principal: Principal): Principa
       return { actor, actorId: null, actorName: 'Slack Search' }
     case 'slack_app':
       return { actor, actorId: null, actorName: 'Slack app' }
+    /**
+     * The `'admin-api'` sentinel every Admin API audit row has always carried. `recordAudit`
+     * recognizes it, stores a null `actor_id`, and names the row "Admin API", so no actor name is
+     * supplied here.
+     */
+    case 'admin_api_key':
+      return { actor, actorId: 'admin-api' }
   }
 }
 
@@ -930,6 +959,7 @@ export function resolvePrincipalAttribution(
     case 'scim_connection':
     case 'slack_installation':
     case 'slack_app':
+    case 'admin_api_key':
       throw new PrincipalSubjectUserRequiredError(actor.kind)
   }
 }

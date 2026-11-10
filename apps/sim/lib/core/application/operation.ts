@@ -112,10 +112,20 @@ export function assertOperationOAuthPolicy(
  * workspace operation cannot name it even by accident — and SCIM declares its
  * own operation type in `ee/scim/lib/application/operations.ts`, the way
  * organization BYOK does.
+ *
+ * `admin_api_key` is excluded because the deployment operator holds no role in
+ * any workspace or organization: a workspace or organization operation cannot
+ * name it, and it reaches only the principal-scoped operations that list it
+ * through {@link defineOperation}.
  */
 export type PrincipalKind = Exclude<
   Principal['kind'],
-  'credential_group_enrollment' | 'system' | 'scim_connection' | 'slack_installation' | 'slack_app'
+  | 'credential_group_enrollment'
+  | 'system'
+  | 'scim_connection'
+  | 'slack_installation'
+  | 'slack_app'
+  | 'admin_api_key'
 >
 
 /**
@@ -124,20 +134,23 @@ export type PrincipalKind = Exclude<
  * `delegatedServices` policy and the workspace, audience, and expiry re-checks
  * that {@link defineWorkspaceOperation} exists to carry. Organization and resource
  * delegation likewise require their own domain authorization policies.
+ *
+ * `admin_api_key` is included: the Admin API's authority is deployment-wide,
+ * so which kinds may perform the operation is its whole policy.
  */
-export type UndelegatedPrincipalKind = Exclude<
-  PrincipalKind,
-  'delegated' | 'organization_delegated' | 'resource_delegated'
->
+export type UndelegatedPrincipalKind =
+  | Exclude<PrincipalKind, 'delegated' | 'organization_delegated' | 'resource_delegated'>
+  | 'admin_api_key'
 
 /**
  * An operation with no workspace scope and therefore no role, whose whole
  * authorization story is which kinds of principal may perform it.
  *
- * Rare by design — `/api/v2/meta` is the only one, because its resource *is*
- * the credential the caller has already proved it holds. It exists so such an
- * operation still declares its policy as data rather than leaving it implicit
- * in whichever surface happens to call it.
+ * `/api/v2/meta` is one, because its resource *is* the credential the caller
+ * has already proved it holds; an Admin API operation is another, because the
+ * admin key's authority spans the deployment. It exists so such an operation
+ * still declares its policy as data rather than leaving it implicit in
+ * whichever surface happens to call it.
  */
 export interface PrincipalScopedOperation<
   Id extends string = string,
@@ -187,6 +200,14 @@ export function defineOperation<
   }
   if (new Set(operation.principalKinds).size !== operation.principalKinds.length) {
     throw new Error(`Operation ${operation.id} declares duplicate principal kinds`)
+  }
+  /**
+   * The operator's key is not one more caller of a human-facing operation: sharing a use case
+   * would leave the body branching on who called it, which is the decision this policy owns.
+   */
+  const admittedKinds: readonly UndelegatedPrincipalKind[] = operation.principalKinds
+  if (admittedKinds.includes('admin_api_key') && admittedKinds.length > 1) {
+    throw new Error(`Operation ${operation.id} admits the Admin API key alongside other principals`)
   }
   assertOperationCapability(operation)
   assertOperationOAuthPolicy(operation)

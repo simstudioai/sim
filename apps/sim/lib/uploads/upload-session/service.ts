@@ -733,6 +733,8 @@ export function createUploadSessionAuthBinding(
       )
     case 'system':
       throw new UploadSessionError('forbidden', 'System principals cannot create uploads')
+    case 'admin_api_key':
+      throw new UploadSessionError('forbidden', 'The Admin API key cannot create uploads')
   }
 }
 
