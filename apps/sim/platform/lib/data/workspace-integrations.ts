@@ -1,17 +1,17 @@
 import 'server-only'
 import type { DehydratedState } from '@tanstack/react-query'
-import { listWorkspacesContract } from '@/lib/api/contracts/workspaces'
 import { listWorkspaceApps } from '@/lib/catalog/application/list-workspace-apps'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { canReadMemberIntegrations } from '@/lib/credential-groups/member-integrations-access'
 import { getWorkspaceCredentialUseCase } from '@/lib/credentials/application/crud'
 import { resolveIntegrationAccess } from '@/lib/integrations/access'
-import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/application/workspace-shell'
-import { listWorkspacesForViewer } from '@/lib/workspaces/list'
+import { readWorkspaceShellResolver } from '@/lib/workspaces/application/workspace-shell'
+import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
+import { listRecentWorkspaceIds, sortByVisitRecency } from '@/lib/workspaces/visits'
 import { readIntegrationLinks } from '@/platform/lib/data/integration-links'
 import { type PlatformOrganization, surfaceHref } from '@/platform/lib/data/organization-model'
 import { prefetchIntegrations } from '@/platform/lib/data/prefetch-integrations'
-import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
+import { requireSessionViewer } from '@/platform/lib/data/server-read'
 import type {
   WorkspaceApp,
   WorkspaceAppDetail,
@@ -33,35 +33,27 @@ interface IntegrationsWorkspace {
  * that open in this organization's shell. That is the organization's own, and any the viewer reaches
  * from outside it (organization-less ones, a guest's, an external collaborator's on another team's
  * workspace), which open in their landing organization, as `/workspace/<id>` URLs do. Most recently
- * visited first, as the workspace list orders them.
+ * visited first, as the workspace list orders them. It reads only the accessible rows and visit
+ * order, not the list's invite flags and creation policy, and the viewer's memberships once.
  */
 async function readIntegrationsWorkspaces(
   organizationId: string
 ): Promise<IntegrationsWorkspace[]> {
-  const { principal, activeOrganizationId } = await requireSessionViewer()
-  const { workspaces } = await asRouteResponse(
-    listWorkspacesContract,
-    await listWorkspacesForViewer({ userId: principal.userId, activeOrganizationId })
+  const { principal } = await requireSessionViewer()
+  const [rows, recentIds, shellOf] = await Promise.all([
+    listAccessibleWorkspaceRowsForUser(principal.userId, 'active'),
+    listRecentWorkspaceIds(principal.userId),
+    readWorkspaceShellResolver(principal.userId),
+  ])
+  return sortByVisitRecency(
+    rows.map(({ workspace }) => workspace),
+    recentIds
   )
-  // The shell depends only on the workspace's organization, so each one is resolved once.
-  const shells = new Map<string | null, Promise<string | null>>()
-  const shellOf = (workspaceOrganizationId: string | null) => {
-    let shell = shells.get(workspaceOrganizationId)
-    if (!shell) {
-      shell = resolveWorkspaceShellOrganizationId(workspaceOrganizationId, principal.userId)
-      shells.set(workspaceOrganizationId, shell)
-    }
-    return shell
-  }
-  const opensHere = await Promise.all(
-    workspaces.map(
-      async (workspace) =>
+    .filter(
+      (workspace) =>
         workspace.organizationId === organizationId ||
-        (await shellOf(workspace.organizationId)) === organizationId
+        shellOf(workspace.organizationId) === organizationId
     )
-  )
-  return workspaces
-    .filter((_, index) => opensHere[index])
     .map((workspace) => ({ id: workspace.id, name: workspace.name }))
 }
 
@@ -121,22 +113,22 @@ export async function resolveIntegrationsSection(
   searchParams: SearchParams
 ): Promise<IntegrationsSection> {
   const member = canReadMemberIntegrations(organization)
-  // Links name the index; a provider page reads only its own view state.
-  const links =
-    member && !section ? await readIntegrationLinks(organization, searchParams) : undefined
+  // Links name the index; a provider page reads only its own view state. The reads that do not
+  // depend on one another start together.
+  const [links, workspaces, state] = await Promise.all([
+    member && !section ? readIntegrationLinks(organization, searchParams) : undefined,
+    readIntegrationsWorkspaces(organization.organization.id),
+    member ? prefetchIntegrations(organization) : undefined,
+  ])
   if (links?.kind === 'invalid') return { kind: 'notFound' }
   if (links?.kind === 'redirect') return links
-  const workspaces = await readIntegrationsWorkspaces(organization.organization.id)
   const requested = Array.isArray(searchParams.workspace)
     ? searchParams.workspace[0]
     : searchParams.workspace
   const workspace =
     requested === undefined ? workspaces[0] : workspaces.find((item) => item.id === requested)
   if (requested !== undefined && !workspace) return { kind: 'notFound' }
-  const [apps, state] = await Promise.all([
-    workspace ? readWorkspaceApps(workspace.id) : [],
-    member ? prefetchIntegrations(organization) : undefined,
-  ])
+  const apps = workspace ? await readWorkspaceApps(workspace.id) : []
   // A legacy connected-credential link names only the credential: open it in its app's page.
   const legacyAccount = Array.isArray(searchParams.account)
     ? searchParams.account[0]

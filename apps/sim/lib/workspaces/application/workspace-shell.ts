@@ -1,3 +1,6 @@
+import { db } from '@sim/db'
+import { member } from '@sim/db/schema'
+import { asc, eq } from 'drizzle-orm'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -66,6 +69,27 @@ export async function resolveWorkspaceShellOrganizationId(
   if (workspaceOrganizationId && (await isOrganizationMember(workspaceOrganizationId, userId)))
     return workspaceOrganizationId
   return resolveOrganizationLanding(userId, null)
+}
+
+/**
+ * {@link resolveWorkspaceShellOrganizationId} for many workspaces of one viewer: their memberships
+ * are read once, oldest first as the landing organization picks, and each workspace's shell is then
+ * decided in memory. Authorizes nothing.
+ */
+export async function readWorkspaceShellResolver(
+  userId: string
+): Promise<(workspaceOrganizationId: string | null) => string | null> {
+  const rows = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, userId))
+    .orderBy(asc(member.createdAt))
+  const memberships = new Set(rows.map((row) => row.organizationId))
+  const landing = rows[0]?.organizationId ?? null
+  return (workspaceOrganizationId) =>
+    workspaceOrganizationId && memberships.has(workspaceOrganizationId)
+      ? workspaceOrganizationId
+      : landing
 }
 
 /** A refusal of {@link readWorkspaceShell}: the viewer cannot open the workspace, or it is gone. */
