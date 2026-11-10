@@ -79,6 +79,7 @@ import {
 } from '@/executor/utils/resolved-secret-trace-registry'
 import { prepareToolExecution, transformBlockTool } from '@/providers/utils'
 import { bitbucketGetPipelineStepLogTool } from '@/tools/bitbucket/get_pipeline_step_log'
+import { docusignGetEnvelopeTool } from '@/tools/docusign/get_envelope'
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import { fileGetContentTool } from '@/tools/file/get'
 import { fileFetchTool } from '@/tools/file/parser'
@@ -232,6 +233,7 @@ const mockRegistryTools: Record<string, any> = {
   stripe_search_subscriptions: stripeSearchSubscriptionsTool,
   slack_lists_items_list: slackListsItemsListTool,
   github_search_users_v2: searchUsersV2Tool,
+  docusign_get_envelope: docusignGetEnvelopeTool,
   jama_delete_item: jamaDeleteItemTool,
   jama_delete_relationship: jamaDeleteRelationshipTool,
   bitbucket_get_pipeline_step_log: bitbucketGetPipelineStepLogTool,
@@ -3576,6 +3578,43 @@ describe('Internal Route Trust', () => {
       Reflect.deleteProperty(tools, authorityToolId)
       Reflect.deleteProperty(tools, ordinaryToolId)
     }
+  })
+
+  it('gives a DocuSign operation the account base only from its credential', async () => {
+    const boundBase =
+      'https://na3.docusign.net/restapi/v2.1/accounts/99999999-0000-0000-0000-000000000001'
+    const callerBase = 'https://evil.example.com/restapi/v2.1/accounts/x'
+    const context = createToolExecutionContext({
+      userId: 'user-1',
+      workspaceId: 'workspace-456',
+      workflowId: 'workflow-1',
+      executionId: 'execution-1',
+    })
+
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'oauth-token',
+      credentialType: 'oauth',
+    })
+    await executeTool(
+      'docusign_get_envelope',
+      { credential: 'oauth-credential', envelopeId: 'env-1', instanceUrl: callerBase },
+      { executionContext: context }
+    )
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'jwt-token',
+      credentialType: 'service_account',
+      instanceUrl: boundBase,
+    })
+    await executeTool(
+      'docusign_get_envelope',
+      { credential: 'jwt-credential', envelopeId: 'env-1', instanceUrl: callerBase },
+      { executionContext: context }
+    )
+
+    const [oauthCall, jwtCall] = mockExecuteInternalToolOperation.mock.calls
+    expect(oauthCall?.[0].input).toMatchObject({ accessToken: 'oauth-token', envelopeId: 'env-1' })
+    expect(oauthCall?.[0].input.instanceUrl).toBeUndefined()
+    expect(jwtCall?.[0].input).toMatchObject({ accessToken: 'jwt-token', instanceUrl: boundBase })
   })
 
   it('accepts an authoritative QuickBooks realmId only from credential resolution', async () => {

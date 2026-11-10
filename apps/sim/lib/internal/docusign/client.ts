@@ -11,6 +11,14 @@ const MAX_DOCUSIGN_JSON_BYTES = 2 * 1024 * 1024
 export const MAX_DOCUSIGN_DOCUMENT_BYTES = 25 * 1024 * 1024
 const DOCUSIGN_FETCH_TIMEOUT_MS = 30_000
 
+/**
+ * The eSignature REST base a JWT Grant mint resolves (`https://{host}.docusign.net
+ * /restapi/v2.1/accounts/{accountId}`). Checked again here so a value that did
+ * not come from the minter is never sent the token.
+ */
+const DOCUSIGN_ACCOUNT_API_BASE_REGEX =
+  /^https:\/\/[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.docusign\.net\/restapi\/v2\.1\/accounts\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
+
 export type DocuSignJson = Record<string, unknown>
 
 function providerError(data: DocuSignJson, fallback: string): string {
@@ -60,7 +68,23 @@ export class DocuSignClient {
     private readonly apiBase: string
   ) {}
 
-  static async create(accessToken: string, signal?: AbortSignal): Promise<DocuSignClient> {
+  /**
+   * Binds a client to one account. A JWT Grant credential arrives with
+   * `accountApiBase` already resolved from its own environment at mint time; an
+   * OAuth token resolves the user's default account through `/oauth/userinfo`
+   * on the deployment's DocuSign host.
+   */
+  static async create(
+    accessToken: string,
+    signal?: AbortSignal,
+    accountApiBase?: string
+  ): Promise<DocuSignClient> {
+    if (accountApiBase) {
+      if (!DOCUSIGN_ACCOUNT_API_BASE_REGEX.test(accountApiBase)) {
+        throw new DocuSignOperationError('DocuSign credential account URL is invalid', 400)
+      }
+      return new DocuSignClient(accessToken, accountApiBase)
+    }
     const response = await fetchDocusign(
       getDocusignOAuthUrl('/oauth/userinfo'),
       { headers: { Authorization: `Bearer ${accessToken}` } },

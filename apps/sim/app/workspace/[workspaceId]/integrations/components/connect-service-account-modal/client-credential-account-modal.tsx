@@ -35,6 +35,8 @@ import {
 
 const logger = createLogger('ClientCredentialAccountModal')
 
+type FieldValues = Partial<Record<ClientCredentialAccountFieldId, string>>
+
 const FALLBACK_ERROR_MESSAGE = "We couldn't save this credential. Try again in a moment."
 
 /**
@@ -46,6 +48,7 @@ function messageForClientCredentialError(
   err: unknown,
   descriptor: ClientCredentialAccountDescriptor,
   requiredFields: ClientCredentialAccountField[],
+  values: FieldValues,
   fallbackMessage = FALLBACK_ERROR_MESSAGE
 ): string {
   if (isApiClientError(err) && err.code) {
@@ -66,6 +69,18 @@ function messageForClientCredentialError(
       }
       case 'provider_unavailable':
         return `We couldn't reach ${descriptor.serviceLabel} to verify these credentials. Try again in a moment.`
+      case 'consent_required': {
+        const redirectUri = window.location.origin
+        const consentUrl = descriptor.consentUrl?.(values, redirectUri)
+        return consentUrl
+          ? `${descriptor.serviceLabel} needs the impersonated user's consent first. Add ${redirectUri} as a redirect URI on the integration key, open this link signed in as that user, accept, then try again: ${consentUrl}`
+          : `${descriptor.serviceLabel} needs the impersonated user's consent first. See the setup guide.`
+      }
+      case 'account_not_found': {
+        const accountFieldLabel =
+          descriptor.fields.find((field) => field.id === 'orgId')?.label ?? 'account'
+        return `That user isn't a member of the ${accountFieldLabel} you entered. Check it, or leave it blank to use the user's default account.`
+      }
       case 'duplicate_display_name':
         return 'A credential with that name already exists in this workspace.'
       default:
@@ -74,8 +89,6 @@ function messageForClientCredentialError(
   }
   return fallbackMessage
 }
-
-type FieldValues = Partial<Record<ClientCredentialAccountFieldId, string>>
 
 function openDocs(url: string): void {
   window.open(url, '_blank', 'noopener,noreferrer')
@@ -242,6 +255,7 @@ function ClientCredentialAccountModalForm({
           err,
           descriptor,
           required,
+          values,
           onSubmitCredentials ? getErrorMessage(err, FALLBACK_ERROR_MESSAGE) : undefined
         )
       )

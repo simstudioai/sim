@@ -40,6 +40,7 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'claude-platform-service-account': ['claude-managed-agents'],
   'clickup-service-account': ['clickup'],
   'coda-service-account': ['coda'],
+  'docusign-service-account': ['docusign'],
   'fivetran-service-account': ['fivetran'],
   'bitbucket-service-account': ['bitbucket'],
   'github-app-installation': ['github'],

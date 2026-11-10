@@ -133,6 +133,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/deployments.mdx',
   'integrations/devin.mdx',
   'integrations/discord.mdx',
+  'integrations/docusign-service-account.mdx',
   'integrations/docusign.mdx',
   'integrations/downdetector.mdx',
   'integrations/dropbox.mdx',

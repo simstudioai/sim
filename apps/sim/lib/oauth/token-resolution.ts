@@ -472,6 +472,24 @@ export async function resolveCredentialToken(
               error: 'Credential rejected by the provider — reconnect the credential',
             }
           }
+          if (error.code === 'consent_required') {
+            return {
+              ok: false,
+              status: 401,
+              code: error.code,
+              error:
+                'The provider needs the impersonated user to grant consent — reconnect the credential to get the consent link',
+            }
+          }
+          if (error.code === 'account_not_found') {
+            return {
+              ok: false,
+              status: 400,
+              code: error.code,
+              error:
+                'The credential’s user is no longer a member of its pinned account — reconnect the credential',
+            }
+          }
         }
         return { ok: false, status: 401, error: 'Failed to get service account token' }
       }

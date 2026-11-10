@@ -1531,6 +1531,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         icon: DocuSignIcon,
         baseProviderIcon: DocuSignIcon,
         scopes: ['signature', 'extended'],
+        serviceAccountProviderId: 'docusign-service-account',
       },
     },
     defaultService: 'docusign',

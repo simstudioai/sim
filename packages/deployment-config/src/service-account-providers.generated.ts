@@ -37,6 +37,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   daytona: 'daytona-service-account',
   devin: 'devin-service-account',
   discord: 'discord-service-account',
+  docusign: 'docusign-service-account',
   dub: 'dub-service-account',
   dynatrace: 'dynatrace-service-account',
   elevenlabs: 'elevenlabs-service-account',

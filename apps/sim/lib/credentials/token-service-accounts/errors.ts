@@ -15,6 +15,10 @@ export type TokenServiceAccountValidationCode =
   | 'permission_conflict'
   | 'site_not_found'
   | 'provider_unavailable'
+  /** The provider requires a one-time user consent before it issues tokens (DocuSign JWT Grant). */
+  | 'consent_required'
+  /** The credential authenticated, but the account it pins is not one its user belongs to. */
+  | 'account_not_found'
 
 export class TokenServiceAccountValidationError extends Error {
   constructor(

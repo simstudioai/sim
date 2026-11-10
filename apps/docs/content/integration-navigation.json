@@ -38,6 +38,10 @@
       "integration": "databricks",
       "title": "Databricks connections"
     },
+    "docusign-service-account": {
+      "integration": "docusign",
+      "title": "JWT Grant"
+    },
     "google-service-account": {
       "title": "Google service accounts"
     },
