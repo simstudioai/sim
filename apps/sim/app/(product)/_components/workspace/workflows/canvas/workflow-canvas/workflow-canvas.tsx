@@ -36,7 +36,6 @@ import { useRouter } from 'next/navigation'
 import { useShallow } from 'zustand/react/shallow'
 import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
-import { OAuthConnectModal } from '@/app/(product)/_components/oauth-connect-modal/oauth-connect-modal'
 import { BlockMenu } from '@/app/(product)/_components/workspace/workflows/block-menu/block-menu'
 import {
   CONNECTION_BLOCK_SELECTOR_DIMENSIONS,
@@ -85,7 +84,6 @@ import {
   clampPositionToContainer,
   clearDragHighlights,
   computeClampedPositionUpdates,
-  consumeOAuthReturnContext,
   createLogger,
   DEFAULT_HORIZONTAL_SPACING,
   DEFAULT_VERTICAL_SPACING,
@@ -102,7 +100,6 @@ import {
   getNodeDataDimension,
   getNodeSelectionContextId,
   getNoteBlockHeight,
-  getProviderIdFromServiceId,
   getRunFromBlockDependencyState,
   getUniqueBlockName,
   getWorkflowLockToggleIds,
@@ -116,8 +113,6 @@ import {
   isWorkflowBlockProtected,
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
-  type OAuthConnectEventDetail,
-  type OAuthProvider,
   OPERATION_SUBBLOCK_ID,
   prepareBlockState,
   reconcileCanvasEdges,
@@ -154,7 +149,6 @@ import {
   useShiftSelectionLock,
   useSnapToGridSize,
   useSocket,
-  usesCredentialConfiguredOAuthClient,
   useUndoRedoStore,
   useUpdateWorkflow,
   useVariablesModalStore,
@@ -167,7 +161,6 @@ import {
   useWorkspacePermissionsContext,
   validateTriggerPaste,
   WORKFLOW_TARGET_HANDLE_ID,
-  writeOAuthReturnContext,
 } from '@/platform/lib/data/workflows'
 import { platformHref } from '@/platform/lib/navigation'
 
@@ -340,16 +333,6 @@ const WorkflowContent = memo(function WorkflowContent({
   const canvasMode = useCanvasModeStore((state) => state.mode)
   const isHandMode = isMobile ? true : canvasMode === 'hand'
   const { handleCanvasMouseDown, selectionProps } = useShiftSelectionLock({ isHandMode })
-  const [oauthModal, setOauthModal] = useState<{
-    provider: OAuthProvider
-    serviceId: string
-    providerName: string
-    requiredScopes: string[]
-    newScopes?: string[]
-  } | null>(null)
-  const oauthModalRequiresDraft = oauthModal
-    ? usesCredentialConfiguredOAuthClient(oauthModal.provider)
-    : false
 
   const router = useRouter()
   const invokeGlobalCommand = useInvokeGlobalCommand()
@@ -549,39 +532,6 @@ const WorkflowContent = memo(function WorkflowContent({
   )
 
   const isWorkflowEmpty = !hasBlocks
-
-  /** Handles OAuth connect events dispatched by Copilot tools. */
-  useEffect(() => {
-    const handleOpenOAuthConnect = (event: Event) => {
-      const detail = (event as CustomEvent<OAuthConnectEventDetail>).detail
-      if (!detail) return
-
-      if (!usesCredentialConfiguredOAuthClient(detail.providerId)) {
-        writeOAuthReturnContext({
-          origin: 'workflow',
-          workflowId: workflowIdParam,
-          displayName: detail.providerName,
-          providerId: detail.providerId,
-          preCount: 0,
-          workspaceId,
-          reconnect: true,
-          requestedAt: Date.now(),
-        })
-      }
-
-      setOauthModal({
-        provider: detail.providerId as OAuthProvider,
-        serviceId: detail.serviceId,
-        providerName: detail.providerName,
-        requiredScopes: detail.requiredScopes || [],
-        newScopes: detail.newScopes || [],
-      })
-    }
-
-    window.addEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
-    return () =>
-      window.removeEventListener('open-oauth-connect', handleOpenOAuthConnect as EventListener)
-  }, [workflowIdParam, workspaceId])
 
   /** Stores source node/handle info when a connection drag starts for drop-on-block detection. */
   const connectionSourceRef = useRef<{
@@ -2381,26 +2331,6 @@ const WorkflowContent = memo(function WorkflowContent({
       )
   }, [screenToFlowPosition, handleToolbarDrop])
 
-  /** Displays trigger warning notifications. */
-  useEffect(() => {
-    const handleShowTriggerWarning = (event: CustomEvent) => {
-      const { type, triggerName } = event.detail
-      const message =
-        type === 'trigger_in_subflow'
-          ? 'Triggers cannot be placed inside loop or parallel subflows.'
-          : type === 'legacy_incompatibility'
-            ? 'Cannot add new trigger blocks when a legacy Start block exists. Available in newer workflows.'
-            : `A workflow can only have one ${triggerName || 'trigger'} trigger block. Please remove the existing one before adding a new one.`
-      toast.error(message)
-    }
-
-    window.addEventListener('show-trigger-warning', handleShowTriggerWarning as EventListener)
-
-    return () => {
-      window.removeEventListener('show-trigger-warning', handleShowTriggerWarning as EventListener)
-    }
-  }, [])
-
   /** Handles drop events on the ReactFlow canvas. */
   const onDrop = useCallback(
     (event: DragEvent) => {
@@ -2882,16 +2812,6 @@ const WorkflowContent = memo(function WorkflowContent({
     return () =>
       window.removeEventListener('remove-from-subflow', handleRemoveFromSubflow as EventListener)
   }, [blocks, edgesForDisplay, getNodeAbsolutePosition, collaborativeBatchUpdateParent])
-
-  useEffect(() => {
-    const handleToggleWorkflowLock = (e: CustomEvent<{ blockIds: string[] }>) => {
-      collaborativeBatchToggleLocked(e.detail.blockIds)
-    }
-
-    window.addEventListener('toggle-workflow-lock', handleToggleWorkflowLock as EventListener)
-    return () =>
-      window.removeEventListener('toggle-workflow-lock', handleToggleWorkflowLock as EventListener)
-  }, [collaborativeBatchToggleLocked])
 
   /**
    * Updates container dimensions in displayNodes during drag or keyboard movement.
@@ -4614,7 +4534,7 @@ const WorkflowContent = memo(function WorkflowContent({
           isInsideLoop: Boolean(parentLoopId),
           parentLoopId,
           sourceHandle: edge.sourceHandle,
-          onDelete: handleEdgeDelete,
+          onDelete: effectivePermissions.canEdit ? handleEdgeDelete : undefined,
           ...(targetContainerZIndex !== undefined ? { labelZIndex: zIndex } : {}),
         },
       }
@@ -4635,6 +4555,7 @@ const WorkflowContent = memo(function WorkflowContent({
     selectedNodeIds,
     selectedEdges,
     handleEdgeDelete,
+    effectivePermissions.canEdit,
     editorOpenBlockId,
     panelActiveTab,
   ])
@@ -4685,6 +4606,10 @@ const WorkflowContent = memo(function WorkflowContent({
         return
       }
 
+      if (!effectivePermissions.canEdit) {
+        return
+      }
+
       // Handle edge deletion first (edges take priority if selected)
       if (selectedEdges.size > 0) {
         const edgeIds = Array.from(selectedEdges.values()).filter((edgeId) => {
@@ -4696,10 +4621,6 @@ const WorkflowContent = memo(function WorkflowContent({
           collaborativeBatchRemoveEdges(edgeIds)
         }
         setSelectedEdges(new Map())
-        return
-      }
-
-      if (!effectivePermissions.canEdit) {
         return
       }
 
@@ -4930,46 +4851,6 @@ const WorkflowContent = memo(function WorkflowContent({
 
         {isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && <CommandList />}
       </div>
-
-      {oauthModal && oauthModalRequiresDraft && (
-        <OAuthConnectModal
-          mode='connect'
-          open
-          onOpenChange={(open) => {
-            if (!open) {
-              setOauthModal(null)
-            }
-          }}
-          provider={oauthModal.provider}
-          providerId={oauthModal.provider}
-          serviceId={oauthModal.serviceId}
-          requiredScopes={oauthModal.requiredScopes}
-          scope={{ kind: 'workspace', workspaceId }}
-          returnTo={{ origin: 'workflow', workflowId: workflowIdParam }}
-          requireDataverseEnvironment={false}
-        />
-      )}
-
-      {oauthModal && !oauthModalRequiresDraft && (
-        <OAuthConnectModal
-          mode='reauthorize'
-          open
-          onOpenChange={(open) => {
-            if (!open) {
-              consumeOAuthReturnContext()
-              setOauthModal(null)
-            }
-          }}
-          provider={oauthModal.provider}
-          providerId={getProviderIdFromServiceId(oauthModal.serviceId)}
-          toolName={oauthModal.providerName}
-          serviceId={oauthModal.serviceId}
-          requiredScopes={oauthModal.requiredScopes}
-          newScopes={oauthModal.newScopes}
-          scope={{ kind: 'workspace', workspaceId }}
-          requireDataverseEnvironment={false}
-        />
-      )}
     </div>
   )
 })

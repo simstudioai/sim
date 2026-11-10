@@ -31,10 +31,6 @@ import { getActiveWorkflowSearchHighlight } from '@/app/(product)/workspace/[wor
 import type { WandControlHandlers } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/sub-block/wand-control'
 import { TagDropdown } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/tag-dropdown/tag-dropdown'
 import {
-  WandButton,
-  WandPromptBar,
-} from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/wand-prompt-bar/wand-prompt-bar'
-import {
   CodeLanguage,
   checkTagTrigger,
   createShouldHighlightEnvVar,
@@ -84,18 +80,6 @@ function placeCaret(textarea: HTMLTextAreaElement | null, position: number) {
   })
 }
 
-function promptPlaceholderFor(generationType: GenerationType): string {
-  switch (generationType) {
-    case 'json-schema':
-      return 'Describe the JSON schema to generate…'
-    case 'json-object':
-    case 'table-schema':
-      return 'Describe the JSON object to generate…'
-    default:
-      return 'Describe the JavaScript code to generate…'
-  }
-}
-
 /** The AI prompt a code field runs: its own, or the Function block's for Python and Shell. */
 interface CodeWandConfig {
   enabled: boolean
@@ -112,8 +96,6 @@ interface CodeProps {
   /** Conceal the value except while the editor is focused. */
   password?: boolean
   language?: CodeFieldLanguage
-  /** Picks the AI prompt's placeholder. */
-  generationType?: GenerationType
   /** A value the block computes from its other fields; the field shows it instead of its own. */
   value?: string
   isPreview?: boolean
@@ -131,8 +113,6 @@ interface CodeProps {
   onValidationChange?: (isValid: boolean) => void
   wandConfig: CodeWandConfig
   wandControlRef?: MutableRefObject<WandControlHandlers | null>
-  /** The sub-block's label row owns the AI prompt, so the field shows none of its own. */
-  hideInternalWand?: boolean
 }
 
 /**
@@ -148,7 +128,6 @@ export const Code = memo(function Code({
   placeholder = 'Write JavaScript…',
   password = false,
   language = 'javascript',
-  generationType = 'javascript-function-body',
   value: propValue,
   isPreview = false,
   previewValue,
@@ -159,7 +138,6 @@ export const Code = memo(function Code({
   onValidationChange,
   wandConfig,
   wandControlRef,
-  hideInternalWand = false,
 }: CodeProps) {
   const activeSearchTarget = useActiveSearchTarget()
   const { workspaceId } = useWorkflowScope()
@@ -431,25 +409,11 @@ export const Code = memo(function Code({
   const label =
     (blockType && getBlock(blockType)?.subBlocks.find((sub) => sub.id === subBlockId)?.title) ||
     'Code'
-  const showWandButton =
-    wandConfig.enabled && !isStreaming && !isPreview && !readOnly && !hideInternalWand
   const pickersAllowed = !isStreaming && !readOnly
   const acceptsDrop = !isPreview && !readOnly && !disabled
 
   return (
     <div className={styles.code}>
-      {!hideInternalWand && (
-        <WandPromptBar
-          isVisible={wand.isPromptVisible}
-          isLoading={wand.isLoading}
-          isStreaming={isStreaming}
-          promptValue={wand.promptInputValue}
-          onSubmit={(prompt) => wand.generateStream({ prompt })}
-          onCancel={isStreaming ? wand.cancelGeneration : wand.hidePromptInline}
-          onChange={wand.updatePromptValue}
-          placeholder={dynamicWandConfig.placeholder || promptPlaceholderFor(generationType)}
-        />
-      )}
       <CodeField
         value={code}
         onValueChange={handleValueChange}
@@ -465,18 +429,8 @@ export const Code = memo(function Code({
         onBlur={handleBlur}
         onDrop={acceptsDrop ? handleDrop : undefined}
         actions={
-          (showCopyButton && code) || showWandButton ? (
-            <>
-              {showCopyButton && code && (
-                <CopyButton label='Copy code' text={code} size='compact' />
-              )}
-              {showWandButton && (
-                <WandButton
-                  onClick={wand.isPromptVisible ? wand.hidePromptInline : wand.showPromptInline}
-                  disabled={wand.isLoading || isStreaming}
-                />
-              )}
-            </>
+          showCopyButton && code ? (
+            <CopyButton label='Copy code' text={code} size='compact' />
           ) : undefined
         }
       >

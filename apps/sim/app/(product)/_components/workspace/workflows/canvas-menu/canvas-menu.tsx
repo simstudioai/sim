@@ -20,18 +20,13 @@ interface CanvasMenuProps {
   onOpenLogs: () => void
   onOpenSearchReplace: () => void
   onToggleVariables: () => void
-  /** Accepted so the legacy call site compiles; the floating chat is gone, so no row uses it. */
-  onToggleChat?: () => void
   onToggleWorkflowLock?: () => void
   isVariablesOpen?: boolean
-  /** Accepted so the legacy call site compiles; the floating chat is gone, so no row uses it. */
-  isChatOpen?: boolean
   hasClipboard?: boolean
   disableEdit?: boolean
   canAdmin?: boolean
   canUndo?: boolean
   canRedo?: boolean
-  isInvitationsDisabled?: boolean
   /** Whether the workflow has locked blocks (disables auto-layout) */
   hasLockedBlocks?: boolean
   /** Whether all blocks in the workflow are locked */

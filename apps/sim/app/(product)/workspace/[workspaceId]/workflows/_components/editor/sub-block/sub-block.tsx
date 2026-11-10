@@ -226,7 +226,6 @@ function SubBlockComponent({
             previewValue={previewValue as string | null | undefined}
             disabled={isDisabled}
             wandControlRef={wandControlRef}
-            hideInternalWand
           />
         )
       case 'long-input':
@@ -242,7 +241,6 @@ function SubBlockComponent({
             previewValue={previewValue as string | null | undefined}
             disabled={isDisabled}
             wandControlRef={wandControlRef}
-            hideInternalWand
           />
         )
       case 'dropdown':
@@ -328,7 +326,6 @@ function SubBlockComponent({
             placeholder={config.placeholder}
             password={config.password}
             language={config.language}
-            generationType={config.generationType}
             value={
               typeof config.value === 'function' ? config.value(subBlockValues || {}) : undefined
             }
@@ -343,7 +340,6 @@ function SubBlockComponent({
             onValidationChange={setIsValidJson}
             wandConfig={config.wandConfig || { enabled: false, prompt: '', placeholder: '' }}
             wandControlRef={wandControlRef}
-            hideInternalWand
           />
         )
       case 'switch':

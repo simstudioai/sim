@@ -90,8 +90,6 @@ const LOADING_COPY_OWNERS: ReasonedAllowlist = {
     "Predates the Waiting synonym: a workflow cell's run status while it waits on upstream columns",
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/_components/generate-prompt/generate-prompt.tsx`]:
     'Predates the Generating synonym: the prompt field shows its streaming generation, not a read',
-  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/editor/wand-prompt-bar/wand-prompt-bar.tsx`]:
-    'Predates the Generating synonym: the wand prompt shows its streaming generation, not a read',
 }
 
 /** Frames that size a composer docked between surfaces, where foundation tokens do not reach. */
@@ -650,7 +648,6 @@ const seamHelpers: ReasonedAllowlist = {
       'lib/credentials/display-name',
       'lib/mcp/shared',
       'lib/mothership/events',
-      'lib/mothership/tools/client/base-tool',
       'lib/oauth',
       'lib/permission-groups/operation-access',
       'lib/workflows/autolayout/constants',
