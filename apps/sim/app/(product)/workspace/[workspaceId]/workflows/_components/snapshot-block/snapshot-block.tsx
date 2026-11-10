@@ -14,10 +14,10 @@ import { Disclosure } from '@sim/emcn/disclosure'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
 import { SelectField, TextAreaField, TextField } from '@sim/emcn/field'
-import { FindBar } from '@sim/emcn/find-bar'
 import { type MenuAction, PointActionMenu } from '@sim/emcn/menu/action-menu'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { ReactFlowProvider } from '@xyflow/react'
+import { FindBar } from '@/components/find-bar/find-bar'
 import {
   type MetadataField,
   MetadataFields,

@@ -2,12 +2,12 @@
 
 import { memo, type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
-import { FindBar } from '@sim/emcn/find-bar'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { InlineNotice } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
 import { PageColumn, PageOverflow } from '@sim/emcn-platform/page-column'
+import { FindBar } from '@/components/find-bar/find-bar'
 import styles from '@/app/(product)/_components/chat/conversation/conversation.module.css'
 import { useChatFind } from '@/app/(product)/_components/chat/find/use-chat-find'
 import { ResponseMessage } from '@/app/(product)/_components/chat/message/response-message'

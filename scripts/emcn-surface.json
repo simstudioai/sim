@@ -1173,24 +1173,6 @@
           }
         }
       },
-      "./find-bar": {
-        "names": ["FindBar"],
-        "props": {
-          "FindBar": {
-            "canStep": ["false", "true"],
-            "inputRef": null,
-            "label": null,
-            "onClose": null,
-            "onCommit": null,
-            "onQueryChange": null,
-            "onStep": null,
-            "pending": ["false", "true"],
-            "query": null,
-            "replace": null,
-            "results": null
-          }
-        }
-      },
       "./fonts/OFL.txt": "asset",
       "./fonts/geist-mono.woff2": "asset",
       "./fonts/geist.woff2": "asset",
@@ -2022,25 +2004,6 @@
         }
       },
       "./menu/popup.shared.module.css": "asset",
-      "./menu/suggestions": {
-        "names": ["ComposerSuggestions"],
-        "props": {
-          "ComposerSuggestions": {
-            "active": null,
-            "anchor": null,
-            "empty": null,
-            "grouped": ["false", "true"],
-            "id": null,
-            "input": null,
-            "items": null,
-            "label": null,
-            "onDismiss": null,
-            "onHighlight": null,
-            "onSelect": null,
-            "side": ["bottom", "top"]
-          }
-        }
-      },
       "./menu/use-popover-container": {
         "names": ["usePopoverContainer"],
         "props": {}
@@ -2835,7 +2798,6 @@
         "items",
         "viewport"
       ],
-      "src/components/find-bar/find-bar.module.css": ["bar", "field", "indent", "row", "tally"],
       "src/components/icon/icon.module.css": ["icon"],
       "src/components/menu/menu.module.css": [
         "contextTrigger",
@@ -2858,7 +2820,6 @@
         "positioner",
         "separator"
       ],
-      "src/components/menu/suggestions.module.css": ["detail", "empty", "popup"],
       "src/components/modal/modal.module.css": [
         "error",
         "footerEnd",
@@ -3023,6 +2984,25 @@
             "caretAnchorRef": null,
             "marks": null,
             "text": null
+          }
+        }
+      },
+      "./composer-input/suggestions": {
+        "names": ["ComposerSuggestions"],
+        "props": {
+          "ComposerSuggestions": {
+            "active": null,
+            "anchor": null,
+            "empty": null,
+            "grouped": ["false", "true"],
+            "id": null,
+            "input": null,
+            "items": null,
+            "label": null,
+            "onDismiss": null,
+            "onHighlight": null,
+            "onSelect": null,
+            "side": ["bottom", "top"]
           }
         }
       },
@@ -3681,6 +3661,7 @@
         "trigger",
         "viewport"
       ],
+      "src/components/composer-input/suggestions.module.css": ["detail", "empty", "popup"],
       "src/components/connection-prompt/connection-prompt.module.css": ["prompt", "providers"],
       "src/components/destination-tabs/destination-tabs.module.css": ["destinations"],
       "src/components/execution-steps/execution-steps.module.css": [

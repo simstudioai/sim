@@ -3,10 +3,10 @@
 import { useRef, useState } from 'react'
 import { Button, IconButton } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { FindBar } from '@sim/emcn/find-bar'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
+import { FindBar } from '@/components/find-bar/find-bar'
 import { AddressBar } from '@/app/(product)/_components/chat/panel/browser-session/address-bar'
 import styles from '@/app/(product)/_components/chat/panel/browser-session/browser-session.module.css'
 import {

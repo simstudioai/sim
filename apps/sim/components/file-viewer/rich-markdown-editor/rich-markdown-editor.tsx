@@ -12,7 +12,6 @@ import {
   useState,
 } from 'react'
 import { Button } from '@sim/emcn/button'
-import { FindBar } from '@sim/emcn/find-bar'
 import { InlineNotice } from '@sim/emcn/status'
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { PASTE_LIMITS, PASTE_RENDER_THRESHOLDS, utf8ByteLength } from '@sim/utils/paste'
@@ -81,6 +80,7 @@ import type { FileEditingProps } from '@/components/file-viewer/types'
 import { isUntitledName } from '@/components/file-viewer/untitled-title'
 import { useEditableFileContent } from '@/components/file-viewer/use-editable-file-content'
 import { useSelectionCopyBridge } from '@/components/file-viewer/use-selection-copy-bridge'
+import { FindBar } from '@/components/find-bar/find-bar'
 import {
   buildFileSelectionLabel,
   truncateSelectionText,
