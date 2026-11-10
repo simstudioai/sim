@@ -1,8 +1,12 @@
-import type {
-  DelegatedPrincipal,
-  OrganizationDelegatedPrincipal,
-  Principal,
+import {
+  type DelegatedPrincipal,
+  type OrganizationDelegatedPrincipal,
+  type Principal,
+  resolvePrincipalSubjectUserId,
 } from '@sim/auth/principal'
+import { db } from '@sim/db'
+import { copilotChats } from '@sim/db/schema'
+import { and, eq } from 'drizzle-orm'
 import {
   type AuthorizingUseCase,
   DelegatedServiceAuthorizationError,
@@ -108,6 +112,37 @@ function requireRunControlCaller(principal: Principal, input: RunControlRequest)
 }
 
 /**
+ * Whether a run outlived the scope its chat had when it was admitted: an organization chat moved to
+ * its owner's workspace on a team join, or back on a rollback. The worker's delegation still names
+ * the scope the run was admitted under, which the live read now refuses as a caller error the
+ * worker can only retry. Only a run of this delegation's own (same owner, chat and recorded scope)
+ * qualifies, and the answer is only Stop, which a chat that changed scope gives its runs anyway.
+ */
+async function runOutlivedChatScope(principal: Principal, input: RunControlRequest) {
+  if (principal.kind !== 'delegated' && principal.kind !== 'organization_delegated') return false
+  // An expired delegation says nothing about the run, whatever its chat's scope.
+  if (principal.expiresAt.getTime() <= Date.now()) return false
+  const userId = resolvePrincipalSubjectUserId(principal)
+  if (!userId) return false
+  const run = await getLatestRunForStream(input.streamId, userId)
+  if (!run || run.chatId !== input.chatId) return false
+  const admittedUnderDelegation =
+    principal.kind === 'organization_delegated'
+      ? run.organizationId === principal.organizationId
+      : run.workspaceId === principal.workspaceId
+  if (!admittedUnderDelegation) return false
+  const [chat] = await db
+    .select({ workspaceId: copilotChats.workspaceId, organizationId: copilotChats.organizationId })
+    .from(copilotChats)
+    .where(and(eq(copilotChats.id, input.chatId), eq(copilotChats.userId, userId)))
+  return Boolean(
+    chat &&
+      ((chat.workspaceId ?? null) !== (run.workspaceId ?? null) ||
+        (chat.organizationId ?? null) !== (run.organizationId ?? null))
+  )
+}
+
+/**
  * Whether the worker's run may continue. Sim is the authority, so a run whose chat was
  * deleted, whose owner or workspace is gone, or whose owner lost access answers Stop rather
  * than an error the worker can only retry: a deletion stops its runs even when no push
@@ -131,6 +166,12 @@ export const readRunControl: AuthorizingUseCase<
       if (
         (refusal?.code === 'not_found' || refusal?.code === 'forbidden') &&
         !isCallerRefusal(refusal)
+      )
+        return { stopped: true }
+      if (
+        refusal &&
+        isCallerRefusal(refusal) &&
+        (await runOutlivedChatScope(args.principal, args.input))
       )
         return { stopped: true }
       throw error

@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { contractUrl, requestJson } from '@/lib/api/client/request'
 import {
   type BulkChunkOperationData,
@@ -256,12 +256,19 @@ export function useKnowledgeBaseQuery(knowledgeBaseId?: string) {
   })
 }
 
+/** One document's read, for a caller that checks several documents at once. */
+export function documentQueryOptions(knowledgeBaseId: string, documentId: string) {
+  return queryOptions({
+    queryKey: knowledgeKeys.document(knowledgeBaseId, documentId),
+    queryFn: ({ signal }) => fetchDocument(knowledgeBaseId, documentId, signal),
+    staleTime: KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME,
+  })
+}
+
 export function useDocumentQuery(knowledgeBaseId?: string, documentId?: string) {
   return useQuery({
-    queryKey: knowledgeKeys.document(knowledgeBaseId ?? '', documentId ?? ''),
-    queryFn: ({ signal }) => fetchDocument(knowledgeBaseId as string, documentId as string, signal),
+    ...documentQueryOptions(knowledgeBaseId ?? '', documentId ?? ''),
     enabled: Boolean(knowledgeBaseId && documentId),
-    staleTime: KNOWLEDGE_DOCUMENT_DETAIL_STALE_TIME,
   })
 }
 

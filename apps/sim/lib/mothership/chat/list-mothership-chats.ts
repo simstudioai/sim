@@ -7,47 +7,61 @@ import { conversationModeSelection } from '@/lib/mothership/chat/intent'
 import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-liveness'
 
 /**
- * The viewer's workspace chats on workspaces they can still open (an explicit grant, or admin of
- * the workspace's organization), wherever those workspaces sit.
+ * A workspace the viewer can still open: active, with an explicit grant or under an organization
+ * they administer, wherever it sits. The organization's chat list and its live updates share it.
  */
+function openableWorkspace(userId: string): SQL | undefined {
+  return and(
+    isNull(workspace.archivedAt),
+    or(
+      exists(
+        db
+          .select({ id: permissions.id })
+          .from(permissions)
+          .where(
+            and(
+              eq(permissions.userId, userId),
+              eq(permissions.entityType, 'workspace'),
+              eq(permissions.entityId, workspace.id)
+            )
+          )
+      ),
+      exists(
+        db
+          .select({ id: member.id })
+          .from(member)
+          .where(
+            and(
+              eq(member.userId, userId),
+              eq(member.organizationId, workspace.organizationId),
+              inArray(member.role, ['owner', 'admin'])
+            )
+          )
+      )
+    )
+  )
+}
+
+/** The viewer's workspace chats on workspaces they can still open. */
 function openableWorkspaceChat(userId: string): SQL {
   return exists(
     db
       .select({ id: workspace.id })
       .from(workspace)
-      .where(
-        and(
-          eq(workspace.id, copilotChats.workspaceId),
-          isNull(workspace.archivedAt),
-          or(
-            exists(
-              db
-                .select({ id: permissions.id })
-                .from(permissions)
-                .where(
-                  and(
-                    eq(permissions.userId, userId),
-                    eq(permissions.entityType, 'workspace'),
-                    eq(permissions.entityId, workspace.id)
-                  )
-                )
-            ),
-            exists(
-              db
-                .select({ id: member.id })
-                .from(member)
-                .where(
-                  and(
-                    eq(member.userId, userId),
-                    eq(member.organizationId, workspace.organizationId),
-                    inArray(member.role, ['owner', 'admin'])
-                  )
-                )
-            )
-          )
-        )
-      )
+      .where(and(eq(workspace.id, copilotChats.workspaceId), openableWorkspace(userId)))
   )
+}
+
+/**
+ * The workspaces whose chats an organization's list holds for the viewer, so its live updates
+ * carry those chats too and nothing else.
+ */
+export async function listOpenableChatWorkspaceIds(userId: string): Promise<Set<string>> {
+  const rows = await db
+    .select({ id: workspace.id })
+    .from(workspace)
+    .where(openableWorkspace(userId))
+  return new Set(rows.map((row) => row.id))
 }
 
 /**

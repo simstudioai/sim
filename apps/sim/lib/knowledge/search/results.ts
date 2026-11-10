@@ -1,7 +1,7 @@
 import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowledge'
 import type { ResourceScope } from '@/lib/core/resource-scope'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
+import { knowledgeDocumentUrl } from '@/lib/knowledge/search/source-url'
 import { isHttpUrl, type SourceTagData } from '@/lib/mothership/chat/special-tags'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 
@@ -37,9 +37,7 @@ export function toSource(
   return {
     url: isHttpUrl(result.sourceUrl)
       ? result.sourceUrl
-      : scope.kind === 'workspace'
-        ? `${getBaseUrl()}/workspace/${encodeURIComponent(scope.workspaceId)}/knowledge/${encodeURIComponent(result.knowledgeBaseId)}/${encodeURIComponent(result.documentId)}`
-        : undefined,
+      : knowledgeDocumentUrl(scope, result.knowledgeBaseId, result.documentId),
     title: result.documentName ?? undefined,
     siteName: result.connectorType
       ? connectorDisplayName(result.connectorType)

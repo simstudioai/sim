@@ -11,6 +11,7 @@ import { RecentItems } from '@sim/emcn-platform/recent-items'
 import { LiveChat } from '@/app/(product)/_components/chat/live/live-chat'
 import { SearchResults } from '@/app/(product)/_components/search/search-results'
 import styles from '@/app/(product)/o/[organizationId]/search/_components/search-surface/search-surface.module.css'
+import type { OpenedChat } from '@/platform/lib/data/chat'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSearchField, useSearchSurface } from '@/platform/lib/data/search'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
@@ -67,11 +68,12 @@ function SearchField({ query, searching, onSubmit, onStop, newSearch }: SearchFi
 }
 
 interface SearchSurfaceProps {
-  chatId?: string
+  /** The Assistant chat its route's gate opened; absent on Search and a new conversation. */
+  chat?: OpenedChat
 }
 
-export function SearchSurface({ chatId }: SearchSurfaceProps) {
-  const surface = useSearchSurface(chatId)
+export function SearchSurface({ chat }: SearchSurfaceProps) {
+  const surface = useSearchSurface(chat?.id)
   const scope = useSurfaceScope()
   const { mode, query, assistantAvailable, history } = surface
   const newAction = surface.canStartNew
@@ -95,7 +97,7 @@ export function SearchSurface({ chatId }: SearchSurfaceProps) {
         <div className={styles.assistant} hidden={mode !== 'assistant'}>
           <LiveChat
             key={surface.conversationInstance}
-            chatId={chatId}
+            chat={chat}
             destination='assistant'
             chatPath={(id) => surfaceHref(scope, `/search/chat/${id}`)}
             searchView={mode}

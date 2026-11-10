@@ -1,7 +1,11 @@
 import { v2ReadFileTextContract, v2ReadFileTextQuerySchema } from '@/lib/api/contracts/v2/files'
 import { readOriginalKnowledgeDocument } from '@/lib/knowledge/application/read-original-document'
 import { enginePrincipal } from '@/lib/mothership/agent-cli/engine-principal'
-import { fileReadFailure, readFileVisual } from '@/lib/mothership/agent-cli/engines/file-view'
+import {
+  fileReadFailure,
+  readFileVisual,
+  workspaceChatUploadRead,
+} from '@/lib/mothership/agent-cli/engines/file-view'
 import {
   isDefaultVisualMediaType,
   observePrivateFile,
@@ -11,7 +15,10 @@ import {
   readScratchFile,
 } from '@/lib/mothership/agent-cli/engines/scratch-file-read'
 import { type AgentCliEngine, agentCliFail, agentCliOk } from '@/lib/mothership/agent-cli/types'
-import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
+import {
+  readChatAttachment,
+  readWorkspaceFileOrChatUpload,
+} from '@/lib/mothership/chat/application/read-attachment'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
 import { observedMediaType } from '@/lib/uploads/utils/file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
@@ -27,8 +34,8 @@ export const fileReadCommand: AgentCliEngine = {
       return agentCliFail(
         'files read requires a workspace file reference or absolute sandbox path.'
       )
-    if (!runtime.principal)
-      return agentCliFail('Workspace authentication is unavailable. Retry the read.')
+    const { principal } = runtime
+    if (!principal) return agentCliFail('Workspace authentication is unavailable. Retry the read.')
     for (const key of ['max-bytes', 'offset', 'limit']) {
       if (flags[key] === true) return agentCliFail(`--${key} requires a value.`)
     }
@@ -113,13 +120,25 @@ export const fileReadCommand: AgentCliEngine = {
           runtime.signal
         )
       }
-      const file = await resolveWorkspaceFileReference({
-        principal: runtime.principal,
-        operation: fileOperations.readContent,
-        workspaceId: runtime.workspaceId,
-        reference,
-        ...(runtime.chatId !== undefined ? { chatId: runtime.chatId } : {}),
-      })
+      const resolved = await readWorkspaceFileOrChatUpload(
+        () =>
+          resolveWorkspaceFileReference({
+            principal,
+            operation: fileOperations.readContent,
+            workspaceId: runtime.workspaceId,
+            reference,
+            ...(runtime.chatId !== undefined ? { chatId: runtime.chatId } : {}),
+          }),
+        workspaceChatUploadRead(runtime, reference, query.data.maxBytes)
+      )
+      if (resolved.attachment)
+        return observePrivateFile(
+          { ...resolved.attachment, path: reference, source: 'upload' },
+          flags,
+          query.data,
+          runtime.signal
+        )
+      const { file } = resolved
       runtime.signal?.throwIfAborted()
       const type = observedMediaType(file.type, file.name)
       if (visual || (!textRange && isDefaultVisualMediaType(type))) {

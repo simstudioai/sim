@@ -7,6 +7,7 @@ import { createCopilotChatPrincipal } from '@/lib/mothership/auth/application-de
 import { defineAuthorizedChatUseCase } from '@/lib/mothership/chat/application/authorized-chat-use-case'
 import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/context'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
+import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/application/workspace-shell'
 
 export const WORKSPACE_TARGET_AUDIENCE = 'sim:workspaces'
 const targetOperation = defineWorkspaceOperation({
@@ -19,7 +20,13 @@ const targetOperation = defineWorkspaceOperation({
   delegatedServices: ['copilot'],
 })
 
-/** Chat ownership and target membership are separate grants, rechecked before every operation. */
+/**
+ * Chat ownership and target membership are separate grants, rechecked before every operation. An
+ * organization chat reaches the workspaces that render in its organization's shell for the chat's
+ * owner: the organization's own, and those they hold outside any organization they belong to (a
+ * guest workspace, a personal workspace kept when they joined a team), exactly as the shell lists
+ * them. Access to the target is then checked as for any workspace operation.
+ */
 export const authorizeChatWorkspaceTarget = defineAuthorizedChatUseCase({
   operation: targetOperation,
   organizationOperation: defineOrganizationOperation({
@@ -50,7 +57,12 @@ export const authorizeChatWorkspaceTarget = defineAuthorizedChatUseCase({
     const target = await resolveActiveWorkspaceApplicationContext(input.workspaceId)
     if (
       (context.workspaceId && context.workspaceId !== target.workspaceId) ||
-      (context.organizationId && context.organizationId !== target.workspaceOrganizationId)
+      (context.organizationId &&
+        context.organizationId !==
+          (await resolveWorkspaceShellOrganizationId(
+            target.workspaceOrganizationId ?? null,
+            context.userId
+          )))
     )
       throw new OrchestrationError('not_found', 'Workspace not found in this conversation')
     const principal = createCopilotChatPrincipal(

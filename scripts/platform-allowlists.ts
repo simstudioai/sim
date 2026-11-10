@@ -296,6 +296,7 @@ const seamHelpers: ReasonedAllowlist = {
       'stores/copilot-terminal/store',
       'tools/assistant-effects',
       'lib/mothership/chat/source-link',
+      'lib/knowledge/search/source-url',
       'lib/assistant-actions/providers',
     ]
   ),

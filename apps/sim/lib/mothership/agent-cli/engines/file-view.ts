@@ -13,7 +13,10 @@ import {
   type AgentCliRuntime,
   agentCliFail,
 } from '@/lib/mothership/agent-cli/types'
-import { readChatAttachment } from '@/lib/mothership/chat/application/read-attachment'
+import {
+  readChatAttachment,
+  readWorkspaceFileOrChatUpload,
+} from '@/lib/mothership/chat/application/read-attachment'
 import { workspaceFileVfsPath } from '@/lib/uploads/contexts/workspace/file-manager'
 import { MAX_TEXT_EXTRACTION_BYTES } from '@/lib/uploads/utils/file'
 import { readWorkspaceFileArtifact } from '@/lib/workspace-files/application/read-workspace-file-artifact'
@@ -104,6 +107,22 @@ export async function readFileVisual(
   }
 }
 
+/**
+ * How a workspace chat's agent reads `reference` from the chat's own attachments once its workspace
+ * has no such file. An organization chat reads its attachments first, through `chatPrincipal`.
+ */
+export function workspaceChatUploadRead(
+  runtime: AgentCliRuntime,
+  reference: string,
+  maxBytes?: number
+) {
+  if (runtime.chatOrganizationId || !runtime.chatId || !runtime.principal) return null
+  return {
+    principal: runtime.principal,
+    input: { chatId: runtime.chatId, reference, maxBytes, signal: runtime.signal },
+  }
+}
+
 /** Compatibility alias for explicit visual reads; new agent guidance uses files read. */
 export const fileViewCommand: AgentCliEngine = {
   async execute(positionals, runtime, flags) {
@@ -129,7 +148,18 @@ export const fileViewCommand: AgentCliEngine = {
           runtime.signal
         )
       }
-      const { metadata, ...result } = await readFileVisual(reference, runtime, flags)
+      const resolved = await readWorkspaceFileOrChatUpload(
+        () => readFileVisual(reference, runtime, flags),
+        workspaceChatUploadRead(runtime, reference)
+      )
+      if (resolved.attachment)
+        return observePrivateFile(
+          { ...resolved.attachment, path: reference, source: 'upload' },
+          { ...flags, render: true },
+          {},
+          runtime.signal
+        )
+      const { metadata, ...result } = resolved.file
       return { ...result, stdout: JSON.stringify({ ...metadata, id: metadata.fileId }) }
     } catch (error) {
       return fileReadFailure(error)

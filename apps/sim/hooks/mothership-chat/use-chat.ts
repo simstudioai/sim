@@ -56,6 +56,7 @@ import {
   type PersistedFileAttachment,
   type PersistedMessage,
 } from '@/lib/mothership/chat/persisted-message'
+import { type ChatSurfaceOwner, chatRequestScope } from '@/lib/mothership/chat/request-scope'
 import {
   type RevealedSimKeysByMessage,
   restoreRevealedSimKeysForMessage,
@@ -737,15 +738,20 @@ export function getMothershipUseChatOptions(
 }
 
 export function useChat(
-  owner: string | { organizationId: string },
+  owner: ChatSurfaceOwner,
   initialChatId?: string,
   options?: UseChatOptions
 ): UseChatReturn {
   const modelSelectorEnabled = useFeatureFlag('mothership-model-selector')
   const computerUseEnabled = useFeatureFlag('mothership-computer-use')
-  const workspaceId = typeof owner === 'string' ? owner : undefined
+  /** The open chat's workspace; on an organization surface, only for a workspace chat it opened. */
+  const workspaceId = typeof owner === 'string' ? owner : owner.workspaceId
   const organizationId = typeof owner === 'string' ? undefined : owner.organizationId
   const scopeKey = typeof owner === 'string' ? owner : `organization:${owner.organizationId}`
+  const requestScope = useMemo(
+    () => chatRequestScope({ workspaceId, organizationId }),
+    [workspaceId, organizationId]
+  )
   const session = useSession()
   const viewerId = session.data?.user?.id
   const pathname = usePathname()
@@ -1702,10 +1708,11 @@ export function useChat(
       const targetWorkspaceId =
         typeof toolArgs.workspaceId === 'string' ? toolArgs.workspaceId : workspaceId
       if (!targetWorkspaceId) return undefined
+      // The editor's open workflow belongs to a workspace surface; an organization's may be elsewhere.
       const targetWorkflowId =
         typeof toolArgs.workflowId === 'string'
           ? toolArgs.workflowId
-          : workspaceId
+          : workspaceId && !organizationId
             ? useWorkflowRegistry.getState().activeWorkflowId
             : undefined
 
@@ -3853,13 +3860,7 @@ export function useChat(
             ? {}
             : await getDesktopChatCapabilities(
                 desktopScopeIdRef.current,
-                !computerUseEnabled
-                  ? null
-                  : organizationId
-                    ? { organizationId }
-                    : workspaceId
-                      ? { workspaceId }
-                      : null
+                computerUseEnabled ? requestScope : null
               )
 
         const response = await fetch(apiPathRef.current, {
@@ -3867,7 +3868,7 @@ export function useChat(
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message,
-            ...(organizationId ? { organizationId } : { workspaceId }),
+            ...requestScope,
             userMessageId,
             ...(options?.steeringFallback ? { steeringFallback: true } : {}),
             createNewChat: !requestChatId,
@@ -4215,6 +4216,7 @@ export function useChat(
     [
       workspaceId,
       organizationId,
+      requestScope,
       scopeKey,
       chatPlanRequired,
       queryClient,
@@ -5090,7 +5092,7 @@ export function useChat(
             },
             body: {
               streamId: sid,
-              ...(organizationId ? { organizationId } : { workspaceId }),
+              ...requestScope,
               ...(chatId ? { chatId } : {}),
             },
           })
@@ -5210,6 +5212,7 @@ export function useChat(
     setTransportIdle,
     workspaceId,
     organizationId,
+    requestScope,
     appliedSteeringIdsSeen,
     endedStreamIds,
   ])

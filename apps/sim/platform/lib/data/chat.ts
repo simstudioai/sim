@@ -1,12 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useQueries } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { createSerializer, useQueryStates } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
+import { knowledgeDocumentLink } from '@/lib/knowledge/search/source-url'
 import {
   resourceParam,
   searchFilterParsers,
@@ -21,7 +23,13 @@ import {
 } from '@/lib/organizations/search-params'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
 import { toast } from '@/lib/toast/sink'
-import type { ChatRuntime, ToolDecision } from '@/app/(product)/_components/chat/model'
+import type {
+  ChatRuntime,
+  ChatSource,
+  PlatformPart,
+  PlatformTurn,
+  ToolDecision,
+} from '@/app/(product)/_components/chat/model'
 import { getMothershipUseChatOptions, useChat } from '@/hooks/mothership-chat/use-chat'
 import {
   useChatResourcePanel,
@@ -29,6 +37,7 @@ import {
 } from '@/hooks/mothership-chat/use-resource-panel'
 import { useSubmitCopilotFeedback } from '@/hooks/queries/copilot-feedback'
 import { useDecideToolPermissions } from '@/hooks/queries/copilot-tool-permissions'
+import { documentQueryOptions } from '@/hooks/queries/kb/knowledge'
 import {
   useForkMothershipChat,
   useMarkMothershipChatRead,
@@ -89,6 +98,81 @@ function useMessageClock(chatId: string | undefined) {
   }
 }
 
+/** A cited link that no longer opens: its document is gone, or the reader can no longer read it. */
+function isGone(error: unknown): boolean {
+  return isApiClientError(error) && (error.status === 403 || error.status === 404)
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** Prose cites each source as a Markdown link; a gone one keeps its label as plain text. */
+function unlinkProse(parts: readonly PlatformPart[], gone: ReadonlySet<string>): PlatformPart[] {
+  const links = [...gone].map((url) => new RegExp(`\\[([^\\]]*)\\]\\(${escapeRegExp(url)}\\)`, 'g'))
+  return parts.map((part) =>
+    part.kind === 'prose' && part.segments
+      ? {
+          ...part,
+          segments: part.segments.map((segment) =>
+            segment.kind === 'markdown'
+              ? {
+                  ...segment,
+                  text: links.reduce((text, link) => text.replace(link, '$1'), segment.text),
+                }
+              : segment
+          ),
+        }
+      : part
+  )
+}
+
+/**
+ * The transcript with every cited Sim knowledge document that no longer opens marked unavailable,
+ * in its Sources list and in the prose that cites it. A saved answer keeps its citations when the
+ * documents go (a personal Search index removed when its owner joined a team), so each Sim document
+ * link is read first; one the reader cannot open renders without a link. A read that fails for any
+ * other reason leaves the link as it is.
+ */
+function useAvailableSources(turns: readonly PlatformTurn[]): readonly PlatformTurn[] {
+  const documents = useMemo(() => {
+    const byUrl = new Map<string, { knowledgeBaseId: string; documentId: string }>()
+    for (const turn of turns) {
+      if (turn.role !== 'assistant') continue
+      for (const source of turn.sources ?? []) {
+        if (byUrl.has(source.url)) continue
+        const document = knowledgeDocumentLink(source.url)
+        if (document) byUrl.set(source.url, document)
+      }
+    }
+    return [...byUrl]
+  }, [turns])
+  const gone = useQueries({
+    queries: documents.map(([, { knowledgeBaseId, documentId }]) => ({
+      ...documentQueryOptions(knowledgeBaseId, documentId),
+      retry: false,
+    })),
+    combine: (results) =>
+      documents.flatMap(([url], index) => (isGone(results[index]?.error) ? [url] : [])).join('\n'),
+  })
+  return useMemo(() => {
+    if (!gone) return turns
+    const urls = new Set(gone.split('\n'))
+    return turns.map((turn) =>
+      turn.role === 'assistant' && turn.sources?.some((source) => urls.has(source.url))
+        ? {
+            ...turn,
+            parts: unlinkProse(turn.parts, urls),
+            sources: turn.sources.map(
+              (source): ChatSource =>
+                urls.has(source.url) ? { ...source, unavailable: true } : source
+            ),
+          }
+        : turn
+    )
+  }, [turns, gone])
+}
+
 /** An Assistant chat's address: Search's query, filters and mode, and the open resource. */
 const serializeSearchChat = createSerializer({
   ...organizationSearchParsers,
@@ -96,8 +180,19 @@ const serializeSearchChat = createSerializer({
   [resourceParam.key]: resourceParam.parser,
 })
 
+/**
+ * A chat a route opened, as its server gate read it (`readOpenChat`): its id and, for a workspace
+ * chat, the workspace it lives in. Only the gate builds one, so a chat's id never reaches the hook
+ * without the scope its sends and Stops must name.
+ */
+export interface OpenedChat {
+  id: string
+  workspaceId?: string
+}
+
 interface LiveChatOptions {
-  chatId?: string
+  /** The chat to open; absent for a new one, which belongs to the organization. */
+  opened?: OpenedChat
   requestMode: ChatRequestMode
   /** A chat's URL, for a surface other than Chat. */
   chatPath?: (chatId: string) => string
@@ -116,7 +211,7 @@ interface LiveChatOptions {
  * reconnect rule stays in `useChat`; this module only supplies this app's URLs and projects its state.
  */
 export function useLiveChatRuntime({
-  chatId,
+  opened,
   requestMode,
   chatPath,
   searchView = 'assistant',
@@ -134,7 +229,8 @@ export function useLiveChatRuntime({
     { ...organizationSearchParsers, ...searchFilterParsers },
     organizationSearchUrlKeys
   )
-  const chat = useChat({ organizationId }, chatId, {
+  const chatId = opened?.id
+  const chat = useChat({ organizationId, workspaceId: opened?.workspaceId }, chatId, {
     ...getMothershipUseChatOptions({
       requestMode,
       isNewChatRoute: (pathname) =>
@@ -160,9 +256,11 @@ export function useLiveChatRuntime({
   const clock = useMessageClock(chat.resolvedChatId)
   const now = useWaitClock(chat.messages, streaming)
   const { sentAt, isPersisted } = clock
-  const turns = useMemo(
-    () => toPlatformTurns(chat.messages, { streaming, sentAt, now, isPersisted }),
-    [chat.messages, streaming, sentAt, now, isPersisted]
+  const turns = useAvailableSources(
+    useMemo(
+      () => toPlatformTurns(chat.messages, { streaming, sentAt, now, isPersisted }),
+      [chat.messages, streaming, sentAt, now, isPersisted]
+    )
   )
 
   const { sendMessage, stopGeneration } = chat
@@ -285,7 +383,8 @@ export function useLiveChatRuntime({
     enabled: requestMode === 'assistant',
   })
 
-  const openResource: ChatRuntime['openResource'] = ({ type, id, title, workspaceId }) => {
+  const openResource: ChatRuntime['openResource'] = ({ type, id, title, ...resource }) => {
+    const workspaceId = resource.workspaceId ?? opened?.workspaceId
     if (!workspaceId) {
       toast.error('This resource has no workspace address.')
       return

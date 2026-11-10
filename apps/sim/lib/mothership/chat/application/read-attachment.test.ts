@@ -22,7 +22,8 @@ vi.mock('@/lib/uploads/contexts/organization-assistant/application', () => ({
   readOrganizationChatAttachment: mocks.read,
 }))
 
-import { readChatAttachment } from './read-attachment'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { readChatAttachment, readWorkspaceFileOrChatUpload } from './read-attachment'
 
 const mockLoadAttachments = mothershipChatLifecycleMockFns.mockLoadChatFileAttachmentsNamed
 
@@ -110,5 +111,38 @@ describe('organization chat upload references', () => {
     ).rejects.toThrow('membership revoked')
     expect(mockLoadAttachments).not.toHaveBeenCalled()
     expect(mocks.read).not.toHaveBeenCalled()
+  })
+})
+
+describe('a workspace chat’s upload its workspace lacks', () => {
+  const read = (reference: string) => ({ principal, input: { chatId: 'chat', reference } })
+  const missingFromWorkspace = async () => {
+    throw new OrchestrationError('not_found', 'Workspace file not found')
+  }
+
+  it('reads the chat’s own attachment, as a chat moved from its organization keeps', async () => {
+    expect(
+      await readWorkspaceFileOrChatUpload(missingFromWorkspace, read('uploads/a.csv'))
+    ).toMatchObject({ attachment: { name: 'a.csv' } })
+  })
+
+  it('keeps the workspace’s answer when the chat holds no attachment by that name', async () => {
+    mockLoadAttachments.mockResolvedValue([])
+    await expect(
+      readWorkspaceFileOrChatUpload(missingFromWorkspace, read('uploads/report.csv'))
+    ).rejects.toThrow('Workspace file not found')
+    expect(mocks.read).not.toHaveBeenCalled()
+  })
+
+  it('never reaches the chat for a file its workspace holds, or for any other refusal', async () => {
+    expect(
+      await readWorkspaceFileOrChatUpload(async () => 'workspace-file', read('uploads/a.csv'))
+    ).toEqual({ file: 'workspace-file' })
+    await expect(
+      readWorkspaceFileOrChatUpload(async () => {
+        throw new OrchestrationError('forbidden', 'No access')
+      }, read('uploads/a.csv'))
+    ).rejects.toThrow('No access')
+    expect(mockLoadAttachments).not.toHaveBeenCalled()
   })
 })

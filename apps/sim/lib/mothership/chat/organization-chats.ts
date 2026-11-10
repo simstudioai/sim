@@ -7,7 +7,10 @@ import { authorizeOrganizationOperation } from '@/lib/core/application/organizat
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
+import {
+  listMothershipChats,
+  listOpenableChatWorkspaceIds,
+} from '@/lib/mothership/chat/list-mothership-chats'
 import { publishChatStatusChanged } from '@/lib/mothership/chat-status'
 import { MOTHERSHIP_CHAT_DEFAULT_MODEL } from '@/lib/mothership/constants'
 import { isPlanModeEnabled } from '@/lib/mothership/feature-flags'
@@ -78,12 +81,21 @@ export const authorizeOrganizationChat = {
   },
 }
 
-/** Revalidates the organization surface's rollout and private-chat membership for live updates. */
+/**
+ * Revalidates the organization surface's rollout and private-chat membership for live updates, and
+ * names the workspaces whose chats the organization's list holds for the viewer (every workspace
+ * they can open renders in their organization), so those chats update live as well.
+ */
 export const authorizeOrganizationChatEvents = {
   operation: organizationChatOperations.subscribe,
   async execute({ principal, input }: { principal: Principal; input: OrganizationChatInput }) {
     requireChatDeployment()
-    return authorizeOrganizationOperation(principal, organizationChatOperations.subscribe, input)
+    const context = await authorizeOrganizationOperation(
+      principal,
+      organizationChatOperations.subscribe,
+      input
+    )
+    return { ...context, workspaceIds: await listOpenableChatWorkspaceIds(context.userId) }
   },
 }
 

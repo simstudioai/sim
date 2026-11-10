@@ -62,7 +62,12 @@ describe('Mothership owner-scoped event stream', () => {
       session: { id: 'session-1' },
     })
     permissionsMockFns.mockGetUserEntityPermissions.mockResolvedValue('read')
-    authorize.mockResolvedValue({ organizationId: 'org-1', userId: 'user-1', role: 'member' })
+    authorize.mockResolvedValue({
+      organizationId: 'org-1',
+      userId: 'user-1',
+      role: 'member',
+      workspaceIds: new Set(['openable-ws']),
+    })
     subscribe.mockReturnValue(unsubscribe)
     mothershipChatStatusMockFns.mockReady.mockReset().mockResolvedValue(undefined)
   })
@@ -131,6 +136,33 @@ describe('Mothership owner-scoped event stream', () => {
     expect(unsubscribe).toHaveBeenCalledTimes(1)
   })
 
+  it('carries the viewer’s own chats on workspaces their organization’s list holds, and no one else’s', async () => {
+    const abort = new AbortController()
+    const response = await GET(request('organizationId=org-1', abort.signal))
+    const chunks: string[] = []
+    const collected = collect(response.body!, chunks)
+    emit({
+      workspaceId: 'openable-ws',
+      userId: 'other-user',
+      chatId: 'hidden-shared',
+      type: 'created',
+    })
+    emit({ workspaceId: 'closed-ws', userId: 'user-1', chatId: 'hidden-closed', type: 'created' })
+    emit({ workspaceId: 'openable-ws', chatId: 'hidden-unowned', type: 'created' })
+    emit({
+      workspaceId: 'openable-ws',
+      userId: 'user-1',
+      chatId: 'visible-ws-chat',
+      type: 'renamed',
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    abort.abort()
+    await collected
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]).toContain('visible-ws-chat')
+    expect(chunks[0]).not.toMatch(/hidden|userId|workspaceId/)
+  })
+
   it('drops a pending event and closes immediately when current authorization fails', async () => {
     const response = await GET(request('organizationId=org-1'))
     const chunks: string[] = []
@@ -160,8 +192,14 @@ describe('Mothership owner-scoped event stream', () => {
     await vi.advanceTimersByTimeAsync(0)
     let authorizeDone: (() => void) | undefined
     authorize.mockReturnValueOnce(
-      new Promise<void>((resolve) => {
-        authorizeDone = resolve
+      new Promise((resolve) => {
+        authorizeDone = () =>
+          resolve({
+            organizationId: 'org-1',
+            userId: 'user-1',
+            role: 'member',
+            workspaceIds: new Set(),
+          })
       })
     )
     for (let index = 0; index < 17; index += 1) {
