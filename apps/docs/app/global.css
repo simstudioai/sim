@@ -24,6 +24,9 @@
   button:disabled {
     cursor: not-allowed;
   }
+  pre {
+    font-variant-ligatures: none;
+  }
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
