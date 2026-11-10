@@ -93,11 +93,9 @@ async function resolveTriggerTargetContext({
   const { table } = target
   const notFoundMessage = table === 'schedule' ? 'Schedule not found' : 'Webhook not found'
   const row = await findTriggerRowOwner(table, target.id)
-  if (!row) throw new OrchestrationError('not_found', notFoundMessage)
-  if (!row.workflowId) {
-    throw new OrchestrationError('validation', 'Schedule has no associated workflow')
-  }
-  if (!row.blockId) throw new OrchestrationError('not_found', notFoundMessage)
+  // A row with no workflow or block is never switchable, and answering before the tenant check
+  // must not tell a caller anything beyond what a missing row would.
+  if (!row?.workflowId || !row.blockId) throw new OrchestrationError('not_found', notFoundMessage)
   const workflowContext = await resolveActiveWorkflowApplicationContext({
     workflowId: row.workflowId,
   })
