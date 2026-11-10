@@ -6,8 +6,8 @@ import { Icon } from '@sim/emcn/icon'
 import { AnchoredPopover } from '@sim/emcn/menu/anchored-popover'
 import { SegmentedControl } from '@sim/emcn/segmented-control'
 import styles from '@/app/(product)/_components/inbox/inbox.module.css'
-import type { InboxItem } from '@/app/(product)/_components/model'
 import { useSidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layout'
+import type { InboxItem } from '@/platform/lib/data/models/shell'
 
 interface InboxProps {
   anchor: RefObject<HTMLElement | null>

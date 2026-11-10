@@ -12,11 +12,11 @@ import styles from '@/app/(product)/_components/chat/conversation/conversation.m
 import { useChatFind } from '@/app/(product)/_components/chat/find/use-chat-find'
 import { ResponseMessage } from '@/app/(product)/_components/chat/message/response-message'
 import { UserMessage } from '@/app/(product)/_components/chat/message/user-message'
-import type { ChatRuntime, PlatformTurn } from '@/app/(product)/_components/chat/model'
 import { ChatPanelTrigger } from '@/app/(product)/_components/chat/panel/chat-panels'
 import { MessageComposer } from '@/app/(product)/_components/composer/message-composer'
-import type { ComposerController } from '@/app/(product)/_components/composer/model'
 import { ChatRuntimeProvider } from '@/app/(product)/_components/session/chat-runtime'
+import type { ChatRuntime, PlatformTurn } from '@/platform/lib/data/models/chat'
+import type { ComposerController } from '@/platform/lib/data/models/composer'
 
 /** A settled turn keeps its identity, so only the streaming one renders per chunk. */
 const Turn = memo(function Turn({ turn }: { turn: PlatformTurn }) {

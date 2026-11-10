@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useMemo, useRef, useState } from 'react'
-import type { ChatRuntime } from '@/app/(product)/_components/chat/model'
+import type { ChatRuntime } from '@/platform/lib/data/models/chat'
 
 type ChatHandlers = Pick<
   ChatRuntime,

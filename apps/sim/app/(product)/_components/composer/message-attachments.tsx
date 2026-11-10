@@ -6,7 +6,7 @@ import { useFileUrl } from '@sim/emcn/attachments/use-file-url'
 import { OverlayDialog } from '@sim/emcn/modal/overlay-dialog'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import styles from '@/app/(product)/_components/composer/composer.module.css'
-import type { ChatAttachment } from '@/app/(product)/_components/composer/model'
+import type { ChatAttachment } from '@/platform/lib/data/models/composer'
 
 interface MessageAttachmentsProps {
   items: readonly ChatAttachment[]
