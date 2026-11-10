@@ -74,7 +74,7 @@ Conventions:
 
 ### Example — grouped filters (single source of truth)
 
-```typescript
+```typescript illustrative
 // apps/sim/app/(product)/workspace/[workspaceId]/<feature>/search-params.ts
 import { parseAsArrayOf, parseAsString, parseAsStringLiteral } from 'nuqs/server'
 
@@ -97,7 +97,7 @@ export const thingsUrlKeys = {
 
 ### Client — `useQueryStates` (grouped) / `useQueryState` (single)
 
-```typescript
+```typescript illustrative
 'use client'
 
 import { useQueryStates } from 'nuqs'
@@ -113,7 +113,7 @@ export function useThingFilters() {
 
 For a single param, use `useQueryState(key, parser)`:
 
-```typescript
+```typescript illustrative
 const [serverId, setServerId] = useQueryState(mcpServerIdParam.key, mcpServerIdParam.parser)
 ```
 
@@ -121,7 +121,7 @@ const [serverId, setServerId] = useQueryState(mcpServerIdParam.key, mcpServerIdP
 
 When a Server Component or loader must read a param, build a cache from the **same** parser map:
 
-```typescript
+```typescript illustrative
 // in a server component / page.tsx
 import { createSearchParamsCache } from 'nuqs/server'
 import { thingsParsers } from '@/app/(product)/workspace/[workspaceId]/<feature>/search-params'
@@ -182,13 +182,13 @@ const setSearch = useDebouncedSearchSetter(write, { debounceMs: 200 })
 - **Never write a trimmed value to a param that controls the input** — trimming on write eats the user's trailing space mid-typing and makes multi-word queries untypable. The hook writes the raw value; trim only for the empty-check (the hook does this) and on *read* where the value feeds a query or filter.
 - **Keep fetches/filtering debounced.** Where the search value feeds a React Query key or an expensive in-memory filter, derive a debounced value off the instant nuqs value (`const debounced = useDebounce(urlSearch, SEARCH_DEBOUNCE_MS)` with `SEARCH_DEBOUNCE_MS` from `@/lib/url-state`) and feed *that* to the query — the instant value is only for the input box. Cheap in-memory filtering over a small static list may read the instant value directly.
 - Settings list search boxes use `useSettingsSearch()` from `@/hooks/use-settings-search` — the shared `?search=` binding for that surface.
-- Preserve `clearOnDefault` (empty clears the param), the existing default, and `history: 'replace'`. See logs (`use-log-filters.ts` grouped, query stays debounced), integrations (cheap in-memory filter, instant value), and tables (filter stays debounced).
+- Preserve `clearOnDefault` (empty clears the param), the existing default, and `history: 'replace'`. See integrations (cheap in-memory filter, instant value), and tables (filter stays debounced).
 
 ## Sort convention (`sort` + `dir`)
 
 Sortable lists use **two scalar params**, never a serialized `{column,direction}` object. Build them with `createSortParams` from `@/lib/url-state` (in the feature's `search-params.ts`) and consume them with `useUrlSort` from `@/hooks/use-url-sort` — never re-declare `SORT_DIRECTIONS`/default constants or hand-roll the `activeSort`/`onSort`/`onClear` wiring:
 
-```typescript
+```typescript illustrative
 // search-params.ts (server-safe)
 import { createSortParams } from '@/lib/url-state'
 
@@ -200,7 +200,7 @@ export const thingsSortParams = createSortParams(THING_SORT_COLUMNS, {
 })
 ```
 
-```typescript
+```typescript illustrative
 // component (client)
 import { useUrlSort } from '@/hooks/use-url-sort'
 
@@ -240,7 +240,7 @@ When the default is **dynamic** (e.g. "today"), make the param **nullable** (omi
 
 To deep-link a row/modal/drawer to one entity, store **only its id** and look the object up in the already-loaded list — never serialize the object into the URL:
 
-```typescript
+```typescript illustrative
 const [skillId, setSkillId] = useQueryState(skillIdParam.key, {
   ...skillIdParam.parser,
   history: 'push', // opening an entity is a destination; "back" closes it
@@ -254,7 +254,7 @@ Open the panel/modal only when the id **resolves to a loaded entity** — never 
 
 **Close with `replace`, open with `push`.** Opening pushed a history entry; closing must not push another. Close via the setter's per-call options — `setSkillId(null, { history: 'replace' })` — so Back from the list leaves the page instead of reopening the detail (see `mcp-section.tsx`, `custom-blocks-section.tsx`, `forks-section.tsx`). Secondary params scoped to the detail view (e.g. its active tab, `server-tab`) are cleared in the same close handler with their own setter — nuqs batches same-tick writes into one URL update.
 
-**Reusable components** rendered both as a settings/list page and inside a modal expose an optional controlled `searchTerm`/`onSearchTermChange` prop pair: the page consumer binds the URL (`useSettingsSearch()`), modal consumers omit the props and keep local state. Never bind URL state from inside a component that can mount in a non-destination context.
+**Reusable components** rendered both as a settings/list page and inside a modal expose an optional controlled `searchTerm` prop and its change handler: the page consumer binds the URL (`useSettingsSearch()`), modal consumers omit the props and keep local state. Never bind URL state from inside a component that can mount in a non-destination context.
 
 ## Read-then-strip deep links
 

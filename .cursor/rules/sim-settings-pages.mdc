@@ -49,7 +49,7 @@ return (
 
 When the page has modal/dialog siblings, wrap them with the panel in a fragment:
 
-```tsx
+```tsx illustrative
 return (
   <>
     <SettingsPanel actions={…}>{body}</SettingsPanel>
@@ -239,7 +239,7 @@ and — on activatable rows only — the hover band. Never hand-roll any of it, 
   (`components/resource-tile` — note: *not* under
   `settings/`, unlike the other `…/` paths on this page) — the 36px tile chrome, for
   any tile the row does not draw itself: a detail heading, or a caller-supplied
-  `iconVariant='custom'` tile. `ResourceTile` wraps the filled pairing. Use
+  `iconVariant='custom'` tile. Use
   `RESOURCE_TILE_FILL` for a glyph, `RESOURCE_TILE_PLAIN` for a brand logo or favicon.
 
 

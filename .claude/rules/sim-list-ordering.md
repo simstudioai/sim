@@ -70,7 +70,7 @@ the page. The table row and column menus carry two: the rule before `Insert row 
 siblings. Every other row menu in the app has only the destructive transition, so it carries one.
 
 **The one standing exception: menus that emulate a native menu.** The text-editor menu
-(`editor-context-menu.tsx`), the terminal menu (`terminal-context-menu.tsx`), and the browser
+(`text-editor.tsx`), the terminal menu (`terminal-session.tsx`), and the browser
 page menu (`browser-session.tsx`) each mirror the OS menu the user already knows — clipboard
 banding (`Cut · Copy · Paste │ Select all`) is a convention every text field on their machine
 teaches them. These keep their native banding, and that is the *same* principle as the ordering
@@ -81,7 +81,7 @@ the toolbars they mirror are flat — so they take the single rule.
 **Both sides of every rule must be guaranteed non-empty.** Write the separator's guard out of
 the *exact* render conditions of the items around it, never a looser approximation:
 
-```tsx
+```tsx illustrative
 // ✗ Bad — `showLeave` alone, while the Leave item needs `showLeave && onLeave`.
 //         A caller passing showLeave from a permission check with a conditional
 //         onLeave renders a trailing rule under the last item.
@@ -119,7 +119,7 @@ Legacy canonical instance: `components/mothership-chat/mothership-view/component
 
 The most common way a canonical order gets silently defeated: emitting all items of one *kind* and then all of another. Every submenu-backed family lands above every flat family regardless of what the order constant says.
 
-```tsx
+```tsx illustrative
 // ✗ Bad — two phases; the trees always pin to the top
 <ResourceTreeSections sections={treeSections} />
 {groups.filter((g) => !FOLDERED.has(g.type)).map(renderFlat)}
