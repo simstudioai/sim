@@ -15,6 +15,7 @@ import {
   user,
 } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
+import { compareStrings } from '@sim/utils/string'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -22,6 +23,7 @@ vi.hoisted(() => {
   process.env.BILLING_ENABLED = 'true'
 })
 
+import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
 import {
   authorizeOrganizationChat,
   createOrganizationChat,
@@ -122,5 +124,37 @@ describe('organization chat access on a billed deployment', () => {
     expect(await getOrganizationSurfaceGate(ids.organization, ids.member)).toMatchObject({
       mothershipAvailable: false,
     })
+  })
+})
+
+/**
+ * Chats touched in the same instant (a bulk move, a backfill) tie on `updatedAt`. Failure mode: the
+ * tie left to the planner, so a limited first page and the full list disagree on which chats lead,
+ * and paging repeats or skips one.
+ */
+describe("the organization's chat list order", () => {
+  it('breaks a tie on the update time by id, the same with and without a limit', async () => {
+    const tiedAt = new Date('2026-06-01T00:00:00.000Z')
+    const rows = await db
+      .insert(copilotChats)
+      .values(
+        [0, 1, 2].map(() => ({
+          userId: ids.owner,
+          organizationId: ids.organization,
+          type: 'mothership' as const,
+          updatedAt: tiedAt,
+        }))
+      )
+      .returning({ id: copilotChats.id })
+    const tied = new Set(rows.map((row) => row.id))
+    const byIdDescending = [...tied].sort((left, right) => compareStrings(right, left))
+
+    const listed = async (limit?: number) =>
+      (await listMothershipChats(ids.owner, { organizationId: ids.organization }, 'active', limit))
+        .map((chat) => chat.id)
+        .filter((id) => tied.has(id))
+
+    expect(await listed()).toEqual(byIdDescending)
+    expect(await listed(2)).toEqual(byIdDescending.slice(0, 2))
   })
 })
