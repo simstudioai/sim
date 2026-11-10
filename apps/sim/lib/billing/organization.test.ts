@@ -1,5 +1,8 @@
 import { billingCoreMock, billingCoreMockFns } from '@sim/testing/mocks/billing-core.mock'
-import { billingIdentityLockMock } from '@sim/testing/mocks/billing-identity-lock.mock'
+import {
+  billingIdentityLockMock,
+  billingIdentityLockMockFns,
+} from '@sim/testing/mocks/billing-identity-lock.mock'
 import {
   billingPlanHelpersMock,
   billingPlanHelpersMockFns,
@@ -71,6 +74,7 @@ const { mockGetOrganizationIdForSubscriptionReference } = billingSubscriptionMoc
 const { mockGetPlanPricing, mockIsSubscriptionOrgScoped } = billingCoreMockFns
 const { mockSyncUsageLimitsFromSubscription } = billingUsageMockFns
 const { mockAcquireOrganizationMutationLock } = organizationMembershipMockFns
+const { mockAcquireUserBillingIdentityLock } = billingIdentityLockMockFns
 billingPlanHelpersMockFns.mockIsPaid.mockImplementation((plan) => plan !== 'free')
 
 function queueWhereResponses(responses: unknown[][]) {
@@ -149,8 +153,38 @@ describe('ensureOrganizationForTeamSubscription', () => {
     expect(mockCreateOrganizationWithOwner).not.toHaveBeenCalled()
   })
 
+  it('locks the personal organization it converts before the buyer’s billing identity', async () => {
+    queueWhereResponses([
+      // referenced organization lookup: the subscription references a user
+      [],
+      // no team membership
+      [],
+      // the buyer's personal organization
+      [{ organizationId: 'org-personal' }],
+      [{ name: 'Owner', email: 'owner@example.com' }],
+    ])
+    mockAttachOwnedWorkspacesToOrganizationTx.mockResolvedValueOnce({ usageLimitUserIds: [] })
+
+    await ensureOrganizationForTeamSubscriptionTx(dbChainMock.db, {
+      id: 'sub-1',
+      plan: 'team',
+      referenceId: 'owner-1',
+      status: 'active',
+      seats: 1,
+      workspaceIdsToAttach: [],
+    })
+
+    const personalLock = mockAcquireOrganizationMutationLock.mock.calls.findIndex(
+      ([, organizationId]) => organizationId === 'org-personal'
+    )
+    expect(personalLock).toBeGreaterThanOrEqual(0)
+    expect(mockAcquireOrganizationMutationLock.mock.invocationCallOrder[personalLock]).toBeLessThan(
+      mockAcquireUserBillingIdentityLock.mock.invocationCallOrder[0]
+    )
+  })
+
   it('keeps org creation, subscription transfer, and workspace attachment on the caller transaction', async () => {
-    queueWhereResponses([[], [], [{ name: 'Owner', email: 'owner@example.com' }]])
+    queueWhereResponses([[], [], [], [{ name: 'Owner', email: 'owner@example.com' }]])
     mockAttachOwnedWorkspacesToOrganizationTx.mockRejectedValueOnce(
       new Error('workspace attachment failed')
     )

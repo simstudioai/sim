@@ -22,6 +22,7 @@ import {
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal } from '@/lib/billing/utils/decimal'
 import type { DbTransaction } from '@/lib/db/types'
+import { getPersonalOrganizationId } from '@/lib/organizations/personal'
 import {
   attachOwnedWorkspacesToOrganization,
   attachOwnedWorkspacesToOrganizationTx,
@@ -475,6 +476,9 @@ export async function ensureOrganizationForTeamSubscriptionTx(
       throw new Error('Organization already has an active subscription')
     }
   } else {
+    /** Organization before identity, as everywhere else: the personal organization this converts. */
+    const personalOrganizationId = await getPersonalOrganizationId(userId, tx)
+    if (personalOrganizationId) await acquireOrganizationMutationLock(tx, personalOrganizationId)
     await acquireUserBillingIdentityLock(tx, userId)
     const [userData] = await tx
       .select({ name: user.name, email: user.email })
