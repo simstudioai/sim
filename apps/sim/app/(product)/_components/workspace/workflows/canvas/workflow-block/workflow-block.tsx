@@ -17,6 +17,7 @@ import { WorkflowBlockView } from '@/app/(product)/_components/workspace/workflo
 import { CanvasSentenceView } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/canvas-sentence-view'
 import { SubBlockRowView } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/sub-block-row-view'
 import styles from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/workflow-block.module.css'
+import { useChatHandoff } from '@/platform/lib/data/chat-handoff'
 import {
   ArrowLeftRight,
   ArrowUpDown,
@@ -71,7 +72,6 @@ import {
   SlidersHorizontal,
   Sparkles,
   type SubBlockConfig,
-  sendMothershipMessage,
   shouldSkipBlockRender,
   showsCanvasDefaultHandles,
   showsCanvasErrorRow,
@@ -86,7 +86,6 @@ import {
   useCredentialName,
   useCustomBlockOverlayVersion,
   useCustomTools,
-  useDeploymentShape,
   useDeployWorkflow,
   useDynamicSubBlockOptionDisplayName,
   useIsBlockInActiveExecutionHandoff,
@@ -635,7 +634,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
 
   const contentRef = useRef<HTMLDivElement>(null)
 
-  const { chatEnabled } = useDeploymentShape()
+  const chat = useChatHandoff()
   const { workspaceId } = useWorkflowScope()
   const currentWorkflowId = useScopedWorkflowId()
 
@@ -813,8 +812,8 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       workflow_id: currentWorkflowId,
       kind: sunset.kind,
     })
-    sendMothershipMessage({
-      content: sunset.prompt,
+    chat.handOff({
+      message: sunset.prompt,
       contexts: [
         { kind: 'workflow_block', workflowId: currentWorkflowId, blockId: id, label: name },
       ],
@@ -1279,7 +1278,7 @@ export const WorkflowBlock = memo(function WorkflowBlock({
       }}
       sunsetStatus={sunset?.status}
       sunsetTooltip={sunset?.tooltip}
-      canFixSunset={canEditWorkflow && chatEnabled}
+      canFixSunset={canEditWorkflow && chat.available}
       onFixSunset={onFixSunset}
       shouldShowScheduleBadge={shouldShowScheduleBadge}
       scheduleIsDisabled={Boolean(scheduleInfo?.isDisabled)}

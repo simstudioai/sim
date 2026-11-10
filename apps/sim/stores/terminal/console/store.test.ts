@@ -11,6 +11,7 @@ vi.mock('@/lib/uploads/client/download', () => ({
 vi.unmock('@/stores/terminal')
 vi.unmock('@/stores/terminal/console/store')
 
+import { connectToastSink } from '@/lib/toast/sink'
 import { useTerminalConsoleStore } from '@/stores/terminal/console/store'
 
 describe('terminal console store', () => {
@@ -139,6 +140,53 @@ describe('terminal console store', () => {
       expect(entries.find((entry) => entry.executionId === 'exec-2')).toMatchObject({
         isRunning: true,
       })
+    })
+  })
+
+  describe("a block error's Fix in Chat", () => {
+    function failBlock(executionId: string) {
+      const shown: Array<{ message: string; action?: { label: string; onClick: () => void } }> = []
+      const disconnect = connectToastSink({
+        show: (toast) => {
+          shown.push(toast)
+          return 'toast'
+        },
+        dismiss: () => {},
+      })
+      try {
+        useTerminalConsoleStore.getState().addConsole({
+          workflowId: 'wf-1',
+          blockId: 'block-1',
+          blockName: 'Agent',
+          blockType: 'agent',
+          executionId,
+          executionOrder: 1,
+          error: 'Model refused',
+        })
+      } finally {
+        disconnect()
+      }
+      return shown
+    }
+
+    it('hands the error to a new chat through the mounted editor', () => {
+      const handOff = vi.fn()
+      useTerminalConsoleStore.getState().setChatHandoff(handOff)
+
+      const [toast] = failBlock('exec-fix-1')
+      expect(toast.action?.label).toBe('Fix in Chat')
+      toast.action?.onClick()
+
+      expect(handOff).toHaveBeenCalledWith('Model refused\n\nError in Agent.\n\nPlease fix this.')
+    })
+
+    it('offers no Fix in Chat where the viewer cannot start a chat', () => {
+      useTerminalConsoleStore.getState().setChatHandoff(null)
+
+      const [toast] = failBlock('exec-fix-2')
+
+      expect(toast.message).toBe('Agent')
+      expect(toast.action).toBeUndefined()
     })
   })
 })

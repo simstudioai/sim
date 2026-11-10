@@ -7,10 +7,8 @@ import {
   type AgentStreamToolTerminalStatus,
   settleRunningToolCallList,
 } from '@/components/agent-stream/tool-call-lifecycle'
-import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { formatCsvValue, toCsvRow } from '@/lib/core/utils/csv'
-import { sendMothershipMessage } from '@/lib/mothership/events'
 import { toast } from '@/lib/toast/sink'
 import { saveBlob } from '@/lib/uploads/client/download'
 import { getQueryClient } from '@/app/_shell/providers/query-provider'
@@ -23,6 +21,7 @@ import {
   loadConsoleData,
 } from '@/stores/terminal/console/storage'
 import type {
+  ChatHandoff,
   ConsoleEntry,
   ConsoleEntryLocation,
   ConsoleStore,
@@ -275,6 +274,7 @@ interface NotifyBlockErrorParams {
   blockId: string
   executionId?: string
   logContext: Record<string, unknown>
+  chatHandoff: ChatHandoff | null
 }
 
 /**
@@ -294,6 +294,7 @@ const notifyBlockError = ({
   blockId,
   executionId,
   logContext,
+  chatHandoff,
 }: NotifyBlockErrorParams) => {
   const settings = getQueryClient().getQueryData<GeneralSettings>(generalSettingsKeys.settings())
   const isErrorNotificationsEnabled = settings?.errorNotificationsEnabled ?? true
@@ -316,11 +317,8 @@ const notifyBlockError = ({
 
     toast.error(displayName, {
       description: errorMessage,
-      action: getDeploymentShape().chatEnabled
-        ? {
-            label: 'Fix in Chat',
-            onClick: () => sendMothershipMessage({ content: copilotMessage }),
-          }
+      action: chatHandoff
+        ? { label: 'Fix in Chat', onClick: () => chatHandoff(copilotMessage) }
         : undefined,
     })
   } catch (notificationError) {
@@ -338,6 +336,9 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
     entryLocationById: {},
     isOpen: false,
     _hasHydrated: false,
+    chatHandoff: null,
+
+    setChatHandoff: (chatHandoff) => set({ chatHandoff }),
 
     addConsole: (entry: Omit<ConsoleEntry, 'id' | 'timestamp'>) => {
       if (shouldSkipEntry(entry.output)) {
@@ -386,6 +387,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           blockId: createdEntry.blockId,
           executionId: createdEntry.executionId,
           logContext: { entryId: createdEntry.id },
+          chatHandoff: get().chatHandoff,
         })
       }
 
@@ -684,6 +686,7 @@ export const useTerminalConsoleStore = create<ConsoleStore>()(
           blockId,
           executionId,
           logContext: { blockId },
+          chatHandoff: get().chatHandoff,
         })
       }
     },

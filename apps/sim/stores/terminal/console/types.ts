@@ -76,6 +76,9 @@ export interface ConsoleEntryLocation {
   index: number
 }
 
+/** Opens a new chat seeded with `message`, as the editor's "Fix in Chat" does. */
+export type ChatHandoff = (message: string) => void
+
 export interface ConsoleStore {
   workflowEntries: Record<string, ConsoleEntry[]>
   entryIdsByBlockExecution: Record<string, string[]>
@@ -91,4 +94,10 @@ export interface ConsoleStore {
   cancelRunningEntries: (workflowId: string, executionId?: string) => void
   finishRunningEntries: (workflowId: string, executionId?: string) => void
   _hasHydrated: boolean
+  /**
+   * Set by the mounted editor while the viewer can start a chat; a block error's toast offers
+   * "Fix in Chat" only then.
+   */
+  chatHandoff: ChatHandoff | null
+  setChatHandoff: (handoff: ChatHandoff | null) => void
 }

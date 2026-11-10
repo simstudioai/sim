@@ -16,12 +16,21 @@ import {
 import { Terminal } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/terminal/terminal'
 import type { ToolbarRef } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/toolbar/toolbar'
 import { VariablesPanel } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/variables/variables-panel'
+import {
+  BlockErrorChatHandoff,
+  EditorShortcuts,
+} from '@/app/(product)/workspace/[workspaceId]/workflows/_components/workflow-editor/editor-commands'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/workflow-editor/workflow-editor.module.css'
 import {
   WorkflowActions,
   WorkflowTrail,
 } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/workflow-header/workflow-header'
-import { createCommand, WorkflowScopeProvider } from '@/platform/lib/data/workflows'
+import { useWorkflowListOperations } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/workflows-route/operations'
+import {
+  createCommand,
+  useUserPermissionsContext,
+  WorkflowScopeProvider,
+} from '@/platform/lib/data/workflows'
 
 interface WorkflowEditorProps {
   workspaceId: string
@@ -44,6 +53,21 @@ function ToolbarSearchCommand({ toolbarRef }: { toolbarRef: RefObject<ToolbarRef
   return null
 }
 
+/** The editor's shortcuts, with the viewer's edit access and the list's new-workflow command. */
+function EditorCommands({ workspaceId }: { workspaceId: string }) {
+  const { canEdit } = useUserPermissionsContext()
+  const ops = useWorkflowListOperations(workspaceId)
+  return (
+    <EditorShortcuts
+      workspaceId={workspaceId}
+      canEdit={canEdit}
+      onNewWorkflow={() => {
+        if (!ops.isCreatingWorkflow) ops.createWorkflow(null)
+      }}
+    />
+  )
+}
+
 /**
  * The Workflows tab's editor: the workspace heading, tabs and the workflow's control bar (where it
  * sits, its commands, Run), then the canvas across the pane with the right panel beside it. The
@@ -56,6 +80,8 @@ export function WorkflowEditor({ workspaceId, workflowId }: WorkflowEditorProps)
       <ReactFlowProvider>
         <GlobalCommandsProvider>
           <ToolbarSearchCommand toolbarRef={toolbarRef} />
+          <EditorCommands workspaceId={workspaceId} />
+          <BlockErrorChatHandoff />
           <LiveWorkspacePage
             workspaceId={workspaceId}
             current='workflows'

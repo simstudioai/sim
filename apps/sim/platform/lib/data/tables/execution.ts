@@ -1,10 +1,7 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { useUserPermissionConfig } from '@/ee/access-control/hooks/permission-groups'
-import { useOrganization } from '@/platform/lib/data/organization'
-import { surfaceHref } from '@/platform/lib/data/organization-model'
+import { useChatHandoff } from '@/platform/lib/data/chat-handoff'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -30,11 +27,9 @@ interface TroubleshootTarget {
  * only where the viewer can start an agent chat.
  */
 export function useTroubleshootRun() {
-  const surface = useOrganization()
-  const { organization, mothershipAvailable } = surface
-  const router = useRouter()
+  const chat = useChatHandoff()
   return {
-    available: mothershipAvailable,
+    available: chat.available,
     troubleshoot({ workspaceId, executionId, workflowName }: TroubleshootTarget) {
       const context: ChatContext = {
         kind: 'logs',
@@ -45,11 +40,7 @@ export function useTroubleshootRun() {
       const message = workflowName
         ? `The "${workflowName}" workflow run failed. Investigate the error in this run and help me fix it.`
         : 'This workflow run failed. Investigate the error in this run and help me fix it.'
-      const stored = MothershipHandoffStorage.store(
-        { message, contexts: [context], requestMode: 'agent' },
-        { organizationId: organization.id }
-      )
-      if (stored) router.push(surfaceHref(surface, '/chat'))
+      chat.handOff({ message, contexts: [context], requestMode: 'agent' })
     },
   }
 }
