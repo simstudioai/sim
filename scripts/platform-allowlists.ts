@@ -595,7 +595,6 @@ const seamHelpers: ReasonedAllowlist = {
       'components/workspace-providers/provider-models-loader',
       'components/workspace-providers/settings-loader',
       'components/workspace-providers/workflow-scope-provider',
-      'components/workspace-providers/workspace-host-context',
       'components/workspace-providers/workspace-permissions-provider',
       'components/workspace-providers/workspace-scope-sync',
       'lib/global-commands/commands',
