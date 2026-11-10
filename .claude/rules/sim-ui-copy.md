@@ -13,7 +13,7 @@ paths:
 
 **Do not add subtitles, helper text, or descriptive copy beneath headings, labels, cards, or settings by default.** Prefer one concise, self-explanatory heading or label. Only add supporting copy when the user explicitly asks for it, or when it is necessary to prevent misunderstanding or error — and never use it to restate the heading.
 
-This applies to app UI outside the Platform: settings rows, modals, panels, cards, list rows, empty states, form fields, and section headers. Platform views (`app/(product)`, `platform`) follow `apps/sim/platform/AGENTS.md`; marketing surfaces (`app/(landing)`, docs) follow `constitution.md`.
+This applies to app UI outside the Platform: settings rows, modals, panels, cards, list rows, empty states, form fields, and section headers. Platform views (`app/(product)`, `platform`) follow the stricter one-line-per-control rule in `apps/sim/platform/AGENTS.md`, which `check:platform-design` enforces (`helper-copy`); marketing surfaces (`app/(landing)`, docs) follow `constitution.md`.
 
 **Carve-out — settings section metadata.** `SettingsNavigationItem.description` in `components/settings/navigation.ts` stays required, and `SettingsPanel` keeps rendering it as the page subtitle. Settings sections are reached through a nav list where the description is the only thing distinguishing adjacent sections, so it earns its place by the "prevents misunderstanding" test. Keep those descriptions verb-first and one line, per `sim-settings-pages.md`. Everything else on a settings page — inline `<p>` blurbs under section headings, field hints, modal bodies, row subtitles — follows the default rule above.
 
@@ -32,14 +32,14 @@ This applies to app UI outside the Platform: settings rows, modals, panels, card
 <ChipModalField title='Workspace name' />
 ```
 
-If a heading needs a subtitle to be understood, the heading is wrong. Fix the heading — don't append a second line.
+If a heading needs a subtitle to be understood, the heading is wrong. Fix the heading — don't append a second line. For a field, bake the meaning into the line itself first: a format into the placeholder (`us-gov-west-1`), a bound or scope into the label (`Idle timeout (hours, min 1)`), a trade-off into the option (`Access keys (long-lived)`), or point to the dialog's setup guide.
 
 ## When supporting copy earns its place
 
 Keep (or add) a description only when it carries information the label cannot, and its absence would cause a mistake:
 
 - **Irreversible or destructive consequences** — "Deleting this workspace removes every workflow and log. This cannot be undone."
-- **A non-obvious format, unit, or bound** — "Comma-separated. Max 50 domains.", "Cost per 1M input tokens."
+- **A non-obvious format, unit, or bound the label, placeholder and options cannot hold** — "Comma-separated. Max 50 domains.", "Cost per 1M input tokens."
 - **A security or access implication** — "This key is shown once and grants full workspace access."
 - **A state the user cannot otherwise see** — "Inherited from your organization's policy."
 - **Instructional copy that advances a flow** — "We sent a 6-digit code to you@example.com."

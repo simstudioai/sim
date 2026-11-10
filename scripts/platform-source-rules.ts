@@ -264,3 +264,136 @@ export function classifyPage(source: ts.SourceFile): PageKind {
   if (containsNode(source, isPlatformModeRead)) return 'live-only'
   return 'unclassified'
 }
+
+/** Where a helper line sits: under a field, a form dialog's title, a row or page header, or in field data. */
+export type HelperCopyKind = 'field-hint' | 'dialog-subtitle' | 'row-subtitle' | 'data-hint'
+
+/** A helper line, the node it sits on, and the subject (`label`, `title` or field `id`) that names it. */
+export interface HelperCopy {
+  kind: HelperCopyKind
+  node: ts.Node
+  subject: string
+}
+
+const EMCN_MODULE = /^@sim\/emcn(?:-platform)?(?:\/|$)/
+
+/** Each local name an `@sim/emcn` or `@sim/emcn-platform` import binds, to the name it exports. */
+function emcnBindings(source: ts.SourceFile): Map<string, string> {
+  const bindings = new Map<string, string>()
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement) || statement.importClause?.isTypeOnly) continue
+    const specifier = statement.moduleSpecifier
+    if (!ts.isStringLiteral(specifier) || !EMCN_MODULE.test(specifier.text)) continue
+    const named = statement.importClause?.namedBindings
+    if (!named || !ts.isNamedImports(named)) continue
+    for (const element of named.elements)
+      bindings.set(element.name.text, (element.propertyName ?? element.name).text)
+  }
+  return bindings
+}
+
+/** A literal string an expression is, unwrapped from a JSX expression container. */
+function staticText(node: ts.Node | undefined): string | undefined {
+  const value = node && ts.isJsxExpression(node) ? node.expression : node
+  if (value && (ts.isStringLiteral(value) || ts.isNoSubstitutionTemplateLiteral(value)))
+    return value.text
+}
+
+/** Whether any string or template under `node` spells out copy rather than only interpolating. */
+function containsCopy(node: ts.Node): boolean {
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+    return node.text.trim().length > 0
+  if (ts.isTemplateExpression(node))
+    return [node.head, ...node.templateSpans.map((span) => span.literal)].some(
+      (part) => part.text.trim().length > 0
+    )
+  return ts.forEachChild(node, containsCopy) ?? false
+}
+
+/** The attribute `name` of a JSX element. */
+function attribute(element: ts.JsxOpeningLikeElement, name: string) {
+  return element.attributes.properties.find(
+    (property): property is ts.JsxAttribute =>
+      ts.isJsxAttribute(property) && property.name.getText() === name
+  )
+}
+
+/** How a finding names its element: the attribute's literal text, or its expression in braces. */
+function subjectOf(element: ts.JsxOpeningLikeElement, name: string): string {
+  const value = attribute(element, name)?.initializer
+  const text = staticText(value)
+  if (text !== undefined) return text
+  if (value && ts.isJsxExpression(value) && value.expression)
+    return `{${value.expression.getText().replace(/\s+/g, ' ')}}`
+  return element.tagName.getText()
+}
+
+/** The `id`, `value` or `label` that names an object literal of field data, else `fallback`. */
+function fieldSubject(object: ts.ObjectLiteralExpression, fallback: string): string {
+  for (const key of ['id', 'value', 'label']) {
+    const property = object.properties.find(
+      (entry): entry is ts.PropertyAssignment =>
+        ts.isPropertyAssignment(entry) && entry.name.getText() === key
+    )
+    const text = staticText(property?.initializer)
+    if (text) return text
+  }
+  return fallback
+}
+
+/**
+ * The helper lines in `source`, each a second line of copy under something that already has a name:
+ * a `hint` on an EMCN field, or on any element when the hint spells out copy (a wrapper's
+ * pass-through `hint={hint}` is judged where it reaches EMCN); a `description` on a form `Modal`
+ * (a confirm or feedback dialog's description is its question, not a subtitle); a literal
+ * `description` on a `SettingsRow` or a settings `DetailHeader` (a computed one reports state); and a
+ * non-empty `hint` in field data. `disabledReason`, `error` and `aria-*` are other attributes, so
+ * nothing here reads them.
+ */
+export function helperCopy(source: ts.SourceFile): HelperCopy[] {
+  const emcn = emcnBindings(source)
+  const found: HelperCopy[] = []
+  const visit = (node: ts.Node) => {
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const tag = node.tagName.getText()
+      const exported = emcn.get(tag.split('.')[0])
+      const hint = attribute(node, 'hint')
+      if (hint?.initializer && (exported || containsCopy(hint.initializer)))
+        found.push({ kind: 'field-hint', node: hint, subject: subjectOf(node, 'label') })
+      const description = attribute(node, 'description')
+      if (description?.initializer) {
+        const variant = attribute(node, 'variant')
+        if (exported === 'Modal' && (!variant || staticText(variant.initializer) === 'form'))
+          found.push({
+            kind: 'dialog-subtitle',
+            node: description,
+            subject: subjectOf(node, 'title'),
+          })
+        else if (
+          (exported === 'SettingsRow' || tag === 'DetailHeader') &&
+          staticText(description.initializer)?.trim()
+        )
+          found.push({
+            kind: 'row-subtitle',
+            node: description,
+            subject: subjectOf(node, tag === 'DetailHeader' ? 'title' : 'label'),
+          })
+      }
+    }
+    if (
+      ts.isPropertyAssignment(node) &&
+      node.name.getText() === 'hint' &&
+      containsCopy(node.initializer)
+    )
+      found.push({
+        kind: 'data-hint',
+        node,
+        subject: ts.isObjectLiteralExpression(node.parent)
+          ? fieldSubject(node.parent, node.initializer.getText())
+          : node.initializer.getText(),
+      })
+    ts.forEachChild(node, visit)
+  }
+  visit(source)
+  return found
+}
