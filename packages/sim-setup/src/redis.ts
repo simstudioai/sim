@@ -1,12 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { docker } from './db'
-import {
-  type Detection,
-  LOOPBACK_HOST,
-  publishedBinding,
-  REDIS_CONTAINER,
-  targetsLocalPort,
-} from './detect'
+import { type Detection, LOOPBACK_HOST, REDIS_CONTAINER } from './detect'
 import { ensureDocker } from './docker'
 import { SetupError } from './errors'
 import { redisPing, waitFor } from './probes'
@@ -35,27 +29,8 @@ async function pingWithSpinner(url: string, label: string): Promise<boolean> {
   return ping.ok
 }
 
-function defaultRedisPort(detection: Detection): number {
-  return detection.redisPortOpen ? 6380 : 6379
-}
-
-/**
- * Recreates a managed container that an earlier release published on every
- * interface, on the same port. It holds no data, so this needs no prompt.
- * Returns the new URL when `existing` pointed at it (or nothing was configured).
- */
-async function rebindExposedRedis(detection: Detection, existing?: string): Promise<string | null> {
-  if (!detection.redisContainer?.managed) return null
-  const binding = publishedBinding(REDIS_CONTAINER, '6379/tcp')
-  if (!binding || binding.hostIp === LOOPBACK_HOST) return null
-  p.log.step(
-    `Recreating ${REDIS_CONTAINER} on ${LOOPBACK_HOST}: an earlier sim-setup published it on every network interface`
-  )
-  const url = await startManagedRedis(binding.hostPort)
-  return !existing || targetsLocalPort(existing, binding.hostPort) ? url : null
-}
-
-async function startManagedRedis(hostPort: number | string): Promise<string> {
+async function startManagedRedis(detection: Detection): Promise<string> {
+  const hostPort = detection.redisPortOpen ? 6380 : 6379
   const url = `redis://${LOOPBACK_HOST}:${hostPort}`
   // A prior sim-redis (unhealthy, or bound to a stale port) would collide on the
   // name. Unlike Postgres this container has no data volume, so removing it
@@ -113,8 +88,6 @@ async function promptRedisUrl(existing?: string): Promise<string> {
  * failing the whole setup.
  */
 export async function ensureRedis(detection: Detection, existing?: string): Promise<string | null> {
-  const rebound = await rebindExposedRedis(detection, existing)
-  if (rebound) return rebound
   if (existing && (await redisPing(existing)).ok) return existing
   if (detection.redisPortOpen && (await redisPing(LOCAL_URL)).ok) {
     p.log.step(`Using the Redis already on :6379`)
@@ -134,7 +107,7 @@ export async function ensureRedis(detection: Detection, existing?: string): Prom
     )
     return null
   }
-  return startManagedRedis(defaultRedisPort(detection))
+  return startManagedRedis(detection)
 }
 
 /**
@@ -142,9 +115,6 @@ export async function ensureRedis(detection: Detection, existing?: string): Prom
  * consent), restart/start a wizard-managed container, or take a URL.
  */
 export async function resolveRedis(detection: Detection, existing?: string): Promise<string> {
-  const rebound = await rebindExposedRedis(detection, existing)
-  if (rebound) return rebound
-
   // A configured REDIS_URL wins over the port scan: it may point at a non-default
   // port, or at a host that isn't this machine at all.
   if (
@@ -196,7 +166,5 @@ export async function resolveRedis(detection: Detection, existing?: string): Pro
     p.log.warn('Docker is not available, so the wizard cannot manage a Redis container for you.')
   }
   const choice = await p.select({ message: 'Where should Redis live?', options })
-  return choice === 'container'
-    ? startManagedRedis(defaultRedisPort(detection))
-    : promptRedisUrl(existing)
+  return choice === 'container' ? startManagedRedis(detection) : promptRedisUrl(existing)
 }

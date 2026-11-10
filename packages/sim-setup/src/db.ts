@@ -1,12 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import {
-  DB_CONTAINER,
-  type Detection,
-  LOOPBACK_HOST,
-  type PortBinding,
-  publishedBinding,
-  targetsLocalPort,
-} from './detect'
+import { DB_CONTAINER, type Detection, LOOPBACK_HOST } from './detect'
 import { ensureDocker } from './docker'
 import { generateSecret } from './env-files'
 import { SetupError } from './errors'
@@ -43,8 +36,6 @@ function dockerOutput(args: string[]): string | null {
 interface ManagedContainer {
   running: boolean
   dsn: string
-  password: string
-  binding: PortBinding
 }
 
 /**
@@ -72,16 +63,21 @@ function inspectManagedContainer(): ManagedContainer | null {
     ?.slice('POSTGRES_PASSWORD='.length)
   if (!password) return null
 
-  const binding = publishedBinding(DB_CONTAINER, '5432/tcp')
-  if (!binding) return null
+  // `docker port` only reports a published port while the container runs; the
+  // static config carries it either way.
+  const hostPort = dockerOutput([
+    'inspect',
+    DB_CONTAINER,
+    '--format',
+    '{{(index .HostConfig.PortBindings "5432/tcp" 0).HostPort}}',
+  ])
+  if (!hostPort) return null
 
   return {
     running: running === 'true',
     // Read back from the container env verbatim, so it may be a password the
     // user supplied for an existing volume — encode it like any other.
-    dsn: buildDsn(password, binding.hostPort),
-    password,
-    binding,
+    dsn: buildDsn(password, hostPort),
   }
 }
 
@@ -253,14 +249,6 @@ async function startManagedContainer(detection: Detection): Promise<string> {
   const password = volumeInitialized()
     ? await resolveExistingVolume()
     : generateSecret().slice(0, 24)
-  return launchManagedContainer(password, hostPort)
-}
-
-/** Runs the managed container on `LOOPBACK_HOST` and waits until it accepts the password. */
-async function launchManagedContainer(
-  password: string,
-  hostPort: string | number
-): Promise<string> {
   // A user-supplied password can contain @ : / # — raw interpolation would
   // re-parse the DSN into a different host and fail a password that is correct.
   const dsn = buildDsn(password, hostPort)
@@ -322,40 +310,12 @@ async function launchManagedContainer(
 }
 
 /**
- * Offers to re-publish a managed container that an earlier release bound to
- * every interface, keeping its password, port, and data volume. Returns the new
- * DSN when `existingDsn` pointed at that container (or nothing was configured),
- * so the env files move to the loopback address with it.
- */
-async function rebindExposedContainer(existingDsn?: string): Promise<string | null> {
-  const container = inspectManagedContainer()
-  if (!container || container.binding.hostIp === LOOPBACK_HOST) return null
-  const { hostPort } = container.binding
-  const rebind = await p.confirm({
-    message: `${DB_CONTAINER} publishes Postgres on every network interface (set up by an earlier sim-setup). Recreate it on ${LOOPBACK_HOST} only? Its data and password are kept.`,
-    initialValue: true,
-  })
-  if (!rebind) {
-    p.log.warn(`${DB_CONTAINER} stays reachable from your network on :${hostPort}.`)
-    return null
-  }
-  docker(['rm', '-f', DB_CONTAINER])
-  const dsn = await launchManagedContainer(container.password, hostPort)
-  return !existingDsn || targetsLocalPort(existingDsn, hostPort) ? dsn : null
-}
-
-/**
  * The mode-B database ladder: reuse a working DSN, offer (never silently adopt)
  * a Postgres already on 5432, start/reuse the wizard-managed pgvector
  * container, or take an external DSN. Adopting an existing database is always
  * an explicit choice — migrations run against whatever is chosen here.
  */
 export async function resolveDatabase(detection: Detection, existingDsn?: string): Promise<string> {
-  if (detection.dbContainer?.managed) {
-    const rebound = await rebindExposedContainer(existingDsn)
-    if (rebound) return rebound
-  }
-
   if (existingDsn && (await probeWithSpinner(existingDsn, 'Testing existing DATABASE_URL…'))) {
     return existingDsn
   }

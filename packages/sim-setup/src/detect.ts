@@ -16,41 +16,41 @@ export const REDIS_CONTAINER = 'sim-redis'
  */
 export const LOOPBACK_HOST = '127.0.0.1'
 
-export interface PortBinding {
-  /** Empty when Docker publishes on every interface. */
-  hostIp: string
-  hostPort: string
-}
-
 /**
- * The host side of a container's published port, read from its static config so
- * a stopped container answers too. Containers from releases before
- * `LOOPBACK_HOST` was enforced report an empty or wildcard `hostIp`.
+ * Whether a container publishes `containerPort` beyond `LOOPBACK_HOST`, read from
+ * its static config so a stopped container answers too. Containers created
+ * before managed ports were bound to loopback report an empty `HostIp`.
  */
-export function publishedBinding(container: string, containerPort: string): PortBinding | null {
+function publishedBeyondLoopback(container: string, containerPort: string): boolean {
   const out = commandOutput('docker', [
     'inspect',
     container,
     '--format',
     `{{json (index .HostConfig.PortBindings "${containerPort}")}}`,
   ])
-  if (!out) return null
+  if (!out) return false
   try {
-    const [first] = JSON.parse(out) as { HostIp?: string; HostPort?: string }[]
-    return first?.HostPort ? { hostIp: first.HostIp ?? '', hostPort: first.HostPort } : null
-  } catch {
-    return null
-  }
-}
-
-/** Whether `url` addresses this machine on `port`, so it reaches a container published there. */
-export function targetsLocalPort(url: string, port: string): boolean {
-  try {
-    const { hostname, port: urlPort } = new URL(url)
-    return ['localhost', LOOPBACK_HOST, '[::1]'].includes(hostname) && urlPort === port
+    const bindings = JSON.parse(out) as { HostIp?: string }[] | null
+    return (bindings ?? []).some((binding) => binding.HostIp !== LOOPBACK_HOST)
   } catch {
     return false
   }
+}
+
+/**
+ * Managed containers that an earlier sim-setup published on every interface.
+ * They are reported, not recreated: Redis holds live realtime sessions and the
+ * Postgres URL may name its own database, so replacing either is the user's call.
+ */
+export function exposedManagedContainers(detection: Detection): string[] {
+  const exposed: string[] = []
+  if (detection.dbContainer?.managed && publishedBeyondLoopback(DB_CONTAINER, '5432/tcp')) {
+    exposed.push(DB_CONTAINER)
+  }
+  if (detection.redisContainer?.managed && publishedBeyondLoopback(REDIS_CONTAINER, '6379/tcp')) {
+    exposed.push(REDIS_CONTAINER)
+  }
+  return exposed
 }
 
 const SHELL_LLM_KEYS = [
