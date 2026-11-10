@@ -214,7 +214,7 @@ const seamHelpers: ReasonedAllowlist = {
     'lib/core/config/feature-flags-context',
     'lib/core/resource-scope',
     'lib/core/utils/browser-storage',
-    'lib/core/utils/paste-admission',
+    'lib/core/utils/paste-admission-guard',
     'lib/core/utils/react-node-text',
     'lib/core/utils/save-file',
     'lib/core/utils/csv',

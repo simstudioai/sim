@@ -5,11 +5,11 @@ import { type DehydratedState, HydrationBoundary, QueryClientProvider } from '@t
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { SessionProvider } from '@/lib/auth/session-provider'
 import { FeatureFlagsProvider } from '@/lib/core/config/feature-flags-context'
+import { PasteAdmissionGuard } from '@/lib/core/utils/paste-admission-guard'
 import { getQueryClient } from '@/hooks/queries/utils/get-query-client'
 import { LiveChatEvents } from '@/platform/lib/data/chat-events'
 import { OrganizationProvider } from '@/platform/lib/data/organization'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { PasteGuard } from '@/platform/lib/data/paste-guard'
 import { type ShellNavigation, useShellData } from '@/platform/lib/data/shell'
 import { LiveShellContext } from '@/platform/lib/data/shell-context'
 
@@ -49,7 +49,7 @@ export function LiveProviders({
             <SessionProvider>
               <FeatureFlagsProvider flags={organization.featureFlags}>
                 <LiveChatEvents />
-                <PasteGuard />
+                <PasteAdmissionGuard />
                 <LiveShellProvider navigation={navigation}>{children}</LiveShellProvider>
               </FeatureFlagsProvider>
             </SessionProvider>

@@ -5,10 +5,12 @@ import { pasteRejectionLimit } from '@/lib/core/utils/paste-admission'
 import { toast } from '@/lib/toast/sink'
 
 /**
- * The main app's last-resort paste admission, for the zone's editable fields: the capture listener
- * refuses an oversized clipboard payload before anything parses it. Renders nothing.
+ * Last-resort paste admission for every editable surface, mounted once by each root (the site root
+ * and the Platform root). The capture listener refuses an oversized clipboard payload before React,
+ * ProseMirror, Monaco, or xterm parse it, and the notice goes to whichever toaster the root connects.
+ * Renders nothing.
  */
-export function PasteGuard() {
+export function PasteAdmissionGuard() {
   useEffect(() => {
     const handlePaste = (event: ClipboardEvent) => {
       const limit = pasteRejectionLimit(event)
