@@ -115,8 +115,7 @@ export function FileUpload({
 
       {upload.showCloudStorageWarning && (
         <p className={styles.note} data-type='T052'>
-          Cloud storage (S3 or Blob) is required for file uploads. Configure S3_BUCKET_NAME and
-          AWS_REGION, or Azure Blob env vars.
+          File uploads aren’t available here yet. Ask your administrator to set up file storage.
         </p>
       )}
       {upload.showFolderScopeNotice && (

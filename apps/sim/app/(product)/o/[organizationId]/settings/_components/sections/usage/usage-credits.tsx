@@ -18,17 +18,19 @@ export function UsageCredits({
   return (
     <section className={styles.block} aria-label={label} data-dimmed={overview.dimmed || undefined}>
       <h2 data-type='T093'>{label}</h2>
-      <div className={styles.figure}>
-        <span data-type='T102'>{chart.loaded ? chart.used.toLocaleString(LOCALE) : '—'}</span>
-        <span className={styles.quiet} data-type='T060'>
-          {chart.used === 1 ? 'credit' : 'credits'}
-        </span>
-        {chart.deltaLabel && (
-          <StatusTag label={chart.deltaLabel} intent={chart.deltaRose ? 'warning' : 'neutral'} />
-        )}
-        {chart.overLimit && <StatusTag label='Over limit' intent='danger' />}
-      </div>
-      {chart.limit !== null && (
+      {chart.loaded && (
+        <div className={styles.figure}>
+          <span data-type='T102'>{chart.used.toLocaleString(LOCALE)}</span>
+          <span className={styles.quiet} data-type='T060'>
+            {chart.used === 1 ? 'credit' : 'credits'}
+          </span>
+          {chart.deltaLabel && (
+            <StatusTag label={chart.deltaLabel} intent={chart.deltaRose ? 'warning' : 'neutral'} />
+          )}
+          {chart.overLimit && <StatusTag label='Over limit' intent='danger' />}
+        </div>
+      )}
+      {chart.loaded && chart.limit !== null && (
         <span className={styles.quiet} data-type='T060'>
           {`${chart.limitPercent}% of ${chart.limit.toLocaleString(LOCALE)}`}
         </span>

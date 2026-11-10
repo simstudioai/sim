@@ -38,6 +38,7 @@ import { useTraceVisibility, useTroubleshootRun } from '@/platform/lib/data/tabl
 import { useWorkspaceUserPermissions } from '@/platform/lib/data/tables/permissions'
 import type { runListParams } from '@/platform/lib/workspace-views'
 import { LOCALE } from '@/platform/shared/time'
+import { CORE_TRIGGER_LABELS } from '@/platform/shared/trigger-labels'
 import {
   queryRead,
   type RunCost,
@@ -91,19 +92,7 @@ const SORT: Record<RunListView['sort'], Pick<LogFilters, 'sortBy' | 'sortOrder'>
   cu: { sortBy: 'cost', sortOrder: 'desc' },
 }
 
-const TRIGGER_LABEL: Record<(typeof CORE_TRIGGER_TYPES)[number], string> = {
-  manual: 'Manual',
-  api: 'API',
-  schedule: 'Schedule',
-  chat: 'Chat',
-  webhook: 'Webhook',
-  mcp: 'MCP',
-  copilot: 'Copilot',
-  mothership: 'Sim',
-  workflow: 'Workflow',
-  custom_block: 'Custom block',
-  test: 'Test',
-}
+const TRIGGER_LABEL: Record<(typeof CORE_TRIGGER_TYPES)[number], string> = CORE_TRIGGER_LABELS
 
 /** The Trigger filter's core choices; the server adds the integrations the workflow registry knows. */
 export const RUN_TRIGGER_OPTIONS = CORE_TRIGGER_TYPES.map((type) => ({

@@ -16,25 +16,11 @@ import {
 } from '@/platform/lib/data/secrets'
 import { platformHref } from '@/platform/lib/navigation'
 import { formatTimestamp } from '@/platform/shared/time'
-
-/** The Logs page's labels for its core triggers; an integration trigger reads as its block. */
-const CORE_TRIGGER_LABELS: Readonly<Record<string, string>> = {
-  manual: 'Manual',
-  api: 'API',
-  schedule: 'Schedule',
-  chat: 'Chat',
-  webhook: 'Webhook',
-  mcp: 'MCP',
-  copilot: 'Sim agent',
-  mothership: 'Sim agent',
-  workflow: 'Workflow',
-  custom_block: 'Custom block',
-  test: 'Test',
-}
+import { coreTriggerLabel } from '@/platform/shared/trigger-labels'
 
 function triggerLabel(trigger: string) {
   return (
-    CORE_TRIGGER_LABELS[trigger] ??
+    coreTriggerLabel(trigger) ??
     BLOCK_NAMES[trigger] ??
     trigger
       .split(/[-_]/)
@@ -86,7 +72,6 @@ export function SecretUsage({ workspaceId, secretName, scope }: SecretUsageProps
   if (isPending) return null
   if (data.entries.length === 0) return <EmptyState title='This secret has not been used yet.' />
 
-  const logsHref = platformHref(workspacePath(workspaceId, 'logs'), search)
   return (
     <DataTable
       title='Secret usage'
@@ -108,7 +93,10 @@ export function SecretUsage({ workspaceId, secretName, scope }: SecretUsageProps
               variant='quiet'
               render={
                 <Link
-                  href={`${logsHref}${logsHref.includes('?') ? '&' : '?'}executionId=${encodeURIComponent(entry.lastExecutionId)}`}
+                  href={platformHref(
+                    workspacePath(workspaceId, `logs/${encodeURIComponent(entry.lastExecutionId)}`),
+                    search
+                  )}
                 />
               }
             >
