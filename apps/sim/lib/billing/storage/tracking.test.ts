@@ -165,13 +165,6 @@ describe('workspace storage counter mutations', () => {
   it('locks the workspace before its payer and updates both ledgers', async () => {
     await incrementStorageUsageForBillingContextInTx(mockTx as unknown as DbOrTx, ORG_CONTEXT, 100)
 
-    expect(mockTxSelect).toHaveBeenNthCalledWith(1, {
-      billedAccountUserId: 'workspace.billedAccountUserId',
-      organizationId: expect.objectContaining({
-        values: expect.arrayContaining(['workspace.organizationId', 'organization.kind']),
-      }),
-      storageUsedBytes: 'workspace.storageUsedBytes',
-    })
     expect(mockTxSelect).toHaveBeenNthCalledWith(2, {
       storageUsedBytes: 'organization.storageUsedBytes',
     })

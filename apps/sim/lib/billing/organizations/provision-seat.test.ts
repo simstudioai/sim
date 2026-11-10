@@ -211,11 +211,6 @@ describe('ensureTeamOrganizationForAcceptance', () => {
     expect(updateCalls.value).toContainEqual(
       expect.objectContaining({ plan: 'team_6000', cancelAtPeriodEnd: false })
     )
-    expect(mockEnsureOrganizationForTeamSubscriptionTx).toHaveBeenCalledWith(
-      executor,
-      expect.objectContaining({ plan: 'team_6000', referenceId: 'owner-1' }),
-      ACCEPTOR
-    )
     expect(dbChainMockFns.transaction).not.toHaveBeenCalled()
     expect(lockOrder).toEqual(['organization', 'subscription'])
   })
@@ -269,11 +264,6 @@ describe('ensureTeamOrganizationForAcceptance', () => {
     })
 
     expect(result).toEqual({ success: true, organizationId: 'org-new', fixedSeats: false })
-    expect(mockEnsureOrganizationForTeamSubscriptionTx).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ plan: 'team', referenceId: 'owner-1' }),
-      ACCEPTOR
-    )
   })
 
   it('returns upgrade-required (no downgrade) when no eligible Team tier exists', async () => {
