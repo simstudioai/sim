@@ -48,6 +48,20 @@ describe('saving a Databricks connection', () => {
     )
   })
 
+  it('refuses an identity reply over the size cap instead of saving the host as the identity', async () => {
+    fetch.mockResolvedValue(
+      jsonResponse({ userName: 'me@example.com', groups: 'g'.repeat(1024 * 1024) })
+    )
+
+    await expect(
+      verifyAndEncryptDatabricksCredential(
+        patConfig('dbc-1234abcd-5678.cloud.databricks.com'),
+        owner
+      )
+    ).rejects.toThrow(/Could not verify/)
+    expect(encryptionMockFns.mockEncryptSecret).not.toHaveBeenCalled()
+  })
+
   it.each([
     'attacker.example.com',
     'https://attacker.example.com',

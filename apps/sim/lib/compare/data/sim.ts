@@ -143,6 +143,11 @@ export const simProfile: CompetitorProfile = {
             label: 'Sim Docs: Introduction (visual, natural-language, and API building)',
             asOf: '2026-11-10',
           },
+          {
+            url: 'https://docs.sim.ai/cli',
+            label: 'Sim Docs: CLI',
+            asOf: '2026-11-10',
+          },
         ],
       },
       learningCurve: {

@@ -246,10 +246,15 @@ async function verifyWorkspaceIdentity(
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     })
     if (!response.ok) throw new Error(`workspace returned HTTP ${response.status}`)
+    // A malformed body only loses the display name; an oversized one must fail
+    // verification rather than save the host as the identity.
     const me = (await readResponseJsonWithLimit(response, {
       maxBytes: MAX_RESPONSE_BYTES,
       label: 'Databricks identity response',
-    }).catch(() => ({}))) as {
+    }).catch((error: unknown) => {
+      if (error instanceof SyntaxError) return {}
+      throw error
+    })) as {
       userName?: unknown
       displayName?: unknown
     }
