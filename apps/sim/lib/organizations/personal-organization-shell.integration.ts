@@ -5,8 +5,9 @@
  * a member of (access denied); an account outside every organization answering not found on its
  * own workspaces; on-demand provisioning attaching existing workspaces (a payer change during a
  * rolling deploy, owed only to the backfill); concurrent first page loads creating two
- * personal organizations; and the surface read rendering an organization the URL names that the
- * viewer does not belong to.
+ * personal organizations; the surface read rendering an organization the URL names that the
+ * viewer does not belong to; and a retired organization's link reading as one the viewer is
+ * excluded from, which leaves a saved link at access denied instead of the viewer's organization.
  */
 import { db } from '@sim/db'
 import {
@@ -25,7 +26,10 @@ import { eq, inArray, sql } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
-import { readOrganizationSurface } from '@/lib/organizations/application/surface'
+import {
+  OrganizationNotFoundError,
+  readOrganizationSurface,
+} from '@/lib/organizations/application/surface'
 import { ensureViewerOrganization } from '@/lib/organizations/application/viewer-organization'
 import { createPersonalOrganizationTx } from '@/lib/organizations/personal'
 import {
@@ -336,6 +340,22 @@ describe('the organization surface a shell renders', () => {
         principal: createSessionPrincipal({ userId: viewerId }),
         input: { organizationId: othersId },
       })
-    ).rejects.toBeInstanceOf(OrganizationMembershipNotFoundError)
+    ).rejects.toSatisfy(
+      (error) =>
+        error instanceof OrganizationMembershipNotFoundError &&
+        !(error instanceof OrganizationNotFoundError)
+    )
+  })
+
+  it('tells an organization that no longer exists apart from one the viewer is outside', async () => {
+    const viewerId = await createUser()
+    await ensureUserOrganization(viewerId)
+
+    await expect(
+      readOrganizationSurface.execute({
+        principal: createSessionPrincipal({ userId: viewerId }),
+        input: { organizationId: `retired-${generateId()}` },
+      })
+    ).rejects.toBeInstanceOf(OrganizationNotFoundError)
   })
 })

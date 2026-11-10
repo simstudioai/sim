@@ -1,6 +1,9 @@
 import { ANONYMOUS_USER_ID } from '@sim/auth/principal'
+import { db } from '@sim/db'
+import { organization } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { eq } from 'drizzle-orm'
 import type { OrganizationSurfaceResponse } from '@/lib/api/contracts/organization'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import {
@@ -21,6 +24,21 @@ import { isPlatformAdmin } from '@/lib/permissions/super-user'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
 
 const logger = createLogger('OrganizationSurfaceRead')
+
+/**
+ * The named organization no longer exists, as a personal organization retired by a team join. It
+ * still reads as no membership; a surface that can send the viewer elsewhere tells it apart.
+ */
+export class OrganizationNotFoundError extends OrganizationMembershipNotFoundError {}
+
+async function organizationExists(organizationId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+    .limit(1)
+  return Boolean(row)
+}
 
 /** What a member's navigation and pages read about their surface, given the resolved context. */
 async function resolveOrganizationSurface(
@@ -79,7 +97,8 @@ interface ReadOrganizationSurfaceInput {
 /**
  * The viewer's surface in a named organization, or, with none named, in the one they joined first.
  * Session active-organization state is not consulted. A named organization the viewer does not
- * belong to reads the same as having no membership at all.
+ * belong to reads the same as having no membership at all; one that no longer exists throws the
+ * narrower `OrganizationNotFoundError`.
  */
 export const readOrganizationSurface: OperationUseCase<
   typeof organizationOperations.readSurface,
@@ -97,9 +116,19 @@ export const readOrganizationSurface: OperationUseCase<
     const { userId } = principal
     const organizationId = input.organizationId ?? (await resolveOrganizationLanding(userId, null))
     if (!organizationId) throw new OrganizationMembershipNotFoundError()
-    await authorizeOrganizationOperation(principal, organizationOperations.readSurface, {
-      organizationId,
-    })
+    try {
+      await authorizeOrganizationOperation(principal, organizationOperations.readSurface, {
+        organizationId,
+      })
+    } catch (error) {
+      if (
+        input.organizationId &&
+        error instanceof OrganizationMembershipNotFoundError &&
+        !(await organizationExists(organizationId))
+      )
+        throw new OrganizationNotFoundError()
+      throw error
+    }
     const context = await getOrganizationSurfaceContext(organizationId, userId)
     if (!context) throw new OrganizationMembershipNotFoundError()
 
