@@ -112,7 +112,7 @@ export async function listMothershipChats(
         scope === 'archived' ? isNotNull(copilotChats.deletedAt) : isNull(copilotChats.deletedAt)
       )
     )
-    .orderBy(desc(copilotChats.pinned), desc(copilotChats.updatedAt))
+    .orderBy(desc(copilotChats.pinned), desc(copilotChats.updatedAt), desc(copilotChats.id))
 
   const chats =
     limit === undefined
