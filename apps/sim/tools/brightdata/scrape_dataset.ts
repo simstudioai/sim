@@ -2,6 +2,7 @@ import type {
   BrightDataScrapeDatasetParams,
   BrightDataScrapeDatasetResponse,
 } from '@/tools/brightdata/types'
+import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brightDataScrapeDatasetTool: ToolConfig<
@@ -13,6 +14,7 @@ export const brightDataScrapeDatasetTool: ToolConfig<
   description:
     'Trigger a Bright Data pre-built scraper to extract structured data from URLs. Supports 660+ scrapers for platforms like Amazon, LinkedIn, Instagram, and more.',
   version: '1.0.0',
+  oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

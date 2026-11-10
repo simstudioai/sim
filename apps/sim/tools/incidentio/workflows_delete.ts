@@ -1,4 +1,5 @@
 import type { WorkflowsDeleteParams, WorkflowsDeleteResponse } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const workflowsDeleteTool: ToolConfig<WorkflowsDeleteParams, WorkflowsDeleteResponse> = {
@@ -6,6 +7,7 @@ export const workflowsDeleteTool: ToolConfig<WorkflowsDeleteParams, WorkflowsDel
   name: 'incident.io Workflows Delete',
   description: 'Delete a workflow in incident.io.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

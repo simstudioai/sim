@@ -5,6 +5,7 @@ import type {
   QuiverSvgV2Response,
   QuiverTextToSvgParams,
 } from '@/tools/quiver/types'
+import { QUIVER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const quiverTextToSvgTool = {
@@ -12,6 +13,7 @@ export const quiverTextToSvgTool = {
   name: 'Quiver Text to SVG',
   description: 'Generate SVG images from text prompts using QuiverAI',
   version: '1.0.0',
+  oauth: QUIVER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
@@ -153,6 +155,7 @@ export const quiverTextToSvgV2Tool: InternalToolConfig<QuiverTextToSvgParams, Qu
     ...quiverTextToSvgTool,
     id: 'quiver_text_to_svg_v2',
     version: '2.0.0',
+    oauth: QUIVER_CREDENTIAL_OAUTH,
     transformResponse: async (response) => {
       const data: QuiverSvgV2Response = await response.json()
       if (!data.success) throw new Error(data.error || 'Failed to generate SVG')

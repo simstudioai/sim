@@ -13,6 +13,7 @@ import {
   bufferStringList,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const bufferGetDailyPostingLimitsTool: ToolConfig<
@@ -23,6 +24,7 @@ export const bufferGetDailyPostingLimitsTool: ToolConfig<
   name: 'Buffer Get Daily Posting Limits',
   description: 'Check sent and scheduled post counts against each channel’s daily limit for a date',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

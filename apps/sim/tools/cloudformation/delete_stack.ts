@@ -2,6 +2,7 @@ import type {
   CloudFormationDeleteStackParams,
   CloudFormationDeleteStackResponse,
 } from '@/tools/cloudformation/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deleteStackTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const deleteStackTool: InternalToolConfig<
   name: 'CloudFormation Delete Stack',
   description: 'Delete a CloudFormation stack and its resources',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

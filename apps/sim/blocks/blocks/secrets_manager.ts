@@ -1,9 +1,12 @@
 import { SecretsManagerIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
-import { IntegrationType } from '@/blocks/types'
+import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const SecretsManagerBlock: BlockConfig = {
   type: 'secrets_manager',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'secrets_manager_v2' },
   name: 'AWS Secrets Manager',
   description: 'Connect to AWS Secrets Manager',
   longDescription:
@@ -668,3 +671,17 @@ export const SecretsManagerBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SecretsManagerV2Block: BlockConfig = {
+  ...SecretsManagerBlock,
+  type: 'secrets_manager_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SecretsManagerBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

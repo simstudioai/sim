@@ -27,6 +27,8 @@ const SENSITIVE_KEY_PATTERNS: RegExp[] = [
   // Suffix form of the anchored `api_key` pattern above, which misses prefixed
   // credential fields such as `searchApiKey`, `projectApiKey`, and `resendApiKey`.
   /^.*api[_-]?key$/i,
+  // AWS's `secretAccessKey` / `awsSecretAccessKey`, which no suffix above covers.
+  /^.*secret[_-]?access[_-]?key$/i,
   /^passphrase$/i,
   /^authorization$/i,
   /^proxy[_-]?authorization$/i,

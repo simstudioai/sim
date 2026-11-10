@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevListQueuesParams,
   TriggerDevListQueuesResponse,
@@ -18,6 +19,7 @@ export const triggerDevListQueuesTool: ToolConfig<
   description:
     'List the queues in the environment of the API key, including running and queued counts, with page-based pagination.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -3,6 +3,7 @@ import type {
   DiscordGetUserResponse,
   DiscordUser,
 } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUserResponse> = {
@@ -10,6 +11,7 @@ export const discordGetUserTool: ToolConfig<DiscordGetUserParams, DiscordGetUser
   name: 'Discord Get User',
   description: 'Retrieve information about a Discord user',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

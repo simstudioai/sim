@@ -1,5 +1,6 @@
 import { isSupplied } from '@/tools/lambda/supplied'
 import type { LambdaCreateAliasParams, LambdaCreateAliasResponse } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createAliasTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const createAliasTool: InternalToolConfig<
   name: 'Lambda Create Alias',
   description: 'Create an alias that points to a published function version',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

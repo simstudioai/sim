@@ -1,5 +1,6 @@
 import { OtterIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const CONVERSATION_ID_OPERATIONS = ['get_conversation', 'get_conversation_audio']
@@ -7,6 +8,8 @@ const PAGINATED_OPERATIONS = ['list_conversations', 'list_workspace_conversation
 
 export const OtterBlock: BlockConfig = {
   type: 'otter',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'otter_v2' },
   name: 'Otter.ai',
   description: 'Read Otter.ai meeting conversations, transcripts, and summaries',
   longDescription:
@@ -420,3 +423,17 @@ export const OtterBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const OtterV2Block: BlockConfig = {
+  ...OtterBlock,
+  type: 'otter_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(OtterBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'otter',
+    title: 'Otter.ai Credential',
+  }),
+}

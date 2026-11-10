@@ -5,10 +5,13 @@ import {
   parseOptionalBooleanInput,
   parseOptionalJsonInput,
   parseOptionalNumberInput,
+  withSavedCredential,
 } from '@/blocks/utils'
 
 export const CodePipelineBlock: BlockConfig = {
   type: 'codepipeline',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'codepipeline_v2' },
   name: 'CodePipeline',
   description: 'Run, monitor, and approve AWS CodePipeline pipelines',
   authMode: AuthMode.ApiKey,
@@ -830,3 +833,19 @@ export const CodePipelineBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CodePipelineV2Block: BlockConfig = {
+  ...CodePipelineBlock,
+  type: 'codepipeline_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Start, stop, and monitor pipeline executions, retry failed stages, and approve or reject manual approval actions.',
+  ...withSavedCredential(CodePipelineBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

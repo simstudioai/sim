@@ -1,4 +1,5 @@
 import type { DeleteInboxParams, DeleteInboxResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailDeleteInboxTool: ToolConfig<DeleteInboxParams, DeleteInboxResult> = {
@@ -6,6 +7,7 @@ export const agentmailDeleteInboxTool: ToolConfig<DeleteInboxParams, DeleteInbox
   name: 'Delete Inbox',
   description: 'Delete an email inbox in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

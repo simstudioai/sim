@@ -9,6 +9,7 @@ import {
   mapBufferChannel,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const GET_CHANNELS_QUERY = `
@@ -25,6 +26,7 @@ export const bufferGetChannelsTool: ToolConfig<BufferGetChannelsParams, BufferCh
   description:
     'List the social media channels connected to a Buffer organization, including their channel IDs (needed to create posts)',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadBaseParams, SmartleadEmailAccountsResponse } from '@/tools/smartlead/types'
 import {
   emailAccountsOutputs,
@@ -25,6 +26,7 @@ export const listEmailAccountsTool: ToolConfig<
   description:
     'Retrieves the sending email accounts on the Smartlead account, including their IDs for attaching to a campaign.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

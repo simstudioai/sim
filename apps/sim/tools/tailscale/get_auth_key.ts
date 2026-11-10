@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { KEY_OUTPUT_PROPERTIES } from '@/tools/tailscale/outputs'
 import type {
   TailscaleAuthKeyParams,
@@ -16,6 +17,7 @@ export const tailscaleGetAuthKeyTool: ToolConfig<
   name: 'Tailscale Get Auth Key',
   description: 'Get a key’s type, owner, scopes, expiry, and device enrollment capabilities',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

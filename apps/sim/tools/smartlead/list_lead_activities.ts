@@ -1,5 +1,6 @@
 import { toRecord } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadBaseParams, SmartleadPaginatedRowsResponse } from '@/tools/smartlead/types'
 import {
   opaqueRows,
@@ -30,6 +31,7 @@ export const listLeadActivitiesTool: ToolConfig<
   description:
     'Retrieves recent lead activity across all Smartlead campaigns — opens, clicks, replies, and status changes. Smartlead exposes no campaign filter on this endpoint.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

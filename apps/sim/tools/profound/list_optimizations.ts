@@ -1,3 +1,4 @@
+import { PROFOUND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ProfoundListOptimizationsParams, ProfoundListOptimizationsResponse } from './types'
 
@@ -9,6 +10,7 @@ export const profoundListOptimizationsTool: ToolConfig<
   name: 'Profound List Optimizations',
   description: 'List content optimization entries for an asset in Profound',
   version: '1.0.0',
+  oauth: PROFOUND_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

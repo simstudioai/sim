@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CatalogObjectResponse, GetCatalogObjectParams } from '@/tools/square/types'
 import {
   CATALOG_OBJECT_METADATA_OUTPUT_PROPERTIES,
@@ -14,6 +15,7 @@ export const squareGetCatalogObjectTool: ToolConfig<GetCatalogObjectParams, Cata
     name: 'Square Get Catalog Object',
     description: 'Retrieve a single catalog object by its ID',
     version: '1.0.0',
+    oauth: SQUARE_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
     params: {

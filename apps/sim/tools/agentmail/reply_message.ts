@@ -1,4 +1,5 @@
 import type { ReplyMessageParams, ReplyMessageResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailReplyMessageTool: ToolConfig<ReplyMessageParams, ReplyMessageResult> = {
@@ -6,6 +7,7 @@ export const agentmailReplyMessageTool: ToolConfig<ReplyMessageParams, ReplyMess
   name: 'Reply to Message',
   description: 'Reply to an existing email message in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

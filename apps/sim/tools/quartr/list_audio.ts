@@ -13,6 +13,7 @@ import {
   normalizeQuartrCommaList,
   parseQuartrResponse,
 } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrListAudioTool: ToolConfig<QuartrListAudioParams, QuartrListAudioResponse> = {
@@ -21,6 +22,7 @@ export const quartrListAudioTool: ToolConfig<QuartrListAudioParams, QuartrListAu
   description:
     'List archived event audio recordings from Quartr, filterable by company, event, and date range. Returns download (MPEG) and streaming (M3U8) URLs.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleSetDeviceAttributeParams,
   TailscaleSetDeviceAttributeResponse,
@@ -14,6 +15,7 @@ export const tailscaleSetDeviceAttributeTool: ToolConfig<
   name: 'Tailscale Set Device Attribute',
   description: 'Create or update a custom device posture attribute with an optional expiry',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

@@ -2,7 +2,7 @@
 title: SendGrid
 description: Send emails and manage contacts, lists, and templates with SendGrid
 integration:
-  type: "sendgrid"
+  type: "sendgrid_v2"
   color: "#1A82E2"
 ---
 
@@ -29,7 +29,6 @@ Send an email using SendGrid API
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `from` | string | Yes | Sender email address \(must be verified in SendGrid\) |
 | `fromName` | string | No | Sender name |
 | `to` | string | Yes | Recipient email address |
@@ -66,7 +65,6 @@ Add a new contact to SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `email` | string | Yes | Contact email address |
 | `firstName` | string | No | Contact first name |
 | `lastName` | string | No | Contact last name |
@@ -95,7 +93,6 @@ Get a specific contact by ID from SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `contactId` | string | Yes | Contact ID |
 
 #### Output
@@ -123,7 +120,6 @@ Search for contacts in SendGrid using a query
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `query` | string | Yes | Search query \(e.g., "email LIKE '%example.com%' AND CONTAINS\(list_ids, 'list-id'\)"\) |
 
 #### Output
@@ -145,7 +141,6 @@ Delete one or more contacts from SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `contactIds` | string | Yes | Comma-separated contact IDs to delete |
 
 #### Output
@@ -166,7 +161,6 @@ Create a new contact list in SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `name` | string | Yes | List name |
 
 #### Output
@@ -189,7 +183,6 @@ Get a specific list by ID from SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `listId` | string | Yes | List ID |
 
 #### Output
@@ -212,7 +205,6 @@ Get all contact lists from SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `pageSize` | number | No | Number of lists to return per page \(default: 100, max: 1000\) |
 | `pageToken` | string | No | Page token from a previous response \(nextPageToken\) to fetch the next page |
 
@@ -235,7 +227,6 @@ Delete a contact list from SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `listId` | string | Yes | List ID to delete |
 
 #### Output
@@ -256,7 +247,6 @@ Add or update contacts and assign them to a list in SendGrid (uses PUT /v3/marke
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `listId` | string | Yes | List ID to add contacts to |
 | `contacts` | json | Yes | JSON array of contact objects. Each contact must have at least: email \(or phone_number_id/external_id/anonymous_id\). Example: \[\{"email": "user@example.com", "first_name": "John"\}\] |
 
@@ -279,7 +269,6 @@ Remove contacts from a specific list in SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `listId` | string | Yes | List ID |
 | `contactIds` | string | Yes | Comma-separated contact IDs to remove from the list |
 
@@ -301,7 +290,6 @@ Create a new email template in SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `name` | string | Yes | Template name |
 | `generation` | string | No | Template generation type \(legacy or dynamic, default: dynamic\) |
 
@@ -327,7 +315,6 @@ Get a specific template by ID from SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `templateId` | string | Yes | Template ID |
 
 #### Output
@@ -352,7 +339,6 @@ Get all email templates from SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `generations` | string | No | Filter by generation \(legacy, dynamic, or both\) |
 | `pageSize` | number | No | Number of templates to return per page \(default: 20, max: 200\). When paginating with pageToken, pass the same pageSize used on the first request to keep page boundaries consistent. |
 | `pageToken` | string | No | Page token from a previous response \(nextPageToken\) to fetch the next page |
@@ -376,7 +362,6 @@ Delete an email template from SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `templateId` | string | Yes | Template ID to delete |
 
 #### Output
@@ -395,7 +380,6 @@ Create a new version of an email template in SendGrid
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | SendGrid API key |
 | `templateId` | string | Yes | Template ID |
 | `name` | string | Yes | Version name |
 | `subject` | string | Yes | Email subject line |

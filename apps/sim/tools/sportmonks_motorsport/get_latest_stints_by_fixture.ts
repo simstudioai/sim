@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -30,6 +31,7 @@ export const sportmonksMotorsportGetLatestStintsByFixtureTool: ToolConfig<
   description:
     'Retrieve the latest tyre stints for a motorsport fixture (session) by fixture ID from Sportmonks',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

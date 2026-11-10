@@ -1,4 +1,5 @@
 import type { RipplingGetEmploymentTypeParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingGetEmploymentTypeTool: ToolConfig<RipplingGetEmploymentTypeParams> = {
@@ -6,6 +7,7 @@ export const ripplingGetEmploymentTypeTool: ToolConfig<RipplingGetEmploymentType
   name: 'Rippling Get Employment Type',
   description: 'Get a specific employment type by ID',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

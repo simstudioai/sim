@@ -1,4 +1,5 @@
 import type { DubBulkUpdateLinksParams, DubBulkUpdateLinksResponse } from '@/tools/dub/types'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const bulkUpdateLinksTool: ToolConfig<DubBulkUpdateLinksParams, DubBulkUpdateLinksResponse> =
@@ -8,6 +9,7 @@ export const bulkUpdateLinksTool: ToolConfig<DubBulkUpdateLinksParams, DubBulkUp
     description:
       'Apply the same set of field updates to up to 100 links at once, selected by link IDs or external IDs.',
     version: '1.0.0',
+    oauth: DUB_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

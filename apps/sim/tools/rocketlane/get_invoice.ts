@@ -7,6 +7,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneGetInvoiceTool: ToolConfig<
@@ -17,6 +18,7 @@ export const rocketlaneGetInvoiceTool: ToolConfig<
   name: 'Rocketlane Get Invoice',
   description: 'Retrieve a Rocketlane invoice by its ID',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -7,6 +7,7 @@ import type {
   ClerkPhoneNumber,
   ClerkUser,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkGetUser')
@@ -16,6 +17,7 @@ export const clerkGetUserTool: ToolConfig<ClerkGetUserParams, ClerkGetUserRespon
   name: 'Get User from Clerk',
   description: 'Retrieve a single user by their ID from Clerk',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

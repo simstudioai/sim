@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevAddRunTagsParams,
   TriggerDevAddRunTagsResponse,
@@ -17,6 +18,7 @@ export const triggerDevAddRunTagsTool: ToolConfig<
   name: 'Trigger.dev Add Run Tags',
   description: 'Add tags to an existing Trigger.dev run. Runs can have up to 10 tags.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

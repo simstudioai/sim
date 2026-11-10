@@ -6,6 +6,7 @@ import {
   type QuartrSingleDto,
 } from '@/tools/quartr/types'
 import { buildQuartrUrl, mapQuartrDocument, parseQuartrResponse } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrGetReportTool: ToolConfig<QuartrGetReportParams, QuartrGetDocumentFileResponse> =
@@ -15,6 +16,7 @@ export const quartrGetReportTool: ToolConfig<QuartrGetReportParams, QuartrGetDoc
     description:
       'Retrieve a filing or report (10-K, 10-Q, earnings release, etc.) from Quartr by its document ID and download the PDF file.',
     version: '1.0.0',
+    oauth: QUARTR_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

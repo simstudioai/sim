@@ -4,6 +4,7 @@ import type {
   LinqListPhoneNumbersResult,
 } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqListPhoneNumbersTool: ToolConfig<
@@ -14,6 +15,7 @@ export const linqListPhoneNumbersTool: ToolConfig<
   name: 'List Phone Numbers',
   description: 'List all phone numbers assigned to your partner account, with line health',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import type { DeleteTemplateParams } from '@/tools/sendgrid/types'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 export const sendGridDeleteTemplateTool: ToolConfig<DeleteTemplateParams, ToolResponse> = {
@@ -6,6 +7,7 @@ export const sendGridDeleteTemplateTool: ToolConfig<DeleteTemplateParams, ToolRe
   name: 'SendGrid Delete Template',
   description: 'Delete an email template from SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

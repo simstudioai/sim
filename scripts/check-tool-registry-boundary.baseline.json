@@ -135,7 +135,7 @@
       }
     },
     "app/(product)/o/[organizationId]/people/[memberId]/page.tsx": {
-      "modules": 2013,
+      "modules": 2056,
       "gateways": {
         "apps/sim/app/(product)/o/[organizationId]/people/_components/people-access.ts": 1848,
         "apps/sim/platform/lib/data/server-read.ts": 1356,
@@ -148,7 +148,7 @@
       }
     },
     "app/(product)/o/[organizationId]/people/page.tsx": {
-      "modules": 2028,
+      "modules": 2071,
       "gateways": {
         "apps/sim/app/(product)/o/[organizationId]/people/_components/people-access.ts": 1848,
         "apps/sim/platform/lib/data/server-read.ts": 1356,
@@ -387,7 +387,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/layout.tsx": {
-      "modules": 1944,
+      "modules": 1989,
       "gateways": {
         "apps/sim/platform/lib/data/server-read.ts": 1369,
         "apps/sim/lib/auth/index.ts": 1361,
@@ -478,7 +478,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/tests/[name]/page.tsx": {
-      "modules": 2339,
+      "modules": 2388,
       "gateways": {
         "apps/sim/platform/lib/data/workspace-tab-flags.ts": 1802,
         "apps/sim/platform/lib/data/server-read.ts": 1351,
@@ -491,7 +491,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/tests/page.tsx": {
-      "modules": 2051,
+      "modules": 2094,
       "gateways": {
         "apps/sim/platform/lib/data/workspace-tab-flags.ts": 1848,
         "apps/sim/platform/lib/data/server-read.ts": 1356,
@@ -595,7 +595,7 @@
       }
     },
     "app/api/v2/blocks/[blockId]/route.ts": {
-      "modules": 1974,
+      "modules": 2015,
       "gateways": {
         "apps/sim/triggers/index.ts": 557,
         "apps/sim/triggers/registry.ts": 555,
@@ -608,7 +608,7 @@
       }
     },
     "app/api/v2/blocks/route.ts": {
-      "modules": 1971,
+      "modules": 2014,
       "gateways": {
         "apps/sim/blocks/registry.ts": 948,
         "apps/sim/blocks/registry-maps.ts": 946,
@@ -621,7 +621,7 @@
       }
     },
     "app/api/v2/connector-types/route.ts": {
-      "modules": 2041,
+      "modules": 2084,
       "gateways": {
         "apps/sim/blocks/registry.ts": 949,
         "apps/sim/blocks/registry-maps.ts": 947,
@@ -634,7 +634,7 @@
       }
     },
     "app/api/v2/tools/[toolId]/route.ts": {
-      "modules": 1969,
+      "modules": 2010,
       "gateways": {
         "apps/sim/blocks/registry.ts": 948,
         "apps/sim/blocks/registry-maps.ts": 946,
@@ -647,7 +647,7 @@
       }
     },
     "app/api/v2/tools/route.ts": {
-      "modules": 1970,
+      "modules": 2011,
       "gateways": {
         "apps/sim/blocks/registry.ts": 948,
         "apps/sim/blocks/registry-maps.ts": 946,

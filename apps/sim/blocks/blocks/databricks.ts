@@ -1,6 +1,7 @@
 import { DatabricksIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /** A run is parameterized either at the job level or per notebook, never both. */
 const DATABRICKS_RUN_PARAMS_FIELD = ['jobParameters', 'notebookParams'] as const
@@ -48,6 +49,8 @@ const GENIE_PAGED_OPERATIONS = [
 
 export const DatabricksBlock: BlockConfig = {
   type: 'databricks',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'databricks_v2' },
   name: 'Databricks',
   description: 'Run SQL, manage jobs, and ask Genie agents on Databricks',
   authMode: AuthMode.ApiKey,
@@ -2787,3 +2790,19 @@ export const DatabricksBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const DatabricksV2Block: BlockConfig = {
+  ...DatabricksBlock,
+  type: 'databricks_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Execute parameterized SQL and retrieve result chunks, create and manage jobs, submit and repair runs, manage compute clusters and SQL warehouses, and create or update Genie spaces. Ask Genie questions or run agent research, inspect conversations, and retrieve query results and charts.',
+  ...withSavedCredential(DatabricksBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'databricks',
+    title: 'Databricks Connection',
+  }),
+}

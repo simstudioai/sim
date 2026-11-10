@@ -11,6 +11,7 @@ import {
   mapQuartrDocument,
   parseQuartrResponse,
 } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrListSlideDecksTool: ToolConfig<
@@ -22,6 +23,7 @@ export const quartrListSlideDecksTool: ToolConfig<
   description:
     'List slide presentations from Quartr, filterable by company, event, document type, document group, and date range.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

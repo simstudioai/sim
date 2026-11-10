@@ -1,4 +1,5 @@
 import type { DiscordGetChannelParams, DiscordGetChannelResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordGetChannelTool: ToolConfig<DiscordGetChannelParams, DiscordGetChannelResponse> =
@@ -7,6 +8,7 @@ export const discordGetChannelTool: ToolConfig<DiscordGetChannelParams, DiscordG
     name: 'Discord Get Channel',
     description: 'Get information about a Discord channel',
     version: '1.0.0',
+    oauth: DISCORD_CREDENTIAL_OAUTH,
 
     params: {
       botToken: {

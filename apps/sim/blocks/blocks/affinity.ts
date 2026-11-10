@@ -1,7 +1,11 @@
 import { AffinityIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { parseOptionalBooleanInput, parseOptionalNumberInput } from '@/blocks/utils'
+import {
+  parseOptionalBooleanInput,
+  parseOptionalNumberInput,
+  withSavedCredential,
+} from '@/blocks/utils'
 
 /** Operations scoped to a company or person through the shared field endpoints. */
 const FIELD_ENTITY_OPERATIONS = [
@@ -305,6 +309,8 @@ function affinityToolIds(): ReadonlySet<string> {
 
 export const AffinityBlock: BlockConfig = {
   type: 'affinity',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'affinity_v2' },
   name: 'Affinity',
   description: 'Read and write companies, people, lists, notes, and relationships in Affinity',
   longDescription:
@@ -1765,3 +1771,17 @@ export const AffinityBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const AffinityV2Block: BlockConfig = {
+  ...AffinityBlock,
+  type: 'affinity_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(AffinityBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'affinity',
+    title: 'Affinity Credential',
+  }),
+}

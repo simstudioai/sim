@@ -1,4 +1,5 @@
 import type { ApolloEmailAccountsParams, ApolloEmailAccountsResponse } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloEmailAccountsTool: ToolConfig<
@@ -9,6 +10,7 @@ export const apolloEmailAccountsTool: ToolConfig<
   name: 'Apollo Get Email Accounts',
   description: "Get list of team's linked email accounts in Apollo",
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

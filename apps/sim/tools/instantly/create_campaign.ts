@@ -11,6 +11,7 @@ import {
   mapCampaign,
   parseInstantlyResponse,
 } from '@/tools/instantly/utils'
+import { INSTANTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createCampaignTool: ToolConfig<
@@ -21,6 +22,7 @@ export const createCampaignTool: ToolConfig<
   name: 'Instantly Create Campaign',
   description: 'Creates an Instantly V2 campaign using the documented campaign schedule schema.',
   version: '1.0.0',
+  oauth: INSTANTLY_CREDENTIAL_OAUTH,
   params: {
     ...instantlyBaseParamFields,
     name: {

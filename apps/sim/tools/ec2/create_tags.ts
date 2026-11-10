@@ -4,6 +4,7 @@ import {
   type Ec2CreateTagsResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const createTagsTool: InternalToolConfig<Ec2CreateTagsParams, Ec2CreateTagsResponse> = {
@@ -11,6 +12,7 @@ export const createTagsTool: InternalToolConfig<Ec2CreateTagsParams, Ec2CreateTa
   name: 'EC2 Create Tags',
   description: 'Add or overwrite tags on one or more EC2 resources',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

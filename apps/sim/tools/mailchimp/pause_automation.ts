@@ -1,4 +1,5 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpPauseAutomationParams {
@@ -21,6 +22,7 @@ export const mailchimpPauseAutomationTool: ToolConfig<
   name: 'Pause Automation in Mailchimp',
   description: 'Pause all emails in a Mailchimp automation workflow',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

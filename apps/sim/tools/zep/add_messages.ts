@@ -1,3 +1,4 @@
+import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
 import { THREAD_OUTPUT_PROPERTIES } from '@/tools/zep/types'
@@ -60,6 +61,7 @@ export const zepAddMessagesTool: ToolConfig<ZepAddMessagesParams, ZepResponse> =
   name: 'Add Messages',
   description: 'Add messages to an existing thread',
   version: '1.0.0',
+  oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {
     threadId: {

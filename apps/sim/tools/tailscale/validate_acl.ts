@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleValidateAclParams,
   TailscaleValidateAclResponse,
@@ -14,6 +15,7 @@ export const tailscaleValidateAclTool: ToolConfig<
   name: 'Tailscale Validate ACL',
   description: 'Validate a policy file or run ACL tests without changing the tailnet policy',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

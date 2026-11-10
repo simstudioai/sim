@@ -1,5 +1,6 @@
 import type { BrexGetUserParams, BrexGetUserResponse } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexGetUserTool: ToolConfig<BrexGetUserParams, BrexGetUserResponse> = {
@@ -7,6 +8,7 @@ export const brexGetUserTool: ToolConfig<BrexGetUserParams, BrexGetUserResponse>
   name: 'Brex Get User',
   description: 'Get a Brex user by their ID',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

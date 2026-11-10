@@ -2,6 +2,7 @@ import type {
   IncidentioSchedulesShowParams,
   IncidentioSchedulesShowResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const schedulesShowTool: ToolConfig<
@@ -12,6 +13,7 @@ export const schedulesShowTool: ToolConfig<
   name: 'Show Schedule',
   description: 'Get details of a specific schedule in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

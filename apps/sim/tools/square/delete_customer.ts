@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerDeleteResponse, DeleteCustomerParams } from '@/tools/square/types'
 import { SQUARE_BASE_URL, squareHeaders } from '@/tools/square/types'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const squareDeleteCustomerTool: ToolConfig<DeleteCustomerParams, Customer
   name: 'Square Delete Customer',
   description: 'Delete a customer profile from the Square customer directory',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

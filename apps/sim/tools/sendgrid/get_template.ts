@@ -1,4 +1,5 @@
 import type { GetTemplateParams, SendGridTemplate, TemplateResult } from '@/tools/sendgrid/types'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridGetTemplateTool: ToolConfig<GetTemplateParams, TemplateResult> = {
@@ -6,6 +7,7 @@ export const sendGridGetTemplateTool: ToolConfig<GetTemplateParams, TemplateResu
   name: 'SendGrid Get Template',
   description: 'Get a specific template by ID from SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

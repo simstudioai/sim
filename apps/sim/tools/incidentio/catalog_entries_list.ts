@@ -3,6 +3,7 @@ import {
   type IncidentioCatalogEntriesListParams,
   type IncidentioCatalogEntriesListResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /** incident.io requires a page size on this endpoint, so fall back to its documented default. */
@@ -17,6 +18,7 @@ export const catalogEntriesListTool: ToolConfig<
   description:
     'List the entries of a catalog type in incident.io — for example every service, team, or customer recorded in the catalog',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

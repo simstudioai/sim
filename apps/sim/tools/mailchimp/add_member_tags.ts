@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('MailchimpAddMemberTags')
@@ -26,6 +27,7 @@ export const mailchimpAddMemberTagsTool: ToolConfig<
   name: 'Add Tags to Member in Mailchimp',
   description: 'Add tags to a member in a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

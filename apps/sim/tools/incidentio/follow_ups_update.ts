@@ -3,6 +3,7 @@ import {
   type IncidentioFollowUpsUpdateParams,
   type IncidentioFollowUpsUpdateResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const followUpsUpdateTool: ToolConfig<
@@ -14,6 +15,7 @@ export const followUpsUpdateTool: ToolConfig<
   description:
     'Update an existing follow-up in incident.io, for example to mark it completed or reassign it',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

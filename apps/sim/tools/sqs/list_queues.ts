@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SqsListQueuesParams, SqsQueueListResponse } from '@/tools/sqs/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const listQueuesTool: InternalToolConfig<SqsListQueuesParams, SqsQueueLis
   name: 'SQS List Queues',
   description: 'List Amazon SQS queue URLs in a region, optionally filtered by name prefix',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

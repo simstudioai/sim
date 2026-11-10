@@ -1,5 +1,6 @@
 import type { LinqChatActionParams, LinqSuccessResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqMarkChatReadTool: ToolConfig<LinqChatActionParams, LinqSuccessResult> = {
@@ -8,6 +9,7 @@ export const linqMarkChatReadTool: ToolConfig<LinqChatActionParams, LinqSuccessR
   description:
     'Mark messages in a chat as read (only applies to 1:1 iMessage/RCS; no effect on group chats)',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -5,6 +5,7 @@ import type {
   LangsmithCreateFeedbackResponse,
 } from '@/tools/langsmith/types'
 import { LANGSMITH_API_BASE, truncateLangsmithErrorText } from '@/tools/langsmith/utils'
+import { LANGSMITH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const langsmithCreateFeedbackTool: ToolConfig<
@@ -15,6 +16,7 @@ export const langsmithCreateFeedbackTool: ToolConfig<
   name: 'LangSmith Create Feedback',
   description: 'Attach a score, correction, or comment to a LangSmith run.',
   version: '1.0.0',
+  oauth: LANGSMITH_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

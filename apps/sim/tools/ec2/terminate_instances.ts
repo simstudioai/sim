@@ -1,5 +1,6 @@
 import type { Ec2TerminateInstancesParams, Ec2TerminateInstancesResponse } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const terminateInstancesTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const terminateInstancesTool: InternalToolConfig<
   name: 'EC2 Terminate Instances',
   description: 'Permanently terminate one or more EC2 instances',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

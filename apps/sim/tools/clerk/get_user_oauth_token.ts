@@ -5,6 +5,7 @@ import type {
   ClerkGetUserOauthTokenResponse,
   ClerkOAuthAccessToken,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkGetUserOauthToken')
@@ -18,6 +19,7 @@ export const clerkGetUserOauthTokenTool: ToolConfig<
   description:
     "Retrieve a user's OAuth access token for a connected external provider (e.g. Google, GitHub, Microsoft) obtained via Clerk SSO",
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

@@ -5,6 +5,7 @@ import type {
   ClerkBanUserResponse,
   ClerkUser,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkBanUser')
@@ -14,6 +15,7 @@ export const clerkBanUserTool: ToolConfig<ClerkBanUserParams, ClerkBanUserRespon
   name: 'Ban User in Clerk',
   description: 'Ban a user, preventing them from signing in',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -34,6 +35,7 @@ export const sportmonksOddsGetAllHistoricalOddsTool: ToolConfig<
   description:
     'Retrieve all available historical (premium) pre-match odd values from the Sportmonks Odds API',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

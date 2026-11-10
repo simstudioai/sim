@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -35,6 +36,7 @@ export const sportmonksGetTeamsByCountryTool: ToolConfig<
   name: 'Get Teams by Country',
   description: 'Retrieve all teams for a country ID from Sportmonks',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

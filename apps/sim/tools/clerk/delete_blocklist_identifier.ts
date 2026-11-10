@@ -5,6 +5,7 @@ import type {
   ClerkDeleteBlocklistIdentifierResponse,
   ClerkDeleteResponse,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkDeleteBlocklistIdentifier')
@@ -17,6 +18,7 @@ export const clerkDeleteBlocklistIdentifierTool: ToolConfig<
   name: 'Delete Blocklist Identifier from Clerk',
   description: 'Remove an identifier from your Clerk instance blocklist',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

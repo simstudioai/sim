@@ -10,6 +10,7 @@ import {
   parseDatabricksJson,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createWarehouseTool: ToolConfig<
@@ -20,6 +21,7 @@ export const createWarehouseTool: ToolConfig<
   name: 'Databricks Create Warehouse',
   description: 'Create a SQL warehouse with sizing, autoscaling, and serverless settings.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     name: {

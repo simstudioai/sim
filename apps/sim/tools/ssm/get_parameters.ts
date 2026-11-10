@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SsmGetParametersParams, SsmGetParametersResponse } from '@/tools/ssm/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const getParametersTool: InternalToolConfig<
   name: 'SSM Get Parameters',
   description: 'Read up to ten parameters from AWS Systems Manager Parameter Store by name',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

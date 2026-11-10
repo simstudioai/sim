@@ -2,6 +2,7 @@ import type {
   AthenaGetQueryExecutionParams,
   AthenaGetQueryExecutionResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getQueryExecutionTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getQueryExecutionTool: InternalToolConfig<
   name: 'Athena Get Query Execution',
   description: 'Get the status and details of an Athena query execution',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

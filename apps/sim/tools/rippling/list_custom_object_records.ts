@@ -1,5 +1,6 @@
 import type { RipplingListCustomObjectRecordsParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_RECORD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListCustomObjectRecordsTool: ToolConfig<RipplingListCustomObjectRecordsParams> =
@@ -8,6 +9,7 @@ export const ripplingListCustomObjectRecordsTool: ToolConfig<RipplingListCustomO
     name: 'Rippling List Custom Object Records',
     description: 'List all records for a custom object',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

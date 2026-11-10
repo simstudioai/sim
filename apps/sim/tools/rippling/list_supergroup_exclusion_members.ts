@@ -1,5 +1,6 @@
 import type { RipplingListSupergroupExclusionMembersParams } from '@/tools/rippling/types'
 import { GROUP_MEMBER_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListSupergroupExclusionMembersTool: ToolConfig<RipplingListSupergroupExclusionMembersParams> =
@@ -8,6 +9,7 @@ export const ripplingListSupergroupExclusionMembersTool: ToolConfig<RipplingList
     name: 'Rippling List Supergroup Exclusion Members',
     description: 'List exclusion members of a supergroup',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

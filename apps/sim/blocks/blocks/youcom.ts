@@ -1,6 +1,7 @@
 import { YouComIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const COUNTRY_OPTIONS = [
   { label: 'Any', id: '' },
@@ -130,6 +131,8 @@ function toOptionalNumber(value: unknown): number | undefined {
 
 export const YouComBlock: BlockConfig = {
   type: 'youcom',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'youcom_v2' },
   name: 'You.com',
   description: 'Search, read, and research the web with You.com',
   authMode: AuthMode.ApiKey,
@@ -715,3 +718,17 @@ export const YouComBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const YouComV2Block: BlockConfig = {
+  ...YouComBlock,
+  type: 'youcom_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(YouComBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'youcom',
+    title: 'You.com Credential',
+  }),
+}

@@ -68,6 +68,8 @@ import { getRecentTerminalError, markCredentialDead } from '@/lib/oauth/terminal
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
   ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -733,6 +735,15 @@ type ServiceAccountTokenResolver = (
  * generically: the stored token IS the access token.
  */
 const SERVICE_ACCOUNT_TOKEN_RESOLVERS: Record<string, ServiceAccountTokenResolver> = {
+  [AWS_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => ({
+    accessToken: credentialId,
+  }),
+  [DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId, options) => {
+    const { resolveDatabricksCredentialToken } = await import(
+      '@/lib/credentials/databricks-service-account.server'
+    )
+    return resolveDatabricksCredentialToken(credentialId, options.signal)
+  },
   [ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID]: async (credentialId) => ({
     accessToken: credentialId,
   }),

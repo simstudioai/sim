@@ -5,6 +5,7 @@ import {
 } from '@/tools/brex/idempotency'
 import type { BrexCreateVendorParams, BrexCreateVendorResponse } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const DELIVERY = defineBrexKeyedSite(
@@ -20,6 +21,7 @@ export const brexCreateVendorTool: ToolConfig<
   name: 'Brex Create Vendor',
   description: 'Create a new vendor in the Brex account',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

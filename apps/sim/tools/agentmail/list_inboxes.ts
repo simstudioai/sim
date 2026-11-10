@@ -1,4 +1,5 @@
 import type { ListInboxesParams, ListInboxesResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailListInboxesTool: ToolConfig<ListInboxesParams, ListInboxesResult> = {
@@ -6,6 +7,7 @@ export const agentmailListInboxesTool: ToolConfig<ListInboxesParams, ListInboxes
   name: 'List Inboxes',
   description: 'List all email inboxes in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

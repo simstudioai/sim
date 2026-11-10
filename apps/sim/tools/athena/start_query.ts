@@ -1,4 +1,5 @@
 import type { AthenaStartQueryParams, AthenaStartQueryResponse } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 /**
@@ -37,6 +38,7 @@ export const startQueryTool: InternalToolConfig<AthenaStartQueryParams, AthenaSt
     name: 'Athena Start Query',
     description: 'Start an SQL query execution in AWS Athena',
     version: '1.0.0',
+    oauth: AWS_CREDENTIAL_OAUTH,
 
     params: {
       awsRegion: {

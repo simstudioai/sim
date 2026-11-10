@@ -2,6 +2,7 @@ import type { AffinityCollectionResponse, AffinityFilterParams } from '@/tools/a
 import { CALL_OUTPUT_PROPERTIES } from '@/tools/affinity/types'
 import { affinityHeaders, buildAffinityUrl, transformCollection } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityListCallsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const affinityListCallsTool: ToolConfig<
   description:
     'Page through logged calls and their participants. Only calls the API key holder can see are returned.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

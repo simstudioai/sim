@@ -2,6 +2,7 @@ import type {
   IncidentioIncidentRolesListParams,
   IncidentioIncidentRolesListResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const incidentRolesListTool: ToolConfig<
@@ -12,6 +13,7 @@ export const incidentRolesListTool: ToolConfig<
   name: 'List Incident Roles',
   description: 'List all incident roles in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

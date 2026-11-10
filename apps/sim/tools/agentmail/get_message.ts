@@ -1,4 +1,5 @@
 import type { GetMessageParams, GetMessageResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailGetMessageTool: ToolConfig<GetMessageParams, GetMessageResult> = {
@@ -6,6 +7,7 @@ export const agentmailGetMessageTool: ToolConfig<GetMessageParams, GetMessageRes
   name: 'Get Message',
   description: 'Get details of a specific email message in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

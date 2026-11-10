@@ -1,4 +1,5 @@
 import type { DubGetEventsParams, DubGetEventsResponse } from '@/tools/dub/types'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getEventsTool: ToolConfig<DubGetEventsParams, DubGetEventsResponse> = {
@@ -7,6 +8,7 @@ export const getEventsTool: ToolConfig<DubGetEventsParams, DubGetEventsResponse>
   description:
     'Retrieve a paginated stream of individual click, lead, and sale events for links, with filtering by link, time range, and location.',
   version: '1.0.0',
+  oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

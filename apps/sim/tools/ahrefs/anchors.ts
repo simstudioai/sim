@@ -1,4 +1,5 @@
 import type { AhrefsAnchorsParams, AhrefsAnchorsResponse } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS = 'anchor,links_to_target,dofollow_links,refdomains,first_seen,last_seen'
@@ -9,6 +10,7 @@ export const anchorsTool: ToolConfig<AhrefsAnchorsParams, AhrefsAnchorsResponse>
   description:
     "Get the anchor text distribution for a target domain or URL's backlinks, showing how many links and referring domains use each anchor text.",
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     target: {

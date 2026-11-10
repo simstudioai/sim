@@ -3,6 +3,7 @@ import {
   type IncidentioFollowUpsCreateParams,
   type IncidentioFollowUpsCreateResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const followUpsCreateTool: ToolConfig<
@@ -13,6 +14,7 @@ export const followUpsCreateTool: ToolConfig<
   name: 'Create Follow-up',
   description: 'Create a new follow-up on an incident in incident.io',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

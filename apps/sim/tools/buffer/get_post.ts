@@ -8,6 +8,7 @@ import {
   POST_OUTPUT_PROPERTIES,
   parseBufferGraphQLResponse,
 } from '@/tools/buffer/types'
+import { BUFFER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const GET_POST_QUERY = `
@@ -23,6 +24,7 @@ export const bufferGetPostTool: ToolConfig<BufferGetPostParams, BufferPostRespon
   name: 'Buffer Get Post',
   description: 'Get a single Buffer post by ID, including its status, schedule, and media',
   version: '1.0.0',
+  oauth: BUFFER_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

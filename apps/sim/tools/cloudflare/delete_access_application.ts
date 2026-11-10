@@ -3,6 +3,7 @@ import type {
   CloudflareDeletedIdResponse,
 } from '@/tools/cloudflare/types'
 import { cloudflareErrorMessage, cloudflareHeaders } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -15,6 +16,7 @@ export const deleteAccessApplicationTool: ToolConfig<
   description:
     'Permanently deletes a Cloudflare Access (Zero Trust) application and every policy attached to it. The hostname it protected is immediately left without an Access identity check, so anyone who can reach it can reach the origin. This cannot be undone. Requires an API token with Account Access: Apps and Policies Edit.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     accountId: {

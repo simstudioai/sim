@@ -739,3 +739,8 @@ export interface BlockConfig {
     available: string[] // List of trigger IDs this block supports
   }
 }
+
+/** The params a block's `tools.config.params` builder receives. */
+export type BlockToolParams = Parameters<
+  NonNullable<NonNullable<BlockConfig['tools']['config']>['params']>
+>[0]

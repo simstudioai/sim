@@ -2,7 +2,7 @@
 title: Loops
 description: Manage contacts and send emails with Loops
 integration:
-  type: "loops"
+  type: "loops_v2"
   color: "#FAFAF9"
 ---
 
@@ -29,7 +29,6 @@ Create a new contact in your Loops audience with an email address and optional p
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Loops API key for authentication |
 | `email` | string | Yes | The email address for the new contact |
 | `firstName` | string | No | The contact first name |
 | `lastName` | string | No | The contact last name |
@@ -59,7 +58,6 @@ Update an existing contact in Loops by email or userId. Creates a new contact if
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Loops API key for authentication |
 | `email` | string | No | The contact email address \(at least one of email or userId is required\) |
 | `userId` | string | No | The contact userId \(at least one of email or userId is required\) |
 | `firstName` | string | No | The contact first name |
@@ -89,7 +87,6 @@ Find a contact in Loops by email address or userId. Returns an array of matching
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Loops API key for authentication |
 | `email` | string | No | The contact email address to search for \(at least one of email or userId is required\) |
 | `userId` | string | No | The contact userId to search for \(at least one of email or userId is required\) |
 
@@ -121,7 +118,6 @@ Delete a contact from Loops by email address or userId. At least one identifier 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Loops API key for authentication |
 | `email` | string | No | The email address of the contact to delete \(at least one of email or userId is required\) |
 | `userId` | string | No | The userId of the contact to delete \(at least one of email or userId is required\) |
 
@@ -144,7 +140,6 @@ Send a transactional email to a recipient using a Loops template. Supports dynam
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Loops API key for authentication |
 | `email` | string | Yes | The email address of the recipient |
 | `transactionalId` | string | Yes | The ID of the transactional email template to send |
 | `dataVariables` | json | No | Template data variables as key-value pairs \(string or number values\) |
@@ -169,7 +164,6 @@ Send an event to Loops to trigger automated email sequences for a contact. Ident
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Loops API key for authentication |
 | `email` | string | No | The email address of the contact \(at least one of email or userId is required\) |
 | `userId` | string | No | The userId of the contact \(at least one of email or userId is required\) |
 | `eventName` | string | Yes | The name of the event to trigger |
@@ -194,7 +188,6 @@ Retrieve all mailing lists from your Loops account. Returns each list with its I
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Loops API key for authentication |
 
 #### Output
 
@@ -218,7 +211,6 @@ Retrieve a list of published transactional email templates from your Loops accou
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Loops API key for authentication |
 | `perPage` | string | No | Number of results per page \(10-50, default: 20\) |
 | `cursor` | string | No | Pagination cursor from a previous response to fetch the next page |
 
@@ -253,7 +245,6 @@ Create a new custom contact property in your Loops account. The property name mu
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Loops API key for authentication |
 | `name` | string | Yes | The property name in camelCase format \(e.g., "favoriteColor"\) |
 | `type` | string | Yes | The property data type \(e.g., "string", "number", "boolean", "date"\) |
 
@@ -275,7 +266,6 @@ Retrieve a list of contact properties from your Loops account. Returns each prop
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Loops API key for authentication |
 | `list` | string | No | Filter type: "all" for all properties \(default\) or "custom" for custom properties only |
 
 #### Output
@@ -299,7 +289,6 @@ Check whether a Loops contact is on the suppression list (bounced, complained, o
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Loops API key for authentication |
 | `email` | string | No | The contact email address to check \(at least one of email or userId is required\) |
 | `userId` | string | No | The contact userId to check \(at least one of email or userId is required\) |
 
@@ -326,7 +315,6 @@ Remove a Loops contact from the suppression list by email address or userId, all
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Loops API key for authentication |
 | `email` | string | No | The contact email address to remove from suppression \(at least one of email or userId is required\) |
 | `userId` | string | No | The contact userId to remove from suppression \(at least one of email or userId is required\) |
 
@@ -351,7 +339,6 @@ Retrieve a single transactional email template from your Loops account by its ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Loops API key for authentication |
 | `transactionalId` | string | Yes | The ID of the transactional email template to retrieve |
 
 #### Output

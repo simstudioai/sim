@@ -1,4 +1,5 @@
 import type { HexListCollectionsParams, HexListCollectionsResponse } from '@/tools/hex/types'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listCollectionsTool: ToolConfig<HexListCollectionsParams, HexListCollectionsResponse> =
@@ -7,6 +8,7 @@ export const listCollectionsTool: ToolConfig<HexListCollectionsParams, HexListCo
     name: 'Hex List Collections',
     description: 'List all collections in the Hex workspace.',
     version: '1.0.0',
+    oauth: HEX_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

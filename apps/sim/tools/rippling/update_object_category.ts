@@ -1,4 +1,5 @@
 import type { RipplingUpdateObjectCategoryParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingUpdateObjectCategoryTool: ToolConfig<RipplingUpdateObjectCategoryParams> = {
@@ -6,6 +7,7 @@ export const ripplingUpdateObjectCategoryTool: ToolConfig<RipplingUpdateObjectCa
   name: 'Rippling Update ObjectCategory',
   description: 'Update an object category',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

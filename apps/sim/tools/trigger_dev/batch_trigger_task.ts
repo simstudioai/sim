@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevBatchTriggerTaskParams,
   TriggerDevBatchTriggerTaskResponse,
@@ -18,6 +19,7 @@ export const triggerDevBatchTriggerTaskTool: ToolConfig<
   description:
     'Batch trigger a Trigger.dev task with up to 1,000 payloads. All items in the batch run the same task. Returns the batch ID and the created run IDs.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -143,6 +143,14 @@ export const credentialOperations = {
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
+  /** Issues a signed OIDC subject for a new keyless AWS or Databricks credential (connect modal only). */
+  prepareWorkloadIdentity: defineWorkspaceOperation({
+    id: 'credentials.workload_identity.prepare',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    capability: 'integrations.manage',
+    principalKinds: ['session'],
+  }),
   createServiceAccount: defineWorkspaceOperation({
     id: 'credentials.service_accounts.create',
     oauthScope: 'api:write',

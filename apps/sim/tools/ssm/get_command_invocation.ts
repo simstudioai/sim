@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SsmGetCommandInvocationParams,
   SsmGetCommandInvocationResponse,
@@ -12,6 +13,7 @@ export const getCommandInvocationTool: InternalToolConfig<
   name: 'SSM Get Command Invocation',
   description: 'Read the output and status of a Run Command execution on one managed node',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

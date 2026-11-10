@@ -1,5 +1,6 @@
 import type { DaytonaDownloadFileParams, DaytonaDownloadFileResponse } from '@/tools/daytona/types'
 import { daytonaToolboxUrl, extractDaytonaError } from '@/tools/daytona/utils'
+import { DAYTONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const MAX_DOWNLOAD_SIZE_BYTES = 100 * 1024 * 1024
@@ -17,6 +18,7 @@ export const daytonaDownloadFileTool: ToolConfig<
   name: 'Daytona Download File',
   description: 'Download a file from a Daytona sandbox',
   version: '1.0.0',
+  oauth: DAYTONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

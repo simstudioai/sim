@@ -5,6 +5,7 @@ import type {
   ClerkListAllowlistIdentifiersParams,
   ClerkListAllowlistIdentifiersResponse,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkListAllowlistIdentifiers')
@@ -17,6 +18,7 @@ export const clerkListAllowlistIdentifiersTool: ToolConfig<
   name: 'List Allowlist Identifiers from Clerk',
   description: 'List email/phone/web3-wallet identifiers on your Clerk instance allowlist',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

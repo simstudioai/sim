@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadActionResponse, SmartleadCampaignLeadParams } from '@/tools/smartlead/types'
 import {
   actionOutputs,
@@ -33,6 +34,7 @@ export const updateLeadTool: ToolConfig<UpdateLeadParams, SmartleadActionRespons
   description:
     'Updates a lead in a Smartlead campaign. Smartlead requires the email field even when it is unchanged, and lead edits apply across every campaign the lead belongs to.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

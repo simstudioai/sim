@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineSquareKeyedSite,
   type SquareDeliveryContextParams,
@@ -26,6 +27,7 @@ export const squareCreateCustomerTool: ToolConfig<
   name: 'Square Create Customer',
   description: 'Create a new customer profile in the Square customer directory',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

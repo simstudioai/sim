@@ -1,3 +1,4 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   INCIDENT_SUMMARY_OUTPUT_PROPERTIES,
@@ -18,6 +19,7 @@ export const uptimeRobotListIncidentsTool: ToolConfig<
   description:
     'List incidents across your UptimeRobot account (last 24 hours by default), with optional filters',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

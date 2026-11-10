@@ -1,5 +1,6 @@
 import { isRecordLike } from '@sim/utils/object'
 import { MEMORY_OUTPUT_PROPERTIES, type Mem0GetMemoriesParams } from '@/tools/mem0/types'
+import { MEM0_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const getMemoriesFromResponse = (data: unknown): unknown[] => {
@@ -23,6 +24,7 @@ export const mem0GetMemoriesTool: ToolConfig<Mem0GetMemoriesParams> = {
   name: 'Get Memories',
   description: 'Retrieve memories from Mem0 by ID or filter criteria',
   version: '1.0.0',
+  oauth: MEM0_CREDENTIAL_OAUTH,
 
   params: {
     userId: {

@@ -1,4 +1,5 @@
 import { buildIntercomUrl, handleIntercomError } from '@/tools/intercom/types'
+import { INTERCOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface IntercomListContactsParams {
@@ -71,6 +72,7 @@ export const intercomListContactsTool: ToolConfig<
   name: 'List Contacts from Intercom',
   description: 'List all contacts from Intercom with pagination support',
   version: '1.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   ...listContactsBase,
 
@@ -165,6 +167,7 @@ export const intercomListContactsV2Tool: ToolConfig<
   name: 'List Contacts from Intercom',
   description: 'List all contacts from Intercom with pagination support',
   version: '2.0.0',
+  oauth: INTERCOM_CREDENTIAL_OAUTH,
 
   transformResponse: async (response: Response) => {
     if (!response.ok) {

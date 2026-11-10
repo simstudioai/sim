@@ -1,5 +1,6 @@
 import type { RipplingListCustomObjectFieldsParams } from '@/tools/rippling/types'
 import { CUSTOM_OBJECT_FIELD_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListCustomObjectFieldsTool: ToolConfig<RipplingListCustomObjectFieldsParams> =
@@ -8,6 +9,7 @@ export const ripplingListCustomObjectFieldsTool: ToolConfig<RipplingListCustomOb
     name: 'Rippling List Custom Object Fields',
     description: 'List all fields for a custom object',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TriggerDevQueueParams, TriggerDevQueueResponse } from '@/tools/trigger_dev/types'
 import {
   buildTriggerDevHeaders,
@@ -13,6 +14,7 @@ export const triggerDevGetQueueTool: ToolConfig<TriggerDevQueueParams, TriggerDe
   description:
     'Retrieve a Trigger.dev queue by ID, task identifier, or custom queue name, including its running and queued counts.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
 import { PAGINATION_OUTPUT_PROPERTIES, THREADS_ARRAY_OUTPUT } from '@/tools/zep/types'
@@ -7,6 +8,7 @@ export const zepGetThreadsTool: ToolConfig<any, ZepResponse> = {
   name: 'Get Threads',
   description: 'List all conversation threads',
   version: '1.0.0',
+  oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {
     pageSize: {

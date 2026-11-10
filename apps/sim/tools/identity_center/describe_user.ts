@@ -2,6 +2,7 @@ import type {
   IdentityCenterDescribeUserParams,
   IdentityCenterDescribeUserResponse,
 } from '@/tools/identity_center/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeUserTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const describeUserTool: InternalToolConfig<
   description:
     'Resolve an Identity Store user ID to the user behind it. Use to turn the principalId on an account assignment into a name and email.',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

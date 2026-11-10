@@ -2,6 +2,7 @@ import type {
   EnrichLinkedInProfileParams,
   EnrichLinkedInProfileResponse,
 } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linkedInProfileTool: ToolConfig<
@@ -13,6 +14,7 @@ export const linkedInProfileTool: ToolConfig<
   description:
     'Enrich a LinkedIn profile URL with detailed information including positions, education, and social metrics.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

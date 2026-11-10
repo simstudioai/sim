@@ -9,6 +9,7 @@ import {
   mapActionItem,
   throwCirclebackError,
 } from '@/tools/circleback/utils'
+import { CIRCLEBACK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -21,6 +22,7 @@ export const updateActionItemTool: ToolConfig<
   description:
     'Updates the title, description, status, or assignee of a Circleback action item. Returns the updated action item.',
   version: '1.0.0',
+  oauth: CIRCLEBACK_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

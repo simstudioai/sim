@@ -1,5 +1,6 @@
 import type { LinqGetMessageParams, LinqMessageResult } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqGetMessageTool: ToolConfig<LinqGetMessageParams, LinqMessageResult> = {
@@ -7,6 +8,7 @@ export const linqGetMessageTool: ToolConfig<LinqGetMessageParams, LinqMessageRes
   name: 'Get Message',
   description: 'Retrieve a single message by ID, including parts, reactions, and delivery status',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

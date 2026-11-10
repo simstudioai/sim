@@ -1,4 +1,5 @@
 import type { EnrichSearchPostsParams, EnrichSearchPostsResponse } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchPostsTool: ToolConfig<EnrichSearchPostsParams, EnrichSearchPostsResponse> = {
@@ -6,6 +7,7 @@ export const searchPostsTool: ToolConfig<EnrichSearchPostsParams, EnrichSearchPo
   name: 'Enrich Search Posts',
   description: 'Search LinkedIn posts by keywords with date filtering.',
   version: '1.0.0',
+  oauth: ENRICH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

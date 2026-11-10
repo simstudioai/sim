@@ -5,6 +5,7 @@ import {
   buildBrexHeaders,
   parseBrexJson,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexListCardsTool: ToolConfig<BrexListCardsParams, BrexListCardsResponse> = {
@@ -12,6 +13,7 @@ export const brexListCardsTool: ToolConfig<BrexListCardsParams, BrexListCardsRes
   name: 'Brex List Cards',
   description: 'List cards in the Brex account, optionally filtered by card owner',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

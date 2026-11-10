@@ -461,7 +461,7 @@
       ]
     },
     {
-      "type": "affinity",
+      "type": "affinity_v2",
       "name": "Affinity",
       "description": "Read and write companies, people, lists, notes, and relationships in Affinity",
       "category": "tools",
@@ -592,7 +592,7 @@
       ]
     },
     {
-      "type": "agentmail",
+      "type": "agentmail_v2",
       "name": "AgentMail",
       "description": "Manage email inboxes, threads, and messages with AgentMail",
       "category": "tools",
@@ -623,7 +623,7 @@
       ]
     },
     {
-      "type": "agentphone",
+      "type": "agentphone_v2",
       "name": "AgentPhone",
       "description": "Provision numbers, send SMS and iMessage, and place voice calls with AgentPhone",
       "category": "tools",
@@ -683,7 +683,7 @@
       ]
     },
     {
-      "type": "ahrefs",
+      "type": "ahrefs_v2",
       "name": "Ahrefs",
       "description": "SEO analysis with Ahrefs",
       "category": "tools",
@@ -768,7 +768,7 @@
       ]
     },
     {
-      "type": "dynamodb",
+      "type": "dynamodb_v2",
       "name": "Amazon DynamoDB",
       "description": "Get, put, query, scan, update, and delete items in Amazon DynamoDB tables",
       "category": "tools",
@@ -785,7 +785,7 @@
       ]
     },
     {
-      "type": "ec2",
+      "type": "ec2_v2",
       "name": "Amazon EC2",
       "description": "Manage EC2 instances, Elastic IPs, VPC networking, and EBS",
       "category": "tools",
@@ -835,7 +835,7 @@
       ]
     },
     {
-      "type": "rds",
+      "type": "rds_v2",
       "name": "Amazon RDS",
       "description": "Connect to Amazon RDS via Data API",
       "category": "tools",
@@ -851,7 +851,7 @@
       ]
     },
     {
-      "type": "sqs",
+      "type": "sqs_v2",
       "name": "Amazon SQS",
       "description": "Connect to Amazon SQS",
       "category": "tools",
@@ -911,7 +911,7 @@
       ]
     },
     {
-      "type": "apify",
+      "type": "apify_v2",
       "name": "Apify",
       "description": "Run Apify actors and retrieve results",
       "category": "tools",
@@ -926,7 +926,7 @@
       ]
     },
     {
-      "type": "apollo",
+      "type": "apollo_v2",
       "name": "Apollo",
       "description": "Search, enrich, and manage contacts with Apollo.io",
       "category": "tools",
@@ -1052,7 +1052,7 @@
       ]
     },
     {
-      "type": "athena",
+      "type": "athena_v2",
       "name": "Athena",
       "description": "Run SQL queries on data in Amazon S3 using AWS Athena",
       "category": "tools",
@@ -1150,7 +1150,7 @@
       ]
     },
     {
-      "type": "appconfig",
+      "type": "appconfig_v2",
       "name": "AWS AppConfig",
       "description": "Manage and retrieve configuration with AWS AppConfig",
       "category": "tools",
@@ -1215,7 +1215,7 @@
       ]
     },
     {
-      "type": "iam",
+      "type": "iam_v2",
       "name": "AWS IAM",
       "description": "Manage AWS IAM users, roles, policies, and groups",
       "category": "tools",
@@ -1249,7 +1249,7 @@
       ]
     },
     {
-      "type": "identity_center",
+      "type": "identity_center_v2",
       "name": "AWS Identity Center",
       "description": "Manage account access in AWS IAM Identity Center",
       "category": "tools",
@@ -1299,7 +1299,7 @@
       ]
     },
     {
-      "type": "secrets_manager",
+      "type": "secrets_manager_v2",
       "name": "AWS Secrets Manager",
       "description": "Connect to AWS Secrets Manager",
       "category": "tools",
@@ -1319,7 +1319,7 @@
       ]
     },
     {
-      "type": "ses",
+      "type": "ses_v2",
       "name": "AWS SES",
       "description": "Send emails and manage templates with AWS Simple Email Service",
       "category": "tools",
@@ -1351,7 +1351,7 @@
       ]
     },
     {
-      "type": "sts",
+      "type": "sts_v2",
       "name": "AWS STS",
       "description": "Connect to AWS Security Token Service",
       "category": "tools",
@@ -1367,7 +1367,7 @@
       ]
     },
     {
-      "type": "ssm",
+      "type": "ssm_v2",
       "name": "AWS Systems Manager",
       "description": "Run commands, manage parameters, and audit managed nodes",
       "category": "tools",
@@ -1405,7 +1405,7 @@
       ]
     },
     {
-      "type": "textract_v2",
+      "type": "textract_v3",
       "name": "AWS Textract",
       "description": "Extract text, tables, and forms from documents",
       "category": "tools",
@@ -1687,7 +1687,7 @@
       ]
     },
     {
-      "type": "brex",
+      "type": "brex_v2",
       "name": "Brex",
       "description": "Manage expenses, receipts, transactions, and team data in Brex",
       "category": "tools",
@@ -1731,7 +1731,7 @@
       ]
     },
     {
-      "type": "brightdata",
+      "type": "brightdata_v2",
       "name": "Bright Data",
       "description": "Scrape websites, search engines, and extract structured data",
       "category": "tools",
@@ -1749,7 +1749,7 @@
       ]
     },
     {
-      "type": "browser_use",
+      "type": "browser_use_v2",
       "name": "Browser Use",
       "description": "Run browser automation tasks",
       "category": "tools",
@@ -1758,7 +1758,7 @@
       "tools": [{ "id": "browser_use_run_task", "label": "Browser Use" }]
     },
     {
-      "type": "buffer",
+      "type": "buffer_v2",
       "name": "Buffer",
       "description": "Schedule and publish social media posts across connected channels",
       "category": "tools",
@@ -1985,7 +1985,7 @@
       ]
     },
     {
-      "type": "circleback",
+      "type": "circleback_v2",
       "name": "Circleback",
       "description": "Read Circleback meetings, notes, transcripts, and action items",
       "category": "tools",
@@ -2054,7 +2054,7 @@
       "tools": [{ "id": "clay_populate", "label": "Clay Populate" }]
     },
     {
-      "type": "clerk",
+      "type": "clerk_v2",
       "name": "Clerk",
       "description": "Manage users, organizations, and sessions in Clerk",
       "category": "tools",
@@ -2215,7 +2215,7 @@
       ]
     },
     {
-      "type": "cloudflare",
+      "type": "cloudflare_v2",
       "name": "Cloudflare",
       "description": "Manage DNS, WAF, Zero Trust access, and edge infrastructure",
       "category": "tools",
@@ -2367,7 +2367,7 @@
       ]
     },
     {
-      "type": "cloudformation",
+      "type": "cloudformation_v2",
       "name": "CloudFormation",
       "description": "Manage and inspect AWS CloudFormation stacks, resources, and drift",
       "category": "tools",
@@ -2410,7 +2410,7 @@
       ]
     },
     {
-      "type": "cloudtrail",
+      "type": "cloudtrail_v2",
       "name": "CloudTrail",
       "description": "Audit who did what in AWS with CloudTrail event history and Lake queries",
       "category": "tools",
@@ -2434,7 +2434,7 @@
       ]
     },
     {
-      "type": "cloudwatch",
+      "type": "cloudwatch_v2",
       "name": "CloudWatch",
       "description": "Query and monitor AWS CloudWatch logs, metrics, and alarms",
       "category": "tools",
@@ -2530,7 +2530,7 @@
       ]
     },
     {
-      "type": "codepipeline",
+      "type": "codepipeline_v2",
       "name": "CodePipeline",
       "description": "Run, monitor, and approve AWS CodePipeline pipelines",
       "category": "tools",
@@ -2720,7 +2720,7 @@
       ]
     },
     {
-      "type": "crunchbase",
+      "type": "crunchbase_v2",
       "name": "Crunchbase",
       "description": "Search and look up companies, people, funding rounds, and acquisitions",
       "category": "tools",
@@ -2744,7 +2744,7 @@
       ]
     },
     {
-      "type": "cursor_v2",
+      "type": "cursor_v3",
       "name": "Cursor",
       "description": "Launch and manage Cursor cloud agents to work on GitHub repositories",
       "category": "tools",
@@ -2798,7 +2798,7 @@
       ]
     },
     {
-      "type": "databricks",
+      "type": "databricks_v2",
       "name": "Databricks",
       "description": "Run SQL, manage jobs, and ask Genie agents on Databricks",
       "category": "tools",
@@ -2948,7 +2948,7 @@
       ]
     },
     {
-      "type": "daytona",
+      "type": "daytona_v2",
       "name": "Daytona",
       "description": "Run code and commands in secure cloud sandboxes",
       "category": "tools",
@@ -2991,7 +2991,7 @@
       ]
     },
     {
-      "type": "discord",
+      "type": "discord_v2",
       "name": "Discord",
       "description": "Interact with Discord",
       "category": "tools",
@@ -3140,7 +3140,7 @@
       ]
     },
     {
-      "type": "dub_v2",
+      "type": "dub_v3",
       "name": "Dub",
       "description": "Link management with Dub",
       "category": "tools",
@@ -3262,7 +3262,7 @@
       ]
     },
     {
-      "type": "elevenlabs",
+      "type": "elevenlabs_v2",
       "name": "ElevenLabs",
       "description": "Generate and transform audio with ElevenLabs",
       "category": "tools",
@@ -3327,7 +3327,7 @@
       ]
     },
     {
-      "type": "enrich",
+      "type": "enrich_v2",
       "name": "Enrich",
       "description": "B2B data enrichment and LinkedIn intelligence with Enrich.so",
       "category": "tools",
@@ -3402,7 +3402,7 @@
       ]
     },
     {
-      "type": "extend_v2",
+      "type": "extend_v3",
       "name": "Extend",
       "description": "Parse and extract content from documents",
       "category": "tools",
@@ -3475,7 +3475,7 @@
       ]
     },
     {
-      "type": "fireflies_v2",
+      "type": "fireflies_v3",
       "name": "Fireflies",
       "description": "Interact with Fireflies.ai meeting transcripts and recordings",
       "category": "tools",
@@ -3546,7 +3546,7 @@
       ]
     },
     {
-      "type": "flint",
+      "type": "flint_v2",
       "name": "Flint",
       "description": "Run background agent tasks on your Flint sites",
       "category": "tools",
@@ -3592,7 +3592,7 @@
       ]
     },
     {
-      "type": "gamma",
+      "type": "gamma_v2",
       "name": "Gamma",
       "description": "Generate presentations, documents, and webpages with AI",
       "category": "tools",
@@ -4688,7 +4688,7 @@
       ]
     },
     {
-      "type": "hex",
+      "type": "hex_v2",
       "name": "Hex",
       "description": "Run and manage Hex projects",
       "category": "tools",
@@ -4810,7 +4810,7 @@
       ]
     },
     {
-      "type": "huggingface",
+      "type": "huggingface_v2",
       "name": "Hugging Face",
       "description": "Use Hugging Face Inference API",
       "category": "tools",
@@ -4847,7 +4847,7 @@
       ]
     },
     {
-      "type": "incidentio",
+      "type": "incidentio_v2",
       "name": "incident.io",
       "description": "Manage incidents with incident.io",
       "category": "tools",
@@ -4940,7 +4940,7 @@
       ]
     },
     {
-      "type": "instantly",
+      "type": "instantly_v2",
       "name": "Instantly",
       "description": "Manage Instantly leads, campaigns, emails, and lead lists",
       "category": "tools",
@@ -4969,7 +4969,7 @@
       ]
     },
     {
-      "type": "intercom_v2",
+      "type": "intercom_v3",
       "name": "Intercom",
       "description": "Manage contacts, companies, conversations, tickets, and messages in Intercom",
       "category": "tools",
@@ -5307,7 +5307,7 @@
       ]
     },
     {
-      "type": "lambda",
+      "type": "lambda_v2",
       "name": "Lambda",
       "description": "Invoke, deploy, and manage AWS Lambda functions",
       "category": "tools",
@@ -5412,7 +5412,7 @@
       ]
     },
     {
-      "type": "langsmith",
+      "type": "langsmith_v2",
       "name": "LangSmith",
       "description": "Forward workflow runs to LangSmith for observability",
       "category": "tools",
@@ -5441,7 +5441,7 @@
       ]
     },
     {
-      "type": "launchdarkly",
+      "type": "launchdarkly_v2",
       "name": "LaunchDarkly",
       "description": "Manage feature flags with LaunchDarkly",
       "category": "tools",
@@ -5604,7 +5604,7 @@
       "tools": [{ "id": "linkup_search", "label": "Linkup Search" }]
     },
     {
-      "type": "linq",
+      "type": "linq_v2",
       "name": "Linq",
       "description": "Send iMessage, SMS, and RCS messages and manage conversations with Linq",
       "category": "tools",
@@ -5678,7 +5678,7 @@
       ]
     },
     {
-      "type": "loops",
+      "type": "loops_v2",
       "name": "Loops",
       "description": "Manage contacts and send emails with Loops",
       "category": "tools",
@@ -5701,7 +5701,7 @@
       ]
     },
     {
-      "type": "luma",
+      "type": "luma_v2",
       "name": "Luma",
       "description": "Manage events and guests on Luma",
       "category": "tools",
@@ -5722,7 +5722,7 @@
       ]
     },
     {
-      "type": "mailchimp",
+      "type": "mailchimp_v2",
       "name": "Mailchimp",
       "description": "Manage audiences, campaigns, and marketing automation in Mailchimp",
       "category": "tools",
@@ -5930,7 +5930,7 @@
       ]
     },
     {
-      "type": "mem0",
+      "type": "mem0_v2",
       "name": "Mem0",
       "description": "Agent memory management",
       "category": "tools",
@@ -6739,7 +6739,7 @@
       ]
     },
     {
-      "type": "otter",
+      "type": "otter_v2",
       "name": "Otter.ai",
       "description": "Read Otter.ai meeting conversations, transcripts, and summaries",
       "category": "tools",
@@ -6867,7 +6867,7 @@
       ]
     },
     {
-      "type": "persona",
+      "type": "persona_v2",
       "name": "Persona",
       "description": "Verify identities with Persona",
       "category": "tools",
@@ -7361,7 +7361,7 @@
       ]
     },
     {
-      "type": "profound",
+      "type": "profound_v2",
       "name": "Profound",
       "description": "AI visibility and analytics with Profound",
       "category": "tools",
@@ -7413,7 +7413,7 @@
       ]
     },
     {
-      "type": "pulse_v2",
+      "type": "pulse_v3",
       "name": "Pulse",
       "description": "Extract text from documents using Pulse OCR",
       "category": "tools",
@@ -7435,7 +7435,7 @@
       ]
     },
     {
-      "type": "quartr",
+      "type": "quartr_v2",
       "name": "Quartr",
       "description": "Access earnings calls, transcripts, filings, and slides",
       "category": "tools",
@@ -7539,7 +7539,7 @@
       ]
     },
     {
-      "type": "quiver_v2",
+      "type": "quiver_v3",
       "name": "Quiver",
       "description": "Generate and vectorize SVGs",
       "category": "tools",
@@ -7645,7 +7645,7 @@
       ]
     },
     {
-      "type": "rb2b",
+      "type": "rb2b_v2",
       "name": "RB2B",
       "description": "Identify and enrich website visitors",
       "category": "tools",
@@ -7752,7 +7752,7 @@
       ]
     },
     {
-      "type": "reducto_v2",
+      "type": "reducto_v3",
       "name": "Reducto",
       "description": "Extract text from PDF documents",
       "category": "tools",
@@ -7819,7 +7819,7 @@
       ]
     },
     {
-      "type": "rippling",
+      "type": "rippling_v2",
       "name": "Rippling",
       "description": "Manage workers, departments, custom objects, and company data in Rippling",
       "category": "tools",
@@ -7978,7 +7978,7 @@
       ]
     },
     {
-      "type": "rocketlane",
+      "type": "rocketlane_v2",
       "name": "Rocketlane",
       "description": "Manage client onboarding projects, tasks, time tracking, and invoices",
       "category": "tools",
@@ -8112,7 +8112,7 @@
       ]
     },
     {
-      "type": "s3",
+      "type": "s3_v2",
       "name": "S3",
       "description": "Upload, download, list, and manage S3 files and buckets",
       "category": "tools",
@@ -8544,7 +8544,7 @@
       ]
     },
     {
-      "type": "sendgrid",
+      "type": "sendgrid_v2",
       "name": "SendGrid",
       "description": "Send emails and manage contacts, lists, and templates with SendGrid",
       "category": "tools",
@@ -8732,7 +8732,7 @@
       ]
     },
     {
-      "type": "similarweb",
+      "type": "similarweb_v2",
       "name": "Similarweb",
       "description": "Website traffic and analytics data",
       "category": "tools",
@@ -8748,7 +8748,7 @@
       ]
     },
     {
-      "type": "sixtyfour",
+      "type": "sixtyfour_v2",
       "name": "Sixtyfour AI",
       "description": "Enrich leads and companies with AI-powered research",
       "category": "tools",
@@ -8867,7 +8867,7 @@
       ]
     },
     {
-      "type": "smartlead",
+      "type": "smartlead_v2",
       "name": "Smartlead",
       "description": "Manage Smartlead cold email campaigns, sequences, and leads",
       "category": "tools",
@@ -9042,7 +9042,7 @@
       ]
     },
     {
-      "type": "sportmonks",
+      "type": "sportmonks_v2",
       "name": "Sportmonks",
       "description": "Access Sportmonks football, motorsport, odds, and reference data",
       "category": "tools",
@@ -9486,7 +9486,7 @@
       ]
     },
     {
-      "type": "square",
+      "type": "square_v2",
       "name": "Square",
       "description": "Process payments and manage Square commerce data",
       "category": "tools",
@@ -9670,7 +9670,7 @@
       ]
     },
     {
-      "type": "tailscale",
+      "type": "tailscale_v2",
       "name": "Tailscale",
       "description": "Manage devices and network settings in your Tailscale tailnet",
       "category": "tools",
@@ -9720,7 +9720,7 @@
       ]
     },
     {
-      "type": "tavily",
+      "type": "tavily_v2",
       "name": "Tavily",
       "description": "Search and extract information",
       "category": "tools",
@@ -9932,7 +9932,7 @@
       ]
     },
     {
-      "type": "trigger_dev",
+      "type": "trigger_dev_v2",
       "name": "Trigger.dev",
       "description": "Trigger tasks and manage runs and schedules",
       "category": "tools",
@@ -10064,7 +10064,7 @@
       ]
     },
     {
-      "type": "uptimerobot",
+      "type": "uptimerobot_v2",
       "name": "UptimeRobot",
       "description": "Monitor uptime, manage incidents, maintenance windows, and status pages",
       "category": "tools",
@@ -10450,7 +10450,7 @@
       ]
     },
     {
-      "type": "youcom",
+      "type": "youcom_v2",
       "name": "You.com",
       "description": "Search, read, and research the web with You.com",
       "category": "tools",
@@ -10468,7 +10468,7 @@
       ]
     },
     {
-      "type": "youtube",
+      "type": "youtube_v2",
       "name": "YouTube",
       "description": "Interact with YouTube videos, channels, and playlists",
       "category": "tools",
@@ -10529,7 +10529,7 @@
       ]
     },
     {
-      "type": "zep",
+      "type": "zep_v2",
       "name": "Zep",
       "description": "Long-term memory for AI agents",
       "category": "tools",

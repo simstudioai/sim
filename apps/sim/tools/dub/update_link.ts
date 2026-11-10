@@ -1,4 +1,5 @@
 import type { DubUpdateLinkParams, DubUpdateLinkResponse } from '@/tools/dub/types'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateLinkTool: ToolConfig<DubUpdateLinkParams, DubUpdateLinkResponse> = {
@@ -7,6 +8,7 @@ export const updateLinkTool: ToolConfig<DubUpdateLinkParams, DubUpdateLinkRespon
   description:
     "Update an existing short link's destination URL, domain, slug, link-preview title and description, UTM parameters, and other supported settings.",
   version: '1.0.0',
+  oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,6 +2,7 @@ import type {
   BrightDataCancelSnapshotParams,
   BrightDataCancelSnapshotResponse,
 } from '@/tools/brightdata/types'
+import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brightDataCancelSnapshotTool: ToolConfig<
@@ -13,6 +14,7 @@ export const brightDataCancelSnapshotTool: ToolConfig<
   description:
     'Cancel an active Bright Data scraping job using its snapshot ID. Terminates data collection in progress.',
   version: '1.0.0',
+  oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

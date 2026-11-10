@@ -3,6 +3,7 @@ import type {
   LaunchDarklyListFlagsResponse,
 } from '@/tools/launchdarkly/types'
 import { FLAG_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const launchDarklyListFlagsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const launchDarklyListFlagsTool: ToolConfig<
   name: 'LaunchDarkly List Flags',
   description: 'List feature flags in a LaunchDarkly project.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

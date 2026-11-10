@@ -10,6 +10,7 @@ import {
   mapCloudflareFields,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -22,6 +23,7 @@ export const createAccessServiceTokenTool: ToolConfig<
   description:
     'Creates a Cloudflare Access (Zero Trust) service token so a machine can authenticate to Access-protected applications. This is the only response that ever contains the client secret — Cloudflare will not return it again, so capture it in the same run. Requires an API token with Account Access: Service Tokens Edit.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
   params: {
     client_secret_version: {

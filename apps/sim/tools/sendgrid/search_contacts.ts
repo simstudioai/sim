@@ -1,4 +1,5 @@
 import type { ContactsResult, SearchContactsParams, SendGridContact } from '@/tools/sendgrid/types'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridSearchContactsTool: ToolConfig<SearchContactsParams, ContactsResult> = {
@@ -6,6 +7,7 @@ export const sendGridSearchContactsTool: ToolConfig<SearchContactsParams, Contac
   name: 'SendGrid Search Contacts',
   description: 'Search for contacts in SendGrid using a query',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

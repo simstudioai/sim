@@ -1,5 +1,6 @@
 import type { LinqContactCardResult, LinqUpdateContactCardParams } from '@/tools/linq/types'
 import { extractLinqError, LINQ_API_BASE, linqHeaders } from '@/tools/linq/utils'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const linqUpdateContactCardTool: ToolConfig<
@@ -10,6 +11,7 @@ export const linqUpdateContactCardTool: ToolConfig<
   name: 'Update Contact Card',
   description: 'Partially update an existing active contact card for a phone number',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

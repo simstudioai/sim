@@ -2,6 +2,7 @@ import type {
   AthenaDeletePreparedStatementParams,
   AthenaDeletePreparedStatementResponse,
 } from '@/tools/athena/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const deletePreparedStatementTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const deletePreparedStatementTool: InternalToolConfig<
   name: 'Athena Delete Prepared Statement',
   description: 'Delete a prepared statement from an Athena workgroup',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

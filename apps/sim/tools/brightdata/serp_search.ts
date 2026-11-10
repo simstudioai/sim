@@ -2,6 +2,7 @@ import type {
   BrightDataSerpSearchParams,
   BrightDataSerpSearchResponse,
 } from '@/tools/brightdata/types'
+import { BRIGHTDATA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SEARCH_ENGINE_CONFIG: Record<
@@ -47,6 +48,7 @@ export const brightDataSerpSearchTool: ToolConfig<
   description:
     'Search Google, Bing, DuckDuckGo, or Yandex and get structured search results using Bright Data SERP API.',
   version: '1.0.0',
+  oauth: BRIGHTDATA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

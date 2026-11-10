@@ -2,6 +2,7 @@ import type {
   IncidentioIncidentsShowParams,
   IncidentioIncidentsShowResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const incidentsShowTool: ToolConfig<
@@ -13,6 +14,7 @@ export const incidentsShowTool: ToolConfig<
   description:
     'Retrieve detailed information about a specific incident from incident.io by its ID. Returns full incident details including custom fields and role assignments.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

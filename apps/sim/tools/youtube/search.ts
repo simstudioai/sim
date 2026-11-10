@@ -1,3 +1,4 @@
+import { YOUTUBE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { YouTubeSearchParams, YouTubeSearchResponse } from '@/tools/youtube/types'
 
@@ -7,6 +8,7 @@ export const youtubeSearchTool: ToolConfig<YouTubeSearchParams, YouTubeSearchRes
   description:
     'Search for videos on YouTube using the YouTube Data API. Supports advanced filtering by channel, date range, duration, category, quality, captions, live streams, and more.',
   version: '1.2.0',
+  oauth: YOUTUBE_CREDENTIAL_OAUTH,
   params: {
     query: {
       type: 'string',

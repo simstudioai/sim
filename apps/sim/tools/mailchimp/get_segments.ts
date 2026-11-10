@@ -1,4 +1,5 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpGetSegmentsParams {
@@ -25,6 +26,7 @@ export const mailchimpGetSegmentsTool: ToolConfig<
   name: 'Get Segments from Mailchimp Audience',
   description: 'Retrieve a list of segments from a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

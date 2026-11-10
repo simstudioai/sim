@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleAuthKeyParams,
   TailscaleDeleteAuthKeyResponse,
@@ -14,6 +15,7 @@ export const tailscaleDeleteAuthKeyTool: ToolConfig<
   name: 'Tailscale Delete Auth Key',
   description: 'Revoke an auth key, API access token, or trust credential',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

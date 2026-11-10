@@ -1,5 +1,6 @@
 import type { RipplingListEntitlementsParams } from '@/tools/rippling/types'
 import { ENTITLEMENT_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListEntitlementsTool: ToolConfig<RipplingListEntitlementsParams> = {
@@ -7,6 +8,7 @@ export const ripplingListEntitlementsTool: ToolConfig<RipplingListEntitlementsPa
   name: 'Rippling List Entitlements',
   description: 'List all entitlements',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

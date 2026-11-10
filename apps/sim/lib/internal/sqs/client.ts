@@ -1,12 +1,10 @@
 import { SQSClient } from '@aws-sdk/client-sqs'
+import { awsClientCredentials } from '@/lib/internal/aws/credentials'
 import type { SqsConnectionConfig } from '@/tools/sqs/types'
 
 export function createSqsClient(config: SqsConnectionConfig): SQSClient {
   return new SQSClient({
     region: config.region,
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
+    credentials: awsClientCredentials(config.accessKeyId, config.secretAccessKey),
   })
 }

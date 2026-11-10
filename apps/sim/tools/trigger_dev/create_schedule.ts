@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevCreateScheduleParams,
   TriggerDevScheduleResponse,
@@ -19,6 +20,7 @@ export const triggerDevCreateScheduleTool: ToolConfig<
   description:
     'Create an imperative cron schedule that triggers a Trigger.dev task on a recurring basis.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

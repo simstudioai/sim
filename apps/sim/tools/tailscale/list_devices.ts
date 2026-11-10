@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { DEVICE_OUTPUT_PROPERTIES } from '@/tools/tailscale/outputs'
 import type {
   TailscaleDevice,
@@ -16,6 +17,7 @@ export const tailscaleListDevicesTool: ToolConfig<
   name: 'Tailscale List Devices',
   description: 'List devices in the tailnet',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

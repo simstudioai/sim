@@ -9,6 +9,8 @@ import {
 } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  AWS_SERVICE_ACCOUNT_PROVIDER_ID,
+  DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID,
   GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
   OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID,
   ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -33,6 +35,8 @@ export function asServiceAccountProviderId(
     value === SLACK_CUSTOM_BOT_PROVIDER_ID ||
     value === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID ||
     value === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID ||
+    value === AWS_SERVICE_ACCOUNT_PROVIDER_ID ||
+    value === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID ||
     isTokenServiceAccountProviderId(value) ||
     isClientCredentialAccountProviderId(value)
   ) {
@@ -76,6 +80,8 @@ export function getServiceAccountConnectNoun(providerId: string): string {
   if (providerId === SLACK_CUSTOM_BOT_PROVIDER_ID) return 'custom bot'
   if (providerId === OCI_API_KEY_SERVICE_ACCOUNT_PROVIDER_ID) return 'API key'
   if (providerId === ORACLE_DATABASE_SERVICE_ACCOUNT_PROVIDER_ID) return 'database connection'
+  if (providerId === AWS_SERVICE_ACCOUNT_PROVIDER_ID) return 'AWS credential'
+  if (providerId === DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID) return 'Databricks connection'
   const descriptor =
     getTokenServiceAccountDescriptor(providerId) ?? getClientCredentialAccountDescriptor(providerId)
   return descriptor?.connectNoun ?? 'service account'

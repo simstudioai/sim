@@ -13,6 +13,7 @@ import {
   requireOneOf,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityBatchUpdateEntityFieldsTool: ToolConfig<
@@ -24,6 +25,7 @@ export const affinityBatchUpdateEntityFieldsTool: ToolConfig<
   description:
     'Write up to 100 non-list field values on one company or person in a single request.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

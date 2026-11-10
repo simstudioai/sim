@@ -7,6 +7,7 @@ import {
   parsePersonaResponse,
   REPORT_OUTPUT_PROPERTIES,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaGetReportTool: ToolConfig<PersonaGetReportParams, PersonaReportResponse> = {
@@ -15,6 +16,7 @@ export const personaGetReportTool: ToolConfig<PersonaGetReportParams, PersonaRep
   description:
     'Retrieve a single screening report by ID, including its status, match results, and full type-specific attributes.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

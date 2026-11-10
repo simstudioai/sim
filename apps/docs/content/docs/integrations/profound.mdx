@@ -2,7 +2,7 @@
 title: Profound
 description: AI visibility and analytics with Profound
 integration:
-  type: "profound"
+  type: "profound_v2"
   color: "#000000"
 ---
 
@@ -31,7 +31,6 @@ List all organization categories in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 
 #### Output
 
@@ -53,7 +52,6 @@ List all organization regions in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 
 #### Output
 
@@ -75,7 +73,6 @@ List all AI models/platforms tracked in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 
 #### Output
 
@@ -97,7 +94,6 @@ List all organization domains in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 
 #### Output
 
@@ -120,7 +116,6 @@ List all organization assets (companies/brands) across all categories in Profoun
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 
 #### Output
 
@@ -149,7 +144,6 @@ List all organization personas across all categories in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 
 #### Output
 
@@ -174,7 +168,6 @@ List topics for a specific category in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `categoryId` | string | Yes | Category ID \(UUID\) |
 
 #### Output
@@ -197,7 +190,6 @@ List tags for a specific category in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `categoryId` | string | Yes | Category ID \(UUID\) |
 
 #### Output
@@ -220,7 +212,6 @@ List prompts for a specific category in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `categoryId` | string | Yes | Category ID \(UUID\) |
 | `limit` | number | No | Maximum number of results \(default 10000, max 10000\) |
 | `cursor` | string | No | Pagination cursor from previous response |
@@ -260,7 +251,6 @@ List assets (companies/brands) for a specific category in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `categoryId` | string | Yes | Category ID \(UUID\) |
 
 #### Output
@@ -288,7 +278,6 @@ List personas for a specific category in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `categoryId` | string | Yes | Category ID \(UUID\) |
 
 #### Output
@@ -312,7 +301,6 @@ Query AI visibility report for a category in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `categoryId` | string | Yes | Category ID \(UUID\) |
 | `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
 | `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
@@ -343,7 +331,6 @@ Query sentiment report for a category in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `categoryId` | string | Yes | Category ID \(UUID\) |
 | `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
 | `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
@@ -374,7 +361,6 @@ Query citations report for a category in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `categoryId` | string | Yes | Category ID \(UUID\) |
 | `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
 | `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
@@ -405,7 +391,6 @@ Query fanout report showing how AI models expand prompts into sub-queries in Pro
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `categoryId` | string | Yes | Category ID \(UUID\) |
 | `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
 | `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
@@ -436,7 +421,6 @@ Get raw prompt answers data for a category in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `categoryId` | string | Yes | Category ID \(UUID\) |
 | `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
 | `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
@@ -472,7 +456,6 @@ Query bot traffic report with hourly granularity for a domain in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `domain` | string | Yes | Domain to query bot traffic for \(e.g. example.com\) |
 | `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
 | `endDate` | string | No | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
@@ -503,7 +486,6 @@ Query human referral traffic report with hourly granularity for a domain in Prof
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `domain` | string | Yes | Domain to query referral traffic for \(e.g. example.com\) |
 | `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
 | `endDate` | string | No | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
@@ -534,7 +516,6 @@ Get raw traffic logs with filters for a domain in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `domain` | string | Yes | Domain to query logs for \(e.g. example.com\) |
 | `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
 | `endDate` | string | No | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
@@ -563,7 +544,6 @@ Get identified bot visit logs with filters for a domain in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `domain` | string | Yes | Domain to query bot logs for \(e.g. example.com\) |
 | `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
 | `endDate` | string | No | End date \(YYYY-MM-DD or ISO 8601\). Defaults to now |
@@ -592,7 +572,6 @@ List content optimization entries for an asset in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `assetId` | string | Yes | Asset ID \(UUID\) |
 | `limit` | number | No | Maximum number of results \(default 10000, max 50000\) |
 | `offset` | number | No | Offset for pagination \(default 0\) |
@@ -622,7 +601,6 @@ Get detailed content optimization analysis for a specific content item in Profou
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `assetId` | string | Yes | Asset ID \(UUID\) |
 | `contentId` | string | Yes | Content/optimization ID \(UUID\) |
 
@@ -663,7 +641,6 @@ Query prompt volume data to understand search demand across AI platforms in Prof
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `startDate` | string | Yes | Start date \(YYYY-MM-DD or ISO 8601\) |
 | `endDate` | string | Yes | End date \(YYYY-MM-DD or ISO 8601\) |
 | `metrics` | string | Yes | Comma-separated metrics: volume, change |
@@ -693,7 +670,6 @@ Get prompts that cite a specific domain across AI platforms in Profound
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Profound API Key |
 | `inputDomain` | string | Yes | Domain to look up citations for \(e.g. ramp.com\) |
 
 #### Output

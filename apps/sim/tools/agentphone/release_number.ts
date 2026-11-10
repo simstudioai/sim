@@ -2,6 +2,7 @@ import type {
   AgentPhoneReleaseNumberParams,
   AgentPhoneReleaseNumberResult,
 } from '@/tools/agentphone/types'
+import { AGENTPHONE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentphoneReleaseNumberTool: ToolConfig<
@@ -12,6 +13,7 @@ export const agentphoneReleaseNumberTool: ToolConfig<
   name: 'Release Phone Number',
   description: 'Release (delete) a phone number. This action is irreversible.',
   version: '1.0.0',
+  oauth: AGENTPHONE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

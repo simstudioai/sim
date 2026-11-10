@@ -11,6 +11,7 @@ import {
   transformCollection,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityListListFieldsTool: ToolConfig<
@@ -22,6 +23,7 @@ export const affinityListListFieldsTool: ToolConfig<
   description:
     'List the fields available on one list, including its list-specific columns. Use these Field IDs when reading or writing list entries.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

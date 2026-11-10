@@ -7275,6 +7275,8 @@ export type GetSelectorBody = {
     | 'planetscale.deployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
+    | 'cloudwatch.savedLogGroups'
+    | 'cloudwatch.savedLogStreams'
     | 'imap.mailboxes'
     | 'mcp.tools'
     | 'managedAgent.agents'
@@ -10314,6 +10316,8 @@ export type ListSelectorBody = {
     | 'planetscale.deployRequests'
     | 'cloudwatch.logGroups'
     | 'cloudwatch.logStreams'
+    | 'cloudwatch.savedLogGroups'
+    | 'cloudwatch.savedLogStreams'
     | 'imap.mailboxes'
     | 'mcp.tools'
     | 'managedAgent.agents'
@@ -19385,6 +19389,8 @@ export const V2_OPERATIONS = {
           'planetscale.deployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
+          'cloudwatch.savedLogGroups',
+          'cloudwatch.savedLogStreams',
           'imap.mailboxes',
           'mcp.tools',
           'managedAgent.agents',
@@ -21722,6 +21728,8 @@ export const V2_OPERATIONS = {
           'planetscale.deployRequests',
           'cloudwatch.logGroups',
           'cloudwatch.logStreams',
+          'cloudwatch.savedLogGroups',
+          'cloudwatch.savedLogStreams',
           'imap.mailboxes',
           'mcp.tools',
           'managedAgent.agents',

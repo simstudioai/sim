@@ -1,4 +1,5 @@
 import type { RipplingUpdateCustomPageParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingUpdateCustomPageTool: ToolConfig<RipplingUpdateCustomPageParams> = {
@@ -6,6 +7,7 @@ export const ripplingUpdateCustomPageTool: ToolConfig<RipplingUpdateCustomPagePa
   name: 'Rippling Update CustomPage',
   description: 'Update a custom page',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

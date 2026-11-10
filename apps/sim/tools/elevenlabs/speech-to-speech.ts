@@ -6,6 +6,7 @@ import type {
   ElevenLabsAudioResponse,
   ElevenLabsSpeechToSpeechParams,
 } from '@/tools/elevenlabs/types'
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const elevenLabsSpeechToSpeechTool: InternalToolConfig<
@@ -16,6 +17,7 @@ export const elevenLabsSpeechToSpeechTool: InternalToolConfig<
   name: 'ElevenLabs Speech to Speech',
   description: 'Convert audio into a chosen ElevenLabs voice while preserving content and emotion',
   version: '1.0.0',
+  oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

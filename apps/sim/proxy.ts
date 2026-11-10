@@ -313,7 +313,8 @@ function handleSecurityFiltering(request: NextRequest): NextResponse | null {
     pathname.startsWith('/.well-known/oauth-authorization-server') ||
     pathname.startsWith('/.well-known/oauth-protected-resource') ||
     pathname === '/.well-known/openai-apps-challenge' ||
-    pathname === '/.well-known/api-catalog'
+    pathname === '/.well-known/api-catalog' ||
+    pathname.startsWith('/oidc/workload/')
   const isSuspicious = SUSPICIOUS_UA_PATTERNS.some((pattern) => pattern.test(userAgent))
 
   // Block suspicious requests, but exempt machine-to-machine endpoints that may

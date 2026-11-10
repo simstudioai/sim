@@ -3,6 +3,7 @@ import {
   handleMailchimpError,
   type MailchimpMember,
 } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpUnarchiveMemberParams {
@@ -30,6 +31,7 @@ export const mailchimpUnarchiveMemberTool: ToolConfig<
   name: 'Unarchive Member in Mailchimp Audience',
   description: 'Restore an archived member to a Mailchimp audience',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

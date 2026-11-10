@@ -2,6 +2,7 @@ import type {
   AhrefsRankTrackerOverviewParams,
   AhrefsRankTrackerOverviewResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS =
@@ -16,6 +17,7 @@ export const rankTrackerOverviewTool: ToolConfig<
   description:
     'Get ranking overview metrics for the keywords tracked in an Ahrefs Rank Tracker project: position, search volume, keyword difficulty, and estimated traffic. This endpoint is free and does not consume API units.',
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

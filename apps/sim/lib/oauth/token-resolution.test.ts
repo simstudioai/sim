@@ -475,6 +475,50 @@ describe('ordinary tool credential binding', () => {
     }
   )
 
+  describe('hybrid tools (inline secrets or an optional saved credential)', () => {
+    beforeEach(() => {
+      mockGetToolMetadata.mockReturnValue({
+        id: 'dynamodb_get',
+        params: {},
+        oauth: { required: false, provider: 'aws', credentialKind: 'service-account' },
+      })
+    })
+
+    it('resolves a saved credential of the tool provider', async () => {
+      mockResolveOAuthAccountId.mockResolvedValue({
+        ...serviceAccount,
+        providerId: 'aws-service-account',
+      })
+      const result = await resolveCredentialAccessToken({
+        requestId: 'binding-test',
+        credentialId: 'credential-1',
+        toolId: 'dynamodb_get',
+        authenticate,
+      })
+      expect(result).toMatchObject({ ok: true })
+      expect(mockResolveServiceAccountToken).toHaveBeenCalled()
+    })
+
+    it.each(['oracle-fusion-service-account', 'databricks-service-account', 'unknown-provider'])(
+      'still rejects an authorized %s credential',
+      async (providerId) => {
+        mockResolveOAuthAccountId.mockResolvedValue({ ...serviceAccount, providerId })
+        const result = await resolveCredentialAccessToken({
+          requestId: 'binding-test',
+          credentialId: 'credential-1',
+          toolId: 'dynamodb_get',
+          authenticate,
+        })
+        expect(result).toMatchObject({
+          ok: false,
+          status: 400,
+          code: 'CREDENTIAL_PROVIDER_MISMATCH',
+        })
+        expect(mockResolveServiceAccountToken).not.toHaveBeenCalled()
+      }
+    )
+  })
+
   it('does not reveal provider mismatch to an unauthorized caller', async () => {
     mockResolveOAuthAccountId.mockResolvedValue({ ...serviceAccount, providerId: 'vanta' })
     mockAuthorizeCredentialUseForAuth.mockResolvedValue({ ok: false, error: 'Unauthorized' })

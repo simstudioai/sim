@@ -1,4 +1,5 @@
 import type { DubListLinksParams, DubListLinksResponse } from '@/tools/dub/types'
+import { DUB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listLinksTool: ToolConfig<DubListLinksParams, DubListLinksResponse> = {
@@ -7,6 +8,7 @@ export const listLinksTool: ToolConfig<DubListLinksParams, DubListLinksResponse>
   description:
     'Retrieve a paginated list of short links for the authenticated workspace. Supports filtering by domain, search query, tags, and sorting.',
   version: '1.0.0',
+  oauth: DUB_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

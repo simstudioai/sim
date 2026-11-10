@@ -1,4 +1,5 @@
 import type { DiscordGetMemberParams, DiscordGetMemberResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordGetMemberTool: ToolConfig<DiscordGetMemberParams, DiscordGetMemberResponse> = {
@@ -6,6 +7,7 @@ export const discordGetMemberTool: ToolConfig<DiscordGetMemberParams, DiscordGet
   name: 'Discord Get Member',
   description: 'Get information about a member in a Discord server',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

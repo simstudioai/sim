@@ -1,4 +1,5 @@
 import type { GetConversationParams, GetConversationResponse } from '@/tools/cursor/types'
+import { CURSOR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const getConversationBase = {
@@ -32,6 +33,7 @@ export const getConversationTool: ToolConfig<GetConversationParams, GetConversat
   description:
     'Retrieve the conversation history of a cloud agent, including all user prompts and assistant responses.',
   version: '1.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
 
   ...getConversationBase,
 
@@ -81,6 +83,7 @@ export const getConversationV2Tool: ToolConfig<GetConversationParams, GetConvers
   description:
     'Retrieve the conversation history of a cloud agent, including all user prompts and assistant responses. Returns API-aligned fields only.',
   version: '2.0.0',
+  oauth: CURSOR_CREDENTIAL_OAUTH,
   transformResponse: async (response) => {
     const data = await response.json()
 

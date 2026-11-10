@@ -1,5 +1,9 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
+import {
+  DEFAULT_MAX_ERROR_BODY_BYTES,
+  readResponseTextWithLimit,
+} from '@/lib/core/utils/stream-limits'
 
 /**
  * Discrete validation failure codes returned to the client for token
@@ -142,7 +146,12 @@ export async function parseProviderJson<T>(res: Response, step: string): Promise
  */
 export async function readProviderErrorSnippet(res: Response): Promise<string> {
   try {
-    return truncate(await res.text(), ERROR_SNIPPET_MAX_LENGTH)
+    // Bounded: a provider or proxy can answer with an arbitrarily large error body.
+    const text = await readResponseTextWithLimit(res, {
+      maxBytes: DEFAULT_MAX_ERROR_BODY_BYTES,
+      label: 'provider error response',
+    })
+    return truncate(text, ERROR_SNIPPET_MAX_LENGTH)
   } catch {
     return ''
   }

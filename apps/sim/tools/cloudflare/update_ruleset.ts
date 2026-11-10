@@ -12,6 +12,7 @@ import {
   parseJsonArrayParam,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -24,6 +25,7 @@ export const updateRulesetTool: ToolConfig<
   description:
     'Updates the description and rules of a zone ruleset, creating a new version. Read the current rules with "Get Ruleset" before replacing the list. The rules array replaces the complete list: include every existing rule you want to keep; omitted rules are removed. Use "Create Ruleset Rule" to add a single rule without replacing the list.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     zoneId: {
       type: 'string',

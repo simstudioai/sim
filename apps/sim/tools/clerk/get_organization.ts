@@ -5,6 +5,7 @@ import type {
   ClerkGetOrganizationResponse,
   ClerkOrganization,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkGetOrganization')
@@ -17,6 +18,7 @@ export const clerkGetOrganizationTool: ToolConfig<
   name: 'Get Organization from Clerk',
   description: 'Retrieve a single organization by ID or slug from Clerk',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

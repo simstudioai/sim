@@ -1,3 +1,4 @@
+import { SIXTYFOUR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SixtyfourFindPhoneParams, SixtyfourFindPhoneResponse } from '@/tools/sixtyfour/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const sixtyfourFindPhoneTool: ToolConfig<
   name: 'Sixtyfour Find Phone',
   description: 'Find phone numbers for a lead using Sixtyfour AI.',
   version: '1.0.0',
+  oauth: SIXTYFOUR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

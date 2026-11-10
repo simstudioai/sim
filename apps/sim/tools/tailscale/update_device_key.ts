@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleUpdateDeviceKeyParams,
   TailscaleUpdateDeviceKeyResponse,
@@ -14,6 +15,7 @@ export const tailscaleUpdateDeviceKeyTool: ToolConfig<
   name: 'Tailscale Update Device Key',
   description: 'Enable or disable device key expiry',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

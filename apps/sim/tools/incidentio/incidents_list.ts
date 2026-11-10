@@ -6,6 +6,7 @@ import {
   INCIDENTIO_INCIDENT_OUTPUT_PROPERTIES,
   INCIDENTIO_PAGINATION_OUTPUT_PROPERTIES,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const incidentsListTool: ToolConfig<
@@ -17,6 +18,7 @@ export const incidentsListTool: ToolConfig<
   description:
     'List incidents from incident.io. Returns a list of incidents with their details including severity, status, and timestamps.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

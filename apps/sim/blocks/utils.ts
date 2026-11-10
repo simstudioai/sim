@@ -4,8 +4,11 @@ import { getDeploymentShape } from '@/lib/core/config/deployment-shape'
 import { getEnv, isTruthy } from '@/lib/core/config/env'
 import { isOllamaConfigured } from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
+import type { SelectorKey } from '@/lib/selectors/manifest'
 import { containsReference } from '@/lib/workflows/sanitization/references'
-import type { SubBlockConfig } from '@/blocks/types'
+import { getDependsOnFields } from '@/lib/workflows/subblocks/dependencies'
+import { isTriggerModeSubBlock } from '@/lib/workflows/subblocks/visibility'
+import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import {
   findProviderFromModel,
   getBaseModelProviders,
@@ -23,6 +26,10 @@ import { isPiSupportedModel } from '@/providers/pi-providers'
 import type { ProviderId } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
 import { useProvidersStore } from '@/stores/providers/store'
+import {
+  SAVED_CREDENTIAL_OAUTH,
+  type SavedCredentialService,
+} from '@/tools/shared/saved-credentials'
 
 export const AZURE_MODELS = [
   ...getProviderModels('azure-openai'),
@@ -48,6 +55,166 @@ export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
     mode: 'both',
   },
 ]
+
+/** The saved-credential picker; {@link withSavedCredential} completes the standard fields. */
+interface SavedCredentialPicker {
+  id: 'credential'
+  type: 'oauth-input'
+  serviceId: SavedCredentialService
+  title: string
+}
+
+interface SavedCredentialOptions {
+  /** Selectors that authenticate from the replaced fields, mapped to their saved-credential twins. */
+  selectorKeys?: Partial<Record<SelectorKey, SelectorKey>>
+  /** Replaces the tool params builder when the legacy one validates the replaced fields. */
+  params?: NonNullable<BlockConfig['tools']['config']>['params']
+  /**
+   * When the credential is required. Defaults to the replaced secret's own
+   * `required`; a block whose operations also run without a key (public
+   * endpoints, keyless self-hosted servers) passes a condition or `false`.
+   */
+  required?: SubBlockConfig['required']
+  /** Where the picker shows. Defaults to the replaced secret's own `condition`. */
+  condition?: SubBlockConfig['condition']
+}
+
+/**
+ * The fields of a credential-only successor to a block that takes inline
+ * secrets. The legacy block keeps its own definition and keeps running; the
+ * successor spreads it, then these fields swap its secret fields for a
+ * saved-credential picker in the same place. Fields that depended on
+ * a replaced secret depend on the credential instead.
+ */
+export function withSavedCredential(
+  legacy: BlockConfig,
+  picker: SavedCredentialPicker,
+  options: SavedCredentialOptions = {}
+): Pick<BlockConfig, 'subBlocks' | 'inputs' | 'tools'> {
+  const replaced = new Set<string>(
+    SAVED_CREDENTIAL_OAUTH[picker.serviceId].credentialSuppliedParams
+  )
+  // Trigger fields can share a secret's id (a webhook registers with its own key);
+  // they belong to the trigger, not the tools, so they are left exactly as they are.
+  // A basic/advanced pair shares its canonical id, so both halves are replaced.
+  const isReplaced = (subBlock: SubBlockConfig) =>
+    replaced.has(subBlock.canonicalParamId ?? subBlock.id) && !isTriggerModeSubBlock(subBlock)
+  const at = legacy.subBlocks.findIndex(isReplaced)
+  if (at === -1) {
+    throw new Error(`Block "${legacy.type}" has none of the fields a saved credential replaces`)
+  }
+
+  // The picker shows and is required exactly where the secrets it replaces were.
+  const { condition: secretCondition, required: secretRequired } = legacy.subBlocks[at]
+  const visibility = (subBlock: SubBlockConfig) =>
+    JSON.stringify([subBlock.condition ?? null, subBlock.required ?? null])
+  if (new Set(legacy.subBlocks.filter(isReplaced).map(visibility)).size > 1) {
+    throw new Error(`Block "${legacy.type}": the replaced secrets show or require differently`)
+  }
+  const condition = options.condition ?? secretCondition
+  const conditionFields = (value: SubBlockConfig['condition']): string[] =>
+    value && typeof value !== 'function'
+      ? [value.field, ...conditionFields(value.and as SubBlockConfig['condition'])]
+      : []
+  if (
+    typeof condition === 'function' ||
+    conditionFields(condition).some((field) => replaced.has(field))
+  ) {
+    throw new Error(
+      `Block "${legacy.type}": the picker's condition cannot depend on a replaced secret`
+    )
+  }
+  const required = options.required ?? secretRequired ?? true
+
+  const usedSelectorKeys = new Set<string>()
+  const subBlocks = legacy.subBlocks
+    .filter((subBlock) => !isReplaced(subBlock))
+    .map((subBlock) =>
+      isTriggerModeSubBlock(subBlock)
+        ? subBlock
+        : dependOnCredential(subBlock, replaced, options.selectorKeys, usedSelectorKeys)
+    )
+  const unusedSelectorKeys = Object.keys(options.selectorKeys ?? {}).filter(
+    (key) => !usedSelectorKeys.has(key)
+  )
+  if (unusedSelectorKeys.length > 0) {
+    throw new Error(
+      `Block "${legacy.type}": unused selector twins ${unusedSelectorKeys.join(', ')}`
+    )
+  }
+  subBlocks.splice(
+    at,
+    0,
+    {
+      ...picker,
+      credentialKind: 'service-account',
+      canonicalParamId: 'oauthCredential',
+      mode: 'basic',
+      // 'AWS Credential' → 'Select AWS credential': sentence case, brand casing kept.
+      placeholder: `Select ${picker.title.replace(/\s(\S+)$/, (_, noun: string) => ` ${noun.toLowerCase()}`)}`,
+      ...(condition ? { condition } : {}),
+      required,
+    },
+    {
+      id: 'manualCredential',
+      title: picker.title,
+      type: 'short-input',
+      canonicalParamId: 'oauthCredential',
+      mode: 'advanced',
+      placeholder: 'Enter credential ID',
+      ...(condition ? { condition } : {}),
+      required,
+    }
+  )
+
+  const inputs = Object.fromEntries(
+    Object.entries(legacy.inputs).filter(([key]) => !replaced.has(key))
+  )
+  const { params } = options
+  const config = legacy.tools.config
+  let tools = legacy.tools
+  if (params) {
+    if (!config) throw new Error(`Block "${legacy.type}" has no tool params builder to replace`)
+    tools = { ...legacy.tools, config: { ...config, params } }
+  }
+
+  return {
+    subBlocks,
+    inputs: { oauthCredential: { type: 'string', description: `${picker.title} ID` }, ...inputs },
+    tools,
+  }
+}
+
+function dependOnCredential(
+  subBlock: SubBlockConfig,
+  replaced: ReadonlySet<string>,
+  selectorKeys: SavedCredentialOptions['selectorKeys'],
+  usedSelectorKeys: Set<string>
+): SubBlockConfig {
+  const { dependsOn } = subBlock
+  if (!dependsOn) return subBlock
+  if (!getDependsOnFields(dependsOn).some((field) => replaced.has(field))) return subBlock
+
+  const selectorKey = subBlock.selectorKey && selectorKeys?.[subBlock.selectorKey]
+  if (subBlock.selectorKey && !selectorKey) {
+    throw new Error(`Selector "${subBlock.selectorKey}" needs a saved-credential twin`)
+  }
+  if (subBlock.selectorKey) usedSelectorKeys.add(subBlock.selectorKey)
+  const swap = (list: string[]) =>
+    list.some((field) => replaced.has(field))
+      ? ['credential', ...list.filter((field) => !replaced.has(field) && field !== 'credential')]
+      : list
+  return {
+    ...subBlock,
+    ...(selectorKey ? { selectorKey } : {}),
+    dependsOn: Array.isArray(dependsOn)
+      ? swap(dependsOn)
+      : {
+          ...(dependsOn.all ? { all: swap(dependsOn.all) } : {}),
+          ...(dependsOn.any ? { any: swap(dependsOn.any) } : {}),
+        },
+  }
+}
 
 /**
  * Returns model options for combobox subblocks, combining all provider sources.

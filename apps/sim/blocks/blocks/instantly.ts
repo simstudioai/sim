@@ -2,6 +2,7 @@ import { isRecordLike } from '@sim/utils/object'
 import { InstantlyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const LEAD_LIST_OPERATIONS = ['list_leads'] as const
@@ -57,6 +58,8 @@ const INSTANTLY_TRIGGER_IDS = [
 
 export const InstantlyBlock: BlockConfig = {
   type: 'instantly',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'instantly_v2' },
   name: 'Instantly',
   description: 'Manage Instantly leads, campaigns, emails, and lead lists',
   longDescription:
@@ -1440,3 +1443,17 @@ export const InstantlyBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const InstantlyV2Block: BlockConfig = {
+  ...InstantlyBlock,
+  type: 'instantly_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(InstantlyBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'instantly',
+    title: 'Instantly Credential',
+  }),
+}

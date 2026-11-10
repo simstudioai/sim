@@ -1,4 +1,5 @@
 import type { ListDraftsParams, ListDraftsResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailListDraftsTool: ToolConfig<ListDraftsParams, ListDraftsResult> = {
@@ -6,6 +7,7 @@ export const agentmailListDraftsTool: ToolConfig<ListDraftsParams, ListDraftsRes
   name: 'List Drafts',
   description: 'List email drafts in an inbox in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

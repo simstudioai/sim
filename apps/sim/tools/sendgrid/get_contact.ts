@@ -1,4 +1,5 @@
 import type { ContactResult, GetContactParams, SendGridContact } from '@/tools/sendgrid/types'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridGetContactTool: ToolConfig<GetContactParams, ContactResult> = {
@@ -6,6 +7,7 @@ export const sendGridGetContactTool: ToolConfig<GetContactParams, ContactResult>
   name: 'SendGrid Get Contact',
   description: 'Get a specific contact by ID from SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

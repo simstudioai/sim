@@ -2,6 +2,7 @@ import type {
   LoopsListTransactionalEmailsParams,
   LoopsListTransactionalEmailsResponse,
 } from '@/tools/loops/types'
+import { LOOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const loopsListTransactionalEmailsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const loopsListTransactionalEmailsTool: ToolConfig<
   description:
     'Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, created/updated timestamps, and data variables.',
   version: '1.0.0',
+  oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

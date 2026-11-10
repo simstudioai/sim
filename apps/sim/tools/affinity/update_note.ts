@@ -11,6 +11,7 @@ import {
   transformAcknowledgement,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityUpdateNoteTool: ToolConfig<
@@ -22,6 +23,7 @@ export const affinityUpdateNoteTool: ToolConfig<
   description:
     "Rewrite a note's body or replace which records it is attached to. Each list of IDs replaces that association wholesale, an empty list clears it, and omitting one leaves it untouched. A note's type cannot be changed.",
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

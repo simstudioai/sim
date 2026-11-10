@@ -1,4 +1,5 @@
 import { buildMailchimpUrl, handleMailchimpError } from '@/tools/mailchimp/types'
+import { MAILCHIMP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export interface MailchimpUnpublishLandingPageParams {
@@ -21,6 +22,7 @@ export const mailchimpUnpublishLandingPageTool: ToolConfig<
   name: 'Unpublish Landing Page in Mailchimp',
   description: 'Unpublish a landing page in Mailchimp',
   version: '1.0.0',
+  oauth: MAILCHIMP_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

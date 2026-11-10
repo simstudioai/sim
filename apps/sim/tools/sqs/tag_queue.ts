@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SqsMessageResponse, SqsTagQueueParams } from '@/tools/sqs/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const tagQueueTool: InternalToolConfig<SqsTagQueueParams, SqsMessageRespo
   name: 'SQS Tag Queue',
   description: 'Add or overwrite cost-allocation tags on an Amazon SQS queue',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

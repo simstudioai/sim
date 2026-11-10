@@ -2,7 +2,7 @@
 title: Gamma
 description: Generate presentations, documents, and webpages with AI
 integration:
-  type: "gamma"
+  type: "gamma_v2"
   color: "#002253"
 ---
 
@@ -29,7 +29,6 @@ Generate a new Gamma presentation, document, webpage, or social post from text i
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Gamma API key |
 | `inputText` | string | Yes | Text and image URLs used to generate your gamma \(1-100,000 tokens\) |
 | `textMode` | string | Yes | How to handle input text: generate \(AI expands\), condense \(AI summarizes\), or preserve \(keep as-is\) |
 | `format` | string | No | Output format: presentation, document, webpage, or social \(default: presentation\) |
@@ -66,7 +65,6 @@ Generate a new Gamma by adapting an existing template with a prompt.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Gamma API key |
 | `gammaId` | string | Yes | The ID of the template gamma to adapt |
 | `prompt` | string | Yes | Instructions for how to adapt the template \(1-100,000 tokens\) |
 | `themeId` | string | No | Custom Gamma workspace theme ID to apply |
@@ -93,7 +91,6 @@ Check the status of a Gamma generation job. Returns the gamma URL when completed
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Gamma API key |
 | `generationId` | string | Yes | The generation ID returned by the Generate or Generate from Template tool |
 
 #### Output
@@ -122,7 +119,6 @@ List available themes in your Gamma workspace. Returns theme IDs, names, and key
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Gamma API key |
 | `query` | string | No | Search query to filter themes by name \(case-insensitive\) |
 | `limit` | number | No | Maximum number of themes to return per page \(max 50\) |
 | `after` | string | No | Pagination cursor from a previous response \(nextCursor\) to fetch the next page |
@@ -152,7 +148,6 @@ List available folders in your Gamma workspace. Returns folder IDs and names for
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Gamma API key |
 | `query` | string | No | Search query to filter folders by name \(case-sensitive\) |
 | `limit` | number | No | Maximum number of folders to return per page \(max 50\) |
 | `after` | string | No | Pagination cursor from a previous response \(nextCursor\) to fetch the next page |

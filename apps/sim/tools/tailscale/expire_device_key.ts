@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TailscaleDeviceParams,
   TailscaleExpireDeviceKeyResponse,
@@ -14,6 +15,7 @@ export const tailscaleExpireDeviceKeyTool: ToolConfig<
   name: 'Tailscale Expire Device Key',
   description: 'Immediately expire a device node key so the device must reauthenticate',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

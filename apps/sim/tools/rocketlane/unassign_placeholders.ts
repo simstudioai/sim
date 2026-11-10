@@ -9,6 +9,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneUnassignPlaceholdersTool: ToolConfig<
@@ -19,6 +20,7 @@ export const rocketlaneUnassignPlaceholdersTool: ToolConfig<
   name: 'Rocketlane Unassign Placeholders',
   description: 'Unassign a placeholder from its user in a Rocketlane project',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

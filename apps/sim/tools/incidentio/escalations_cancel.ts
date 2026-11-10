@@ -2,6 +2,7 @@ import type {
   IncidentioEscalationsCancelParams,
   IncidentioEscalationsCancelResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const escalationsCancelTool: ToolConfig<
@@ -13,6 +14,7 @@ export const escalationsCancelTool: ToolConfig<
   description:
     'Cancel an escalation in incident.io. Notifications stop, and the escalation will not advance to further levels or repeat.',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

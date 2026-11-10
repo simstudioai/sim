@@ -148,6 +148,9 @@ export const env = createEnv({
     ENCRYPT_ACCOUNT_TOKENS:                z.boolean().optional(),                 // Opt-out: OAuth access/refresh tokens are sealed on write (read by @sim/db) and backfilled by migrate whenever ENCRYPTION_KEY is 64 hex characters; false or 0 writes plaintext. Sealed tokens need v0.9.33+ on every process that reads them
     INTERNAL_API_SECRET:                   z.string().min(32),                     // Secret for internal API authentication
     INTERNAL_JWT_SECRET:                   z.string().min(32).optional(),          // Dedicated signing key for internal JWTs (falls back to INTERNAL_API_SECRET); separating limits blast radius if one leaks
+    WORKLOAD_IDENTITY_SIGNING_KEY:         z.string().min(1).optional(),           // PKCS#8 PEM RSA private key that signs Sim workload-identity (OIDC) tokens for keyless AWS/cloud credentials; unset disables the OIDC credential mode
+    WORKLOAD_IDENTITY_PREVIOUS_KEY:        z.string().min(1).optional(),           // Retiring workload-identity key (private or public PEM), still published in the JWKS during rotation so tokens it signed keep verifying
+    WORKLOAD_IDENTITY_ISSUER:              z.string().url().optional(),            // Workload-identity issuer URL (default <NEXT_PUBLIC_APP_URL>/oidc/workload). Customer trust policies pin it, so it must never change once in use
 
     // Copilot
     COPILOT_API_KEY:                       z.string().min(1).optional(),           // Secret for internal sim agent API authentication

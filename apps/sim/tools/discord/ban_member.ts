@@ -1,4 +1,5 @@
 import type { DiscordBanMemberParams, DiscordBanMemberResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordBanMemberTool: ToolConfig<DiscordBanMemberParams, DiscordBanMemberResponse> = {
@@ -6,6 +7,7 @@ export const discordBanMemberTool: ToolConfig<DiscordBanMemberParams, DiscordBan
   name: 'Discord Ban Member',
   description: 'Ban a member from a Discord server',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

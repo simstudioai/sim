@@ -5,6 +5,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneArchiveProjectTool: ToolConfig<
@@ -16,6 +17,7 @@ export const rocketlaneArchiveProjectTool: ToolConfig<
   description:
     'Archive a Rocketlane project by ID, making it dormant while preserving its details and history',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

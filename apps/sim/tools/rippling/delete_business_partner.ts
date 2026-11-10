@@ -1,4 +1,5 @@
 import type { RipplingDeleteBusinessPartnerParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingDeleteBusinessPartnerTool: ToolConfig<RipplingDeleteBusinessPartnerParams> = {
@@ -6,6 +7,7 @@ export const ripplingDeleteBusinessPartnerTool: ToolConfig<RipplingDeleteBusines
   name: 'Rippling Delete Business Partner',
   description: 'Delete a business partner',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

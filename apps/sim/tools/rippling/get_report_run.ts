@@ -1,4 +1,5 @@
 import type { RipplingGetReportRunParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingGetReportRunTool: ToolConfig<RipplingGetReportRunParams> = {
@@ -6,6 +7,7 @@ export const ripplingGetReportRunTool: ToolConfig<RipplingGetReportRunParams> = 
   name: 'Rippling Get Report Run',
   description: 'Get a report run by ID',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

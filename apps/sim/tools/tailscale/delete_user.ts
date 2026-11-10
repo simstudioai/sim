@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TailscaleDeleteUserResponse, TailscaleUserParams } from '@/tools/tailscale/types'
 import { assertTailscaleResponse } from '@/tools/tailscale/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -9,6 +10,7 @@ export const tailscaleDeleteUserTool: ToolConfig<TailscaleUserParams, TailscaleD
     name: 'Tailscale Delete User',
     description: 'Delete a user from the tailnet',
     version: '1.0.0',
+    oauth: TAILSCALE_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

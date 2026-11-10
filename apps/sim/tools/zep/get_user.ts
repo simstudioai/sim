@@ -1,3 +1,4 @@
+import { ZEP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { ZepResponse } from '@/tools/zep/types'
 import { USER_OUTPUT_PROPERTIES } from '@/tools/zep/types'
@@ -7,6 +8,7 @@ export const zepGetUserTool: ToolConfig<any, ZepResponse> = {
   name: 'Get User',
   description: 'Retrieve user information from Zep',
   version: '1.0.0',
+  oauth: ZEP_CREDENTIAL_OAUTH,
 
   params: {
     userId: {

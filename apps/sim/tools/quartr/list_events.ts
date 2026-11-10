@@ -12,6 +12,7 @@ import {
   normalizeQuartrCommaList,
   parseQuartrResponse,
 } from '@/tools/quartr/utils'
+import { QUARTR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const quartrListEventsTool: ToolConfig<QuartrListEventsParams, QuartrListEventsResponse> = {
@@ -20,6 +21,7 @@ export const quartrListEventsTool: ToolConfig<QuartrListEventsParams, QuartrList
   description:
     'List corporate events (earnings calls, capital markets days, etc.) from Quartr, filterable by company, event type, and date range.',
   version: '1.0.0',
+  oauth: QUARTR_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

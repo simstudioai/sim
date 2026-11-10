@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerResponse, UpdateCustomerParams } from '@/tools/square/types'
 import {
   CUSTOMER_METADATA_OUTPUT_PROPERTIES,
@@ -13,6 +14,7 @@ export const squareUpdateCustomerTool: ToolConfig<UpdateCustomerParams, Customer
   name: 'Square Update Customer',
   description: 'Update fields on an existing customer profile',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

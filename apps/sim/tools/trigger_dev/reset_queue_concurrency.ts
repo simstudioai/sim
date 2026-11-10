@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TriggerDevQueueParams, TriggerDevQueueResponse } from '@/tools/trigger_dev/types'
 import {
   buildTriggerDevHeaders,
@@ -16,6 +17,7 @@ export const triggerDevResetQueueConcurrencyTool: ToolConfig<
   description:
     'Reset the concurrency limit of a Trigger.dev queue back to its base value, removing any override.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

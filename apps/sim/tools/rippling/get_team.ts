@@ -1,4 +1,5 @@
 import type { RipplingGetTeamParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingGetTeamTool: ToolConfig<RipplingGetTeamParams> = {
@@ -6,6 +7,7 @@ export const ripplingGetTeamTool: ToolConfig<RipplingGetTeamParams> = {
   name: 'Rippling Get Team',
   description: 'Get a specific team by ID',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

@@ -1,5 +1,6 @@
 import type { RipplingListBusinessPartnerGroupsParams } from '@/tools/rippling/types'
 import { BUSINESS_PARTNER_GROUP_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListBusinessPartnerGroupsTool: ToolConfig<RipplingListBusinessPartnerGroupsParams> =
@@ -8,6 +9,7 @@ export const ripplingListBusinessPartnerGroupsTool: ToolConfig<RipplingListBusin
     name: 'Rippling List Business Partner Groups',
     description: 'List all business partner groups',
     version: '1.0.0',
+    oauth: RIPPLING_CREDENTIAL_OAUTH,
     params: {
       apiKey: {
         type: 'string',

@@ -1,5 +1,6 @@
 import type { RipplingListUsersParams } from '@/tools/rippling/types'
 import { USER_OUTPUT_PROPERTIES } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingListUsersTool: ToolConfig<RipplingListUsersParams> = {
@@ -7,6 +8,7 @@ export const ripplingListUsersTool: ToolConfig<RipplingListUsersParams> = {
   name: 'Rippling List Users',
   description: 'List all users with optional pagination',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

@@ -3,6 +3,7 @@ import type {
   LambdaPutRuntimeManagementConfigParams,
   LambdaPutRuntimeManagementConfigResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const putRuntimeManagementConfigTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const putRuntimeManagementConfigTool: InternalToolConfig<
   name: 'Lambda Set Runtime Management Config',
   description: 'Set how and when Lambda applies runtime updates to a function version',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

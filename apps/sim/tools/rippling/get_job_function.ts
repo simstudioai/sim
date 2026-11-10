@@ -1,4 +1,5 @@
 import type { RipplingGetJobFunctionParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingGetJobFunctionTool: ToolConfig<RipplingGetJobFunctionParams> = {
@@ -6,6 +7,7 @@ export const ripplingGetJobFunctionTool: ToolConfig<RipplingGetJobFunctionParams
   name: 'Rippling Get Job Function',
   description: 'Get a specific job function by ID',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

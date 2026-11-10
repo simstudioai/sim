@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevPromoteDeploymentParams,
   TriggerDevPromoteDeploymentResponse,
@@ -14,6 +15,7 @@ export const triggerDevPromoteDeploymentTool: ToolConfig<
   description:
     'Promote a Trigger.dev deployment version so new runs execute on it (e.g., to roll back to a previous version).',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

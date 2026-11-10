@@ -1,4 +1,5 @@
 import type { FirefliesListBitesParams, FirefliesListBitesResponse } from '@/tools/fireflies/types'
+import { FIREFLIES_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const firefliesListBitesTool: ToolConfig<
@@ -9,6 +10,7 @@ export const firefliesListBitesTool: ToolConfig<
   name: 'Fireflies List Bites',
   description: 'List soundbites/highlights from Fireflies.ai',
   version: '1.0.0',
+  oauth: FIREFLIES_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

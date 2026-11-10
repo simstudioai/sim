@@ -1,4 +1,5 @@
 import type { CreateDraftParams, CreateDraftResult } from '@/tools/agentmail/types'
+import { AGENTMAIL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const agentmailCreateDraftTool: ToolConfig<CreateDraftParams, CreateDraftResult> = {
@@ -6,6 +7,7 @@ export const agentmailCreateDraftTool: ToolConfig<CreateDraftParams, CreateDraft
   name: 'Create Draft',
   description: 'Create a new email draft in AgentMail',
   version: '1.0.0',
+  oauth: AGENTMAIL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

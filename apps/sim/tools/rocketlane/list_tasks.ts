@@ -9,6 +9,7 @@ import {
   rocketlaneHeaders,
   TASK_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneListTasksTool: ToolConfig<
@@ -19,6 +20,7 @@ export const rocketlaneListTasksTool: ToolConfig<
   name: 'Rocketlane List Tasks',
   description: 'Retrieve all Rocketlane tasks with optional filters, sorting, and pagination',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

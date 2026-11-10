@@ -2,6 +2,7 @@ import type {
   AhrefsRankTrackerCompetitorsOverviewParams,
   AhrefsRankTrackerCompetitorsOverviewResponse,
 } from '@/tools/ahrefs/types'
+import { AHREFS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const SELECT_FIELDS = 'keyword,volume,keyword_difficulty,serp_features,competitors_list'
@@ -15,6 +16,7 @@ export const rankTrackerCompetitorsOverviewTool: ToolConfig<
   description:
     "Get competitor rankings for the keywords tracked in an Ahrefs Rank Tracker project: each tracked keyword's volume and difficulty alongside every competitor's position, traffic, and traffic value. This endpoint is free and does not consume API units.",
   version: '1.0.0',
+  oauth: AHREFS_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -37,6 +38,7 @@ export const sportmonksGetFixturesByDateRangeTool: ToolConfig<
   description:
     'Retrieve football fixtures between two dates (YYYY-MM-DD) from Sportmonks. Max range is 100 days.',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

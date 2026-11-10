@@ -5,6 +5,7 @@ import {
   type Ec2DescribeInternetGatewaysResponse,
 } from '@/tools/ec2/types'
 import { ec2ConnectionInput, suppliedParams } from '@/tools/ec2/utils'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const describeInternetGatewaysTool: InternalToolConfig<
@@ -15,6 +16,7 @@ export const describeInternetGatewaysTool: InternalToolConfig<
   name: 'EC2 Describe Internet Gateways',
   description: 'List internet gateways and the VPCs they are attached to',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

@@ -2,6 +2,7 @@ import type {
   ElevenLabsEditVoiceSettingsParams,
   ElevenLabsEditVoiceSettingsResponse,
 } from '@/tools/elevenlabs/types'
+import { ELEVENLABS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const elevenLabsEditVoiceSettingsTool: ToolConfig<
@@ -12,6 +13,7 @@ export const elevenLabsEditVoiceSettingsTool: ToolConfig<
   name: 'ElevenLabs Edit Voice Settings',
   description: 'Update the settings for a specific ElevenLabs voice',
   version: '1.0.0',
+  oauth: ELEVENLABS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

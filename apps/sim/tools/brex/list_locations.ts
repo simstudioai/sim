@@ -5,6 +5,7 @@ import {
   buildBrexHeaders,
   parseBrexJson,
 } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexListLocationsTool: ToolConfig<BrexNameFilterParams, BrexListLocationsResponse> = {
@@ -12,6 +13,7 @@ export const brexListLocationsTool: ToolConfig<BrexNameFilterParams, BrexListLoc
   name: 'Brex List Locations',
   description: 'List locations in the Brex account, optionally filtered by name',
   version: '1.0.0',
+  oauth: BREX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

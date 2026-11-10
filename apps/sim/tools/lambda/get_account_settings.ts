@@ -2,6 +2,7 @@ import type {
   LambdaGetAccountSettingsParams,
   LambdaGetAccountSettingsResponse,
 } from '@/tools/lambda/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getAccountSettingsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const getAccountSettingsTool: InternalToolConfig<
   name: 'Lambda Get Account Settings',
   description: 'Get the Lambda limits and usage of the current AWS account and region',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     awsRegion: {

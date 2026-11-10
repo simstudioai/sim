@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   buildSportmonksHeaders,
   handleSportmonksError,
@@ -28,6 +29,7 @@ export const sportmonksCoreGetTypeTool: ToolConfig<
   name: 'Get Type by ID',
   description: 'Retrieve a single type by its ID from the Sportmonks Core API',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

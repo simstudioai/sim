@@ -3,6 +3,7 @@ import {
   type IncidentioActionsUpdateParams,
   type IncidentioActionsUpdateResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const actionsUpdateTool: ToolConfig<
@@ -14,6 +15,7 @@ export const actionsUpdateTool: ToolConfig<
   description:
     'Update an existing action in incident.io, for example to mark it completed or reassign it',
   version: '1.0.0',
+  oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

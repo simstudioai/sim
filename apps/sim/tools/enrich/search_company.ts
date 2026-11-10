@@ -1,4 +1,5 @@
 import type { EnrichSearchCompanyParams, EnrichSearchCompanyResponse } from '@/tools/enrich/types'
+import { ENRICH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const searchCompanyTool: ToolConfig<EnrichSearchCompanyParams, EnrichSearchCompanyResponse> =
@@ -8,6 +9,7 @@ export const searchCompanyTool: ToolConfig<EnrichSearchCompanyParams, EnrichSear
     description:
       'Search for companies by various criteria including name, industry, location, and size.',
     version: '1.0.0',
+    oauth: ENRICH_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

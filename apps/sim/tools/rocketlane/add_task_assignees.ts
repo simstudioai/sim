@@ -8,6 +8,7 @@ import {
   rocketlaneHeaders,
   TASK_OUTPUT_PROPERTIES,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneAddTaskAssigneesTool: ToolConfig<
@@ -18,6 +19,7 @@ export const rocketlaneAddTaskAssigneesTool: ToolConfig<
   name: 'Rocketlane Add Task Assignees',
   description: 'Add members as assignees to a Rocketlane task',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

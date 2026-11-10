@@ -1,6 +1,7 @@
 import type { BrexUpdateExpenseParams, BrexUpdateExpenseResponse } from '@/tools/brex/types'
 import { BREX_MONEY_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexUpdateExpenseTool: ToolConfig<BrexUpdateExpenseParams, BrexUpdateExpenseResponse> =
@@ -9,6 +10,7 @@ export const brexUpdateExpenseTool: ToolConfig<BrexUpdateExpenseParams, BrexUpda
     name: 'Brex Update Expense',
     description: 'Update the memo of a Brex card expense',
     version: '1.0.0',
+    oauth: BREX_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SQUARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { GetRefundParams, RefundResponse } from '@/tools/square/types'
 import {
   REFUND_METADATA_OUTPUT_PROPERTIES,
@@ -13,6 +14,7 @@ export const squareGetRefundTool: ToolConfig<GetRefundParams, RefundResponse> = 
   name: 'Square Get Refund',
   description: 'Retrieve a single payment refund by its ID',
   version: '1.0.0',
+  oauth: SQUARE_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SQUARE_ERRORS,
 
   params: {

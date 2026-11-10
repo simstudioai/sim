@@ -3,6 +3,7 @@ import {
   type IncidentioAlertsShowParams,
   type IncidentioAlertsShowResponse,
 } from '@/tools/incidentio/types'
+import { INCIDENTIO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const alertsShowTool: ToolConfig<IncidentioAlertsShowParams, IncidentioAlertsShowResponse> =
@@ -11,6 +12,7 @@ export const alertsShowTool: ToolConfig<IncidentioAlertsShowParams, IncidentioAl
     name: 'Show Alert',
     description: 'Get a single alert by ID from incident.io',
     version: '1.0.0',
+    oauth: INCIDENTIO_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

@@ -1,4 +1,5 @@
 import type { GammaCheckStatusParams, GammaCheckStatusResponse } from '@/tools/gamma/types'
+import { GAMMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkStatusTool: ToolConfig<GammaCheckStatusParams, GammaCheckStatusResponse> = {
@@ -7,6 +8,7 @@ export const checkStatusTool: ToolConfig<GammaCheckStatusParams, GammaCheckStatu
   description:
     'Check the status of a Gamma generation job. Returns the gamma URL when completed, or error details if failed.',
   version: '1.0.0',
+  oauth: GAMMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

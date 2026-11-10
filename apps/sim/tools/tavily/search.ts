@@ -1,3 +1,4 @@
+import { TAVILY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TavilySearchParams, TavilySearchResponse } from '@/tools/tavily/types'
 import {
   TAVILY_IMAGE_OUTPUT_PROPERTIES,
@@ -11,6 +12,7 @@ export const searchTool: ToolConfig<TavilySearchParams, TavilySearchResponse> = 
   description:
     "Perform AI-powered web searches using Tavily's search API. Returns structured results with titles, URLs, snippets, and optional raw content, optimized for relevance and accuracy.",
   version: '1.0.0',
+  oauth: TAVILY_CREDENTIAL_OAUTH,
 
   params: {
     query: {

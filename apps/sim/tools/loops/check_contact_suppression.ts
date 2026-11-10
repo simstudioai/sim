@@ -2,6 +2,7 @@ import type {
   LoopsCheckContactSuppressionParams,
   LoopsCheckContactSuppressionResponse,
 } from '@/tools/loops/types'
+import { LOOPS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const loopsCheckContactSuppressionTool: ToolConfig<
@@ -13,6 +14,7 @@ export const loopsCheckContactSuppressionTool: ToolConfig<
   description:
     'Check whether a Loops contact is on the suppression list (bounced, complained, or unsubscribed) by email address or userId.',
   version: '1.0.0',
+  oauth: LOOPS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

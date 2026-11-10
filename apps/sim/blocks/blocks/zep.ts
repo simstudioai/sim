@@ -1,8 +1,86 @@
 import { ZepIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
+
+function zepToolParams(params: Record<string, any>, requireApiKey: boolean) {
+  const errors: string[] = []
+
+  // Validate required API key for all operations
+  if (requireApiKey && !params.apiKey) {
+    errors.push('API Key is required')
+  }
+
+  const operation = params.operation || 'create_thread'
+
+  // Validate operation-specific required fields
+  if (
+    ['create_thread', 'add_messages', 'get_context', 'get_messages', 'delete_thread'].includes(
+      operation
+    )
+  ) {
+    if (!params.threadId) {
+      errors.push('Thread ID is required')
+    }
+  }
+
+  if (operation === 'create_thread' || operation === 'add_user') {
+    if (!params.userId) {
+      errors.push('User ID is required')
+    }
+  }
+
+  if (operation === 'get_user' || operation === 'get_user_threads') {
+    if (!params.userId) {
+      errors.push('User ID is required')
+    }
+  }
+
+  if (operation === 'add_messages') {
+    if (!params.messages) {
+      errors.push('Messages are required')
+    } else if (!Array.isArray(params.messages) || params.messages.length === 0) {
+      errors.push('Messages must be a non-empty array')
+    } else {
+      for (const msg of params.messages) {
+        if (!msg.role || !msg.content) {
+          errors.push("Each message must have 'role' and 'content' properties")
+          break
+        }
+      }
+    }
+  }
+
+  // Throw error if any required fields are missing
+  if (errors.length > 0) {
+    throw new Error(`Zep Block Error: ${errors.join(', ')}`)
+  }
+
+  // Build the result params
+  const result: Record<string, any> = {
+    apiKey: params.apiKey,
+  }
+
+  if (params.threadId) result.threadId = params.threadId
+  if (params.userId) result.userId = params.userId
+  if (params.mode) result.mode = params.mode
+  if (params.limit) result.limit = Number(params.limit)
+  if (params.email) result.email = params.email
+  if (params.firstName) result.firstName = params.firstName
+  if (params.lastName) result.lastName = params.lastName
+  if (params.metadata) result.metadata = params.metadata
+
+  // Add messages for add operation
+  if (operation === 'add_messages' && params.messages) {
+    result.messages = params.messages
+  }
+
+  return result
+}
 
 export const ZepBlock: BlockConfig = {
   type: 'zep',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'zep_v2' },
   name: 'Zep',
   description: 'Long-term memory for AI agents',
   authMode: AuthMode.ApiKey,
@@ -212,84 +290,7 @@ export const ZepBlock: BlockConfig = {
             return 'zep_create_thread'
         }
       },
-      params: (params: Record<string, any>) => {
-        const errors: string[] = []
-
-        // Validate required API key for all operations
-        if (!params.apiKey) {
-          errors.push('API Key is required')
-        }
-
-        const operation = params.operation || 'create_thread'
-
-        // Validate operation-specific required fields
-        if (
-          [
-            'create_thread',
-            'add_messages',
-            'get_context',
-            'get_messages',
-            'delete_thread',
-          ].includes(operation)
-        ) {
-          if (!params.threadId) {
-            errors.push('Thread ID is required')
-          }
-        }
-
-        if (operation === 'create_thread' || operation === 'add_user') {
-          if (!params.userId) {
-            errors.push('User ID is required')
-          }
-        }
-
-        if (operation === 'get_user' || operation === 'get_user_threads') {
-          if (!params.userId) {
-            errors.push('User ID is required')
-          }
-        }
-
-        if (operation === 'add_messages') {
-          if (!params.messages) {
-            errors.push('Messages are required')
-          } else if (!Array.isArray(params.messages) || params.messages.length === 0) {
-            errors.push('Messages must be a non-empty array')
-          } else {
-            for (const msg of params.messages) {
-              if (!msg.role || !msg.content) {
-                errors.push("Each message must have 'role' and 'content' properties")
-                break
-              }
-            }
-          }
-        }
-
-        // Throw error if any required fields are missing
-        if (errors.length > 0) {
-          throw new Error(`Zep Block Error: ${errors.join(', ')}`)
-        }
-
-        // Build the result params
-        const result: Record<string, any> = {
-          apiKey: params.apiKey,
-        }
-
-        if (params.threadId) result.threadId = params.threadId
-        if (params.userId) result.userId = params.userId
-        if (params.mode) result.mode = params.mode
-        if (params.limit) result.limit = Number(params.limit)
-        if (params.email) result.email = params.email
-        if (params.firstName) result.firstName = params.firstName
-        if (params.lastName) result.lastName = params.lastName
-        if (params.metadata) result.metadata = params.metadata
-
-        // Add messages for add operation
-        if (operation === 'add_messages' && params.messages) {
-          result.messages = params.messages
-        }
-
-        return result
-      },
+      params: (params) => zepToolParams(params, true),
     },
   },
   inputs: {
@@ -425,3 +426,16 @@ export const ZepBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ZepV2Block: BlockConfig = {
+  ...ZepBlock,
+  type: 'zep_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    ZepBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'zep', title: 'Zep Credential' },
+    { params: (params) => zepToolParams(params, false) }
+  ),
+}

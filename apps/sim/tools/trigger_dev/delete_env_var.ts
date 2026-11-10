@@ -1,3 +1,4 @@
+import { TRIGGER_DEV_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TriggerDevEnvVarActionResponse,
   TriggerDevEnvVarNameParams,
@@ -17,6 +18,7 @@ export const triggerDevDeleteEnvVarTool: ToolConfig<
   name: 'Trigger.dev Delete Env Var',
   description: 'Delete an environment variable from a Trigger.dev project environment.',
   version: '1.0.0',
+  oauth: TRIGGER_DEV_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

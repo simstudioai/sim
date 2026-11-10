@@ -441,7 +441,7 @@ export const updateOrganizationCredential: OperationUseCase<
       )
     }
     const result = await withResourceOutboundScope(row, () =>
-      updateCredentialRecord({ ...input, credential: row })
+      updateCredentialRecord({ ...input, credential: row, actorUserId: context.userId })
     )
     if (!result.success) throwCredentialMutationFailure(result)
     const updated = await getOrganizationCredential(input.organizationId, input.credentialId)

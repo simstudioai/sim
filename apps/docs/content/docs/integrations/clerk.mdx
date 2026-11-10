@@ -2,7 +2,7 @@
 title: Clerk
 description: Manage users, organizations, and sessions in Clerk
 integration:
-  type: "clerk"
+  type: "clerk_v2"
   color: "#131316"
 ---
 
@@ -31,7 +31,6 @@ List all users in your Clerk application with optional filtering and pagination
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `limit` | number | No | Number of results per page \(e.g., 10, 50, 100; range: 1-500, default: 10\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 10, 20\) |
 | `orderBy` | string | No | Sort field with optional +/- prefix for direction \(default: -created_at\) |
@@ -86,7 +85,6 @@ Retrieve a single user by their ID from Clerk
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `userId` | string | Yes | The ID of the user to retrieve \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 
 #### Output
@@ -140,7 +138,6 @@ Create a new user in your Clerk application
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `emailAddress` | string | No | Email addresses for the user \(comma-separated for multiple\) |
 | `phoneNumber` | string | No | Phone numbers for the user \(comma-separated for multiple\) |
 | `username` | string | No | Username for the user \(must be unique\) |
@@ -191,7 +188,6 @@ Update an existing user in your Clerk application
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `userId` | string | Yes | The ID of the user to update \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 | `firstName` | string | No | First name of the user |
 | `lastName` | string | No | Last name of the user |
@@ -244,7 +240,6 @@ Delete a user from your Clerk application
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `userId` | string | Yes | The ID of the user to delete \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 
 #### Output
@@ -268,7 +263,6 @@ Ban a user, preventing them from signing in
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `userId` | string | Yes | The ID of the user to ban \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 
 #### Output
@@ -297,7 +291,6 @@ Remove a ban from a user, allowing them to sign in again
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `userId` | string | Yes | The ID of the user to unban \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 
 #### Output
@@ -326,7 +319,6 @@ Lock a user account, blocking sign-in attempts
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `userId` | string | Yes | The ID of the user to lock \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 
 #### Output
@@ -355,7 +347,6 @@ Unlock a previously locked user account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `userId` | string | Yes | The ID of the user to unlock \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 
 #### Output
@@ -384,7 +375,6 @@ Retrieve a user's OAuth access token for a connected external provider (e.g. Goo
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `userId` | string | Yes | The ID of the user \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 | `provider` | string | Yes | OAuth provider slug, e.g. google, github, microsoft, discord \(without the oauth_ prefix\) |
 
@@ -414,7 +404,6 @@ List all organizations in your Clerk application with optional filtering
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `limit` | number | No | Number of results per page \(e.g., 10, 50, 100; range: 1-500, default: 10\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 10, 20\) |
 | `includeMembersCount` | boolean | No | Include member count for each organization |
@@ -454,7 +443,6 @@ Retrieve a single organization by ID or slug from Clerk
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `organizationId` | string | Yes | The ID or slug of the organization to retrieve \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC or my-org-slug\) |
 
 #### Output
@@ -488,7 +476,6 @@ Create a new organization in your Clerk application
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `name` | string | Yes | Name of the organization |
 | `createdBy` | string | Yes | User ID of the creator who will become admin \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 | `slug` | string | No | Slug identifier for the organization |
@@ -527,7 +514,6 @@ Update an existing organization in your Clerk application
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `organizationId` | string | Yes | The ID of the organization to update \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 | `name` | string | No | Name of the organization |
 | `slug` | string | No | Slug identifier for the organization |
@@ -565,7 +551,6 @@ Delete an organization from your Clerk application
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `organizationId` | string | Yes | The ID of the organization to delete \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 
 #### Output
@@ -589,7 +574,6 @@ List members of a Clerk organization with optional filtering and pagination
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `organizationId` | string | Yes | The ID of the organization \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 | `limit` | number | No | Number of results per page \(e.g., 10, 50, 100; range: 1-500, default: 10\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 10, 20\) |
@@ -631,7 +615,6 @@ Add a user as a member of a Clerk organization with a given role
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `organizationId` | string | Yes | The ID of the organization \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 | `userId` | string | Yes | ID of the user to add as a member |
 | `role` | string | Yes | Role to assign, e.g. org:admin or org:member |
@@ -669,7 +652,6 @@ Change a member's role within a Clerk organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `organizationId` | string | Yes | The ID of the organization \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 | `userId` | string | Yes | ID of the member whose role is being changed |
 | `role` | string | Yes | New role to assign, e.g. org:admin or org:member |
@@ -707,7 +689,6 @@ Remove a member from a Clerk organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `organizationId` | string | Yes | The ID of the organization \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 | `userId` | string | Yes | ID of the member to remove |
 
@@ -744,7 +725,6 @@ Invite a user by email to join a Clerk organization with a given role
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `organizationId` | string | Yes | The ID of the organization \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 | `emailAddress` | string | Yes | Email address of the user to invite |
 | `role` | string | Yes | Role to assign on acceptance, e.g. org:admin or org:member |
@@ -788,7 +768,6 @@ List pending and past invitations for a Clerk organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `organizationId` | string | Yes | The ID of the organization \(e.g., org_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 | `status` | string | No | Filter by status: pending, accepted, revoked, or expired |
 | `emailAddress` | string | No | Filter by invited email address |
@@ -831,7 +810,6 @@ List sessions for a user or client in your Clerk application
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `userId` | string | No | User ID to list sessions for \(e.g., user_2NNEqL2nrIRdJ194ndJqAHwEfxC; required if clientId not provided\) |
 | `clientId` | string | No | Client ID to list sessions for \(required if userId not provided\) |
 | `status` | string | No | Filter by session status \(abandoned, active, ended, expired, pending, removed, replaced, revoked\) |
@@ -868,7 +846,6 @@ Retrieve a single session by ID from Clerk
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `sessionId` | string | Yes | The ID of the session to retrieve \(e.g., sess_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 
 #### Output
@@ -899,7 +876,6 @@ Revoke a session to immediately invalidate it
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `sessionId` | string | Yes | The ID of the session to revoke \(e.g., sess_2NNEqL2nrIRdJ194ndJqAHwEfxC\) |
 
 #### Output
@@ -930,7 +906,6 @@ List email/phone/web3-wallet identifiers on your Clerk instance allowlist
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `limit` | number | No | Number of results per page \(e.g., 10, 50, 100; range: 1-500, default: 10\) |
 | `offset` | number | No | Number of results to skip for pagination \(e.g., 0, 10, 20\) |
 
@@ -960,7 +935,6 @@ Add an email, phone number, or web3 wallet to your Clerk instance allowlist
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `identifier` | string | Yes | Email address, phone number, or web3 wallet to allow \(wildcards like *@example.com supported for email\) |
 | `notify` | boolean | No | Whether to notify the identifier owner by email \(default false\) |
 
@@ -988,7 +962,6 @@ Remove an identifier from your Clerk instance allowlist
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `identifierId` | string | Yes | ID of the allowlist identifier to delete |
 
 #### Output
@@ -1012,7 +985,6 @@ List email/phone/web3-wallet identifiers on your Clerk instance blocklist
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 
 #### Output
 
@@ -1039,7 +1011,6 @@ Add an email, phone number, or web3 wallet to your Clerk instance blocklist to p
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `identifier` | string | Yes | Email address, phone number, or web3 wallet to block |
 
 #### Output
@@ -1065,7 +1036,6 @@ Remove an identifier from your Clerk instance blocklist
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `identifierId` | string | Yes | ID of the blocklist identifier to delete |
 
 #### Output
@@ -1089,7 +1059,6 @@ List custom JWT templates configured on your Clerk instance
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 
 #### Output
 
@@ -1120,7 +1089,6 @@ Retrieve a single custom JWT template by ID from Clerk
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `templateId` | string | Yes | ID of the JWT template to retrieve |
 
 #### Output
@@ -1150,7 +1118,6 @@ Create an actor token to impersonate a user (God Mode / act-as-user), e.g. for s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `userId` | string | Yes | ID of the user to impersonate |
 | `actor` | json | Yes | Actor JSON object identifying who is impersonating, must include a "sub" field, e.g. \{"sub": "user_support_agent_id"\} |
 | `expiresInSeconds` | number | No | Seconds until the token expires \(default 3600\) |
@@ -1182,7 +1149,6 @@ Revoke an actor token before it is used or expires
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `secretKey` | string | Yes | The Clerk Secret Key for API authentication |
 | `actorTokenId` | string | Yes | ID of the actor token to revoke |
 
 #### Output

@@ -5,6 +5,7 @@ import type {
   ClerkUpdateOrganizationMembershipParams,
   ClerkUpdateOrganizationMembershipResponse,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkUpdateOrganizationMembership')
@@ -17,6 +18,7 @@ export const clerkUpdateOrganizationMembershipTool: ToolConfig<
   name: 'Update Organization Membership in Clerk',
   description: "Change a member's role within a Clerk organization",
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

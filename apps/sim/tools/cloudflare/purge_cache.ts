@@ -3,6 +3,7 @@ import type {
   CloudflarePurgeCacheResponse,
 } from '@/tools/cloudflare/types'
 import { parseCsvParam, parseJsonArrayParam } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -13,6 +14,7 @@ export const purgeCacheTool: ToolConfig<CloudflarePurgeCacheParams, CloudflarePu
     description:
       'Purges cached content for a zone. Can purge everything or specific files/tags/hosts/prefixes.',
     version: '1.0.0',
+    oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
 
     params: {
       zoneId: {

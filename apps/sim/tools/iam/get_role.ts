@@ -1,4 +1,5 @@
 import type { IAMGetRoleParams, IAMGetRoleResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const getRoleTool: InternalToolConfig<IAMGetRoleParams, IAMGetRoleResponse> = {
@@ -6,6 +7,7 @@ export const getRoleTool: InternalToolConfig<IAMGetRoleParams, IAMGetRoleRespons
   name: 'IAM Get Role',
   description: 'Get detailed information about an IAM role',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

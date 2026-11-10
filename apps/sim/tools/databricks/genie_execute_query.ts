@@ -10,6 +10,7 @@ import {
   genieAttachmentPath,
   mapStatementResult,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const genieExecuteQueryTool: ToolConfig<
@@ -21,6 +22,7 @@ export const genieExecuteQueryTool: ToolConfig<
   description:
     "Re-run the SQL query Genie generated for a message. Use this when the message's query result has expired (status QUERY_RESULT_EXPIRED). If the returned status is PENDING or RUNNING, fetch the rows afterwards with Get Genie Query Result.",
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
 
   params: GENIE_QUERY_ATTACHMENT_PARAMS,
 

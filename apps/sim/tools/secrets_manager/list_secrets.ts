@@ -2,6 +2,7 @@ import type {
   SecretsManagerListSecretsParams,
   SecretsManagerListSecretsResponse,
 } from '@/tools/secrets_manager/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listSecretsTool: InternalToolConfig<
@@ -12,6 +13,7 @@ export const listSecretsTool: InternalToolConfig<
   name: 'Secrets Manager List Secrets',
   description: 'List secrets stored in AWS Secrets Manager',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

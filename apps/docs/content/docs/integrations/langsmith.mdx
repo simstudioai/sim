@@ -2,7 +2,7 @@
 title: LangSmith
 description: Forward workflow runs to LangSmith for observability
 integration:
-  type: "langsmith"
+  type: "langsmith_v2"
   color: "#181C1E"
 ---
 
@@ -29,7 +29,6 @@ Forward a single run to LangSmith for ingestion.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LangSmith API key |
 | `id` | string | No | Unique run identifier |
 | `name` | string | Yes | Run name |
 | `run_type` | string | Yes | Run type \(tool, chain, llm, retriever, embedding, prompt, parser\) |
@@ -68,7 +67,6 @@ Forward multiple runs to LangSmith in a single batch.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LangSmith API key |
 | `post` | json | No | Array of new runs to ingest |
 | `patch` | json | No | Array of runs to update/patch |
 
@@ -93,7 +91,6 @@ Patch an existing LangSmith run with outputs, status, or timing once it complete
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LangSmith API key |
 | `runId` | string | Yes | ID of the run to update |
 | `name` | string | No | Corrected run name |
 | `end_time` | string | No | Run end time in ISO-8601 format |
@@ -120,7 +117,6 @@ Retrieve a single LangSmith run by ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LangSmith API key |
 | `runId` | string | Yes | ID of the run to retrieve |
 
 #### Output
@@ -156,7 +152,6 @@ Attach a score, correction, or comment to a LangSmith run.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | LangSmith API key |
 | `runId` | string | Yes | ID of the run to attach feedback to |
 | `key` | string | Yes | Feedback metric name \(e.g. "correctness", "user_score"\) |
 | `score` | number | No | Numeric score for the feedback metric |

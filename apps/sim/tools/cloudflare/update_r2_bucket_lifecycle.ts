@@ -8,6 +8,7 @@ import {
   parseJsonArrayParam,
   readCloudflareResponse,
 } from '@/tools/cloudflare/utils'
+import { CLOUDFLARE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 
@@ -20,6 +21,7 @@ export const updateR2BucketLifecycleTool: ToolConfig<
   description:
     'Replaces the object lifecycle rules for an R2 bucket. Rules match object-key prefixes and can expire objects, abort incomplete multipart uploads, or transition objects to Infrequent Access storage. Replaces the configuration; resend all values to retain.',
   version: '1.0.0',
+  oauth: CLOUDFLARE_CREDENTIAL_OAUTH,
   params: {
     accountId: {
       type: 'string',

@@ -7,6 +7,7 @@ import {
   rocketlaneError,
   rocketlaneHeaders,
 } from '@/tools/rocketlane/types'
+import { ROCKETLANE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rocketlaneCreateProjectTool: ToolConfig<
@@ -18,6 +19,7 @@ export const rocketlaneCreateProjectTool: ToolConfig<
   description:
     'Create a new Rocketlane project with a customer, owner, dates, team members, templates, financials, and custom fields',
   version: '1.0.0',
+  oauth: ROCKETLANE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

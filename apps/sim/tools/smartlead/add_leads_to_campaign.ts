@@ -1,5 +1,6 @@
 import { toRecord } from '@sim/utils/object'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { SMARTLEAD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SmartleadAddLeadsResponse, SmartleadCampaignIdParams } from '@/tools/smartlead/types'
 import {
   addLeadsOutputs,
@@ -58,6 +59,7 @@ export const addLeadsToCampaignTool: ToolConfig<
   description:
     'Adds leads to a Smartlead campaign, up to 400 per call. Returns per-reason counts for leads that were skipped as duplicates, blocked, bounced, or invalid.',
   version: '1.0.0',
+  oauth: SMARTLEAD_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.SMARTLEAD_ERRORS,
   params: {
     ...smartleadBaseParamFields,

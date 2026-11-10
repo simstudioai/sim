@@ -1,3 +1,4 @@
+import { UPTIMEROBOT_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import {
   mapPsp,
@@ -17,6 +18,7 @@ export const uptimeRobotListPspsTool: ToolConfig<
   name: 'UptimeRobot List Status Pages',
   description: 'List the public status pages in your UptimeRobot account',
   version: '1.0.0',
+  oauth: UPTIMEROBOT_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

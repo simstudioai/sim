@@ -1,3 +1,4 @@
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SsmDescribeParametersParams, SsmDescribeParametersResponse } from '@/tools/ssm/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -9,6 +10,7 @@ export const describeParametersTool: InternalToolConfig<
   name: 'SSM Describe Parameters',
   description: 'List Parameter Store parameter metadata without reading any values',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

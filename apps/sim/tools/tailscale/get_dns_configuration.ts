@@ -1,3 +1,4 @@
+import { TAILSCALE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import { DNS_CONFIGURATION_OUTPUT } from '@/tools/tailscale/outputs'
 import type {
   TailscaleBaseParams,
@@ -16,6 +17,7 @@ export const tailscaleGetDnsConfigurationTool: ToolConfig<
   name: 'Tailscale Get DNS Configuration',
   description: 'Get tailnet DNS configuration',
   version: '1.0.0',
+  oauth: TAILSCALE_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

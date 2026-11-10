@@ -3,6 +3,7 @@ import type {
   LaunchDarklyToggleFlagResponse,
 } from '@/tools/launchdarkly/types'
 import { FLAG_OUTPUT_PROPERTIES } from '@/tools/launchdarkly/types'
+import { LAUNCHDARKLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const launchDarklyToggleFlagTool: ToolConfig<
@@ -13,6 +14,7 @@ export const launchDarklyToggleFlagTool: ToolConfig<
   name: 'LaunchDarkly Toggle Flag',
   description: 'Toggle a feature flag on or off in a specific LaunchDarkly environment.',
   version: '1.0.0',
+  oauth: LAUNCHDARKLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

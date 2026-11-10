@@ -1,5 +1,6 @@
 import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import type { LinqCreateAttachmentParams, LinqCreateAttachmentResult } from '@/tools/linq/types'
+import { LINQ_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const linqCreateAttachmentTool: InternalToolConfig<
@@ -11,6 +12,7 @@ export const linqCreateAttachmentTool: InternalToolConfig<
   description:
     'Upload a file to Linq as a reusable attachment (max 100MB) and get an attachment ID to send in messages',
   version: '1.0.0',
+  oauth: LINQ_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

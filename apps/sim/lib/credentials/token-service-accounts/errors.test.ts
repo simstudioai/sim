@@ -124,9 +124,24 @@ describe('token service-account error helpers', () => {
       expect(snippet).toBe(`${'x'.repeat(500)}...`)
     })
 
+    it('stops reading an oversized error body instead of buffering all of it', async () => {
+      let pulled = 0
+      const chunk = new Uint8Array(16 * 1024).fill(120)
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          pulled++
+          if (pulled > 1000) controller.close()
+          else controller.enqueue(chunk)
+        },
+      })
+
+      await expect(readProviderErrorSnippet(new Response(body, { status: 500 }))).resolves.toBe('')
+      expect(pulled).toBeLessThan(20)
+    })
+
     it('never throws on an unreadable body', async () => {
       const res = new Response('gone', { status: 500 })
-      vi.spyOn(res, 'text').mockRejectedValue(new Error('body stream already read'))
+      await res.text()
 
       await expect(readProviderErrorSnippet(res)).resolves.toBe('')
     })

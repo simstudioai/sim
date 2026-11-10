@@ -11,6 +11,7 @@ import {
   PERSONA_API_BASE,
   parsePersonaResponse,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaListInquiryTemplatesTool: ToolConfig<
@@ -22,6 +23,7 @@ export const personaListInquiryTemplatesTool: ToolConfig<
   description:
     'List the inquiry templates in your Persona organization, to discover template IDs for creating inquiries. Results are cursor-paginated.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import type { RipplingCreateDepartmentParams } from '@/tools/rippling/types'
+import { RIPPLING_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const ripplingCreateDepartmentTool: ToolConfig<RipplingCreateDepartmentParams> = {
@@ -6,6 +7,7 @@ export const ripplingCreateDepartmentTool: ToolConfig<RipplingCreateDepartmentPa
   name: 'Rippling Create Department',
   description: 'Create a new department',
   version: '1.0.0',
+  oauth: RIPPLING_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

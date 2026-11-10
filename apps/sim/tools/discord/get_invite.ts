@@ -1,4 +1,5 @@
 import type { DiscordGetInviteParams, DiscordGetInviteResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordGetInviteTool: ToolConfig<DiscordGetInviteParams, DiscordGetInviteResponse> = {
@@ -6,6 +7,7 @@ export const discordGetInviteTool: ToolConfig<DiscordGetInviteParams, DiscordGet
   name: 'Discord Get Invite',
   description: 'Get information about a Discord invite',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

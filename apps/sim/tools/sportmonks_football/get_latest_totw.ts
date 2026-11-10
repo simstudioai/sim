@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -29,6 +30,7 @@ export const sportmonksGetLatestTotwTool: ToolConfig<
   name: 'Get Latest Team of the Week',
   description: 'Retrieve the latest Team of the Week (TOTW) for a league ID from Sportmonks',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import type { ListTemplatesParams, SendGridTemplate, TemplatesResult } from '@/tools/sendgrid/types'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, TemplatesResult> = {
@@ -6,6 +7,7 @@ export const sendGridListTemplatesTool: ToolConfig<ListTemplatesParams, Template
   name: 'SendGrid List Templates',
   description: 'Get all email templates from SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

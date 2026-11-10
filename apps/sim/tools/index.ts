@@ -88,7 +88,10 @@ import {
 } from '@/lib/internal/tool-operations/file-result.server'
 import { getInternalToolOperationHandler } from '@/lib/internal/tool-operations/registry.server'
 import { MAX_TOOL_RESPONSE_BODY_BYTES } from '@/lib/internal/tool-operations/response-limits'
-import type { InternalToolOperationContext } from '@/lib/internal/tool-operations/types'
+import type {
+  AuthorizedServiceAccountCredential,
+  InternalToolOperationContext,
+} from '@/lib/internal/tool-operations/types'
 import { hostedKeyMetrics } from '@/lib/monitoring/metrics'
 import {
   assistantConnectedAccountTokenParam,
@@ -128,8 +131,10 @@ import {
   projectToolModelInputParams,
   readRequestedDeadline,
 } from '@/tools/request-transport'
+import { AWS_CREDENTIAL_OAUTH, AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
 import type {
   BYOKProviderId,
+  CredentialParamSource,
   ExecutableToolConfig,
   InternalToolConfig,
   ToolConfig,
@@ -597,6 +602,34 @@ interface HostedKeyInjectionResult {
   envVarName?: string
 }
 
+const CREDENTIAL_FIELD_LABELS: Record<CredentialParamSource, string> = {
+  accessToken: 'token',
+  domain: 'host',
+  providerWorkspaceId: 'workspace ID',
+}
+
+/**
+ * Fills the params a saved credential supplies (`oauth.credentialParams`) from
+ * the resolved credential. Runs only after authorization, overwrites any value
+ * the caller or model supplied, and fails closed when the credential lacks a
+ * mapped field rather than sending a request without it.
+ */
+function applyCredentialParams(
+  tool: ToolDefinition,
+  credential: CredentialTokenPayload,
+  params: Record<string, unknown>
+): void {
+  for (const [param, source] of Object.entries(tool.oauth?.credentialParams ?? {})) {
+    const value = credential[source]
+    if (typeof value !== 'string' || value.length === 0) {
+      throw new Error(
+        `${tool.name} needs a saved credential with a ${CREDENTIAL_FIELD_LABELS[source]}`
+      )
+    }
+    params[param] = value
+  }
+}
+
 /**
  * Inject hosted API key if tool supports it and user didn't provide one.
  * Checks BYOK workspace keys first, then uses the HostedKeyRateLimiter for round-robin key selection.
@@ -616,6 +649,13 @@ async function injectHostedKeyIfNeeded(
   }
 
   const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
+  // A selected saved credential supplies this key; Sim's key must never stand in for it.
+  if (
+    (params.credential || params.oauthCredential) &&
+    tool.oauth?.credentialSuppliedParams?.includes(apiKeyParam)
+  ) {
+    return { isUsingHostedKey: false }
+  }
   const userProvidedKey = params[apiKeyParam]
   if (typeof userProvidedKey === 'string' && userProvidedKey.trim().length > 0) {
     return { isUsingHostedKey: false }
@@ -1994,6 +2034,8 @@ async function executeToolImplementation(
       contextParams.oauthCredential = undefined
     }
     let refreshCredential: ((signal: AbortSignal) => Promise<void>) | undefined
+    // Set only by the credential resolution below, never from tool params.
+    let authorizedServiceAccountCredential: AuthorizedServiceAccountCredential | undefined
     if (contextParams.credential) {
       logger.info('Resolving tool access token', { requestId, toolId: normalizedToolId })
       try {
@@ -2090,10 +2132,15 @@ async function executeToolImplementation(
               data.idToken,
             ])
           }
+          authorizedServiceAccountCredential =
+            data.credentialType === 'service_account' && credentialTool.oauth
+              ? { credentialId, service: credentialTool.oauth.provider }
+              : undefined
           for (const paramId of credentialTool.oauth?.authoritativeParams ?? []) {
             contextParams[paramId] = undefined
           }
           contextParams.accessToken = data.accessToken
+          applyCredentialParams(credentialTool, data, contextParams)
           if (operationContext?.requestMode === 'assistant') {
             const tokenParam = assistantConnectedAccountTokenParam(credentialTool)
             if (tokenParam) contextParams[tokenParam] = data.accessToken
@@ -2170,6 +2217,32 @@ async function executeToolImplementation(
         }
         throw error
       }
+    }
+
+    if (
+      authorizedServiceAccountCredential?.service === AWS_CREDENTIAL_OAUTH.provider &&
+      !tool.operation
+    ) {
+      // AWS tools that sign their own HTTP request need the session keys themselves.
+      if (typeof window !== 'undefined') {
+        throw new Error('Saved AWS credentials can only be used on the server')
+      }
+      if (!AWS_SESSION_SIGNED_TOOL_IDS.has(normalizedToolId)) {
+        throw new Error(`${tool.name} cannot sign with a saved AWS credential`)
+      }
+      const { resolveAuthorizedAwsCredential } = await import('@/lib/internal/aws/credentials')
+      const session = await resolveAuthorizedAwsCredential(
+        authorizedServiceAccountCredential.credentialId,
+        {
+          workspaceId: operationContext?.workspaceId ?? scope.workspaceId,
+          organizationId: operationContext?.organizationId,
+          executionId: scope.executionId,
+        },
+        effectiveSignal
+      )
+      contextParams.accessKeyId = session.accessKeyId
+      contextParams.secretAccessKey = session.secretAccessKey
+      contextParams.sessionToken = session.sessionToken
     }
 
     // Custom blocks (deploy-as-block) run in-process through WorkflowBlockHandler.
@@ -2286,6 +2359,7 @@ async function executeToolImplementation(
         resolvedSecretTraceRegistry,
         internalSandboxProfile,
         refreshCredential,
+        authorizedServiceAccountCredential,
       })
 
       let finalResult = result
@@ -2709,6 +2783,8 @@ interface ExecuteDeclaredInternalOperationInput {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   internalSandboxProfile?: InternalSandboxProfile
   refreshCredential?: (signal: AbortSignal) => Promise<void>
+  /** Service-account credential the executor authorized for this call (never from tool params). */
+  authorizedServiceAccountCredential?: AuthorizedServiceAccountCredential
 }
 
 function isFunctionExecuteBody(value: unknown): value is FunctionExecuteBody {
@@ -2757,6 +2833,7 @@ async function executeDeclaredInternalOperation({
   resolvedSecretTraceRegistry,
   internalSandboxProfile,
   refreshCredential,
+  authorizedServiceAccountCredential,
 }: ExecuteDeclaredInternalOperationInput): Promise<ToolResponse> {
   const organizationScratch =
     toolId === 'function_execute' &&
@@ -2894,7 +2971,8 @@ async function executeDeclaredInternalOperation({
         toolId,
         input: operationInput,
         headers,
-        context,
+        // Always written, so only this executor's authorization can set it.
+        context: { ...context, authorizedServiceAccountCredential },
         requestId,
         signal: operationController.signal,
       })
@@ -2913,6 +2991,7 @@ async function executeDeclaredInternalOperation({
           privateToolMetadataType,
           resolvedSecretTraceRegistry,
           internalSandboxProfile,
+          authorizedServiceAccountCredential,
         })
       }
       response = await presentInternalToolOperationResult(

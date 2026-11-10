@@ -4,6 +4,7 @@ import {
   LUMA_HOST_OUTPUT_PROPERTIES,
   lumaEventStub,
 } from '@/tools/luma/types'
+import { LUMA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createEventTool: ToolConfig<LumaCreateEventParams, LumaCreateEventResponse> = {
@@ -12,6 +13,7 @@ export const createEventTool: ToolConfig<LumaCreateEventParams, LumaCreateEventR
   description:
     'Create a new event on Luma with a name, start time, timezone, and optional details like description, location, and visibility.',
   version: '1.0.0',
+  oauth: LUMA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

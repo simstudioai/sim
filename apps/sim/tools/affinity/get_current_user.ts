@@ -9,6 +9,7 @@ import {
   readAffinityJson,
 } from '@/tools/affinity/utils'
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { AFFINITY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const affinityGetCurrentUserTool: ToolConfig<
@@ -20,6 +21,7 @@ export const affinityGetCurrentUserTool: ToolConfig<
   description:
     'Verify an Affinity API key and return the tenant, the user behind the key, and the scopes the grant carries.',
   version: '1.0.0',
+  oauth: AFFINITY_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.ERRORS_ARRAY_STRING,
 
   params: {

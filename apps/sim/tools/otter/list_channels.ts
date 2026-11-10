@@ -12,6 +12,7 @@ import {
   readOtterDataList,
   readOtterRetrievedAt,
 } from '@/tools/otter/utils'
+import { OTTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const otterListChannelsTool: ToolConfig<OtterListChannelsParams, OtterListChannelsResponse> =
@@ -21,6 +22,7 @@ export const otterListChannelsTool: ToolConfig<OtterListChannelsParams, OtterLis
     description:
       'List the Otter channels available to the authenticated user, in alphabetical order.',
     version: '1.0.0',
+    oauth: OTTER_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

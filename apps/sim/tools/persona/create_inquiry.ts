@@ -8,6 +8,7 @@ import {
   parseJsonObjectParam,
   parsePersonaResponse,
 } from '@/tools/persona/utils'
+import { PERSONA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const personaCreateInquiryTool: ToolConfig<
@@ -19,6 +20,7 @@ export const personaCreateInquiryTool: ToolConfig<
   description:
     'Create a new identity verification inquiry from an inquiry template. Returns the created inquiry, which can then be completed by the individual via a one-time link.',
   version: '1.0.0',
+  oauth: PERSONA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,6 +2,7 @@ import type {
   IAMSimulatePrincipalPolicyParams,
   IAMSimulatePrincipalPolicyResponse,
 } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const simulatePrincipalPolicyTool: InternalToolConfig<
@@ -13,6 +14,7 @@ export const simulatePrincipalPolicyTool: InternalToolConfig<
   description:
     'Simulate whether a user, role, or group is allowed to perform specific AWS actions — useful for pre-flight access checks',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {

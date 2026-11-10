@@ -8,6 +8,7 @@ import {
   databricksUrl,
   readDatabricksError,
 } from '@/tools/databricks/utils'
+import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const terminateClusterTool: ToolConfig<
@@ -18,6 +19,7 @@ export const terminateClusterTool: ToolConfig<
   name: 'Databricks Terminate Cluster',
   description: 'Terminate a compute cluster while retaining its configuration for a later restart.',
   version: '1.0.0',
+  oauth: DATABRICKS_CREDENTIAL_OAUTH,
   params: {
     ...DATABRICKS_AUTH_PARAMS,
     clusterId: {

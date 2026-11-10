@@ -1,9 +1,12 @@
 import { AppConfigIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const AppConfigBlock: BlockConfig = {
   type: 'appconfig',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'appconfig_v2' },
   name: 'AWS AppConfig',
   description: 'Manage and retrieve configuration with AWS AppConfig',
   longDescription:
@@ -810,3 +813,19 @@ export const AppConfigBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const AppConfigV2Block: BlockConfig = {
+  ...AppConfigBlock,
+  type: 'appconfig_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Manage applications, environments, and configuration profiles, create and read hosted configuration versions, run and inspect deployments, and retrieve the latest deployed configuration at runtime.',
+  ...withSavedCredential(AppConfigBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

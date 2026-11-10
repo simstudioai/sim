@@ -1,3 +1,4 @@
+import { SPORTMONKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   appendSportmonksQuery,
   buildSportmonksHeaders,
@@ -29,6 +30,7 @@ export const sportmonksGetExtendedTeamSquadTool: ToolConfig<
   name: 'Get Extended Team Squad',
   description: 'Retrieve all squad entries for a team (based on current seasons) by team ID',
   version: '1.0.0',
+  oauth: SPORTMONKS_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

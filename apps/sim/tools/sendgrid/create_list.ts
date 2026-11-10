@@ -1,4 +1,5 @@
 import type { CreateListParams, ListResult, SendGridList } from '@/tools/sendgrid/types'
+import { SENDGRID_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendGridCreateListTool: ToolConfig<CreateListParams, ListResult> = {
@@ -6,6 +7,7 @@ export const sendGridCreateListTool: ToolConfig<CreateListParams, ListResult> = 
   name: 'SendGrid Create List',
   description: 'Create a new contact list in SendGrid',
   version: '1.0.0',
+  oauth: SENDGRID_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

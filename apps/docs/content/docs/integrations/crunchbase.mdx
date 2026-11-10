@@ -2,7 +2,7 @@
 title: Crunchbase
 description: Search and look up companies, people, funding rounds, and acquisitions
 integration:
-  type: "crunchbase"
+  type: "crunchbase_v2"
   color: "#0287D1"
 ---
 
@@ -39,7 +39,6 @@ Search Crunchbase companies, investors, and schools with filter predicates on fu
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `query` | json | Yes | Filter predicates, combined with AND. Array of \{type:"predicate", field_id, operator_id, values\}. Operators: blank, eq, not_eq, gt, gte, lt, lte, starts, contains, not_contains, between, includes, not_includes, includes_all, not_includes_all, domain_eq, not_domain_eq, domain_blank, domain_includes, not_domain_includes. Max 25 predicates. Example: \[\{"type":"predicate","field_id":"categories","operator_id":"includes","values":\["biotechnology"\]\}\] |
 | `fieldIds` | json | No | Organization fields to return as columns, e.g. \["identifier","name","founded_on","categories"\]. Defaults to identifier, name, short_description, website_url, linkedin, location_identifiers, categories, founded_on, num_employees_enum, operating_status, rank_org, permalink. |
 | `order` | json | No | Sort clauses, e.g. \[\{"field_id":"rank_org","sort":"asc","nulls":"last"\}\]. Sort is "asc" or "desc". |
@@ -67,7 +66,6 @@ Look up a single Crunchbase organization by permalink or UUID, returning the req
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `entityId` | string | Yes | Organization permalink \(e.g. "tesla-motors"\) or UUID |
 | `fieldIds` | json | No | Organization fields to return, e.g. \["identifier","name","founded_on","categories"\]. Defaults to identifier, name, short_description, website_url, linkedin, location_identifiers, categories, founded_on, num_employees_enum, operating_status, rank_org, permalink. |
 | `cardIds` | json | No | Related-entity cards to include, e.g. \["founders","headquarters_address"\]. Available on every license tier: child_organizations, child_ownerships, event_appearances, fields, founders, headquarters_address, parent_organization, parent_ownership. Richer packages add acquiree_acquisitions, acquirer_acquisitions, investors, ipos, jobs, participated_funding_rounds, participated_funds, participated_investments, press_references, raised_funding_rounds, raised_funds, raised_investments. A card returns at most 100 items. |
@@ -94,7 +92,6 @@ Search Crunchbase people — founders, executives, and investors — with filter
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `query` | json | Yes | Filter predicates, combined with AND. Array of \{type:"predicate", field_id, operator_id, values\}. Operators: blank, eq, not_eq, gt, gte, lt, lte, starts, contains, not_contains, between, includes, not_includes, includes_all, not_includes_all, domain_eq, not_domain_eq, domain_blank, domain_includes, not_domain_includes. Max 25 predicates. Example: \[\{"type":"predicate","field_id":"primary_job_title","operator_id":"contains","values":\["Founder"\]\}\] |
 | `fieldIds` | json | No | Person fields to return as columns, e.g. \["identifier","name","primary_job_title","primary_organization"\]. Defaults to identifier, name, first_name, last_name, primary_job_title, primary_organization, short_description, location_identifiers, linkedin, rank_person, permalink. |
 | `order` | json | No | Sort clauses, e.g. \[\{"field_id":"rank_person","sort":"asc","nulls":"last"\}\]. Sort is "asc" or "desc". |
@@ -122,7 +119,6 @@ Look up a single Crunchbase person by permalink or UUID, returning the requested
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `entityId` | string | Yes | Person permalink \(e.g. "elon-musk"\) or UUID |
 | `fieldIds` | json | No | Person fields to return, e.g. \["identifier","name","primary_job_title","primary_organization"\]. Defaults to identifier, name, first_name, last_name, primary_job_title, primary_organization, short_description, location_identifiers, linkedin, rank_person, permalink. |
 | `cardIds` | json | No | Related-entity cards to include, e.g. \["jobs","primary_organization"\]. Available on every license tier: degrees, event_appearances, fields, founded_organizations, jobs, primary_job, primary_organization. Advanced Financials adds participated_funding_rounds, participated_funds, participated_investments, partner_funding_rounds, partner_investments, press_references. A card returns at most 100 items. |
@@ -149,7 +145,6 @@ Search Crunchbase funding rounds with filter predicates on announced date, inves
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `query` | json | Yes | Filter predicates, combined with AND. Array of \{type:"predicate", field_id, operator_id, values\}. Operators: blank, eq, not_eq, gt, gte, lt, lte, starts, contains, not_contains, between, includes, not_includes, includes_all, not_includes_all, domain_eq, not_domain_eq, domain_blank, domain_includes, not_domain_includes. Max 25 predicates. Example: \[\{"type":"predicate","field_id":"announced_on","operator_id":"gte","values":\["2026-01-01"\]\}\] |
 | `fieldIds` | json | No | Funding round fields to return as columns, e.g. \["identifier","announced_on","money_raised","investor_identifiers"\]. Defaults to identifier, announced_on, investment_type, investment_stage, money_raised, funded_organization_identifier, investor_identifiers, lead_investor_identifiers, num_investors, short_description, permalink. |
 | `order` | json | No | Sort clauses, e.g. \[\{"field_id":"announced_on","sort":"desc","nulls":"last"\}\]. Sort is "asc" or "desc". |
@@ -177,7 +172,6 @@ Look up a single Crunchbase funding round by permalink or UUID, returning the re
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `entityId` | string | Yes | Funding round permalink \(e.g. "tesla-motors-series-c--12345678"\) or UUID |
 | `fieldIds` | json | No | Funding round fields to return, e.g. \["identifier","announced_on","money_raised","investor_identifiers"\]. Defaults to identifier, announced_on, investment_type, investment_stage, money_raised, funded_organization_identifier, investor_identifiers, lead_investor_identifiers, num_investors, short_description, permalink. |
 | `cardIds` | json | No | Related-entity cards to include, e.g. \["investors","organization"\]. Available: fields, investments, investors, lead_investors, organization, partners, press_references. A card returns at most 100 items. |
@@ -204,7 +198,6 @@ Search Crunchbase acquisitions with filter predicates on announced date, price, 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `query` | json | Yes | Filter predicates, combined with AND. Array of \{type:"predicate", field_id, operator_id, values\}. Operators: blank, eq, not_eq, gt, gte, lt, lte, starts, contains, not_contains, between, includes, not_includes, includes_all, not_includes_all, domain_eq, not_domain_eq, domain_blank, domain_includes, not_domain_includes. Max 25 predicates. Example: \[\{"type":"predicate","field_id":"announced_on","operator_id":"gte","values":\["2026-01-01"\]\}\] |
 | `fieldIds` | json | No | Acquisition fields to return as columns, e.g. \["identifier","acquiree_identifier","acquirer_identifier","price"\]. Defaults to identifier, acquiree_identifier, acquirer_identifier, announced_on, completed_on, price, acquisition_type, status, terms, short_description, permalink. |
 | `order` | json | No | Sort clauses, e.g. \[\{"field_id":"announced_on","sort":"desc","nulls":"last"\}\]. Sort is "asc" or "desc". |
@@ -232,7 +225,6 @@ Look up a single Crunchbase acquisition by permalink or UUID, returning the requ
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `entityId` | string | Yes | Acquisition permalink or UUID |
 | `fieldIds` | json | No | Acquisition fields to return, e.g. \["identifier","acquiree_identifier","acquirer_identifier","price"\]. Defaults to identifier, acquiree_identifier, acquirer_identifier, announced_on, completed_on, price, acquisition_type, status, terms, short_description, permalink. |
 | `cardIds` | json | No | Related-entity cards to include, e.g. \["acquiree_organization","acquirer_organization"\]. Available: acquiree_organization, acquirer_organization, fields, press_references. A card returns at most 100 items. |
@@ -259,7 +251,6 @@ Search any Crunchbase collection — events, jobs, ipos, funds, investments, pre
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `collection` | string | Yes | Collection to search. One of: acquisition_predictions, acquisitions, addresses, awards, categories, category_groups, closure_predictions, current_valuation_estimates, degrees, diversity_spotlights, event_appearances, events, funding_predictions, funding_rounds, funds, growth_insights, growth_predictions, investments, investor_insights, investor_matches, ipo_predictions, ipos, jobs, key_employee_changes, layoff_predictions, layoffs, legal_proceedings, locations, market_insight_reasons, market_insights, micro_categories, org_similarities, organizations, ownerships, partnership_announcements, people, press_references, principals, product_launches, product_similarities, products, remain_private_predictions, research_insights. |
 | `query` | json | Yes | Filter predicates, combined with AND. Array of \{type:"predicate", field_id, operator_id, values\}. Operators: blank, eq, not_eq, gt, gte, lt, lte, starts, contains, not_contains, between, includes, not_includes, includes_all, not_includes_all, domain_eq, not_domain_eq, domain_blank, domain_includes, not_domain_includes. Max 25 predicates. |
 | `fieldIds` | json | Yes | Fields to return as columns for the chosen collection, e.g. \["identifier","short_description"\]. Required — the valid ids differ per collection; list them with the Get Fields Metadata operation. |
@@ -288,7 +279,6 @@ Look up a single entity in any Crunchbase collection — events, jobs, ipos, fun
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `collection` | string | Yes | Collection the entity belongs to. One of: acquisition_predictions, acquisitions, addresses, awards, categories, category_groups, closure_predictions, current_valuation_estimates, degrees, diversity_spotlights, event_appearances, events, funding_predictions, funding_rounds, funds, growth_insights, growth_predictions, investments, investor_insights, investor_matches, ipo_predictions, ipos, jobs, key_employee_changes, layoff_predictions, layoffs, legal_proceedings, locations, market_insight_reasons, market_insights, micro_categories, org_similarities, organizations, ownerships, partnership_announcements, people, press_references, principals, product_launches, product_similarities, products, remain_private_predictions, research_insights. |
 | `entityId` | string | Yes | Entity permalink or UUID |
 | `fieldIds` | json | No | Fields to return for the chosen collection, e.g. \["identifier","short_description"\]. Leave empty to accept the default projection the API returns; list the valid ids with the Get Fields Metadata operation. |
@@ -316,7 +306,6 @@ Page through one related-entity card of a Crunchbase entity — an investor's in
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `collection` | string | Yes | Collection the entity belongs to. One of: acquisitions, addresses, categories, category_groups, degrees, event_appearances, events, funding_rounds, funds, investments, ipos, jobs, market_insights, micro_categories, organizations, ownerships, people. |
 | `entityId` | string | Yes | Entity permalink or UUID |
 | `cardId` | string | Yes | Card to page through, e.g. "participated_investments" on a person, "founders" on an organization, or "investors" on a funding round. Valid ids differ per collection. |
@@ -346,7 +335,6 @@ Suggest Crunchbase entities matching a typed query, returning the permalinks and
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `query` | string | Yes | Text to autocomplete against, e.g. "airbnb" |
 | `collectionIds` | json | No | Collections to search, e.g. \["organizations","people"\]. One or more of: acquisition_predictions, acquisitions, addresses, awards, categories, category_groups, closure_predictions, current_valuation_estimates, degrees, diversity_spotlights, event_appearances, events, funding_predictions, funding_rounds, funds, growth_insights, growth_predictions, investments, investor_insights, investor_matches, ipo_predictions, ipos, jobs, key_employee_changes, layoff_predictions, layoffs, legal_proceedings, locations, market_insight_reasons, market_insights, micro_categories, org_similarities, organizations, ownerships, partnership_announcements, people, press_references, principals, product_launches, product_similarities, products, remain_private_predictions, research_insights. Which of them your key can read depends on your Crunchbase package. Defaults to every collection. |
 | `limit` | number | No | Suggestions to return, max 25 \(default 10\) |
@@ -369,7 +357,6 @@ List entities Crunchbase has deleted, so a mirrored copy can be pruned in step w
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `collection` | string | No | Restrict the feed to a single collection: acquisitions, categories, event_appearances, events, funding_rounds, funds, investments, ipos, jobs, locations, organizations, ownerships, people, or press_references. Which of them your key can read depends on your Crunchbase package. Leave empty to read the feed across collections. |
 | `collectionIds` | json | No | Collections to include when reading the cross-collection feed, e.g. \["organizations","people"\]. One or more of: acquisitions, categories, event_appearances, events, funding_rounds, funds, investments, ipos, jobs, locations, organizations, ownerships, people, press_references. Ignored when a single collection is set. |
 | `deletedAtOrder` | string | No | Order by deletion time: "asc" \(default\) or "desc" |
@@ -396,7 +383,6 @@ List the field ids, types, and descriptions each Crunchbase collection publishes
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Crunchbase API key, sent as the X-cb-user-key header |
 | `collectionIds` | json | No | Collections to describe, e.g. \["organizations","people"\]. One or more of: acquisition_predictions, acquisitions, addresses, awards, categories, category_groups, closure_predictions, current_valuation_estimates, degrees, diversity_spotlights, event_appearances, events, funding_predictions, funding_rounds, funds, growth_insights, growth_predictions, investments, investor_insights, investor_matches, ipo_predictions, ipos, jobs, key_employee_changes, layoff_predictions, layoffs, legal_proceedings, locations, market_insight_reasons, market_insights, micro_categories, org_similarities, organizations, ownerships, partnership_announcements, people, press_references, principals, product_launches, product_similarities, products, remain_private_predictions, research_insights. Which of them your key can read depends on your Crunchbase package. Defaults to every collection. |
 
 #### Output

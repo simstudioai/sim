@@ -5,6 +5,7 @@ import type {
   ClerkLockUserResponse,
   ClerkUser,
 } from '@/tools/clerk/types'
+import { CLERK_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ClerkLockUser')
@@ -14,6 +15,7 @@ export const clerkLockUserTool: ToolConfig<ClerkLockUserParams, ClerkLockUserRes
   name: 'Lock User in Clerk',
   description: 'Lock a user account, blocking sign-in attempts',
   version: '1.0.0',
+  oauth: CLERK_CREDENTIAL_OAUTH,
 
   params: {
     secretKey: {

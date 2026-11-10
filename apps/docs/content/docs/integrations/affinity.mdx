@@ -2,7 +2,7 @@
 title: Affinity
 description: Read and write companies, people, lists, notes, and relationships in Affinity
 integration:
-  type: "affinity"
+  type: "affinity_v2"
   color: "#1B1C1E"
 ---
 
@@ -40,7 +40,6 @@ Write up to 100 non-list field values on one company or person in a single reque
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which entity to write the fields on: companies or persons |
 | `entityId` | string | Yes | ID of that company or person |
 | `updates` | json | Yes | Up to 100 field updates as \[\{"id":"&lt;fieldId&gt;","value":\{"type":"…","data":…\}\}\], using the same value shapes as a single field update |
@@ -63,7 +62,6 @@ Write up to 100 field values on one list row in a single request. Requires the "
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `listEntryId` | string | Yes | The list entry ID |
 | `updates` | json | Yes | Up to 100 field updates as \[\{"id":"&lt;fieldId&gt;","value":\{"type":"…","data":…\}\}\], using the same value shapes as a single field update |
@@ -86,7 +84,6 @@ Create a list. Its type fixes which entities it can hold, and the API key holder
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `name` | string | Yes | Name of the new list |
 | `type` | string | Yes | Entity kind the list holds: company, opportunity, or person |
 | `isPublic` | boolean | No | Whether everyone in the organization can see the list |
@@ -115,7 +112,6 @@ Add a selectable option to a dropdown field on a list. A ranked or status option
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `fieldId` | string | Yes | The dropdown field ID on that list |
 | `type` | string | Yes | Kind of option to create, matching the field. dropdown takes only a label; ranked-dropdown also requires rank and color; status-dropdown additionally requires a status category. Sending a field the kind does not accept is rejected |
@@ -149,7 +145,6 @@ Fold a duplicate company or person into the record you are keeping. The merge ru
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | What to merge: companies or persons |
 | `primaryId` | string | Yes | ID of the record to keep |
 | `duplicateId` | string | Yes | ID of the duplicate record to fold in |
@@ -172,7 +167,6 @@ Write a note — attached to companies, persons, and opportunities, anchored to 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `type` | string | Yes | Note shape: entities to attach it to records, interaction to anchor it to a meeting, call, or chat message, or user-reply to reply to a note |
 | `html` | string | Yes | The note body as HTML |
 | `companyIds` | json | No | Companies to attach the note to, e.g. \[1, 2\]. Not used on a reply |
@@ -220,7 +214,6 @@ Create a reminder on one company, person, or opportunity. A recurring reminder r
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `type` | string | Yes | one-time to fire once, or recurring to reset on a signal |
 | `entityType` | string | Yes | What the reminder is about: company, person, or opportunity |
 | `entityId` | string | Yes | ID of that company, person, or opportunity |
@@ -262,7 +255,6 @@ Permanently delete a dropdown option on a list field. Every list entry currently
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `fieldId` | string | Yes | The dropdown field ID on that list |
 | `dropdownOptionId` | string | Yes | The dropdown option ID to delete |
@@ -286,7 +278,6 @@ Delete a note you created. Deleting a root note also deletes its replies; deleti
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `noteId` | string | Yes | The note ID to delete |
 
 #### Output
@@ -308,7 +299,6 @@ Look up one company by ID. Field data is returned only for the Field IDs or Fiel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `companyId` | string | Yes | The company ID |
 | `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
 | `fieldTypes` | json | No | Field categories to return values for: enriched, global, or relationship-intelligence. Mutually exclusive with Field IDs |
@@ -341,7 +331,6 @@ Verify an Affinity API key and return the tenant, the user behind the key, and t
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 
 #### Output
 
@@ -373,7 +362,6 @@ Read one non-list field value from a company or person.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which entity to read the field from: companies or persons |
 | `entityId` | string | Yes | ID of that company or person |
 | `fieldId` | string | Yes | The field ID to read |
@@ -400,7 +388,6 @@ Read one list — its name, type, owner, and privacy setting.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 
 #### Output
@@ -427,7 +414,6 @@ Read one row of a list with its entity. Field data is returned only for the Fiel
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `listEntryId` | string | Yes | The list entry ID |
 | `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
@@ -456,7 +442,6 @@ Read one field value on a list row.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `listEntryId` | string | Yes | The list entry ID |
 | `fieldId` | string | Yes | The field ID to read |
@@ -483,7 +468,6 @@ Read one dropdown option on a list field.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `fieldId` | string | Yes | The dropdown field ID on that list |
 | `dropdownOptionId` | string | Yes | The dropdown option ID |
@@ -512,7 +496,6 @@ Read the status of one company or person merge, including why it failed if it di
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which merge to read: companies or persons |
 | `mergeId` | string | Yes | The merge ID |
 
@@ -543,7 +526,6 @@ Read one merge task and how its merges are progressing. Poll this after starting
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which merge task to read: companies or persons |
 | `taskId` | string | Yes | The merge task ID |
 
@@ -567,7 +549,6 @@ Read one note with its body, author, mentions, and attached records.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `noteId` | string | Yes | The note ID |
 | `includes` | json | No | Extra properties to return, e.g. \["repliesCount","personsPreview","companiesPreview","opportunitiesPreview"\]. Those four fields are omitted unless requested here |
 
@@ -607,7 +588,6 @@ Read one opportunity and the list it belongs to. Its field data lives on the lis
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `opportunityId` | string | Yes | The opportunity ID |
 
 #### Output
@@ -633,7 +613,6 @@ Look up one person by ID. Field data is returned only for the Field IDs or Field
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `personId` | string | Yes | The person ID |
 | `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
 | `fieldTypes` | json | No | Field categories to return values for: enriched, global, or relationship-intelligence. Mutually exclusive with Field IDs |
@@ -667,7 +646,6 @@ Read one saved view — its name, kind, and creation date.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `viewId` | string | Yes | The saved view ID |
 
@@ -692,7 +670,6 @@ Read one transcript with its first 100 fragments. Page the fragments endpoint fo
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `transcriptId` | string | Yes | The transcript ID |
 
 #### Output
@@ -717,7 +694,6 @@ Read one internal user. A user and their person record share the same numeric ID
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `userId` | string | Yes | The user ID, which is also their person ID |
 
 #### Output
@@ -745,7 +721,6 @@ Page through logged calls and their participants. Only calls the API key holder 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
@@ -781,7 +756,6 @@ Page through logged chat messages and their participants. Only messages the API 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
@@ -820,7 +794,6 @@ Page through companies. Companies come back without field data unless Field IDs 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `ids` | json | No | Restrict the page to these company IDs, e.g. \[1, 2, 3\] |
 | `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
 | `fieldTypes` | json | No | Field categories to return values for: enriched, global, or relationship-intelligence. Mutually exclusive with Field IDs |
@@ -859,7 +832,6 @@ Find warm paths into a company through shared work history: who in your Affinity
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `filter` | string | Yes | Required scope. The only supported filter is target.currentCompany.id, e.g. "target.currentCompany.id=123" |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of targets to return per page, 1-50. Defaults to 20 |
@@ -889,7 +861,6 @@ Page through email metadata — subject, participants, and timestamps. Affinity 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
@@ -925,7 +896,6 @@ Page through a company's or person's non-list field values. List fields are not 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which entity to read field values from: companies or persons |
 | `entityId` | string | Yes | ID of that company or person |
 | `ids` | json | No | Restrict to these field IDs. Mutually exclusive with Field Types |
@@ -959,7 +929,6 @@ Page through a company's or person's rows across every list, each carrying that 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which entity to look up the rows of: companies or persons |
 | `entityId` | string | Yes | ID of that company or person |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
@@ -997,7 +966,6 @@ List every list a company or person appears on that the caller can view.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which entity to look up the lists of: companies or persons |
 | `entityId` | string | Yes | ID of that company or person |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
@@ -1030,7 +998,6 @@ List the notes relevant to one company, person, or opportunity — directly atta
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which entity the notes hang off: companies, persons, or opportunities |
 | `entityId` | string | Yes | ID of that company, person, or opportunity |
 | `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
@@ -1079,7 +1046,6 @@ List who knows a company or person, scored 0.0 to 1.0 by how much the two actual
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which entity to look up relationships for: companies or persons |
 | `entityId` | string | Yes | ID of that company or person |
 | `filter` | string | No | Affinity Filtering Language expression. This endpoint filters on interactionScore only, e.g. "interactionScore&gt;=0.5" |
@@ -1124,7 +1090,6 @@ List the selectable options on a dropdown or ranked-dropdown company or person f
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which field family the field belongs to: companies or persons |
 | `fieldId` | string | Yes | The dropdown or ranked-dropdown field ID |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
@@ -1158,7 +1123,6 @@ List the non-list company or person fields, with the value type, filter operator
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which fields to describe: companies or persons |
 | `includes` | json | No | Extra properties to return: \["filterability","sortability"\]. Both are omitted unless requested here |
 | `filter` | string | No | Affinity Filtering Language expression. This endpoint filters on name only, e.g. "name=~Status" |
@@ -1194,7 +1158,6 @@ Page through field value changes across the whole workspace. Built for delta syn
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `filter` | string | No | Affinity Filtering Language expression over field.id, listEntry.id, changer.id, changedAt, or actionType. Resume a sync with e.g. "changedAt&gt;2026-06-01T12:00:00Z" |
 | `orderBy` | json | No | Sort order: \["changedAt"\] for oldest first \(the default\), \["-changedAt"\] for newest first |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
@@ -1230,7 +1193,6 @@ Find warm paths into a company through investment history: which investors in yo
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `filter` | string | Yes | Required scope. The only supported filter is target.currentCompany.id, e.g. "target.currentCompany.id=123" |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of targets to return per page, 1-50. Defaults to 20 |
@@ -1260,7 +1222,6 @@ Page through the rows of a list. Rows come back without field data unless Field 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
 | `fieldTypes` | json | No | Field categories to return values for: enriched, global, list, or relationship-intelligence. Mutually exclusive with Field IDs |
@@ -1294,7 +1255,6 @@ Page through the history of one list row — who changed which field, when, and 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `listEntryId` | string | Yes | The list entry ID |
 | `filter` | string | No | Affinity Filtering Language expression over field.id, changer.id, changedAt, or actionType, e.g. "field.id=field-1234" |
@@ -1331,7 +1291,6 @@ Page through every field value on one list row, including the list-specific colu
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `listEntryId` | string | Yes | The list entry ID |
 | `ids` | json | No | Restrict to these field IDs. Mutually exclusive with Field Types |
@@ -1365,7 +1324,6 @@ List the selectable options on a dropdown, ranked-dropdown, or status-dropdown f
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `fieldId` | string | Yes | The dropdown field ID on that list |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
@@ -1399,7 +1357,6 @@ List the fields available on one list, including its list-specific columns. Use 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `includes` | json | No | Extra properties to return: \["filterability","sortability"\]. Both are omitted unless requested here |
 | `filter` | string | No | Affinity Filtering Language expression. This endpoint filters on name only, e.g. "name=~Stage" |
@@ -1435,7 +1392,6 @@ Page through the lists in the organization that the caller can view.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `term` | string | No | Case-insensitive substring match on the list name |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
@@ -1468,7 +1424,6 @@ Page through past and upcoming meetings with their organizer and attendees.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
@@ -1505,7 +1460,6 @@ Page through merge tasks, each summarizing how many of its merges are in progres
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which merge tasks to list: companies or persons |
 | `filter` | string | No | Affinity Filtering Language expression. This endpoint filters on status only, e.g. "status=in-progress" |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
@@ -1535,7 +1489,6 @@ Page through the company or person merges the organization has run, with the sta
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which merges to list: companies or persons |
 | `filter` | string | No | Affinity Filtering Language expression over status or taskId, e.g. "status=failed" |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
@@ -1572,7 +1525,6 @@ List the companies directly attached to one note.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `noteId` | string | Yes | The note ID |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
@@ -1603,7 +1555,6 @@ List the opportunities directly attached to one note.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `noteId` | string | Yes | The note ID |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
@@ -1637,7 +1588,6 @@ List the persons directly attached to one note.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `noteId` | string | Yes | The note ID |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
@@ -1670,7 +1620,6 @@ Page through the replies on one note, including AI Notetaker replies.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `noteId` | string | Yes | The note ID whose replies to read |
 | `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
@@ -1718,7 +1667,6 @@ Page through every note the caller can see. Replies are excluded.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `includes` | json | No | Extra properties to return, e.g. \["repliesCount","personsPreview","companiesPreview","opportunitiesPreview"\]. Those four fields are omitted unless requested here |
 | `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
@@ -1766,7 +1714,6 @@ Page through opportunities. Field data lives on the list entry, not here — rea
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `ids` | json | No | Restrict the page to these opportunity IDs, e.g. \[1, 2, 3\] |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
@@ -1798,7 +1745,6 @@ Page through persons. Persons come back without field data unless Field IDs or F
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `ids` | json | No | Restrict the page to these person IDs, e.g. \[1, 2, 3\] |
 | `fieldIds` | json | No | Field IDs to return values for, e.g. \["affinity-data-location"\]. Mutually exclusive with Field Types |
 | `fieldTypes` | json | No | Field categories to return values for: enriched, global, or relationship-intelligence. Mutually exclusive with Field IDs |
@@ -1838,7 +1784,6 @@ Page through the reminders the caller can see. Filter by status to surface what 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
@@ -1881,7 +1826,6 @@ Page through the rows of a saved view. The view's own filters and columns decide
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `viewId` | string | Yes | The saved view ID |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
@@ -1914,7 +1858,6 @@ List the saved views on a list that the caller can view.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
@@ -1944,7 +1887,6 @@ Page through everything said in a meeting, segment by segment with the speaker.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `transcriptId` | string | Yes | The transcript ID |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
@@ -1976,7 +1918,6 @@ Page through meeting transcript metadata. Read one transcript to get what was ac
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `filter` | string | No | Affinity Filtering Language expression, e.g. "createdAt&gt;=2026-01-01" |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
 | `limit` | number | No | Number of items to return per page, 1-100. Defaults to 100 |
@@ -2004,7 +1945,6 @@ Page through the internal users in the organization. Email addresses and roles a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `term` | string | No | Case-insensitive match across first name, last name, and primary email |
 | `filter` | string | No | Affinity Filtering Language expression over id or status, e.g. "status=active" |
 | `cursor` | string | No | Cursor from a previous page, returned as nextCursor or prevCursor |
@@ -2039,7 +1979,6 @@ Search companies by filters, sorts, and a free-text term. Requires the "Export A
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `filters` | json | No | Filter group as \{operator: "and"\|"or", filters: \[...\]\}, at most 50 leaves. Each leaf is \{valueType, fieldId, operator, value\}, and a leaf may itself be a nested group |
 | `searchTerm` | string | No | Free-text term matched against the searchable fields. At least 3 characters |
 | `searchFieldIds` | json | No | Field IDs the search term is matched against. Defaults to the searchable fields |
@@ -2083,7 +2022,6 @@ Search files by keyword, ordered by relevance. Narrow to specific files or to on
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `prompt` | string | Yes | What to search for. Between 3 and 500 characters |
 | `ids` | json | No | Restrict the search to these file IDs. Cannot be combined with Company ID |
 | `companyId` | string | No | Restrict the search to one company's files. Cannot be combined with file IDs |
@@ -2111,7 +2049,6 @@ Search the rows of one list by filters, sorts, and a free-text term. Requires th
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID to search |
 | `filters` | json | No | Filter group as \{operator: "and"\|"or", filters: \[...\]\}, at most 50 leaves. Each leaf is \{valueType, fieldId, operator, value\}, and a leaf may itself be a nested group |
 | `searchTerm` | string | No | Free-text term matched against the searchable fields. At least 3 characters |
@@ -2151,7 +2088,6 @@ Search notes by keyword, ordered by relevance. Narrow to specific notes or to on
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `prompt` | string | Yes | What to search for. Between 3 and 500 characters |
 | `ids` | json | No | Restrict the search to these note IDs. Cannot be combined with Company ID |
 | `companyId` | string | No | Restrict the search to one company's notes. Cannot be combined with note IDs |
@@ -2178,7 +2114,6 @@ Search persons by filters, sorts, and a free-text term. Requires the "Export All
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `filters` | json | No | Filter group as \{operator: "and"\|"or", filters: \[...\]\}, at most 50 leaves. Each leaf is \{valueType, fieldId, operator, value\}, and a leaf may itself be a nested group |
 | `searchTerm` | string | No | Free-text term matched against the searchable fields. At least 3 characters |
 | `searchFieldIds` | json | No | Field IDs the search term is matched against. Defaults to the searchable fields |
@@ -2223,7 +2158,6 @@ Find companies from a description in plain language — industry, technology, st
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `prompt` | string | Yes | What to look for, in plain language, e.g. "climate tech companies in our pipeline". Up to 500 characters |
 | `listIds` | json | No | Restrict the search to companies on these lists, e.g. \[1, 2\] |
 | `limit` | number | No | Maximum number of companies to return, 1-100. Defaults to 100 |
@@ -2255,7 +2189,6 @@ Write one non-list field value on a company or person. The value type must match
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `entityType` | string | Yes | Which entity to write the field on: companies or persons |
 | `entityId` | string | Yes | ID of that company or person |
 | `fieldId` | string | Yes | The field ID to write |
@@ -2280,7 +2213,6 @@ Write one field value on a list row. Requires the "Export data from Lists" permi
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `listEntryId` | string | Yes | The list entry ID |
 | `fieldId` | string | Yes | The field ID to write |
@@ -2305,7 +2237,6 @@ Change a dropdown option on a list field. Every field is optional — supply onl
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `listId` | string | Yes | The list ID |
 | `fieldId` | string | Yes | The dropdown field ID on that list |
 | `dropdownOptionId` | string | Yes | The dropdown option ID to update |
@@ -2334,7 +2265,6 @@ Rewrite a note's body or replace which records it is attached to. Each list of I
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Affinity API key, sent as a bearer token |
 | `noteId` | string | Yes | The note ID to update |
 | `html` | string | No | Replacement note body as HTML |
 | `companyIds` | json | No | Replacement set of attached companies, e.g. \[1, 2\]. Send \[\] to detach every company; omit to leave them unchanged |

@@ -1,6 +1,7 @@
 import { EC2Icon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 const INSTANCE_ACTIONS = [
   'start_instances',
@@ -60,6 +61,8 @@ function toTagParam(value: unknown): unknown {
 
 export const EC2Block: BlockConfig = {
   type: 'ec2',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'ec2_v2' },
   name: 'Amazon EC2',
   description: 'Manage EC2 instances, Elastic IPs, VPC networking, and EBS',
   longDescription:
@@ -1021,3 +1024,19 @@ export const EC2BlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const EC2V2Block: BlockConfig = {
+  ...EC2Block,
+  type: 'ec2_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Integrate Amazon EC2 into workflows. Describe and control instances, manage Elastic IP addresses, inspect VPCs, subnets, route tables, NAT and internet gateways, security groups, and network interfaces, add and revoke security group ingress rules, inspect network ACLs, VPC endpoints, and peering connections, work with EBS volumes and snapshots, list AMIs and key pairs, and tag resources. The AWS credential’s identity needs the matching ec2:* IAM permissions.',
+  ...withSavedCredential(EC2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'aws',
+    title: 'AWS Credential',
+  }),
+}

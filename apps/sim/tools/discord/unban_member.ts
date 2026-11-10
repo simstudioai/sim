@@ -1,4 +1,5 @@
 import type { DiscordUnbanMemberParams, DiscordUnbanMemberResponse } from '@/tools/discord/types'
+import { DISCORD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const discordUnbanMemberTool: ToolConfig<
@@ -9,6 +10,7 @@ export const discordUnbanMemberTool: ToolConfig<
   name: 'Discord Unban Member',
   description: 'Unban a member from a Discord server',
   version: '1.0.0',
+  oauth: DISCORD_CREDENTIAL_OAUTH,
 
   params: {
     botToken: {

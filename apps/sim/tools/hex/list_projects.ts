@@ -1,4 +1,5 @@
 import type { HexListProjectsParams, HexListProjectsResponse } from '@/tools/hex/types'
+import { HEX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjectsResponse> = {
@@ -6,6 +7,7 @@ export const listProjectsTool: ToolConfig<HexListProjectsParams, HexListProjects
   name: 'Hex List Projects',
   description: 'List all projects in your Hex workspace with optional filtering by status.',
   version: '1.0.0',
+  oauth: HEX_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

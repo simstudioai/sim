@@ -5,6 +5,7 @@ import {
   ATLASSIAN_PRODUCTS,
   getServiceAccountRequiredFields,
 } from '@/lib/credentials/service-account-fields'
+import { WORKLOAD_IDENTITY_PROVIDERS } from '@/lib/credentials/workload-identity/audiences'
 import type { OAuthProvider } from '@/lib/oauth/types'
 
 export const atlassianProductSchema = z.enum(ATLASSIAN_PRODUCTS)
@@ -559,6 +560,34 @@ export const createWorkspaceCredentialContract = defineRouteContract({
     schema: z.object({
       credential: workspaceCredentialSchema,
     }),
+  },
+})
+
+export const prepareWorkloadIdentityContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/credentials/workload-identity',
+  body: z.object({
+    workspaceId: workspaceIdSchema,
+    provider: z.enum(WORKLOAD_IDENTITY_PROVIDERS),
+  }),
+  response: {
+    mode: 'json',
+    schema: z.discriminatedUnion('available', [
+      /** This deployment has no workload-identity signing key; offer key-based modes only. */
+      z.object({ available: z.literal(false) }),
+      z.object({
+        available: z.literal(true),
+        /** Register this URL as the OpenID Connect issuer the cloud trusts. */
+        issuer: z.string(),
+        /** The `aud` the cloud must accept (AWS client ID, Databricks policy audience). */
+        audience: z.string(),
+        /** The exact `sub` the role's trust policy must allow. */
+        subject: z.string(),
+        /** Opaque proof submitted with the credential; binds the subject to its creator. */
+        subjectProof: z.string(),
+        expiresAt: z.string(),
+      }),
+    ]),
   },
 })
 

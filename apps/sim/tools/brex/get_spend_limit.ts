@@ -1,6 +1,7 @@
 import type { BrexGetSpendLimitParams, BrexGetSpendLimitResponse } from '@/tools/brex/types'
 import { BREX_SPEND_LIMIT_PERIOD_BALANCE_PROPERTIES } from '@/tools/brex/types'
 import { BREX_API_BASE, buildBrexHeaders, parseBrexJson } from '@/tools/brex/utils'
+import { BREX_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const brexGetSpendLimitTool: ToolConfig<BrexGetSpendLimitParams, BrexGetSpendLimitResponse> =
@@ -9,6 +10,7 @@ export const brexGetSpendLimitTool: ToolConfig<BrexGetSpendLimitParams, BrexGetS
     name: 'Brex Get Spend Limit',
     description: 'Get a Brex spend limit by its ID',
     version: '1.0.0',
+    oauth: BREX_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

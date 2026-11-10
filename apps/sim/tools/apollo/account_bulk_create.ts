@@ -2,6 +2,7 @@ import type {
   ApolloAccountBulkCreateParams,
   ApolloAccountBulkCreateResponse,
 } from '@/tools/apollo/types'
+import { APOLLO_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const apolloAccountBulkCreateTool: ToolConfig<
@@ -13,6 +14,7 @@ export const apolloAccountBulkCreateTool: ToolConfig<
   description:
     'Create up to 100 accounts at once in your Apollo database. Set run_dedupe=true to deduplicate by domain, organization_id, and name. Master key required.',
   version: '1.0.0',
+  oauth: APOLLO_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

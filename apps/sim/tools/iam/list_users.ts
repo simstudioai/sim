@@ -1,4 +1,5 @@
 import type { IAMListUsersParams, IAMListUsersResponse } from '@/tools/iam/types'
+import { AWS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const listUsersTool: InternalToolConfig<IAMListUsersParams, IAMListUsersResponse> = {
@@ -6,6 +7,7 @@ export const listUsersTool: InternalToolConfig<IAMListUsersParams, IAMListUsersR
   name: 'IAM List Users',
   description: 'List IAM users in your AWS account',
   version: '1.0.0',
+  oauth: AWS_CREDENTIAL_OAUTH,
 
   params: {
     region: {
