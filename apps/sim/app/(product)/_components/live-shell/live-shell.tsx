@@ -1,7 +1,7 @@
 import { type ReactNode, Suspense } from 'react'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { loginHref } from '@/lib/navigation/paths'
+import { loginHref, WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { resolveLiveDestinations } from '@/app/(product)/_components/destinations'
 import { LiveComposerHost } from '@/app/(product)/_components/live-shell/live-composer-host'
 import { StaleSession } from '@/app/(product)/_components/live-shell/stale-session'
@@ -9,7 +9,6 @@ import { ProductSession } from '@/app/(product)/_components/product-session'
 import { SessionState } from '@/app/(product)/_components/session-state/session-state'
 import { AccessDenied, SurfaceUnavailable } from '@/app/(product)/_components/shell-gate/shell-gate'
 import { LiveSourceLinks } from '@/app/(product)/_components/source-row/live-source-links'
-import { OUTSIDE_ORGANIZATION_HREF } from '@/platform/lib/data/organization-model'
 import { prefetchShell } from '@/platform/lib/data/prefetch-shell'
 import { LiveProviders } from '@/platform/lib/data/providers'
 import {
@@ -76,7 +75,7 @@ export async function LiveShell({
     if (surface.status === 'denied') {
       const moved = surface.retired && location ? await retiredOrganizationHref(location) : null
       if (moved) redirect(moved)
-      return <AccessDenied workspacesHref={OUTSIDE_ORGANIZATION_HREF} />
+      return <AccessDenied workspacesHref={WORKSPACES_PATH} />
     }
     return <SurfaceUnavailable />
   }

@@ -15,6 +15,7 @@ import {
 } from '@/lib/mothership/chat/search-params'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
 import { organizationRoutes } from '@/lib/navigation/paths'
+import { organizationDraftKey, SEARCH_ASSISTANT_DRAFT_SLOT } from '@/lib/organizations/draft-key'
 import {
   organizationSearchParsers,
   organizationSearchUrlKeys,
@@ -125,11 +126,10 @@ function useSearchResults({
 
 /** The keys Search keeps unsent text under: the Assistant's question, and the field's draft per query. */
 function searchDraftKeys(userId: string, organizationId: string) {
-  const prefix = `${userId}:organization:${organizationId}`
-  const latest = `${prefix}:search`
+  const latest = organizationDraftKey(userId, organizationId, 'search')
   return {
     latest,
-    assistant: `${prefix}:search-assistant`,
+    assistant: organizationDraftKey(userId, organizationId, SEARCH_ASSISTANT_DRAFT_SLOT),
     query: (query: string) => `${latest}:query:${encodeURIComponent(query)}`,
   }
 }

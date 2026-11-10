@@ -5,12 +5,18 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { OrganizationSurfaceResponse } from '@/lib/api/contracts/organization'
+import { canUseBenchmarks } from '@/lib/benchmarks/config'
+import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
+import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import {
   authorizeOrganizationOperation,
   OrganizationMembershipNotFoundError,
 } from '@/lib/core/application/organization-authorization'
 import { PrincipalKindAuthorizationError } from '@/lib/core/application/workspace-authorization'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
+import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
+import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
 import { organizationOperations } from '@/lib/organizations/application/operations'
 import { organizationSurfaceSettingsNavigation } from '@/lib/organizations/settings-sections'
 import {
@@ -18,10 +24,11 @@ import {
   type OrganizationSurfaceContext,
   resolveOrganizationLanding,
 } from '@/lib/organizations/surface'
-import { resolveOrganizationSurfaceFlags } from '@/lib/organizations/surface-flags'
 import { canBrowsePeople } from '@/lib/people/feature-flag'
 import { isPlatformAdmin } from '@/lib/permissions/super-user'
+import { isProjectsEnabled } from '@/lib/projects/rollout.server'
 import { isSimLinksEnabled } from '@/lib/sim-links/feature-flag'
+import { isWorkflowTestsEnabled } from '@/lib/workflow-tests/feature-flag'
 
 const logger = createLogger('OrganizationSurfaceRead')
 
@@ -38,6 +45,46 @@ async function organizationExists(organizationId: string): Promise<boolean> {
     .where(eq(organization.id, organizationId))
     .limit(1)
   return Boolean(row)
+}
+
+/** The runtime flags the organization surface hands its client code. */
+async function resolveOrganizationSurfaceFlags(organizationId: string, userId: string) {
+  const [
+    modelSelectorEnabled,
+    dashboardsEnabled,
+    benchmarkEnabled,
+    computerUseEnabled,
+    workflowTestsEnabled,
+    changelogEnabled,
+    projectsEnabled,
+    platformPreviewEnabled,
+  ] = await Promise.all([
+    isMothershipModelSelectorEnabled(),
+    isDashboardsEnabled(organizationId),
+    canUseBenchmarks(userId).catch(() => {
+      logger.warn('Could not resolve benchmark navigation access')
+      return false
+    }),
+    isComputerUseAvailable(organizationId),
+    isWorkflowTestsEnabled(organizationId),
+    isChangelogEnabled(organizationId),
+    isProjectsEnabled(),
+    isFeatureEnabled('platform-preview'),
+  ])
+  return {
+    benchmarkEnabled,
+    flags: {
+      dashboards: dashboardsEnabled,
+      'workflow-tests': workflowTestsEnabled,
+      changelog: changelogEnabled,
+      'mothership-model-selector': modelSelectorEnabled,
+      'mothership-computer-use': computerUseEnabled,
+      'mothership-plan-mode': benchmarkEnabled,
+      'mothership-memory-spaces': benchmarkEnabled,
+      projects: projectsEnabled,
+      'platform-preview': platformPreviewEnabled,
+    },
+  }
 }
 
 /** What a member's navigation and pages read about their surface, given the resolved context. */

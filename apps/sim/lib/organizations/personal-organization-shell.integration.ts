@@ -42,11 +42,7 @@ import {
 } from '@/lib/workspaces/application/workspace-shell'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
 
-// The surface's navigation flags read rollout configuration, which says nothing about whose
-// organization a viewer may read.
-vi.mock('@/lib/organizations/surface-flags', () => ({
-  resolveOrganizationSurfaceFlags: async () => ({ flags: {}, benchmarkEnabled: false }),
-}))
+// The surface's navigation flags say nothing about whose organization a viewer may read.
 vi.mock('@/lib/people/feature-flag', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/people/feature-flag')>()),
   canBrowsePeople: async () => false,

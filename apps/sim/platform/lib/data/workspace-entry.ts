@@ -6,7 +6,7 @@ import {
 } from '@/lib/api/contracts/workspaces'
 import { isUpgradeReason, UPGRADE_REASON_PARAM } from '@/lib/billing/upgrade-reasons'
 import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
-import { resolveRolledOutOrganizationId } from '@/lib/navigation/resolve-app-entry'
+import { resolveOrganizationLanding } from '@/lib/organizations/surface'
 import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
 import { listViewerWorkspaces } from '@/lib/workspaces/application/viewer-workspaces'
 import { blockedWorkspaceEntryHref } from '@/platform/lib/data/route-resolution'
@@ -101,10 +101,9 @@ async function resolveForwardHref(
   activeOrganizationId: string | null,
   query: WorkspaceEntryQuery
 ): Promise<string | null> {
-  const session = { user: { id: userId }, session: { activeOrganizationId } }
   let organizationId: string | null
   try {
-    organizationId = await resolveRolledOutOrganizationId(session)
+    organizationId = await resolveOrganizationLanding(userId, activeOrganizationId)
   } catch (error) {
     logger.warn('Could not resolve an organization to forward a blocked viewer to', { error })
     return null

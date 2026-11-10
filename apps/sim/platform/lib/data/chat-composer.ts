@@ -26,6 +26,7 @@ import {
   type MothershipEffort,
   resolveMothershipModelSettings,
 } from '@/lib/mothership/model-options'
+import { organizationDraftKey } from '@/lib/organizations/draft-key'
 import { toast } from '@/lib/toast/sink'
 import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
 import {
@@ -168,7 +169,7 @@ function legacySharedDraftKey(
   organizationId: string,
   assistant: boolean
 ): string | null {
-  const key = `${userId}:organization:${organizationId}:new`
+  const key = organizationDraftKey(userId, organizationId, 'new')
   if (!useMothershipDraftsStore.getState().drafts[key]) return null
   const persisted = toRecord(BrowserStorage.getItem<unknown>(LEGACY_CHAT_MODE_STORAGE, null))
   const modes = toRecord(toRecord(persisted.state).modes)
@@ -190,7 +191,7 @@ export function useLiveComposer({
   const { data: session } = useSession()
   const userId = session?.user?.id
   const assistant = requestMode === 'assistant'
-  const key = `${userId}:organization:${organization.id}:${draftKey}`
+  const key = organizationDraftKey(userId, organization.id, draftKey)
   // The key this composer opened on; a draft typed there follows a new chat to its own key.
   const [initialKey] = useState(key)
   // The store's hook serves its state from before rehydration while this hydrates, so server markup
@@ -476,7 +477,7 @@ function useLiveAppendHomePrompt() {
   const userId = session?.user?.id
   if (!userId) return null
   return (prompt: string) => {
-    const key = `${userId}:organization:${organization.id}:home`
+    const key = organizationDraftKey(userId, organization.id, 'home')
     const store = useMothershipDraftsStore.getState()
     const draft = store.drafts[key]
     store.setDraft(key, {

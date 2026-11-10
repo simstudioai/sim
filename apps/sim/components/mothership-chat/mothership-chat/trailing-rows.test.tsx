@@ -79,7 +79,6 @@ async function renderChat(messages: ChatMessage[], isSending: boolean) {
           flags={{
             dashboards: false,
             'workflow-tests': false,
-            changelog: false,
             'mothership-model-selector': false,
             'mothership-plan-mode': false,
             'mothership-computer-use': false,
