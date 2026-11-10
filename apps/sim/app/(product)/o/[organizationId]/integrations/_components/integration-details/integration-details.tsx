@@ -21,7 +21,14 @@ import type { IntegrationCredential } from '@/platform/lib/integrations/credenti
 import { UNCONFIGURED_APP_REASON } from '@/platform/lib/integrations/workspace-catalog'
 import { isConnectable, type OrganizationIntegration } from '@/platform/shared/integrations'
 
-type IntegrationDetailsProps = {
+interface IntegrationDetailsProps {
+  /** The member's own accounts for this app, where the organization keeps member accounts. */
+  integration?: OrganizationIntegration
+  /**
+   * The app in the chosen workspace's catalog, whose credentials the page lists too. The page shows
+   * an app from either source, so it renders nothing with neither.
+   */
+  workspaceApp?: WorkspaceAppScope
   accountId: string | null
   integrationHref: string
   /** A credential's own page on this app. */
@@ -34,15 +41,7 @@ type IntegrationDetailsProps = {
   /** Back to the app once the viewer leaves an open workspace credential. */
   onLeave: () => void
   renderToolPermissions: (accountId: string) => ReactNode
-} & (
-  | {
-      /** The member's own accounts for this app, where the organization keeps member accounts. */
-      integration: OrganizationIntegration
-      /** The app in the chosen workspace's catalog, whose credentials the page lists too. */
-      workspaceApp?: WorkspaceAppScope
-    }
-  | { integration?: never; workspaceApp: WorkspaceAppScope }
-)
+}
 
 /**
  * An app's page: the member's own accounts and the chosen workspace's credentials in one list, each
@@ -92,7 +91,7 @@ export function IntegrationDetails({
           },
         ]
       : []
-  const workspaceMethods = workspace.methods.map((method) => ({
+  const workspaceMethods: ConnectMethod[] = workspace.methods.map((method) => ({
     ...method,
     label:
       memberMethods.length && workspaceApp
@@ -111,14 +110,15 @@ export function IntegrationDetails({
         description: integration.description,
         docsUrl: integration.setupGuideUrl,
       }
-    : {
+    : workspaceApp && {
         providerId: workspaceApp.app.id,
         name: workspaceApp.app.name,
         description: workspaceApp.app.description,
         docsUrl: workspaceApp.app.docsUrl,
       }
+  if (!app) return null
 
-  function renderCredential(credential: IntegrationCredential, disconnect: () => void) {
+  const renderCredential = (credential: IntegrationCredential, disconnect: () => void) => {
     const account = accountById.get(credential.id)
     if (account && viewer)
       return (
@@ -165,11 +165,13 @@ export function IntegrationDetails({
         unavailableReason={
           integration
             ? integration.connectionTarget && memberReason
-            : workspaceApp.app.access === 'unconfigured'
-              ? UNCONFIGURED_APP_REASON
-              : 'This app has no connection you can add here.'
+            : workspaceUnavailableReason(workspaceApp?.app)
         }
-        emptyNotice={integration && !isConnectable(integration) ? memberReason : undefined}
+        emptyNotice={
+          integration && !isConnectable(integration) && !workspaceMethods.length
+            ? memberReason
+            : undefined
+        }
         pending={pending}
         renderCredential={renderCredential}
         onDisconnect={(credential) => onDisconnect(credential.id)}
@@ -210,4 +212,16 @@ export function IntegrationDetails({
       )}
     </>
   )
+}
+
+/**
+ * Why a workspace app offers no way to connect, on its disabled Connect: one this deployment has not
+ * configured, or one whose catalog lists connections this page cannot complete. An app the catalog
+ * lists no connection for has nothing to connect, so no Connect shows at all.
+ */
+function workspaceUnavailableReason(app: WorkspaceAppScope['app'] | undefined) {
+  if (app?.access === 'unconfigured') return UNCONFIGURED_APP_REASON
+  return app?.credentialProviders.length
+    ? 'This app has no connection you can add here.'
+    : undefined
 }
