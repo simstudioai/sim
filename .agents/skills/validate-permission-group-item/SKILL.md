@@ -18,7 +18,7 @@ A key with an admin checkbox but no server gate passes every structural audit. A
 
 Record the builder, the `enforcement`, and the position.
 
-- **Default permissive?** The builders hardcode `false` / `null` / `[]`, so the risk is a *name* that inverts the meaning — an `allowX` boolean. The checkbox renders `checked={!editingConfig[feature.configKey]}` (ticked = allowed), so a positively-named boolean renders backwards.
+- **Default permissive?** The builders hardcode `false` / `null` / `[]`, so the risk is a *name* that inverts the meaning — an `allow<Feature>` boolean. The checkbox renders `checked={!editingConfig[feature.configKey]}` (ticked = allowed), so a positively-named boolean renders backwards.
 - **Position stable?** Declaration order is the wire order, and no test catches a reorder. If `git log -p` shows the key was ever *moved* rather than appended, every open editor reads as unsaved (`group-detail.tsx` dirty-checks stringified configs).
 - **Phrasing accurate?** An allowlist's `{ limited, empty }` and a denylist's string are read by `getActivePermissionGroupRestrictions` in `features.ts` and surface to users through the Copilot workspace VFS and the enterprise platform context. Confirm `empty` says "none allowed", not "unrestricted".
 - **Does the `hint` tell the truth?** Highest-value read in this step. A `'capability'` key refuses at the API, so a hint saying it hides a tab, module, or nav item "from the sidebar" is a **lie an admin acts on** — they believe they are tidying chrome while withholding a module. The same string is reused as the prose for an *active* restriction, where "hide" is simply false. Any surviving "Hide the …" hint on a `'capability'` key is a finding, not a nit; check `label` and `category` the same way (a "Sidebar" or "Settings Tabs" section makes the claim structurally).
@@ -49,7 +49,7 @@ Confirm the assertions at the bottom of `fields.ts` still name a field of this k
 ## Step 3: Admin UI (`ee/access-control/lib/editor.ts`, rendered by the product's access-control section)
 
 - **Boolean:** appears automatically via `PLATFORM_FEATURES`. Confirm its `category` is in `PLATFORM_CATEGORY_ORDER`; an unlisted one renders after every ordered section.
-- **Nested allowlist / denylist** (one that qualifies a platform-feature boolean): renders **nothing** unless it is in the `featureExtras` map — keyed by the *parent boolean's feature id*, not the config key. No picker there means no admin can ever set it. Report it. Top-level lists — `allowedIntegrations`, `allowedModelProviders`, `deniedModels`, `deniedTools` — are not in `featureExtras` and must not be reported for it; they render from the dedicated Providers and Blocks sections, so check them there.
+- **Nested allowlist / denylist** (one that qualifies a platform-feature boolean): renders **nothing** unless it is in `FEATURE_PERMISSION_GRIDS` (`ee/access-control/lib/editor.ts`) — keyed by the *parent boolean's feature id*, not the config key. No picker there means no admin can ever set it. Report it. Top-level lists — `allowedIntegrations`, `allowedModelProviders`, `deniedModels`, `deniedTools` — are not in `FEATURE_PERMISSION_GRIDS` and must not be reported for it; they render from the dedicated Providers and Blocks sections, so check them there.
 - For an **allowlist** picker, check both behaviors: refuses an empty selection (`if (values.length === 0) return`) and collapses a full one back to `null` (otherwise the allowlist freezes at today's members). A **denylist** picker must do neither: clearing every entry is how an admin denies nothing, and a full selection is a real state that denies everything.
 - Check the parent is the right one (`allowedKnowledgeConnectors` under `hide-knowledge-base`, not `disable-knowledge-base-creation`).
 
@@ -143,7 +143,7 @@ Each is deliberate and documented in the code; `add-permission-group-item` carri
 - **An actorless deployment run passes through** — a delegated executor principal in `mode: 'deployment'` with no resolvable subject acts with the workspace's authority; denying would 403 every scheduled run, webhook and public-API call. What such a run *does* is still governed by `assertPermissionsAllowed`, which is why the four run-scoped keys carry `enforcement: 'executor'`.
 - **Copilot is NOT exempt** — a delegated principal with a `sim_user` subject whose `serviceId` is anything other than `executor` takes the full `requireCurrentHumanAccess`. Copilot acts as the person. A proposal to exempt it is a finding.
 - **Capability is checked after the role check** — `NoWorkspaceAccessError` is concealed as a 404 by the v2 surface, so refusing on capability first would hand a non-member an oracle for what the organization withholds. The v1 middleware states the same ordering in its TSDoc. Not a bug.
-- **`allowedEgressHosts` does not exist** — there is no network-egress allowlist. Requests for one are a feature, not missing wiring.
+- **There is no network-egress host allowlist.** Requests for one are a feature, not missing wiring.
 - **Nothing currently ships as `ui-only`** — the union member has no user; an absent `ui-only` key is not a gap.
 
 ## Report Format

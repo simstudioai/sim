@@ -27,7 +27,7 @@ You are adding one governed item an organization admin can withhold from a cohor
 
 | Kind | Builder | Default | Semantics |
 |---|---|---|---|
-| Boolean restriction | `booleanRestriction(enforcement, feature)` | `false` | `true` withholds. Name it `hideX` / `disableX`, never `allowX` |
+| Boolean restriction | `booleanRestriction(enforcement, feature)` | `false` | `true` withholds. Name it `hide<Feature>` / `disable<Feature>`, never `allow<Feature>` |
 | Allowlist | `allowlist(item, enforcement, { limited, empty })` | `null` | `null` allows everything; a list names the only permitted members; `[]` permits **none** |
 | Denylist | `denylist(item, enforcement, phrasing)` | `[]` | Empty permits everything; members are refused |
 
@@ -49,7 +49,7 @@ Allowlist when the safe posture is "only what the admin named" and the member se
 
 ## Step 1: Append the field entry — never insert
 
-```ts
+```ts illustrative
   disableWidgetSharing: booleanRestriction('capability', {
     id: 'disable-widget-sharing',
     label: 'Widget Sharing',
@@ -61,8 +61,8 @@ Allowlist when the safe posture is "only what the admin named" and the member se
 The second argument is the field's `feature` (`PlatformFeatureMeta`); `PLATFORM_FEATURES` spreads it and appends `configKey`, so those four values are what the editor renders. `PLATFORM_FEATURES` is *derived* from the registry in `features.ts`, so a boolean key cannot reach the config without reaching the editor.
 
 - **Declaration order is the wire order** of `PermissionGroupConfig`, both zod schemas, and every config JSON crossing the API, since all of them derive from the registry. Extend the tail; do not tidy the middle.
-- **The default must be the permissive value.** Every stored `permission_group.config` row predates your key; `parsePermissionGroupConfig` fills the gap from the default and the update route merges a partial write over the stored config, so a restrictive default silently applies a new restriction to every existing group in every enterprise org. The builders hardcode `false` / `null` / `[]`, so a new key must be *phrased* so the permissive value is falsy: a `requireWidgetApproval` whose safe default is `true` must be inverted before it can use `booleanRestriction`.
-- **The checkbox is inverted.** `group-detail.tsx` renders `checked={!editingConfig[feature.configKey]}` — ticked means *allowed*, so an `allowX` name renders backwards.
+- **The default must be the permissive value.** Every stored `permission_group.config` row predates your key; `parsePermissionGroupConfig` fills the gap from the default and the update route merges a partial write over the stored config, so a restrictive default silently applies a new restriction to every existing group in every enterprise org. The builders hardcode `false` / `null` / `[]`, so a new key must be *phrased* so the permissive value is falsy: a `require<Feature>Approval` whose safe default is `true` must be inverted before it can use `booleanRestriction`.
+- **The checkbox is inverted.** `group-detail.tsx` renders `checked={!editingConfig[feature.configKey]}` — ticked means *allowed*, so an `allow<Feature>` name renders backwards.
 - **The hint must describe access withheld, never a surface hidden.** A `'capability'` key refuses at the API; "Hide the Tables module from the sidebar" tells an admin they are tidying a nav bar while they revoke a module. The same string is read again by `getActivePermissionGroupRestrictions` in `features.ts` as the prose for an *active* restriction — reaching users through the Copilot workspace VFS and the enterprise platform context — where "hide" is simply false. Write "Revoke the Tables module. Members cannot read or write any table." `PlatformFeatureMeta.hint` carries the rule in its TSDoc.
 - **The category must be in `PLATFORM_CATEGORY_ORDER`** (`features.ts`): `Modules`, `Knowledge Base`, `Tables`, `Files`, `Deployment`, `Tools`, `Logs`, `Collaboration`, `Credentials & Access`. An unlisted category renders last. Categories name what is withheld — no surface-shaped section like "Sidebar".
 
@@ -70,20 +70,17 @@ The second argument is the field's `feature` (`PlatformFeatureMeta`); `PLATFORM_
 
 `PLATFORM_FEATURES` filters on `field.kind === 'boolean-restriction'`. An allowlist or denylist renders **nothing** — the key exists, the API accepts it, no admin can set it.
 
-Nested pickers hang off the `featureExtras` map in `group-detail.tsx`, keyed by the **feature id of the boolean it nests under**, not the allowlist's own config key:
+Nested pickers are permission grids on the boolean's row. `FEATURE_PERMISSION_GRIDS` in `ee/access-control/lib/editor.ts` maps the **feature id of the boolean it nests under** (not the allowlist's own config key) to a grid kind, and `group-detail.tsx` renders that kind as a `PermissionGrid`:
 
 ```ts
-  const featureExtras: Partial<Record<string, ReactNode>> = {
-    'hide-knowledge-base': <AllowlistField label='…' value={knowledgeConnectorValue}
-      onChange={setKnowledgeConnectors} options={KNOWLEDGE_CONNECTOR_OPTIONS}
-      disabled={editingConfig.hideKnowledgeBaseTab} />,
-  }
+export const FEATURE_PERMISSION_GRIDS = {
+  'hide-deploy-chatbot': 'chat_deploy_auth',
+  'disable-public-file-sharing': 'file_share_auth',
+  'hide-knowledge-base': 'knowledge_connector',
+} as const
 ```
 
-Copy `setKnowledgeConnectors`. Two load-bearing behaviors:
-
-- **Refuse an empty selection** (`if (values.length === 0) return`) — an emptied allowlist denies everyone while the parent checkbox still reads as allowed. Withholding the whole thing is what the parent is for.
-- **Collapse "all selected" back to `null`** (`values.length === ALL.length ? null : values`) — storing the full set freezes the allowlist at today's members.
+A new grid kind also needs its arm in `withPermissionGroupAccessState` (`ee/access-control/utils/access-state.ts`), which writes the config key. Copy the `knowledge_connector` arm: its `setMember` collapses "all selected" back to `null`, because storing the full set freezes the allowlist at today's members.
 
 Choose the parent deliberately: `allowedKnowledgeConnectors` nests under `hide-knowledge-base`, not `disable-knowledge-base-creation`, because a connector attaches to an *existing* KB — nesting under creation would dim the picker for exactly the cohort it serves.
 
@@ -95,7 +92,7 @@ Skip only for `'executor'` / `'ui-only'`. Add the id to `CAPABILITY_IDS` and the
 
 Capability ids are **domain-shaped** (`tables.create`); config keys are **surface-shaped** (`disableTableCreation`). `CAPABILITY_RULES` is the only place the two vocabularies meet.
 
-```ts
+```ts illustrative
   'widgets.share': {
     kind: 'static',
     configKeys: ['disableWidgetSharing'],
@@ -259,7 +256,7 @@ What a run *does* is still governed by `assertPermissionsAllowed`. An item that 
 - [ ] Entry **appended** to `PERMISSION_GROUP_FIELDS`, permissive default, restriction-phrased name
 - [ ] Category present in `PLATFORM_CATEGORY_ORDER`, named after what is withheld
 - [ ] `hint` says what access is revoked, never "hide" — it is also the active-restriction prose
-- [ ] Non-boolean key has a `featureExtras` picker that refuses empty and collapses "all" to `null`
+- [ ] Nested non-boolean key has a `FEATURE_PERMISSION_GRIDS` entry and an access-state arm that collapses "all" to `null`
 - [ ] Capability id in `CAPABILITY_IDS`, rule in `CAPABILITY_RULES` under `satisfies`, `configKeys` lists every key `deniedBy` reads
 - [ ] A narrower capability replacing a broader one also reads the broader key
 - [ ] Declared on every operation it governs, or asserted from the use case with a `// permission-group-enforced:` annotation raising through `refuseCapability` / `capabilityRefusal`
