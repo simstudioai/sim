@@ -407,6 +407,12 @@ export const getMothershipChatResponseSchema = z.object({
       id: z.string(),
       title: z.string().nullable(),
       mode: z.enum(['agent', 'assistant', 'plan']),
+      /**
+       * The workspace a send or Stop on this chat names, null for an organization chat. The server
+       * admits a turn only under the scope the chat was created in, so an organization surface
+       * showing a workspace chat must name it. Absent from a server that predates the field.
+       */
+      workspaceId: z.string().nullable().optional(),
       messages: z.array(z.unknown()),
       activeStreamId: z.string().nullable(),
       resources: z.array(z.unknown()),

@@ -106,6 +106,7 @@ export const GET = withRouteHandler(
           id: chat.id,
           title: chat.title,
           mode: chat.mode,
+          workspaceId: chat.organizationId ? null : chat.workspaceId,
           messages: effectiveMessages,
           activeStreamId: liveStreamId,
           resources: Array.isArray(chat.resources)

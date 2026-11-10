@@ -61,6 +61,11 @@ export interface MothershipChatHistory {
   /** Absent only in locally optimistic cache entries before the server responds. */
   mode?: MothershipChat['mode']
   id: string
+  /**
+   * The workspace a send or Stop on this chat names; null for an organization chat. Absent only in
+   * a locally seeded entry, which holds a chat this surface just created under its own scope.
+   */
+  workspaceId?: string | null
   title: string | null
   messages: PersistedMessage[]
   activeStreamId: string | null
@@ -287,6 +292,7 @@ function parseChatHistory(value: unknown): MothershipChatHistory {
   return {
     id: chat.id,
     mode,
+    workspaceId: typeof chat.workspaceId === 'string' ? chat.workspaceId : null,
     title: chat.title,
     messages: normalizeMessages(chat.messages),
     activeStreamId: chat.activeStreamId,

@@ -6,14 +6,18 @@
  * - A workspace chat open in the shell (here, on a guest workspace that renders in the viewer's
  *   team organization) sends and stops under the scope the shell derives for it. The organization
  *   the shell shows is refused for both, as the shell sent before.
+ * - A client-only surface (the extension's panel) learns that scope from the chat detail, which
+ *   names a workspace chat's workspace and no workspace for an organization chat.
  * - An organization chat may target a guest workspace that renders in its organization's shell,
  *   and still not a workspace its owner cannot open.
  * - An Enterprise team organization's chat sends its organization's own BYOK key on every leg.
  */
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import { createRouteContext } from '@sim/testing/helpers/http'
 import { authMock, authMockFns } from '@sim/testing/mocks/auth.mock'
 import { envFlagsMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing/mocks/env-flags.mock'
 import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
+import { createMockRequest } from '@sim/testing/mocks/request.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { redisUrl, inheritedEnv, worker } = await vi.hoisted(async () => {
@@ -110,6 +114,7 @@ import { chatRequestScope } from '@/lib/mothership/chat/request-scope'
 import { chatPubSub } from '@/lib/mothership/chat-status'
 import { abortRun } from '@/lib/mothership/request/application/controls'
 import { resolveWorkspaceShellOrganizationId } from '@/lib/workspaces/application/workspace-shell'
+import { GET as readChat } from '@/app/api/mothership/chats/[chatId]/route'
 
 const userIds: string[] = []
 const workspaceIds: string[] = []
@@ -200,6 +205,16 @@ function send(body: Record<string, unknown>) {
       body: JSON.stringify({ message: 'Summarize this workspace', mode: 'agent', ...body }),
     })
   )
+}
+
+async function readChatWorkspaceId(chatId: string): Promise<unknown> {
+  const response = await readChat(
+    createMockRequest({ method: 'GET', url: `http://localhost/api/mothership/chats/${chatId}` }),
+    createRouteContext({ chatId })
+  )
+  expect(response.status).toBe(200)
+  const body = await response.json()
+  return body.chat.workspaceId
 }
 
 async function waitFor(condition: () => boolean | Promise<boolean>, what: string) {
@@ -316,6 +331,24 @@ describe.runIf(Boolean(redisUrl))('chats in the organization shell', () => {
       .from(copilotRuns)
       .where(eq(copilotRuns.streamId, streamId))
     expect(run?.status).not.toBe('active')
+  })
+
+  it('names the scope a client-only surface must send under on the chat detail', async () => {
+    const workspaceChatId = await seedChat(viewerId, { workspaceId: guestWorkspaceId })
+    const organizationChatId = await seedChat(viewerId, { organizationId: shellOrganizationId })
+
+    for (const chatId of [workspaceChatId, organizationChatId]) {
+      const workspaceId = await readChatWorkspaceId(chatId)
+      expect(workspaceId).toBe(chatId === workspaceChatId ? guestWorkspaceId : null)
+      // What the extension's panel derives from that detail before it sends.
+      const scope = chatRequestScope({
+        organizationId: shellOrganizationId,
+        workspaceId: typeof workspaceId === 'string' ? workspaceId : undefined,
+      })
+      const response = await send({ chatId, userMessageId: generateId(), ...scope })
+      expect(response.status).toBe(200)
+      await drain(response)
+    }
   })
 
   it('lets an organization chat target a guest workspace in its shell, never one its owner cannot open', async () => {
