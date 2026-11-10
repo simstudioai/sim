@@ -963,7 +963,9 @@ But if the same change also adds, edits **or removes** a tool, run `bun run gene
 
 A visible integration block does require the generated integration catalog and docs to be refreshed:
 `bun run generate:tool-metadata` (only when a tool changed), `bun run scripts/generate-docs.ts`,
-`bun run generate:deployment-config`, then `bun run check:audits`. Also run
+`bun run generate:deployment-config`, `bun scripts/sync-platform-integration-metadata.ts` (the
+Platform integration catalog, checked by `check:platform-integration-metadata`), then
+`bun run check:audits`. Also run
 `bun run apps/sim/scripts/check-block-registry.ts origin/staging` (CI runs it outside `check:audits`). Commit the
 full generator output. For what each check verifies, see the `validate-integration` skill →
 Regenerate Derived Artifacts.
@@ -989,6 +991,7 @@ Regenerate Derived Artifacts.
 - [ ] If any tool was added, changed or removed alongside the block: ran `bun run generate:tool-metadata` and committed the artifacts
 - [ ] Ran `bun run scripts/generate-docs.ts`, reviewed the generated diff, and committed the integration catalog changes
 - [ ] `bun run check:integration-catalog` passes
+- [ ] Ran `bun scripts/sync-platform-integration-metadata.ts` and committed its output; `bun run check:platform-integration-metadata` passes
 - [ ] `bun run check:docs` passes (CI gate — fails on any stale generated docs page)
 - [ ] If icon missing: asked user to provide SVG
 - [ ] If triggers exist: `triggers` config set, trigger subBlocks spread
