@@ -8,7 +8,7 @@ import {
 import { mentionOperations } from '@/lib/mentions/application/operations'
 import { searchMentions } from '@/lib/mentions/application/search-mentions'
 
-/** Type-ahead pacing: the composer debounces, and a browse expands one workspace at a time. */
+/** Type-ahead pacing: the composer debounces its reads. */
 const MENTION_TYPE_AHEAD_LIMIT = { maxTokens: 120, refillRate: 120, refillIntervalMs: 60_000 }
 
 export const GET = defineInternalJsonRoute({
@@ -23,10 +23,7 @@ export const GET = defineInternalJsonRoute({
   mapInput: ({ params, query }) => ({
     organizationId: params.id,
     query: query.query,
-    workspaceId: query.workspaceId,
     family: query.family,
-    folderId: query.folderId,
-    cursor: query.cursor,
     limit: query.limit,
   }),
   useCase: searchMentions,

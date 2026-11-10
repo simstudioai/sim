@@ -22,7 +22,7 @@ import { activeWorkspaceFileConditions } from '@/lib/workspace-files/query-scope
  * authorized, with each family's own list predicates. They perform no authorization.
  */
 
-/** How a family is read: an `@` question's best rows, or one browsed page in name order. */
+/** How a family is read: an `@` question's best rows, or the most recently updated. */
 export interface MentionReadSpec {
   workspaceIds: readonly string[]
   /** The trimmed query, lowercased; empty for the most recently updated rows. */
@@ -30,8 +30,6 @@ export interface MentionReadSpec {
   /** Workspaces whose name the query matches: every row in them matches too. */
   matchedWorkspaceIds: readonly string[]
   limit: number
-  /** A browse page: rows in name order from `offset`, inside `folderId` when given. */
-  page?: { offset: number; folderId?: string }
 }
 
 export interface MentionRecord {
@@ -40,8 +38,6 @@ export interface MentionRecord {
   /** `null` only for a built-in skill. */
   workspaceId: string | null
   updatedAt: Date
-  /** The folder holding the row, or a folder row's parent; `null` at the root. */
-  parentId: string | null
   folderFamily?: string
   detail?: string
   executionId?: string
@@ -54,7 +50,6 @@ interface MentionSource {
   name: AnyPgColumn | SQL<string>
   workspaceId: AnyPgColumn
   updatedAt: AnyPgColumn
-  parentId?: AnyPgColumn
   /** The family's own list predicate, beyond the workspace set. */
   where?: SQL
   /** Rows a query matches without matching their names, such as a family label. */
@@ -65,7 +60,7 @@ const nameRank = (name: AnyPgColumn | SQL<string>, query: string) =>
   sql<number>`case when lower(${name}) = ${query} then 0 when ${ilike(name, `${escapeLikePattern(query)}%`)} then 1 when ${ilike(name, `%${escapeLikePattern(query)}%`)} then 2 else 3 end`
 
 function matchCondition(source: MentionSource, spec: MentionReadSpec): SQL | undefined {
-  if (!spec.query || spec.page) return undefined
+  if (!spec.query) return undefined
   return or(
     ilike(source.name, `%${escapeLikePattern(spec.query)}%`),
     spec.matchedWorkspaceIds.length
@@ -81,14 +76,12 @@ async function readSource(
   extra: { folderFamily?: AnyPgColumn } = {}
 ) {
   if (!spec.workspaceIds.length) return []
-  const folderId = spec.page?.folderId
   const query = db
     .select({
       id: source.id,
       name: source.name,
       workspaceId: source.workspaceId,
       updatedAt: source.updatedAt,
-      parentId: source.parentId ?? sql<string | null>`null`,
       folderFamily: extra.folderFamily ?? sql<string | null>`null`,
     })
     .from(source.table)
@@ -96,15 +89,12 @@ async function readSource(
       and(
         inArray(source.workspaceId, [...spec.workspaceIds]),
         source.where,
-        matchCondition(source, spec),
-        folderId && source.parentId ? eq(source.parentId, folderId) : undefined
+        matchCondition(source, spec)
       )
     )
-  const ordered = spec.page
-    ? query.orderBy(asc(sql`lower(${source.name})`), asc(source.id)).offset(spec.page.offset)
-    : spec.query
-      ? query.orderBy(asc(nameRank(source.name, spec.query)), desc(source.updatedAt))
-      : query.orderBy(desc(source.updatedAt))
+  const ordered = spec.query
+    ? query.orderBy(asc(nameRank(source.name, spec.query)), desc(source.updatedAt))
+    : query.orderBy(desc(source.updatedAt))
   return ordered.limit(spec.limit)
 }
 
@@ -117,7 +107,6 @@ function records(
     name: String(row.name),
     workspaceId: row.workspaceId === null ? null : String(row.workspaceId),
     updatedAt: new Date(String(row.updatedAt)),
-    parentId: row.parentId === null ? null : String(row.parentId),
     ...(row.folderFamily === null ? {} : { folderFamily: labels[String(row.folderFamily)] }),
   }))
 }
@@ -132,7 +121,6 @@ export async function readWorkflowMentions(spec: MentionReadSpec) {
         name: workflow.name,
         workspaceId: workflow.workspaceId,
         updatedAt: workflow.updatedAt,
-        parentId: workflow.folderId,
         where: isNull(workflow.archivedAt),
       },
       spec
@@ -172,7 +160,6 @@ export async function readTableMentions(spec: MentionReadSpec) {
         name: userTableDefinitions.name,
         workspaceId: userTableDefinitions.workspaceId,
         updatedAt: userTableDefinitions.updatedAt,
-        parentId: userTableDefinitions.folderId,
         where: isNull(userTableDefinitions.archivedAt),
       },
       spec
@@ -190,7 +177,6 @@ export async function readFileMentions(spec: MentionReadSpec) {
         name: workspaceFiles.originalName,
         workspaceId: workspaceFiles.workspaceId,
         updatedAt: workspaceFiles.updatedAt,
-        parentId: workspaceFiles.folderId,
         where: and(...activeWorkspaceFileConditions([...spec.workspaceIds])),
       },
       spec
@@ -208,7 +194,6 @@ export async function readFileFolderMentions(spec: MentionReadSpec) {
         name: folder.name,
         workspaceId: folder.workspaceId,
         updatedAt: folder.updatedAt,
-        parentId: folder.parentId,
         where: and(eq(folder.resourceType, 'file'), isNull(folder.deletedAt)),
       },
       spec
@@ -226,7 +211,6 @@ export async function readKnowledgeBaseMentions(spec: MentionReadSpec) {
         name: knowledgeBase.name,
         workspaceId: knowledgeBase.workspaceId,
         updatedAt: knowledgeBase.updatedAt,
-        parentId: knowledgeBase.folderId,
         where: isNull(knowledgeBase.deletedAt),
       },
       spec
@@ -276,7 +260,6 @@ export async function readFolderMentions(
         name: folder.name,
         workspaceId: folder.workspaceId,
         updatedAt: folder.updatedAt,
-        parentId: folder.parentId,
         where: and(inArray(folder.resourceType, [...resourceTypes]), isNull(folder.deletedAt)),
         alsoMatches: labelled.length ? inArray(folder.resourceType, labelled) : undefined,
       },
@@ -343,7 +326,6 @@ export async function readLogMentions(spec: MentionReadSpec): Promise<MentionRec
         name: run.label,
         workspaceId: run.workspaceId,
         updatedAt: run.startedAt,
-        parentId: null,
         executionId,
         workflowLabel: run.label,
       }
@@ -386,7 +368,6 @@ export async function readSkillMentions(spec: MentionReadSpec): Promise<MentionR
       detail: builtin.description,
       workspaceId: null,
       updatedAt: new Date(0),
-      parentId: null,
     })),
     ...spec.workspaceIds.flatMap((workspaceId) =>
       rows
@@ -397,8 +378,7 @@ export async function readSkillMentions(spec: MentionReadSpec): Promise<MentionR
           detail: row.description,
           workspaceId: row.workspaceId,
           updatedAt: row.updatedAt,
-          parentId: null,
         }))
     ),
-  ].slice(spec.page?.offset ?? 0, (spec.page?.offset ?? 0) + spec.limit)
+  ].slice(0, spec.limit)
 }

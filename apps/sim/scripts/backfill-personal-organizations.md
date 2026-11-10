@@ -70,22 +70,46 @@ backfill nor a rollback touches chats.
 
 ## Rollback
 
-Revert in the reverse order, before rolling the release back:
+Rollback is one short maintenance window: pause, revert, and deploy the previous release
+straight after, in that order and without stopping in between. The new release's product shell
+serves only people in an organization, and while the flag is on nothing creates one, so from the
+moment an account is reverted until the previous release is live, that account sees Access
+denied on every product page (and `/workspace` returns to the same page). So does anyone else in
+no organization during the window: new signups, people leaving a team, and former members of a
+deleted team. The previous release is what serves organization-less accounts, and it cannot run
+while personal organizations remain, so the window cannot be avoided, only kept short: never
+batch the revert over hours.
 
-1. **Turn the `pause-personal-organizations` flag on** (AppConfig `enabled: true`; self-hosted
-   deployments set `PAUSE_PERSONAL_ORGANIZATIONS=true`), so nothing creates a personal organization
-   again and new personal workspaces are created organization-less.
-2. **Dry run** `scripts/revert-personal-organizations.ts` (no `--apply`): prints the number of
+1. **Before the window**, size it: run the dry run below for the count, and rehearse the revert on
+   a copy of the database from the host you will run it from; the run prints `elapsedSeconds` and
+   `organizationsPerSecond` after every batch and in its report. Each organization is one
+   transaction of about twenty sequential statements, so the round trip to the database sets the
+   pace: from a host in the database's region expect on the order of 10 to 30 organizations a
+   second from one process; over a tunnel with tens of milliseconds of latency, closer to one.
+   The window is roughly the count divided by the rehearsed rate, plus the deploy. Run it from
+   inside the region.
+2. **Turn the `pause-personal-organizations` flag on in both places**: AppConfig
+   (`enabled: true`) and the `PAUSE_PERSONAL_ORGANIZATIONS=true` secret. The flag fails open: a
+   process that cannot fetch AppConfig falls back to the secret, which is unset on hosted
+   deployments, and would go on creating personal organizations. Processes read the secret when
+   they start, so set it and restart the app, background workers and Trigger.dev tasks first, then
+   turn AppConfig on and wait a minute for every process's cached flags (about 30 seconds) to
+   refresh. Self-hosted deployments without AppConfig set only the secret. From here nothing
+   creates a personal organization and new personal workspaces are created organization-less.
+3. **Dry run** `scripts/revert-personal-organizations.ts` (no `--apply`): prints the number of
    personal organizations still to revert. `--apply` refuses while the flag is off.
-3. **Revert** with `--apply --report <path>` (batched, idempotent, resumable with `--after`). Each
-   personal organization's workspaces (and Projects) return to organization-less personal, its
-   invitations are released, and the organization and its owner membership are deleted, under the
-   backfill's locks. A personal organization holding its owner's own content (organization chats,
-   memory spaces, Search, go links, ...) is skipped and listed in `skippedWithContent` with the
-   first table found; decide, then rerun with `--delete-content` to delete that content with its
-   organization, or leave those organizations in place.
-4. **Verify**: `SELECT count(*) FROM organization WHERE kind = 'personal'` equals the number of
+4. **Revert immediately** with `--apply --report <path>` in one run (idempotent; resumable with
+   `--after` only to recover from a crash). Each personal organization's workspaces (and Projects)
+   return to organization-less personal, its invitations are released, and the organization and
+   its owner membership are deleted, under the backfill's locks. A personal organization holding
+   its owner's own content (organization chats, memory spaces, Search, go links, ...) is skipped
+   and listed in `skippedWithContent` with the first table found. Decide that before the window
+   (the rehearsal lists them): rerun with `--delete-content` to delete that content with its
+   organization, or leave those organizations in place, knowing the previous release treats them
+   as described under "Why the order matters".
+5. **Verify**: `SELECT count(*) FROM organization WHERE kind = 'personal'` equals the number of
    organizations deliberately kept, and the first verification query above counts every account
    whose personal organization was reverted.
-5. **Roll the release back.** Migrations 0455 to 0458 stay: they are additive, and with no
-   personal organizations left their triggers never fire.
+6. **Roll the release back** right away. Migrations 0455 to 0458 stay: they are additive, and with
+   no personal organizations left their triggers never fire. The previous release ignores the
+   flag and the secret; turn both off before rolling forward again.

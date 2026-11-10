@@ -217,7 +217,9 @@ export async function createWorkspaceInTransaction(
 
 /**
  * Runs a workspace-creating transaction, answering a violation of creation's user foreign keys as
- * {@link WorkspaceOwnerMissingError}: the acting user's row is gone.
+ * {@link WorkspaceOwnerMissingError}: the acting user's row is gone. A
+ * {@link WorkspaceCreationContextChangedError} is an expected race its callers answer, so it is
+ * not logged as a failure here.
  */
 async function commitWorkspaceCreation<T>(
   userId: string,
@@ -233,6 +235,7 @@ async function commitWorkspaceCreation<T>(
       logger.warn('Workspace creation raced account deletion', { userId })
       throw new WorkspaceOwnerMissingError(userId)
     }
+    if (error instanceof WorkspaceCreationContextChangedError) throw error
     logger.error('Failed to create workspace', { userId, error })
     throw error
   }

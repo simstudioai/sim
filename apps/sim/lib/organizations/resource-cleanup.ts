@@ -1,5 +1,6 @@
 import { db } from '@sim/db'
 import { copilotChats, organization, workspaceFiles } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
 import { describeError, toError } from '@sim/utils/errors'
 import { and, asc, eq, gt, inArray, isNull } from 'drizzle-orm'
 import { cleanupCopilotBackend } from '@/lib/cleanup/chat-cleanup'
@@ -18,6 +19,8 @@ import {
 import { deleteFile } from '@/lib/uploads/core/storage-service'
 import { createStorageReferenceGuard } from '@/lib/users/storage-reference-guard'
 import { toDisposableStorageObject } from '@/lib/users/storage-sweep'
+
+const logger = createLogger('OrganizationResourceCleanup')
 
 const FILE_DELETE_CONCURRENCY = 10
 
@@ -121,6 +124,13 @@ export const organizationResourceCleanupOutboxHandlers = {
       const object = toDisposableStorageObject(key, context)
       return object ? [object] : []
     })
+    if (disposable.length < objects.length) {
+      logger.warn('Skipped stored objects that are not disposable', {
+        organizationId: payload.organizationId,
+        eventId: context.eventId,
+        skipped: objects.length - disposable.length,
+      })
+    }
     const referenced = await createStorageReferenceGuard()(disposable.map(({ key }) => key))
     const failures = await mapWithConcurrency(
       disposable,

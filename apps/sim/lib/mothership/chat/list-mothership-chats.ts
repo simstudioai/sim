@@ -11,46 +11,43 @@ import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-livenes
  * the workspace's organization), wherever those workspaces sit.
  */
 function openableWorkspaceChat(userId: string): SQL {
-  return and(
-    isNotNull(copilotChats.workspaceId),
-    exists(
-      db
-        .select({ id: workspace.id })
-        .from(workspace)
-        .where(
-          and(
-            eq(workspace.id, copilotChats.workspaceId),
-            isNull(workspace.archivedAt),
-            or(
-              exists(
-                db
-                  .select({ id: permissions.id })
-                  .from(permissions)
-                  .where(
-                    and(
-                      eq(permissions.userId, userId),
-                      eq(permissions.entityType, 'workspace'),
-                      eq(permissions.entityId, workspace.id)
-                    )
+  return exists(
+    db
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(
+        and(
+          eq(workspace.id, copilotChats.workspaceId),
+          isNull(workspace.archivedAt),
+          or(
+            exists(
+              db
+                .select({ id: permissions.id })
+                .from(permissions)
+                .where(
+                  and(
+                    eq(permissions.userId, userId),
+                    eq(permissions.entityType, 'workspace'),
+                    eq(permissions.entityId, workspace.id)
                   )
-              ),
-              exists(
-                db
-                  .select({ id: member.id })
-                  .from(member)
-                  .where(
-                    and(
-                      eq(member.userId, userId),
-                      eq(member.organizationId, workspace.organizationId),
-                      inArray(member.role, ['owner', 'admin'])
-                    )
+                )
+            ),
+            exists(
+              db
+                .select({ id: member.id })
+                .from(member)
+                .where(
+                  and(
+                    eq(member.userId, userId),
+                    eq(member.organizationId, workspace.organizationId),
+                    inArray(member.role, ['owner', 'admin'])
                   )
-              )
+                )
             )
           )
         )
-    )
-  ) as SQL
+      )
+  )
 }
 
 /**

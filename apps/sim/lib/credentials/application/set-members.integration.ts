@@ -1,4 +1,6 @@
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
+import { createDeferred } from '@sim/testing/helpers/deferred'
+import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
@@ -8,19 +10,20 @@ describe('Replacing credential access in PostgreSQL', () => {
   const readerId = generateId()
   const writerId = generateId()
   const outsiderId = generateId()
+  const leaverId = generateId()
   const workspaceId = generateId()
   const credentialId = generateId()
   const principal = { kind: 'session' as const, userId: actorId, sessionId: generateId() }
   let runtime: Awaited<ReturnType<typeof loadRuntime>>
 
   async function loadRuntime() {
-    const [{ db }, schema, { eq, inArray }, useCases] = await Promise.all([
+    const [{ db }, schema, { and, eq, inArray, sql }, useCases] = await Promise.all([
       import('@sim/db'),
       import('@sim/db/schema'),
       import('drizzle-orm'),
       import('@/lib/credentials/application/members'),
     ])
-    return { db, schema, eq, inArray, ...useCases }
+    return { db, schema, and, eq, inArray, sql, ...useCases }
   }
 
   async function grants() {
@@ -47,7 +50,7 @@ describe('Replacing credential access in PostgreSQL', () => {
     runtime = await loadRuntime()
     const { db, schema } = runtime
     await db.insert(schema.user).values(
-      [actorId, readerId, writerId, outsiderId].map((id) => ({
+      [actorId, readerId, writerId, outsiderId, leaverId].map((id) => ({
         id,
         name: id,
         email: `${id}@set-members.test`,
@@ -68,6 +71,7 @@ describe('Replacing credential access in PostgreSQL', () => {
           [actorId, 'admin'],
           [readerId, 'read'],
           [writerId, 'write'],
+          [leaverId, 'write'],
         ] as const
       ).map(([userId, permissionType]) => ({
         id: generateId(),
@@ -118,7 +122,7 @@ describe('Replacing credential access in PostgreSQL', () => {
     await deleteWorkspaceFixture(db, eq(schema.workspace.id, workspaceId))
     await db
       .delete(schema.user)
-      .where(inArray(schema.user.id, [actorId, readerId, writerId, outsiderId]))
+      .where(inArray(schema.user.id, [actorId, readerId, writerId, outsiderId, leaverId]))
   })
 
   it('applies nothing when one proposed person is outside the workspace', async () => {
@@ -176,5 +180,51 @@ describe('Replacing credential access in PostgreSQL', () => {
       code: 'validation',
     })
     expect(await grants()).toEqual({ [readerId]: 'active:admin' })
+  })
+
+  it('refuses a person removed from the workspace while the change waited for the credential', async () => {
+    const { db, schema, and, eq, sql } = runtime
+    const holding = createDeferred<number>()
+    const release = createDeferred<void>()
+    const remover = db.transaction(async (tx) => {
+      await tx
+        .select({ id: schema.credential.id })
+        .from(schema.credential)
+        .where(eq(schema.credential.id, credentialId))
+        .for('update')
+      const [{ pid }] = await tx.execute<{ pid: number }>(sql`SELECT pg_backend_pid() AS pid`)
+      holding.resolve(pid)
+      await release.promise
+      await tx
+        .delete(schema.permissions)
+        .where(
+          and(eq(schema.permissions.userId, leaverId), eq(schema.permissions.entityId, workspaceId))
+        )
+    })
+    const removerPid = await holding.promise
+
+    const change = setMembers([
+      { userId: actorId, role: 'admin' },
+      { userId: leaverId, role: 'member' },
+    ])
+    change.catch(() => {})
+    let waiting = false
+    const deadline = Date.now() + 5_000
+    while (!waiting && Date.now() < deadline) {
+      const [blocked] = await db.execute<{ waiting: boolean }>(sql`
+        SELECT EXISTS (
+          SELECT 1 FROM pg_stat_activity
+          WHERE ${removerPid} = ANY(pg_blocking_pids(pid)) AND wait_event_type = 'Lock'
+        ) AS waiting
+      `)
+      waiting = blocked.waiting
+      if (!waiting) await sleep(5)
+    }
+    expect(waiting, 'The change must wait for the credential lock').toBe(true)
+    release.resolve()
+    await remover
+
+    await expect(change).rejects.toMatchObject({ code: 'validation' })
+    expect(await grants()).toEqual({ [actorId]: 'active:admin', [readerId]: 'active:member' })
   })
 })
