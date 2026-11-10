@@ -102,6 +102,15 @@ export class SnowflakeCredentialError extends Error {
   }
 }
 
+/** Whether a decrypted Snowflake secret is a keyless configuration rather than a token. */
+export function isKeylessSnowflakeSecret(decrypted: string): boolean {
+  try {
+    return storedSecretSchema.safeParse(JSON.parse(decrypted)).success
+  } catch {
+    return false
+  }
+}
+
 function readStoredSubject(storedSecret: Record<string, unknown> | null | undefined) {
   const parsed = storedSecretSchema.safeParse(storedSecret)
   return parsed.success ? parsed.data.config.subject : undefined

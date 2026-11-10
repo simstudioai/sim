@@ -561,6 +561,8 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
   body: z.object({
     workspaceId: workspaceIdSchema,
     provider: z.enum(WORKLOAD_IDENTITY_PROVIDERS),
+    /** The credential being reconnected, so the dialog opens on its current mode. */
+    credentialId: z.string().min(1).max(255).optional(),
   }),
   response: {
     mode: 'json',
@@ -578,6 +580,8 @@ export const prepareWorkloadIdentityContract = defineRouteContract({
         /** Opaque proof submitted with the credential; binds the subject to its creator. */
         subjectProof: z.string(),
         expiresAt: z.string(),
+        /** The reconnected credential is keyless (Snowflake only). */
+        reconnectsKeyless: z.literal(true).optional(),
       }),
     ]),
   },

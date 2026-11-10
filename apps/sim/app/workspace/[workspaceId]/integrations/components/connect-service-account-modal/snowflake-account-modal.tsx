@@ -155,11 +155,17 @@ function SnowflakeAccountForm({
   const [displayName, setDisplayName] = useState(initialDisplayName ?? '')
   const [description, setDescription] = useState(initialDescription ?? '')
 
-  // Keyless is the default for a new connection wherever this deployment supports it;
-  // a reconnect starts on the token, which every existing Snowflake credential uses.
-  const authType: SnowflakeAuthType =
-    selectedAuthType ??
-    (keyless.available && !credentialId ? 'workload_identity' : 'programmatic_access_token')
+  // A reconnect opens on the credential's current mode, so a keyless connection is never
+  // turned into a token one by default; a new connection defaults to keyless wherever this
+  // deployment supports it.
+  const defaultAuthType: SnowflakeAuthType = credentialId
+    ? keyless.reconnectsKeyless
+      ? 'workload_identity'
+      : 'programmatic_access_token'
+    : keyless.available
+      ? 'workload_identity'
+      : 'programmatic_access_token'
+  const authType: SnowflakeAuthType = selectedAuthType ?? defaultAuthType
   const normalizedHost = normalizeHostInput(host)
   const isPending =
     keylessSubmit.isPending || createCredential.isPending || updateCredential.isPending

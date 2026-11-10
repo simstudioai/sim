@@ -89,6 +89,7 @@ import { jamaDeleteRelationshipTool } from '@/tools/jama/delete_relationship'
 import { memoryAddTool } from '@/tools/memory/add'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
 import { slackListsItemsListTool } from '@/tools/slack_lists/items_list'
+import { cortexAnalystAskTool as snowflakeCortexAnalystAskTool } from '@/tools/snowflake/cortex_analyst_ask'
 import { listDatabasesTool as snowflakeListDatabasesTool } from '@/tools/snowflake/list_databases'
 import { stripeListSubscriptionsTool } from '@/tools/stripe/list_subscriptions'
 import { stripeSearchSubscriptionsTool } from '@/tools/stripe/search_subscriptions'
@@ -3666,6 +3667,75 @@ describe('Internal Route Trust', () => {
       expect(headers.authorization).toBe('Bearer pat-secret')
       expect(headers['x-snowflake-authorization-token-type']).toBe('PROGRAMMATIC_ACCESS_TOKEN')
     })
+
+    /**
+     * Cortex Analyst runs its generated SQL itself. The second statement must reach the
+     * credential's host with the credential's token type, for every credential mode.
+     */
+    it.each([
+      ['a programmatic access token', {}, 'Bearer pat-or-jwt', 'PROGRAMMATIC_ACCESS_TOKEN'],
+      [
+        'a keyless credential',
+        { authStyle: 'snowflake-workload-identity' },
+        'Bearer WIF.OIDC.pat-or-jwt',
+        'WORKLOAD_IDENTITY_FEDERATION',
+      ],
+    ])(
+      'runs Cortex Analyst’s generated SQL with %s',
+      async (_mode, resolved, authorization, tokenType) => {
+        ;(tools as Record<string, unknown>)[snowflakeCortexAnalystAskTool.id] =
+          snowflakeCortexAnalystAskTool
+        try {
+          mockResolveExecutorCredentialToken.mockResolvedValue({
+            credentialType: 'service_account',
+            domain: CREDENTIAL_HOST,
+            accessToken: 'pat-or-jwt',
+            ...resolved,
+          })
+          mockSecureFetchWithPinnedIP
+            .mockResolvedValueOnce(
+              toSecureFetchResponse(
+                Response.json({
+                  message: {
+                    role: 'analyst',
+                    content: [{ type: 'sql', statement: 'SELECT 1' }],
+                  },
+                })
+              )
+            )
+            .mockResolvedValueOnce(
+              toSecureFetchResponse(
+                Response.json({
+                  statementHandle: '01b2c3d4-0000-0000-0000-000000000000',
+                  sqlState: '00000',
+                  resultSetMetaData: { numRows: 1, rowType: [{ name: '1', type: 'fixed' }] },
+                  data: [['1']],
+                })
+              )
+            )
+
+          const result = await executeTool(snowflakeCortexAnalystAskTool.id, {
+            oauthCredential: 'snowflake-credential',
+            question: 'How many?',
+            semanticView: 'DB.SCHEMA.VIEW',
+            executeSql: true,
+          })
+
+          expect(result.success).toBe(true)
+          const [url, , init] = mockSecureFetchWithPinnedIP.mock.lastCall ?? []
+          expect(url).toBe(`https://${CREDENTIAL_HOST}/api/v2/statements`)
+          const headers = Object.fromEntries(
+            Object.entries((init as { headers: Record<string, string> }).headers).map(
+              ([name, value]) => [name.toLowerCase(), value]
+            )
+          )
+          expect(headers.authorization).toBe(authorization)
+          expect(headers['x-snowflake-authorization-token-type']).toBe(tokenType)
+        } finally {
+          Reflect.deleteProperty(tools, snowflakeCortexAnalystAskTool.id)
+        }
+      }
+    )
 
     it('sends a keyless credential’s token through workload identity federation', async () => {
       const { headers } = await snowflakeRequestHeaders(

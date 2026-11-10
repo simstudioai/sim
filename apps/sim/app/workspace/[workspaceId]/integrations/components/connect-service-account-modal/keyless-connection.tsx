@@ -51,11 +51,14 @@ export function useKeylessSetup({
     provider,
     sessionKey,
     enabled: workspaceScoped,
+    credentialId,
   })
   const trust = setup.data?.available ? setup.data : undefined
   return {
     /** Undefined while this deployment's support is still loading. */
     available: workspaceScoped ? setup.data?.available : false,
+    /** The credential being reconnected is keyless (reported for Snowflake only). */
+    reconnectsKeyless: Boolean(setup.data?.available && setup.data.reconnectsKeyless),
     isReconnect: Boolean(credentialId),
     subjectChoice,
     setSubjectChoice,
