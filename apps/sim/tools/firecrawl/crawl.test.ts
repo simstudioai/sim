@@ -1,8 +1,10 @@
 import { isPlainRecord } from '@sim/utils/object'
 import { describe, expect, it } from 'vitest'
 import { crawlTool } from '@/tools/firecrawl/crawl'
+import type { FirecrawlCrawlParams } from '@/tools/firecrawl/types'
 
 function crawlBody(options: {
+  url?: string
   maxDepth: number
   maxDiscoveryDepth?: number
   includePaths?: string[]
@@ -72,4 +74,34 @@ describe('Firecrawl legacy crawl depth', () => {
       expect(() => crawlBody({ maxDepth })).toThrow(/maxDepth/)
     }
   )
+
+  it('measures depth below the start URL, as Firecrawl v1 did', () => {
+    const body = crawlBody({ url: 'https://example.com/guide/intro', maxDepth: 1 })
+    const patterns = (body.includePaths as string[]).map((pattern) => new RegExp(pattern))
+    const accepts = (path: string) => patterns.some((pattern) => pattern.test(path))
+
+    expect(accepts('/guide/intro')).toBe(true)
+    expect(accepts('/guide/intro/setup')).toBe(true)
+    expect(accepts('/guide/intro/setup/advanced')).toBe(false)
+  })
+
+  it('ignores an index file in the start URL when measuring its depth', () => {
+    const body = crawlBody({ url: 'https://example.com/docs/index.html', maxDepth: 0 })
+    const patterns = (body.includePaths as string[]).map((pattern) => new RegExp(pattern))
+    expect(patterns.some((pattern) => pattern.test('/docs'))).toBe(true)
+    expect(patterns.some((pattern) => pattern.test('/docs/guide'))).toBe(false)
+  })
+
+  it('treats a blank depth as unset instead of a zero-depth crawl', () => {
+    if (typeof crawlTool.request.body !== 'function') throw new Error('Missing request formatter')
+    const blankDepth: Record<string, unknown> = {
+      apiKey: 'test',
+      url: 'https://example.com',
+      maxDepth: '',
+    }
+    const body = crawlTool.request.body(blankDepth as FirecrawlCrawlParams)
+    if (!isPlainRecord(body)) throw new Error('Expected a JSON request body')
+    expect(body.includePaths).toBeUndefined()
+    expect(body.regexOnFullURL).toBeUndefined()
+  })
 })

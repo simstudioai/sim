@@ -49,6 +49,7 @@ export async function mintDelegationToken(params: {
               eq(apiKey.userId, params.userId),
               eq(apiKey.name, name),
               eq(apiKey.type, 'personal'),
+              eq(apiKey.access, 'write'),
               gt(apiKey.expiresAt, new Date(Date.now() + MIN_REMAINING_MS))
             )
           )
@@ -83,6 +84,7 @@ export async function mintDelegationToken(params: {
           key: stored,
           keyHash: hashApiKey(plainKey),
           type: 'personal',
+          access: 'write',
           createdAt: now,
           updatedAt: now,
           expiresAt,

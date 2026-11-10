@@ -18,6 +18,18 @@ const logger = createLogger('FirecrawlCrawlTool')
 const POLL_INTERVAL_MS = 5000
 const MAX_POLL_TIME_MS = DEFAULT_EXECUTION_TIMEOUT_MS
 
+/** Path segments in a URL, ignoring index files, as Firecrawl v1 measured crawl depth. */
+function startUrlPathDepth(url: string): number {
+  try {
+    return new URL(url).pathname
+      .split('/')
+      .filter((segment) => segment !== '' && segment !== 'index.html' && segment !== 'index.php')
+      .length
+  } catch {
+    return 0
+  }
+}
+
 export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse> = {
   id: 'firecrawl_crawl',
   name: 'Firecrawl Crawl',
@@ -155,13 +167,14 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       if (params.maxConcurrency) body.maxConcurrency = Number(params.maxConcurrency)
       if (params.excludePaths) body.excludePaths = params.excludePaths
       if (params.includePaths) body.includePaths = params.includePaths
-      if (params.maxDepth != null) {
-        const maxDepth = Number(params.maxDepth)
-        if (!Number.isSafeInteger(maxDepth) || maxDepth < 0) {
+      if (params.maxDepth != null && String(params.maxDepth).trim() !== '') {
+        const requestedDepth = Number(params.maxDepth)
+        if (!Number.isSafeInteger(requestedDepth) || requestedDepth < 0) {
           throw new Error('maxDepth must be a non-negative integer')
         }
+        // v1 counted path segments below the start URL's own depth; v2 discovery depth counts link hops.
+        const maxDepth = requestedDepth + startUrlPathDepth(params.url)
 
-        // v1 depth counted URL path segments; v2 discovery depth counts link hops.
         body.regexOnFullURL = false
         if (params.includePaths?.length) {
           const indexFiles = ['index.html', 'index.php']
