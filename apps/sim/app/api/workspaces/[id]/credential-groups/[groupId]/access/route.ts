@@ -7,12 +7,12 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { createCredentialGroupInternalErrorPolicy } from '@/lib/api/server/routes/credential-groups'
 import {
   readCredentialGroupAccess,
   updateCredentialGroupAccess,
 } from '@/lib/credential-groups/application/manage-access'
 import { credentialGroupOperations } from '@/lib/credential-groups/application/operations'
-import { createCredentialGroupInternalErrorPolicy } from '@/app/api/workspaces/[id]/credential-groups/error-policy'
 
 const rateLimit = internalRateLimits.none({
   reason: 'Credential Group access changes are workspace-admin control-plane operations',

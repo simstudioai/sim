@@ -4,11 +4,11 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { createCredentialGroupInternalErrorPolicy } from '@/lib/api/server/routes/credential-groups'
 import {
   organizationHomeOperations,
   readOrganizationHomeCalendar,
 } from '@/lib/organizations/application/home-widgets'
-import { createCredentialGroupInternalErrorPolicy } from '@/app/api/workspaces/[id]/credential-groups/error-policy'
 
 export const GET = defineInternalJsonRoute({
   contract: getOrganizationHomeCalendarContract,

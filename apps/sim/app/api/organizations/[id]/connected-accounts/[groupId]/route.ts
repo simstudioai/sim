@@ -4,11 +4,11 @@ import {
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { createCredentialGroupInternalErrorPolicy } from '@/lib/api/server/routes/credential-groups'
 import {
   organizationAccountOperations,
   updateOrganizationAccountsSettings,
 } from '@/lib/credential-groups/application/organization-accounts'
-import { createCredentialGroupInternalErrorPolicy } from '@/app/api/workspaces/[id]/credential-groups/error-policy'
 
 export const PATCH = defineInternalJsonRoute({
   contract: updateOrganizationAccountsContract,
