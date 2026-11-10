@@ -109,8 +109,11 @@ describe('workload identity issuer', () => {
     )
 
     expect(await issuer.isWorkloadIdentityConfigured()).toBe(false)
-    expect((await workloadIdentityDiscoveryResponse()).status).toBe(404)
-    expect((await workloadIdentityJwksResponse()).status).toBe(404)
+    const discovery = await workloadIdentityDiscoveryResponse()
+    expect(discovery.status).toBe(404)
+    // Never cached, so the issuer is discoverable as soon as a key is configured.
+    expect(discovery.headers.get('Cache-Control')).toBe('no-store')
+    expect((await workloadIdentityJwksResponse()).headers.get('Cache-Control')).toBe('no-store')
     await expect(
       issuer.mintWorkloadIdentityToken({
         subject: 'sim:workspace:ws-1:credential:abc123def456',

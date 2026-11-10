@@ -17,7 +17,7 @@ const DISCOVERY_HEADERS = {
 } as const
 
 function notConfigured() {
-  return new NextResponse(null, { status: 404 })
+  return new NextResponse(null, { status: 404, headers: { 'Cache-Control': 'no-store' } })
 }
 
 /** The issuer's OpenID discovery document, or 404 when this deployment has no usable signing key. */
