@@ -63,7 +63,7 @@ diff --git a/bin.cjs b/bin.cjs
 -        console.error(e4);
 +        throw e4;
        }
-@@ -92281,2 +92282,3 @@
+@@ -92291,2 +92292,3 @@
        console.error(e4);
 +      process.exit(1);
      }
