@@ -63,8 +63,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const { organizationId } = validation.data
     if (!organizationId) return mothershipEventsHandler(request, principal)
 
+    /** The viewer's openable workspaces, whose chats the organization's list holds; reread on every check. */
+    let workspaceIds: ReadonlySet<string> = new Set()
     const revalidate = async () => {
-      await authorizeOrganizationChatEvents.execute({ principal, input: { organizationId } })
+      ;({ workspaceIds } = await authorizeOrganizationChatEvents.execute({
+        principal,
+        input: { organizationId },
+      }))
     }
     await revalidate()
     return createSSEStream(request, {
@@ -74,7 +79,11 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         {
           subscribe: (send) =>
             chatPubSub?.onStatusChanged((event) => {
-              if (event.organizationId !== organizationId || event.userId !== principal.userId)
+              if (event.userId !== principal.userId) return
+              if (
+                event.organizationId !== organizationId &&
+                !(event.workspaceId && workspaceIds.has(event.workspaceId))
+              )
                 return
               send('task_status', {
                 chatId: event.chatId,
