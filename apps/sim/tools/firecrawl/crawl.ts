@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
+import { escapeRegExp } from '@sim/utils/string'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import {
@@ -41,7 +42,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Maximum depth to crawl from the starting URL (e.g., 1, 2, 3). Controls how many levels deep to follow links',
+        'Maximum URL path depth (e.g., 1 allows /docs and /docs/index.html). Independent of link discovery depth',
     },
     formats: {
       type: 'json',
@@ -130,7 +131,7 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         url: params.url,
         limit: Number(params.limit) || 100,
         scrapeOptions: params.scrapeOptions || {
@@ -140,8 +141,8 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       }
 
       if (params.prompt) body.prompt = params.prompt
-      if (params.maxDepth) body.maxDiscoveryDepth = Number(params.maxDepth)
-      if (params.maxDiscoveryDepth) body.maxDiscoveryDepth = Number(params.maxDiscoveryDepth)
+      if (params.maxDiscoveryDepth != null)
+        body.maxDiscoveryDepth = Number(params.maxDiscoveryDepth)
       if (params.sitemap) body.sitemap = params.sitemap
       if (typeof params.crawlEntireDomain === 'boolean')
         body.crawlEntireDomain = params.crawlEntireDomain
@@ -154,6 +155,44 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       if (params.maxConcurrency) body.maxConcurrency = Number(params.maxConcurrency)
       if (params.excludePaths) body.excludePaths = params.excludePaths
       if (params.includePaths) body.includePaths = params.includePaths
+      if (params.maxDepth != null) {
+        const maxDepth = Number(params.maxDepth)
+        if (!Number.isSafeInteger(maxDepth) || maxDepth < 0) {
+          throw new Error('maxDepth must be a non-negative integer')
+        }
+
+        // v1 depth counted URL path segments; v2 discovery depth counts link hops.
+        body.regexOnFullURL = false
+        if (params.includePaths?.length) {
+          const indexFiles = ['index.html', 'index.php']
+          const nonIndexSegmentPatterns = new Set<string>()
+          // Rust regex has no lookarounds, so enumerate incomplete prefixes and first mismatches.
+          for (const file of indexFiles) {
+            for (let length = 0; length <= file.length; length++) {
+              const prefix = file.slice(0, length)
+              const nextCharacters = indexFiles
+                .filter((indexFile) => indexFile.startsWith(prefix))
+                .map((indexFile) => indexFile.charAt(length))
+                .join('')
+              const escapedPrefix = escapeRegExp(prefix)
+              if (prefix && !indexFiles.includes(prefix)) {
+                nonIndexSegmentPatterns.add(escapedPrefix)
+              }
+              nonIndexSegmentPatterns.add(`${escapedPrefix}[^/${nextCharacters}][^/]*`)
+            }
+          }
+          const nonIndexBoundary = `^(/+[^/]+){${maxDepth}}/+(${[...nonIndexSegmentPatterns].join('|')})/*$`
+          body.excludePaths = [
+            ...(params.excludePaths ?? []),
+            `^(/+[^/]+){${maxDepth + 2}}|${nonIndexBoundary}`,
+          ]
+        } else {
+          body.includePaths = [
+            `^(/+[^/]+){0,${maxDepth}}/*$`,
+            `^(/+[^/]+){0,${maxDepth}}/+index\\.(html|php)/*$`,
+          ]
+        }
+      }
       if (params.webhook) body.webhook = params.webhook
       if (typeof params.zeroDataRetention === 'boolean')
         body.zeroDataRetention = params.zeroDataRetention
