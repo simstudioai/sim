@@ -16,7 +16,7 @@ Use [Jotform](https://www.jotform.com/) to manage forms and submissions, create 
 
 The integration authenticates with a Jotform API key, created under **Account Settings → API**. Keys are scoped to read-only or full access, so create the key at the level your operations need — creating submissions, editing forms, and managing webhooks all require full access.
 
-An API key is only valid on the host that issued it. Use the **Region** field to match where the account lives: `us` (default), `eu` for EU data residency accounts, or `hipaa` for HIPAA-compliant accounts. A key used against the wrong host returns an authentication error.
+An API key is only valid on the host that issued it. Choose the region when you connect the Jotform credential (the legacy block has a **Region** field instead) to match where the account lives: `us` (default), `eu` for EU data residency accounts, or `hipaa` for HIPAA-compliant accounts. A key used against the wrong host returns an authentication error.
 
 Jotform enforces a daily API call limit that varies by plan. Schedule high-frequency polling with that budget in mind — or prefer a webhook, to reduce polling calls. Sim still makes API calls to register and manage webhook subscriptions.
 

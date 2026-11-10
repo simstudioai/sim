@@ -369,7 +369,7 @@ describe('saved credentials whose connection names a host, region, or account', 
 })
 
 describe('saved credentials for a host the user chose', () => {
-  it.each([
+  const HOST_CHOSEN_VALIDATORS = [
     ['Convex', validateConvexServiceAccount],
     ['Dynatrace', validateDynatraceServiceAccount],
     ['Email Bison', validateEmailBisonServiceAccount],
@@ -380,13 +380,27 @@ describe('saved credentials for a host the user chose', () => {
     ['Plane', validatePlaneServiceAccount],
     ['Tinybird', validateTinybirdServiceAccount],
     ['Upstash', validateUpstashServiceAccount],
-  ])(
+  ] as const
+
+  it.each(HOST_CHOSEN_VALIDATORS)(
     '%s refuses credentials smuggled into the URL before sending the key anywhere',
     async (_, validate) => {
       inputValidationMockFns.mockSecureFetchWithValidation.mockReset()
 
       await expect(
         validate({ apiToken: 'secret', domain: 'https://user:pass@instance.example.com' })
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
+    }
+  )
+
+  it.each(HOST_CHOSEN_VALIDATORS)(
+    '%s refuses a non-http scheme instead of reading it as a host',
+    async (_, validate) => {
+      inputValidationMockFns.mockSecureFetchWithValidation.mockReset()
+
+      await expect(
+        validate({ apiToken: 'secret', domain: 'ftp://instance.example.com' })
       ).rejects.toMatchObject({ code: 'invalid_credentials' })
       expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
     }
@@ -429,13 +443,4 @@ describe('saved credentials whose vendor answers a restricted token in its error
     if (code) await expect(result).rejects.toMatchObject({ code })
     else await expect(result).resolves.toMatchObject({ principal: null })
   })
-})
-
-it('refuses an Email Bison instance typed with a non-https scheme instead of reading it as a host', async () => {
-  inputValidationMockFns.mockSecureFetchWithValidation.mockReset()
-
-  await expect(
-    validateEmailBisonServiceAccount({ apiToken: 'secret', domain: 'ftp://instance.example.com' })
-  ).rejects.toMatchObject({ code: 'invalid_credentials' })
-  expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
 })

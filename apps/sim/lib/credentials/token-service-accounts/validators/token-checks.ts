@@ -13,7 +13,7 @@ import {
   allowedDomain,
   normalizeHttpBaseUrl,
   readJsonBody,
-  refuseUrlCredentials,
+  refuseUnsafeTypedUrl,
   tokenCheckValidator,
 } from '@/lib/credentials/token-service-accounts/validators/http'
 import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/lib/internal/jupyter/protocol'
@@ -462,7 +462,7 @@ export const validateElevenLabsServiceAccount = tokenCheckValidator({
  */
 export const validateEmailBisonServiceAccount = tokenCheckValidator({
   serviceLabel: 'Email Bison',
-  domain: ({ domain }) => normalizeEmailBisonBaseUrl(refuseUrlCredentials(domain)),
+  domain: ({ domain }) => normalizeEmailBisonBaseUrl(refuseUnsafeTypedUrl(domain)),
   egress: 'configuredEndpoint',
   request: ({ apiToken, domain }) => ({
     url: `${domain}/api/users`,
@@ -766,7 +766,7 @@ export const validateJotformServiceAccount = tokenCheckValidator({
  */
 export const validateJupyterServiceAccount = tokenCheckValidator({
   serviceLabel: 'Jupyter',
-  domain: ({ domain }) => normalizeJupyterServerUrl(refuseUrlCredentials(domain)),
+  domain: ({ domain }) => normalizeJupyterServerUrl(refuseUnsafeTypedUrl(domain)),
   egress: 'selfHostedService',
   request: ({ apiToken, domain }) => ({
     url: `${domain}/api/status`,
@@ -845,7 +845,7 @@ export const validateLogfireServiceAccount = tokenCheckValidator({
     }
     // A self-hosted base URL names a domain, a port, or a scheme; a bare word is a mistyped region.
     if (!/[.:]/.test(typed)) throw new Error('unknown region')
-    return getLogfireBaseUrl(apiToken, 'auto', typed)
+    return getLogfireBaseUrl(apiToken, 'auto', refuseUnsafeTypedUrl(typed))
   },
   egress: 'configuredEndpoint',
   request: ({ apiToken, domain }) => ({

@@ -19,7 +19,7 @@ With the Plane block, you can:
 - **Keep knowledge current**: Manage pages and sync project work items or pages into a Sim knowledge base.
 - **React to changes**: Start agents from authenticated Plane webhook events.
 
-Create a personal access token in Plane's profile settings and enter it as the API token. API v2 is the default. For Community Edition or an older self-hosted instance, select API v1 in the advanced settings and set the instance origin, optionally including its reverse-proxy path prefix. Omit `/api/v1` and `/api/v2` from the instance URL. The block exposes core workflow actions. Supported self-hosted actions use the same operation list. Resource availability depends on the instance's edition and version.
+Create a personal access token in Plane's profile settings and enter it as the API token. API v2 is the default. For Community Edition or an older self-hosted instance, select API v1 in the advanced settings and set the instance origin on the Plane credential (the legacy block's advanced settings), optionally including its reverse-proxy path prefix. Omit `/api/v1` and `/api/v2` from the instance URL. The block exposes core workflow actions. Supported self-hosted actions use the same operation list. Resource availability depends on the instance's edition and version.
 
 Explicit empty strings, nulls, and empty arrays can be supplied through **Body Overrides** using the action's canonical input names. Clearing work item labels and assignees is verified through API v1 because Plane v2 can continue returning deleted relationship IDs. The update action returns the verified cleared state; subsequent v2 reads may still include those IDs. Use API v1 when reading active relationships after a clear.
 

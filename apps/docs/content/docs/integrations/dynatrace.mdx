@@ -37,7 +37,7 @@ The environment URL is the base address of your Dynatrace environment, without t
 | SaaS | `https://abc12345.live.dynatrace.com` |
 | Managed / environment ActiveGate | `https://your-activegate:9999/e/abc12345` |
 
-Create the token under **Access tokens** in Dynatrace, and grant only the scopes for the operations you plan to call. Each action's `apiToken` description names the scope it needs:
+Create the token under **Access tokens** in Dynatrace, and grant only the scopes for the operations you plan to call. The token and environment URL are saved together on the Dynatrace credential. The scope each action needs:
 
 | Area | Read | Write |
 | --- | --- | --- |

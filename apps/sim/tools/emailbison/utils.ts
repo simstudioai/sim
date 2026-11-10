@@ -64,8 +64,8 @@ export function emailBisonUrl(
 }
 
 /**
- * The Email Bison instance origin the tools build on: a bare host is taken as https, any other
- * scheme is refused, and the path, query, and fragment are dropped.
+ * The Email Bison instance origin the tools build on: a host without a scheme is taken as https,
+ * and the path, query, and fragment are dropped.
  */
 export function normalizeEmailBisonBaseUrl(baseUrl: string): string {
   const trimmedBaseUrl = baseUrl.trim()
@@ -73,7 +73,7 @@ export function normalizeEmailBisonBaseUrl(baseUrl: string): string {
     throw new Error('Email Bison Instance URL is required')
   }
 
-  const rawBaseUrl = /^[a-z][a-z\d+.-]*:\/\//i.test(trimmedBaseUrl)
+  const rawBaseUrl = /^https?:\/\//i.test(trimmedBaseUrl)
     ? trimmedBaseUrl
     : `https://${trimmedBaseUrl}`
   const parsed = new URL(rawBaseUrl)

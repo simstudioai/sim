@@ -115,11 +115,13 @@ export function normalizeHttpBaseUrl(raw: string | undefined): string {
 }
 
 /**
- * Refuses a typed URL that carries credentials, before a tool's own normalizer
- * can drop them silently and verify a different identity than the user meant.
+ * Refuses a typed URL that carries credentials or a non-http(s) scheme, before a
+ * tool's own normalizer can drop the credentials silently or read the scheme as
+ * a host, and so verify a different identity or host than the user meant.
  */
-export function refuseUrlCredentials(raw: string | undefined): string {
+export function refuseUnsafeTypedUrl(raw: string | undefined): string {
   const typed = (raw ?? '').trim()
+  if (/^(?!https?:\/\/)[a-z][a-z\d+.-]*:\/\//i.test(typed)) throw new Error('http(s) only')
   const authority = typed.replace(/^[a-z][a-z\d+.-]*:\/\//i, '').split(/[/?#]/)[0]
   if (authority.includes('@')) throw new Error('credentials in URL')
   return typed

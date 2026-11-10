@@ -964,9 +964,9 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/elevenlabs',
     helpText:
-      'A restricted key needs User read access to be verified, plus access to each endpoint your workflows call.',
+      'Restricted keys are accepted; give the key access to each endpoint your workflows call.',
     invalidCredentialsHelp:
-      'ElevenLabs rejected this key. A restricted key needs User read access, which Sim uses to check it.',
+      'ElevenLabs rejected this key. Check that it was copied in full and has not been deleted.',
   },
   [ENRICH_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ENRICH_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1052,8 +1052,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/instantly',
-    helpText:
-      'Sim checks the key by listing campaigns, so it needs campaign read access (or an all-access scope).',
+    helpText: 'Scoped keys are accepted; give the key the scopes your workflows call.',
   },
   [LANGSMITH_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: LANGSMITH_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -2226,7 +2225,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     helpText:
       'Create an API token in the Okta Admin Console under Security > API > Tokens. The token acts with the admin roles of the user who created it. Enter your Okta domain, such as dev-123456.okta.com; custom domains are not supported.',
     invalidCredentialsHelp:
-      'Okta rejected this token. Check that it is active, was created in this Okta org, and that the domain is your Okta-hosted domain (okta.com, oktapreview.com, okta-emea.com, or okta-gov.com).',
+      'Okta rejected this token. Check that it is active, was created in this Okta org, and that the domain is your Okta-hosted domain (okta.com, oktapreview.com, okta-emea.com, okta-gov.com, or trexcloud.com).',
   },
   [INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: INFISICAL_SERVICE_ACCOUNT_PROVIDER_ID,
