@@ -87,12 +87,16 @@ class WorkspaceBusyError extends HttpError {
   }
 }
 
-/** A target whose membership the organization's directory owns; the guard's own wording names the remedy. */
+/**
+ * A target whose membership the organization's directory owns; the guard's own
+ * wording names the remedy. The coded refusal stays its `cause` so surfaces that
+ * publish `details.code` can still name it.
+ */
 class DirectoryManagedMemberError extends HttpError {
   readonly statusCode = 403
 
   constructor(cause: ForbiddenOperationError) {
-    super(cause.message)
+    super(cause.message, { cause })
     this.name = 'DirectoryManagedMemberError'
   }
 }

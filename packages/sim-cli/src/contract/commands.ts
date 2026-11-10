@@ -1518,16 +1518,29 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
   listWorkspaceMembers: {
-    command: 'workspaces members',
+    command: 'workspaces members list',
     describe: 'List workspace members',
     profileWorkspacePath: true,
+    // `members update` and `members remove` take the user id, and the listing
+    // is where a caller finds it.
     columns: [
+      { header: 'user', path: 'userId' },
       { header: 'email' },
       { header: 'name' },
       { header: 'role' },
       { header: 'external', path: 'isExternal', format: 'bool' },
       { header: 'joined', path: 'joinedAt', format: 'timestamp' },
     ],
+  },
+  updateWorkspaceMember: {
+    command: 'workspaces members update',
+    profileWorkspacePath: true,
+  },
+  removeWorkspaceMember: {
+    command: 'workspaces members remove',
+    profileWorkspacePath: true,
+    confirm:
+      'This removes the member’s workspace access. If it was their last workspace in the organization, their organization membership is removed and their sessions end.',
   },
 
   listAuditLogs: {

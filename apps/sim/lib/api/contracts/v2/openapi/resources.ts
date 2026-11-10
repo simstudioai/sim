@@ -91,6 +91,8 @@ import {
   v2GetWorkspaceContract,
   v2ListWorkspaceMembersContract,
   v2ListWorkspacesContract,
+  v2RemoveWorkspaceMemberContract,
+  v2UpdateWorkspaceMemberContract,
 } from '@/lib/api/contracts/v2/workspaces'
 import {
   defineOpenApiDocument,
@@ -105,6 +107,10 @@ import { sandboxOperations } from '@/lib/sandboxes/application/operations'
 import { secretOperations } from '@/lib/secrets/application/operations'
 import { skillOperations } from '@/lib/skills/application/operations'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
+import {
+  removeWorkspaceMemberOperation,
+  workspacePermissionOperations,
+} from '@/lib/workspaces/application/member-operations'
 import { workspaceOperations } from '@/lib/workspaces/application/operations'
 
 const BLOCK_SUMMARY_EXAMPLE = {
@@ -749,6 +755,67 @@ const declaredRoutes = [
         'List workspace members response',
         'A cursor-paginated page of effective workspace members.',
         [{ data: [WORKSPACE_MEMBER_EXAMPLE], nextCursor: null }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2UpdateWorkspaceMemberContract,
+    resourceOperation('Workspaces', {
+      applicationOperation: workspacePermissionOperations.update,
+      operationId: 'updateWorkspaceMember',
+      summary: 'Update workspace member',
+      description: `Change one existing member’s workspace role. Requires workspace Admin access. Only existing members can be changed; add people with Create workspace invitations. You cannot lower your own role, and organization Admins, the workspace owner, and the workspace billing account always keep Admin. Members whose organization membership an identity provider manages cannot be changed here. Requesting the role a member already holds changes nothing and records no audit entry. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'The member with their updated workspace role.' },
+    }),
+    {
+      params: documentedSchema(
+        v2UpdateWorkspaceMemberContract.params,
+        'UpdateWorkspaceMemberParams',
+        'Update workspace member parameters',
+        'Workspace and member identifiers.'
+      ),
+      query: v2UpdateWorkspaceMemberContract.query,
+      body: documentedSchema(
+        v2UpdateWorkspaceMemberContract.body,
+        'UpdateWorkspaceMemberBody',
+        'Update workspace member body',
+        'The new workspace role for this member.',
+        [{ role: 'write' }]
+      ),
+      response: documentedSchema(
+        v2UpdateWorkspaceMemberContract.response.schema,
+        'UpdateWorkspaceMemberResponse',
+        'Update workspace member response',
+        'The member with their updated workspace role.',
+        [{ data: { ...WORKSPACE_MEMBER_EXAMPLE, role: 'write' } }]
+      ),
+    }
+  ),
+  defineOpenApiRoute(
+    v2RemoveWorkspaceMemberContract,
+    resourceOperation('Workspaces', {
+      applicationOperation: removeWorkspaceMemberOperation,
+      operationId: 'removeWorkspaceMember',
+      summary: 'Remove workspace member',
+      description: `Remove a member’s workspace access, or leave the workspace by naming yourself. Removing someone else requires workspace Admin access; any member may leave. The last Admin cannot leave, organization Admins hold access through their organization role and cannot be removed here, and the workspace billing account cannot be removed until billing is reassigned. Removing the workspace owner transfers ownership to the billing account. When this was the member’s last workspace in its organization, their organization membership and seat are removed too and all of their sessions end. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: RESOURCE_CONFLICT_ERRORS,
+      success: { description: 'Acknowledgement that workspace access was removed.' },
+    }),
+    {
+      params: documentedSchema(
+        v2RemoveWorkspaceMemberContract.params,
+        'RemoveWorkspaceMemberParams',
+        'Remove workspace member parameters',
+        'Workspace and member identifiers.'
+      ),
+      query: v2RemoveWorkspaceMemberContract.query,
+      response: documentedSchema(
+        v2RemoveWorkspaceMemberContract.response.schema,
+        'RemoveWorkspaceMemberResponse',
+        'Remove workspace member response',
+        'Acknowledgement that workspace access was removed.',
+        [{ data: { userId: 'user-123', deleted: true, organizationMembershipRemoved: false } }]
       ),
     }
   ),

@@ -421,6 +421,239 @@
         }
       }
     },
+    "/api/v2/workspaces/{workspaceId}/members/{userId}": {
+      "patch": {
+        "operationId": "updateWorkspaceMember",
+        "summary": "Update workspace member",
+        "description": "Change one existing member’s workspace role. Requires workspace Admin access. Only existing members can be changed; add people with Create workspace invitations. You cannot lower your own role, and organization Admins, the workspace owner, and the workspace billing account always keep Admin. Members whose organization membership an identity provider manages cannot be changed here. Requesting the role a member already holds changes nothing and records no audit entry. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "workspaces.permissions.update",
+        "x-oauth-scope": "api:write",
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace to retrieve.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace to retrieve."
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User identifier of the workspace member, as returned by List workspace members.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "User identifier of the workspace member, as returned by List workspace members."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The new workspace role for this member.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWorkspaceMemberBody"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "role": "write"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member with their updated workspace role.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateWorkspaceMemberResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "userId": "user-123",
+                        "email": "jane@example.com",
+                        "name": "Jane Smith",
+                        "image": null,
+                        "role": "write",
+                        "isExternal": false,
+                        "joinedAt": "2026-01-15T10:30:00.000Z"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "removeWorkspaceMember",
+        "summary": "Remove workspace member",
+        "description": "Remove a member’s workspace access, or leave the workspace by naming yourself. Removing someone else requires workspace Admin access; any member may leave. The last Admin cannot leave, organization Admins hold access through their organization role and cannot be removed here, and the workspace billing account cannot be removed until billing is reassigned. Removing the workspace owner transfers ownership to the billing account. When this was the member’s last workspace in its organization, their organization membership and seat are removed too and all of their sessions end. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "workspaces.members.remove",
+        "x-oauth-scope": "api:write",
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "description": "Workspace to retrieve.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "Workspace to retrieve."
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "description": "User identifier of the workspace member, as returned by List workspace members.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "description": "User identifier of the workspace member, as returned by List workspace members."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Acknowledgement that workspace access was removed.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemoveWorkspaceMemberResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "userId": "user-123",
+                        "deleted": true,
+                        "organizationMembershipRemoved": false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/mcp-servers": {
       "get": {
         "operationId": "listMcpServers",
@@ -14833,6 +15066,95 @@
               }
             ],
             "nextCursor": null
+          }
+        ]
+      },
+      "UpdateWorkspaceMemberResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2WorkspaceMember"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Update workspace member response",
+        "description": "The member with their updated workspace role.",
+        "examples": [
+          {
+            "data": {
+              "userId": "user-123",
+              "email": "jane@example.com",
+              "name": "Jane Smith",
+              "image": null,
+              "role": "write",
+              "isExternal": false,
+              "joinedAt": "2026-01-15T10:30:00.000Z"
+            }
+          }
+        ]
+      },
+      "UpdateWorkspaceMemberBody": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["admin", "write", "read"],
+            "description": "New workspace role. Inherited organization Admin access, the workspace owner, and the workspace billing account keep Admin and cannot be changed here."
+          }
+        },
+        "required": ["role"],
+        "additionalProperties": false,
+        "title": "Update workspace member body",
+        "description": "The new workspace role for this member.",
+        "examples": [
+          {
+            "role": "write"
+          }
+        ]
+      },
+      "V2WorkspaceMemberDeletion": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "description": "User removed from the workspace."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether workspace access was removed."
+          },
+          "organizationMembershipRemoved": {
+            "type": "boolean",
+            "description": "Whether this was the member’s last workspace in the organization, so their organization membership and seat were removed too."
+          }
+        },
+        "required": ["userId", "deleted", "organizationMembershipRemoved"],
+        "additionalProperties": false,
+        "title": "Workspace member removal",
+        "description": "Acknowledges removal of a workspace member."
+      },
+      "RemoveWorkspaceMemberResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2WorkspaceMemberDeletion"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Remove workspace member response",
+        "description": "Acknowledgement that workspace access was removed.",
+        "examples": [
+          {
+            "data": {
+              "userId": "user-123",
+              "deleted": true,
+              "organizationMembershipRemoved": false
+            }
           }
         ]
       },

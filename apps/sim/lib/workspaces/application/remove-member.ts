@@ -1,21 +1,10 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase, requireCurrentHumanRole } from '@/lib/core/application'
-import { defineWorkspaceOperation } from '@/lib/core/application/workspace-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
+import { removeWorkspaceMemberOperation } from '@/lib/workspaces/application/member-operations'
 import { removeWorkspaceMemberRecord } from '@/lib/workspaces/permissions/member-removal-store'
-
-/** permission-group-exempt: members may leave; workspace administrators may remove existing collaborators. */
-export const removeWorkspaceMemberOperation = defineWorkspaceOperation({
-  id: 'workspaces.members.remove',
-  minimumRole: 'read',
-  workspaceApiKey: 'deny',
-  capability: 'none',
-  contentDelivery: 'none',
-  principalKinds: ['session', 'delegated'],
-  delegatedServices: ['copilot'],
-})
 
 export interface RemoveWorkspaceMemberInput {
   workspaceId: string

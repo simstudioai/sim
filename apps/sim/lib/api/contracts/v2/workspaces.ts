@@ -1,5 +1,10 @@
 import { z } from 'zod'
-import { noInputSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  MAX_ID_LENGTH,
+  noInputSchema,
+  requiredFieldSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
@@ -114,4 +119,59 @@ export const v2ListWorkspaceMembersContract = defineRouteContract({
   params: v2WorkspaceParamsSchema,
   query: v2ListWorkspaceMembersQuerySchema,
   response: { mode: 'json', schema: v2CursorListResponse(v2WorkspaceMemberSchema) },
+})
+
+const v2WorkspaceMemberParamsSchema = v2WorkspaceParamsSchema
+  .extend({
+    userId: requiredFieldSchema('User ID is required')
+      .max(MAX_ID_LENGTH, 'User ID is too long')
+      .describe('User identifier of the workspace member, as returned by List workspace members.'),
+  })
+  .strict()
+
+const v2UpdateWorkspaceMemberBodySchema = z
+  .object({
+    role: z
+      .enum(['admin', 'write', 'read'])
+      .describe(
+        'New workspace role. Inherited organization Admin access, the workspace owner, and the workspace billing account keep Admin and cannot be changed here.'
+      ),
+  })
+  .strict()
+
+export const v2UpdateWorkspaceMemberContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/workspaces/[workspaceId]/members/[userId]',
+  params: v2WorkspaceMemberParamsSchema,
+  query: noInputSchema,
+  body: v2UpdateWorkspaceMemberBodySchema,
+  response: { mode: 'json', schema: v2DataResponse(v2WorkspaceMemberSchema) },
+})
+
+export const v2RemoveWorkspaceMemberContract = defineRouteContract({
+  method: 'DELETE',
+  path: '/api/v2/workspaces/[workspaceId]/members/[userId]',
+  params: v2WorkspaceMemberParamsSchema,
+  query: noInputSchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(
+      z
+        .object({
+          userId: z.string().describe('User removed from the workspace.'),
+          deleted: z.literal(true).describe('Whether workspace access was removed.'),
+          organizationMembershipRemoved: z
+            .boolean()
+            .describe(
+              'Whether this was the member’s last workspace in the organization, so their organization membership and seat were removed too.'
+            ),
+        })
+        .strict()
+        .meta({
+          id: 'V2WorkspaceMemberDeletion',
+          title: 'Workspace member removal',
+          description: 'Acknowledges removal of a workspace member.',
+        })
+    ),
+  },
 })
