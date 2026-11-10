@@ -137,6 +137,7 @@ const FULL_SET_LISTS = [
   'GET /api/v2/tables/[tableId]/views',
   'GET /api/v2/tables/folders',
   'GET /api/v2/workflows/folders',
+  'GET /api/v2/workflows/[workflowId]/triggers',
 ] as const
 
 /**

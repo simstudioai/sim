@@ -10855,6 +10855,33 @@ export type ListWorkflowsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/workflows/[workflowId]/triggers` */
+export type ListWorkflowTriggersParams = {
+  workflowId: string
+}
+
+export type ListWorkflowTriggersQuery = Record<string, unknown>
+
+type ListWorkflowTriggersResponseRef0 = {
+  blockId: string
+  kind: 'schedule' | 'polling' | 'event' | 'webhook'
+  provider: string | null
+  enabled: boolean
+  status: 'active' | 'disabled' | 'completed'
+  failedCount: number
+  lastFailedAt: string | null
+  nextRunAt: string | null
+  lastRanAt: string | null
+  cronExpression: string | null
+  timezone: string | null
+  url: string | null
+}
+
+export type ListWorkflowTriggersResponse = {
+  data: Array<ListWorkflowTriggersResponseRef0>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/workflows/[workflowId]/versions` */
 export type ListWorkflowVersionsParams = {
   workflowId: string
@@ -15790,6 +15817,37 @@ type UpdateWorkflowPublicApiResponseRef0 = {
 
 export type UpdateWorkflowPublicApiResponse = {
   data: UpdateWorkflowPublicApiResponseRef0
+}
+
+/** `PATCH /api/v2/workflows/[workflowId]/triggers/[blockId]` */
+export type UpdateWorkflowTriggerParams = {
+  workflowId: string
+  blockId: string
+}
+
+export type UpdateWorkflowTriggerQuery = Record<string, unknown>
+
+export type UpdateWorkflowTriggerBody = {
+  enabled: boolean
+}
+
+type UpdateWorkflowTriggerResponseRef0 = {
+  blockId: string
+  kind: 'schedule' | 'polling' | 'event' | 'webhook'
+  provider: string | null
+  enabled: boolean
+  status: 'active' | 'disabled' | 'completed'
+  failedCount: number
+  lastFailedAt: string | null
+  nextRunAt: string | null
+  lastRanAt: string | null
+  cronExpression: string | null
+  timezone: string | null
+  url: string | null
+}
+
+export type UpdateWorkflowTriggerResponse = {
+  data: UpdateWorkflowTriggerResponseRef0
 }
 
 /** `PATCH /api/v2/workflows/[workflowId]/versions/[version]` */
@@ -22370,6 +22428,14 @@ export const V2_OPERATIONS = {
       },
     },
   },
+  listWorkflowTriggers: {
+    method: 'GET',
+    path: '/api/v2/workflows/[workflowId]/triggers',
+    pathParams: ['workflowId'] as const,
+    pathParamDocs: { workflowId: 'Unique workflow identifier.' },
+    responseMode: 'json',
+    summary: 'List workflow triggers',
+  },
   listWorkflowVersions: {
     method: 'GET',
     path: '/api/v2/workflows/[workflowId]/versions',
@@ -25038,6 +25104,25 @@ export const V2_OPERATIONS = {
         required: true,
         describe:
           'Whether the deployed workflow should accept unauthenticated public API execution.',
+      },
+    },
+  },
+  updateWorkflowTrigger: {
+    method: 'PATCH',
+    path: '/api/v2/workflows/[workflowId]/triggers/[blockId]',
+    pathParams: ['workflowId', 'blockId'] as const,
+    pathParamDocs: {
+      workflowId: 'Unique workflow identifier.',
+      blockId: 'Trigger block in the deployed workflow.',
+    },
+    responseMode: 'json',
+    summary: 'Update workflow trigger',
+    body: {
+      enabled: {
+        kind: 'boolean',
+        required: true,
+        describe:
+          'Whether the trigger should fire. A disable lasts until the next deploy or version activation, which re-enables every trigger.',
       },
     },
   },
