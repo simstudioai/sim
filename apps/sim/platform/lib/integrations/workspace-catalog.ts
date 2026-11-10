@@ -124,6 +124,17 @@ export function projectWorkspaceApp(
   }
 }
 
+/**
+ * The app a URL segment names: its id, or the slug that legacy links and a member integration's
+ * segment (`google-docs` for `google_docs`) carry.
+ */
+export function findWorkspaceApp<T extends Pick<WorkspaceApp, 'id' | 'slug'>>(
+  apps: readonly T[],
+  segment: string
+): T | undefined {
+  return apps.find((app) => app.id === segment || app.slug === segment)
+}
+
 /** A workspace credential as the directory reads it. */
 export interface WorkspaceConnectedCredential {
   id: string

@@ -36,7 +36,10 @@ import {
   useMemberIntegrations,
 } from '@/platform/lib/data/integrations'
 import { centerParams, integrationCenterHref } from '@/platform/lib/integrations/center-navigation'
-import type { WorkspaceAppDetail } from '@/platform/lib/integrations/workspace-catalog'
+import {
+  findWorkspaceApp,
+  type WorkspaceAppDetail,
+} from '@/platform/lib/integrations/workspace-catalog'
 import { GENERIC_SECRETS_SEGMENT } from '@/platform/shared/integrations'
 
 export interface IntegrationsRouteProps {
@@ -72,9 +75,14 @@ export function IntegrationsRoute({
   const params = useSearchParams()
   const router = useRouter()
   const [{ q, order }] = useQueryStates(centerParams)
-  const { integrations, genericSecrets, inventory, policies, secrets } = useMemberIntegrations(
-    member ? organizationId : undefined
-  )
+  const memberIntegrations = useMemberIntegrations(member ? organizationId : undefined)
+  const { genericSecrets, inventory, policies, secrets } = memberIntegrations
+  // A member integration the workspace catalog also lists takes the catalog app's id, so the app
+  // lists once and its page, which the server canonicalizes to that id, finds both kinds of credential.
+  const integrations = memberIntegrations.integrations.map((item) => {
+    const app = findWorkspaceApp(workspaceScope.apps, item.id)
+    return app && app.id !== item.id ? { ...item, id: app.id } : item
+  })
   const actions = useIntegrationActions(organizationId, { enabled: member })
   const defaults = defaultIntegrationPaths(organizationId)
   const directory = useWorkspaceDirectory(defaults.index, workspaceScope)

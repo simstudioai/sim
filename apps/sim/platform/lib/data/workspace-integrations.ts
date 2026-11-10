@@ -15,7 +15,10 @@ import type {
   WorkspaceApp,
   WorkspaceAppDetail,
 } from '@/platform/lib/integrations/workspace-catalog'
-import { projectWorkspaceApp } from '@/platform/lib/integrations/workspace-catalog'
+import {
+  findWorkspaceApp,
+  projectWorkspaceApp,
+} from '@/platform/lib/integrations/workspace-catalog'
 
 type SearchParams = Record<string, string | string[] | undefined>
 
@@ -134,9 +137,7 @@ export async function resolveIntegrationsSection(
       ? { kind: 'redirect', href: integrationsPath(organization, app.id, searchParams) }
       : { kind: 'notFound' }
   }
-  const detail = section
-    ? apps.find((app) => app.id === section || app.slug === section)
-    : undefined
+  const detail = section ? findWorkspaceApp(apps, section) : undefined
   if (detail && section !== detail.id)
     return { kind: 'redirect', href: integrationsPath(organization, detail.id, searchParams) }
   // A member integration is read in the browser, so only an organization without one can tell here.
