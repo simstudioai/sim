@@ -1,10 +1,11 @@
 import { db } from '@sim/db'
 import { copilotChats, member, permissions, workspace } from '@sim/db/schema'
-import { and, desc, eq, exists, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, exists, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { MothershipChat, MothershipChatScope } from '@/lib/api/contracts/mothership-chats'
 import { conversationModeSelection } from '@/lib/mothership/chat/intent'
 import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-liveness'
+import { inheritsOrganizationAdmin } from '@/lib/organizations/team-only'
 
 /**
  * A workspace the viewer can still open: active, with an explicit grant or under an organization
@@ -34,7 +35,7 @@ function openableWorkspace(userId: string): SQL | undefined {
             and(
               eq(member.userId, userId),
               eq(member.organizationId, workspace.organizationId),
-              inArray(member.role, ['owner', 'admin'])
+              inheritsOrganizationAdmin()
             )
           )
       )

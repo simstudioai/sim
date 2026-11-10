@@ -2,12 +2,12 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { member, permissions, project, workspace } from '@sim/db/schema'
-import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
-import { eq, inArray, sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { recordProjectedUseCaseAuditEntries } from '@/lib/core/application/authorized-workspace-use-case'
 import type { OperationUseCase } from '@/lib/core/application/operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
+import { inheritsOrganizationAdmin } from '@/lib/organizations/team-only'
 import {
   type AuthorizedProject,
   authorizeProject,
@@ -110,7 +110,7 @@ export const listProjects: OperationUseCase<
           UNION
           SELECT ${workspace.id} FROM ${member}
           JOIN ${workspace} ON ${workspace.organizationId} = ${member.organizationId}
-          WHERE ${member.userId} = ${userId} AND ${inArray(member.role, ORG_ADMIN_ROLES)}
+          WHERE ${member.userId} = ${userId} AND ${inheritsOrganizationAdmin()}
         )
         SELECT DISTINCT ${workspace.projectId} AS id
         FROM accessible

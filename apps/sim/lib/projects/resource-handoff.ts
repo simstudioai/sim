@@ -7,10 +7,10 @@ import {
   workspace,
   workspaceFiles,
 } from '@sim/db/schema'
-import { ORG_ADMIN_ROLES } from '@sim/platform-authz/workspace'
 import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm'
 import { changeProjectStoragePayersInTx } from '@/lib/billing/storage/payer-transfer'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
+import { inheritsOrganizationAdmin } from '@/lib/organizations/team-only'
 import { ProjectConflictError } from '@/lib/projects/errors'
 import { lockProjectBackfillWrites, lockProjects, tryLockProjects } from '@/lib/projects/membership'
 import { handoffFileCreatorsInTx } from '@/lib/uploads/contexts/workspace/creator-handoff'
@@ -35,7 +35,7 @@ export async function findProjectSuccessor(
         and(
           eq(member.organizationId, record.organizationId),
           ne(member.userId, userId),
-          inArray(member.role, ORG_ADMIN_ROLES)
+          inheritsOrganizationAdmin()
         )
       )
       .orderBy(asc(member.userId))
@@ -109,7 +109,7 @@ export async function assertProjectCreatorSuccessor(
           and(
             eq(member.organizationId, record.organizationId),
             eq(member.userId, successorId),
-            inArray(member.role, ORG_ADMIN_ROLES)
+            inheritsOrganizationAdmin()
           )
         )
     : null
@@ -184,7 +184,7 @@ export async function handoffProjectsForWorkspaceDepartureTx(
             and(
               eq(member.organizationId, record.organizationId),
               eq(member.userId, departingUserId),
-              inArray(member.role, ORG_ADMIN_ROLES)
+              inheritsOrganizationAdmin()
             )
           )
           .for('share')
