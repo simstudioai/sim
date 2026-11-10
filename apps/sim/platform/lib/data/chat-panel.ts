@@ -28,19 +28,26 @@ import { grouped, useMentionBrowse } from '@/platform/lib/data/chat-mentions'
 import type { ChatContext } from '@/platform/lib/data/chat-types'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type SurfaceScope, surfaceHref } from '@/platform/lib/data/organization-model'
+import { isWorkspaceTabHidden } from '@/platform/lib/workspace-navigation'
 
 const RESOURCE_KIND: Partial<Record<string, string>> = {
   knowledgebase: 'knowledge',
   filefolder: 'folder',
 }
 
-/** A workspace resource opens on its workspace page; any other opens beside the organization's Home. */
+/**
+ * A workspace resource opens on its workspace page; any other opens beside the organization's Home.
+ * A dashboard links to the Dashboard tab only while that tab is shown.
+ */
 function resourceHref(scope: SurfaceScope, resource: MothershipResource): string | undefined {
   if (!resource.workspaceId) return undefined
   const kind = RESOURCE_KIND[resource.type] ?? resource.type
   if (isWorkspaceResourceKind(kind))
     return workspaceResourcePath(resource.workspaceId, kind, resource.id)
-  if (kind === 'dashboard') return workspacePath(resource.workspaceId, 'dashboards')
+  if (kind === 'dashboard')
+    return isWorkspaceTabHidden('dashboards')
+      ? undefined
+      : workspacePath(resource.workspaceId, 'dashboards')
   if (kind === 'log' && resource.executionId)
     return workspacePath(resource.workspaceId, `logs/${encodeURIComponent(resource.executionId)}`)
   return `${surfaceHref(scope, '/home')}?${new URLSearchParams({ resource: resource.id })}`
@@ -208,10 +215,11 @@ export function usePanelResources({
 
 /**
  * The families a panel tab shows, as its + picker offers them. Chats, skills and workflow, table
- * and knowledge base folders open no tab of their own, as in legacy's picker.
+ * and knowledge base folders open no tab of their own, as in legacy's picker. Dashboards are offered
+ * only while the Dashboard tab is shown.
  */
 const PANEL_FAMILIES: ReadonlySet<MentionFamily> = new Set([
-  'dashboards',
+  ...(isWorkspaceTabHidden('dashboards') ? [] : (['dashboards'] as const)),
   'tables',
   'files',
   'file_folders',
