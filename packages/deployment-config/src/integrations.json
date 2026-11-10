@@ -20094,7 +20094,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "pinecone_v2",
+      "type": "pinecone",
       "slug": "pinecone",
       "name": "Pinecone",
       "description": "Use Pinecone vector database",
@@ -20151,8 +20151,7 @@
       "operationCount": 11,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "oauth",
-      "oauthServiceId": "pinecone",
+      "authType": "api-key",
       "category": "tools",
       "integrationType": "databases",
       "tags": ["vector-search", "knowledge-base"],
@@ -25030,7 +25029,7 @@
       "updatedAt": "2026-09-08"
     },
     {
-      "type": "semrush_v2",
+      "type": "semrush",
       "slug": "semrush",
       "name": "Semrush",
       "description": "Research SEO and paid search data with Semrush",
@@ -25219,8 +25218,7 @@
       "operationCount": 44,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "oauth",
-      "oauthServiceId": "semrush",
+      "authType": "api-key",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["seo", "marketing", "data-analytics"],

@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushDomainVsDomainParams,
   SemrushDomainVsDomainResponse,
@@ -83,7 +82,6 @@ export const semrushDomainVsDomainTool: ToolConfig<
   description:
     'Compare up to five domains on the keywords they rank for, returning each domain’s position side by side.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

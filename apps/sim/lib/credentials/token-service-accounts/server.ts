@@ -46,14 +46,12 @@ import {
   NOTION_SERVICE_ACCOUNT_PROVIDER_ID,
   OTTER_SERVICE_ACCOUNT_PROVIDER_ID,
   PERSONA_SERVICE_ACCOUNT_PROVIDER_ID,
-  PINECONE_SERVICE_ACCOUNT_PROVIDER_ID,
   PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
   PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID,
   QUARTR_SERVICE_ACCOUNT_PROVIDER_ID,
   RB2B_SERVICE_ACCOUNT_PROVIDER_ID,
   RIPPLING_SERVICE_ACCOUNT_PROVIDER_ID,
   ROCKETLANE_SERVICE_ACCOUNT_PROVIDER_ID,
-  SEMRUSH_SERVICE_ACCOUNT_PROVIDER_ID,
   SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID,
   SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID,
   SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -119,14 +117,12 @@ import { validateMondayServiceAccount } from '@/lib/credentials/token-service-ac
 import { validateNotionServiceAccount } from '@/lib/credentials/token-service-accounts/validators/notion'
 import { validateOtterServiceAccount } from '@/lib/credentials/token-service-accounts/validators/otter'
 import { validatePersonaServiceAccount } from '@/lib/credentials/token-service-accounts/validators/persona'
-import { validatePineconeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/pinecone'
 import { validatePipedriveServiceAccount } from '@/lib/credentials/token-service-accounts/validators/pipedrive'
 import { validateProfoundServiceAccount } from '@/lib/credentials/token-service-accounts/validators/profound'
 import { validateQuartrServiceAccount } from '@/lib/credentials/token-service-accounts/validators/quartr'
 import { validateRB2BServiceAccount } from '@/lib/credentials/token-service-accounts/validators/rb2b'
 import { validateRipplingServiceAccount } from '@/lib/credentials/token-service-accounts/validators/rippling'
 import { validateRocketlaneServiceAccount } from '@/lib/credentials/token-service-accounts/validators/rocketlane'
-import { validateSemrushServiceAccount } from '@/lib/credentials/token-service-accounts/validators/semrush'
 import { validateSendGridServiceAccount } from '@/lib/credentials/token-service-accounts/validators/sendgrid'
 import { validateShopifyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/shopify'
 import { validateSimilarwebServiceAccount } from '@/lib/credentials/token-service-accounts/validators/similarweb'
@@ -222,13 +218,11 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [SIXTYFOUR_SERVICE_ACCOUNT_PROVIDER_ID]: validateSixtyfourServiceAccount,
   [SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID]: validateSimilarwebServiceAccount,
   [SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID]: validateSendGridServiceAccount,
-  [SEMRUSH_SERVICE_ACCOUNT_PROVIDER_ID]: validateSemrushServiceAccount,
   [ROCKETLANE_SERVICE_ACCOUNT_PROVIDER_ID]: validateRocketlaneServiceAccount,
   [RIPPLING_SERVICE_ACCOUNT_PROVIDER_ID]: validateRipplingServiceAccount,
   [RB2B_SERVICE_ACCOUNT_PROVIDER_ID]: validateRB2BServiceAccount,
   [QUARTR_SERVICE_ACCOUNT_PROVIDER_ID]: validateQuartrServiceAccount,
   [PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID]: validateProfoundServiceAccount,
-  [PINECONE_SERVICE_ACCOUNT_PROVIDER_ID]: validatePineconeServiceAccount,
   [PERSONA_SERVICE_ACCOUNT_PROVIDER_ID]: validatePersonaServiceAccount,
   [OTTER_SERVICE_ACCOUNT_PROVIDER_ID]: validateOtterServiceAccount,
   [MAILCHIMP_SERVICE_ACCOUNT_PROVIDER_ID]: validateMailchimpServiceAccount,

@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushBacklinksOverviewParams,
   SemrushBacklinksOverviewResponse,
@@ -33,7 +32,6 @@ export const semrushBacklinksOverviewTool: ToolConfig<
   description:
     'Get the Authority Score and backlink profile totals for a domain, subdomain, or URL.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

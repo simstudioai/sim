@@ -305,7 +305,7 @@ import { PeopleDataLabsBlock, PeopleDataLabsBlockMeta } from '@/blocks/blocks/pe
 import { PerplexityBlock, PerplexityBlockMeta } from '@/blocks/blocks/perplexity'
 import { PersonaBlock, PersonaBlockMeta, PersonaV2Block } from '@/blocks/blocks/persona'
 import { PiBlock } from '@/blocks/blocks/pi'
-import { PineconeBlock, PineconeBlockMeta, PineconeV2Block } from '@/blocks/blocks/pinecone'
+import { PineconeBlock, PineconeBlockMeta } from '@/blocks/blocks/pinecone'
 import { PipedriveBlock, PipedriveBlockMeta } from '@/blocks/blocks/pipedrive'
 import { PitchBookBlock, PitchBookBlockMeta } from '@/blocks/blocks/pitchbook'
 import { PlaneBlock, PlaneBlockMeta } from '@/blocks/blocks/plane'
@@ -349,7 +349,7 @@ import {
   SecretsManagerBlockMeta,
   SecretsManagerV2Block,
 } from '@/blocks/blocks/secrets_manager'
-import { SemrushBlock, SemrushBlockMeta, SemrushV2Block } from '@/blocks/blocks/semrush'
+import { SemrushBlock, SemrushBlockMeta } from '@/blocks/blocks/semrush'
 import { SendblueBlock, SendblueBlockMeta } from '@/blocks/blocks/sendblue'
 import { SendGridBlock, SendGridBlockMeta, SendGridV2Block } from '@/blocks/blocks/sendgrid'
 import { SentryBlock, SentryBlockMeta } from '@/blocks/blocks/sentry'
@@ -734,7 +734,6 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   persona_v2: PersonaV2Block,
   pi: PiBlock,
   pinecone: PineconeBlock,
-  pinecone_v2: PineconeV2Block,
   pipedrive: PipedriveBlock,
   pitchbook: PitchBookBlock,
   plane: PlaneBlock,
@@ -787,7 +786,6 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   secrets_manager: SecretsManagerBlock,
   secrets_manager_v2: SecretsManagerV2Block,
   semrush: SemrushBlock,
-  semrush_v2: SemrushV2Block,
   sendblue: SendblueBlock,
   sendgrid: SendGridBlock,
   sendgrid_v2: SendGridV2Block,
@@ -1150,7 +1148,6 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   persona: PersonaBlockMeta,
   persona_v2: PersonaBlockMeta,
   pinecone: PineconeBlockMeta,
-  pinecone_v2: PineconeBlockMeta,
   pipedrive: PipedriveBlockMeta,
   pitchbook: PitchBookBlockMeta,
   plane: PlaneBlockMeta,
@@ -1195,7 +1192,6 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   secrets_manager: SecretsManagerBlockMeta,
   secrets_manager_v2: SecretsManagerBlockMeta,
   semrush: SemrushBlockMeta,
-  semrush_v2: SemrushBlockMeta,
   sendblue: SendblueBlockMeta,
   sendgrid: SendGridBlockMeta,
   sendgrid_v2: SendGridBlockMeta,

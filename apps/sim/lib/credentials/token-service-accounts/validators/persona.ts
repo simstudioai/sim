@@ -3,6 +3,7 @@ import { tokenCheckValidator } from '@/lib/credentials/token-service-accounts/va
 /** Listing one inquiry answers 200 for a valid key with inquiry read access and 401 otherwise. */
 export const validatePersonaServiceAccount = tokenCheckValidator({
   serviceLabel: 'Persona',
+  forbiddenMeansScoped: true,
   request: ({ apiToken }) => ({
     url: 'https://api.withpersona.com/api/v1/inquiries?page%5Bsize%5D=1',
     headers: {

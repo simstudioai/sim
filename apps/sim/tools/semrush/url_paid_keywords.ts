@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushUrlPaidKeywordsParams,
   SemrushUrlPaidKeywordsResponse,
@@ -23,7 +22,6 @@ export const semrushUrlPaidKeywordsTool: ToolConfig<
   description:
     'List the keywords a single URL is advertised on in Google Ads, with the ad copy used.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

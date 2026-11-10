@@ -1,4 +1,3 @@
-import { PINECONE_CREDENTIAL_OAUTH } from '@/tools/pinecone/credential'
 import type {
   PineconeDescribeIndexParams,
   PineconeIndexModel,
@@ -11,7 +10,6 @@ export const describeIndexTool: ToolConfig<PineconeDescribeIndexParams, Pinecone
   name: 'Pinecone Describe Index',
   description: 'Get the configuration and status of a Pinecone index by name',
   version: '1.0',
-  oauth: PINECONE_CREDENTIAL_OAUTH,
 
   params: {
     indexName: {

@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushDomainPaidCompetitorsParams,
   SemrushDomainPaidCompetitorsResponse,
@@ -22,7 +21,6 @@ export const semrushDomainPaidCompetitorsTool: ToolConfig<
   name: 'Semrush Paid Competitors',
   description: 'List the domains competing with a target domain in Google paid search results.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

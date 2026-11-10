@@ -85,13 +85,11 @@ const INLINE_SECRET_FIELDS = {
   mailchimp: ['apiKey'],
   otter: ['apiKey'],
   persona: ['apiKey'],
-  pinecone: ['apiKey'],
   profound: ['apiKey'],
   quartr: ['apiKey'],
   rb2b: ['apiKey'],
   rippling: ['apiKey'],
   rocketlane: ['apiKey'],
-  semrush: ['apiKey'],
   sendgrid: ['apiKey'],
   similarweb: ['apiKey'],
   sixtyfour: ['apiKey'],
@@ -151,8 +149,13 @@ export function withSavedCredential(
     throw new Error(`Block "${legacy.type}" has none of the fields a saved credential replaces`)
   }
 
-  // The picker shows and is required exactly where the secret it replaces was.
+  // The picker shows and is required exactly where the secrets it replaces were.
   const { condition, required: secretRequired } = legacy.subBlocks[at]
+  const visibility = (subBlock: SubBlockConfig) =>
+    JSON.stringify([subBlock.condition ?? null, subBlock.required ?? null])
+  if (new Set(legacy.subBlocks.filter(isReplaced).map(visibility)).size > 1) {
+    throw new Error(`Block "${legacy.type}": the replaced secrets show or require differently`)
+  }
   if (typeof condition === 'function' || (condition && replaced.has(condition.field))) {
     throw new Error(`Block "${legacy.type}": the replaced secret's condition cannot carry over`)
   }

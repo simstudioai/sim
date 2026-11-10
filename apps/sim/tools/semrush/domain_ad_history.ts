@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushDomainAdHistoryParams,
   SemrushDomainAdHistoryResponse,
@@ -23,7 +22,6 @@ export const semrushDomainAdHistoryTool: ToolConfig<
   description:
     'List a domain’s past Google Ads placements month by month, with the copy used each time.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

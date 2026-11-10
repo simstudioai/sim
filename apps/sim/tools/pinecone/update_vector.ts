@@ -1,4 +1,3 @@
-import { PINECONE_CREDENTIAL_OAUTH } from '@/tools/pinecone/credential'
 import type { PineconeResponse, PineconeUpdateVectorParams } from '@/tools/pinecone/types'
 import { parseJsonParam } from '@/tools/pinecone/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -8,7 +7,6 @@ export const updateVectorTool: ToolConfig<PineconeUpdateVectorParams, PineconeRe
   name: 'Pinecone Update Vector',
   description: 'Update the values, sparse values, or metadata of a vector in a Pinecone namespace',
   version: '1.0',
-  oauth: PINECONE_CREDENTIAL_OAUTH,
 
   params: {
     indexHost: {

@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushSubdomainOverviewParams,
   SemrushSubdomainOverviewResponse,
@@ -17,7 +16,6 @@ export const semrushSubdomainOverviewTool: ToolConfig<
   name: 'Semrush Subdomain Overview',
   description: 'Get the organic and paid search totals for a subdomain in one regional database.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

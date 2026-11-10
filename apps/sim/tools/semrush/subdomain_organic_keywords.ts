@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushSubdomainOrganicKeywordsParams,
   SemrushSubdomainOrganicKeywordsResponse,
@@ -38,7 +37,6 @@ export const semrushSubdomainOrganicKeywordsTool: ToolConfig<
   name: 'Semrush Subdomain Organic Keywords',
   description: 'List the keywords a subdomain ranks for in Google organic search.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

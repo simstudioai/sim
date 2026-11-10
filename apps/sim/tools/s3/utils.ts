@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { validateAwsRegion } from '@/lib/core/security/input-validation'
 
 export function encodeS3PathComponent(pathComponent: string): string {
   return encodeURIComponent(pathComponent).replace(/%2F/g, '/')
@@ -19,6 +20,12 @@ export function getSignatureKey(
   const kSigning = crypto.createHmac('sha256', kService).update('aws4_request').digest()
   return kSigning
 }
+
+/**
+ * Characters a bucket name can hold, including pre-2018 us-east-1 names with
+ * uppercase letters and underscores — nothing that could end the host part.
+ */
+const S3_BUCKET_NAME = /^[A-Za-z0-9._-]{3,255}$/
 
 export function parseS3Uri(
   s3Uri: string,
@@ -83,6 +90,10 @@ export function parseS3Uri(
 
     if (!bucketName || !objectKey) {
       throw new Error('Invalid S3 URI format')
+    }
+    // Both become part of the request host, so neither may carry anything but its own name.
+    if (!S3_BUCKET_NAME.test(bucketName) || !validateAwsRegion(region).isValid) {
+      throw new Error('Invalid S3 bucket or region')
     }
 
     return { bucketName, region, objectKey }

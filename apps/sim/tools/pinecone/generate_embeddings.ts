@@ -1,4 +1,3 @@
-import { PINECONE_CREDENTIAL_OAUTH } from '@/tools/pinecone/credential'
 import type { PineconeGenerateEmbeddingsParams, PineconeResponse } from '@/tools/pinecone/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -10,7 +9,6 @@ export const generateEmbeddingsTool: ToolConfig<
   name: 'Pinecone Generate Embeddings',
   description: "Generate embeddings from text using Pinecone's hosted models",
   version: '1.0',
-  oauth: PINECONE_CREDENTIAL_OAUTH,
 
   params: {
     model: {

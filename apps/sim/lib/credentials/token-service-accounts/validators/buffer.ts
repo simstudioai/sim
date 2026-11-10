@@ -1,6 +1,10 @@
+import { toRecord } from '@sim/utils/object'
 import { tokenCheckValidator } from '@/lib/credentials/token-service-accounts/validators/http'
 
-/** Buffer's GraphQL account query answers 200 for a valid key and 401 otherwise. */
+/**
+ * Buffer's GraphQL API can report a rejected key as an `UNAUTHORIZED` error in
+ * a 200 body, so the key is proven only when the account query returns an id.
+ */
 export const validateBufferServiceAccount = tokenCheckValidator({
   serviceLabel: 'Buffer',
   request: ({ apiToken }) => ({
@@ -13,4 +17,8 @@ export const validateBufferServiceAccount = tokenCheckValidator({
     },
     body: JSON.stringify({ query: 'query { account { id } }' }),
   }),
+  acceptsBody: (body) => {
+    const account = toRecord(toRecord(toRecord(body).data).account)
+    return typeof account.id === 'string' && account.id.length > 0
+  },
 })

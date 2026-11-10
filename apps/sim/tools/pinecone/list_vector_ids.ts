@@ -1,4 +1,3 @@
-import { PINECONE_CREDENTIAL_OAUTH } from '@/tools/pinecone/credential'
 import type { PineconeListVectorIdsParams, PineconeResponse } from '@/tools/pinecone/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,7 +6,6 @@ export const listVectorIdsTool: ToolConfig<PineconeListVectorIdsParams, Pinecone
   name: 'Pinecone List Vector IDs',
   description: 'List vector IDs in a Pinecone namespace by prefix (serverless indexes only)',
   version: '1.0',
-  oauth: PINECONE_CREDENTIAL_OAUTH,
 
   params: {
     indexHost: {

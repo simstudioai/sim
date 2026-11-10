@@ -1,4 +1,3 @@
-import { PINECONE_CREDENTIAL_OAUTH } from '@/tools/pinecone/credential'
 import type {
   PineconeResponse,
   PineconeUpsertTextParams,
@@ -46,7 +45,6 @@ export const upsertTextTool: ToolConfig<PineconeUpsertTextParams, PineconeRespon
   name: 'Pinecone Upsert Text',
   description: 'Insert or update text records in a Pinecone index',
   version: '1.0',
-  oauth: PINECONE_CREDENTIAL_OAUTH,
 
   params: {
     indexHost: {

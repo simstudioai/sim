@@ -49,4 +49,38 @@ describe('tokenCheckValidator', () => {
       code: 'provider_unavailable',
     })
   })
+
+  it('treats a 403 as a scoped but valid key only where the vendor says so', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, { status: 403 })))
+    const scoped = tokenCheckValidator({
+      serviceLabel: 'Scoped',
+      request: () => ({ url: 'https://api.example.com/me', headers: {} }),
+      forbiddenMeansScoped: true,
+    })
+
+    await expect(scoped({ apiToken: 'token' })).resolves.toMatchObject({ displayName: 'Scoped' })
+    await expect(validate({ apiToken: 'token' })).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+  })
+
+  it('rejects a key a successful response body does not prove', async () => {
+    const graphql = tokenCheckValidator({
+      serviceLabel: 'GraphQL',
+      request: () => ({ url: 'https://api.example.com/graphql', headers: {} }),
+      acceptsBody: (body) => (body as { data?: { id?: string } }).data?.id === 'account',
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ errors: [{ extensions: { code: 'UNAUTHORIZED' } }] }))
+    )
+    await expect(graphql({ apiToken: 'bad' })).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ data: { id: 'account' } })))
+    await expect(graphql({ apiToken: 'good' })).resolves.toMatchObject({ displayName: 'GraphQL' })
+  })
 })

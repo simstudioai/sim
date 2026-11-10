@@ -1,4 +1,3 @@
-import { PINECONE_CREDENTIAL_OAUTH } from '@/tools/pinecone/credential'
 import type { PineconeResponse, PineconeSearchVectorParams } from '@/tools/pinecone/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,7 +6,6 @@ export const searchVectorTool: ToolConfig<PineconeSearchVectorParams, PineconeRe
   name: 'Pinecone Search Vector',
   description: 'Search for similar vectors in a Pinecone index',
   version: '1.0',
-  oauth: PINECONE_CREDENTIAL_OAUTH,
 
   params: {
     indexHost: {

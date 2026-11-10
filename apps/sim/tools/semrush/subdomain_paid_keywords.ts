@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushSubdomainPaidKeywordsParams,
   SemrushSubdomainPaidKeywordsResponse,
@@ -38,7 +37,6 @@ export const semrushSubdomainPaidKeywordsTool: ToolConfig<
   name: 'Semrush Subdomain Paid Keywords',
   description: 'List the keywords a subdomain buys in Google Ads.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

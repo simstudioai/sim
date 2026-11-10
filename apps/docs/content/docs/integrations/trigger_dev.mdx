@@ -141,7 +141,69 @@ Retrieve a Trigger.dev run by its ID, including status, payload, output, attempt
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -159,7 +221,69 @@ Retrieve the result of a Trigger.dev run: whether it succeeded, its output, and 
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -309,7 +433,69 @@ Reschedule a delayed Trigger.dev run with a new delay. Only valid while the run 
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -373,7 +559,69 @@ Create an imperative cron schedule that triggers a Trigger.dev task on a recurri
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -391,7 +639,69 @@ Retrieve a Trigger.dev schedule by its ID.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -452,7 +762,69 @@ Update an imperative Trigger.dev schedule by its ID, replacing its task, cron ex
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -491,7 +863,69 @@ Activate an imperative Trigger.dev schedule so it resumes triggering its task.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -509,7 +943,69 @@ Deactivate an imperative Trigger.dev schedule so it stops triggering its task.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -669,7 +1165,69 @@ Retrieve a Trigger.dev queue by ID, task identifier, or custom queue name, inclu
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -725,7 +1283,69 @@ Pause a Trigger.dev queue so no new runs start. Runs that are currently executin
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -744,7 +1364,69 @@ Resume a paused Trigger.dev queue so new runs can start again.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -764,7 +1446,69 @@ Override the concurrency limit of a Trigger.dev queue with a new value.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -783,7 +1527,69 @@ Reset the concurrency limit of a Trigger.dev queue back to its base value, remov
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -828,7 +1634,69 @@ Retrieve a Trigger.dev deployment by its ID, including its status, version, and 
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -845,7 +1713,69 @@ Retrieve the latest Trigger.dev deployment in the environment of the API key.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 
@@ -986,7 +1916,69 @@ Retrieve a Trigger.dev waitpoint token by its ID, including its status, timeout,
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Run, schedule, or queue ID |
+| `batchId` | string | Batch ID \(Batch Trigger Task\) |
+| `runIds` | json | Run IDs in the batch \(batch operations\) |
+| `runCount` | number | Total number of runs in the batch \(Get Batch\) |
+| `successfulRunCount` | number | Number of successful runs in the batch \(Get Batch\) |
+| `failedRunCount` | number | Number of failed runs in the batch \(Get Batch\) |
+| `errors` | json | Error details for failed batch items \(Get Batch\) |
+| `items` | json | Execution results for each run in the batch \(Get Batch Results\) |
+| `status` | string | Run status \(Get Run\) |
+| `taskIdentifier` | string | Task identifier of the run \(Get Run\) |
+| `createdAt` | string | When the run was created \(Get Run\) |
+| `startedAt` | string | When the run started \(Get Run\) |
+| `finishedAt` | string | When the run finished \(Get Run\) |
+| `durationMs` | number | Compute duration in milliseconds \(Get Run\) |
+| `costInCents` | number | Compute cost in cents \(Get Run\) |
+| `isTest` | boolean | Whether the run is a test run \(Get Run\) |
+| `tags` | json | Tags attached to the run \(Get Run\) |
+| `payload` | json | Payload the run was triggered with \(Get Run\) |
+| `output` | json | Output returned by the run \(Get Run\) |
+| `attempts` | json | Attempts made for the run \(Get Run\) |
+| `metadata` | json | Run metadata \(Get Run, Update Run Metadata\) |
+| `ok` | boolean | Whether the run succeeded \(Get Run Result\) |
+| `outputType` | string | Content type of the run output \(Get Run Result\) |
+| `error` | json | Error details for a failed run \(Get Run Result\) |
+| `message` | string | Confirmation message \(Add Run Tags\) |
+| `events` | json | Log and span events of the run \(Get Run Events\) |
+| `traceId` | string | OpenTelemetry trace ID \(Get Run Trace\) |
+| `rootSpan` | json | Root span of the run trace \(Get Run Trace\) |
+| `runs` | json | Runs matching the filters \(List Runs\) |
+| `schedules` | json | Schedules in the project \(List Schedules\) |
+| `pagination` | json | Pagination details \(list operations\) |
+| `task` | string | Task the schedule triggers \(schedule operations\) |
+| `active` | boolean | Whether the schedule is active \(schedule operations\) |
+| `cron` | string | Cron expression \(schedule operations\) |
+| `cronDescription` | string | Human-readable cron description \(schedule operations\) |
+| `timezone` | string | Timezone of the schedule \(schedule operations\) |
+| `nextRun` | string | Next scheduled run time \(schedule operations\) |
+| `environments` | json | Environments the schedule runs in \(schedule operations\) |
+| `deleted` | boolean | Whether the schedule was deleted \(Delete Schedule\) |
+| `variables` | json | Environment variables in the project environment \(List Env Vars\) |
+| `name` | string | Environment variable or queue name \(env var and queue operations\) |
+| `value` | string | Value of the environment variable \(Get Env Var\) |
+| `success` | boolean | Whether the operation succeeded \(env var operations, Complete Waitpoint Token\) |
+| `count` | number | Number of environment variables submitted \(Import Env Vars\) |
+| `queues` | json | Queues in the environment \(List Queues\) |
+| `running` | number | Runs currently executing \(queue operations\) |
+| `queued` | number | Runs waiting in the queue \(queue operations\) |
+| `paused` | boolean | Whether the queue is paused \(queue operations\) |
+| `concurrencyLimit` | number | Concurrency limit of the queue \(queue operations\) |
+| `concurrency` | json | Concurrency details of the queue \(queue operations\) |
+| `deployments` | json | Deployments matching the filters \(List Deployments\) |
+| `version` | string | Deployment version \(deployment operations\) |
+| `shortCode` | string | Deployment short code \(deployment operations\) |
+| `tasks` | json | Tasks registered by the deployed worker \(deployment operations\) |
+| `format` | string | Format of the query results \(Execute Query\) |
+| `results` | json | Query results \(Execute Query\) |
+| `tables` | json | Queryable TRQL tables and columns \(Get Query Schema\) |
+| `tokens` | json | Waitpoint tokens \(List Waitpoint Tokens\) |
+| `url` | string | Waitpoint callback URL \(waitpoint operations\) |
+| `isCached` | boolean | Whether an existing token was returned \(Create Waitpoint Token\) |
+| `timezones` | json | Supported IANA timezones \(List Timezones\) |
 
 </ReferenceDetails>
 

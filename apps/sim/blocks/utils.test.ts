@@ -358,7 +358,7 @@ describe('withSavedCredential', () => {
     const conditional: BlockConfig = {
       ...legacy,
       subBlocks: legacy.subBlocks.map((subBlock) =>
-        subBlock.id === 'accessKeyId' && subBlock.mode !== 'trigger'
+        ['accessKeyId', 'secretAccessKey'].includes(subBlock.id) && subBlock.mode !== 'trigger'
           ? {
               ...subBlock,
               condition: { field: 'operation', value: 'unsigned', not: true },
@@ -373,6 +373,17 @@ describe('withSavedCredential', () => {
 
     expect(credential?.condition).toEqual({ field: 'operation', value: 'unsigned', not: true })
     expect(credential?.required).toEqual({ field: 'operation', value: 'unsigned', not: true })
+  })
+
+  it('refuses replaced secrets that show or require differently', () => {
+    const mismatched: BlockConfig = {
+      ...legacy,
+      subBlocks: legacy.subBlocks.map((subBlock) =>
+        subBlock.id === 'secretAccessKey' ? { ...subBlock, required: false } : subBlock
+      ),
+    }
+
+    expect(() => withSavedCredential(mismatched, picker)).toThrow(/show or require differently/)
   })
 
   it('refuses options that would silently do nothing', () => {

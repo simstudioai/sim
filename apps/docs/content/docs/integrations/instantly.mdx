@@ -51,7 +51,27 @@ Retrieves Instantly V2 leads with search, campaign, list, and pagination filters
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 
@@ -69,7 +89,27 @@ Retrieves an Instantly V2 lead by ID.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 
@@ -106,7 +146,27 @@ Creates an Instantly V2 lead in a campaign or lead list.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 
@@ -135,7 +195,27 @@ Updates fields on an existing Instantly V2 lead.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 
@@ -207,7 +287,27 @@ Retrieves Instantly V2 campaigns with search, status, tag, and pagination filter
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 
@@ -236,7 +336,27 @@ Creates an Instantly V2 campaign using the documented campaign schedule schema.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 
@@ -266,7 +386,27 @@ Updates documented Instantly V2 campaign fields.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 
@@ -284,7 +424,27 @@ Activates, starts, or resumes an Instantly V2 campaign.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 
@@ -302,7 +462,27 @@ Pauses a running Instantly V2 campaign, stopping further email sends.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 
@@ -320,7 +500,27 @@ Permanently deletes an Instantly V2 campaign.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 
@@ -346,7 +546,27 @@ Retrieves Instantly V2 Unibox emails with search and pagination filters.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 
@@ -369,7 +589,27 @@ Sends an Instantly V2 reply to an existing Unibox email.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 
@@ -390,7 +630,27 @@ Retrieves Instantly V2 lead lists with search and pagination filters.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 
@@ -410,7 +670,27 @@ Creates an Instantly V2 lead list.
 
 #### Output
 
-No output fields are documented for this action.
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `leads` | array | List of leads \(id, email, first_name, last_name, campaign, status\) |
+| `lead` | json | Lead details \(id, email, first_name, last_name, company_name, job_title, campaign, status, payload\) |
+| `campaigns` | array | List of campaigns \(id, name, status, daily_limit\) |
+| `campaign` | json | Campaign details \(id, name, status, daily_limit, daily_max_leads, open_tracking\) |
+| `emails` | array | List of emails \(id, subject, from_address_email, lead, thread_id\) |
+| `email` | json | Email details \(id, subject, from_address_email, to_address_email_list, thread_id, content_preview\) |
+| `lead_lists` | array | List of lead lists \(id, name, has_enrichment_task, timestamp_created\) |
+| `lead_list` | json | Lead list details \(id, organization_id, has_enrichment_task, owned_by, name, timestamp_created\) |
+| `count` | number | Returned or affected record count |
+| `next_starting_after` | string | Cursor for the next page |
+| `id` | string | Record ID |
+| `name` | string | Record name |
+| `email_address` | string | Lead email address |
+| `first_name` | string | Lead first name |
+| `last_name` | string | Lead last name |
+| `status` | number | Lead or campaign status |
+| `subject` | string | Email subject |
+| `thread_id` | string | Email thread ID |
+| `message` | string | Operation message |
 
 </ReferenceDetails>
 

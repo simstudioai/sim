@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushKeywordOverviewAllParams,
   SemrushKeywordOverviewAllResponse,
@@ -18,7 +17,6 @@ export const semrushKeywordOverviewAllTool: ToolConfig<
   description:
     'Get search volume, CPC, and competition for a keyword across every regional Semrush database.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

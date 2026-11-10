@@ -1,4 +1,3 @@
-import { PINECONE_CREDENTIAL_OAUTH } from '@/tools/pinecone/credential'
 import type {
   PineconeResponse,
   PineconeSearchHit,
@@ -60,7 +59,6 @@ export const searchTextTool: ToolConfig<PineconeSearchTextParams, PineconeRespon
   name: 'Pinecone Search Text',
   description: 'Search for similar text in a Pinecone index',
   version: '1.0',
-  oauth: PINECONE_CREDENTIAL_OAUTH,
 
   params: {
     indexHost: {

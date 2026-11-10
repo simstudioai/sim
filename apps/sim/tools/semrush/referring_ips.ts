@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushReferringIpsParams,
   SemrushReferringIpsResponse,
@@ -30,7 +29,6 @@ export const semrushReferringIpsTool: ToolConfig<
   description:
     'List the IP addresses linking to a target, with the domain and backlink counts behind each one.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

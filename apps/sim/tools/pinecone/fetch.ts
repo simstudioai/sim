@@ -1,4 +1,3 @@
-import { PINECONE_CREDENTIAL_OAUTH } from '@/tools/pinecone/credential'
 import type { PineconeFetchParams, PineconeResponse, PineconeVector } from '@/tools/pinecone/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -7,7 +6,6 @@ export const fetchTool: ToolConfig<PineconeFetchParams, PineconeResponse> = {
   name: 'Pinecone Fetch',
   description: 'Fetch vectors by ID from a Pinecone index',
   version: '1.0',
-  oauth: PINECONE_CREDENTIAL_OAUTH,
 
   params: {
     indexHost: {

@@ -1,5 +1,7 @@
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   fetchProvider,
+  TokenServiceAccountValidationError,
   throwForProviderResponse,
 } from '@/lib/credentials/token-service-accounts/errors'
 import type {
@@ -23,7 +25,20 @@ interface TokenCheck {
    * host and auth scheme the service's tools use.
    */
   request: (fields: TokenServiceAccountFields) => TokenCheckRequest
+  /**
+   * The vendor answers 401 to an unknown key and 403 to a valid key that lacks
+   * this endpoint's scope, so a 403 still proves the key authenticated. Set only
+   * for vendors confirmed to reject unknown keys with 401.
+   */
+  forbiddenMeansScoped?: boolean
+  /**
+   * For a vendor that reports a rejected key inside a successful response (a
+   * GraphQL `errors` array): returns whether the parsed body proves the key.
+   */
+  acceptsBody?: (body: unknown) => boolean
 }
+
+const MAX_CHECK_RESPONSE_BYTES = 64 * 1024
 
 /**
  * Validator for a service whose token is accepted or rejected by one
@@ -39,7 +54,26 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       { method, headers, body, redirect: 'error' },
       'verify'
     )
-    await throwForProviderResponse(response, 'verify')
+    if (!(check.forbiddenMeansScoped && response.status === 403)) {
+      await throwForProviderResponse(response, 'verify')
+    }
+    if (check.acceptsBody && response.ok) {
+      let body: unknown
+      try {
+        body = await readResponseJsonWithLimit(response, {
+          maxBytes: MAX_CHECK_RESPONSE_BYTES,
+          label: `${check.serviceLabel} credential check`,
+        })
+      } catch {
+        throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+          step: 'verify',
+        })
+      }
+      if (!check.acceptsBody(body)) {
+        throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
+      }
+      return { displayName: check.serviceLabel, principal: null, auditMetadata: {} }
+    }
     await response.body?.cancel().catch(() => undefined)
     return { displayName: check.serviceLabel, principal: null, auditMetadata: {} }
   }

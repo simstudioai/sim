@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushBroadMatchKeywordsParams,
   SemrushBroadMatchKeywordsResponse,
@@ -23,7 +22,6 @@ export const semrushBroadMatchKeywordsTool: ToolConfig<
   description:
     'Find broad-match and phrase-match variations of a seed keyword, with volume and difficulty.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

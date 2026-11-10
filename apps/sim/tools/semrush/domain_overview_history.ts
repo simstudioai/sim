@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushDomainOverviewHistoryParams,
   SemrushDomainOverviewHistoryResponse,
@@ -22,7 +21,6 @@ export const semrushDomainOverviewHistoryTool: ToolConfig<
   name: 'Semrush Domain Overview History',
   description: 'Get the historical trend of a domain rank plus its organic and paid search totals.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

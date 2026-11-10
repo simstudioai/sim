@@ -44,6 +44,7 @@ import ts from '@typescript/typescript6'
 import { SUBBLOCK_ID_MIGRATIONS } from '@/lib/workflows/migrations/subblock-migrations'
 import { getAllBlocks, getBlock, getBlockMeta, getBlockRegistry } from '@/blocks/registry'
 import { readBlockRegistryAtRef } from '@/scripts/block-registry-snapshot'
+import { hostSteeringParams } from '@/scripts/saved-credential-contract'
 import { getToolMetadata } from '@/tools/metadata'
 import {
   credentialSuppliedParamsFor,
@@ -360,46 +361,6 @@ function findSelectorCoercions(file: string, source: ts.SourceFile): string[] {
   return errors
 }
 
-const HOST_PROBE = 'host-probe.invalid'
-
-/** Param names that usually carry a host, used only where a URL cannot be probed. */
-const HOST_LIKE_PARAM =
-  /^(domain|subdomain|host(name)?|(api|base|server|instance|environment|deployment|tenant|workspace)_?url|api_?host|base_?url)$/i
-
-/**
- * The params of a request tool that steer the host its request goes to. The
- * tool's real URL is built with a probe value in each string param; a param is
- * host-steering when the probe lands in the host. A URL that cannot be built
- * from placeholders (it validates a vendor host) falls back to host-like param
- * names. Internal-operation tools have no request URL; their host is in code.
- */
-function hostSteeringParams(toolId: string): string[] {
-  const tool = getTool(toolId)
-  const url = tool?.request?.url
-  if (!tool || typeof url !== 'function') return []
-  const params = Object.entries(tool.params ?? {})
-  const stringParams = params.filter(([, param]) => param.type === 'string').map(([name]) => name)
-  const placeholders = Object.fromEntries(
-    params.map(([name, param]) => [
-      name,
-      param.type === 'number' ? 1 : param.type === 'boolean' ? false : 'x',
-    ])
-  )
-  const hostWith = (values: Record<string, unknown>) => {
-    try {
-      return new URL(String(url(values))).host
-    } catch {
-      return null
-    }
-  }
-  if (hostWith(placeholders) === null) {
-    return stringParams.filter((name) => HOST_LIKE_PARAM.test(name))
-  }
-  return stringParams.filter((name) =>
-    hostWith({ ...placeholders, [name]: HOST_PROBE })?.includes(HOST_PROBE)
-  )
-}
-
 /**
  * A credential-only successor (a block some legacy block's `sunset.replacedBy`
  * names, with a saved-credential picker) must actually receive its credential:
@@ -416,10 +377,17 @@ function checkSavedCredentialContract(): CheckResult {
 
   for (const block of getAllBlocks()) {
     if (!successors.has(block.type)) continue
+    // The picker shape withSavedCredential produces.
+    const hasServiceAccountPicker = block.subBlocks.some(
+      (subBlock) =>
+        subBlock.type === 'oauth-input' &&
+        subBlock.credentialKind === 'service-account' &&
+        subBlock.canonicalParamId === 'oauthCredential'
+    )
     const takesSavedCredential = (block.tools?.access ?? []).some(
       (toolId) => (getToolMetadata(toolId)?.oauth?.credentialSuppliedParams?.length ?? 0) > 0
     )
-    if (!takesSavedCredential) continue
+    if (!takesSavedCredential && !hasServiceAccountPicker) continue
     const picker = block.subBlocks.find(
       (subBlock) =>
         subBlock.type === 'oauth-input' &&
@@ -477,7 +445,8 @@ function checkSavedCredentialContract(): CheckResult {
       }
       if (!OPERATION_RESOLVED_CREDENTIAL_PROVIDERS.has(oauth.provider)) {
         const pinned = new Set<string>([...mapped, ...(oauth.authoritativeParams ?? [])])
-        for (const param of hostSteeringParams(toolId)) {
+        const executable = getTool(toolId)
+        for (const param of executable ? hostSteeringParams(executable).params : []) {
           if (!pinned.has(param)) {
             errors.push(
               `Block "${block.type}" → tool "${toolId}": "${param}" decides the host the saved credential is sent to but the credential does not fill it (map it in credentialParams).`

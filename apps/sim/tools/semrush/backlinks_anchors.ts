@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushBacklinksAnchorsParams,
   SemrushBacklinksAnchorsResponse,
@@ -23,7 +22,6 @@ export const semrushBacklinksAnchorsTool: ToolConfig<
   description:
     'List the anchor texts used in backlinks to a target, with domain and backlink counts.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

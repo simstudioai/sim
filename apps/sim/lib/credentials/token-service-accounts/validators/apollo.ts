@@ -7,6 +7,7 @@ import { tokenCheckValidator } from '@/lib/credentials/token-service-accounts/va
  */
 export const validateApolloServiceAccount = tokenCheckValidator({
   serviceLabel: 'Apollo',
+  forbiddenMeansScoped: true,
   request: ({ apiToken }) => ({
     url: 'https://api.apollo.io/api/v1/contacts/search',
     method: 'POST',

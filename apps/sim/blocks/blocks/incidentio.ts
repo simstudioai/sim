@@ -2065,10 +2065,15 @@ export const IncidentioV2Block: BlockConfig = {
   authMode: AuthMode.OAuth,
   hideFromToolbar: false,
   sunset: undefined,
-  ...withSavedCredential(IncidentioBlock, {
-    id: 'credential',
-    type: 'oauth-input',
-    serviceId: 'incidentio',
-    title: 'incident.io Credential',
-  }),
+  ...withSavedCredential(
+    IncidentioBlock,
+    {
+      id: 'credential',
+      type: 'oauth-input',
+      serviceId: 'incidentio',
+      title: 'incident.io Credential',
+    },
+    // Alert events authenticate with their own alert source token.
+    { required: { field: 'operation', value: 'incidentio_alert_events_create', not: true } }
+  ),
 }

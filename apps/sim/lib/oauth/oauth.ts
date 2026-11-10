@@ -96,7 +96,6 @@ import {
   OtterIcon,
   OutlookIcon,
   PersonaIcon,
-  PineconeIcon,
   PipedriveIcon,
   PowerBIIcon,
   ProfoundIcon,
@@ -108,7 +107,6 @@ import {
   RipplingIcon,
   RocketlaneIcon,
   SalesforceIcon,
-  SemrushIcon,
   SendgridIcon,
   ShopifyIcon,
   SimilarwebIcon,
@@ -2278,23 +2276,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'persona',
   },
-  pinecone: {
-    name: 'Pinecone',
-    icon: PineconeIcon,
-    services: {
-      pinecone: {
-        name: 'Pinecone',
-        description: 'Manage Pinecone indexes and store, search, and fetch vectors.',
-        providerId: 'pinecone',
-        serviceAccountProviderId: 'pinecone-service-account',
-        icon: PineconeIcon,
-        baseProviderIcon: PineconeIcon,
-        scopes: [],
-        authType: 'service_account',
-      },
-    },
-    defaultService: 'pinecone',
-  },
   profound: {
     name: 'Profound',
     icon: ProfoundIcon,
@@ -2380,23 +2361,6 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'rocketlane',
-  },
-  semrush: {
-    name: 'Semrush',
-    icon: SemrushIcon,
-    services: {
-      semrush: {
-        name: 'Semrush',
-        description: 'Research SEO and paid search data with Semrush.',
-        providerId: 'semrush',
-        serviceAccountProviderId: 'semrush-service-account',
-        icon: SemrushIcon,
-        baseProviderIcon: SemrushIcon,
-        scopes: [],
-        authType: 'service_account',
-      },
-    },
-    defaultService: 'semrush',
   },
   sendgrid: {
     name: 'SendGrid',

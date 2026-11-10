@@ -45,7 +45,6 @@ import { LumaBlock, LumaV2Block } from '@/blocks/blocks/luma'
 import { MailchimpBlock, MailchimpV2Block } from '@/blocks/blocks/mailchimp'
 import { OtterBlock, OtterV2Block } from '@/blocks/blocks/otter'
 import { PersonaBlock, PersonaV2Block } from '@/blocks/blocks/persona'
-import { PineconeBlock, PineconeV2Block } from '@/blocks/blocks/pinecone'
 import { ProfoundBlock, ProfoundV2Block } from '@/blocks/blocks/profound'
 import { QuartrBlock, QuartrV2Block } from '@/blocks/blocks/quartr'
 import { RB2BBlock, RB2BV2Block } from '@/blocks/blocks/rb2b'
@@ -54,7 +53,6 @@ import { RipplingBlock, RipplingV2Block } from '@/blocks/blocks/rippling'
 import { RocketlaneBlock, RocketlaneV2Block } from '@/blocks/blocks/rocketlane'
 import { S3Block, S3V2Block } from '@/blocks/blocks/s3'
 import { SecretsManagerBlock, SecretsManagerV2Block } from '@/blocks/blocks/secrets_manager'
-import { SemrushBlock, SemrushV2Block } from '@/blocks/blocks/semrush'
 import { SendGridBlock, SendGridV2Block } from '@/blocks/blocks/sendgrid'
 import { SESBlock, SESV2Block } from '@/blocks/blocks/ses'
 import { SimilarwebBlock, SimilarwebV2Block } from '@/blocks/blocks/similarweb'
@@ -191,13 +189,11 @@ const VERSIONS: Array<{
   { legacy: MailchimpBlock, successor: MailchimpV2Block, secretIds: ['apiKey'] },
   { legacy: OtterBlock, successor: OtterV2Block, secretIds: ['apiKey'] },
   { legacy: PersonaBlock, successor: PersonaV2Block, secretIds: ['apiKey'] },
-  { legacy: PineconeBlock, successor: PineconeV2Block, secretIds: ['apiKey'] },
   { legacy: ProfoundBlock, successor: ProfoundV2Block, secretIds: ['apiKey'] },
   { legacy: QuartrBlock, successor: QuartrV2Block, secretIds: ['apiKey'] },
   { legacy: RB2BBlock, successor: RB2BV2Block, secretIds: ['apiKey'] },
   { legacy: RipplingBlock, successor: RipplingV2Block, secretIds: ['apiKey'] },
   { legacy: RocketlaneBlock, successor: RocketlaneV2Block, secretIds: ['apiKey'] },
-  { legacy: SemrushBlock, successor: SemrushV2Block, secretIds: ['apiKey'] },
   { legacy: SendGridBlock, successor: SendGridV2Block, secretIds: ['apiKey'] },
   { legacy: SimilarwebBlock, successor: SimilarwebV2Block, secretIds: ['apiKey'] },
   { legacy: SixtyfourBlock, successor: SixtyfourV2Block, secretIds: ['apiKey'] },

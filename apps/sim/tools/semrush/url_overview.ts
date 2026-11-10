@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushUrlOverviewParams,
   SemrushUrlOverviewResponse,
@@ -17,7 +16,6 @@ export const semrushUrlOverviewTool: ToolConfig<
   name: 'Semrush URL Overview',
   description: 'Get the organic and paid search totals for a single URL in one regional database.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

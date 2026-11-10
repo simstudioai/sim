@@ -96,13 +96,11 @@ export const SMARTLEAD_SERVICE_ACCOUNT_PROVIDER_ID = 'smartlead-service-account'
 export const SIXTYFOUR_SERVICE_ACCOUNT_PROVIDER_ID = 'sixtyfour-service-account' as const
 export const SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID = 'similarweb-service-account' as const
 export const SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID = 'sendgrid-service-account' as const
-export const SEMRUSH_SERVICE_ACCOUNT_PROVIDER_ID = 'semrush-service-account' as const
 export const ROCKETLANE_SERVICE_ACCOUNT_PROVIDER_ID = 'rocketlane-service-account' as const
 export const RIPPLING_SERVICE_ACCOUNT_PROVIDER_ID = 'rippling-service-account' as const
 export const RB2B_SERVICE_ACCOUNT_PROVIDER_ID = 'rb2b-service-account' as const
 export const QUARTR_SERVICE_ACCOUNT_PROVIDER_ID = 'quartr-service-account' as const
 export const PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID = 'profound-service-account' as const
-export const PINECONE_SERVICE_ACCOUNT_PROVIDER_ID = 'pinecone-service-account' as const
 export const PERSONA_SERVICE_ACCOUNT_PROVIDER_ID = 'persona-service-account' as const
 export const OTTER_SERVICE_ACCOUNT_PROVIDER_ID = 'otter-service-account' as const
 export const MAILCHIMP_SERVICE_ACCOUNT_PROVIDER_ID = 'mailchimp-service-account' as const
@@ -176,13 +174,11 @@ export type TokenServiceAccountProviderId =
   | typeof SIXTYFOUR_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SIMILARWEB_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID
-  | typeof SEMRUSH_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof ROCKETLANE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof RIPPLING_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof RB2B_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof QUARTR_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID
-  | typeof PINECONE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof PERSONA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof OTTER_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof MAILCHIMP_SERVICE_ACCOUNT_PROVIDER_ID
@@ -647,7 +643,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API key',
-        placeholder: 'Enter your Affinity API key',
+        placeholder: 'Paste your Affinity API key',
         secret: true,
       },
     ],
@@ -662,7 +658,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API key',
-        placeholder: 'Enter your AgentMail API key',
+        placeholder: 'Paste your AgentMail API key',
         secret: true,
       },
     ],
@@ -677,7 +673,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API key',
-        placeholder: 'Enter your AgentPhone API key',
+        placeholder: 'Paste your AgentPhone API key',
         secret: true,
       },
     ],
@@ -689,7 +685,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     tokenNoun: 'API key',
     connectNoun: 'API key',
     fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Ahrefs API key', secret: true },
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Ahrefs API key', secret: true },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/ahrefs',
     helpText: 'The key needs access to the Ahrefs API v3 endpoints you plan to use.',
@@ -703,7 +699,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API token',
-        placeholder: 'Enter your Apify API token',
+        placeholder: 'Paste your Apify API token',
         secret: true,
       },
     ],
@@ -716,7 +712,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     tokenNoun: 'API key',
     connectNoun: 'API key',
     fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Apollo API key', secret: true },
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Apollo API key', secret: true },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/apollo',
     helpText: 'Account, bulk, deal creation, and email account operations need a master API key.',
@@ -730,7 +726,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'User token',
-        placeholder: 'Enter your Brex user token',
+        placeholder: 'Paste your Brex user token',
         secret: true,
       },
     ],
@@ -746,7 +742,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API token',
-        placeholder: 'Enter your Bright Data API token',
+        placeholder: 'Paste your Bright Data API token',
         secret: true,
       },
     ],
@@ -766,7 +762,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     tokenNoun: 'API key',
     connectNoun: 'API key',
     fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Buffer API key', secret: true },
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Buffer API key', secret: true },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/buffer',
   },
@@ -865,6 +861,8 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/elevenlabs',
     helpText:
       'A restricted key needs User read access to be verified, plus access to each endpoint your workflows call.',
+    invalidCredentialsHelp:
+      'ElevenLabs rejected this key. A restricted key needs User read access, which Sim uses to check it.',
   },
   [ENRICH_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ENRICH_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -892,7 +890,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/gamma',
-    helpText: 'Create a key under Account Settings > API Keys in Gamma.',
+    helpText: 'Create a key under Settings > API Keys in Gamma.',
   },
   [HEX_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: HEX_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -900,9 +898,10 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     tokenNoun: 'API token',
     connectNoun: 'API token',
     fields: [
-      { id: 'apiToken', label: 'API token', placeholder: 'Enter your Hex API token', secret: true },
+      { id: 'apiToken', label: 'API token', placeholder: 'Paste your Hex API token', secret: true },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/hex',
+    helpText: 'Sim checks the token by listing projects, so it needs Read projects access.',
   },
   [HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: HUGGINGFACE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -913,7 +912,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'Access token',
-        placeholder: 'Enter your Hugging Face access token',
+        placeholder: 'Paste your Hugging Face access token',
         secret: true,
       },
     ],
@@ -928,7 +927,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API key',
-        placeholder: 'Enter your incident.io API key',
+        placeholder: 'Paste your incident.io API key',
         secret: true,
       },
     ],
@@ -944,11 +943,13 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API key',
-        placeholder: 'Enter your Instantly API key',
+        placeholder: 'Paste your Instantly API key',
         secret: true,
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/instantly',
+    helpText:
+      'Sim checks the key by listing campaigns, so it needs campaign read access (or an all-access scope).',
   },
   [LANGSMITH_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: LANGSMITH_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -959,7 +960,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API key',
-        placeholder: 'Enter your LangSmith API key',
+        placeholder: 'Paste your LangSmith API key',
         secret: true,
       },
     ],
@@ -974,7 +975,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'Access token',
-        placeholder: 'Enter your LaunchDarkly access token',
+        placeholder: 'Paste your LaunchDarkly access token',
         secret: true,
       },
     ],
@@ -986,7 +987,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     tokenNoun: 'API key',
     connectNoun: 'API key',
     fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Linq API key', secret: true },
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Linq API key', secret: true },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/linq',
   },
@@ -996,7 +997,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     tokenNoun: 'API key',
     connectNoun: 'API key',
     fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Loops API key', secret: true },
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Loops API key', secret: true },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/loops',
   },
@@ -1006,7 +1007,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     tokenNoun: 'API key',
     connectNoun: 'API key',
     fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Enter your Luma API key', secret: true },
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Luma API key', secret: true },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/luma',
   },
@@ -1034,7 +1035,12 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     tokenNoun: 'API key',
     connectNoun: 'API key',
     fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Otter API key', secret: true },
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your Otter.ai API key',
+        secret: true,
+      },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/otter',
     helpText: 'The Otter API is available on Enterprise workspaces only.',
@@ -1048,25 +1054,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       { id: 'apiToken', label: 'API key', placeholder: 'Paste your Persona API key', secret: true },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/persona',
-    helpText:
-      'Sim checks the key by listing inquiries, so it needs inquiry read access in Persona.',
-  },
-  [PINECONE_SERVICE_ACCOUNT_PROVIDER_ID]: {
-    providerId: PINECONE_SERVICE_ACCOUNT_PROVIDER_ID,
-    serviceLabel: 'Pinecone',
-    tokenNoun: 'API key',
-    connectNoun: 'API key',
-    fields: [
-      {
-        id: 'apiToken',
-        label: 'API key',
-        placeholder: 'Paste your Pinecone API key',
-        secret: true,
-      },
-    ],
-    docsUrl: 'https://docs.sim.ai/integrations/pinecone',
-    helpText:
-      'Sim checks the key by listing indexes, so a key limited to data-plane access is rejected.',
+    helpText: 'Grant the key the permissions your workflows need in Persona.',
   },
   [PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: PROFOUND_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1117,8 +1105,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/rippling',
-    helpText:
-      'Grant the token the sso-me.read scope, which Sim uses to check it, plus the scopes your workflows need.',
+    helpText: 'Grant the token the scopes your workflows need.',
   },
   [ROCKETLANE_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ROCKETLANE_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -1135,23 +1122,19 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/rocketlane',
   },
-  [SEMRUSH_SERVICE_ACCOUNT_PROVIDER_ID]: {
-    providerId: SEMRUSH_SERVICE_ACCOUNT_PROVIDER_ID,
-    serviceLabel: 'Semrush',
-    tokenNoun: 'API key',
-    connectNoun: 'API key',
-    fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Semrush API key', secret: true },
-    ],
-    docsUrl: 'https://docs.sim.ai/integrations/semrush',
-    helpText: 'Find the key in Semrush under Subscription info > API units.',
-  },
   [SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: SENDGRID_SERVICE_ACCOUNT_PROVIDER_ID,
     serviceLabel: 'SendGrid',
     tokenNoun: 'API key',
     connectNoun: 'API key',
-    fields: [{ id: 'apiToken', label: 'API key', placeholder: 'SG...', secret: true }],
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'Paste your SendGrid API key',
+        secret: true,
+      },
+    ],
     docsUrl: 'https://docs.sim.ai/integrations/sendgrid',
     helpText:
       'Create a key in SendGrid under Settings > API Keys. A restricted key only works for the actions it is scoped to.',
@@ -1165,7 +1148,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API key',
-        placeholder: 'Enter your Similarweb API key',
+        placeholder: 'Paste your Similarweb API key',
         secret: true,
       },
     ],
@@ -1180,7 +1163,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API key',
-        placeholder: 'Enter your Sixtyfour API key',
+        placeholder: 'Paste your Sixtyfour API key',
         secret: true,
       },
     ],
@@ -1195,7 +1178,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API key',
-        placeholder: 'Enter your Smartlead API key',
+        placeholder: 'Paste your Smartlead API key',
         secret: true,
       },
     ],
@@ -1210,7 +1193,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API token',
-        placeholder: 'Enter your Sportmonks API token',
+        placeholder: 'Paste your Sportmonks API token',
         secret: true,
       },
     ],
@@ -1225,7 +1208,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'Access token',
-        placeholder: 'Enter your Square production access token',
+        placeholder: 'Paste your Square production access token',
         secret: true,
       },
     ],
@@ -1242,7 +1225,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API access token',
-        placeholder: 'Enter your Tailscale API access token',
+        placeholder: 'Paste your Tailscale API access token',
         secret: true,
       },
     ],
@@ -1261,8 +1244,9 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
         label: 'Secret API key',
         placeholder: 'tr_prod_...',
         secret: true,
-        hintPattern: /^tr_/,
-        hintMessage: 'Trigger.dev secret keys start with tr_.',
+        hintPattern: /^tr_(dev|stg|prod|preview)_/,
+        hintMessage:
+          'Trigger.dev secret keys start with tr_dev_, tr_stg_, tr_prod_, or tr_preview_.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/trigger_dev',
@@ -1278,7 +1262,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API key',
-        placeholder: 'Enter your UptimeRobot API key',
+        placeholder: 'Paste your UptimeRobot API key',
         secret: true,
       },
     ],
@@ -1292,7 +1276,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     tokenNoun: 'API key',
     connectNoun: 'API key',
     fields: [
-      { id: 'apiToken', label: 'API key', placeholder: 'Enter your You.com API key', secret: true },
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your You.com API key', secret: true },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/youcom',
   },
@@ -1305,7 +1289,7 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       {
         id: 'apiToken',
         label: 'API key',
-        placeholder: 'Enter your YouTube Data API key',
+        placeholder: 'Paste your YouTube Data API key',
         secret: true,
       },
     ],

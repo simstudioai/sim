@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushUrlOrganicKeywordsParams,
   SemrushUrlOrganicKeywordsResponse,
@@ -36,7 +35,6 @@ export const semrushUrlOrganicKeywordsTool: ToolConfig<
   name: 'Semrush URL Organic Keywords',
   description: 'List the keywords a single URL ranks for in Google organic search.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

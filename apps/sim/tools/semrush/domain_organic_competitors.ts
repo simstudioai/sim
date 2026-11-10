@@ -1,4 +1,3 @@
-import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/semrush/credential'
 import type {
   SemrushDomainOrganicCompetitorsParams,
   SemrushDomainOrganicCompetitorsResponse,
@@ -22,7 +21,6 @@ export const semrushDomainOrganicCompetitorsTool: ToolConfig<
   name: 'Semrush Organic Competitors',
   description: 'List the domains competing with a target domain in Google organic search results.',
   version: '1.0.0',
-  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

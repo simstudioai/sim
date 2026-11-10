@@ -2438,7 +2438,10 @@ function extractBlockConfigFromContent(
     const iconName = extractIconNameFromContent(blockContent) || (baseConfig as any)?.iconName || ''
 
     const ownOutputs = extractOutputsFromContent(blockContent)
-    const inheritsOutputs = /\boutputs\s*:\s*\{\s*\.\.\.\w+Block\.outputs\b/.test(blockContent)
+    // A spread-inheriting block with no outputs of its own (`{ ...XBlock, type }`) keeps the base's.
+    const inheritsOutputs =
+      /\boutputs\s*:\s*\{\s*\.\.\.\w+Block\.outputs\b/.test(blockContent) ||
+      (spreadBase !== null && !/\boutputs\s*:/.test(blockContent))
     const omittedOutputs = extractOmittedOutputs(blockContent, baseConfig?.outputs)
     const outputs = omittedOutputs
       ? { ...omittedOutputs, ...ownOutputs }

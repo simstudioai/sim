@@ -4,7 +4,7 @@ import { tokenCheckValidator } from '@/lib/credentials/token-service-accounts/va
 export const validateYouTubeServiceAccount = tokenCheckValidator({
   serviceLabel: 'YouTube',
   request: ({ apiToken }) => ({
-    url: `https://www.googleapis.com/youtube/v3/videoCategories?part=id&regionCode=US&key=${encodeURIComponent(apiToken)}`,
+    url: `https://www.googleapis.com/youtube/v3/videoCategories?part=snippet&regionCode=US&key=${encodeURIComponent(apiToken)}`,
     headers: { Accept: 'application/json' },
   }),
 })
