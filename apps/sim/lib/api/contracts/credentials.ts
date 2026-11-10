@@ -634,7 +634,7 @@ export const upsertWorkspaceCredentialMemberContract = defineRouteContract({
 })
 
 /** The most people one Add people request may name. */
-export const MAX_CREDENTIAL_MEMBERS_PER_ADD = 100
+const MAX_CREDENTIAL_MEMBERS_PER_ADD = 100
 
 /** Grants several workspace members one role in one change; each is refused or granted on their own. */
 export const addWorkspaceCredentialMembersContract = defineRouteContract({
