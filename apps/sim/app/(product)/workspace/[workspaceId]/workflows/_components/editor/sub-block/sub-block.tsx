@@ -11,6 +11,7 @@ import {
 } from 'react'
 import { isEqual } from 'es-toolkit'
 import { workspacePath } from '@/lib/navigation/paths'
+import { SubBlockOutputPicker } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/output-picker/output-picker'
 import { CheckboxList } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/checkbox-list/checkbox-list'
 import { Code } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/code/code'
 import { ComboBox } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/combobox/combobox'
@@ -55,8 +56,6 @@ import { TextBlock } from '@/app/(product)/workspace/[workspaceId]/workflows/_co
 import { TimeInput } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/time-input/time-input'
 import { ToolInput } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/tool-input/tool-input'
 import { VariablesInput } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/variables-input/variables-input'
-import { WorkflowInputMapper } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/workflow-input-mapper/workflow-input-mapper'
-import { WorkflowOutputSelector } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/workflow-output-selector/workflow-output-selector'
 import { WorkflowSelectorInput } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/workflow-selector/workflow-selector'
 import { WorkspaceFolderSelector } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/workspace-folder-selector/workspace-folder-selector'
 import {
@@ -583,18 +582,19 @@ function SubBlockComponent({
             isPreview={isPreview}
             previewValue={previewValue}
             disabled={isDisabled}
-            previewContextValues={contextValues}
+            contextValues={contextValues}
           />
         )
       case 'workflow-input-mapper':
         return (
-          <WorkflowInputMapper
+          <InputMapping
             blockId={blockId}
             subBlock={config}
             isPreview={isPreview}
             previewValue={previewValue}
             disabled={isDisabled}
             contextValues={contextValues}
+            storage='json'
           />
         )
       case 'variables-input':
@@ -650,7 +650,7 @@ function SubBlockComponent({
         )
       case 'workflow-output-selector':
         return (
-          <WorkflowOutputSelector
+          <SubBlockOutputPicker
             blockId={blockId}
             subBlockId={config.id}
             isPreview={isPreview}
