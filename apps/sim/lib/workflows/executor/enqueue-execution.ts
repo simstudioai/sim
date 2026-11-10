@@ -127,7 +127,7 @@ export async function enqueueWorkflowExecution(
     admissionCompleted: true,
     executionTimeoutMs,
     trustedInitialResolvedSecretTraceProvenance,
-    ...(pinnedDeploymentVersionId ? { pinnedDeploymentVersionId } : {}),
+    pinnedDeploymentVersionId,
   }
 
   let jobQueue: Awaited<ReturnType<typeof getJobQueue>>

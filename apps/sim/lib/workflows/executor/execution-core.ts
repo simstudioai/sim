@@ -728,38 +728,25 @@ async function executeWorkflowCoreImpl(
      * on the environment load, so the two are awaited concurrently below.
      */
     const loadWorkflowState = async () => {
-      if (resumeFromSnapshot && !useDraftState) {
-        if (!resumeDeploymentVersionId) {
-          throw new Error('Deployed resume requires its admitted deployment version')
-        }
-        const deployedData = await loadWorkflowDeploymentVersionState(
+      /** A deployed resume reloads the version its log admitted; a pinned run, its pin. */
+      const versionId =
+        resumeFromSnapshot && !useDraftState ? resumeDeploymentVersionId : pinnedDeploymentVersionId
+      if (versionId) {
+        const versionData = await loadWorkflowDeploymentVersionState(
           workflowId,
-          resumeDeploymentVersionId,
+          versionId,
           providedWorkspaceId
         )
-        logger.info('Using admitted historical deployment state (resumed execution)', { requestId })
+        logger.info('Using a selected deployment version state', {
+          requestId,
+          resumed: resumeFromSnapshot,
+        })
         return {
-          blocks: deployedData.blocks,
-          edges: deployedData.edges,
-          loops: deployedData.loops,
-          parallels: deployedData.parallels,
-          deploymentVersionId: deployedData.deploymentVersionId,
-        }
-      }
-
-      if (pinnedDeploymentVersionId) {
-        const pinnedData = await loadWorkflowDeploymentVersionState(
-          workflowId,
-          pinnedDeploymentVersionId,
-          providedWorkspaceId
-        )
-        logger.info('Using pinned deployment version state', { requestId })
-        return {
-          blocks: pinnedData.blocks,
-          edges: pinnedData.edges,
-          loops: pinnedData.loops,
-          parallels: pinnedData.parallels,
-          deploymentVersionId: pinnedData.deploymentVersionId,
+          blocks: versionData.blocks,
+          edges: versionData.edges,
+          loops: versionData.loops,
+          parallels: versionData.parallels,
+          deploymentVersionId: versionData.deploymentVersionId,
         }
       }
 

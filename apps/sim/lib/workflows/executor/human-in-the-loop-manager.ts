@@ -266,6 +266,21 @@ function getSnapshotWorkspaceId(snapshotValue: unknown): string | undefined {
   return typeof metadata.workspaceId === 'string' ? metadata.workspaceId : undefined
 }
 
+/**
+ * The pause display fields of a point captured with scrubbing. A point persisted before
+ * scrubbing existed stored its response unscrubbed, so it carries none of them.
+ */
+function scrubbedPauseDisplay(
+  point: Pick<PausePoint, 'displayScrubbed' | 'display' | 'inputFields'>
+): Pick<PausePoint, 'displayScrubbed' | 'display' | 'inputFields'> {
+  if (point.displayScrubbed !== true) return {}
+  return {
+    displayScrubbed: true,
+    display: point.display ?? null,
+    inputFields: point.inputFields ?? null,
+  }
+}
+
 function isResumablePausedStatus(status: string): boolean {
   return RESUMABLE_PAUSED_STATUSES.includes(status as (typeof RESUMABLE_PAUSED_STATUSES)[number])
 }
@@ -605,13 +620,7 @@ export class PauseResumeManager {
         resumeLinks: point.resumeLinks,
         pauseKind: point.pauseKind,
         resumeAt: point.resumeAt,
-        ...(point.displayScrubbed
-          ? {
-              displayScrubbed: true,
-              display: point.display ?? null,
-              inputFields: point.inputFields ?? null,
-            }
-          : {}),
+        ...scrubbedPauseDisplay(point),
       }
       return acc
     }, {})
@@ -3840,13 +3849,7 @@ export class PauseResumeManager {
         resumeLinks,
         pauseKind: point.pauseKind ?? 'human',
         resumeAt: point.resumeAt,
-        ...(point.displayScrubbed === true
-          ? {
-              displayScrubbed: true,
-              display: point.display ?? null,
-              inputFields: point.inputFields ?? null,
-            }
-          : {}),
+        ...scrubbedPauseDisplay(point),
         queuePosition,
         latestResumeEntry: latestEntry ?? null,
       }

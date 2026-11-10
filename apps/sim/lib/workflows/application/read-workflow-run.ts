@@ -17,7 +17,6 @@ import {
 } from '@/lib/workflows/executor/execution-run-files'
 import {
   getProjectedWorkflowExecutionStatus,
-  type PausedRunPoint,
   readPausedRunPoints,
 } from '@/lib/workflows/executor/execution-status'
 
@@ -156,7 +155,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
        * Every pause point of a paused run, so a caller can resume any of them by
        * `contextId`, not only the earliest one `paused` summarizes.
        */
-      const pausePoints: PausedRunPoint[] | null = status.paused
+      const pausePoints = status.paused
         ? ((await readPausedRunPoints({
             workflowId: context.workflowId,
             executionId: context.runId,

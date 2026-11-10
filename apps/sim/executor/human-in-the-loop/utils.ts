@@ -77,7 +77,7 @@ export function mapNodeMetadataToPauseScopes(
 }
 
 function toPauseInputField(field: unknown): PauseInputField | null {
-  if (!isRecordLike(field) || typeof field.name !== 'string' || !field.name) return null
+  if (!isRecordLike(field) || typeof field.name !== 'string' || !field.name.trim()) return null
   return {
     name: field.name,
     label: typeof field.label === 'string' ? field.label : field.name,

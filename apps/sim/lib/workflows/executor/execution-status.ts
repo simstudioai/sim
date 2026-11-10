@@ -623,7 +623,6 @@ export async function readPausedRunPoints(input: {
 
   return points.map((point) => {
     const blockId = baseBlockId(point)
-    const scrubbed = point.displayScrubbed === true
     return {
       contextId: point.contextId,
       blockId,
@@ -642,8 +641,8 @@ export async function readPausedRunPoints(input: {
       loop: point.loopScope
         ? { loopId: point.loopScope.loopId, iteration: point.loopScope.iteration }
         : null,
-      inputFields: scrubbed ? (point.inputFields ?? null) : null,
-      display: scrubbed ? (point.display ?? null) : null,
+      inputFields: point.inputFields ?? null,
+      display: point.display ?? null,
       queuePosition: point.queuePosition ?? null,
     }
   })
