@@ -1,7 +1,7 @@
 import type { IconName } from '@sim/emcn/catalog/icon-geometry'
 import type { RecentItem } from '@sim/emcn-platform/recent-items'
-import type { ComposerInventory } from '@/app/(product)/_components/composer/model'
-import type { HomeMode } from '@/app/(product)/_components/model'
+import type { ComposerInventory } from '@/platform/lib/data/models/composer'
+import type { HomeMode } from '@/platform/lib/data/models/shell'
 import type {
   CalendarMeeting,
   HomeActivityState,

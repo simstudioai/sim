@@ -1,10 +1,10 @@
 import type { IconName } from '@sim/emcn/catalog/icon-geometry'
+import type { ChatContext } from '@/platform/lib/data/chat-types'
 import type {
   ChatAttachment,
   ComposerController,
   ComposerReference,
-} from '@/app/(product)/_components/composer/model'
-import type { ChatContext } from '@/platform/lib/data/chat-types'
+} from '@/platform/lib/data/models/composer'
 
 export const GROUP_ICONS: Record<string, IconName> = {
   Workspaces: 'I025',

@@ -1,11 +1,11 @@
 import type { FileEditingProps, FileStreamProps } from '@/components/file-viewer/types'
-import type { ComposerDraft } from '@/app/(product)/_components/composer/model'
-import type { SourceRowData } from '@/app/(product)/_components/source-row/source-row'
 import type {
   CredentialItemData,
   SearchConnectionTarget,
   SearchResource,
 } from '@/platform/lib/data/chat-types'
+import type { ComposerDraft } from '@/platform/lib/data/models/composer'
+import type { SourceRowData } from '@/platform/lib/data/models/source-row'
 
 /** Every state a tool call can be in. Waiting on a person and each way of not finishing stay apart. */
 export type PlatformToolStatus =

@@ -34,16 +34,6 @@ import {
   ASSISTANT_IMAGE_MAX_TOTAL_BYTES,
   isAssistantImageType,
 } from '@/lib/uploads/shared/assistant-images'
-import type {
-  ChatAttachment,
-  ComposerController,
-  ComposerDraft,
-  ComposerSettings,
-} from '@/app/(product)/_components/composer/model'
-import type {
-  ComposerHost,
-  ComposerOptions,
-} from '@/app/(product)/_components/session/composer-host'
 import {
   useMothershipChatHistory,
   useSetMothershipChatEffort,
@@ -51,6 +41,14 @@ import {
 import { useVoiceInput } from '@/hooks/use-voice-input'
 import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { useMentionInventory } from '@/platform/lib/data/chat-mentions'
+import type {
+  ChatAttachment,
+  ComposerController,
+  ComposerDraft,
+  ComposerHost,
+  ComposerOptions,
+  ComposerSettings,
+} from '@/platform/lib/data/models/composer'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useStartSearch } from '@/platform/lib/data/search-start'

@@ -1,12 +1,12 @@
 ---
 name: emil-design-eng
 source: https://github.com/emilkowalski/skill — skills/emil-design-eng/SKILL.md
-description: This skill encodes Emil Kowalski's philosophy on UI polish, component design, animation decisions, and the invisible details that make software feel great.
+description: Emil Kowalski's philosophy on UI polish, component design, animation decisions, and the invisible details that make software feel great. Use for the marketing site and legacy-library UI; Platform product UI (app/(product), platform, packages/emcn*) follows apps/sim/platform/AGENTS.md instead.
 ---
 
 # Design Engineering
 
-> **In this repo:** emcn owns component chrome (press states, tooltip/popover/menu animation, easing): apply these principles by proposing changes in `packages/emcn`, not per call site, and add no global CSS variables or keyframes (`.claude/rules/sim-styling.md`). Animation uses `import { motion } from 'framer-motion'`. Gate touch-unsafe hover with the `hover-hover:` Tailwind variant (plain `hover:` is intentionally ungated). `.claude/rules/sim-styling.md` and `.claude/rules/emcn-components.md` win on any conflict.
+> **In this repo:** this skill covers the marketing site (`apps/sim/app/(landing)`) and UI built on `@sim/emcn-legacy`. Platform product UI (`apps/sim/app/(product)`, `apps/sim/platform`) follows `apps/sim/platform/AGENTS.md`. Modern EMCN (`packages/emcn*`) is frozen (`packages/emcn/AGENTS.md`): its chrome (press states, tooltip/popover/menu animation, easing) changes only through the design owner, so raise a proposal rather than patching a call site. Add no global CSS variables or keyframes (`.claude/rules/sim-styling.md`). Animation uses `import { motion } from 'framer-motion'`. Gate touch-unsafe hover with the `hover-hover:` Tailwind variant (plain `hover:` is intentionally ungated). `.claude/rules/sim-styling.md` and `.claude/rules/emcn-legacy-components.md` win on any conflict.
 
 You are a design engineer with the craft sensibility. You build interfaces where every detail compounds into something that feels right. You understand that in a world where everyone's software is good enough, taste is the differentiator.
 

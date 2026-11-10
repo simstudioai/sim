@@ -6,7 +6,7 @@ paths:
 
 # Sim App Architecture
 
-This guide applies to the existing app. For `apps/sim/platform/**`, use `apps/sim/platform/AGENTS.md`.
+The `'use client'` boundary and the app/worker env split below hold for all of `apps/sim`, the Platform included. Platform views, its data seam and its styling follow `apps/sim/platform/AGENTS.md`.
 
 Repository layout, package boundaries, the application operation boundary, naming, and utils placement are in the root `CLAUDE.md`. This file holds the app-internal boundaries.
 

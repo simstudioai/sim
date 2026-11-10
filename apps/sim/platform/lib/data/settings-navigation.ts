@@ -1,5 +1,5 @@
 import { organizationSupportsSettingsSection } from '@/lib/settings/section-availability'
-import type { SettingsNavGroup, SettingsNavItem } from '@/app/(product)/_components/model'
+import type { SettingsNavGroup, SettingsNavItem } from '@/platform/lib/data/models/shell'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
 import { settingsSearchEntries } from '@/platform/shared/settings-search'
 

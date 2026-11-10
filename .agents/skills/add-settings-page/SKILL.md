@@ -24,22 +24,30 @@ Key paths:
 
 ## Mode A — Add a new settings page
 
-1. **Navigation.** In `navigation.ts`: add the id to `UnifiedSettingsSection`, then a
+1. **Navigation.** In `navigation.ts`: add the id to the plane's section union
+   (`AccountSettingsSection` or `SelfHostSettingsSection`), then a
    `SETTINGS_SECTION_REGISTRY` entry with `label`, `icon`, and
-   `unified: { id, description, group, order }` (description verb-first, ~40–55 chars,
-   product voice per `.claude/rules/constitution.md`). Set gating flags
-   (`requiresHosted`, `requiresEnterprise`, …) on `unified`, and add `planes` only if the
-   section also exists on a standalone plane.
+   `planes: { account: { id, group, order, description } }` (or `selfhost:`). The account
+   and self-hosted sidebars, titles and route parsing read only these plane projections
+   (`ACCOUNT_SETTINGS_ITEMS`, `SELFHOST_SETTINGS_ITEMS`, `getSettingsSectionMeta`); `unified`
+   feeds no account or self-hosted surface. Description: verb-first, ~40–55 chars, product
+   voice per `.claude/rules/constitution.md`.
 2. **Wire the switch.** In the plane's renderer (`account-settings-renderer.tsx` or
    `selfhost-settings-renderer.tsx`), add
    `const X = dynamic(() => import('@/components/settings/sections/<name>/<name>').then((m) => m.X))`
-   and its branch.
+   and its branch, and gate it in that plane's `[section]/page.tsx` if needed.
 3. **Build the body inside `SettingsPanel`** per the rule's canonical page shape:
    `actions`, `search`, `children`, modal siblings in a fragment.
 4. **If the page has editable state**, wire the shared save/discard stack exactly as in
    `.claude/rules/sim-settings-pages.md` "Save / Discard + unsaved-changes guard"
    (Save/Discard as header actions, `useSettingsUnsavedGuard` before any early return).
-5. **Verify:** the local gate in the root `CLAUDE.md` ("How your work is checked").
+5. **Warm only what a second consumer needs.** Extract client-safe React Query options only
+   when a second consumer or a server boundary needs them; otherwise keep them with the hook.
+   An approved intent warmer reuses those exact options, keeps `check-tool-registry-boundary`
+   green, warms only authorized destinations, keeps the current section through the
+   transition and follows `sim-react-performance.md` recovery rules; it never renders
+   temporary default data that load later replaces.
+6. **Verify:** the local gate in the root `CLAUDE.md` ("How your work is checked").
 
 ## Mode B — Audit existing settings pages
 
@@ -82,7 +90,7 @@ Read "The resource row" in `.claude/rules/sim-settings-pages.md` first — it is
 contract. Then, per page:
 
 1. Find hand-rolled rows:
-   `git grep -n "truncate text-\[var(--text-body)\] text-sm" -- 'apps/sim/components/' 'apps/sim/ee/'`
+   `git grep -n "truncate text-\[var(--text-body)\] text-sm" -- 'apps/sim/components/settings/' 'apps/sim/ee/access-requests/components/'`
    Every match outside `settings-resource-row.tsx` is either a row to migrate or a
    genuinely different shape (multi-line body, tabular columns, a grid) that stays
    bespoke — decide which, and say so.
