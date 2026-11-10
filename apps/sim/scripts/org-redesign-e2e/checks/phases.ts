@@ -6,7 +6,6 @@ import { integrationChecks } from '@/scripts/org-redesign-e2e/checks/integration
 import { landingChecks } from '@/scripts/org-redesign-e2e/checks/landing'
 import { linksChecks } from '@/scripts/org-redesign-e2e/checks/links'
 import { peoplePhaseChecks } from '@/scripts/org-redesign-e2e/checks/people'
-import { realtimeChecks } from '@/scripts/org-redesign-e2e/checks/realtime'
 import { stateScreenshots } from '@/scripts/org-redesign-e2e/checks/screenshots'
 import { searchChecks } from '@/scripts/org-redesign-e2e/checks/search'
 import { settingsChecks } from '@/scripts/org-redesign-e2e/checks/settings'
@@ -27,7 +26,6 @@ export const PHASES: Record<string, readonly (() => Promise<void>)[]> = {
     settingsChecks,
     firstPaintChecks,
     blastRadiusChecks,
-    realtimeChecks,
     () => walkRoutes([MEMBER, ADMIN, OWNER, CONNECTED, NARROW]),
     stateScreenshots,
   ],

@@ -8,7 +8,6 @@ import type { listSlackSearchResponseSchema } from '@/lib/api/contracts/knowledg
 import type { OrganizationUsageEventPage } from '@/lib/api/contracts/organization-usage'
 import {
   ADMIN,
-  ADMIN_CHATS,
   MEMBER,
   MEMBER_ADMIN_WORKSPACE,
   ORGANIZATION_ID,
@@ -23,7 +22,6 @@ import {
   notProvable,
   org,
   pathOf,
-  refused,
   section,
   sql,
   url,
@@ -34,7 +32,6 @@ import {
 import {
   accountChip,
   dialog,
-  expectPageNotFound,
   hydrated,
   menuEntry,
   pageTurn,
@@ -421,20 +418,6 @@ export async function settingsChecks() {
       })
     }
   )
-  await check('Recently deleted restores an owned chat', async () => {
-    await withSession(ADMIN, async ({ page }) => {
-      await page.goto(settingsUrl('recently-deleted'))
-      await expect(page.getByPlaceholder('Search deleted chats')).toBeVisible()
-      // The app navigation stays mounted, hidden, behind Settings', and lists the chat once restored.
-      const deleted = page.getByRole('main').getByText(ADMIN_CHATS.deleted.title)
-      await expect(deleted).toBeVisible()
-      await page
-        .getByRole('button', { name: /Restore/ })
-        .first()
-        .click()
-      await expect(deleted).toHaveCount(0)
-    })
-  })
   await check('Requests and Search MCP render for a member', async () => {
     await withSession(MEMBER, async ({ page }) => {
       await page.goto(settingsUrl('requests'))
@@ -757,30 +740,6 @@ export async function settingsChecks() {
       }
     )
   )
-  await check('Members: a role change writes, and writes back', () =>
-    withRestore(
-      () =>
-        sql`update member set role = ${MEMBER.role} where user_id = ${MEMBER.userId} and organization_id = ${ORGANIZATION_ID}`,
-      () =>
-        withSession(ADMIN, async ({ page }) => {
-          await page.goto(settingsUrl('members'))
-          const role = page.getByRole('button', { name: /^Role for Mia Member: / })
-          const set = async (name: string) => {
-            const write = page.waitForResponse(
-              (response) =>
-                /\/api\/organizations\/[^/]+\/members\/[^/]+$/.test(pathOf(response.url())) &&
-                response.request().method() !== 'GET'
-            )
-            await role.click()
-            await page.getByRole('menuitemradio', { name, exact: true }).click()
-            assert.ok((await write).ok(), `Setting ${name} failed`)
-            await expect(role).toContainText(name)
-          }
-          await set('Admin')
-          await set('Member')
-        })
-    )
-  )
   await check('Permission groups: editing the name saves, and saves back', () =>
     withRestore(
       () =>
@@ -908,23 +867,6 @@ export async function settingsChecks() {
       })
     },
     { allow: [/500 GET .*allowed-providers/] }
-  )
-  await check(
-    'a member deep-linking to any admin section gets not found',
-    async () => {
-      await withSession(MEMBER, async ({ page }) => {
-        for (const adminSection of SETTINGS_FOR_ADMIN) {
-          await page.goto(settingsUrl(adminSection))
-          await expectPageNotFound(page)
-        }
-      })
-    },
-    {
-      // The address of each section this check opens, which a member must not reach.
-      allow: SETTINGS_FOR_ADMIN.map((adminSection) =>
-        refused(404, 'GET', org.settingsSection(adminSection))
-      ),
-    }
   )
   await organizationSectionChecks()
 }

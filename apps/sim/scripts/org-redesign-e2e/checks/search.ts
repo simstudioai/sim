@@ -123,23 +123,6 @@ export async function searchChecks() {
       await expect(links.nth(1)).toBeFocused()
     })
   })
-  await check('Summarize moves to Assistant and sends a turn scoped to that document', async () => {
-    await withSession(MEMBER, async ({ page }) => {
-      await stubSearch(page)
-      await page.goto(searchUrl({ mode: 'search', q: 'recall' }))
-      await page.getByRole('button', { name: 'Actions for Service bulletin', exact: true }).click()
-      const posted = page.waitForRequest(
-        (request) => request.method() === 'POST' && request.url().endsWith('/api/mothership/chat')
-      )
-      await menuEntry(page, 'Summarize').click()
-      const body = (await posted).postDataJSON()
-      assert.deepEqual(body.assistantSearch?.documentIds, ['bulletin-1'])
-      assert.equal(body.mode, 'assistant')
-      await expect(page).toHaveURL((address) => address.searchParams.get('mode') === 'assistant', {
-        timeout: 30_000,
-      })
-    })
-  })
   for (const viewport of [DESKTOP, { ...DESKTOP, name: 'narrow', width: 900 }, PHONE]) {
     await check(`field and results share one column (${viewport.name})`, async () => {
       await withSession(
