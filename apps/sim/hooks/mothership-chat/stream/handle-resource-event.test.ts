@@ -1,7 +1,7 @@
 import { flushMacrotask } from '@sim/testing/helpers/async'
 import { createDeferred } from '@sim/testing/helpers/deferred'
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { resourceScopeKey } from '@/lib/core/resource-scope'
 import { knowledgeKeys } from '@/hooks/queries/utils/knowledge-keys'
 

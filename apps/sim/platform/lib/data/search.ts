@@ -16,7 +16,7 @@ import {
 } from '@/lib/mothership/chat/search-params'
 import type { SearchResource } from '@/lib/mothership/generated/resources'
 import { organizationRoutes } from '@/lib/navigation/paths'
-import { organizationDraftKey, SEARCH_ASSISTANT_DRAFT_SLOT } from '@/lib/organizations/draft-key'
+import { organizationDraftKey } from '@/lib/organizations/draft-key'
 import {
   organizationSearchParsers,
   organizationSearchUrlKeys,
@@ -130,7 +130,7 @@ function searchDraftKeys(userId: string, organizationId: string) {
   const latest = organizationDraftKey(userId, organizationId, 'search')
   return {
     latest,
-    assistant: organizationDraftKey(userId, organizationId, SEARCH_ASSISTANT_DRAFT_SLOT),
+    assistant: organizationDraftKey(userId, organizationId, 'search-assistant'),
     query: (query: string) => `${latest}:query:${encodeURIComponent(query)}`,
   }
 }
