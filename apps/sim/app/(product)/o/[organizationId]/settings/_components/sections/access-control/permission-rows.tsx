@@ -185,7 +185,7 @@ export function PermissionGrid({
           controls={controls}
         />
       </SectionToolbar>
-      {!filtered.length && <Muted>No items match your search.</Muted>}
+      {!filtered.length && <Muted>No matching items</Muted>}
       <div ref={scrollRef} className={styles.grid}>
         {filtered.map((item) => (
           <PermissionRow

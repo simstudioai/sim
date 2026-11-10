@@ -125,7 +125,7 @@ test('a deleted chat restores from Recently deleted back into the sidebar', asyn
     const row = page.getByRole('region', { name: 'Deleted chats' })
     await expect(row.getByText(title, { exact: true })).toBeVisible()
     await row.getByRole('button', { name: 'Restore', exact: true }).click()
-    await expect(page.getByRole('heading', { name: 'No chats match your search' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'No matching chats' })).toBeVisible()
     await page.goto(liveRoute('/home'))
     await revealChat(page, title)
   })

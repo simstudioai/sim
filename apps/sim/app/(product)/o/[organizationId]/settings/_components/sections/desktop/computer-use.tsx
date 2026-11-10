@@ -116,7 +116,7 @@ export function ComputerUse({ enabled }: { enabled: boolean }) {
       )}
       {bridge && enabled && status?.supported !== false && (
         <>
-          <SettingsSection title='Computer Use'>
+          <SettingsSection title='Computer use'>
             <SettingsRow
               label={ALLOW_LABEL}
               description='Off by default. Each app requires your approval. You can stop an action from the conversation or revoke an app below.'

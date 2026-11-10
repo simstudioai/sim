@@ -579,7 +579,7 @@ function SecretRows({
           </SettingsSection>
         )
       })}
-      {noMatches && <EmptyState title={`No secrets found matching “${searchTerm}”`} />}
+      {noMatches && <EmptyState title={`No matching secrets for “${searchTerm}”`} />}
       <SaveActions
         dirty={hasChanges}
         saving={isSaving}

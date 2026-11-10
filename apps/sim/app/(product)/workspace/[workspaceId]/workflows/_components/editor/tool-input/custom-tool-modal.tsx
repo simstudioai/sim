@@ -263,7 +263,7 @@ export function CustomToolModal({
           if (!next) handleCloseAttempt()
         }}
         title={title}
-        confirmLabel={section === 'schema' ? 'Next' : isEditing ? 'Update Tool' : 'Save Tool'}
+        confirmLabel={section === 'schema' ? 'Next' : isEditing ? 'Save' : 'Create tool'}
         confirmDisabled={!isSchemaValid || Boolean(schemaError) || (section === 'code' && !canSave)}
         onConfirm={
           section === 'schema'

@@ -151,7 +151,7 @@ export function SlackBotModal({
             <>
               <ExecutionSteps title='In Slack' steps={TOKEN_STEPS} />
               <SecretField
-                label='Bot Token'
+                label='Bot token'
                 value={form.botToken}
                 onChange={form.setBotToken}
                 placeholder='xoxb-...'
@@ -166,7 +166,7 @@ export function SlackBotModal({
             <>
               <ExecutionSteps title='In Slack' steps={SECRET_STEPS} />
               <SecretField
-                label='Signing Secret'
+                label='Signing secret'
                 value={form.signingSecret}
                 onChange={form.setSigningSecret}
                 placeholder='Paste your signing secret'

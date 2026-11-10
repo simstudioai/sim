@@ -873,7 +873,7 @@ export const Toolbar = memo(
             onViewDocumentation={handleViewDocumentation}
           />
           <ToolbarSection
-            label='Core Blocks'
+            label='Core blocks'
             tooltip='Core building blocks for agent logic'
             sectionKey='blocks'
             items={filteredBlocks}
@@ -888,7 +888,7 @@ export const Toolbar = memo(
           />
           {allCustomBlocks.length > 0 && (
             <ToolbarSection
-              label='Custom Blocks'
+              label='Custom blocks'
               tooltip='Workflows published as reusable blocks across your organization'
               sectionKey='customBlocks'
               items={filteredCustomBlocks}

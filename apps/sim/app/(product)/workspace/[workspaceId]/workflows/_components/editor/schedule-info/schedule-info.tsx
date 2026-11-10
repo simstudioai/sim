@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@sim/emcn/button'
-import { FailureNotice, StatusText } from '@sim/emcn/status'
+import { FailureNotice, InlineNotice, StatusText } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/schedule-info/schedule-info.module.css'
 import { useSubBlockStore, useWorkflowScope } from '@/platform/lib/data/workflow-editor'
@@ -88,9 +88,7 @@ export function ScheduleInfo({ blockId, isPreview = false }: ScheduleInfoProps) 
             Disabled after {MAX_CONSECUTIVE_FAILURES} consecutive failures
           </p>
           {redeploy.isError && (
-            <p className={styles.error} data-type='T052' role='alert'>
-              Failed to redeploy. Please try again.
-            </p>
+            <InlineNotice intent='danger' message='Failed to redeploy. Please try again.' />
           )}
         </div>
       ) : (

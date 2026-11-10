@@ -107,11 +107,11 @@ const URL_KEYS = { history: 'replace', clearOnDefault: true } as const
 const SORTS = [
   { id: 'name', label: 'Name' },
   { id: 'created', label: 'Created' },
-  { id: 'updated', label: 'Last Updated' },
+  { id: 'updated', label: 'Last updated' },
 ] as const
 const COLUMNS: readonly ResourceColumn[] = [
   { id: 'created', label: 'Created', optional: true },
-  { id: 'updated', label: 'Last Updated', narrow: true },
+  { id: 'updated', label: 'Last updated', narrow: true },
 ]
 const LOCATION_COLUMN: ResourceColumn = {
   id: 'location',

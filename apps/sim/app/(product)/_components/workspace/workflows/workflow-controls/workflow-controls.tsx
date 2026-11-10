@@ -124,8 +124,8 @@ export const WorkflowControls = memo(function WorkflowControls() {
 
         <span aria-hidden='true' className={styles.divider} />
 
-        <Tooltip label='Fit to View (⌘⇧F)'>
-          <IconButton label='Fit to View' icon='I060' onClick={handleFitToView} />
+        <Tooltip label='Fit to view (⌘⇧F)'>
+          <IconButton label='Fit to view' icon='I060' onClick={handleFitToView} />
         </Tooltip>
       </div>
 

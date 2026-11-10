@@ -39,7 +39,7 @@ test('a notice stays actionable while hovered and can be reopened after its feed
     .evaluate((region) => getComputedStyle(region).boxShadow)
   expect(flatShadow).not.toBe(inviteShadow)
   await page.clock.install()
-  await page.getByRole('button', { name: 'Customize Home' }).click()
+  await page.getByRole('button', { name: 'Customize home' }).click()
   await page.getByRole('menuitemcheckbox', { name: 'Email', exact: true }).click()
   await page.keyboard.press('Escape')
   const tray = page.getByRole('region', { name: 'Notification stack' })

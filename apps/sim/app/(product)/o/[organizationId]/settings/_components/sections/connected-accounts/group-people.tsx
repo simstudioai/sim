@@ -77,9 +77,7 @@ export function GroupPeople({ people, nextCursor, shallow, actions }: GroupPeopl
           </SettingsRow>
         ))}
         {!visible.length && (
-          <EmptyState
-            title={search.trim() ? 'No people match your search' : 'No people invited yet'}
-          />
+          <EmptyState title={search.trim() ? 'No matching people' : 'No people invited yet'} />
         )}
         {visible.length > limit && (
           <Button size='compact' onClick={() => setLimit(limit + 50)}>

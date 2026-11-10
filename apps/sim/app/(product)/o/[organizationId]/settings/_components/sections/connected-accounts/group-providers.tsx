@@ -86,7 +86,7 @@ function DatabricksForm({ configuration, onSave, onClose }: DatabricksFormProps)
         />
         <TextField
           placeholder='Enter the OAuth client ID'
-          label='OAuth Client ID'
+          label='OAuth client ID'
           maxLength={512}
           autoComplete='off'
           required
@@ -94,7 +94,7 @@ function DatabricksForm({ configuration, onSave, onClose }: DatabricksFormProps)
           onChange={setClientId}
         />
         <SecretField
-          label='OAuth Client Secret'
+          label='OAuth client secret'
           optional
           value={secret}
           autoComplete='new-password'
@@ -178,7 +178,7 @@ export function GroupProviders({ data, actions, renderSlackSetup }: GroupProvide
           <EmptyState
             title={
               search.trim()
-                ? 'No integrations match your search'
+                ? 'No matching integrations'
                 : 'Add an integration to start connecting accounts.'
             }
           />

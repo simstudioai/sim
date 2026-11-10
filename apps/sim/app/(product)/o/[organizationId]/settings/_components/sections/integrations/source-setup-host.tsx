@@ -138,7 +138,7 @@ export function SourceSetup({ backLabel, children, ...options }: SourceSetupProp
                 </SettingsRow>
               )
             })}
-            {setup.visibleTypes.length === 0 && <EmptyState title='No matching sources.' />}
+            {setup.visibleTypes.length === 0 && <EmptyState title='No matching sources' />}
             {prepare.error && <InlineNotice intent='danger' message={prepare.error.message} />}
           </>
         )}

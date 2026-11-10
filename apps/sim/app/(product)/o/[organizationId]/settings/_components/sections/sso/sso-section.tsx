@@ -96,7 +96,7 @@ export default function SsoSection({ organization }: SettingsSectionProps) {
     )
   }
   if (billingEnabled && !billing.data?.data.hasEnterprisePlan) {
-    return <EmptyState title='Single Sign-On is available on Enterprise plans only.' />
+    return <EmptyState title='Single sign-on is available on Enterprise plans only.' />
   }
 
   const providerCountByDomain = new Map<string, number>()

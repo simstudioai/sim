@@ -42,7 +42,7 @@ export function AuthorizedApps() {
         <EmptyState
           title={
             list.term
-              ? `No apps found matching "${list.term}"`
+              ? `No matching apps for “${list.term}”`
               : 'No apps have access to your account'
           }
         />

@@ -140,7 +140,7 @@ export function SubflowEditor({
           data-workflow-search-canonical-id={WORKFLOW_SEARCH_SUBFLOW_FIELD_IDS.type}
         >
           <SelectField
-            label={`${kindLabel} Type`}
+            label={`${kindLabel} type`}
             options={config.typeOptions}
             value={config.currentType}
             onValueChange={config.setType}

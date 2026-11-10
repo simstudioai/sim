@@ -123,7 +123,7 @@ const HELPER_COPY_OWNERS: ReasonedAllowlist = {
       `${PRODUCT_ROUTES}_components/workspace/tables/enrichments-panel/enrichment-config.tsx#{input.required ? input.name : \`\${input.name} (optional)\`}`,
       `${PRODUCT_ROUTES}_components/workspace/tables/enrichments-panel/enrichment-config.tsx#{output.name}`,
       `${PRODUCT_ROUTES}_components/workspace/tables/row-modal/row-modal.tsx#{column.name}`,
-      `${PRODUCT_ROUTES}_components/workspace/tables/row-modal/row-modal.tsx#{isAddMode ? 'Add Row' : 'Edit Row'}`,
+      `${PRODUCT_ROUTES}_components/workspace/tables/row-modal/row-modal.tsx#{isAddMode ? 'Add row' : 'Edit row'}`,
       `${PRODUCT_ROUTES}_components/workspace/tables/select-field/select-field.tsx#{column.name}`,
       `${PRODUCT_ROUTES}_components/workspace/tables/workflow-panel/input-mapping-fields.tsx#{field.name}`,
       `${ORGANIZATION_ROUTES}settings/_components/sections/preferences/preferences-section.tsx#Time zone`,
@@ -223,7 +223,7 @@ const HELPER_COPY_OWNERS: ReasonedAllowlist = {
     'Prevents a failed DNS verification when the provider appends the zone',
   [`${ORGANIZATION_ROUTES}settings/_components/sections/sso/scim-panel.tsx#Token`]:
     'One-time secret: Sim stores only a digest and cannot show the token again',
-  [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/byok/byok-key-manager.tsx#{editingMeta ? \`\${isUpdatingExistingKey ? 'Update' : 'Add'} \${editingMeta.name} API Key\` : 'API Key'}`]:
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/byok/byok-key-manager.tsx#{editingMeta ? \`\${isUpdatingExistingKey ? 'Update' : 'Add'} \${editingMeta.name} API key\` : 'API key'}`]:
     'Security: an organization key reaches every workspace and the Pi sandbox; shown only at that scope',
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/custom-blocks/custom-block-detail.tsx#Trace runs in consumer logs`]:
     'Security: tracing exposes the source workflow to readers without access to this workspace',

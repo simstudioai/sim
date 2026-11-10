@@ -282,7 +282,7 @@ export default function AuditLogsSection({ organization }: SettingsSectionProps)
             onRetry={() => void refresh()}
           />
         ) : feed.debouncedSearch ? (
-          <EmptyState title={`No results for "${feed.debouncedSearch}"`} />
+          <EmptyState title={`No matching audit logs for “${feed.debouncedSearch}”`} />
         ) : (
           <EmptyState title='No audit logs found' />
         )}

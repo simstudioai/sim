@@ -96,7 +96,7 @@ export function GroupedCheckboxList({
       >
         Configure PII types
       </Button>
-      <Modal open={open} onOpenChange={setOpen} title='Select PII Types to Detect'>
+      <Modal open={open} onOpenChange={setOpen} title='Select PII types to detect'>
         <div className={styles.body}>
           <div className={styles.bulk}>
             <Checkbox

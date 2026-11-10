@@ -333,7 +333,7 @@ function CellRender({ kind, isEditing }: CellRenderProps): ReactElement | null {
       return (
         <StatusCell
           hidden={isEditing}
-          label='Error'
+          label='Failed'
           intent='danger'
           tip={kind.message ?? undefined}
         />

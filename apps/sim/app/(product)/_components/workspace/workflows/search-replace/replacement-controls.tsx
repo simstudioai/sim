@@ -104,7 +104,7 @@ export function ReplacementControls({
             disabled={disabled || isApplying || !canReplaceAll}
             onClick={onReplaceAll}
           >
-            {isApplying ? 'Replacing…' : 'Replace All'}
+            {isApplying ? 'Replacing…' : 'Replace all'}
           </Button>
         </div>
       </div>

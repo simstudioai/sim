@@ -189,7 +189,7 @@ export async function linksChecks() {
           await rowFor(page, NAMED_LINKS.handbook.name).click({ button: 'right' })
           await menuEntry(page, 'Edit').click()
           const modal = dialog(page, `Edit ${NAMED_LINKS.handbook.name}`)
-          const unlisted = modal.getByRole('checkbox', { name: 'Hide from the Links page' })
+          const unlisted = modal.getByRole('checkbox', { name: 'Hide from the links page' })
           await expect(unlisted).toBeDisabled()
           await unlisted.hover()
           await expect(
@@ -250,7 +250,7 @@ export async function linksChecks() {
             await expect(modal.getByText(/already exists/)).toBeVisible()
             await modal.getByRole('textbox', { name: 'Name' }).fill('parts-lookup')
             await expect(
-              modal.getByRole('checkbox', { name: 'Hide from the Links page' })
+              modal.getByRole('checkbox', { name: 'Hide from the links page' })
             ).toBeEnabled()
             await modal.getByRole('button', { name: 'Create', exact: true }).click()
             await expect(modal).toHaveCount(0)
@@ -323,7 +323,7 @@ export async function linksChecks() {
           await menuEntry(page, 'Edit').click()
           const editor = dialog(page, `Edit ${NAMED_LINKS.mostUsed.name}`)
           await expect(
-            editor.getByRole('checkbox', { name: 'Hide from the Links page' })
+            editor.getByRole('checkbox', { name: 'Hide from the links page' })
           ).toBeEnabled()
           await editor.getByRole('button', { name: 'Cancel', exact: true }).click()
           await page.goto(`${linksUrl}?search=removable-link`)

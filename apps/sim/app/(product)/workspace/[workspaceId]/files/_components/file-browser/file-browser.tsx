@@ -121,7 +121,7 @@ const COLUMNS: readonly ResourceColumn[] = [
   { id: 'type', label: 'Type', optional: true },
   { id: 'created', label: 'Created', optional: true },
   { id: 'owner', label: 'Owner', optional: true },
-  { id: 'updated', label: 'Last Updated', narrow: true },
+  { id: 'updated', label: 'Last updated', narrow: true },
 ]
 const SEARCH_COLUMNS: readonly ResourceColumn[] = [
   ...COLUMNS,
@@ -132,7 +132,7 @@ const SORTS = [
   { id: 'size', label: 'Size' },
   { id: 'type', label: 'Type' },
   { id: 'created', label: 'Created' },
-  { id: 'updated', label: 'Last Updated' },
+  { id: 'updated', label: 'Last updated' },
   { id: 'owner', label: 'Owner' },
 ] as const
 const TYPES = [

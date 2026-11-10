@@ -33,7 +33,7 @@ export function ProjectIssueRestrictions({
   if (!projects.error && choices.length === 0) return null
   const selected = new Set(value)
   return (
-    <SettingsSection title='Project Issues'>
+    <SettingsSection title='Project issues'>
       <FieldStack>
         <Muted>
           For selected Projects, teammates governed by this group need access to every active

@@ -152,7 +152,7 @@ async function organizationSectionChecks() {
             await search.fill('Audit probe')
             await expect(page.getByText(description)).toBeVisible()
             await search.fill('zzzz-nothing')
-            await expect(page.getByText('No results for "zzzz-nothing"')).toBeVisible()
+            await expect(page.getByText('No matching audit logs for “zzzz-nothing”')).toBeVisible()
             await expect(page.getByText(description)).toHaveCount(0)
           })
         }
@@ -867,7 +867,7 @@ export async function settingsChecks() {
         await expect(page.getByText('unavailable', { exact: true })).toBeVisible()
         await expect(page.getByRole('region', { name: 'Providers' })).toHaveCount(0)
         await page.goto(groupUrl('blocks'))
-        await expect(page.getByRole('region', { name: 'Core Blocks' })).toBeVisible()
+        await expect(page.getByRole('region', { name: 'Core blocks' })).toBeVisible()
       })
     },
     { allow: [/500 GET .*allowed-providers/] }

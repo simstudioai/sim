@@ -578,7 +578,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
         description: text,
         ...(canAdmin
           ? {
-              action: { label: 'Table Security', onClick: () => setShowLockSettings(true) },
+              action: { label: 'Table security', onClick: () => setShowLockSettings(true) },
               duration: BLOCKED_TOAST_MS,
             }
           : {}),
@@ -668,7 +668,7 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
           ? [
               {
                 id: 'security',
-                label: 'Table Security',
+                label: 'Table security',
                 icon: 'lock' as const,
                 onSelect: () => setShowLockSettings(true),
               },

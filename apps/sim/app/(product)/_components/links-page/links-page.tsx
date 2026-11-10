@@ -259,7 +259,7 @@ export function LinksPage({ organizationId }: LinksPageProps) {
       ) : unsettled ? null : links.rows.length === 0 ? (
         links.term ? (
           <EmptyState
-            title={`No results for “${links.term}”`}
+            title={`No matching links for “${links.term}”`}
             description='Searched every link you can see.'
             action={<Button onClick={() => links.setSearch('')}>Clear search</Button>}
           />

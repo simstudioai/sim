@@ -53,19 +53,19 @@ describe('useRunPageCommands', () => {
   })
 
   it('offers Export and the Dashboard view to a viewer who may export', () => {
-    expect(renderCommands(true).labels()).toEqual(['Export', 'Switch to Dashboard'])
+    expect(renderCommands(true).labels()).toEqual(['Export', 'Switch to dashboard'])
   })
 
   it('withholds Export from a viewer who may not export', () => {
-    expect(renderCommands(false).labels()).toEqual(['Switch to Dashboard'])
+    expect(renderCommands(false).labels()).toEqual(['Switch to dashboard'])
   })
 
   it('switches between the views it names', () => {
     const page = renderCommands(false, '?view=dashboard')
-    expect(page.labels()).toEqual(['Switch to Runs'])
+    expect(page.labels()).toEqual(['Switch to runs'])
 
-    page.run('Switch to Runs')
+    page.run('Switch to runs')
 
-    expect(page.labels()).toEqual(['Switch to Dashboard'])
+    expect(page.labels()).toEqual(['Switch to dashboard'])
   })
 })

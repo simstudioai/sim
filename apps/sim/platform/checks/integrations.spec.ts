@@ -24,7 +24,7 @@ test('app discovery preserves editable installed skills and sends templates to t
   const instructions =
     'Ask which vault to use, then retrieve the requested secret without displaying its value.'
   await skill.getByRole('textbox', { name: 'Instructions', exact: true }).fill(instructions)
-  await skill.getByRole('button', { name: 'Add to Skills', exact: true }).click()
+  await skill.getByRole('button', { name: 'Add to skills', exact: true }).click()
   await expect(skill).toHaveCount(0)
   await suggestion.click()
   const field = skill.getByRole('textbox', { name: 'Instructions', exact: true })
@@ -32,7 +32,7 @@ test('app discovery preserves editable installed skills and sends templates to t
   await expect(field).toBeEditable()
   const updated = `${instructions} Always cite its item reference.`
   await field.fill(updated)
-  const remove = skill.getByRole('button', { name: 'Remove from Skills', exact: true })
+  const remove = skill.getByRole('button', { name: 'Remove from skills', exact: true })
   const save = skill.getByRole('button', { name: 'Save', exact: true })
   const [removeBox, saveBox] = await Promise.all([remove.boundingBox(), save.boundingBox()])
   if (!removeBox || !saveBox) throw new Error('Skill footer controls are not visible')
@@ -89,10 +89,10 @@ test('app discovery preserves editable installed skills and sends templates to t
   )
   await expect(field).toHaveValue(editedInstructions)
   await remove.click()
-  await confirmation.getByRole('button', { name: 'Remove from Skills', exact: true }).click()
+  await confirmation.getByRole('button', { name: 'Remove from skills', exact: true }).click()
   await expect(skill).toHaveCount(0)
   await suggestion.click()
-  await expect(skill.getByRole('button', { name: 'Add to Skills', exact: true })).toBeEnabled()
+  await expect(skill.getByRole('button', { name: 'Add to skills', exact: true })).toBeEnabled()
   await skill.getByRole('button', { name: 'Cancel', exact: true }).click()
   await main.getByRole('link', { name: 'Integrations', exact: true }).click()
   await main

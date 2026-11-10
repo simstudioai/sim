@@ -127,8 +127,8 @@ const SETTINGS_SEARCH_INDEX: Readonly<Record<string, readonly IndexedEntry[]>> =
     { label: 'Organization default', terms: 'default group' },
     { label: 'Providers', terms: 'models llm allowlist' },
     { label: 'Agent default', terms: 'default model' },
-    { label: 'Core Blocks', terms: 'tools allowlist' },
-    { label: 'Integrations and Triggers', terms: 'blocks tools allowlist' },
+    { label: 'Core blocks', terms: 'tools allowlist' },
+    { label: 'Integrations and triggers', terms: 'blocks tools allowlist' },
     { label: 'Platform', terms: 'features deploy api keys restrictions' },
   ],
   sso: [

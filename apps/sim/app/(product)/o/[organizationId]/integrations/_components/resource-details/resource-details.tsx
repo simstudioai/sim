@@ -6,6 +6,7 @@ import { Button } from '@sim/emcn/button'
 import { DataTable, TableLabel } from '@sim/emcn/data-display'
 import { Icon } from '@sim/emcn/icon'
 import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
+import { InlineNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
@@ -183,11 +184,7 @@ export function ResourceDetails({
             },
           ]}
         />
-        {error && (
-          <p className={styles.error} data-type='T052' role='alert'>
-            {error}
-          </p>
-        )}
+        {error && <InlineNotice intent='danger' message={error} />}
       </form>
       {deleting && resource && (
         <ConfirmDialog

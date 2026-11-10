@@ -828,7 +828,7 @@ export const ToolInput = memo(function ToolInput({
     if (!permissionConfig.disableCustomTools) {
       actionItems.push({
         id: 'action-create-tool',
-        label: 'Create Tool',
+        label: 'Create tool',
         leading: <ToolMark glyph='I127' />,
         disabled: isPreview || customUnsupported,
         unavailableReason: customUnsupported ? UNSUPPORTED_CUSTOM_TOOL_MESSAGE : undefined,
@@ -838,7 +838,7 @@ export const ToolInput = memo(function ToolInput({
     if (!permissionConfig.disableMcpTools) {
       actionItems.push({
         id: 'action-add-mcp',
-        label: 'Add MCP Server',
+        label: 'Add MCP server',
         leading: <ToolMark glyph='I126' />,
         disabled: isPreview || mcpUnsupported,
         unavailableReason: mcpUnsupported ? UNSUPPORTED_MCP_TOOL_MESSAGE : undefined,
@@ -952,7 +952,7 @@ export const ToolInput = memo(function ToolInput({
         items: [
           {
             id: 'action-mcp-server-advanced',
-            label: 'MCP Server (Advanced)',
+            label: 'MCP server (advanced)',
             leading: <ToolMark glyph='I126' />,
             disabled: inert || mcpUnsupported,
             unavailableReason: mcpUnsupported ? UNSUPPORTED_MCP_TOOL_MESSAGE : undefined,

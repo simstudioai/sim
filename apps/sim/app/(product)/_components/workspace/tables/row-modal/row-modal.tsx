@@ -219,16 +219,10 @@ export function RowModal({
       onOpenChange={(open) => {
         if (!open) onClose()
       }}
-      title={isAddMode ? 'Add Row' : 'Edit Row'}
+      title={isAddMode ? 'Add row' : 'Edit row'}
       description={`${isAddMode ? 'Fill in values for' : 'Update values for'} ${table.name || 'table'}`}
       confirmLabel={
-        isAddMode
-          ? isSubmitting
-            ? 'Adding…'
-            : 'Add Row'
-          : isSubmitting
-            ? 'Updating…'
-            : 'Update Row'
+        isAddMode ? (isSubmitting ? 'Adding…' : 'Add row') : isSubmitting ? 'Saving…' : 'Save'
       }
       confirmDisabled={!canSubmit}
       pending={isSubmitting}

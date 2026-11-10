@@ -4,10 +4,6 @@
   gap: var(--ui-content-gap);
 }
 .summary,
-.empty {
-  margin: 0;
-  color: var(--ui-secondary);
-}
 .error {
   margin: 0;
   color: var(--control-danger);

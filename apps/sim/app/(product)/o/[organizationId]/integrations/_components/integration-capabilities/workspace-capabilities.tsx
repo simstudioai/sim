@@ -141,7 +141,7 @@ function SuggestedSkillEditor({
       <Modal
         open
         title={skill.name}
-        confirmLabel={installed ? 'Save' : 'Add to Skills'}
+        confirmLabel={installed ? 'Save' : 'Add to skills'}
         confirmDisabled={!editable || !complete || Boolean(installed && !dirty)}
         onOpenChange={(next) => {
           if (!next) onClose()
@@ -150,7 +150,7 @@ function SuggestedSkillEditor({
         footerStartAction={
           installed && editable
             ? {
-                label: 'Remove from Skills',
+                label: 'Remove from skills',
                 variant: 'quiet',
                 destructive: true,
                 onClick: () => setRemoving(true),
@@ -166,7 +166,7 @@ function SuggestedSkillEditor({
           onClose={() => setRemoving(false)}
           title='Remove skill'
           description={`This removes ${installed.name} from your integrations.`}
-          confirmLabel='Remove from Skills'
+          confirmLabel='Remove from skills'
           pendingLabel='Removing…'
           onConfirm={async () => {
             try {

@@ -194,7 +194,7 @@ test('links: create, find, open, edit and delete on the Platform', async ({ page
   await page.getByRole('button', { name: `${name} actions` }).click()
   await page.getByRole('menuitem', { name: 'Delete', exact: true }).click()
   await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click()
-  await expect(page.getByRole('heading', { name: `No results for “${name}”` })).toBeVisible()
+  await expect(page.getByRole('heading', { name: `No matching links for “${name}”` })).toBeVisible()
 })
 
 test('an unknown sim/ link opens the editor here, prefilled', async ({ page }) => {

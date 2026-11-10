@@ -1358,7 +1358,7 @@ async function exerciseViewport(
             // The tray minimizes a notice it has shown once nobody engages with it.
             if (!(await notice.isVisible())) await showAll.tap()
             await expectContained(page, notice)
-            const unlock = notice.getByRole('button', { name: 'Unlock Workflow', exact: true })
+            const unlock = notice.getByRole('button', { name: 'Unlock workflow', exact: true })
             await expectContained(page, unlock)
             await capture(page, `${browserName}-phone-workflow-notification`)
             const [unlocked] = await Promise.all([

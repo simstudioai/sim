@@ -2,6 +2,7 @@
 
 import { type ReactNode, useState, useTransition } from 'react'
 import { Button } from '@sim/emcn/button'
+import { EmptyState } from '@sim/emcn/empty-state'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { SearchField } from '@sim/emcn/search-field'
@@ -398,18 +399,20 @@ export function IntegrationCenter({
             </>
           )}
           {(live ? live.settled : settled) && empty && (
-            <section className={styles.empty} aria-label='Search results'>
-              <h2 data-type='T059'>
-                {term ? 'No results found' : `No ${current === 'mcps' ? 'MCPs' : current} yet`}
-              </h2>
-              <p data-type='T050'>
-                {term
+            <EmptyState
+              title={
+                term
+                  ? `No matching ${current === 'mcps' ? 'MCPs' : current}`
+                  : `No ${current === 'mcps' ? 'MCPs' : current} yet`
+              }
+              description={
+                term
                   ? 'Try a different name or clear your filters.'
                   : current === 'apps'
                     ? 'Apps available to your organization appear here.'
-                    : 'Your personal and shared connections appear here.'}
-              </p>
-            </section>
+                    : 'Your personal and shared connections appear here.'
+              }
+            />
           )}
         </div>
         {creating === 'credential' && library && (

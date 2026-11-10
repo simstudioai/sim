@@ -1,5 +1,6 @@
 'use client'
 
+import { EmptyState } from '@sim/emcn/empty-state'
 import { FailureNotice } from '@sim/emcn/status'
 import styles from '@/app/(product)/_components/workspace/knowledge/connector-history/connector-history.module.css'
 import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
@@ -84,12 +85,7 @@ function LogRow({ startedAt, state, description, notice }: LogRowProps) {
 }
 
 function SyncLogs({ logs, now }: { logs: SyncLogData[]; now: number | null }) {
-  if (logs.length === 0)
-    return (
-      <p className={styles.empty} data-type='T060'>
-        No sync history yet.
-      </p>
-    )
+  if (logs.length === 0) return <EmptyState title='No sync history yet' />
   return (
     <ol className={styles.list} aria-label='Syncs'>
       {logs.map((log) => {
@@ -155,9 +151,7 @@ function MemberLogs({ logs, suspended, stale, now }: MemberLogsProps) {
         </p>
       )}
       {logs.length === 0 ? (
-        <p className={styles.empty} data-type='T060'>
-          No member sync history yet.
-        </p>
+        <EmptyState title='No member sync history yet' />
       ) : (
         <ol className={styles.list} aria-label='Member syncs'>
           {logs.map((log) => {

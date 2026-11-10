@@ -104,7 +104,7 @@ export function AddConnectorModal({
           <p className={styles.empty} data-type='T060'>
             {form.entries.length === 0
               ? 'No connectors are available.'
-              : `No sources match “${form.searchTerm.trim()}”.`}
+              : `No matching sources for “${form.searchTerm.trim()}”`}
           </p>
         )}
       </Modal>

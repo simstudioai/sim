@@ -58,7 +58,7 @@ const TABS: readonly { id: WorkspaceFilter; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'table', label: 'Tables' },
   { id: 'file', label: 'Files' },
-  { id: 'knowledge', label: 'Knowledge Bases' },
+  { id: 'knowledge', label: 'Knowledge bases' },
   { id: 'workflow', label: 'Workflows' },
   { id: 'folder', label: 'Folders' },
 ]

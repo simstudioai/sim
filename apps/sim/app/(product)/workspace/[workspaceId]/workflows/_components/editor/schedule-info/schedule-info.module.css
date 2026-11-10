@@ -22,7 +22,3 @@
 .detail {
   color: var(--ui-secondary);
 }
-
-.error {
-  color: var(--control-danger);
-}

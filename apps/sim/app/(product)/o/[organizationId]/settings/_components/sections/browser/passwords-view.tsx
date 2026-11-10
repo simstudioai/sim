@@ -126,7 +126,7 @@ export function PasswordsView({
               ))}
             </ResourceList>
           ) : (
-            <EmptyState title={`No passwords found matching "${searchTerm}"`} />
+            <EmptyState title={`No matching passwords for “${searchTerm}”`} />
           )}
           <SettingsSection title='Manage passwords'>
             <SettingsRow label='Delete all passwords'>

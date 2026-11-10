@@ -1276,7 +1276,7 @@ const WorkflowContent = memo(function WorkflowContent({
         ...(showInlineUnlock
           ? {
               action: {
-                label: 'Unlock Workflow',
+                label: 'Unlock workflow',
                 onClick: () => window.dispatchEvent(new CustomEvent('unlock-workflow')),
               },
             }
