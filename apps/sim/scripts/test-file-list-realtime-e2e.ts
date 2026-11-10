@@ -347,11 +347,14 @@ try {
             revision = required(json(await request(`${prefix()}/${fileId}/versions`)).revision)
           })
       )
-      assert.equal(
-        toRecord(json(await request(`${prefix()}/${fileId}`, 'GET', undefined, readerCookie)).file)
-          .id,
-        fileId
+      const readable = await request(
+        `${prefix()}/${fileId}/content`,
+        'GET',
+        undefined,
+        readerCookie
       )
+      assert.equal(readable.status, 200, 'Unexpected HTTP status; inspect private app logs')
+      assert.equal(readable.text, 'first version')
       assert.equal(retainedMembership.projectId, fixture.projectId)
       assert.equal(workspaceEvents.length, 0)
     }
