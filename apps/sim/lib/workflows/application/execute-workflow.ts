@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import type { Principal, WorkflowExecutionPrincipal } from '@sim/auth/principal'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
@@ -45,7 +45,7 @@ function authenticatesExecutionCredentials(principal: Principal): boolean {
 }
 
 async function executeDeployedWorkflow(
-  principal: Principal,
+  principal: WorkflowExecutionPrincipal,
   context: ActiveWorkflowApplicationContext,
   input: ExecuteWorkflowInput,
   deploymentVersionId?: string
