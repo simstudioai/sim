@@ -47,7 +47,10 @@ import {
   isRecordedWorkflowFailure,
   resolveDeletedExecutionScope,
 } from '@/lib/workflows/executor/recorded-failure'
-import { loadWorkflowDeploymentVersionState } from '@/lib/workflows/persistence/utils'
+import {
+  loadDeployedWorkflowState,
+  loadWorkflowDeploymentVersionState,
+} from '@/lib/workflows/persistence/utils'
 import { WORKFLOW_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata } from '@/executor/execution/types'
@@ -279,15 +282,13 @@ export async function executeWorkflowJob(
 
         const workflow = preprocessResult.workflowRecord!
         const pinnedDeploymentVersionId = payload.pinnedDeploymentVersionId
-        const pinnedVariables = pinnedDeploymentVersionId
-          ? (
-              await loadWorkflowDeploymentVersionState(
-                workflowId,
-                pinnedDeploymentVersionId,
-                workspaceId
-              )
-            ).variables
-          : undefined
+        const deployedState = pinnedDeploymentVersionId
+          ? await loadWorkflowDeploymentVersionState(
+              workflowId,
+              pinnedDeploymentVersionId,
+              workspaceId
+            )
+          : await loadDeployedWorkflowState(workflowId, workspaceId)
 
         const metadata: ExecutionMetadata = {
           requestId,
@@ -316,7 +317,7 @@ export async function executeWorkflowJob(
           metadata,
           workflow,
           payload.input,
-          pinnedVariables ?? workflow.variables ?? {},
+          deployedState.variables ?? workflow.variables ?? {},
           []
         )
 

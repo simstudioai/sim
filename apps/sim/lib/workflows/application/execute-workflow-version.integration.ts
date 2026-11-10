@@ -1,6 +1,7 @@
 /**
  * Deployed runs against real PostgreSQL through the execute use cases: a pinned run executes
- * the version it named rather than the active one, on the sync and the async path.
+ * the version it named rather than the active one, on the sync and the async path, and an
+ * unpinned async run reads the deployed variables a sync run reads, not the editor's draft.
  */
 import { db } from '@sim/db'
 import {
@@ -17,7 +18,10 @@ import { createSessionPrincipal } from '@sim/testing/factories/principal.factory
 import { generateId } from '@sim/utils/id'
 import { eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import { executeWorkflowVersionOperation } from '@/lib/workflows/application/execute-workflow'
+import {
+  executeWorkflowOperation,
+  executeWorkflowVersionOperation,
+} from '@/lib/workflows/application/execute-workflow'
 import { getWorkflowExecutionStatus } from '@/lib/workflows/executor/execution-status'
 
 const ownerId = generateId()
@@ -211,6 +215,25 @@ describe('executing a deployed workflow against real Postgres', () => {
       status: 'completed',
       deploymentVersion: 1,
       finalOutput: { data: { version: 'one', greeting: 'deployed-one' } },
+    })
+  })
+
+  it('runs an unpinned async run with the active deployment variables, as a sync run does', async () => {
+    const sync = await executeWorkflowOperation.execute({ principal, input: runInput('sync') })
+    expect(sync).toMatchObject({
+      status: 'completed',
+      output: { data: { version: 'two', greeting: 'deployed-two' } },
+    })
+
+    const queued = await executeWorkflowOperation.execute({ principal, input: runInput('async') })
+    if (!queued.ok || !('queued' in queued)) throw new Error('Expected a queued run')
+    jobIds.push(queued.jobId)
+
+    const run = await settledRun(queued.executionId)
+    expect(run).toMatchObject({
+      status: 'completed',
+      deploymentVersion: 2,
+      finalOutput: { data: { version: 'two', greeting: 'deployed-two' } },
     })
   })
 })
