@@ -7784,6 +7784,7 @@
           "PERMISSION_GROUP_CAPABILITY_BLOCKED",
           "INTEGRATION_NOT_ALLOWED",
           "INSUFFICIENT_SCOPE",
+          "READ_ONLY_API_KEY",
           "SCIM_MANAGED_MEMBERSHIP"
         ],
         "title": "Forbidden detail code",

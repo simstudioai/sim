@@ -29,6 +29,7 @@ const auth = {
     kind: 'workspace_api_key' as const,
     workspaceId: 'workspace-1',
     keyId: 'workspace-key-1',
+    access: 'write' as const,
   },
   rateLimitSubjectIds: ['api-key:workspace-key-1', 'workspace:workspace-1'] as const,
   rateLimitSubscription: null,

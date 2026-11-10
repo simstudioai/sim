@@ -68,6 +68,7 @@ describe.skipIf(!fixtureFile)('federated self-hosted GitLab Search', () => {
     kind: 'personal_api_key',
     userId: person.simId,
     keyId: 'gitlab-federated-fixture',
+    access: 'write',
   })
 
   async function response(

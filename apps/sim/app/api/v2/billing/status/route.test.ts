@@ -23,7 +23,12 @@ import { WorkspaceApiKeyScopeAuthorizationError } from '@/lib/core/application'
 import { GET } from '@/app/api/v2/billing/status/route'
 
 const auth = {
-  principal: { kind: 'workspace_api_key' as const, workspaceId: 'workspace-1', keyId: 'key-1' },
+  principal: {
+    kind: 'workspace_api_key' as const,
+    workspaceId: 'workspace-1',
+    keyId: 'key-1',
+    access: 'write' as const,
+  },
   rateLimitSubjectIds: ['api-key:key-1', 'workspace:workspace-1'] as const,
   rateLimitSubscription: null,
   keyType: 'workspace' as const,

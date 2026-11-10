@@ -104,6 +104,7 @@ describe.skipIf(!fixtureFile)('live Slack content and human access', () => {
     kind: 'workspace_api_key',
     workspaceId: input.workspaceId,
     keyId: 'slack-live',
+    access: 'write',
   })
 
   async function api(method: string, token: string, body: Record<string, unknown> = {}) {

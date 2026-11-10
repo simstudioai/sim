@@ -24,7 +24,7 @@ export const GET = defineV2JsonRoute({
     return { keyType: credential.keyType, expiresAt: credential.keyExpiresAt }
   },
   useCase: readV2ApiCapabilities,
-  present: ({ v2Enabled, keyType, expiresAt }) => ({
-    data: { v2Enabled, keyType, expiresAt: expiresAt?.toISOString() ?? null },
+  present: ({ v2Enabled, keyType, expiresAt, scopes }) => ({
+    data: { v2Enabled, keyType, expiresAt: expiresAt?.toISOString() ?? null, scopes },
   }),
 })

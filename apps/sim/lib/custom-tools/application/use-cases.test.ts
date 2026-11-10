@@ -80,7 +80,12 @@ describe('custom tool application use cases', () => {
 
   it.each([
     { kind: 'session' as const, userId: 'reader' },
-    { kind: 'personal_api_key' as const, userId: 'reader', keyId: 'key-1' },
+    {
+      kind: 'personal_api_key' as const,
+      userId: 'reader',
+      keyId: 'key-1',
+      access: 'write' as const,
+    },
   ])(
     'reads available tools as the $kind actor without billing-owner substitution',
     async (principal) => {
@@ -291,6 +296,7 @@ describe('custom tool application use cases', () => {
       kind: 'workspace_api_key' as const,
       workspaceId: workspace.workspaceId,
       keyId: 'workspace-key-1',
+      access: 'write' as const,
     }
 
     const result = await createWorkspaceCustomToolUseCase.execute({

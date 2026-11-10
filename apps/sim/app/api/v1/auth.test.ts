@@ -21,6 +21,7 @@ describe('v1 API key authentication', () => {
       userId: 'user-1',
       keyId: 'key-1',
       keyType: 'personal',
+      access: 'write',
     })
 
     await expect(
@@ -32,7 +33,7 @@ describe('v1 API key authentication', () => {
       )
     ).resolves.toMatchObject({
       authenticated: true,
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1', access: 'write' },
     })
   })
 
@@ -42,6 +43,7 @@ describe('v1 API key authentication', () => {
       userId: 'creator-1',
       keyId: 'key-1',
       keyType: 'workspace',
+      access: 'write',
       workspaceId: 'workspace-1',
     })
 
@@ -62,6 +64,7 @@ describe('v1 API key authentication', () => {
       userId: 'creator-1',
       keyId: 'key-1',
       keyType: 'workspace',
+      access: 'write',
     })
 
     await expect(

@@ -535,7 +535,7 @@ describe('workflow input files', () => {
     }
     it.each<WorkflowExecutionPrincipal>([
       { kind: 'session', userId: 'user', sessionId: 'session' },
-      { kind: 'personal_api_key', userId: 'user', keyId: 'key' },
+      { kind: 'personal_api_key', userId: 'user', keyId: 'key', access: 'write' },
       {
         kind: 'oauth_access_token',
         userId: 'user',
@@ -544,7 +544,7 @@ describe('workflow input files', () => {
         scopes: [],
         expiresAt: new Date(),
       },
-      { kind: 'workspace_api_key', workspaceId, keyId: 'key' },
+      { kind: 'workspace_api_key', workspaceId, keyId: 'key', access: 'write' },
       { kind: 'delegated', serviceId: 'copilot', subjectUserId: 'user', ...delegation },
     ])('lets authorized member principal $kind reference workspace files', (principal) => {
       expect(getStoredFileReferenceScope(principal)).toBe('workspace')

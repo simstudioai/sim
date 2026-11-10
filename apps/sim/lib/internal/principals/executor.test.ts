@@ -144,6 +144,7 @@ describe('createExecutorPrincipalFromExecutionContext', () => {
         kind: 'workspace_api_key' as const,
         workspaceId: 'workspace-canonical',
         keyId: 'workspace-key-1',
+        access: 'write' as const,
       },
     },
     {

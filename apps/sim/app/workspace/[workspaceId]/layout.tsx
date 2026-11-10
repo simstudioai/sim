@@ -4,6 +4,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
+import { isReadOnlyApiKeyCreationEnabled } from '@/lib/api-key/feature-flag'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
@@ -137,6 +138,7 @@ async function WorkspaceContent({
     computerUseEnabled,
     projectsEnabled,
     simLinkOrganizationId,
+    readOnlyApiKeysEnabled,
   ] = await Promise.all([
     cookies(),
     orgSettings,
@@ -157,6 +159,7 @@ async function WorkspaceContent({
     isComputerUseAvailable(hostContext.hostOrganizationId),
     isProjectsEnabled(),
     resolveSimLinkOrganization(principal),
+    isReadOnlyApiKeyCreationEnabled(),
     prefetchWorkspaceAccess(queryClient, workspaceId, principal),
     prefetchWorkspaceForkAvailability(queryClient, workspaceId, principal, hostContext),
   ])
@@ -173,6 +176,7 @@ async function WorkspaceContent({
           'mothership-computer-use': computerUseEnabled,
           'mothership-plan-mode': planModeEnabled,
           projects: projectsEnabled,
+          'api-key-read-only': readOnlyApiKeysEnabled,
         }}
       >
         <WorkspaceHostProvider workspaceId={workspaceId} initialContext={hostContext}>

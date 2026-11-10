@@ -17,8 +17,10 @@ export {
   forbiddenErrorDetails,
 } from '@/lib/core/application/forbidden'
 export {
+  credentialApiScopes,
   InsufficientScopeError,
   OAuthAccessTokenExpiredError,
+  ReadOnlyApiKeyError,
   requireOAuthOperationScope,
 } from '@/lib/core/application/oauth-authorization'
 export {

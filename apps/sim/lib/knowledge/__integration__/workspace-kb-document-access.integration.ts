@@ -73,6 +73,7 @@ describe.each([
     kind: 'workspace_api_key',
     workspaceId: ids.workspaceId,
     keyId: 'fixture-key',
+    access: 'write',
   }
 
   beforeAll(async () => {

@@ -3,6 +3,7 @@ import { workflowMcpServer, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull, sql } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
+import { API_KEY_EXPIRED } from '@/lib/api-key/policy-messages'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -21,7 +22,13 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     if (!auth.success || !auth.userId) {
       return NextResponse.json(
-        { success: false, error: 'Authentication required. Provide X-API-Key header.' },
+        {
+          success: false,
+          error:
+            auth.error === API_KEY_EXPIRED
+              ? API_KEY_EXPIRED
+              : 'Authentication required. Provide X-API-Key header.',
+        },
         { status: 401 }
       )
     }

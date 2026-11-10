@@ -19,7 +19,12 @@ const BASE = getBaseUrl()
 
 const handlers = createSimMcpHandlers()
 const auth = {
-  principal: { kind: 'personal_api_key' as const, userId: 'user-1', keyId: 'key-1' },
+  principal: {
+    kind: 'personal_api_key' as const,
+    userId: 'user-1',
+    keyId: 'key-1',
+    access: 'write' as const,
+  },
   rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'] as const,
   rateLimitSubscription: null,
   keyType: 'personal' as const,
@@ -93,7 +98,12 @@ describe('Sim MCP tools', () => {
     const result = await callTool('call_read_operation', { operation: 'getMeta' })
     expect(result.isError).toBeFalsy()
     expect(JSON.parse(result.content[0].text)).toEqual({
-      data: { v2Enabled: true, keyType: 'personal', expiresAt: null },
+      data: {
+        v2Enabled: true,
+        keyType: 'personal',
+        expiresAt: null,
+        scopes: ['api:read', 'api:write'],
+      },
     })
     expect(v2RouteMocks.authenticate).toHaveBeenCalledTimes(2)
     expect(v2RouteMocks.authenticate).toHaveBeenLastCalledWith(
