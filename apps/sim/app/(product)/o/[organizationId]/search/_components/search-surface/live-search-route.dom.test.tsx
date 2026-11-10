@@ -4,7 +4,7 @@
  * The live shell's provider hydrates above the shell's Suspense boundary, so its reads start before
  * the sidebar and the Search page hydrate. Failure modes: the sidebar of a member with no
  * workspaces painting differently from the server's markup, which React answers with #418 and a
- * client re-render. The server seeds the session and the workspace list, as `prefetchShell` does,
+ * client re-render. The server seeds the session and the workspace list, as `startShellPrefetch` does,
  * and every other read stays in flight on both sides. The viewer's remembered Search mode lives in
  * a browser cookie the server markup never saw: read during hydration, it paints a different mode
  * than the server did.
@@ -106,7 +106,7 @@ const NARROW_MEMBER_SURFACE = {
   settingsSections: [],
 } satisfies PlatformOrganization
 
-/** The session and workspace list `prefetchShell` seeds, under the keys their queries read. */
+/** The session and workspace list `startShellPrefetch` seeds, under the keys their queries read. */
 function seededSession(): DehydratedState {
   const client = new QueryClient()
   client.setQueryData(['workspace', 'list', 'user', ORGANIZATION_ID, 'active'], {
