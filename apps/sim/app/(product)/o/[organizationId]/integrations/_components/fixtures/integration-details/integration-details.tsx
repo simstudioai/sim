@@ -242,9 +242,6 @@ export function IntegrationDetails({
       description: draft.description,
       accountLabel: draft.accountLabel,
       instanceUrl: draft.instanceUrl,
-      instanceLabel: enrollment.connection.fields.find(
-        (field) => field.id === 'domain' || field.id === 'dataverseEnvironmentUrl'
-      )?.label,
       role: 'admin',
       status: 'active',
       canReconnect: true,

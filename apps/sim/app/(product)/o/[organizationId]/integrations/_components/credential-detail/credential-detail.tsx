@@ -152,9 +152,14 @@ export function CredentialDetail({
                   viewOnly={!editable}
                   optional
                 />
-                {credential.instanceUrl && credential.instanceLabel && (
+                {credential.instanceUrl && (
                   <TextField
-                    label={credential.instanceLabel}
+                    label={
+                      credential.instanceLabel ??
+                      (credential.providerId === 'microsoft-dataverse'
+                        ? 'Environment URL'
+                        : 'GitLab instance')
+                    }
                     placeholder='Connection URL'
                     value={credential.instanceUrl}
                     viewOnly

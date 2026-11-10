@@ -1,21 +1,36 @@
 'use client'
 
 import { useState } from 'react'
-import { ToolPermissions } from '@/app/(product)/o/[organizationId]/integrations/_components/tool-permissions/tool-permissions'
+import { EmptyState } from '@sim/emcn/empty-state'
+import { CountedLabel } from '@sim/emcn/overflow-text/counted-label'
+import { SearchField } from '@sim/emcn/search-field'
+import { SegmentedControl } from '@sim/emcn/segmented-control'
+import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
+import styles from '@/app/(product)/o/[organizationId]/integrations/_components/fixtures/tool-permissions/tool-permissions.module.css'
 import type {
   CredentialToolPermissions,
   IntegrationCredential,
 } from '@/platform/lib/integrations/credential-model'
-import type { ToolPermissionChange, ToolPolicy } from '@/platform/shared/integrations'
+import type { ToolPolicy } from '@/platform/shared/integrations'
+
+const ACTIONS = [
+  { value: 'allow', label: 'Allow' },
+  { value: 'ask', label: 'Ask' },
+  { value: 'block', label: 'Block' },
+] as const
+const GROUPS = [
+  { kind: 'read', label: 'Read tools' },
+  { kind: 'write', label: 'Write tools' },
+] as const
 
 interface FixtureToolPermissionsProps {
   account: Pick<IntegrationCredential, 'status'>
   permissions: CredentialToolPermissions
   onChange: (next: CredentialToolPermissions) => void
-  readOnly: boolean
+  readOnly?: boolean
 }
 
-/** Example tool policies, edited in the product session through the live permissions owner. */
+/** Example tool policies, edited in the product session. */
 export function FixtureToolPermissions({
   account,
   permissions,
@@ -23,47 +38,92 @@ export function FixtureToolPermissions({
   readOnly,
 }: FixtureToolPermissionsProps) {
   const [query, setQuery] = useState('')
-  const override = (kind: 'read' | 'write', policy: ToolPolicy | null) =>
-    policy === permissions[kind] ? null : policy
-  function apply(change: ToolPermissionChange) {
-    if (change.kind === 'group')
-      onChange({
-        ...permissions,
-        [change.effect]: change.policy,
-        tools: permissions.tools.map((tool) =>
-          tool.kind === change.effect ? { ...tool, override: null } : tool
-        ),
-      })
-    else
-      onChange({
-        ...permissions,
-        tools: permissions.tools.map((tool) =>
-          tool.id === change.toolId
-            ? { ...tool, override: override(tool.kind, change.policy) }
-            : tool
-        ),
-      })
+  const canAllow = permissions.canAutoApprove && account.status === 'active'
+  const choices = ACTIONS.map((option) => ({
+    ...option,
+    disabled: readOnly || (option.value === 'allow' && !canAllow),
+  }))
+  const filter = query.trim().toLowerCase()
+  const matches = permissions.tools.filter((tool) =>
+    `${tool.label} ${tool.description ?? ''}`.toLowerCase().includes(filter)
+  )
+
+  function updateTool(id: string, value: ToolPolicy, defaultValue: ToolPolicy) {
+    onChange({
+      ...permissions,
+      tools: permissions.tools.map((tool) =>
+        tool.id === id ? { ...tool, override: value === defaultValue ? null : value } : tool
+      ),
+    })
   }
+
   return (
-    <ToolPermissions
-      permissions={{
-        read: permissions.read,
-        write: permissions.write,
-        canAutoApprove: permissions.canAutoApprove,
-        accountActive: account.status === 'active',
-        tools: permissions.tools.map((tool) => ({
-          id: tool.id,
-          label: tool.label,
-          description: tool.description ?? '',
-          kind: tool.kind,
-          policy: tool.override ?? permissions[tool.kind],
-          inherited: tool.override === null,
-        })),
-      }}
-      query={query}
-      onQueryChange={setQuery}
-      pending={readOnly}
-      onChange={apply}
-    />
+    <section className={styles.section} aria-label='Tool permissions'>
+      <div className={styles.intro}>
+        <h2 data-type='T093'>Tool permissions</h2>
+        {!canAllow && (
+          <p className={styles.detail} data-type='T060'>
+            {account.status === 'needs_reauth'
+              ? 'Reconnect this account to allow tools automatically.'
+              : 'Your organization requires approval before tools can run.'}
+          </p>
+        )}
+      </div>
+      <ControlBar
+        search={
+          <SearchField
+            variant='quiet'
+            label='Search tools'
+            placeholder='Search tools…'
+            onValueChange={setQuery}
+          />
+        }
+      />
+      {GROUPS.map(({ kind, label }) => {
+        const matching = matches.filter((tool) => tool.kind === kind)
+        if (!matching.length) return null
+        const tools = permissions.tools.filter((item) => item.kind === kind)
+        const defaultValue = permissions[kind]
+        const defaultLabel =
+          ACTIONS.find((action) => action.value === defaultValue)?.label ?? defaultValue
+        return (
+          <section key={kind} className={styles.group} aria-label={label}>
+            <h3 data-type='T059'>
+              <CountedLabel label={label} count={tools.length} />
+            </h3>
+            <ul className={styles.list}>
+              {matching.map((tool) => (
+                <li className={styles.tool} key={tool.id}>
+                  <div className={styles.copy}>
+                    <span data-type='T059'>{tool.label}</span>
+                    {tool.description && (
+                      <span className={styles.detail} data-type='T060'>
+                        {tool.description}
+                      </span>
+                    )}
+                  </div>
+                  <div className={styles.actions}>
+                    <SegmentedControl
+                      label={`${tool.label} permission`}
+                      description={
+                        tool.override
+                          ? `Choose ${defaultLabel} to inherit the default for ${label.toLowerCase()}.`
+                          : `Inherits ${defaultLabel} from ${label.toLowerCase()}.`
+                      }
+                      options={choices}
+                      value={tool.override ?? defaultValue}
+                      onSelect={(change) => updateTool(tool.id, change, defaultValue)}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )
+      })}
+      {!matches.length && (
+        <EmptyState title={filter ? 'No matching tools' : 'No tools available'} />
+      )}
+    </section>
   )
 }
