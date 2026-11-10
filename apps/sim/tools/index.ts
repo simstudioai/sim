@@ -605,6 +605,26 @@ interface HostedKeyInjectionResult {
  * Checks BYOK workspace keys first, then uses the HostedKeyRateLimiter for round-robin key selection.
  * Returns whether a hosted (billable) key was injected and which env var it came from.
  */
+/**
+ * Fills the params a saved credential supplies (`oauth.credentialParams`) from
+ * the resolved credential. Runs only after authorization, overwrites any value
+ * the caller or model supplied, and fails closed when the credential lacks a
+ * mapped field rather than sending a request without it.
+ */
+function applyCredentialParams(
+  tool: ToolDefinition,
+  credential: CredentialTokenPayload,
+  params: Record<string, unknown>
+): void {
+  for (const [param, source] of Object.entries(tool.oauth?.credentialParams ?? {})) {
+    const value = credential[source]
+    if (typeof value !== 'string' || value.length === 0) {
+      throw new Error(`${tool.name} needs a saved credential with a ${source}`)
+    }
+    params[param] = value
+  }
+}
+
 async function injectHostedKeyIfNeeded(
   tool: ToolDefinition,
   params: Record<string, unknown>,
@@ -619,6 +639,13 @@ async function injectHostedKeyIfNeeded(
   }
 
   const { envKeyPrefix, apiKeyParam, byokProviderId, rateLimit } = tool.hosting
+  // A selected saved credential supplies this key; Sim's key must never stand in for it.
+  if (
+    (params.credential || params.oauthCredential) &&
+    tool.oauth?.credentialSuppliedParams?.includes(apiKeyParam)
+  ) {
+    return { isUsingHostedKey: false }
+  }
   const userProvidedKey = params[apiKeyParam]
   if (typeof userProvidedKey === 'string' && userProvidedKey.trim().length > 0) {
     return { isUsingHostedKey: false }
@@ -2103,6 +2130,7 @@ async function executeToolImplementation(
             contextParams[paramId] = undefined
           }
           contextParams.accessToken = data.accessToken
+          applyCredentialParams(credentialTool, data, contextParams)
           if (operationContext?.requestMode === 'assistant') {
             const tokenParam = assistantConnectedAccountTokenParam(credentialTool)
             if (tokenParam) contextParams[tokenParam] = data.accessToken

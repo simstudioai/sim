@@ -112,11 +112,15 @@ const VERSIONS: Array<{
   },
 ]
 
-function firstOperation(config: BlockConfig): string | undefined {
+function operations(config: BlockConfig): string[] {
   const operation = config.subBlocks.find((subBlock) => subBlock.id === 'operation')
   const options =
     typeof operation?.options === 'function' ? operation.options() : operation?.options
-  return options?.[0]?.id
+  return options?.map((option) => option.id) ?? []
+}
+
+function firstOperation(config: BlockConfig): string | undefined {
+  return operations(config)[0]
 }
 
 function fieldTitles(config: BlockConfig, ids: readonly string[]): string[] {
@@ -184,10 +188,14 @@ describe.each(VERSIONS)('$successor.type credential-only block', ({ successor, s
     expect(message).toContain(fieldTitles(successor, ['credential'])[0])
   })
 
-  it('passes validation with only a saved credential', () => {
-    const message = missingRequiredFields(buildBlock(successor, { credential: 'cred-1' }))
+  it('passes validation with only a saved credential, in every operation', () => {
+    for (const operation of operations(successor)) {
+      const message = missingRequiredFields(
+        buildBlock(successor, { operation, credential: 'cred-1' })
+      )
 
-    for (const id of secretIds) expect(message).not.toContain(id)
+      for (const id of secretIds) expect(message, operation).not.toContain(id)
+    }
   })
 
   it('sends the saved credential and never inline secrets left in its state', () => {
@@ -204,16 +212,20 @@ describe.each(VERSIONS)('$successor.type credential-only block', ({ successor, s
     expect(params[secretIds[1]]).toBeUndefined()
   })
 
-  it('builds tool params without asking for inline secrets', () => {
-    const params = serialize(buildBlock(successor, { credential: 'cred-1' }))
-
-    expect(() => {
+  it('builds tool params without asking for inline secrets, in every operation', () => {
+    for (const operation of operations(successor)) {
+      const params = serialize(buildBlock(successor, { operation, credential: 'cred-1' }))
+      let message = ''
       try {
         successor.tools.config?.params?.(params)
       } catch (error) {
-        // Operation fields left empty here may fail; a missing secret must not.
-        if (/access key|secret|token|host/i.test(getErrorMessage(error, ''))) throw error
+        message = getErrorMessage(error, String(error))
       }
-    }).not.toThrow()
+
+      // Operation fields left empty here may fail; a missing secret must not.
+      expect(message, operation).not.toMatch(
+        /access key|secret access|api key|token is required|host is required|cannot read properties of undefined/i
+      )
+    }
   })
 })

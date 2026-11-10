@@ -456,6 +456,7 @@ import { buildBlockExecutionError } from '@/executor/utils/errors'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool, postProcessToolOutput } from '@/tools'
 import { tools } from '@/tools/registry'
+import { tokenCredentialOAuth } from '@/tools/shared/saved-credentials'
 import { createToolConfig, getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
@@ -3499,6 +3500,77 @@ describe('Internal Route Trust', () => {
     } finally {
       Reflect.deleteProperty(tools, toolId)
     }
+  })
+
+  describe('saved token credentials (credentialParams)', () => {
+    const toolId = 'test_saved_token_credential'
+    const tokenTool = {
+      id: toolId,
+      name: 'Saved Token Fixture',
+      description: 'Takes an inline key or a saved token credential',
+      version: '1.0.0',
+      oauth: tokenCredentialOAuth('coda', { apiKey: 'accessToken', baseUrl: 'domain' }),
+      params: {
+        apiKey: { type: 'string', required: true, visibility: 'user-only' },
+        baseUrl: { type: 'string', required: true, visibility: 'user-only' },
+      },
+      request: {
+        url: (params: Record<string, unknown>) => `https://${params.baseUrl}/v1/me`,
+        method: 'GET' as const,
+        headers: (params: Record<string, unknown>) => ({
+          Authorization: `Bearer ${params.apiKey}`,
+        }),
+      },
+      transformResponse: async () => ({ success: true, output: {} }),
+    }
+
+    beforeEach(() => {
+      ;(tools as Record<string, unknown>)[toolId] = tokenTool
+    })
+    afterEach(() => {
+      Reflect.deleteProperty(tools, toolId)
+    })
+
+    it('fills the inline params from the credential, overriding caller values', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-token',
+        credentialType: 'service_account',
+        domain: 'api.example.com',
+      })
+
+      const result = await executeTool(toolId, {
+        credential: 'saved-credential',
+        apiKey: 'caller-key',
+        baseUrl: 'attacker.example.net',
+      })
+
+      expect(result.success).toBe(true)
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenLastCalledWith(
+        'https://api.example.com/v1/me',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({ authorization: 'Bearer saved-token' }),
+        })
+      )
+    })
+
+    it('fails closed when the credential lacks a mapped field', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'saved-token',
+        credentialType: 'service_account',
+      })
+
+      const result = await executeTool(toolId, {
+        credential: 'saved-credential',
+        baseUrl: 'attacker.example.net',
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('needs a saved credential with a domain'),
+      })
+      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+    })
   })
 
   it.each(['oauth', 'managed_oauth', undefined])(
@@ -6566,6 +6638,53 @@ describe('Hosted Key Injection', () => {
       expect(metered).not.toHaveBeenCalled()
     } finally {
       Reflect.deleteProperty(tools, 'test_byok_failure')
+      resetEnvFlagsMock()
+    }
+  })
+
+  it('never uses the hosted key when a saved credential supplies it', async () => {
+    setEnvFlags({ isHosted: true })
+    mockResolveExecutorCredentialToken.mockResolvedValue({
+      accessToken: 'saved-token',
+      credentialType: 'service_account',
+    })
+    const request = vi.fn(async () => jsonResponse({ ok: true }))
+    vi.stubGlobal('fetch', request)
+    tools.test_hosted_saved_credential = {
+      id: 'test_hosted_saved_credential',
+      name: 'Hosted fixture',
+      description: 'Hosted key or saved credential',
+      version: '1.0.0',
+      oauth: tokenCredentialOAuth('coda', { apiKey: 'accessToken' }),
+      params: { apiKey: { type: 'string', required: false, visibility: 'user-only' } },
+      request: {
+        url: 'https://example.com/fixture',
+        method: 'GET',
+        headers: (params: Record<string, unknown>) => ({
+          Authorization: `Bearer ${params.apiKey}`,
+        }),
+      },
+      hosting: {
+        envKeyPrefix: 'TEST_HOSTED_KEY',
+        apiKeyParam: 'apiKey',
+        byokProviderId: 'exa',
+        pricing: { type: 'per_request', cost: 0.005 },
+        rateLimit: { mode: 'per_request', requestsPerMinute: 100 },
+      },
+      transformResponse: async () => ({ success: true, output: {} }),
+    }
+    try {
+      await executeTool(
+        'test_hosted_saved_credential',
+        { credential: 'saved-credential' },
+        { executionContext: createToolExecutionContext({ userId: 'user-1' }) }
+      )
+
+      expect(mockGetBYOKKey).not.toHaveBeenCalled()
+      expect(mockRateLimiterFns.acquireKey).not.toHaveBeenCalled()
+      expect(mockResolveExecutorCredentialToken).toHaveBeenCalled()
+    } finally {
+      Reflect.deleteProperty(tools, 'test_hosted_saved_credential')
       resetEnvFlagsMock()
     }
   })

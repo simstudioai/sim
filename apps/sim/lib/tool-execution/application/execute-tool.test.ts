@@ -160,6 +160,21 @@ const TOOL_METADATA: Record<string, Record<string, unknown>> = {
       ticketId: { type: 'string', required: true, visibility: 'user-or-llm' },
     },
   },
+  saved_key_call: {
+    id: 'saved_key_call',
+    name: 'Saved Key Call',
+    oauth: {
+      required: false,
+      provider: 'aws',
+      credentialKind: 'service-account',
+      credentialSuppliedParams: ['accessKeyId', 'secretAccessKey'],
+    },
+    params: {
+      accessKeyId: { type: 'string', required: true, visibility: 'user-only' },
+      secretAccessKey: { type: 'string', required: true, visibility: 'user-only' },
+      bucket: { type: 'string', required: true, visibility: 'user-or-llm' },
+    },
+  },
   preview_call: { id: 'preview_call', name: 'Preview Call', params: {} },
   confluence_read_v2: { id: 'confluence_read_v2', name: 'Confluence Read', params: {} },
 }
@@ -224,6 +239,7 @@ const previewBlock = block({
 })
 const zendeskBlock = block({ type: 'zendesk', tools: { access: ['zendesk_get_ticket'] } })
 const thinkingBlock = block({ type: 'thinking', tools: { access: ['thinking_tool'] } })
+const savedKeyBlock = block({ type: 'saved_key', tools: { access: ['saved_key_call'] } })
 const snowflakeBlock = block({ type: 'snowflake', tools: { access: ['snowflake_execute_sql'] } })
 const confluenceBlock = block({
   type: 'confluence_v2',
@@ -264,6 +280,7 @@ describe('executeToolForCaller', () => {
       zendeskBlock,
       thinkingBlock,
       snowflakeBlock,
+      savedKeyBlock,
     ])
     mocks.executeRegistryTool.mockResolvedValue({ success: true, output: { markdown: '# Hi' } })
     mocks.resolveBillingAttribution.mockResolvedValue({ workspaceId: WORKSPACE_ID })
@@ -378,6 +395,23 @@ describe('executeToolForCaller', () => {
   it('does not require a key the deployment hosts', async () => {
     await expect(run({ input: { url: 'https://example.com' } })).resolves.toMatchObject({
       status: 'succeeded',
+    })
+  })
+
+  /**
+   * AWS tools take inline keys or a saved credential. With a `credentialId` the
+   * executor resolves the keys server-side, so the caller must not be asked
+   * for them; without one, they are still required.
+   */
+  it('does not require inline keys a saved credential supplies', async () => {
+    const input = { bucket: 'reports' }
+
+    await expect(
+      run({ toolId: 'saved_key_call', credentialId: 'aws-credential', input })
+    ).resolves.toMatchObject({ status: 'succeeded' })
+    await expect(run({ toolId: 'saved_key_call', input })).rejects.toMatchObject({
+      code: 'validation',
+      message: expect.stringContaining('input.accessKeyId'),
     })
   })
 

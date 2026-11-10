@@ -27,7 +27,8 @@
  *    Coercions belong in `tools.config.params`, which the executor runs on
  *    resolved inputs.
  *
- * Integration BlockMeta coverage and sunset `replacedBy` targets are checked too.
+ * Integration BlockMeta coverage, sunset `replacedBy` targets, and the
+ * saved-credential contract of credential-only successors are checked too.
  *
  * Usage:
  *   bun run apps/sim/scripts/check-block-registry.ts [base-ref]
@@ -44,6 +45,7 @@ import { SUBBLOCK_ID_MIGRATIONS } from '@/lib/workflows/migrations/subblock-migr
 import { getAllBlocks, getBlock, getBlockMeta, getBlockRegistry } from '@/blocks/registry'
 import { readBlockRegistryAtRef } from '@/scripts/block-registry-snapshot'
 import { getToolMetadata } from '@/tools/metadata'
+import { OPERATION_RESOLVED_CREDENTIAL_PROVIDERS } from '@/tools/shared/saved-credentials'
 
 const baseRef = process.argv[2] || 'HEAD~1'
 
@@ -357,6 +359,68 @@ function findSelectorCoercions(file: string, source: ts.SourceFile): string[] {
   return errors
 }
 
+/**
+ * A credential-only successor (a block some legacy block's `sunset.replacedBy`
+ * names, with a saved-credential picker) must actually receive its credential:
+ * every tool authorizes the picker's provider, every param the credential
+ * supplies is filled server-side, and every mapped param is one the tool takes.
+ * Without this a missing mapping passes every other check and fails at run time
+ * with the provider's 401.
+ */
+function checkSavedCredentialContract(): CheckResult {
+  const errors: string[] = []
+  const successors = new Set(
+    getAllBlocks().flatMap((block) => (block.sunset?.replacedBy ? [block.sunset.replacedBy] : []))
+  )
+
+  for (const block of getAllBlocks()) {
+    if (!successors.has(block.type)) continue
+    const picker = block.subBlocks.find(
+      (subBlock) =>
+        subBlock.type === 'oauth-input' &&
+        subBlock.credentialKind === 'service-account' &&
+        subBlock.canonicalParamId === 'oauthCredential'
+    )
+    if (!picker?.serviceId) continue
+
+    for (const toolId of block.tools?.access ?? []) {
+      const tool = getToolMetadata(toolId)
+      const oauth = tool?.oauth
+      if (!tool || !oauth) {
+        errors.push(`Block "${block.type}" → tool "${toolId}": no credential policy (oauth).`)
+        continue
+      }
+      if (oauth.provider !== picker.serviceId) {
+        errors.push(
+          `Block "${block.type}" → tool "${toolId}": authorizes "${oauth.provider}" but the picker selects "${picker.serviceId}".`
+        )
+      }
+      const mapped = new Set(Object.keys(oauth.credentialParams ?? {}))
+      if (!OPERATION_RESOLVED_CREDENTIAL_PROVIDERS.has(oauth.provider)) {
+        for (const param of oauth.credentialSuppliedParams ?? []) {
+          if (!mapped.has(param)) {
+            errors.push(
+              `Block "${block.type}" → tool "${toolId}": "${param}" is credential-supplied but nothing fills it (add it to credentialParams).`
+            )
+          }
+        }
+      }
+      for (const param of mapped) {
+        if (!tool.params?.[param]) {
+          errors.push(
+            `Block "${block.type}" → tool "${toolId}": credentialParams fills "${param}", which the tool does not declare.`
+          )
+        }
+      }
+    }
+  }
+
+  if (errors.length === 0) {
+    return { kind: 'pass', message: 'Saved-credential contract check passed' }
+  }
+  return { kind: 'fail', errors }
+}
+
 function checkSelectorCoercions(): CheckResult {
   const blocksDir = join(gitRoot, 'apps/sim/blocks/blocks')
   const errors: string[] = []
@@ -399,6 +463,7 @@ const canonicalResult = checkCanonicalIdContract()
 const metaCoverageResult = checkIntegrationMetaCoverage()
 const sunsetResult = checkSunsetReplacedBy()
 const selectorCoercionResult = checkSelectorCoercions()
+const savedCredentialResult = checkSavedCredentialContract()
 
 const stabilityOk = reportResult(
   'Subblock ID stability check',
@@ -430,4 +495,19 @@ const selectorCoercionOk = reportResult(
   selectorCoercionResult
 )
 
-process.exit(stabilityOk && canonicalOk && metaCoverageOk && sunsetOk && selectorCoercionOk ? 0 : 1)
+const savedCredentialOk = reportResult(
+  'Saved-credential contract check',
+  'A credential-only block whose credential never reaches its tools fails every run with an authentication error.',
+  savedCredentialResult
+)
+
+process.exit(
+  stabilityOk &&
+    canonicalOk &&
+    metaCoverageOk &&
+    sunsetOk &&
+    selectorCoercionOk &&
+    savedCredentialOk
+    ? 0
+    : 1
+)

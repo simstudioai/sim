@@ -240,15 +240,19 @@ function assertNoUndeclaredInputs(
 function assertRequiredCallerInputsPresent(
   tool: ExecutableToolConfig,
   toolId: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  hasCredential: boolean
 ): void {
   const hostedKeyParam = hostedKeyParamFor(tool, params)
+  // A saved credential fills these server-side; the caller does not pass them.
+  const credentialSupplied = new Set(hasCredential ? tool.oauth?.credentialSuppliedParams : [])
 
   const missing = Object.entries(tool.params ?? {})
     .filter(([name, declaration]) => {
       if (!declaration?.required) return false
       if (declaration.visibility === 'hidden') return false
       if (name === hostedKeyParam) return false
+      if (credentialSupplied.has(name)) return false
       const value = params[name]
       return value === undefined || value === null || value === ''
     })
@@ -343,7 +347,7 @@ export const executeToolForCaller = defineAuthorizedWorkspaceUseCase({
       ...input.input,
       ...(input.credentialId ? { [selector ?? 'credential']: input.credentialId } : {}),
     }
-    assertRequiredCallerInputsPresent(tool, toolId, callerParams)
+    assertRequiredCallerInputsPresent(tool, toolId, callerParams, Boolean(input.credentialId))
 
     const userId = principalUserId(principal)
     if (!userId) {

@@ -69,6 +69,12 @@ interface SavedCredentialOptions {
   selectorKeys?: Partial<Record<SelectorKey, SelectorKey>>
   /** Replaces the tool params builder when the legacy one validates the replaced fields. */
   params?: NonNullable<BlockConfig['tools']['config']>['params']
+  /**
+   * When the credential is required. Defaults to always; a block whose
+   * operations also run without a key (public endpoints, keyless self-hosted
+   * servers) passes a condition or `false`.
+   */
+  required?: SubBlockConfig['required']
 }
 
 /**
@@ -111,7 +117,7 @@ export function withSavedCredential(
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       placeholder: `Select a ${picker.title.toLowerCase()}`,
-      required: true,
+      required: options.required ?? true,
     },
     {
       id: 'manualCredential',
@@ -120,7 +126,7 @@ export function withSavedCredential(
       canonicalParamId: 'oauthCredential',
       mode: 'advanced',
       placeholder: 'Enter credential ID',
-      required: true,
+      required: options.required ?? true,
     }
   )
 
