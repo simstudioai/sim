@@ -309,6 +309,8 @@ export const MistralParseV3Block: BlockConfig = {
   type: 'mistral_parse_v3',
   name: 'Mistral Parser',
   description: 'Extract text, tables, and images from PDF documents',
+  longDescription:
+    'Extract text, tables, and images from uploaded PDF documents, or from a URL. Images come back as files an agent can pass on.',
   hideFromToolbar: false,
   /* v3 renamed the canonical pair's advanced member `filePath` -> `fileReference`,
      so the inherited sentence would reference a subblock this block lacks. */
@@ -374,7 +376,7 @@ export const MistralParseV3Block: BlockConfig = {
       value: () => 'inline',
     },
     {
-      id: 'extractImages',
+      id: 'includeImageBase64',
       title: 'Extract Images',
       type: 'switch',
     },
@@ -383,7 +385,7 @@ export const MistralParseV3Block: BlockConfig = {
       title: 'Max Images',
       type: 'short-input',
       placeholder: 'Up to 100 (default 100)',
-      condition: { field: 'extractImages', value: true },
+      condition: { field: 'includeImageBase64', value: true },
       mode: 'advanced',
     },
     {
@@ -391,7 +393,7 @@ export const MistralParseV3Block: BlockConfig = {
       title: 'Min Image Size (px)',
       type: 'short-input',
       placeholder: 'Skip images smaller than this on both sides',
-      condition: { field: 'extractImages', value: true },
+      condition: { field: 'includeImageBase64', value: true },
       mode: 'advanced',
     },
     {
@@ -452,11 +454,12 @@ export const MistralParseV3Block: BlockConfig = {
           parameters.pages = pagesArray
         }
 
-        if (params.tableFormat === 'markdown' || params.tableFormat === 'html') {
-          parameters.tableFormat = params.tableFormat
-        }
+        parameters.tableFormat =
+          params.tableFormat === 'markdown' || params.tableFormat === 'html'
+            ? params.tableFormat
+            : undefined
 
-        if (params.extractImages) {
+        if (params.includeImageBase64) {
           parameters.includeImageBase64 = true
           parameters.imageLimit = parseOptionalNumberInput(params.imageLimit, 'Max Images', {
             integer: true,
@@ -479,7 +482,7 @@ export const MistralParseV3Block: BlockConfig = {
     resultType: { type: 'string', description: 'Output format type' },
     pages: { type: 'string', description: 'Page selection' },
     tableFormat: { type: 'string', description: 'Table output: inline, markdown, or html' },
-    extractImages: { type: 'boolean', description: 'Extract document images as files' },
+    includeImageBase64: { type: 'boolean', description: 'Extract document images as files' },
     imageLimit: { type: 'number', description: 'Maximum number of images to extract' },
     imageMinSize: { type: 'number', description: 'Minimum image size in pixels' },
   },

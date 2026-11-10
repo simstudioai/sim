@@ -256,7 +256,7 @@ describe('Mistral ingestion authorization', () => {
   )
 
   it('returns extracted images as files, never as base64 in the output', async () => {
-    const png = Buffer.from('synthetic png bytes')
+    const png = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from('synthetic jpeg body')])
     submit.mockResolvedValue({
       pages: [
         {

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { extractOcrImageFiles, MAX_OCR_EXTRACTED_IMAGES } from '@/lib/internal/mistral/images'
 
-const PNG = Buffer.from('synthetic png bytes')
-const dataUri = (bytes: Buffer) => `data:image/png;base64,${bytes.toString('base64')}`
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from('synthetic jpeg body')])
+const dataUri = (bytes: Buffer) => `data:image/jpeg;base64,${bytes.toString('base64')}`
 
 function image(id: string, imageBase64: string | undefined) {
   return {
@@ -16,28 +16,28 @@ function image(id: string, imageBase64: string | undefined) {
 }
 
 describe('extractOcrImageFiles', () => {
-  it('moves image bytes into files and leaves no base64 in the page output', () => {
+  it('moves image bytes into files named as storage will name them, with no base64 left in the page output', () => {
     const { output, files } = extractOcrImageFiles({
       pages: [
         {
           index: 2,
-          markdown: '![img-0.png](img-0.png)',
-          images: [image('img-0.png', dataUri(PNG))],
+          markdown: '![img-0.jpeg](img-0.jpeg)',
+          images: [image('img-0.jpeg', dataUri(JPEG))],
         },
       ],
     })
-    expect(files).toEqual([{ buffer: PNG, name: 'page-2-img-0.png', mimeType: 'image/png' }])
-    expect(JSON.stringify(output)).not.toContain(PNG.toString('base64'))
+    expect(files).toEqual([{ buffer: JPEG, name: 'page-2-img-0.jpg', mimeType: 'image/jpeg' }])
+    expect(JSON.stringify(output)).not.toContain(JPEG.toString('base64'))
     expect(output.pages).toEqual([
       expect.objectContaining({
-        images: [expect.objectContaining({ id: 'img-0.png', file_name: 'page-2-img-0.png' })],
+        images: [expect.objectContaining({ id: 'img-0.jpeg', file_name: 'page-2-img-0.jpg' })],
       }),
     ])
   })
 
   it('stores at most the image cap and keeps the bounding boxes of the rest without a file', () => {
     const images = Array.from({ length: MAX_OCR_EXTRACTED_IMAGES + 1 }, (_, i) =>
-      image(`img-${i}.jpeg`, PNG.toString('base64'))
+      image(`img-${i}.jpeg`, JPEG.toString('base64'))
     )
     const { output, files } = extractOcrImageFiles({ pages: [{ index: 0, images }] })
     expect(files).toHaveLength(MAX_OCR_EXTRACTED_IMAGES)
@@ -51,10 +51,13 @@ describe('extractOcrImageFiles', () => {
     const huge = Buffer.alloc(21 * 1024 * 1024)
     const { output, files } = extractOcrImageFiles({
       pages: [
-        { index: 0, images: [image('img-0.png', dataUri(huge)), image('img-1.png', dataUri(PNG))] },
+        {
+          index: 0,
+          images: [image('img-0.png', dataUri(huge)), image('img-1.jpg', dataUri(JPEG))],
+        },
       ],
     })
-    expect(files.map((file) => file.name)).toEqual(['page-0-img-1.png'])
+    expect(files.map((file) => file.name)).toEqual(['page-0-img-1.jpg'])
     expect(JSON.stringify(output)).not.toContain('image_base64')
   })
 })

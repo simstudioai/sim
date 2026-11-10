@@ -18362,7 +18362,7 @@
       "slug": "mistral-parser",
       "name": "Mistral Parser",
       "description": "Extract text, tables, and images from PDF documents",
-      "longDescription": "Extract text from uploaded PDF documents, or from a URL.",
+      "longDescription": "Extract text, tables, and images from uploaded PDF documents, or from a URL. Images come back as files an agent can pass on.",
       "bgColor": "#000000",
       "iconName": "MistralIcon",
       "docsUrl": "https://docs.sim.ai/integrations/mistral_parse",

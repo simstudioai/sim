@@ -600,7 +600,7 @@ export const mistralParserV3Tool: InternalToolConfig<MistralParserV2Input, Mistr
         if (params.imageMinSize !== undefined) {
           requestBody.imageMinSize = params.imageMinSize
         }
-        if (params.tableFormat) {
+        if (params.tableFormat === 'markdown' || params.tableFormat === 'html') {
           requestBody.tableFormat = params.tableFormat
         }
 

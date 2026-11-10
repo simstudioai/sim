@@ -4,6 +4,7 @@ import { isFileParserError } from '@/lib/file-parsers/errors'
 import type { InternalToolFile } from '@/lib/internal/tool-operations/file-result'
 import { MAX_BUFFERED_TRANSFER_BYTES } from '@/lib/uploads/shared/types'
 import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file'
+import { resolveStoredFileMetadata } from '@/lib/uploads/utils/stored-file-metadata'
 
 /** Most images one parse stores; Mistral's `image_limit` is clamped to it. */
 export const MAX_OCR_EXTRACTED_IMAGES = 100
@@ -51,13 +52,15 @@ export function extractOcrImageFiles(output: unknown): OcrImageFiles {
       if (!decoded || totalBytes + decoded.buffer.length > MAX_BUFFERED_TRANSFER_BYTES) return rest
       totalBytes += decoded.buffer.length
       const id = typeof image.id === 'string' && image.id ? image.id : `img-${files.length}.jpeg`
-      const name = `page-${pageIndex}-${id}`
-      files.push({
-        buffer: decoded.buffer,
-        name,
-        mimeType: resolveEffectiveMimeType(decoded.mediaType, name),
-      })
-      return { ...rest, file_name: name }
+      /** Storage renames an image from its bytes; naming it the same way keeps `file_name` matching. */
+      const draftName = `page-${pageIndex}-${id}`
+      const { fileName, mimeType } = resolveStoredFileMetadata(
+        draftName,
+        resolveEffectiveMimeType(decoded.mediaType, draftName),
+        decoded.buffer
+      )
+      files.push({ buffer: decoded.buffer, name: fileName, mimeType })
+      return { ...rest, file_name: fileName }
     })
     return { ...page, images }
   })

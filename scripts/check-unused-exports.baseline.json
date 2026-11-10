@@ -5577,7 +5577,6 @@
   "apps/sim/tools/mistral/types.ts#MISTRAL_OCR_DIMENSIONS_OUTPUT",
   "apps/sim/tools/mistral/types.ts#MISTRAL_OCR_DIMENSIONS_OUTPUT_PROPERTIES",
   "apps/sim/tools/mistral/types.ts#MISTRAL_OCR_IMAGE_OUTPUT_PROPERTIES",
-  "apps/sim/tools/mistral/types.ts#MISTRAL_OCR_PAGE_OUTPUT_PROPERTIES",
   "apps/sim/tools/mistral/types.ts#MISTRAL_OCR_USAGE_OUTPUT",
   "apps/sim/tools/mistral/types.ts#MISTRAL_OCR_USAGE_OUTPUT_PROPERTIES",
   "apps/sim/tools/mistral/types.ts#MISTRAL_PARSER_METADATA_OUTPUT_PROPERTIES",
