@@ -763,15 +763,17 @@ export function TableRoute({ workspaceId, tableId }: TableRouteProps) {
           <span className={styles.runCount} data-type='T052'>
             {selection.hasRunningCell ? `${selection.totalRunning} running` : 'Queueing'}
           </span>
-          <Button
-            variant='quiet'
-            size='compact'
-            icon='I035'
-            disabled={cancelRunsMutation.isPending}
-            onClick={onStopAll}
-          >
-            {cancelRunsMutation.isPending ? 'Stopping…' : 'Stop all'}
-          </Button>
+          {canEdit && (
+            <Button
+              variant='quiet'
+              size='compact'
+              icon='I035'
+              disabled={cancelRunsMutation.isPending}
+              onClick={onStopAll}
+            >
+              {cancelRunsMutation.isPending ? 'Stopping…' : 'Stop all'}
+            </Button>
+          )}
         </span>
       )}
       <Button

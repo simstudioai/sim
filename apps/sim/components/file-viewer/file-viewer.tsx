@@ -165,7 +165,7 @@ function FileViewerContent({
       return readOnly ? (
         <UnsupportedPreview name={file.name} onDownload={onDownload} />
       ) : (
-        <CsvTablePreview key={file.id} file={file} workspaceId={workspaceId} />
+        <CsvTablePreview key={file.id} file={file} workspaceId={workspaceId} readOnly={!canEdit} />
       )
     if (!isTextEditable(file))
       return (

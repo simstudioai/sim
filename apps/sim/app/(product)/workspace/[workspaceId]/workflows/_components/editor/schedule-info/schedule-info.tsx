@@ -1,7 +1,8 @@
 'use client'
 
 import { Button } from '@sim/emcn/button'
-import { StatusText } from '@sim/emcn/status'
+import { FailureNotice, StatusText } from '@sim/emcn/status'
+import { getErrorMessage } from '@sim/utils/errors'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/schedule-info/schedule-info.module.css'
 import { useSubBlockStore, useWorkflowScope } from '@/platform/lib/data/workflow-editor'
 import {
@@ -36,10 +37,20 @@ function formatNextRun(instantMs: number, timeZone: string): string {
 export function ScheduleInfo({ blockId, isPreview = false }: ScheduleInfoProps) {
   const { workflowId } = useWorkflowScope()
   const scheduleTimezone = useSubBlockStore((state) => state.getValue(blockId, 'timezone'))
-  const { data: schedule, isLoading } = useScheduleQuery(workflowId ?? undefined, blockId, {
+  const scheduleQuery = useScheduleQuery(workflowId ?? undefined, blockId, {
     enabled: !isPreview,
   })
+  const { data: schedule, isLoading } = scheduleQuery
   const redeploy = useRedeployWorkflowSchedule()
+
+  if (!schedule && scheduleQuery.isError)
+    return (
+      <FailureNotice
+        message={getErrorMessage(scheduleQuery.error, 'Failed to load schedule status')}
+        retrying={scheduleQuery.isFetching}
+        onRetry={() => void scheduleQuery.refetch()}
+      />
+    )
 
   if (!schedule || isLoading) return null
 

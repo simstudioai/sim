@@ -13,8 +13,8 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { toast } from '@/lib/toast/sink'
 import styles from '@/app/(product)/_components/credential-members/credential-members.module.css'
 import {
-  partitionSettledFailures,
   resolveAddEmail,
+  useAddWorkspaceCredentialMembers,
   useLeaveCredential,
   useRemoveWorkspaceCredentialMember,
   useSession,
@@ -174,8 +174,8 @@ interface AddPeopleModalProps {
 }
 
 /**
- * Grants existing workspace members access to the credential with a role. Each add is an idempotent
- * upsert; on a partial failure only the people still to add stay in the field.
+ * Grants existing workspace members access to the credential with a role, in one request. The
+ * server refuses or grants each person on their own; only the refused stay in the field.
  */
 export function AddPeopleModal({
   workspaceId,
@@ -185,7 +185,7 @@ export function AddPeopleModal({
 }: AddPeopleModalProps) {
   const { data: permissions } = useWorkspacePermissionsQuery(workspaceId)
   const { data: members = [] } = useWorkspaceCredentialMembers(credentialId)
-  const { mutateAsync: upsertMember } = useUpsertWorkspaceCredentialMember()
+  const { mutateAsync: addMembers } = useAddWorkspaceCredentialMembers()
   const [emails, setEmails] = useState<string[]>([])
   const [role, setRole] = useState<MemberRole>('member')
 
@@ -218,20 +218,20 @@ export function AddPeopleModal({
       return 'userId' in result ? [{ email, userId: result.userId }] : []
     })
     if (targets.length === 0) return false
-    const results = await Promise.allSettled(
-      targets.map((target) => upsertMember({ credentialId, userId: target.userId, role }))
-    )
-    const failures = partitionSettledFailures(targets, results)
+    const result = await addMembers({
+      credentialId,
+      userIds: targets.map((target) => target.userId),
+      role,
+    })
+    const refused = new Set(result.refused.map((entry) => entry.userId))
+    const failures = targets.filter((target) => refused.has(target.userId))
     if (failures.length === 0) {
       setEmails([])
       setRole('member')
       return
     }
     setEmails(failures.map((target) => target.email))
-    const rejection = results.find(
-      (result): result is PromiseRejectedResult => result.status === 'rejected'
-    )
-    const reason = getErrorMessage(rejection?.reason, 'Please try again in a moment.')
+    const reason = result.refused[0]?.reason ?? 'Please try again in a moment.'
     throw new Error(
       failures.length === targets.length
         ? `Couldn't add people. ${reason}`

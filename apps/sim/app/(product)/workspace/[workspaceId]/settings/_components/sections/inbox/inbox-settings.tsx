@@ -5,11 +5,11 @@ import { Button, IconButton } from '@sim/emcn/button'
 import { TextField } from '@sim/emcn/field'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice, InlineNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import { toast } from '@/lib/toast/sink'
 import { FieldStack, Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
 import {
   type InboxConfig,
@@ -50,14 +50,7 @@ export function InboxSettings({
   const [senderLabel, setSenderLabel] = useState('')
   const [editingAddress, setEditingAddress] = useState(false)
   const [username, setUsername] = useState('')
-
-  async function handleRemoveSender(senderId: string) {
-    try {
-      await removeSender.mutateAsync({ workspaceId, senderId })
-    } catch (caught) {
-      toast.error(getErrorMessage(caught, 'Failed to remove sender'))
-    }
-  }
+  const [removingSender, setRemovingSender] = useState<{ id: string; email: string } | null>(null)
 
   return (
     <>
@@ -119,7 +112,7 @@ export function InboxSettings({
                 <IconButton
                   label={`Remove ${sender.email}`}
                   icon='I105'
-                  onClick={() => void handleRemoveSender(sender.id)}
+                  onClick={() => setRemovingSender({ id: sender.id, email: sender.email })}
                 />
               </SettingsRow>
             ))}
@@ -185,6 +178,15 @@ export function InboxSettings({
           </FieldStack>
         )}
       </SettingsSection>
+      <ConfirmDialog
+        target={removingSender}
+        onClose={() => setRemovingSender(null)}
+        title='Remove sender'
+        description={({ email }) => `Emails from ${email} will no longer create tasks.`}
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
+        onConfirm={({ id }) => removeSender.mutateAsync({ workspaceId, senderId: id })}
+      />
       <Modal
         open={addingSender}
         onOpenChange={setAddingSender}

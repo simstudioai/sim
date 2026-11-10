@@ -1,9 +1,7 @@
 'use client'
 
 import { Component, type ErrorInfo, type ReactNode } from 'react'
-import { Button } from '@sim/emcn/button'
-import { EmptyState } from '@sim/emcn/empty-state'
-import { Icon } from '@sim/emcn/icon'
+import { FailureNotice } from '@sim/emcn/status'
 import { truncate } from '@sim/utils/string'
 import styles from '@/app/(product)/_components/workspace/workflows/canvas-error/canvas-error.module.css'
 import {
@@ -21,15 +19,10 @@ const MAX_REPORTED_COMPONENT_STACK = 2000
 function ErrorUI() {
   return (
     <div className={styles.frame}>
-      <EmptyState
-        graphic={<Icon name='warning-triangle' />}
+      <FailureNotice
         title='Something went wrong'
-        description='An unexpected error occurred. Please try again or refresh the page.'
-        action={
-          <Button variant='secondary' size='compact' onClick={() => window.location.reload()}>
-            Try again
-          </Button>
-        }
+        message='An unexpected error occurred. Retry reloads the page.'
+        onRetry={() => window.location.reload()}
       />
     </div>
   )

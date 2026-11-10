@@ -320,7 +320,14 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
   function runBulk(operation: 'enable' | 'disable' | 'delete') {
     if (allSelected) {
       return bulk.mutateAsync(
-        { knowledgeBaseId, operation, selectAll: true, enabledFilter: enabled },
+        {
+          knowledgeBaseId,
+          operation,
+          selectAll: true,
+          enabledFilter: enabled,
+          search: query || undefined,
+          tagFilters: tagFilters.length > 0 ? tagFilters : undefined,
+        },
         { onSuccess: resetSelection }
       )
     }
@@ -726,7 +733,12 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
         </div>
       </LiveWorkspacePage>
 
-      <BaseTagsModal open={tagsOpen} onOpenChange={setTagsOpen} knowledgeBaseId={knowledgeBaseId} />
+      <BaseTagsModal
+        open={tagsOpen}
+        onOpenChange={setTagsOpen}
+        knowledgeBaseId={knowledgeBaseId}
+        canEdit={canEdit}
+      />
       <RenameDialog
         target={renamingBase && knowledgeBase ? knowledgeBase : null}
         noun='knowledge base'

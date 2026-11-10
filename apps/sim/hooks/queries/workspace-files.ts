@@ -899,12 +899,17 @@ export function useWorkspaceFileContent(
   })
   return {
     data: query.data,
+    isFetching: query.isFetching,
+    refetch: query.refetch,
     ...useStaleKeyRecoveryState(workspaceId, fileId, query.isLoading, query.error),
   }
 }
 
 export interface WorkspaceFileContentResult {
   data: string | undefined
+  isFetching: boolean
+  /** Reads the content again, as a failure's Retry asks. */
+  refetch: () => Promise<unknown>
   /** True while there is nothing to show yet — including the re-resolution window below. */
   isLoading: boolean
   /** The failure worth showing the reader, or `null` while the address is still being re-resolved. */

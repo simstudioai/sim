@@ -8,8 +8,9 @@ import { Icon } from '@sim/emcn/icon'
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { ActionMenu, ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { useSearchParams } from 'next/navigation'
-import { workspaceEntry } from '@/lib/navigation/paths'
+import { WORKSPACES_PATH, workspaceEntry } from '@/lib/navigation/paths'
 import { RenameDialog } from '@/app/(product)/_components/rename-dialog/rename-dialog'
 import { SidebarSortMenu } from '@/app/(product)/_components/sidebar/collection-order'
 import { pinAction } from '@/app/(product)/_components/sidebar/row-links'
@@ -43,9 +44,10 @@ export function WorkspacesSection({
     useSidebarLayout()
   const [creating, setCreating] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
+  const [leaving, setLeaving] = useState<ShellWorkspace | null>(null)
   const workspaces = data?.workspaces ?? []
   const renaming = workspaces.find((workspace) => workspace.id === renamingId)
-  const { create, rename, retry, setPinned } = actions.workspaces
+  const { create, rename, leave, retry, setPinned } = actions.workspaces
   const policy = data?.workspaceCreation
   const canCreate = policy?.canCreate && policy.organizationId === data?.organization.id
   const page = useSeeMore(workspaces, data?.workspacePageSize)
@@ -66,6 +68,18 @@ export function WorkspacesSection({
           ]
         : []),
       pinAction(item, setPinned),
+      ...(leave && item.canLeave
+        ? [
+            {
+              id: 'leave',
+              label: 'Leave',
+              icon: 'I132',
+              destructive: true,
+              separatorBefore: true,
+              onSelect: () => setLeaving(item),
+            } satisfies MenuAction,
+          ]
+        : []),
     ]
   }
 
@@ -154,6 +168,22 @@ export function WorkspacesSection({
             maxLength={WORKSPACE_NAME_MAX_LENGTH}
           />
         </Modal>
+      )}
+      {leave && (
+        <ConfirmDialog
+          target={leaving}
+          onClose={() => setLeaving(null)}
+          title='Leave workspace'
+          description={({ name }) =>
+            `You will lose access to ${name} until someone invites you back.`
+          }
+          confirmLabel='Leave'
+          pendingLabel='Leaving…'
+          onConfirm={async ({ id }) => {
+            await leave(id)
+            if (id === activeWorkspace) navigate(WORKSPACES_PATH)
+          }}
+        />
       )}
       {rename && (
         <RenameDialog

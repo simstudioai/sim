@@ -7,6 +7,7 @@ import { EmptyState } from '@sim/emcn/empty-state'
 import { useClipboard } from '@sim/emcn/feedback/use-clipboard'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
@@ -108,6 +109,8 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
   const { billingEnabled } = useDeploymentShape()
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [inviting, setInviting] = useState(false)
+  const [removing, setRemoving] = useState<{ userId: string; name: string } | null>(null)
+  const [revoking, setRevoking] = useState<{ invitationId: string; email: string } | null>(null)
   const permissions = useWorkspacePermissionsQuery(workspaceId)
   const invitations = usePendingInvitations(workspaceId)
   const { data: workspaces } = useWorkspacesQuery()
@@ -195,11 +198,7 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
           label: 'Revoke invite',
           destructive: true,
           separatorBefore: true,
-          onSelect: () =>
-            void reportFailure(
-              cancelInvitation.mutateAsync({ invitationId, workspaceId }),
-              "Couldn't revoke the invite"
-            ),
+          onSelect: () => setRevoking({ invitationId, email: teammate.email }),
         }
       )
     }
@@ -211,11 +210,7 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
         separatorBefore: true,
         disabled: teammate.removalLockReason !== null,
         disabledReason: teammate.removalLockReason ?? undefined,
-        onSelect: () =>
-          void reportFailure(
-            removeMember.mutateAsync({ userId, workspaceId }),
-            "Couldn't remove teammate"
-          ),
+        onSelect: () => setRemoving({ userId, name: teammate.name }),
       })
     }
     return actions
@@ -243,6 +238,13 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
           </Tooltip>
         )}
       </SectionToolbar>
+      {invitations.isError && (
+        <FailureNotice
+          message={getErrorMessage(invitations.error, 'Failed to load pending invites')}
+          retrying={invitations.isFetching}
+          onRetry={() => void invitations.refetch()}
+        />
+      )}
       {permissions.isPending ? (
         <SettingsSection title='Teammates' />
       ) : permissions.isError ? (
@@ -299,6 +301,26 @@ export default function TeammatesSection({ workspaceId }: WorkspaceSettingsSecti
           ))}
         </SettingsSection>
       )}
+      <ConfirmDialog
+        target={removing}
+        onClose={() => setRemoving(null)}
+        title='Remove teammate'
+        description={({ name }) => `${name} will lose access to this workspace.`}
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
+        onConfirm={({ userId }) => removeMember.mutateAsync({ userId, workspaceId })}
+      />
+      <ConfirmDialog
+        target={revoking}
+        onClose={() => setRevoking(null)}
+        title='Revoke invite'
+        description={({ email }) => `The invite sent to ${email} will stop working.`}
+        confirmLabel='Revoke'
+        pendingLabel='Revoking…'
+        onConfirm={({ invitationId }) =>
+          cancelInvitation.mutateAsync({ invitationId, workspaceId })
+        }
+      />
       {canManage && (
         <InviteTeammatesModal
           open={inviting}

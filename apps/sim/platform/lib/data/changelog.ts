@@ -148,5 +148,7 @@ export function useReleaseNotes(workspaceId: string, fileId: string) {
     missing: record.data === null,
     error: record.error ?? content.error,
     content: content.data,
+    retrying: record.isFetching || content.isFetching,
+    retry: () => void (record.error ? record.refetch() : content.refetch()),
   }
 }

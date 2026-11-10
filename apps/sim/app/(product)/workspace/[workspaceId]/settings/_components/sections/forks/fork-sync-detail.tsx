@@ -120,9 +120,7 @@ export function ForkSyncDetail({
         title={`Overwrite ${target}`}
         description={`Syncing will overwrite any changes made in ${target} since the last sync. Continue?`}
         confirmLabel='Sync'
-        onConfirm={() => {
-          void controller.sync()
-        }}
+        onConfirm={async () => (await controller.sync()) || false}
       >
         {controller.archivedWorkflowNames.length > 0 && (
           <RowStack>

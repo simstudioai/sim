@@ -28,7 +28,8 @@ const liveWorkspaceHome = (workspaceId: string) => workspaceHomePath(workspaceId
 
 function toShellWorkspace(
   workspace: Workspace,
-  pinnedIds: ReadonlySet<string> | undefined
+  pinnedIds: ReadonlySet<string> | undefined,
+  viewerId: string | undefined
 ): ShellWorkspace {
   return {
     id: workspace.id,
@@ -36,6 +37,7 @@ function toShellWorkspace(
     href: liveWorkspaceHome(workspace.id),
     permissions: workspace.permissions,
     isPinned: pinnedIds?.has(workspace.id) ?? false,
+    canLeave: Boolean(viewerId && viewerId !== workspace.ownerId && !workspace.isOrgAdmin),
   }
 }
 
@@ -100,7 +102,7 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
   const profile = useUserProfile()
   const settings = useGeneralSettings()
   const chatActions = useChatListActions(organizationId)
-  const workspaceActions = useWorkspaceActions(organizationId, liveWorkspaceHome)
+  const workspaceActions = useWorkspaceActions(organizationId, liveWorkspaceHome, profile.data?.id)
   const accountActions = useLiveAccountActions(organization, navigation.destinations)
   const navWarmers = useNavWarmers()
   return {
@@ -112,7 +114,7 @@ export function useShellData(navigation: ShellNavigation): LiveShell {
       // workspace they can open renders in it (`readWorkspaceShell`): its own, an
       // organization-less one, and another team's they collaborate on.
       workspaces: (workspaces.data ?? []).map((workspace) =>
-        toShellWorkspace(workspace, pinnedIds.data)
+        toShellWorkspace(workspace, pinnedIds.data, profile.data?.id)
       ),
       chats: (chats.data ?? []).filter(canOpenChat).map((chat) => toShellChat(organization, chat)),
       inbox: [],

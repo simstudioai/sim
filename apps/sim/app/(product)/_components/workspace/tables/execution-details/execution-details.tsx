@@ -38,6 +38,7 @@ import {
   type WorkflowLogRow,
 } from '@/platform/lib/data/tables'
 import { formatTimestamp } from '@/platform/shared/time'
+import { coreTriggerLabel } from '@/platform/shared/trigger-labels'
 
 type LogTab = 'overview' | 'trace'
 type LogFile = NonNullable<WorkflowLogRow['files']>[number]
@@ -52,26 +53,11 @@ const LEVEL_LABEL: Record<string, string> = {
   failed: 'Error',
 }
 
-/** The core triggers' labels, as the logs filter names them; an integration reads as its provider. */
-const TRIGGER_LABEL: Record<string, string> = {
-  manual: 'Manual',
-  api: 'API',
-  schedule: 'Schedule',
-  chat: 'Chat',
-  webhook: 'Webhook',
-  mcp: 'MCP',
-  copilot: 'Sim agent',
-  mothership: 'Sim agent',
-  workflow: 'Workflow',
-  custom_block: 'Custom block',
-  test: 'Test',
-}
-
 const DELETED_WORKFLOW_LABEL = 'Deleted Workflow'
 
 function triggerLabel(trigger: string): string {
   return (
-    TRIGGER_LABEL[trigger] ??
+    coreTriggerLabel(trigger) ??
     trigger
       .split(/[-_]/)
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))

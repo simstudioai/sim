@@ -389,6 +389,29 @@ export function useRemoveWorkspaceMember() {
   })
 }
 
+/**
+ * The viewer leaves a workspace. Invalidates the workspace list, its permissions and its detail.
+ */
+export function useLeaveWorkspace() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ userId, workspaceId }: { userId: string; workspaceId: string }) =>
+      requestJson(removeWorkspaceMemberContract, {
+        params: { id: userId },
+        body: { workspaceId },
+      }),
+    onSettled: (_data, _error, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: workspaceKeys.permissions(variables.workspaceId),
+        }),
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: workspaceKeys.detail(variables.workspaceId) }),
+      ]),
+  })
+}
+
 type UpdatePermissionsParams = {
   workspaceId: string
   organizationId?: string

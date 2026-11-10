@@ -4,8 +4,9 @@ import { Button } from '@sim/emcn/button'
 import { Disclosure } from '@sim/emcn/disclosure'
 import { PropertyList } from '@sim/emcn/property-list'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
-import { StatusTag } from '@sim/emcn/status'
+import { FailureNotice, StatusTag } from '@sim/emcn/status'
 import { Tooltip } from '@sim/emcn/tooltip'
+import { getErrorMessage } from '@sim/utils/errors'
 import {
   DetailHeader,
   FieldStack,
@@ -36,6 +37,9 @@ interface McpServerDetailProps {
   discoveredTools: McpTool[]
   /** Where workflows use a server's tools, to name the workflows a tool change breaks. */
   storedTools: StoredMcpTool[]
+  /** This server's tool discovery: pending is not empty, and a failure is not "no tools". */
+  toolsState?: { isLoading: boolean; isFetching: boolean; error: Error | null }
+  onRetryTools: () => void
   canEdit: boolean
   authorizing: boolean
   deleting: boolean
@@ -58,6 +62,8 @@ export function McpServerDetail({
   servers,
   discoveredTools,
   storedTools,
+  toolsState,
+  onRetryTools,
   canEdit,
   authorizing,
   deleting,
@@ -152,8 +158,19 @@ export function McpServerDetail({
           </SettingsRow>
         )}
       </SettingsSection>
-      <SettingsSection title={`Tools (${tools.length})`}>
-        {tools.length === 0 ? (
+      <SettingsSection
+        title={tools.length === 0 && toolsState?.isLoading ? 'Tools' : `Tools (${tools.length})`}
+      >
+        {tools.length === 0 && toolsState?.isLoading ? null : tools.length === 0 &&
+          toolsState?.error ? (
+          <FieldStack>
+            <FailureNotice
+              message={getErrorMessage(toolsState.error, 'Failed to load tools')}
+              retrying={toolsState.isFetching}
+              onRetry={onRetryTools}
+            />
+          </FieldStack>
+        ) : tools.length === 0 ? (
           <FieldStack>
             <Muted>No tools available</Muted>
           </FieldStack>

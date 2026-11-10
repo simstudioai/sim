@@ -12,17 +12,19 @@ import { useWorkspaceCsvPreview } from '@/hooks/queries/workspace-file-table'
 interface CsvTablePreviewProps {
   file: WorkspaceFileRecord
   workspaceId: string
+  /** A viewer who cannot create tables is not offered the import. */
+  readOnly: boolean
 }
 
 /**
  * A CSV too large for the editor: the server streams its first rows, and when there are more a
  * notice offers to import the whole file as a table.
  */
-export function CsvTablePreview({ file, workspaceId }: CsvTablePreviewProps) {
+export function CsvTablePreview({ file, workspaceId, readOnly }: CsvTablePreviewProps) {
   const scrollRef = useHorizontalWheelScroll()
   const version = Number(new Date(file.updatedAt)) || file.size
   const { data, error } = useWorkspaceCsvPreview(workspaceId, file.id, file.key, version)
-  useCsvTruncationImport(workspaceId, file, data?.truncated ?? false)
+  useCsvTruncationImport(workspaceId, file, data?.truncated ?? false, readOnly)
   const failure = resolvePreviewError((error as Error | null) ?? null, null)
   if (failure) return <PreviewError label='CSV' error={failure} />
   if (!data) return null

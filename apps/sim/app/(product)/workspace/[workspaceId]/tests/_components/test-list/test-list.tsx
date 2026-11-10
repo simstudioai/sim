@@ -111,7 +111,8 @@ export function TestList({ workspaceId }: TestListProps) {
     const direction = dir === 'asc' ? 1 : -1
     return tests
       .filter(
-        (test) => !term || test.title.toLowerCase().includes(term) || test.name.includes(term)
+        (test) =>
+          !term || test.title.toLowerCase().includes(term) || test.name.toLowerCase().includes(term)
       )
       .sort((a, b) => {
         const left = key(a)

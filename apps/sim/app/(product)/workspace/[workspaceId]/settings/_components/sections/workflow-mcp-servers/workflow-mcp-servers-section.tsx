@@ -5,12 +5,11 @@ import { ActivityRow } from '@sim/emcn/activity-row'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { Icon } from '@sim/emcn/icon'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
 import { getErrorMessage } from '@sim/utils/errors'
-import { toast } from '@/lib/toast/sink'
 import {
   ResourceList,
   SectionStack,
@@ -57,17 +56,14 @@ export default function WorkflowMcpServersSection({ workspaceId }: WorkspaceSett
     void setSelectedServerId(null, { history: 'replace' })
   }
 
-  const confirmDelete = async () => {
-    if (!serverToDelete) return
-    const serverId = serverToDelete.id
-    setServerToDelete(null)
+  const confirmDelete = async ({ id: serverId }: WorkflowMcpServer) => {
     setDeletingServers((previous) => new Set(previous).add(serverId))
     try {
       await deleteServer.mutateAsync({ workspaceId, serverId })
       if (selectedServerId === serverId) closeServer()
     } catch (error) {
       logger.error('Failed to delete server', { error })
-      toast.error('Failed to delete MCP server', { description: getErrorMessage(error) })
+      throw error
     } finally {
       setDeletingServers((previous) => {
         const next = new Set(previous)
@@ -78,17 +74,16 @@ export default function WorkflowMcpServersSection({ workspaceId }: WorkspaceSett
   }
 
   const deleteConfirmation = canManage && (
-    <Modal
-      variant='confirm'
-      destructive
-      open={serverToDelete !== null}
-      onOpenChange={(open) => {
-        if (!open) setServerToDelete(null)
-      }}
+    <ConfirmDialog
+      target={serverToDelete}
+      onClose={() => setServerToDelete(null)}
       title='Delete MCP server'
-      description={`Are you sure you want to delete ${serverToDelete?.name ?? 'this server'}? This action cannot be undone.`}
+      description={({ name }) =>
+        `Are you sure you want to delete ${name}? This action cannot be undone.`
+      }
       confirmLabel='Delete'
-      onConfirm={() => void confirmDelete()}
+      pendingLabel='Deleting…'
+      onConfirm={confirmDelete}
     />
   )
 

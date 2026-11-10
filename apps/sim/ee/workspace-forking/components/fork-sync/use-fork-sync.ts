@@ -239,7 +239,8 @@ export interface ForkSyncController {
   /** Names the failing gate for the disabled Sync chip's tooltip; undefined when enabled. */
   syncDisabledReason: string | undefined
   /** Persist the effective mapping + dependents + copy selection, then promote. */
-  sync: () => Promise<void>
+  /** Resolves `true` once the run commits; a refusal or failure is toasted and resolves `false`. */
+  sync: () => Promise<boolean>
 }
 
 const entryKey = (entry: ForkMappingEntry) => forkRefKey(entry)
@@ -918,8 +919,9 @@ export function useForkSync(params: {
     setComparisonSelection(null)
   }
 
-  const sync = async () => {
-    if (!otherWorkspaceId || !diff.data || updateMapping.isPending || promote.isPending) return
+  const sync = async (): Promise<boolean> => {
+    if (!otherWorkspaceId || !diff.data || updateMapping.isPending || promote.isPending)
+      return false
     const submittedReviewedVersions = reviewedSourceVersions
     const sourceVersions = new Map(
       diff.data.sourceVersions.map((source) => [source.workflowId, source.deploymentVersionId])
@@ -1001,7 +1003,7 @@ export function useForkSync(params: {
           toast.error(
             `Sync blocked: ${count} reference${count === 1 ? '' : 's'} would break in the target. Review the updated list and try again.`
           )
-          return
+          return false
         }
         if (result.unmappedRequired.length > 0) {
           // Name the actual blocking kinds rather than always blaming credentials: the server
@@ -1009,10 +1011,10 @@ export function useForkSync(params: {
           // gated client-side before this runs (see the Sync chip's disabled tooltip).
           const kinds = new Set(result.unmappedRequired.map((reference) => reference.kind))
           toast.error(`Map all required ${forkRequiredKindsLabel(kinds)} first`)
-          return
+          return false
         }
         toast.error('Sync did not complete')
-        return
+        return false
       }
 
       // The run committed the in-session choices: the mapping entries and dependent values are
@@ -1058,8 +1060,10 @@ export function useForkSync(params: {
       } else {
         toast.success(label)
       }
+      return true
     } catch (error) {
       toast.error(getErrorMessage(error, 'Sync failed'))
+      return false
     }
   }
 

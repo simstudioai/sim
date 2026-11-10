@@ -6,7 +6,7 @@ import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { useFeedbackExpiry } from '@sim/emcn/feedback/use-feedback-expiry'
 import { Icon } from '@sim/emcn/icon'
-import { Modal } from '@sim/emcn/modal'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
@@ -137,10 +137,7 @@ export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProp
   /** Closing replaces the URL, so Back leaves the section rather than reopening the server. */
   const closeServer = () => void setSelectedServerId(null, { history: 'replace' })
 
-  const confirmDelete = async () => {
-    if (!serverToDeleteId) return
-    const serverId = serverToDeleteId
-    setServerToDeleteId(null)
+  const confirmDelete = async (serverId: string) => {
     setDeletingServers((previous) => new Set(previous).add(serverId))
     try {
       await deleteServer.mutateAsync({ workspaceId, serverId })
@@ -148,7 +145,7 @@ export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProp
       logger.info('Removed MCP server', { serverId })
     } catch (error) {
       logger.error('Failed to remove MCP server', { error })
-      toast.error('Failed to remove MCP server', { description: getErrorMessage(error) })
+      throw error
     } finally {
       setDeletingServers((previous) => {
         const next = new Set(previous)
@@ -174,17 +171,14 @@ export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProp
   const serverToDelete = servers.find((server) => server.id === serverToDeleteId)
 
   const deleteConfirmation = canEdit && (
-    <Modal
-      variant='confirm'
-      destructive
-      open={serverToDeleteId !== null}
-      onOpenChange={(open) => {
-        if (!open) setServerToDeleteId(null)
-      }}
+    <ConfirmDialog
+      target={serverToDeleteId}
+      onClose={() => setServerToDeleteId(null)}
       title='Delete MCP server'
       description={`Are you sure you want to delete ${serverToDelete?.name || 'this server'}? This action cannot be undone.`}
       confirmLabel='Delete'
-      onConfirm={() => void confirmDelete()}
+      pendingLabel='Deleting…'
+      onConfirm={confirmDelete}
     />
   )
 
@@ -238,6 +232,8 @@ export default function McpSection({ workspaceId }: WorkspaceSettingsSectionProp
           servers={servers}
           discoveredTools={discoveredTools}
           storedTools={storedTools}
+          toolsState={toolsStateByServer.get(selectedServer.id)}
+          onRetryTools={() => forceRefreshTools(workspaceId)}
           canEdit={canEdit}
           authorizing={connectingServers.has(selectedServer.id)}
           deleting={deletingServers.has(selectedServer.id)}
