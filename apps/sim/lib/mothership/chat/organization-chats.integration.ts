@@ -11,9 +11,12 @@ import {
   member,
   organization,
   permissionGroup,
+  permissions,
   subscription,
   user,
+  workspace,
 } from '@sim/db/schema'
+import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { generateId } from '@sim/utils/id'
 import { compareStrings } from '@sim/utils/string'
 import { eq, inArray } from 'drizzle-orm'
@@ -23,7 +26,10 @@ vi.hoisted(() => {
   process.env.BILLING_ENABLED = 'true'
 })
 
-import { listMothershipChats } from '@/lib/mothership/chat/list-mothership-chats'
+import {
+  listMothershipChats,
+  listOpenableChatWorkspaceIds,
+} from '@/lib/mothership/chat/list-mothership-chats'
 import {
   authorizeOrganizationChat,
   createOrganizationChat,
@@ -36,7 +42,11 @@ const ids = {
   owner: `chat-access-owner-${generateId()}`,
   member: `chat-access-member-${generateId()}`,
   group: `chat-access-group-${generateId()}`,
+  granted: `chat-access-granted-${generateId()}`,
+  archived: `chat-access-archived-${generateId()}`,
+  administered: `chat-access-administered-${generateId()}`,
 }
+const fixtureWorkspaces = [ids.granted, ids.archived, ids.administered]
 const principal = { kind: 'session' as const, userId: ids.member, sessionId: 'chat-access' }
 const input = { organizationId: ids.organization, mode: 'agent' as const }
 
@@ -73,6 +83,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.delete(copilotChats).where(eq(copilotChats.organizationId, ids.organization))
+  await db.delete(copilotChats).where(inArray(copilotChats.workspaceId, fixtureWorkspaces))
+  await db.delete(permissions).where(inArray(permissions.entityId, fixtureWorkspaces))
+  await deleteWorkspaceFixture(db, inArray(workspace.id, fixtureWorkspaces))
   await db.delete(subscription).where(eq(subscription.referenceId, ids.organization))
   await db.delete(organization).where(eq(organization.id, ids.organization))
   await db.delete(user).where(inArray(user.id, [ids.owner, ids.member]))
@@ -156,5 +169,78 @@ describe("the organization's chat list order", () => {
 
     expect(await listed()).toEqual(byIdDescending)
     expect(await listed(2)).toEqual(byIdDescending.slice(0, 2))
+  })
+})
+
+/**
+ * An organization's list also holds the viewer's chats on every workspace they can still open.
+ * Failure modes: a chat on a workspace granted to the viewer left out; one on an archived
+ * workspace, or on a workspace of the organization a plain member holds no grant to, let in; and
+ * an administrator of a team organization losing the chats on its workspaces they hold no grant to.
+ */
+describe("the organization's list of workspace chats", () => {
+  it('holds chats on workspaces the viewer can open, and only those', async () => {
+    const now = new Date()
+    await insertWorkspaceFixture(db, [
+      { id: ids.granted, name: 'Granted', ownerId: ids.owner, billedAccountUserId: ids.owner },
+      {
+        id: ids.archived,
+        name: 'Archived',
+        ownerId: ids.owner,
+        billedAccountUserId: ids.owner,
+        archivedAt: now,
+      },
+      {
+        id: ids.administered,
+        name: 'Administered',
+        ownerId: ids.owner,
+        billedAccountUserId: ids.owner,
+        organizationId: ids.organization,
+      },
+    ])
+    await db.insert(permissions).values(
+      [ids.granted, ids.archived].map((entityId) => ({
+        id: generateId(),
+        userId: ids.member,
+        entityType: 'workspace',
+        entityId,
+        permissionType: 'write' as const,
+      }))
+    )
+    const chats = await db
+      .insert(copilotChats)
+      .values([
+        ...fixtureWorkspaces.map((workspaceId) => ({
+          userId: ids.member,
+          workspaceId,
+          type: 'mothership' as const,
+        })),
+        { userId: ids.owner, workspaceId: ids.administered, type: 'mothership' as const },
+      ])
+      .returning({
+        id: copilotChats.id,
+        userId: copilotChats.userId,
+        workspaceId: copilotChats.workspaceId,
+      })
+    const chatOn = (userId: string, workspaceId: string) =>
+      chats.find((chat) => chat.userId === userId && chat.workspaceId === workspaceId)?.id
+    const listed = async (userId: string) =>
+      new Set(
+        (await listMothershipChats(userId, { organizationId: ids.organization })).map(
+          (chat) => chat.id
+        )
+      )
+
+    const memberList = await listed(ids.member)
+    expect(memberList.has(chatOn(ids.member, ids.granted) ?? '')).toBe(true)
+    expect(memberList.has(chatOn(ids.member, ids.archived) ?? '')).toBe(false)
+    expect(memberList.has(chatOn(ids.member, ids.administered) ?? '')).toBe(false)
+    expect(
+      [...(await listOpenableChatWorkspaceIds(ids.member))].filter((id) =>
+        fixtureWorkspaces.includes(id)
+      )
+    ).toEqual([ids.granted])
+
+    expect((await listed(ids.owner)).has(chatOn(ids.owner, ids.administered) ?? '')).toBe(true)
   })
 })

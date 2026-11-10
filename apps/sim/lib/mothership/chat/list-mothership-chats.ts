@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { copilotChats, member, permissions, workspace } from '@sim/db/schema'
-import { and, desc, eq, exists, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { z } from 'zod'
 import type { MothershipChat, MothershipChatScope } from '@/lib/api/contracts/mothership-chats'
 import { conversationModeSelection } from '@/lib/mothership/chat/intent'
@@ -8,61 +8,46 @@ import { reconcileChatStreamMarkers } from '@/lib/mothership/chat/stream-livenes
 import { inheritsOrganizationAdmin } from '@/lib/organizations/team-only'
 
 /**
- * A workspace the viewer can still open: active, with an explicit grant or under an organization
- * they administer, wherever it sits. The organization's chat list and its live updates share it.
+ * The workspaces whose chats an organization's list holds for the viewer, so its live updates
+ * carry those chats too and nothing else: every active workspace they can still open, with an
+ * explicit grant or under an organization they administer, wherever it sits. Each branch reads
+ * from the viewer's own rows through an index.
  */
-function openableWorkspace(userId: string): SQL | undefined {
-  return and(
-    isNull(workspace.archivedAt),
-    or(
-      exists(
-        db
-          .select({ id: permissions.id })
-          .from(permissions)
-          .where(
-            and(
-              eq(permissions.userId, userId),
-              eq(permissions.entityType, 'workspace'),
-              eq(permissions.entityId, workspace.id)
-            )
-          )
-      ),
-      exists(
-        db
-          .select({ id: member.id })
-          .from(member)
-          .where(
-            and(
-              eq(member.userId, userId),
-              eq(member.organizationId, workspace.organizationId),
-              inheritsOrganizationAdmin()
-            )
-          )
-      )
-    )
-  )
-}
-
-/** The viewer's workspace chats on workspaces they can still open. */
-function openableWorkspaceChat(userId: string): SQL {
-  return exists(
+export async function listOpenableChatWorkspaceIds(userId: string): Promise<Set<string>> {
+  const [granted, administered] = await Promise.all([
     db
       .select({ id: workspace.id })
-      .from(workspace)
-      .where(and(eq(workspace.id, copilotChats.workspaceId), openableWorkspace(userId)))
-  )
+      .from(permissions)
+      .innerJoin(workspace, eq(workspace.id, permissions.entityId))
+      .where(
+        and(
+          eq(permissions.userId, userId),
+          eq(permissions.entityType, 'workspace'),
+          isNull(workspace.archivedAt)
+        )
+      ),
+    db
+      .select({ id: workspace.id })
+      .from(member)
+      .innerJoin(workspace, eq(workspace.organizationId, member.organizationId))
+      .where(
+        and(eq(member.userId, userId), inheritsOrganizationAdmin(), isNull(workspace.archivedAt))
+      ),
+  ])
+  return new Set([...granted, ...administered].map((row) => row.id))
 }
 
 /**
- * The workspaces whose chats an organization's list holds for the viewer, so its live updates
- * carry those chats too and nothing else.
+ * The organization's chats beside the viewer's chats on workspaces they can still open, as two
+ * plain predicates so each branch can use its `(user_id, …)` index.
  */
-export async function listOpenableChatWorkspaceIds(userId: string): Promise<Set<string>> {
-  const rows = await db
-    .select({ id: workspace.id })
-    .from(workspace)
-    .where(openableWorkspace(userId))
-  return new Set(rows.map((row) => row.id))
+async function organizationListCondition(userId: string, organizationId: string): Promise<SQL> {
+  const workspaceIds = await listOpenableChatWorkspaceIds(userId)
+  const organizationChat = eq(copilotChats.organizationId, organizationId)
+  if (workspaceIds.size === 0) return organizationChat
+  return (
+    or(organizationChat, inArray(copilotChats.workspaceId, [...workspaceIds])) ?? organizationChat
+  )
 }
 
 /**
@@ -87,6 +72,10 @@ export async function listMothershipChats(
   scope: MothershipChatScope = 'active',
   limit?: number
 ): Promise<MothershipChat[]> {
+  const ownerCondition =
+    typeof owner === 'string'
+      ? eq(copilotChats.workspaceId, owner)
+      : await organizationListCondition(userId, owner.organizationId)
   const query = db
     .select({
       id: copilotChats.id,
@@ -102,12 +91,7 @@ export async function listMothershipChats(
     .where(
       and(
         eq(copilotChats.userId, userId),
-        typeof owner === 'string'
-          ? eq(copilotChats.workspaceId, owner)
-          : or(
-              eq(copilotChats.organizationId, owner.organizationId),
-              openableWorkspaceChat(userId)
-            ),
+        ownerCondition,
         eq(copilotChats.type, 'mothership'),
         sql`${copilotChats.config}->'benchmark' IS NULL`,
         scope === 'archived' ? isNotNull(copilotChats.deletedAt) : isNull(copilotChats.deletedAt)
