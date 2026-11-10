@@ -471,7 +471,6 @@
     "apps/sim/app/api/v1/admin/organizations/[id]/billing/route.ts": 2,
     "apps/sim/app/api/v1/admin/organizations/[id]/data-retention/route.ts": 2,
     "apps/sim/app/api/v1/admin/organizations/[id]/members/[memberId]/route.ts": 2,
-    "apps/sim/app/api/v1/admin/organizations/[id]/members/route.ts": 2,
     "apps/sim/app/api/v1/admin/organizations/[id]/route.ts": 2,
     "apps/sim/app/api/v1/admin/organizations/[id]/session-policy/route.ts": 2,
     "apps/sim/app/api/v1/admin/organizations/[id]/transfer-ownership/route.ts": 2,

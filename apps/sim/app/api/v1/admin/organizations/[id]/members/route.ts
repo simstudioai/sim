@@ -29,29 +29,19 @@
  * }>
  */
 
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { member, organization, user, userStats, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { and, count, eq } from 'drizzle-orm'
 import {
   adminV1AddOrganizationMemberContract,
   adminV1ListOrganizationMembersContract,
 } from '@/lib/api/contracts/v1/admin'
 import { parseRequest } from '@/lib/api/server'
-import { getOrganizationSubscription } from '@/lib/billing/core/billing'
-import { getOrganizationMemberUsageSnapshot } from '@/lib/billing/core/organization'
-import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
-import { ensureUserInOrganizationTx } from '@/lib/billing/organizations/membership'
-import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
-import { isEnterprise } from '@/lib/billing/plan-helpers'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import {
-  attachOwnedWorkspacesToOrganizationTx,
-  ownedAttachableWorkspacesWhere,
-} from '@/lib/workspaces/organization-workspaces'
+  AdminMemberAddRefusedError,
+  AdminMemberTargetNotFoundError,
+  addAdminOrganizationMember,
+  listAdminOrganizationMembers,
+} from '@/lib/organizations/application/admin-members'
 import { withAdminAuthParams } from '@/app/api/v1/admin/middleware'
 import {
   adminBadRequestResponse,
@@ -69,18 +59,6 @@ import {
   createPaginationMeta,
 } from '@/app/api/v1/admin/types'
 
-/**
- * The target's owned-workspace set changed between the advisory-lock capture
- * and the membership commit; the add is aborted so no workspace escapes the
- * sweep. Safe to retry immediately.
- */
-class WorkspaceSetChangedDuringAddError extends Error {
-  constructor() {
-    super('Owned workspaces changed while adding the member')
-    this.name = 'WorkspaceSetChangedDuringAddError'
-  }
-}
-
 const logger = createLogger('AdminOrganizationMembersAPI')
 
 interface RouteParams {
@@ -88,7 +66,7 @@ interface RouteParams {
 }
 
 export const GET = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (request, context) => {
+  withAdminAuthParams<RouteParams>(async (request, context, principal) => {
     const parsed = await parseRequest(adminV1ListOrganizationMembersContract, request, context, {
       validationErrorResponse: adminValidationErrorResponse,
     })
@@ -98,46 +76,13 @@ export const GET = withRouteHandler(
     const { limit, offset } = parsed.data.query
 
     try {
-      const [orgData] = await db
-        .select({ id: organization.id })
-        .from(organization)
-        .where(eq(organization.id, organizationId))
-        .limit(1)
-
-      if (!orgData) {
-        return adminNotFoundResponse('Organization')
-      }
-
-      const [countResult, membersData] = await Promise.all([
-        db.select({ count: count() }).from(member).where(eq(member.organizationId, organizationId)),
-        db
-          .select({
-            id: member.id,
-            userId: member.userId,
-            organizationId: member.organizationId,
-            role: member.role,
-            createdAt: member.createdAt,
-            userName: user.name,
-            userEmail: user.email,
-            currentUsageLimit: userStats.currentUsageLimit,
-            billingBlocked: userStats.billingBlocked,
-          })
-          .from(member)
-          .innerJoin(user, eq(member.userId, user.id))
-          .leftJoin(userStats, eq(member.userId, userStats.userId))
-          .where(eq(member.organizationId, organizationId))
-          .orderBy(member.createdAt)
-          .limit(limit)
-          .offset(offset),
-      ])
-
-      const total = countResult[0].count
-
-      const { usageByUser } = await getOrganizationMemberUsageSnapshot(organizationId, {
-        userIds: membersData.map((row) => row.userId),
+      const { members, total } = await listAdminOrganizationMembers.execute({
+        principal,
+        input: { organizationId, limit, offset },
+        request,
       })
 
-      const data: AdminMemberDetail[] = membersData.map((m) => ({
+      const data: AdminMemberDetail[] = members.map((m) => ({
         id: m.id,
         userId: m.userId,
         organizationId: m.organizationId,
@@ -145,17 +90,16 @@ export const GET = withRouteHandler(
         createdAt: m.createdAt.toISOString(),
         userName: m.userName,
         userEmail: m.userEmail,
-        currentPeriodCost: (usageByUser.get(m.userId) ?? 0).toString(),
+        currentPeriodCost: m.currentPeriodCost.toString(),
         currentUsageLimit: m.currentUsageLimit,
-        billingBlocked: m.billingBlocked ?? false,
+        billingBlocked: m.billingBlocked,
       }))
 
-      const pagination = createPaginationMeta(total, limit, offset)
-
-      logger.info(`Admin API: Listed ${data.length} members for organization ${organizationId}`)
-
-      return listResponse(data, pagination)
+      return listResponse(data, createPaginationMeta(total, limit, offset))
     } catch (error) {
+      if (error instanceof AdminMemberTargetNotFoundError) {
+        return adminNotFoundResponse(error.resource)
+      }
       logger.error('Admin API: Failed to list organization members', { error, organizationId })
       return adminInternalErrorResponse('Failed to list organization members')
     }
@@ -163,7 +107,7 @@ export const GET = withRouteHandler(
 )
 
 export const POST = withRouteHandler(
-  withAdminAuthParams<RouteParams>(async (request, context) => {
+  withAdminAuthParams<RouteParams>(async (request, context, principal) => {
     const parsed = await parseRequest(adminV1AddOrganizationMemberContract, request, context, {
       validationErrorResponse: adminValidationErrorResponse,
       invalidJsonResponse: adminInvalidJsonResponse,
@@ -171,285 +115,35 @@ export const POST = withRouteHandler(
     if (!parsed.success) return parsed.response
 
     const { id: organizationId } = parsed.data.params
+    const { userId, role } = parsed.data.body
 
     try {
-      const { userId, role } = parsed.data.body
-
-      const [orgData] = await db
-        .select({ id: organization.id, name: organization.name })
-        .from(organization)
-        .where(eq(organization.id, organizationId))
-        .limit(1)
-
-      if (!orgData) {
-        return adminNotFoundResponse('Organization')
-      }
-
-      const [userData] = await db
-        .select({ id: user.id, name: user.name, email: user.email })
-        .from(user)
-        .where(eq(user.id, userId))
-        .limit(1)
-
-      if (!userData) {
-        return adminNotFoundResponse('User')
-      }
-
-      /** A personal organization is retired when its owner is added, so only a team counts. */
-      const [existingMember] = await db
-        .select({
-          id: member.id,
-          role: member.role,
-          createdAt: member.createdAt,
-          organizationId: member.organizationId,
-        })
-        .from(member)
-        .innerJoin(organization, eq(organization.id, member.organizationId))
-        .where(and(eq(member.userId, userId), eq(organization.kind, 'team')))
-        .limit(1)
-
-      if (existingMember) {
-        if (existingMember.organizationId === organizationId) {
-          if (existingMember.role === 'owner') {
-            return adminBadRequestResponse(
-              'Cannot change the owner role via this endpoint. Use POST /api/v1/admin/organizations/[id]/transfer-ownership instead.'
-            )
-          }
-
-          if (existingMember.role !== role) {
-            await db.update(member).set({ role }).where(eq(member.id, existingMember.id))
-
-            logger.info(
-              `Admin API: Updated user ${userId} role in organization ${organizationId}`,
-              {
-                previousRole: existingMember.role,
-                newRole: role,
-              }
-            )
-
-            recordAudit({
-              workspaceId: null,
-              actorId: 'admin-api',
-              action: AuditAction.ORG_MEMBER_ROLE_CHANGED,
-              resourceType: AuditResourceType.ORGANIZATION,
-              resourceId: organizationId,
-              description: `Admin API changed organization member role to ${role}`,
-              metadata: { targetUserId: userId, previousRole: existingMember.role, role },
-              request,
-            })
-
-            return singleResponse({
-              id: existingMember.id,
-              userId,
-              organizationId,
-              role,
-              createdAt: existingMember.createdAt.toISOString(),
-              userName: userData.name,
-              userEmail: userData.email,
-              action: 'updated' as const,
-              billingActions: {
-                proUsageSnapshotted: false,
-                proCancelledAtPeriodEnd: false,
-              },
-            })
-          }
-
-          return singleResponse({
-            id: existingMember.id,
-            userId,
-            organizationId,
-            role: existingMember.role,
-            createdAt: existingMember.createdAt.toISOString(),
-            userName: userData.name,
-            userEmail: userData.email,
-            action: 'already_member' as const,
-            billingActions: {
-              proUsageSnapshotted: false,
-              proCancelledAtPeriodEnd: false,
-            },
-          })
-        }
-
-        return adminBadRequestResponse(
-          `User is already a member of another organization. Users can only belong to one organization at a time.`
-        )
-      }
-
-      /**
-       * Membership and the workspace sweep commit or roll back together:
-       * every workspace the new member owns follows them into the org
-       * (collaborators stay external), and an attach failure aborts the whole
-       * add instead of leaving a member whose workspaces escaped the sweep.
-       * Lock order mirrors invitation acceptance: workspace advisory locks
-       * first, then the organization lock inside ensureUserInOrganizationTx.
-       */
-      const organizationSubscription = isBillingEnabled
-        ? await getOrganizationSubscription(organizationId)
-        : null
-      const organizationHasFixedSeats = isEnterprise(organizationSubscription?.plan)
-
-      const result = await db.transaction(async (tx) => {
-        const ownedWorkspaceIds = (
-          await tx
-            .select({ id: workspace.id })
-            .from(workspace)
-            .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
-        ).map((row) => row.id)
-        if (ownedWorkspaceIds.length > 0) {
-          await acquireInvitationMutationLocks(tx, {
-            invitationIds: [],
-            workspaceIds: ownedWorkspaceIds,
-          })
-        }
-
-        /**
-         * Only Enterprise has a seat cap to enforce. Team seats are elastic —
-         * `reconcileOrganizationSeats` sets `subscription.seats` to exactly the
-         * member count, so validating against it would compare N members to N
-         * seats and reject every add. Invitation acceptance skips the check for
-         * the same reason; this path must agree or the two disagree on whether a
-         * Team org has room.
-         */
-        const membership = await ensureUserInOrganizationTx(tx, {
-          userId,
-          organizationId,
-          role,
-          skipBillingLogic: !isBillingEnabled,
-          skipSeatValidation: isBillingEnabled && !organizationHasFixedSeats,
-        })
-        if (!membership.success || !membership.memberId || membership.alreadyMember) {
-          return { membership, attachedWorkspaceIds: [], usageLimitUserIds: [] }
-        }
-
-        /**
-         * ensureUserInOrganizationTx holds the user's billing-identity lock,
-         * which personal workspace creation also takes — so re-reading the
-         * owned set here is race-free. A set that changed since the pre-lock
-         * capture means a workspace escaped the advisory-lock plan: abort the
-         * whole add (rolling back the membership) rather than committing a
-         * member whose workspace dodged the sweep.
-         */
-        const currentOwnedIds = (
-          await tx
-            .select({ id: workspace.id })
-            .from(workspace)
-            .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
-        ).map((row) => row.id)
-        if ([...currentOwnedIds].sort().join() !== [...ownedWorkspaceIds].sort().join()) {
-          throw new WorkspaceSetChangedDuringAddError()
-        }
-
-        if (ownedWorkspaceIds.length === 0) {
-          return { membership, attachedWorkspaceIds: [], usageLimitUserIds: [] }
-        }
-        const attach = await attachOwnedWorkspacesToOrganizationTx(tx, {
-          ownerUserId: userId,
-          organizationId,
-          workspaceIds: ownedWorkspaceIds,
-          externalMemberPolicy: 'external-all',
-          ownerMatch: 'owner',
-          includeArchived: true,
-        })
-        return {
-          membership,
-          attachedWorkspaceIds: attach.attachedWorkspaceIds,
-          usageLimitUserIds: attach.usageLimitUserIds,
-        }
-      })
-
-      if (!result.membership.success || !result.membership.memberId) {
-        return adminBadRequestResponse(result.membership.error || 'Failed to add member')
-      }
-      if (result.membership.alreadyMember) {
-        return adminBadRequestResponse('User is already a member of this organization')
-      }
-
-      /**
-       * Team seats are billed per member, so a committed add has to grow the
-       * subscription — acceptance does this post-commit and best-effort, and the
-       * drift sweep is the backstop if it fails. Enterprise has a fixed
-       * allotment and is skipped inside the reconcile.
-       */
-      if (isBillingEnabled && !organizationHasFixedSeats) {
-        try {
-          await reconcileOrganizationSeats({
-            organizationId,
-            reason: 'admin-member-added',
-          })
-        } catch (seatError) {
-          logger.error('Failed to reconcile seats after admin member add', {
-            userId,
-            organizationId,
-            error: seatError,
-          })
-        }
-      }
-
-      if (result.attachedWorkspaceIds.length > 0) {
-        logger.info('Attached new member workspaces to organization', {
-          userId,
-          organizationId,
-          attachedWorkspaceCount: result.attachedWorkspaceIds.length,
-        })
-      }
-      for (const limitUserId of new Set(result.usageLimitUserIds)) {
-        try {
-          await syncUsageLimitsFromSubscription(limitUserId)
-        } catch (syncError) {
-          logger.error('Failed to sync usage limits after admin member add', {
-            userId: limitUserId,
-            organizationId,
-            error: syncError,
-          })
-        }
-      }
-
-      const data: AdminMember = {
-        id: result.membership.memberId,
-        userId,
-        organizationId,
-        role,
-        createdAt: new Date().toISOString(),
-        userName: userData.name,
-        userEmail: userData.email,
-      }
-
-      logger.info(`Admin API: Added user ${userId} to organization ${organizationId}`, {
-        role,
-        memberId: result.membership.memberId,
-        billingActions: result.membership.billingActions,
-        attachedWorkspaceCount: result.attachedWorkspaceIds.length,
-      })
-
-      recordAudit({
-        workspaceId: null,
-        actorId: 'admin-api',
-        action: AuditAction.ORG_MEMBER_ADDED,
-        resourceType: AuditResourceType.ORGANIZATION,
-        resourceId: organizationId,
-        description: `Admin API added member to organization as ${role}`,
-        metadata: {
-          targetUserId: userId,
-          role,
-          memberId: result.membership.memberId,
-          attachedWorkspaceIds: result.attachedWorkspaceIds,
-        },
+      const result = await addAdminOrganizationMember.execute({
+        principal,
+        input: { organizationId, userId, role },
         request,
       })
 
+      const data: AdminMember = {
+        id: result.memberId,
+        userId,
+        organizationId,
+        role: result.role,
+        createdAt: result.createdAt.toISOString(),
+        userName: result.userName,
+        userEmail: result.userEmail,
+      }
       return singleResponse({
         ...data,
-        action: 'created' as const,
-        billingActions: {
-          proUsageSnapshotted: result.membership.billingActions.proUsageSnapshotted,
-          proCancelledAtPeriodEnd: result.membership.billingActions.proCancelledAtPeriodEnd,
-        },
+        action: result.action,
+        billingActions: result.billingActions,
       })
     } catch (error) {
-      if (error instanceof WorkspaceSetChangedDuringAddError) {
-        return adminBadRequestResponse(
-          "The user's workspaces changed while adding them — retry the add."
-        )
+      if (error instanceof AdminMemberTargetNotFoundError) {
+        return adminNotFoundResponse(error.resource)
+      }
+      if (error instanceof AdminMemberAddRefusedError) {
+        return adminBadRequestResponse(error.message)
       }
       logger.error('Admin API: Failed to add organization member', { error, organizationId })
       return adminWriteErrorResponse(error, 'Failed to add organization member')
