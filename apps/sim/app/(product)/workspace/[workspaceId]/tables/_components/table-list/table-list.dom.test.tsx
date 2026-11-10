@@ -2,7 +2,8 @@
  * @vitest-environment jsdom
  *
  * The tables list's create controls. Failure mode: a read-only member shown New table and New
- * folder as disabled buttons with no reason, a dead control the server would refuse anyway.
+ * folder as disabled buttons, or as disabled entries in the list right-click menu, with no reason:
+ * dead controls the server would refuse anyway.
  */
 import { act } from 'react'
 import { flushMacrotask } from '@sim/testing/helpers/async'
@@ -22,6 +23,27 @@ import { TableList } from '@/app/(product)/workspace/[workspaceId]/tables/_compo
 
 const WORKSPACE_ID = 'ws-1'
 
+/** Each read the list makes, answered empty so the list settles on its empty state. */
+const LISTS: Record<string, unknown> = {
+  '/api/workspaces': {
+    workspaces: [
+      {
+        id: WORKSPACE_ID,
+        name: 'Workspace',
+        ownerId: 'owner',
+        organizationId: null,
+        workspaceMode: 'personal',
+      },
+    ],
+    lastActiveWorkspaceId: WORKSPACE_ID,
+    pinnedWorkspaceIds: [],
+    creationPolicy: null,
+  },
+  '/api/table': { success: true, data: { tables: [], totalCount: 0 } },
+  '/api/folders': { folders: [] },
+  '/api/pinned-items': { pinnedItems: [] },
+}
+
 let viewerPermission: 'read' | 'write' = 'write'
 let container: HTMLDivElement
 let root: Root
@@ -40,6 +62,8 @@ beforeEach(() => {
           total: 0,
           viewer: { userId: 'viewer', isAdmin: false, permissionType: viewerPermission },
         })
+      const listed = LISTS[url.pathname]
+      if (listed) return Response.json(listed)
       return Response.json({ error: 'Not found' }, { status: 404 })
     })
   )
@@ -49,6 +73,8 @@ beforeEach(() => {
     error: null,
   })
   container = document.createElement('div')
+  // Menus portal into the nearest EMCN root, as the product shell provides one.
+  container.setAttribute('data-emcn', '')
   document.body.append(container)
   root = createRoot(container)
 })
@@ -80,6 +106,20 @@ function button(name: string) {
   )
 }
 
+/** Right-clicks the list's empty space and reads the entries of the menu it opens, if any. */
+async function backgroundMenuEntries() {
+  const list = container.querySelector('main')
+  if (!list) throw new Error('The tables page did not render')
+  const target = [...list.querySelectorAll('h2, p')].at(-1) ?? list
+  act(() => {
+    target.dispatchEvent(
+      new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 10, clientY: 10 })
+    )
+  })
+  for (let round = 0; round < 3; round++) await act(flushMacrotask)
+  return [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent?.trim())
+}
+
 it('offers New table and New folder to a member who can write', async () => {
   await render()
   expect(button('New table')).toBeDefined()
@@ -91,4 +131,17 @@ it('offers no create controls to a read-only member', async () => {
   await render()
   expect(button('New table')).toBeUndefined()
   expect(button('New folder')).toBeUndefined()
+})
+
+it('offers New table and New folder in the list right-click menu to a member who can write', async () => {
+  await render()
+  expect(await backgroundMenuEntries()).toEqual(expect.arrayContaining(['New folder', 'New table']))
+})
+
+it('offers no create entries in the list right-click menu to a read-only member', async () => {
+  viewerPermission = 'read'
+  await render()
+  const entries = await backgroundMenuEntries()
+  expect(entries).not.toContain('New table')
+  expect(entries).not.toContain('New folder')
 })

@@ -668,22 +668,26 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
             ? listRename.startRename(folderRowId(folder.id), folder.name)
             : setRenamingFolder(folder),
       },
-      {
-        id: 'new-workflow',
-        label: 'New workflow',
-        icon: 'I074',
-        disabled: !canEdit || locked || ops.isCreatingWorkflow,
-        disabledReason: lockedReason,
-        onSelect: () => ops.createWorkflow(folder.id),
-      },
-      {
-        id: 'new-folder',
-        label: 'New folder',
-        icon: 'I100',
-        disabled: !canEdit || locked || ops.isCreatingFolder,
-        disabledReason: lockedReason,
-        onSelect: () => void createFolderIn(folder.id),
-      },
+      ...(canEdit
+        ? [
+            {
+              id: 'new-workflow',
+              label: 'New workflow',
+              icon: 'I074' as const,
+              disabled: locked || ops.isCreatingWorkflow,
+              disabledReason: lockedReason,
+              onSelect: () => ops.createWorkflow(folder.id),
+            },
+            {
+              id: 'new-folder',
+              label: 'New folder',
+              icon: 'I100' as const,
+              disabled: locked || ops.isCreatingFolder,
+              disabledReason: lockedReason,
+              onSelect: () => void createFolderIn(folder.id),
+            },
+          ]
+        : []),
       lockActions({ locked, inherited, noun: 'folder', onToggle: () => toggleFolderLock(folder) }),
       {
         id: 'duplicate',
@@ -780,20 +784,24 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
         ]
   )
 
-  const newWorkflowAction: MenuAction = {
-    id: 'new-workflow',
-    label: 'New workflow',
-    icon: 'I074',
-    disabled: createBlocked || ops.isCreatingWorkflow,
-    onSelect: () => ops.createWorkflow(folderId),
-  }
-  const newFolderAction: MenuAction = {
-    id: 'new-folder',
-    label: 'New folder',
-    icon: 'I100',
-    disabled: createBlocked || ops.isCreatingFolder,
-    onSelect: () => void createFolderIn(folderId),
-  }
+  const createActions: MenuAction[] = canEdit
+    ? [
+        {
+          id: 'new-workflow',
+          label: 'New workflow',
+          icon: 'I074',
+          disabled: currentLocked || ops.isCreatingWorkflow,
+          onSelect: () => ops.createWorkflow(folderId),
+        },
+        {
+          id: 'new-folder',
+          label: 'New folder',
+          icon: 'I100',
+          disabled: currentLocked || ops.isCreatingFolder,
+          onSelect: () => void createFolderIn(folderId),
+        },
+      ]
+    : []
 
   const controls = (
     <ControlBar
@@ -929,7 +937,7 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
           const workflow = workflowById.get(parsed.id)
           return workflow ? workflowActions(workflow) : []
         }}
-        backgroundActions={[newWorkflowAction, newFolderAction]}
+        backgroundActions={createActions}
         selection={canEdit ? selection : undefined}
         bulkActions={
           canEdit

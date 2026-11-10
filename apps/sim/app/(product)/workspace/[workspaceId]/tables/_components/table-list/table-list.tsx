@@ -642,20 +642,24 @@ export function TableList({ workspaceId }: TableListProps) {
   const chain = folderPath(folderById, folderId)
   const hrefFor = (id: string | null) => folderHref(pathname, searchParams, id)
 
-  const newFolderAction: MenuAction = {
-    id: 'new-folder',
-    label: 'New folder',
-    icon: 'I100',
-    disabled: !canEdit || createFolder.isPending,
-    onSelect: () => void handleCreateFolder(),
-  }
-  const newTableAction: MenuAction = {
-    id: 'new-table',
-    label: 'New table',
-    icon: 'I074',
-    disabled: !canEdit || createTable.isPending,
-    onSelect: () => void handleCreateTable(),
-  }
+  const createActions: MenuAction[] = canEdit
+    ? [
+        {
+          id: 'new-folder',
+          label: 'New folder',
+          icon: 'I100',
+          disabled: createFolder.isPending,
+          onSelect: () => void handleCreateFolder(),
+        },
+        {
+          id: 'new-table',
+          label: 'New table',
+          icon: 'I074',
+          disabled: createTable.isPending,
+          onSelect: () => void handleCreateTable(),
+        },
+      ]
+    : []
 
   usePageCommands(
     canEdit && !access.hidden
@@ -830,7 +834,7 @@ export function TableList({ workspaceId }: TableListProps) {
             const table = tableById.get(parsed.id)
             return table ? tableActions(table) : []
           }}
-          backgroundActions={[newFolderAction, newTableAction]}
+          backgroundActions={createActions}
           selection={canEdit ? selection : undefined}
           bulkActions={
             canEdit

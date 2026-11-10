@@ -868,22 +868,25 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
             const base = baseById.get(parsed.id)
             return base ? baseActions(base) : []
           }}
-          backgroundActions={[
-            {
-              id: 'new-folder',
-              label: 'New folder',
-              icon: 'I100',
-              disabled: !canEdit || createFolder.isPending,
-              onSelect: () => void handleCreateFolder(),
-            },
-            {
-              id: 'new-base',
-              label: 'New base',
-              icon: 'I074',
-              disabled: !canEdit,
-              onSelect: () => setCreating(true),
-            },
-          ]}
+          backgroundActions={
+            canEdit
+              ? [
+                  {
+                    id: 'new-folder',
+                    label: 'New folder',
+                    icon: 'I100',
+                    disabled: createFolder.isPending,
+                    onSelect: () => void handleCreateFolder(),
+                  },
+                  {
+                    id: 'new-base',
+                    label: 'New base',
+                    icon: 'I074',
+                    onSelect: () => setCreating(true),
+                  },
+                ]
+              : undefined
+          }
           selection={canEdit ? selection : undefined}
           bulkActions={
             canEdit

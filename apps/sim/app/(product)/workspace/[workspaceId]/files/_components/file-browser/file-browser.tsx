@@ -1136,29 +1136,33 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
             columns={searching ? SEARCH_COLUMNS : COLUMNS}
             rows={rows}
             rowActions={rowActions}
-            backgroundActions={[
-              {
-                id: 'upload',
-                label: 'Upload',
-                icon: 'I117',
-                disabled: !canEdit || uploading,
-                onSelect: chooseFiles,
-              },
-              {
-                id: 'new-folder',
-                label: 'New folder',
-                icon: 'I100',
-                disabled: !canEdit || createFolder.isPending,
-                onSelect: () => void handleCreateFolder(),
-              },
-              {
-                id: 'new-file',
-                label: 'New file',
-                icon: 'I074',
-                disabled: !canEdit || uploading || creatingFile,
-                onSelect: () => void handleCreateFile(),
-              },
-            ]}
+            backgroundActions={
+              canEdit
+                ? [
+                    {
+                      id: 'upload',
+                      label: 'Upload',
+                      icon: 'I117',
+                      disabled: uploading,
+                      onSelect: chooseFiles,
+                    },
+                    {
+                      id: 'new-folder',
+                      label: 'New folder',
+                      icon: 'I100',
+                      disabled: createFolder.isPending,
+                      onSelect: () => void handleCreateFolder(),
+                    },
+                    {
+                      id: 'new-file',
+                      label: 'New file',
+                      icon: 'I074',
+                      disabled: uploading || creatingFile,
+                      onSelect: () => void handleCreateFile(),
+                    },
+                  ]
+                : undefined
+            }
             selection={selection}
             bulkActions={[
               {
