@@ -8,7 +8,7 @@ import { dispatchAddBlock } from '@/app/(product)/_components/workspace/workflow
 import styles from '@/app/(product)/_components/workspace/workflows/command-list/command-list.module.css'
 import { useInvokeGlobalCommand } from '@/app/(product)/_components/workspace/workflows/global-commands/global-commands'
 import { createLogger, usePreventZoom, useWorkflowScope } from '@/platform/lib/data/workflows'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 const logger = createLogger('WorkflowCommandList')
 

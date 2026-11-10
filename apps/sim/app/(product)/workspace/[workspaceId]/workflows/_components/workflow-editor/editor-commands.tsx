@@ -8,7 +8,7 @@ import { useRegisterGlobalCommands } from '@/app/(product)/_components/workspace
 import { useChatHandoff } from '@/platform/lib/data/chat-handoff'
 import { useTerminalConsoleStore } from '@/platform/lib/data/workflow-deploy/terminal'
 import { createCommand } from '@/platform/lib/data/workflows'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 interface EditorShortcutsProps {
   workspaceId: string

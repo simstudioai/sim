@@ -5,7 +5,7 @@ import { workspacePath } from '@/lib/navigation/paths'
 import { SecretsEditor } from '@/app/(product)/_components/secrets-editor/secrets-editor'
 import type { WorkspaceSettingsSectionProps } from '@/app/(product)/workspace/[workspaceId]/settings/_components/section-registry'
 import { SecretDetail } from '@/app/(product)/workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 /** The workspace's and the viewer's secrets, or one secret's details at `secrets/<credentialId>`. */
 export default function SecretsSection({ workspaceId, subpath }: WorkspaceSettingsSectionProps) {

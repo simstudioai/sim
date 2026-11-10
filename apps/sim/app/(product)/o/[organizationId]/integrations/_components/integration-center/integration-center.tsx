@@ -32,7 +32,7 @@ import {
   serializeIntegrationsPage,
 } from '@/platform/lib/integrations/center-navigation'
 import { clearCredentialView } from '@/platform/lib/integrations/credential-navigation'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { compareText } from '@/platform/shared/time'
 
 interface ResourceLibrary {

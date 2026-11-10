@@ -5,7 +5,7 @@ import { Modal } from '@sim/emcn/modal'
 import Link from 'next/link'
 import { FieldStack, Muted } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface SlackAppSettingsProps {

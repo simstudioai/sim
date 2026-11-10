@@ -13,7 +13,7 @@ import type { CredentialGroupActions } from '@/platform/lib/data/credential-grou
 import type { CredentialGroupsData } from '@/platform/lib/data/models/connected-accounts'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useSettingsFixtureDraft } from '@/platform/lib/data/settings-providers'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface FixtureSlackSetupProps {

@@ -18,7 +18,7 @@ import {
   useInboxTasks,
 } from '@/platform/lib/data/inbox'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { formatRelativeTime } from '@/platform/shared/time'
 

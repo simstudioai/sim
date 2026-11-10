@@ -16,7 +16,7 @@ import styles from '@/app/(product)/_components/sidebar/sidebar-collections.modu
 import { useSidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layout'
 import type { ShellActions, ShellChat } from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import type { ShellQueryStatus } from '@/platform/shared/shell'
 

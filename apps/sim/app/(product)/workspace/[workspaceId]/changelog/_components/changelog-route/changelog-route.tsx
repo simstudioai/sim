@@ -3,7 +3,7 @@
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { workspacePath } from '@/lib/navigation/paths'
 import { ChangelogFeed } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-feed/changelog-feed'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import type { ChangelogData } from '@/platform/shared/workspace-records'
 
 interface ChangelogRouteProps {

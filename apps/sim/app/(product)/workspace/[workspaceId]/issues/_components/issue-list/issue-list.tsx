@@ -30,7 +30,7 @@ import {
   issueGroup,
   issueQualifier,
 } from '@/app/(product)/workspace/[workspaceId]/issues/_components/issue-list/issue-state'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { issueListParams, serializeIssueList } from '@/platform/lib/workspace-views'
 import { formatRelativeTime } from '@/platform/shared/time'
 

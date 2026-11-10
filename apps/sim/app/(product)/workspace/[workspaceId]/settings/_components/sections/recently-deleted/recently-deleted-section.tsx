@@ -41,7 +41,7 @@ import {
 } from '@/platform/lib/data/recently-deleted'
 import { useRestoreWorkflow } from '@/platform/lib/data/workflows/records'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { formatInstantDate } from '@/platform/shared/time'
 
 type WorkspaceFilter = (typeof WORKSPACE_RECENTLY_DELETED_FILTERS)[number]

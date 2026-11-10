@@ -18,7 +18,7 @@ import {
   type SecretReferenceResourcePayload,
   useSecretReferences,
 } from '@/platform/lib/data/secrets'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 /**
  * A capped scan that listed nothing is not "not referenced": it stopped early, so silence would

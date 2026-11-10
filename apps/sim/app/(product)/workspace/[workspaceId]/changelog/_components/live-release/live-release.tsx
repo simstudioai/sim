@@ -12,7 +12,7 @@ import { ReleaseEdit } from '@/app/(product)/workspace/[workspaceId]/changelog/_
 import { ReleaseNotes } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/release-notes/release-notes'
 import { useChangelogAccess, useLiveRelease } from '@/platform/lib/data/changelog'
 import { useLiveWorkspace } from '@/platform/lib/data/workspace-summary'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 interface LiveReleaseProps {
   workspaceId: string

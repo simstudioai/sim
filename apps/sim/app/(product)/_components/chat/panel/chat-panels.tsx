@@ -13,7 +13,7 @@ import styles from '@/app/(product)/_components/chat/panel/panels.module.css'
 import { useDesktopHost } from '@/app/(product)/_components/desktop/desktop-host'
 import { useRecentHistory } from '@/app/(product)/_components/session/interface-preferences'
 import type { PanelData, PanelRecent } from '@/platform/lib/data/models/chat-panel'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 export type PanelDestination = 'start' | 'workspaces' | 'terminal' | 'file' | 'website'
 interface PanelTab {

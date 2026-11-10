@@ -27,7 +27,7 @@ import {
   usePermissionGroups,
 } from '@/platform/lib/data/access-control'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { plural } from '@/platform/shared/plural'
 
 function groupSummary(group: PermissionGroup): string {

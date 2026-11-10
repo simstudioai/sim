@@ -39,7 +39,7 @@ import {
   useWorkflowTestsAccess,
   type WorkflowTestRecord,
 } from '@/platform/lib/data/workflow-tests'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { formatRelativeTime, LOCALE } from '@/platform/shared/time'
 
 const EMPTY_TESTS: WorkflowTestRecord[] = []

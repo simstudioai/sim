@@ -42,7 +42,7 @@ import {
   useWorkspaceUsageGate,
 } from '@/platform/lib/data/workflows'
 import { folderChain } from '@/platform/lib/folder-chain'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 const logger = createLogger('WorkflowHeader')

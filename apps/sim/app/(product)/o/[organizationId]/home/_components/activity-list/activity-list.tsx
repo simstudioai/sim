@@ -8,7 +8,7 @@ import { HomeSection } from '@/app/(product)/_components/home-section/home-secti
 import styles from '@/app/(product)/o/[organizationId]/home/_components/activity-list/activity-list.module.css'
 import type { AttentionItem, EmailItem } from '@/platform/lib/data/models/home'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import type { HomeListState } from '@/platform/shared/home'
 import { formatRelativeTime } from '@/platform/shared/time'

@@ -39,7 +39,7 @@ import {
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { requestSettingsLeave } from '@/platform/lib/data/settings-guard'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 /** The sync page carries the mapping editors, which reach the block registry: loaded when opened. */

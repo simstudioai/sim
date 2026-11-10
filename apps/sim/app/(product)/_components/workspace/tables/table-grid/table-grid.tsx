@@ -120,7 +120,7 @@ import {
   useUpdateWorkflowGroup,
   type WorkflowGroup,
 } from '@/platform/lib/data/tables'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { LOCALE } from '@/platform/shared/time'
 
 /** A menu the grid opens at a viewport point: under a header, or where a cell was right-clicked. */

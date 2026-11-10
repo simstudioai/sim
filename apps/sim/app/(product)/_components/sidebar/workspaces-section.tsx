@@ -18,7 +18,7 @@ import { useSeeMore } from '@/app/(product)/_components/sidebar/see-more'
 import styles from '@/app/(product)/_components/sidebar/sidebar-collections.module.css'
 import { useSidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layout'
 import type { ShellActions, ShellData, ShellWorkspace } from '@/platform/lib/data/models/shell'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { openInNewTabAction, readFormText } from '@/platform/shared/row-links'
 
 const WORKSPACE_NAME_MAX_LENGTH = 100

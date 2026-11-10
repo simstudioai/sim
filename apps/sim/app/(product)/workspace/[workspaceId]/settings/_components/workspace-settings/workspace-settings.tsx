@@ -17,7 +17,7 @@ import {
   useWorkspaceSettings,
   type WorkspaceSettingsKey,
 } from '@/platform/lib/data/workspace-settings'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 /** Example workspaces have no settings to show: the tab is in place and empty. */
 export function WorkspaceSettings({ workspace }: { workspace: WorkspaceSummary }) {

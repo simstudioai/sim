@@ -91,7 +91,7 @@ import {
   withCellValueFilter,
 } from '@/platform/lib/data/tables'
 import { folderChain } from '@/platform/lib/folder-chain'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { LOCALE } from '@/platform/shared/time'
 

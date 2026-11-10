@@ -26,7 +26,7 @@ import {
   useWorkspaceFileLookup,
 } from '@/platform/lib/data/tables'
 import { useWorkflows } from '@/platform/lib/data/workflows/records'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 /** Workspace resources a cell URL can point to. */
 type SimResourceType = 'workflow' | 'table' | 'knowledge' | 'file'

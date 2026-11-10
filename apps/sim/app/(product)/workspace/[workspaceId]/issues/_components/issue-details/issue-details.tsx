@@ -25,7 +25,7 @@ import styles from '@/app/(product)/workspace/[workspaceId]/issues/_components/i
 import { ISSUE_STATE_LABEL } from '@/app/(product)/workspace/[workspaceId]/issues/_components/issue-list/issue-state'
 import { SourceExcerpt } from '@/app/(product)/workspace/[workspaceId]/issues/_components/source-excerpt/source-excerpt'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { formatTimestamp } from '@/platform/shared/time'
 

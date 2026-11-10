@@ -15,7 +15,7 @@ import {
 } from '@/app/(product)/_components/resource-directory/resource-directory'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { usePlanHost, usePlanPicker } from '@/platform/lib/data/plans'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface PlanPickerProps {

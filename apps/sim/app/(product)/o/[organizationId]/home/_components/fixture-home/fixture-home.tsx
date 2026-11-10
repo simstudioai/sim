@@ -11,7 +11,7 @@ import { ZoneHomeDashboard } from '@/app/(product)/o/[organizationId]/home/_comp
 import type { EmailItem, HomeActions, HomeData, HomeView } from '@/platform/lib/data/models/home'
 import type { ShellWorkspace } from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { workspaceHomePath } from '@/platform/lib/workspace-navigation'
 import type {

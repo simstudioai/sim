@@ -89,7 +89,7 @@ import {
   useOAuthReturnForKBConnectors,
 } from '@/platform/lib/data/knowledge/connectors'
 import { folderChain } from '@/platform/lib/folder-chain'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { LOCALE } from '@/platform/shared/time'
 
 const DOCUMENTS_PER_PAGE = 50

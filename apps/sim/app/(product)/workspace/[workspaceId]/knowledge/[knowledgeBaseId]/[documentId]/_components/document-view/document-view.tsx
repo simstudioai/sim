@@ -64,7 +64,7 @@ import {
   useUrlSort,
 } from '@/platform/lib/data/knowledge'
 import { folderChain } from '@/platform/lib/folder-chain'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { LOCALE } from '@/platform/shared/time'
 
 /** Chunk search feels snappier than the shared window, as it does on the legacy page. */

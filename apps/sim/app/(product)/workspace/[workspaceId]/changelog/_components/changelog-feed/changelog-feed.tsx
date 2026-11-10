@@ -19,7 +19,7 @@ import {
 } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import { UpdatedStatus } from '@/app/(product)/workspace/[workspaceId]/_components/updated-status/updated-status'
 import styles from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-feed/changelog-feed.module.css'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import {
   CHANGELOG_PERIODS,
   changelogParams,

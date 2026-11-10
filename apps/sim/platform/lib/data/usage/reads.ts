@@ -37,7 +37,7 @@ import {
 import type { OrganizationUsageWindowKey } from '@/hooks/queries/utils/organization-usage-keys'
 import { downloadCsvExport } from '@/platform/lib/data/csv-export'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { DAY_MS, LOCALE } from '@/platform/shared/time'
 import { dayLabel, formatDurationMs, toCreditChart } from '@/platform/shared/usage'

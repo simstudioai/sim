@@ -3,7 +3,7 @@
 import { ActivityRow } from '@sim/emcn/activity-row'
 import { Icon } from '@sim/emcn/icon'
 import styles from '@/app/(product)/workspace/[workspaceId]/_components/workspace-changes/workspace-changes.module.css'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import type { WorkspaceChange } from '@/platform/shared/workspace-records'
 
 interface WorkspaceChangesProps {

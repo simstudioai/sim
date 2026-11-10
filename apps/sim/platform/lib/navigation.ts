@@ -1,5 +1,3 @@
-import { useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
 import { parseAsStringLiteral } from 'nuqs/server'
 
 export type Appearance = 'system' | 'light' | 'dark'
@@ -43,24 +41,6 @@ export function platformHref(path: string, search: SearchValues) {
     query.set('secrets', 'organization')
   return `${destination.pathname}${destination.search}${destination.hash}`
 }
-
-function useFixtureHref() {
-  const search = useSearchParams()
-  return useCallback((path: string) => platformHref(path, search), [search])
-}
-
-const keepPath = (path: string) => path
-
-function useLiveHref() {
-  return keepPath
-}
-
-/**
- * {@link platformHref} bound to the current URL. The choice is made when the app is built: only a
- * fixture build reads the query string, so a live build subscribes to no query-string change.
- */
-export const usePlatformHref: () => (path: string) => string =
-  process.env.SIM_PLATFORM_FIXTURES === '1' ? useFixtureHref : useLiveHref
 
 export function readScenario(value: string | string[] | null | undefined) {
   return value === 'empty' || value === 'stress' ? value : 'full'

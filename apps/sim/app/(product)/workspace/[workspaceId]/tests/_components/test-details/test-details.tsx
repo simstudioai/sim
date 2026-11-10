@@ -31,7 +31,7 @@ import {
   useWorkflowTestsAccess,
   type WorkflowTestDetail,
 } from '@/platform/lib/data/workflow-tests'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { TEST_RETURN_PARAM } from '@/platform/shared/test-return'
 import { formatRelativeTime, LOCALE } from '@/platform/shared/time'
 

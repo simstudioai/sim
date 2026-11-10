@@ -898,6 +898,8 @@ const LIVE_ONLY_ROUTES: ReasonedAllowlist = {
 const FIXTURE_BRANCH_VIEWS: ReasonedAllowlist = {
   'platform/lib/navigation.ts':
     'platformHref keeps fixture scenario params on links only in a fixture build, inlined at build time',
+  'platform/lib/platform-href.ts':
+    'usePlatformHref reads the query string only in a fixture build, chosen when the app is built',
   [`${PRODUCT_ROUTES}_components/product-shell.tsx`]:
     'The one product shell picks the fixture or live session around every page',
   [`${ORGANIZATION_ROUTES}settings/_components/sections/preferences/preferences-section.tsx`]:

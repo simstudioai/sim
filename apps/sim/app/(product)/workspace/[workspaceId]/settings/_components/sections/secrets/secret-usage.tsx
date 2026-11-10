@@ -13,7 +13,7 @@ import {
   type SecretUsageScope,
   useSecretUsage,
 } from '@/platform/lib/data/secrets'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { formatTimestamp } from '@/platform/shared/time'
 import { coreTriggerLabel } from '@/platform/shared/trigger-labels'
 

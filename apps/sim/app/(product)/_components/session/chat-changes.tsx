@@ -8,7 +8,7 @@ import type { ChatRuntime, PlatformPart, PlatformTurn } from '@/platform/lib/dat
 import type { ChatTurn, ComposerDraft } from '@/platform/lib/data/models/composer'
 import type { ShellChat } from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 
 interface ChatEdits {

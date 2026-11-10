@@ -19,7 +19,7 @@ import {
 } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { useLiveWorkspace } from '@/platform/lib/data/workspace-summary'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { type WorkspaceTab, workspaceTabs } from '@/platform/lib/workspace-navigation'
 import type { TabWorkspace } from '@/platform/shared/workspace-records'

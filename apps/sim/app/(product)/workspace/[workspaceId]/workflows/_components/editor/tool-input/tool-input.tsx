@@ -105,7 +105,7 @@ import {
   useWorkspaceCredential,
   getMcpToolIssue as validateMcpTool,
 } from '@/platform/lib/data/workflow-editor/tool-input'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 const UNSUPPORTED_CUSTOM_TOOL_MESSAGE = 'Custom tools are not supported by this block yet'
 const UNSUPPORTED_MCP_TOOL_MESSAGE = 'MCP tools are not supported by this block yet'

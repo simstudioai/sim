@@ -8,7 +8,7 @@ import { useDesktopHost } from '@/app/(product)/_components/desktop/desktop-host
 import styles from '@/app/(product)/_components/settings-navigation/settings-navigation.module.css'
 import type { SettingsNavGroup } from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { plural } from '@/platform/shared/plural'
 import { searchSettings } from '@/platform/shared/settings-search'

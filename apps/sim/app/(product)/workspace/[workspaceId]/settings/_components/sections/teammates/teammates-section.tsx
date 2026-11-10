@@ -37,7 +37,7 @@ import {
   workspaceRoleLockReason,
 } from '@/platform/lib/data/teammates'
 import { useWorkspaceSettingsSection } from '@/platform/lib/data/workspace-settings'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { reportFailure } from '@/platform/shared/report-failure'
 import { formatInstantDate } from '@/platform/shared/time'

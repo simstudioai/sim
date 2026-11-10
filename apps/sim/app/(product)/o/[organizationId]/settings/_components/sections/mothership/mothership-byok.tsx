@@ -14,7 +14,7 @@ import {
   Muted,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { useFixtureSettingsActions } from '@/platform/lib/data/settings-providers'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 export function MothershipByok() {
   const preview = useFixtureSettingsActions()?.previewByokWorkspaces

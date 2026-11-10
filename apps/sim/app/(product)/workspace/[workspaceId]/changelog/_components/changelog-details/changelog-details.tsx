@@ -14,7 +14,7 @@ import type { WorkspaceRead } from '@/app/(product)/_components/workspace/worksp
 import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import { WorkspaceChanges } from '@/app/(product)/workspace/[workspaceId]/_components/workspace-changes/workspace-changes'
 import styles from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-details/changelog-details.module.css'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 import { formatTimestamp } from '@/platform/shared/time'
 import type { ChangelogDetail } from '@/platform/shared/workspace-records'
 

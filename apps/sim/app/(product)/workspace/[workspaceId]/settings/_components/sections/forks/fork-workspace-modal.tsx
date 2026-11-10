@@ -16,7 +16,7 @@ import {
   useForkResources,
   useForkWorkspace,
 } from '@/platform/lib/data/forks'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 type ResourceKey = Exclude<keyof GetForkResourcesResponse, 'deployedWorkflowCount'>
 type ResourceSelection = Record<ResourceKey, ReadonlySet<string>>

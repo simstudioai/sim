@@ -40,7 +40,7 @@ import {
   type WorkflowFolder,
   type WorkflowMetadata,
 } from '@/platform/lib/data/workflows'
-import { usePlatformHref } from '@/platform/lib/navigation'
+import { usePlatformHref } from '@/platform/lib/platform-href'
 
 const logger = createLogger('WorkflowListOperations')
 
