@@ -7,6 +7,7 @@ import {
   type MentionFamily,
   type MentionRow,
 } from '@/lib/api/contracts/organization-mentions'
+import { useFeatureFlag } from '@/lib/core/config/feature-flags-context'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import {
   useMentionsFollowMutations,
@@ -14,7 +15,7 @@ import {
 } from '@/hooks/queries/organization-mentions'
 import { useSearchFilterValue } from '@/hooks/use-search-filter-value'
 import type { ChatContext } from '@/platform/lib/data/chat-types'
-import { isWorkspaceTabHidden } from '@/platform/lib/workspace-navigation'
+import { isWorkspaceTabShown } from '@/platform/lib/workspace-navigation'
 import { formatTimestamp } from '@/platform/shared/time'
 
 /** The picker group each family lists under. */
@@ -122,16 +123,24 @@ function mentionReference(row: MentionRow): MentionReference {
 /** Whether the `/` list has landed, which a message naming a `/skill` waits for. */
 export type SkillListStatus = 'pending' | 'landed' | 'failed'
 
-/** A dashboard is offered only while the Dashboard tab it opens into is shown. */
-function offered(row: MentionRow) {
-  return row.family !== 'dashboards' || !isWorkspaceTabHidden('dashboards')
+/**
+ * Whether the Dashboard tab is shown, which decides whether a dashboard is offered as a reference
+ * and whether a dashboard the chat opened links into it.
+ */
+export function useDashboardsShown(): boolean {
+  const dashboards = useFeatureFlag('dashboards')
+  const preview = useFeatureFlag('platform-preview')
+  return isWorkspaceTabShown('dashboards', { dashboards, 'platform-preview': preview })
 }
 
-/** Mention rows as the pickers list them, in groups by family. */
-export function grouped(rows: readonly MentionRow[] | undefined) {
+/**
+ * Mention rows as the pickers list them, in groups by family. A dashboard is offered only while the
+ * Dashboard tab it opens into is shown.
+ */
+export function grouped(rows: readonly MentionRow[] | undefined, dashboardsShown: boolean) {
   const groups = new Map<string, MentionReference[]>()
   for (const row of rows ?? []) {
-    if (!offered(row)) continue
+    if (row.family === 'dashboards' && !dashboardsShown) continue
     const group = GROUPS[row.family]
     const items = groups.get(group)
     const item = mentionReference(row)
@@ -198,16 +207,17 @@ export function useMentionInventory(
     { enabled: wanted.skills }
   )
   const { rows, onBrowseSearch } = useMentionBrowse(wanted.resources, organizationId)
+  const dashboardsShown = useDashboardsShown()
   const skillList: SkillListStatus = skills.data ? 'landed' : skills.isError ? 'failed' : 'pending'
   return {
-    references: grouped(suggestions.data?.rows),
+    references: grouped(suggestions.data?.rows, dashboardsShown),
     referencesLoading:
       wanted.resources &&
       (suggestions.isPending || search.trim() !== query || suggestions.isFetching),
-    skills: grouped(skills.data?.rows).flatMap(({ items }) => items),
+    skills: grouped(skills.data?.rows, dashboardsShown).flatMap(({ items }) => items),
     skillsLoading: wanted.skills && skills.isPending,
     skillList,
-    browse: grouped(rows),
+    browse: grouped(rows, dashboardsShown),
     onBrowseSearch,
   }
 }

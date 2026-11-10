@@ -10,15 +10,8 @@ import type {
   HomeListState,
   HomeWidgetActions,
   HomeWidgetState,
+  HomeWorkspaceItem,
 } from '@/platform/shared/home'
-
-/**
- * Home sections held back by design until the designer's pass. Their views stay; Home renders none
- * of them and the live Home skips their reads.
- */
-export const HOME_HIDDEN_SECTIONS: ReadonlySet<'Needs your attention'> = new Set([
-  'Needs your attention',
-])
 
 export interface AttentionItem {
   id: string
@@ -64,10 +57,16 @@ export interface HomeView {
   asOf: number
   greeting: string
   firstName?: string
-  attention: HomeListState<AttentionItem>
+  /**
+   * Needs your attention and Workspaces wait for their design pass: absent while Home does not offer
+   * them, so nothing renders or reads for either.
+   */
+  attention?: HomeListState<AttentionItem>
   activity: Record<HomeMode, HomeActivityState>
   email: HomeWidgetState<readonly EmailItem[]>
   calendar: HomeWidgetState<HomeCalendarDay>
+  /** The viewer's workspaces, the sidebar's rows. Nothing renders for a viewer with none. */
+  workspaces?: HomeListState<HomeWorkspaceItem>
   recents: HomeListState<RecentItem>
   getStarted: readonly HomeGetStartedStep[]
   composerInventory?: ComposerInventory
@@ -81,6 +80,7 @@ export interface HomeActions {
   returnToToday: () => void
   retryAttention: () => void
   retryActivity: () => void
+  retryWorkspaces: () => void
   retryRecents: () => void
   removeRecent: (id: string) => void
 }

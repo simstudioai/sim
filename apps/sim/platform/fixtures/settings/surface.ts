@@ -71,6 +71,7 @@ export function settingsSurface(scenario: Scenario, plan: PreviewPlan): Platform
       'mothership-plan-mode': platformAdmin,
       'mothership-memory-spaces': platformAdmin,
       projects: true,
+      'platform-preview': true,
     },
   }
   return { ...surface, settingsSections: previewSettingsSections(surface) }

@@ -24,11 +24,10 @@ import type {
   useResourcePanelController,
 } from '@/hooks/mothership-chat/use-resource-panel'
 import { useTerminalTabResources } from '@/hooks/mothership-chat/use-terminal-tab-resources'
-import { grouped, useMentionBrowse } from '@/platform/lib/data/chat-mentions'
+import { grouped, useDashboardsShown, useMentionBrowse } from '@/platform/lib/data/chat-mentions'
 import type { ChatContext } from '@/platform/lib/data/chat-types'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type SurfaceScope, surfaceHref } from '@/platform/lib/data/organization-model'
-import { isWorkspaceTabHidden } from '@/platform/lib/workspace-navigation'
 
 const RESOURCE_KIND: Partial<Record<string, string>> = {
   knowledgebase: 'knowledge',
@@ -39,15 +38,17 @@ const RESOURCE_KIND: Partial<Record<string, string>> = {
  * A workspace resource opens on its workspace page; any other opens beside the organization's Home.
  * A dashboard links to the Dashboard tab only while that tab is shown.
  */
-function resourceHref(scope: SurfaceScope, resource: MothershipResource): string | undefined {
+function resourceHref(
+  scope: SurfaceScope,
+  resource: MothershipResource,
+  dashboardsShown: boolean
+): string | undefined {
   if (!resource.workspaceId) return undefined
   const kind = RESOURCE_KIND[resource.type] ?? resource.type
   if (isWorkspaceResourceKind(kind))
     return workspaceResourcePath(resource.workspaceId, kind, resource.id)
   if (kind === 'dashboard')
-    return isWorkspaceTabHidden('dashboards')
-      ? undefined
-      : workspacePath(resource.workspaceId, 'dashboards')
+    return dashboardsShown ? workspacePath(resource.workspaceId, 'dashboards') : undefined
   if (kind === 'log' && resource.executionId)
     return workspacePath(resource.workspaceId, `logs/${encodeURIComponent(resource.executionId)}`)
   return `${surfaceHref(scope, '/home')}?${new URLSearchParams({ resource: resource.id })}`
@@ -181,7 +182,8 @@ export function usePanelResources({
   useBrowserTabResources(panel.desktopTabResourceOptions)
   useTerminalTabResources(panel.desktopTabResourceOptions)
   const scope = useOrganization()
-  const picker = usePanelPicker(panel)
+  const dashboardsShown = useDashboardsShown()
+  const picker = usePanelPicker(panel, dashboardsShown)
   const locked = useAgentFileEditLock(chat.previewSession?.status === 'streaming', chat.isSending)
   const resources: PlatformResource[] = chat.resources.map((stored) => {
     const resource =
@@ -193,7 +195,7 @@ export function usePanelResources({
       type: resource.type,
       title: resource.title,
       workspaceId: resource.workspaceId,
-      href: resourceHref(scope, resource),
+      href: resourceHref(scope, resource, dashboardsShown),
       executionId: resource.executionId,
       active: resource.id === chat.activeResourceId,
       search: resource.search,
@@ -231,10 +233,10 @@ export function usePanelResources({
 /**
  * The families a panel tab shows, as its + picker offers them. Chats, skills and workflow, table
  * and knowledge base folders open no tab of their own, as in legacy's picker. Dashboards are offered
- * only while the Dashboard tab is shown.
+ * only while the Dashboard tab is shown, which `grouped` decides.
  */
 const PANEL_FAMILIES: ReadonlySet<MentionFamily> = new Set([
-  ...(isWorkspaceTabHidden('dashboards') ? [] : (['dashboards'] as const)),
+  'dashboards',
   'tables',
   'files',
   'file_folders',
@@ -281,7 +283,10 @@ function pickedResource(
  * families as it opens, with the menu's search answered by the server. Nothing is read until the
  * picker first opens; a pick opens its tab and shows it.
  */
-function usePanelPicker(panel: ReturnType<typeof useChatResourcePanel>): PanelPicker {
+function usePanelPicker(
+  panel: ReturnType<typeof useChatResourcePanel>,
+  dashboardsShown: boolean
+): PanelPicker {
   const { organization } = useOrganization()
   const [enabled, setEnabled] = useState(false)
   const browse = useMentionBrowse(enabled, organization.id)
@@ -294,7 +299,7 @@ function usePanelPicker(panel: ReturnType<typeof useChatResourcePanel>): PanelPi
     )
   )
   return {
-    items: grouped(rows),
+    items: grouped(rows, dashboardsShown),
     onOpen: () => setEnabled(true),
     onSearchChange: browse.onBrowseSearch,
     onSelect: (item) => {

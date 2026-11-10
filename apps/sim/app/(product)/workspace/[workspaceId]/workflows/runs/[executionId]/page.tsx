@@ -4,7 +4,6 @@ import { workspacePath } from '@/lib/navigation/paths'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
-import { isWorkspaceTabHidden } from '@/platform/lib/workspace-navigation'
 import { withRunListView } from '@/platform/lib/workspace-views'
 import { readTestReturn } from '@/platform/shared/test-return'
 
@@ -32,13 +31,12 @@ export default async function Page({
   ])
   const search = { get: (key: string) => (typeof query[key] === 'string' ? query[key] : null) }
   const runId = decodeURIComponent(executionId)
-  // The Tests tab is held back by design, so a run never returns into it.
-  const test = isWorkspaceTabHidden('tests') ? null : readTestReturn(query)
+  const test = readTestReturn(query)
   return (
     <RunSnapshot
       workspaceId={workspaceId}
       executionId={runId}
-      back={
+      testBack={
         test
           ? {
               href: platformHref(
@@ -47,17 +45,15 @@ export default async function Page({
               ),
               label: test,
             }
-          : {
-              href: withRunListView(
-                platformHref(
-                  workspacePath(workspaceId, `logs/${encodeURIComponent(runId)}`),
-                  search
-                ),
-                query
-              ),
-              label: `Run ${runId.slice(0, 8)}`,
-            }
+          : undefined
       }
+      back={{
+        href: withRunListView(
+          platformHref(workspacePath(workspaceId, `logs/${encodeURIComponent(runId)}`), search),
+          query
+        ),
+        label: `Run ${runId.slice(0, 8)}`,
+      }}
     />
   )
 }

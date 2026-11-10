@@ -4,7 +4,6 @@ import { workspacePath } from '@/lib/navigation/paths'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { platformHref } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
-import { isWorkspaceTabHidden } from '@/platform/lib/workspace-navigation'
 import { readTestReturn } from '@/platform/shared/test-return'
 
 export const metadata: Metadata = { title: 'Workflow version' }
@@ -31,14 +30,13 @@ export default async function Page({
   ])
   if (!/^[1-9]\d*$/.test(version)) notFound()
   const search = { get: (key: string) => (typeof query[key] === 'string' ? query[key] : null) }
-  // The Tests tab is held back by design, so a run never returns into it.
-  const test = isWorkspaceTabHidden('tests') ? null : readTestReturn(query)
+  const test = readTestReturn(query)
   return (
     <VersionSnapshot
       workspaceId={workspaceId}
       workflowId={workflowId}
       version={Number(version)}
-      back={
+      testBack={
         test
           ? {
               href: platformHref(
@@ -47,14 +45,15 @@ export default async function Page({
               ),
               label: test,
             }
-          : {
-              href: platformHref(
-                workspacePath(workspaceId, `workflows/${encodeURIComponent(workflowId)}`),
-                search
-              ),
-              label: 'Workflow',
-            }
+          : undefined
       }
+      back={{
+        href: platformHref(
+          workspacePath(workspaceId, `workflows/${encodeURIComponent(workflowId)}`),
+          search
+        ),
+        label: 'Workflow',
+      }}
     />
   )
 }
