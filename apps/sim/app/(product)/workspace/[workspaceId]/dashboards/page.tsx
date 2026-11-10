@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { readScenario } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
+import { isWorkspaceTabShown } from '@/platform/lib/workspace-navigation'
 
 export const metadata: Metadata = { title: 'Dashboard' }
 
@@ -25,10 +26,11 @@ export default async function Page({
     if (!data) notFound()
     return <DashboardRoute data={data} />
   }
-  const [{ readWorkspaceTabFlag }, { LiveDashboard }] = await Promise.all([
+  const [{ readWorkspaceTabFlags }, { LiveDashboard }] = await Promise.all([
     import('@/platform/lib/data/workspace-tab-flags'),
     import('@/app/(product)/_components/workspace/dashboards/live-dashboard/live-dashboard'),
   ])
-  if (!(await readWorkspaceTabFlag('dashboards'))) notFound()
+  // A tab live data does not list has no page.
+  if (!isWorkspaceTabShown('dashboards', await readWorkspaceTabFlags())) notFound()
   return <LiveDashboard workspaceId={workspaceId} />
 }

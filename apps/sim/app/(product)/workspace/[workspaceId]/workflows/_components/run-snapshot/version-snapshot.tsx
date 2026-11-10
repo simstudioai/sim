@@ -5,16 +5,20 @@ import { DirectoryHeading } from '@/app/(product)/_components/resource-directory
 import { DetailSplit } from '@/app/(product)/_components/workspace/detail-split/detail-split'
 import { WorkflowPreview } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-preview/workflow-preview'
 import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
+import { useWorkspaceTabFlags } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/run-snapshot/run-snapshot.module.css'
 import { SnapshotBlock } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/snapshot-block/snapshot-block'
 import { useDeploymentVersionState } from '@/platform/lib/data/workflow-deploy'
 import { useWorkflowMap } from '@/platform/lib/data/workflows'
+import { isWorkspaceTabShown } from '@/platform/lib/workspace-navigation'
 
 interface VersionSnapshotProps {
   workspaceId: string
   workflowId: string
   version: number
   back: { href: string; label: string }
+  /** Where a version a test ran against returns instead, while the Tests tab is shown. */
+  testBack?: { href: string; label: string }
 }
 
 /**
@@ -22,7 +26,14 @@ interface VersionSnapshotProps {
  * the version a test ran against, however the workflow has changed since. Choosing a block shows
  * the fields this version saved for it beside the canvas.
  */
-export function VersionSnapshot({ workspaceId, workflowId, version, back }: VersionSnapshotProps) {
+export function VersionSnapshot({
+  workspaceId,
+  workflowId,
+  version,
+  back,
+  testBack,
+}: VersionSnapshotProps) {
+  const testsShown = isWorkspaceTabShown('tests', useWorkspaceTabFlags())
   const state = useDeploymentVersionState(workflowId, version)
   const workflows = useWorkflowMap(workspaceId)
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
@@ -40,7 +51,7 @@ export function VersionSnapshot({ workspaceId, workflowId, version, back }: Vers
   return (
     <DetailSplit
       read={read}
-      back={back}
+      back={testBack && testsShown ? testBack : back}
       label={title}
       railKind='inspector'
       railLabel='Selected block'

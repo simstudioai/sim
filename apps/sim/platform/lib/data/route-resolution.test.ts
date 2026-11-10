@@ -95,6 +95,7 @@ function organization({
       'mothership-plan-mode': false,
       'mothership-memory-spaces': false,
       projects: false,
+      'platform-preview': false,
     },
     settingsSections: [],
   }

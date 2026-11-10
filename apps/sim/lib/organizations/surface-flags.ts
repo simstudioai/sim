@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { canUseBenchmarks } from '@/lib/benchmarks/config'
 import { isChangelogEnabled } from '@/lib/changelog/feature-flag'
 import { isComputerUseAvailable } from '@/lib/computer-use/availability.server'
+import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import { isDashboardsEnabled } from '@/lib/dashboards/feature-flag'
 import { isMothershipModelSelectorEnabled } from '@/lib/mothership/feature-flags'
 import { isProjectsEnabled } from '@/lib/projects/rollout.server'
@@ -22,6 +23,7 @@ export async function resolveOrganizationSurfaceFlags(organizationId: string, us
     workflowTestsEnabled,
     changelogEnabled,
     projectsEnabled,
+    platformPreviewEnabled,
   ] = await Promise.all([
     isMothershipModelSelectorEnabled(),
     isDashboardsEnabled(organizationId),
@@ -33,6 +35,7 @@ export async function resolveOrganizationSurfaceFlags(organizationId: string, us
     isWorkflowTestsEnabled(organizationId),
     isChangelogEnabled(organizationId),
     isProjectsEnabled(),
+    isFeatureEnabled('platform-preview'),
   ])
   return {
     benchmarkEnabled,
@@ -45,6 +48,7 @@ export async function resolveOrganizationSurfaceFlags(organizationId: string, us
       'mothership-plan-mode': benchmarkEnabled,
       'mothership-memory-spaces': benchmarkEnabled,
       projects: projectsEnabled,
+      'platform-preview': platformPreviewEnabled,
     },
   }
 }

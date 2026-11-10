@@ -4,6 +4,7 @@ import { workspacePath } from '@/lib/navigation/paths'
 import { ChangelogDetails } from '@/app/(product)/workspace/[workspaceId]/changelog/_components/changelog-details/changelog-details'
 import { platformHref, readScenario } from '@/platform/lib/navigation'
 import type { ProductPageProps } from '@/platform/lib/route-props'
+import { isWorkspaceTabShown } from '@/platform/lib/workspace-navigation'
 import { withChangelogView } from '@/platform/lib/workspace-views'
 
 export const metadata: Metadata = { title: 'Changelog' }
@@ -29,12 +30,13 @@ export default async function Page({
     if (!entry) notFound()
     return <ChangelogDetails entry={entry} back={back} />
   }
-  const [{ readWorkspaceTabFlag }, { LiveRelease }] = await Promise.all([
+  const [{ readWorkspaceTabFlags }, { LiveRelease }] = await Promise.all([
     import('@/platform/lib/data/workspace-tab-flags'),
     import(
       '@/app/(product)/workspace/[workspaceId]/changelog/_components/live-release/live-release'
     ),
   ])
-  if (!(await readWorkspaceTabFlag('changelog'))) notFound()
+  // A tab live data does not list has no page.
+  if (!isWorkspaceTabShown('changelog', await readWorkspaceTabFlags())) notFound()
   return <LiveRelease workspaceId={workspaceId} releaseId={id} back={back} />
 }

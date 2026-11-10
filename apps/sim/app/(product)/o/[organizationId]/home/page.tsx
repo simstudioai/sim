@@ -17,7 +17,13 @@ export default async function Page({ searchParams }: ProductPageProps<{ organiza
       loadConversationData(scenario),
       loadHomeRecentLinks(scenario),
     ])
-    return <FixtureHome data={data?.home ?? null} recentLinks={recentLinks ?? []} />
+    return (
+      <FixtureHome
+        data={data?.home ?? null}
+        recentLinks={recentLinks ?? []}
+        workspaces={data?.workspaces ?? []}
+      />
+    )
   }
   // Loaded only here, so a fixture build never evaluates the data seam.
   const { LiveHomeRoute } = await import(

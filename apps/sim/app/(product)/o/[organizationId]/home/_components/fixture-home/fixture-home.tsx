@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { RecentItem } from '@sim/emcn-platform/recent-items'
 import { useRouter, useSearchParams } from 'next/navigation'
+import type { ShellWorkspace } from '@/app/(product)/_components/model'
 import {
   useInterfacePreferences,
   useRecentHistory,
@@ -17,6 +18,7 @@ import type {
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
+import { workspaceHomePath } from '@/platform/lib/workspace-navigation'
 import type {
   HomeCalendarDay,
   HomeConnectOption,
@@ -71,10 +73,12 @@ function metricPoints(data: HomeData | null, field: 'tasks' | 'searches') {
 interface FixtureHomeProps {
   data: HomeData | null
   recentLinks: readonly RecentItem[]
+  /** The sidebar's example workspaces, which Home's Workspaces lists without claiming any activity. */
+  workspaces: readonly ShellWorkspace[]
 }
 
 /** The session implementation of Home's view: edits last as long as the product session. */
-export function FixtureHome({ data, recentLinks }: FixtureHomeProps) {
+export function FixtureHome({ data, recentLinks, workspaces }: FixtureHomeProps) {
   const router = useRouter()
   const search = useSearchParams()
   const scope = useSurfaceScope()
@@ -115,6 +119,14 @@ export function FixtureHome({ data, recentLinks }: FixtureHomeProps) {
           calendarForOffset(data, dayOffset)
         )
       : { status: 'not_connected', options: CONNECT_OPTIONS.Calendar },
+    workspaces: {
+      status: 'ready',
+      items: workspaces.map(({ id, name }) => ({
+        id,
+        name,
+        href: platformHref(workspaceHomePath(id, 'fixture'), search),
+      })),
+    },
     recents: { status: 'ready', items: recents },
     getStarted: [],
     composerInventory: data?.composerInventory,
@@ -127,6 +139,7 @@ export function FixtureHome({ data, recentLinks }: FixtureHomeProps) {
     returnToToday: () => setDayOffset(0),
     retryAttention: () => {},
     retryActivity: () => {},
+    retryWorkspaces: () => {},
     retryRecents: () => {},
     removeRecent,
   }
