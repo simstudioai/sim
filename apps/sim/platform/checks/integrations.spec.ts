@@ -218,8 +218,11 @@ test('Granola connects with its API key and keeps every template in page flow', 
   await main.getByRole('button', { name: 'Create credential', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Add API key', exact: true }).click()
   const connect = page.getByRole('dialog', { name: 'Connect Granola', exact: true })
-  // Display name and description; the API key is a masked secret field.
-  await expect(connect.getByRole('textbox')).toHaveCount(2)
+  // Display name, description and the API key, which stays masked until revealed.
+  await expect(connect.getByRole('textbox')).toHaveCount(3)
+  await expect(connect.getByRole('textbox', { name: 'API key', exact: true })).toHaveAttribute(
+    'data-masked'
+  )
   // The catalog lists no reads for Granola's key, so the dialog has no access list to show.
   await expect(connect.getByRole('region', { name: 'Connection access', exact: true })).toHaveCount(
     0
@@ -244,7 +247,7 @@ test('Granola connects with its API key and keeps every template in page flow', 
     page
       .getByRole('dialog', { name: 'Reconnect Meeting follow-ups', exact: true })
       .getByRole('textbox')
-  ).toHaveCount(2)
+  ).toHaveCount(3)
 })
 
 test('shared family credential edits and access changes propagate without removing the last explicit admin', async ({

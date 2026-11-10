@@ -172,14 +172,20 @@ test('chart points open the shared tooltip by pointer and by keyboard', async ({
 test('long lists page quietly with edge fades only where content continues', async ({ page }) => {
   await page.goto(fixtureUrl('/workspace/workspace-0/logs?state=stress'))
   const rows = main(page).getByRole('list', { name: 'Runs' }).getByRole('listitem')
-  await expect(rows).toHaveCount(50)
+  // The list mounts only the rows near view; each row's `data-index` is its place among those read.
+  const lastRead = () =>
+    rows.evaluateAll((items) =>
+      Math.max(-1, ...items.map((item) => Number(item.getAttribute('data-index'))))
+    )
+  await expect(rows.first()).toBeVisible()
+  expect(await lastRead()).toBeLessThan(50)
   const region = page
     .locator('[data-scroll-axis="vertical"]')
     .filter({ has: page.locator('main:visible') })
   await expect(region).toHaveAttribute('data-edges', 'end')
   await page.mouse.move(700, 500)
   for (let step = 0; step < 6; step += 1) await page.mouse.wheel(0, 4000)
-  await expect.poll(() => rows.count()).toBeGreaterThan(50)
+  await expect.poll(lastRead).toBeGreaterThanOrEqual(50)
   await expect(region).toHaveAttribute('data-edges', /both|start/)
   await expect(main(page).getByText(/Loading|Load more/)).toHaveCount(0)
 })
@@ -232,7 +238,7 @@ test('a run opens its trace and selected step, with its execution ID among its f
 }) => {
   await page.goto(fixtureUrl('/workspace/it/logs?state=full'))
   const rows = main(page).getByRole('list', { name: 'Runs' }).getByRole('listitem')
-  await expect(rows).toHaveCount(50)
+  await expect(rows.nth(4)).toBeVisible()
   await rows.nth(4).getByRole('link').click()
   await expect(
     main(page).getByRole('heading', { level: 1, name: /^Run [0-9a-f]{8}$/ })
@@ -279,6 +285,7 @@ test('trace rows share one disclosure-to-name gap and hang guides under open par
       )
       const guide = guides.at(-1)
       return {
+        name: target?.querySelector('[data-type="T060"]')?.textContent ?? '',
         marked: (target?.firstElementChild?.childElementCount ?? 0) > 0,
         gap: name && disclosure ? Math.round(name.left - disclosure.left) : null,
         disclosureCenter: disclosure ? disclosure.left + disclosure.width / 2 : null,
@@ -290,7 +297,10 @@ test('trace rows share one disclosure-to-name gap and hang guides under open par
       }
     })
   )
-  expect(rows.every((row) => row.marked)).toBe(true)
+  // Every step carries its mark except a parallel's branches and a loop's iterations, as legacy.
+  expect(rows.some((row) => /^(Branch|Iteration) \d+$/.test(row.name))).toBe(true)
+  for (const row of rows)
+    expect(row.marked, row.name).toBe(!/^(Branch|Iteration) \d+$/.test(row.name))
   expect(new Set(rows.map((row) => row.gap)).size).toBe(1)
   for (const [index, row] of rows.entries()) {
     if (!row.depth) continue
