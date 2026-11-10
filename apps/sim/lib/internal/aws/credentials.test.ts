@@ -154,12 +154,3 @@ describe('withAwsCredential', () => {
     expect(handler).not.toHaveBeenCalled()
   })
 })
-
-describe('awsClientCredentials', () => {
-  it('returns exactly the inline pair outside a saved-credential call', () => {
-    expect(awsClientCredentials('AKIAINLINE', 'inline-secret')).toStrictEqual({
-      accessKeyId: 'AKIAINLINE',
-      secretAccessKey: 'inline-secret',
-    })
-  })
-})

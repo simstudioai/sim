@@ -21,15 +21,15 @@ import { DATABRICKS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 /**
  * Saved Databricks connections for the Databricks block.
  *
- * - `personal_access_token`: a PAT used as-is (today's inline behavior).
+ * - `personal_access_token`: a PAT used as-is, like an inline token.
  * - `service_principal`: OAuth machine-to-machine — the service principal's
  *   client ID and secret mint a workspace token per run.
  * - `oidc_federation`: no stored secret — Sim signs a short-lived OIDC token
  *   for this credential's subject and exchanges it (RFC 8693) for a token of
  *   the service principal whose federation policy trusts it.
  *
- * Every mode resolves server-side to a bearer token plus the workspace host,
- * which reach the tools as `accessToken` and `domain`.
+ * Every mode resolves server-side to a bearer token plus the workspace host
+ * (`accessToken`, `domain`), which fill the tools' `apiKey` and `host`.
  */
 
 const DATABRICKS_CREDENTIAL_SECRET_TYPE = 'databricks_credential_v1' as const

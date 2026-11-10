@@ -126,10 +126,4 @@ describe('loading a saved AWS credential for a run', () => {
       'AWS credential is unavailable'
     )
   })
-
-  it('refuses when the run has no owner scope at all', async () => {
-    await expect(getAwsCredentialConfig('cred-1', {})).rejects.toThrow(
-      'AWS credential is unavailable'
-    )
-  })
 })

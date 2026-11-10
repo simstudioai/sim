@@ -6,7 +6,7 @@ import {
 } from '@/lib/credentials/workload-identity/issuer'
 
 /**
- * Cloud providers fetch these anonymously (AWS STS, Azure AD, Databricks) and
+ * Cloud providers fetch these anonymously (AWS STS, Databricks) and
  * cache them; five minutes keeps a key rotation visible quickly. "No issuer
  * here" is a 404 rather than an empty document, so a self-hosted deployment
  * without a signing key never advertises one.

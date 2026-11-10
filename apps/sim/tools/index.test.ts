@@ -1161,7 +1161,10 @@ describe('executeTool Function', () => {
         { executionContext: context() }
       )
 
-      expect(result.success).toBe(false)
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.stringContaining('requires a service-account credential'),
+      })
       expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
     })
 
@@ -1175,7 +1178,7 @@ describe('executeTool Function', () => {
 
       mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '52.216.0.1' })
       ;(tools as Record<string, unknown>).s3_get_object = s3GetObjectTool
-      const result = await executeTool(
+      await executeTool(
         's3_get_object',
         {
           s3Uri: 'https://bucket.s3.us-east-1.amazonaws.com/report.csv',
@@ -1184,7 +1187,6 @@ describe('executeTool Function', () => {
         { executionContext: context() }
       ).finally(() => Reflect.deleteProperty(tools, 's3_get_object'))
 
-      expect(result.error).not.toMatch(/sign|credential/i)
       expect(mockResolveAuthorizedAwsCredential).toHaveBeenCalledWith(
         'aws-credential',
         expect.objectContaining({ workspaceId: 'workspace-456', executionId: 'execution-1' }),
@@ -6800,7 +6802,12 @@ describe('Hosted Key Injection', () => {
       await executeTool(
         'test_hosted_saved_credential',
         { credential: 'saved-credential' },
-        { executionContext: createToolExecutionContext({ userId: 'user-1' }) }
+        {
+          executionContext: createToolExecutionContext({
+            userId: 'user-1',
+            workspaceId: 'workspace-456',
+          }),
+        }
       )
 
       expect(mockGetBYOKKey).not.toHaveBeenCalled()

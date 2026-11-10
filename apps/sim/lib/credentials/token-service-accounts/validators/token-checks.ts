@@ -288,7 +288,6 @@ export const validateFirefliesServiceAccount = tokenCheckValidator({
  */
 const FLINT_VERIFY_URL = 'https://app.tryflint.com/api/v1/agent/tasks/bg-00000000-00000000'
 
-/** Verifies a Flint API key. */
 export async function validateFlintServiceAccount(
   fields: TokenServiceAccountFields
 ): Promise<TokenServiceAccountValidationResult> {

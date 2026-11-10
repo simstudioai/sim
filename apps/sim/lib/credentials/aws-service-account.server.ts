@@ -36,7 +36,7 @@ import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
  * session token, IAM create access key) return the credentials they issue, as
  * the same operations do with inline keys. Using a credential therefore includes
  * issuing whatever its IAM permissions allow.
- * - `access_keys`: a long-lived IAM user key pair, used as-is (today's inline behavior).
+ * - `access_keys`: a long-lived IAM user key pair, used as-is, like inline keys.
  * - `assume_role`: a key pair that assumes a role, optionally with an external ID.
  * - `oidc_role`: no stored key at all — Sim signs a short-lived OIDC token for
  *   this credential's subject and exchanges it with STS for the customer's role.

@@ -2034,7 +2034,7 @@ async function executeToolImplementation(
       contextParams.oauthCredential = undefined
     }
     let refreshCredential: ((signal: AbortSignal) => Promise<void>) | undefined
-    /** A service-account credential this executor authorized; set only by resolution below. */
+    // Set only by the credential resolution below, never from tool params.
     let authorizedServiceAccountCredential: AuthorizedServiceAccountCredential | undefined
     if (contextParams.credential) {
       logger.info('Resolving tool access token', { requestId, toolId: normalizedToolId })

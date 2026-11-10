@@ -118,6 +118,19 @@ export function useUpdateScopedCredential() {
 }
 
 /**
+ * Its own root, not under `workspaceCredentialKeys.all`: broad credential
+ * invalidations would refetch an open setup and mint a new subject mid-copy.
+ */
+const workloadIdentityKeys = {
+  all: ['workloadIdentitySetup'] as const,
+  setup: (workspaceId: string | undefined, provider: string, sessionKey: string) =>
+    [...workloadIdentityKeys.all, workspaceId ?? 'none', provider, sessionKey] as const,
+}
+
+/** A setup's subject is minted once per modal session and never refreshed. */
+const WORKLOAD_IDENTITY_SETUP_STALE_TIME = Number.POSITIVE_INFINITY
+
+/**
  * The trust setup for a new keyless AWS role or Databricks service principal:
  * the issuer to register and the signed subject it must trust. Each fetch
  * mints a new subject, so the key carries the modal session and the result
@@ -130,18 +143,14 @@ export function useWorkloadIdentitySetup(input: {
   enabled: boolean
 }) {
   return useQuery({
-    queryKey: workspaceCredentialKeys.workloadIdentity(
-      input.workspaceId,
-      input.provider,
-      input.sessionKey
-    ),
+    queryKey: workloadIdentityKeys.setup(input.workspaceId, input.provider, input.sessionKey),
     queryFn: async ({ signal }) =>
       requestJson(prepareWorkloadIdentityContract, {
         body: { workspaceId: input.workspaceId ?? '', provider: input.provider },
         signal,
       }),
     enabled: input.enabled && Boolean(input.workspaceId),
-    staleTime: Number.POSITIVE_INFINITY,
+    staleTime: WORKLOAD_IDENTITY_SETUP_STALE_TIME,
     gcTime: 0,
     retry: false,
     refetchOnWindowFocus: false,

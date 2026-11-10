@@ -83,7 +83,7 @@ interface SavedCredentialOptions {
  * The fields of a credential-only successor to a block that takes inline
  * secrets. The legacy block keeps its own definition and keeps running; the
  * successor spreads it, then these fields swap its secret fields for a
- * required saved-credential picker in the same place. Fields that depended on
+ * saved-credential picker in the same place. Fields that depended on
  * a replaced secret depend on the credential instead.
  */
 export function withSavedCredential(
