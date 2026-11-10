@@ -980,6 +980,45 @@ const ASCII_ELLIPSIS_COPY: ReasonedAllowlist = granted(
   ]
 )
 
+/**
+ * Files outside the Platform tree that style, spread or set variant attributes on an EMCN element
+ * (`prop-spread`, `consumer-style`). Each predates the repo-wide rule and is the design owner's.
+ */
+const EMCN_CONSUMER_OVERRIDES: ReasonedAllowlist = {
+  ...granted(
+    "Emir's docs app: sizes and tints EMCN's Icon with utility classes; predates the repo-wide rule",
+    [
+      '../docs/components/docs/api-schema/api-schema.tsx',
+      '../docs/components/docs/article/article.tsx',
+      '../docs/components/docs/feedback/feedback.tsx',
+      '../docs/components/docs/gallery/gallery.tsx',
+      '../docs/components/docs/navigation-drawer/navigation-drawer.tsx',
+      '../docs/components/docs/navigation/navigation.tsx',
+      '../docs/components/docs/page-actions/page-actions.tsx',
+      '../docs/components/docs/page-frame/page-frame.tsx',
+      '../docs/components/docs/search/search.tsx',
+      '../docs/components/docs/sim-logo/sim-logo.tsx',
+      '../docs/components/docs/table-of-contents/table-of-contents.tsx',
+      '../docs/components/docs/theme/theme.tsx',
+    ]
+  ),
+  ...granted(
+    "Emir's Auth and Docs packages compose EMCN's Icon with their own classes; predates the repo-wide rule",
+    [
+      '../../packages/emcn-auth/src/components/input/input.tsx',
+      '../../packages/emcn-docs/src/components/callout/callout.tsx',
+      '../../packages/emcn-docs/src/components/cards/cards.tsx',
+      '../../packages/emcn-docs/src/components/copy-button/copy-button.tsx',
+      '../../packages/emcn-docs/src/components/heading/heading.tsx',
+      '../../packages/emcn-docs/src/components/lightbox/lightbox.tsx',
+      '../../packages/emcn-docs/src/components/reference-details/reference-details.tsx',
+      '../../packages/emcn-docs/src/components/tabs/tabs.tsx',
+    ]
+  ),
+  'app/(auth)/oauth/consent/consent-view.tsx':
+    "Emir's OAuth consent view sizes a scope row's Icon with auth utilities; predates the repo-wide rule",
+}
+
 export const PLATFORM_ALLOWLISTS = {
   LIVE_ONLY_ROUTES,
   FIXTURE_BRANCH_VIEWS,
@@ -988,6 +1027,7 @@ export const PLATFORM_ALLOWLISTS = {
   ASCII_ELLIPSIS_COPY,
   CODE_FIRST_VARIANTS,
   UNEXPORTED_VARIANT_OWNERS,
+  EMCN_CONSUMER_OVERRIDES,
   LOADING_COPY_OWNERS,
   FRAMES_OUTSIDE_SURFACE,
   LOCAL_TOKEN_OWNERS,

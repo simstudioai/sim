@@ -1007,6 +1007,51 @@ it('fails [prop-spread] for props passed through cloneElement or createElement',
   }
 }, 30_000)
 
+it('fails [prop-spread] and [consumer-style] on an EMCN element anywhere in the repo', () => {
+  const { root, put, run } = productFixture()
+  const panel = 'components/settings/panel.tsx'
+  const popup = '../extension/src/popup.tsx'
+  try {
+    put(
+      panel,
+      `import { Button } from '@sim/emcn/button'
+      import { Button as Legacy } from '@sim/emcn-legacy/button'
+      export const Panel = (rest: object) => <div className='p-2'>
+        <Button variant='primary' {...rest} />
+        <Button variant='primary' className='mt-2' />
+        <Legacy className='mt-2' {...rest} />
+      </div>
+`
+    )
+    put(
+      popup,
+      `import * as Emcn from '@sim/emcn/button'
+      import { createElement } from 'react'
+      export const Popup = (props: object) => <><Emcn.Button variant='primary' data-variant='loud' />
+      {createElement(Emcn.Button, props)}</>
+`
+    )
+    const result = run()
+    expect(result.status).toBe(1)
+    for (const finding of [
+      `${panel}:4 [prop-spread]`,
+      `${panel}:5 [consumer-style] Button.className`,
+      `${popup}:3 [consumer-style] Emcn.Button.data-variant`,
+      `${popup}:4 [prop-spread]`,
+    ])
+      expect(result.output).toContain(finding)
+    expect(result.output).not.toContain(`${panel}:3`)
+    expect(result.output).not.toContain(`${panel}:6`)
+
+    writeAllowlists(root, {
+      EMCN_CONSUMER_OVERRIDES: { [panel]: 'Predates the rule', [popup]: 'Predates the rule' },
+    })
+    expect(run()).toEqual({ status: 0, output: expect.stringContaining('passed') })
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)
+
 it('fails the route and copy rules: live-only-route, fixture-branch-in-view, fixture-import-from-live, failure-owner, copy-ellipsis', () => {
   const { root, put, run } = productFixture()
   const org = 'app/(product)/o/[organizationId]'

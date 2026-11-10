@@ -1344,6 +1344,72 @@ function checkJs(file: string, content: string) {
   }
   visit(sf)
 }
+const EMCN_IMPORT = /^@sim\/emcn(?:-platform)?(?:\/|$)/
+const STYLE_ATTRIBUTES = new Set(['style', 'css', 'sx', 'className'])
+/** The data attributes an EMCN component sets from its own variants, which no consumer passes. */
+const VARIANT_ATTRIBUTE =
+  /^(?:data-(?:type(?:-light|-dark)?|elevation|material|recipe|paper-recipe|platform-ui|theme|variant|size|organization|density|axis|edges)|fill|stroke)$/
+/**
+ * EMCN is frozen everywhere it is consumed, not only in the Platform: outside the Platform tree
+ * (which keeps its stricter rules above), an element whose tag is an `@sim/emcn` or
+ * `@sim/emcn-platform` import takes only its named props, so `prop-spread` fails a spread (or a
+ * `createElement`/`cloneElement` of it) and `consumer-style` a style override or variant attribute.
+ * A file that predates this is listed in `EMCN_CONSUMER_OVERRIDES` with its reason.
+ */
+function checkEmcnConsumer(file: string, content: string) {
+  if (!content.includes('@sim/emcn')) return
+  const sf = ts.createSourceFile(file, content, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+  const imported = new Set<string>()
+  for (const statement of sf.statements) {
+    if (!ts.isImportDeclaration(statement) || statement.importClause?.isTypeOnly) continue
+    const specifier = statement.moduleSpecifier
+    if (!ts.isStringLiteral(specifier) || !EMCN_IMPORT.test(specifier.text)) continue
+    const clause = statement.importClause
+    if (clause?.name) imported.add(clause.name.text)
+    const bindings = clause?.namedBindings
+    if (bindings && ts.isNamespaceImport(bindings)) imported.add(bindings.name.text)
+    else if (bindings) for (const binding of bindings.elements) imported.add(binding.name.text)
+  }
+  if (!imported.size) return
+  const fail = (rule: string, node: ts.Node, message: string) => {
+    if (grants('EMCN_CONSUMER_OVERRIDES', file)) return
+    const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1
+    report(rule, `${file}:${line}`, message)
+  }
+  const isEmcn = (node: ts.Node) => imported.has(node.getText(sf).split('.')[0])
+  function visit(node: ts.Node) {
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const tag = node.tagName.getText(sf)
+      if (isEmcn(node.tagName)) {
+        for (const prop of node.attributes.properties) {
+          if (ts.isJsxSpreadAttribute(prop))
+            fail('prop-spread', prop, `<${tag}> is EMCN: pass its named props explicitly`)
+          else if (STYLE_ATTRIBUTES.has(prop.name.getText(sf)))
+            fail(
+              'consumer-style',
+              prop,
+              `${tag}.${prop.name.getText(sf)}: EMCN owns its appearance; pass a named variant`
+            )
+          else if (VARIANT_ATTRIBUTE.test(prop.name.getText(sf)))
+            fail('consumer-style', prop, `${tag}.${prop.name.getText(sf)}: pass a named variant`)
+        }
+      }
+    }
+    if (
+      ts.isCallExpression(node) &&
+      node.arguments.length > 1 &&
+      /^(?:React\.)?(?:cloneElement|createElement)$/.test(node.expression.getText(sf)) &&
+      isEmcn(node.arguments[0])
+    )
+      fail('prop-spread', node, 'Render the EMCN component with its named props')
+    ts.forEachChild(node, visit)
+  }
+  visit(sf)
+}
+for (const file of listedFiles) {
+  if (/\.[jt]sx$/.test(file) && !inPlatformTree(file) && !isSystem(file))
+    checkEmcnConsumer(file, readFileSync(path.join(app, file), 'utf8'))
+}
 for (const file of sourceFiles) {
   if (packageSources.some((owner) => file.startsWith(`${owner}features/`)))
     report('feature-owner', file, 'Colocate product UI in the owning route’s _components directory')
