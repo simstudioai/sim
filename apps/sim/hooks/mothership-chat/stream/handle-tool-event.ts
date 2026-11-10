@@ -52,7 +52,7 @@ function agentIdForSpan(ctx: StreamLoopContext, spanId: string): string | undefi
 
 /**
  * Runs the external side effects of a finished tool (resource extraction, query
- * invalidation, file-resource promotion, preview cleanup, onToolResult). The
+ * invalidation, file-resource promotion, preview cleanup). The
  * tool's lifecycle/status is owned by the model; this reads the settled node and
  * only performs side effects, so the model stays the single source of state.
  */
@@ -118,8 +118,6 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode, replay
       invalidateResourceQueries(deps.queryClient, deps.workspaceId, 'file', editedFileId)
     }
   }
-
-  deps.onToolResultRef.current?.(name, isSuccess, output)
 
   const workspaceFileOperation =
     name === PrepareFileEdit.id && typeof params?.operation === 'string'

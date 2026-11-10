@@ -348,7 +348,6 @@ export function useOrganizationConversation({
     userId,
     chatId: chat.resolvedChatId,
     onWorkspaceResourceSelect: requestMode !== 'assistant' ? selectResource : undefined,
-    reserveResourceHeader: chat.resources.length > 0 || requestMode !== 'assistant',
   }
   const reviewProps = {
     organizationId: organization.id,

@@ -182,7 +182,6 @@ export function ExtensionChat({ workspaceId, organizationId, workspaceName }: Ex
           composerResourceActions={composer.resourceActions}
           composerToolbarActions={composer.toolbarActions}
           composerModelSelectorOptions={composer.modelSelectorOptions}
-          layout='copilot-view'
           className={cn('h-auto min-h-0', (selectedChatId || chat.messages.length > 0) && 'flex-1')}
         />
         <ChipModal

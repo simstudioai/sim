@@ -111,13 +111,6 @@ interface MothershipChatProps {
   onDismissMessage?: (messageId: string) => void
   userId?: string
   chatId?: string
-  onContextAdd?: (context: ChatContext) => void
-  /**
-   * Receives the input's context list AFTER the removal, so the owner can tell
-   * whether another chip still references the removed chip's resource. Matches
-   * `ChatSurfaceContextValue`, which this forwards to.
-   */
-  onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
   onViewSources?: (messageId: string, requestId?: string) => void
   onNavigateToChat?: (chatId: string) => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
@@ -125,16 +118,8 @@ interface MothershipChatProps {
   /** Keeps the live composer mounted when a pending conversation receives its durable ID. */
   composerKey?: string
   fileDropTarget?: RefObject<HTMLElement | null>
-  layout?: 'mothership-view' | 'copilot-view'
-  reserveResourceHeader?: boolean
   initialScrollBlocked?: boolean
-  animateInput?: boolean
-  onInputAnimationEnd?: () => void
   className?: string
-  /** Replaces the transcript's skeleton while its history loads. */
-  loadingTranscript?: ReactNode
-  /** Holds the composer's place while the history loads. */
-  loadingComposer?: ReactNode
 }
 
 /**
@@ -144,10 +129,7 @@ interface MothershipChatProps {
  * by role because user bubbles are short and assistant turns are tall; a single
  * blended number would over/under-shoot both and drift the scrollbar more.
  */
-const ROW_HEIGHT_ESTIMATE = {
-  'mothership-view': { user: 64, assistant: 280 },
-  'copilot-view': { user: 48, assistant: 180 },
-} as const
+const ROW_HEIGHT_ESTIMATE = { user: 48, assistant: 180 } as const
 
 /**
  * Rows render farther beyond the viewport edges than the default so fast scroll
@@ -170,32 +152,16 @@ const PIN_THRESHOLD = 2
  */
 const UNSCROLLED = Symbol('unscrolled')
 
-const LAYOUT_STYLES = {
-  'mothership-view': {
-    scrollContainer:
-      'mt-[var(--workspace-content-title-bar-inset)] min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pt-4 pb-2 md:px-6 [overflow-anchor:none] [scrollbar-gutter:stable_both-edges]',
-    sizer: 'relative mx-auto w-full max-w-chat',
-    rowGap: 'pb-6',
-    userRow: 'flex flex-col items-end gap-[6px] pt-3',
-    attachmentWidth: 'max-w-[85%] md:max-w-[70%]',
-    userBubble:
-      'max-w-[85%] md:max-w-[70%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3.5 py-2',
-    assistantRow: 'group/msg',
-    footer: 'px-3 pb-[max(12px,env(safe-area-inset-bottom))] md:px-[24px] md:pb-[16px]',
-    footerInner: 'mx-auto max-w-chat',
-  },
-  'copilot-view': {
-    scrollContainer:
-      'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pt-2 pb-4 [overflow-anchor:none]',
-    sizer: 'relative w-full',
-    rowGap: 'pb-4',
-    userRow: 'flex flex-col items-end gap-[6px] pt-2',
-    attachmentWidth: 'max-w-[85%]',
-    userBubble: 'max-w-[85%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3 py-2',
-    assistantRow: 'group/msg',
-    footer: 'px-3 pb-3',
-    footerInner: '',
-  },
+const LAYOUT_CLASSES = {
+  scrollContainer:
+    'min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pt-2 pb-4 [overflow-anchor:none]',
+  sizer: 'relative w-full',
+  rowGap: 'pb-4',
+  userRow: 'flex flex-col items-end gap-[6px] pt-2',
+  attachmentWidth: 'max-w-[85%]',
+  userBubble: 'max-w-[85%] overflow-hidden rounded-[16px] bg-[var(--surface-5)] px-3 py-2',
+  assistantRow: 'group/msg',
+  footer: 'px-3 pb-3',
 } as const
 
 const EMPTY_BLOCKS: ContentBlock[] = []
@@ -446,24 +412,17 @@ export function MothershipChat({
   onDismissMessage,
   userId,
   chatId,
-  onContextAdd,
-  onContextRemove,
   onViewSources,
   onNavigateToChat,
   onWorkspaceResourceSelect,
   draftScopeKey,
   composerKey,
   fileDropTarget,
-  layout = 'mothership-view',
-  reserveResourceHeader = true,
   initialScrollBlocked = false,
-  animateInput = false,
-  onInputAnimationEnd,
   className,
 }: MothershipChatProps) {
   const { fontClassName, userBubbleClassName, loadingTranscript, loadingComposer } = useChatChrome()
   const queryClient = useQueryClient()
-  const styles = LAYOUT_STYLES[layout]
   const isStreamActive = isSending || isReconnecting
   /**
    * The live response is the last assistant message: messages still on their way
@@ -768,10 +727,8 @@ export function MothershipChat({
   const virtualizer = useVirtualizer({
     count: messages.length,
     getScrollElement: () => scrollElementRef.current,
-    estimateSize: (index) => {
-      const estimate = ROW_HEIGHT_ESTIMATE[layout]
-      return messages[index]?.role === 'user' ? estimate.user : estimate.assistant
-    },
+    estimateSize: (index) =>
+      messages[index]?.role === 'user' ? ROW_HEIGHT_ESTIMATE.user : ROW_HEIGHT_ESTIMATE.assistant,
     overscan: OVERSCAN,
     getItemKey: (index) => rowKeyByIndex[index] ?? index,
     rangeExtractor,
@@ -927,8 +884,6 @@ export function MothershipChat({
       SearchConnectionComponent={SearchConnectionComponent}
       chatId={chatId}
       userId={userId}
-      onContextAdd={onContextAdd}
-      onContextRemove={onContextRemove}
       onViewSources={onViewSources}
       onNavigateToChat={onNavigateToChat}
       onWorkspaceResourceSelect={onWorkspaceResourceSelect}
@@ -939,9 +894,6 @@ export function MothershipChat({
         tabIndex={-1}
         className={cn(
           'relative flex h-full min-h-0 min-w-0 flex-col [&::highlight(chat-find)]:bg-[var(--highlight-match-bg)] [&::highlight(chat-find)]:text-[var(--highlight-match-text)] [&::highlight(chat-find-active)]:bg-[var(--brand-secondary)] [&::highlight(chat-find-active)]:text-[var(--color-black)]',
-          layout === 'mothership-view' &&
-            reserveResourceHeader &&
-            'max-md:mt-[var(--resource-header-controls-height)] max-md:h-auto max-md:flex-1',
           fontClassName,
           className
         )}
@@ -971,16 +923,16 @@ export function MothershipChat({
         )}
         <div
           ref={setScrollElement}
-          className={cn(styles.scrollContainer, scrollFadeClass, overflowFadeSizeClass)}
+          className={cn(LAYOUT_CLASSES.scrollContainer, scrollFadeClass, overflowFadeSizeClass)}
           {...scrollFadeAttributes(scrollEdges)}
           onCopy={handleCopy}
         >
           {isLoading && !hasMessages ? (
-            (loadingTranscript ?? <MothershipChatSkeleton layout={layout} />)
+            (loadingTranscript ?? <MothershipChatSkeleton />)
           ) : (
             <div
               ref={sizerRef}
-              className={styles.sizer}
+              className={LAYOUT_CLASSES.sizer}
               style={{ height: virtualizer.getTotalSize() }}
             >
               {virtualItems.map((virtualItem) => {
@@ -1017,7 +969,7 @@ export function MothershipChat({
                           <AutomatedTurnRow
                             origin={msg.origin}
                             content={msg.content}
-                            rowClassName={styles.rowGap}
+                            rowClassName={LAYOUT_CLASSES.rowGap}
                           />
                         ) : (
                           <UserMessageRow
@@ -1028,9 +980,9 @@ export function MothershipChat({
                             content={msg.content}
                             contexts={msg.contexts}
                             attachments={msg.attachments}
-                            rowClassName={cn(styles.userRow, styles.rowGap)}
-                            bubbleClassName={cn(styles.userBubble, userBubbleClassName)}
-                            attachmentWidthClassName={styles.attachmentWidth}
+                            rowClassName={cn(LAYOUT_CLASSES.userRow, LAYOUT_CLASSES.rowGap)}
+                            bubbleClassName={cn(LAYOUT_CLASSES.userBubble, userBubbleClassName)}
+                            attachmentWidthClassName={LAYOUT_CLASSES.attachmentWidth}
                           />
                         )
                       ) : (
@@ -1046,7 +998,7 @@ export function MothershipChat({
                             interactionPairing.credentialSubmissionByIndex[index]
                           }
                           credentialAbandoned={interactionPairing.credentialAbandonedByIndex[index]}
-                          rowClassName={cn(styles.assistantRow, styles.rowGap)}
+                          rowClassName={cn(LAYOUT_CLASSES.assistantRow, LAYOUT_CLASSES.rowGap)}
                           onOptionSelect={isLast ? stableOnOptionSelect : undefined}
                           onAnimatingChange={
                             isLast || msg.id === streamingMessageId
@@ -1063,11 +1015,8 @@ export function MothershipChat({
           )}
         </div>
 
-        <ComposerScrollArea
-          className={cn(styles.footer, animateInput && 'animate-slide-in-bottom')}
-          onAnimationEnd={animateInput ? onInputAnimationEnd : undefined}
-        >
-          <div className={styles.footerInner}>
+        <ComposerScrollArea className={LAYOUT_CLASSES.footer}>
+          <div>
             <ComputerUseActivity />
             {isLoading
               ? loadingComposer
@@ -1083,7 +1032,6 @@ export function MothershipChat({
                     modelSelectorOptions={composerModelSelectorOptions}
                     isSending={isStreamActive}
                     onStopGeneration={onStopGeneration}
-                    isInitialView={false}
                     draftScopeKey={draftScopeKey}
                     getMessages={getHistoryMessages}
                   />

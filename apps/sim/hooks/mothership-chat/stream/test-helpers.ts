@@ -77,10 +77,6 @@ export function makeStreamLoopDeps(overrides: Partial<StreamLoopDeps> = {}): Str
     activeTurnRef: ref<ActiveTurn | null>(null),
     resourcesRef: ref<MothershipResource[]>([]),
     activeResourceIdRef: ref<string | null>(null),
-    onTitleUpdateRef: ref<(() => void) | undefined>(undefined),
-    onToolResultRef: ref<
-      ((toolName: string, success: boolean, result: unknown) => void) | undefined
-    >(undefined),
     onResourceEventRef: ref<((resourceId: string) => void) | undefined>(undefined),
     previewSessionRef: ref<FilePreviewSession | null>(null),
     previewSessionsRef: ref<Record<string, FilePreviewSession>>({}),

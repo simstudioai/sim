@@ -43,7 +43,6 @@ export function PanelComposer({
   const { files, requestMode, onPlanChange, isSending, onStop } = props
   const composer = useComposer({
     ...props,
-    waitsForFullLists: false,
     hasAdditionalAttachments: Boolean(attachments),
   })
   const { editor, voice, imagesOnly } = composer

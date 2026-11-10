@@ -90,7 +90,6 @@ function PanelConversationContent({
             <MothershipChat
               {...threadProps}
               onNavigateToChat={onNavigateToChat}
-              layout='copilot-view'
               SearchConnectionComponent={SearchIntegrationConnection}
               composer={composer}
               initialScrollBlocked={false}

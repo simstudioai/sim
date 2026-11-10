@@ -142,12 +142,6 @@ export interface UsePromptEditorProps {
   /** Called when the viewer presses the field, opens the `+` menu, or types an `@`. */
   onResourceIntent?: () => void
   /**
-   * Notified when a context is added through an interactive path — a mention
-   * pick, a resource drop, or a skill pick. Paste re-registration is
-   * intentionally silent so pasting never auto-opens host side panels.
-   */
-  onContextAdd?: (context: ChatContext) => void
-  /**
    * Receives files pasted from the clipboard. Omit to ignore pasted files
    * (the paste is then a no-op, matching native textarea behavior).
    */
@@ -185,7 +179,6 @@ export function usePromptEditor({
   availableSkills,
   resourceIntent,
   onResourceIntent,
-  onContextAdd,
   onPasteFiles,
 }: UsePromptEditorProps) {
   const onResourceIntentRef = useRef(onResourceIntent)
@@ -244,15 +237,12 @@ export function usePromptEditor({
   const contextManagementRef = useRef(contextManagement)
   contextManagementRef.current = contextManagement
 
-  const onContextAddRef = useRef(onContextAdd)
-  onContextAddRef.current = onContextAdd
   const onPasteFilesRef = useRef(onPasteFiles)
   onPasteFilesRef.current = onPasteFiles
 
-  const addContextNotified = useCallback((context: ChatContext) => {
+  const addEnabledContext = useCallback((context: ChatContext) => {
     if (!contextsEnabledRef.current) return
     contextManagementRef.current.addContext(context)
-    onContextAddRef.current?.(context)
   }, [])
 
   const mentionMenu = useMentionMenu({
@@ -492,10 +482,10 @@ export function usePromptEditor({
       skillsMenuRef.current?.close()
       valueRef.current = nextValue
       setValueState(nextValue)
-      addContextNotified(resolvedContext)
+      addEnabledContext(resolvedContext)
       focusAtEnd()
     },
-    [addContextNotified, focusAtEnd]
+    [addEnabledContext, focusAtEnd]
   )
 
   /**
@@ -570,10 +560,10 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      addContextNotified(context)
+      addEnabledContext(context)
       return context
     },
-    [textareaRef, addContextNotified, organizationId]
+    [textareaRef, addEnabledContext, organizationId]
   )
 
   const insertResource = useCallback(
@@ -665,14 +655,14 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      addContextNotified({
+      addEnabledContext({
         kind: 'skill',
         skillId: skill.id,
         label,
         ...(organizationId && owner ? { workspaceId: owner } : {}),
       })
     },
-    [textareaRef, addContextNotified, organizationId]
+    [textareaRef, addEnabledContext, organizationId]
   )
 
   const handleMcpSelect = useCallback(
@@ -696,14 +686,14 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      addContextNotified({
+      addEnabledContext({
         kind: 'mcp',
         serverId: server.id,
         label: server.name,
         ...(server.managedConnectorId ? { managedConnectorId: server.managedConnectorId } : {}),
       })
     },
-    [textareaRef, addContextNotified]
+    [textareaRef, addEnabledContext]
   )
 
   /**
@@ -744,9 +734,9 @@ export function usePromptEditor({
         setValueState(newValue)
       }
 
-      for (const context of prepared) addContextNotified(context)
+      for (const context of prepared) addEnabledContext(context)
     },
-    [textareaRef, addContextNotified]
+    [textareaRef, addEnabledContext]
   )
 
   /**
@@ -1320,8 +1310,6 @@ export function usePromptEditor({
       const newValue = textarea.value
       const caret = selStart + insert.length
 
-      // Use addContext directly — NOT the notified path — so pasting does NOT
-      // auto-open host side panels (the notified path fires onContextAdd).
       for (const ctx of pastedContexts) contextManagementRef.current.addContext(ctx)
 
       valueRef.current = newValue
