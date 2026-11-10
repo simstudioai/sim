@@ -31,7 +31,7 @@
       "gateways": {}
     },
     "app/(product)/o/[organizationId]/chat/[[...id]]/page.tsx": {
-      "modules": 3373,
+      "modules": 3374,
       "gateways": {
         "apps/sim/app/(product)/_components/chat/live/live-chat-route.tsx": 3181,
         "apps/sim/app/(product)/_components/chat/live/live-chat.tsx": 1244,

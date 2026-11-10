@@ -8,7 +8,7 @@ import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/client'
 import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { desktopChatScopeId } from '@/lib/desktop/chat-scope'
-import { knowledgeDocumentLink } from '@/lib/knowledge/search/results'
+import { knowledgeDocumentLink } from '@/lib/knowledge/search/source-url'
 import {
   resourceParam,
   searchFilterParsers,

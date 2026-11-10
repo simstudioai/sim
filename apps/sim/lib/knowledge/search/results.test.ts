@@ -8,7 +8,8 @@
 
 import { describe, expect, it } from 'vitest'
 import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/mothership-assistant-tools'
-import { knowledgeDocumentLink, toSource } from '@/lib/knowledge/search/results'
+import { toSource } from '@/lib/knowledge/search/results'
+import { knowledgeDocumentLink } from '@/lib/knowledge/search/source-url'
 
 function result(
   overrides: Partial<WorkspaceKnowledgeSearchResult>

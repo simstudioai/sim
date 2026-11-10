@@ -1,7 +1,7 @@
 import type { WorkspaceKnowledgeSearchResult } from '@/lib/api/contracts/knowledge'
 import type { ResourceScope } from '@/lib/core/resource-scope'
-import { getBaseUrl } from '@/lib/core/utils/urls'
 import { matchSnippet } from '@/lib/knowledge/search/snippet'
+import { knowledgeDocumentUrl } from '@/lib/knowledge/search/source-url'
 import { isHttpUrl, type SourceTagData } from '@/lib/mothership/chat/special-tags'
 import { connectorDisplayName } from '@/lib/sim-search/connectors'
 
@@ -20,43 +20,6 @@ export function groupResultsByDocument(
     grouped.push(result)
   }
   return grouped
-}
-
-const KNOWLEDGE_DOCUMENT_PATH = /^\/(?:o|workspace)\/[^/]+\/knowledge\/([^/]+)\/([^/]+)\/?$/
-
-/** Where Sim shows a knowledge document with no source link of its own. */
-function knowledgeDocumentUrl(
-  scope: ResourceScope,
-  knowledgeBaseId: string,
-  documentId: string
-): string {
-  const owner =
-    scope.kind === 'organization'
-      ? `/o/${encodeURIComponent(scope.organizationId)}`
-      : `/workspace/${encodeURIComponent(scope.workspaceId)}`
-  return `${getBaseUrl()}${owner}/knowledge/${encodeURIComponent(knowledgeBaseId)}/${encodeURIComponent(documentId)}`
-}
-
-/**
- * The knowledge document a cited Sim link names, as {@link toSource} builds one, or `null` for any
- * other link. A saved answer keeps citing a document after it is deleted (a personal index removed
- * when its owner joined a team, say), so a reader can check the document before linking to it.
- */
-export function knowledgeDocumentLink(
-  url: string
-): { knowledgeBaseId: string; documentId: string } | null {
-  try {
-    const link = new URL(url)
-    if (link.origin !== new URL(getBaseUrl()).origin) return null
-    const match = KNOWLEDGE_DOCUMENT_PATH.exec(link.pathname)
-    if (!match) return null
-    return {
-      knowledgeBaseId: decodeURIComponent(match[1]),
-      documentId: decodeURIComponent(match[2]),
-    }
-  } catch {
-    return null
-  }
 }
 
 /**
