@@ -1,8 +1,8 @@
 import type { Principal } from '@sim/auth/principal'
 import {
   createDelegatedPrincipal,
-  createPersonalApiKeyPrincipal,
   createSessionPrincipal,
+  createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
 import { auditMock, auditMockFns } from '@sim/testing/mocks/audit.mock'
 import { permissionsMock, permissionsMockFns } from '@sim/testing/mocks/permissions.mock'
@@ -27,6 +27,7 @@ vi.mock('@/lib/workspaces/permissions/management-store', async (importOriginal) 
   reconcileWorkspacePermissionCredentials: hoisted.reconcile,
 }))
 
+import { forbiddenErrorDetails } from '@/lib/core/application/forbidden'
 import {
   COPILOT_APPLICATION_SYSTEM_ERROR_MESSAGE,
   messageForCopilotApplicationError,
@@ -118,14 +119,16 @@ describe('workspace permission operations', () => {
     expect(mocks.update).not.toHaveBeenCalled()
   })
 
-  it('rejects unsupported principals before canonical loading', async () => {
-    await expect(
-      updateWorkspacePermissions.execute({
-        principal: createPersonalApiKeyPrincipal({ userId: 'actor', keyId: 'key' }),
+  it('rejects a workspace key, even for its own workspace, before canonical loading', async () => {
+    const result = await updateWorkspacePermissions
+      .execute({
+        principal: createWorkspaceApiKeyPrincipal({ workspaceId: 'workspace', keyId: 'key' }),
         input,
       })
-    ).rejects.toThrow()
+      .catch((error: unknown) => error)
+    expect(forbiddenErrorDetails(result)).toEqual({ code: 'WORKSPACE_KEY_OPERATION_NOT_PERMITTED' })
     expect(mocks.context).not.toHaveBeenCalled()
+    expect(mocks.update).not.toHaveBeenCalled()
   })
 
   it('rejects duplicate direct application updates before the mutation', async () => {

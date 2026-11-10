@@ -3807,7 +3807,6 @@
   "apps/sim/lib/api/contracts/v2/workspaces.ts#V2ListWorkspaceMembersQuery",
   "apps/sim/lib/api/contracts/v2/workspaces.ts#V2ListWorkspacesQuery",
   "apps/sim/lib/api/contracts/v2/workspaces.ts#V2Workspace",
-  "apps/sim/lib/api/contracts/v2/workspaces.ts#V2WorkspaceMember",
   "apps/sim/lib/api/contracts/v2/workspaces.ts#V2WorkspaceMemberCursor",
   "apps/sim/lib/api/contracts/v2/workspaces.ts#V2WorkspaceParams",
   "apps/sim/lib/api/contracts/v2/workspaces.ts#V2WorkspaceSortBy",
