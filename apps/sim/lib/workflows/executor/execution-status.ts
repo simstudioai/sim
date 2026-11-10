@@ -662,6 +662,8 @@ export async function readPausedRunPoints(input: {
     .limit(1)
   if (!row) return null
 
+  // Positions count the whole pending queue, so it is read unpaged: it holds a few columns per
+  // waiting point, never more than the `pause_points` already loaded above.
   const pendingResumes = await db
     .select({
       contextId: resumeQueue.contextId,
@@ -671,7 +673,6 @@ export async function readPausedRunPoints(input: {
     .from(resumeQueue)
     .where(and(eq(resumeQueue.parentExecutionId, executionId), eq(resumeQueue.status, 'pending')))
     .orderBy(resumeQueue.queuedAt)
-    .limit(MAX_PAUSED_RUN_POINTS)
   const queuePositions = PauseResumeManager.computeQueuePositions(
     pendingResumes.map((entry) => ({
       contextId: entry.contextId,
