@@ -1,29 +1,28 @@
-import type { OrganizationRole } from '@/lib/api/contracts/primitives'
+import { isChatEnabled } from '@/lib/core/config/env-flags'
 import type { KnowledgeAccessAvailability } from '@/lib/knowledge/access/availability'
 import { capabilityDeniedBy } from '@/lib/permission-groups/capability-assertions'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
-import { canCreateOrganizationWorkspace } from '@/lib/workspaces/policy'
 
 export interface OrganizationChatAccess {
+  /**
+   * Whether the viewer may use chat in the organization: the deployment serves chat and their
+   * permission group does not withhold `copilot.use`. Role plays no part; creating a workspace from
+   * a chat is judged by the workspace creation policy when it happens.
+   */
   mothershipAvailable: boolean
-  canBuild: boolean
   searchAccess: KnowledgeAccessAvailability
 }
 
 /** Projects the same current chat policy for server rendering and authenticated refreshes. */
 export function projectOrganizationChatAccess({
-  role,
   config,
   searchAccess,
 }: {
-  role: OrganizationRole
   config: PermissionGroupConfig | null
   searchAccess: KnowledgeAccessAvailability
 }): OrganizationChatAccess {
-  const mothershipAvailable = !capabilityDeniedBy('copilot.use', config)
   return {
-    mothershipAvailable,
-    canBuild: mothershipAvailable && canCreateOrganizationWorkspace(role, config),
+    mothershipAvailable: isChatEnabled && !capabilityDeniedBy('copilot.use', config),
     searchAccess,
   }
 }

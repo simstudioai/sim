@@ -49,19 +49,18 @@ import {
   railRegion,
   railRow,
   railSection,
-  searchField,
   sidebar,
 } from '@/scripts/org-redesign-e2e/locators'
 
 export async function sidebarChecks() {
   section('2 Sidebar: nav')
   // Links is a Settings section on the product, not a nav row (platform/docs/org-parity.md:289).
-  // Home is for those who can build; a member who cannot lands on Search (org-parity.md:255).
+  // Home is for everyone who may chat, whatever their role (org-parity.md, "Home page gate").
   for (const [persona, rows] of [
-    [MEMBER, ['Search', 'Integrations']],
+    [MEMBER, ['Home', 'Search', 'Integrations']],
     [ADMIN, ['Home', 'Search', 'Integrations']],
     [OWNER, ['Home', 'Search', 'Integrations']],
-    [NARROW, ['Search', 'Integrations']],
+    [NARROW, ['Home', 'Search', 'Integrations']],
   ] as const) {
     await check(`${persona.key}: nav rows in today's order`, async () => {
       await onHome(persona, async ({ page }) => {
@@ -240,8 +239,8 @@ export async function sidebarChecks() {
       await expect(mainNav(page)).toBeHidden()
       await expect(sidebar(page).getByRole('link', { name: 'Members', exact: true })).toBeVisible()
       await sidebar(page).getByRole('button', { name: 'Back to app', exact: true }).click()
-      await expect(page).toHaveURL((address) => address.pathname === org.search)
-      await expect(searchField(page)).toBeVisible()
+      await expect(page).toHaveURL((address) => address.pathname === org.home)
+      await expect(composer(page)).toBeVisible()
     })
   })
   notProvable('Impersonation banner', 'Needs an admin impersonation session')

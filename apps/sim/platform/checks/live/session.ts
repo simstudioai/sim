@@ -24,6 +24,9 @@ export const adminEmail = () => requireEnv('PLATFORM_LIVE_EMAIL')
 export const memberEmail = () => requireEnv('PLATFORM_LIVE_MEMBER_EMAIL')
 export const organizationId = () => requireEnv('PLATFORM_LIVE_ORGANIZATION_ID')
 export const organizationName = () => requireEnv('PLATFORM_LIVE_ORGANIZATION_NAME')
+/** The member of the seeded organization whose permission group withholds Chat. */
+export const noChatMemberEmail = () => requireEnv('PLATFORM_LIVE_NO_CHAT_EMAIL')
+export const noChatOrganizationId = () => `${organizationId()}-no-chat`
 
 const LOGIN_PATH = /^\/login\/?$/
 const SESSION_COOKIE = 'better-auth.session_token'

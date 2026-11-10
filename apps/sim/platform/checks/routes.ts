@@ -27,12 +27,13 @@ function productPath(organization: string, route: string) {
 export const fixtureUrl = (route: string, origin = fixtureOrigin) =>
   `${origin}${productPath(FIXTURE_ORGANIZATION_ID, route)}`
 
-/** `route` on the live app, relative to its `baseURL`, in the seeded organization. */
-export const liveRoute = (route: string) => productPath(organizationId(), route)
+/** `route` on the live app, relative to its `baseURL`, in the seeded organization or `organization`. */
+export const liveRoute = (route: string, organization = organizationId()) =>
+  productPath(organization, route)
 
 /** Matches a URL on the live `route` followed by `rest`, a regular expression source. */
-export const liveRoutePattern = (route: string, rest = '') =>
-  new RegExp(`${escapeRegExp(liveRoute(route))}${rest}`)
+export const liveRoutePattern = (route: string, rest = '', organization = organizationId()) =>
+  new RegExp(`${escapeRegExp(liveRoute(route, organization))}${rest}`)
 
 /** Matches the login page a signed-out visit to the live `route` lands on, sent back to it. */
 export const liveLoginPattern = (route: string) =>

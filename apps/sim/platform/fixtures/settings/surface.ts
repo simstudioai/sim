@@ -36,7 +36,6 @@ export function settingsSurface(scenario: Scenario, plan: PreviewPlan): Platform
       canUseSearchMcp: true,
     },
     mothershipAvailable: true,
-    canBuild: true,
     searchAccess: { sourceMirrored: enterprise, memberScoped: enterprise },
     connectedAccountsAvailable: enterprise,
     settingsFeatures: {

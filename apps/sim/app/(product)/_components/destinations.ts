@@ -24,7 +24,7 @@ export function platformDestinations(scope: SurfaceScope) {
  * skills there, as legacy's workspace Integrations page did.
  */
 export function resolveLiveDestinations(organization: PlatformOrganization): ShellDestination[] {
-  const { mothershipAvailable, canBuild, searchAccess, navFlags } = organization
+  const { mothershipAvailable, searchAccess, navFlags } = organization
   const [home, settings, integrations] = platformDestinations(organization)
   const search = {
     id: 'search',
@@ -45,7 +45,7 @@ export function resolveLiveDestinations(organization: PlatformOrganization): She
     value: `/benchmark?${new URLSearchParams({ organization: organization.organization.id })}`,
   } as const
   return [
-    ...(mothershipAvailable && canBuild ? [home] : []),
+    ...(mothershipAvailable ? [home] : []),
     ...(searchAccess.memberScoped ? [search] : []),
     ...(navFlags.people ? [people] : []),
     integrations,

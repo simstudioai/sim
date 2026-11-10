@@ -32,6 +32,7 @@ import {
   authorizeOrganizationChatDelegation,
   authorizeOrganizationChatEvents,
   createOrganizationChat,
+  listOrganizationChats,
 } from '@/lib/mothership/chat/organization-chats'
 
 const authorize = organizationAuthorizationMockFns.mockAuthorizeOrganizationOperation
@@ -196,77 +197,71 @@ describe('organization chat events application boundary', () => {
 })
 
 afterAll(resetEnvFlagsMock)
-describe('organization Build admission', () => {
+describe('organization chat admission', () => {
   const session = createSessionPrincipal({ userId: 'member-1' })
   beforeEach(() => {
     resetDbChainMock()
     permissionConfig.mockResolvedValue(null)
-    setEnvFlags({ isBillingEnabled: true })
+    setEnvFlags({ isBillingEnabled: true, isChatEnabled: true })
   })
   it.each([
-    { role: 'member', billing: true, denied: false, allowed: false },
-    { role: 'owner', billing: true, denied: false, allowed: true },
-    { role: 'admin', billing: true, denied: true, allowed: false },
-    { role: 'member', billing: false, denied: false, allowed: true },
-    { role: 'member', billing: false, denied: true, allowed: false },
+    { role: 'member', billing: true, workspaceCreationDenied: false },
+    { role: 'member', billing: true, workspaceCreationDenied: true },
+    { role: 'owner', billing: true, workspaceCreationDenied: true },
+    { role: 'member', billing: false, workspaceCreationDenied: false },
   ])(
-    'enforces the same permission on sends and creation: $role/$billing/$denied',
-    async ({ role, billing, denied, allowed }) => {
+    'admits agent and Plan chats whatever the role or workspace creation policy: $role/$billing/$workspaceCreationDenied',
+    async ({ role, billing, workspaceCreationDenied }) => {
       authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role })
-      permissionConfig.mockResolvedValue({ disableWorkspaceCreation: denied })
+      permissionConfig.mockResolvedValue({ disableWorkspaceCreation: workspaceCreationDenied })
       setEnvFlags({ isBillingEnabled: billing, isMothershipBenchmarkEnabled: true })
       dbChainMockFns.returning.mockResolvedValue([{ id: 'new-chat' }])
       for (const mode of ['agent', 'plan'] as const) {
         for (const operation of [authorizeOrganizationChat, createOrganizationChat]) {
           queueTableRows(user, [{ role: 'admin' }])
           queueTableRows(settings, [{ superUserModeEnabled: true }])
-          const result = operation.execute({
-            principal: session,
-            input: { organizationId: 'org-1', mode },
-          })
-          if (allowed) await expect(result).resolves.toBeDefined()
-          else await expect(result).rejects.toThrow('Build requires permission')
+          await expect(
+            operation.execute({ principal: session, input: { organizationId: 'org-1', mode } })
+          ).resolves.toBeDefined()
         }
       }
-      if (!allowed) expect(dbChainMockFns.insert).not.toHaveBeenCalled()
-      expect(permissionConfig).toHaveBeenCalledWith('org-1')
     }
   )
-  it('keeps Search and saved-history reads available without Build permission', async () => {
-    authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role: 'member' })
-    await authorizeOrganizationChat.execute({
-      principal: session,
-      input: { organizationId: 'org-1', mode: 'assistant' },
+  it('refuses every chat read, write and continuation while the deployment serves no chat', async () => {
+    setEnvFlags({ isChatEnabled: false })
+    authorize.mockClear().mockResolvedValue({
+      userId: 'member-1',
+      organizationId: 'org-1',
+      role: 'owner',
     })
-    await authorizeOrganizationChat.execute({
-      principal: session,
-      input: { organizationId: 'org-1' },
-    })
-    expect(permissionConfig).not.toHaveBeenCalled()
+    const input = { organizationId: 'org-1', mode: 'agent' as const }
+    for (const attempt of [
+      authorizeOrganizationChat.execute({ principal: session, input }),
+      createOrganizationChat.execute({ principal: session, input }),
+      authorizeOrganizationChatEvents.execute({ principal: session, input }),
+      listOrganizationChats.execute({ principal: session, input: { ...input, scope: 'active' } }),
+      authorizeOrganizationChatDelegation.execute({ principal: principal() }),
+    ])
+      await expect(attempt).rejects.toMatchObject({ code: 'not_found' })
+    expect(authorize).not.toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
-  it.each(['agent', 'plan'] as const)(
-    'rechecks %s permission for a delegated continuation while allowing Search',
-    async (mode) => {
-      authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role: 'owner' })
-      permissionConfig.mockResolvedValue({ disableWorkspaceCreation: true })
-      dbChainMockFns.limit.mockResolvedValue([{ id: 'private-chat' }])
-      await expect(
-        authorizeOrganizationChatDelegation.execute({ principal: principal(), mode })
-      ).rejects.toThrow('Build requires permission')
-      await expect(
-        authorizeOrganizationChatDelegation.execute({ principal: principal(), mode: 'assistant' })
-      ).resolves.toMatchObject({ userId: 'member-1' })
-    }
-  )
-
-  it('checks current membership before the Build permission projection', async () => {
-    authorize.mockRejectedValueOnce(new Error('Membership revoked'))
+  it('still lets a member stop their running chat while the deployment serves no chat', async () => {
+    setEnvFlags({ isChatEnabled: false })
+    authorize.mockResolvedValue({ userId: 'member-1', organizationId: 'org-1', role: 'member' })
+    dbChainMockFns.limit.mockResolvedValue([{ id: 'private-chat' }])
     await expect(
-      authorizeOrganizationChat.execute({
+      authorizeOrganizationChatCancellation.execute({
         principal: session,
-        input: { organizationId: 'org-1', mode: 'agent' },
+        input: { organizationId: 'org-1' },
       })
-    ).rejects.toThrow('Membership revoked')
-    expect(permissionConfig).not.toHaveBeenCalled()
+    ).resolves.toMatchObject({ userId: 'member-1' })
+    const cancel = createTrustedOrganizationCopilotPrincipal(
+      { userId: 'member-1', organizationId: 'org-1', chatId: 'private-chat', delegationId: 'stop' },
+      { audience: 'sim:copilot-cancel', ttlMs: 10000 }
+    )
+    await expect(
+      authorizeOrganizationChatDelegation.execute({ principal: cancel })
+    ).resolves.toMatchObject({ userId: 'member-1' })
   })
 })

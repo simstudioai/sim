@@ -63,7 +63,6 @@ async function resolveOrganizationSurface(
     organization: context.organization,
     viewer: context.viewer,
     mothershipAvailable: context.mothershipAvailable,
-    canBuild: context.canBuild,
     searchAccess: context.searchAccess,
     connectedAccountsAvailable: context.connectedAccountsAvailable,
     settingsFeatures: context.settingsFeatures,

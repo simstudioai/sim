@@ -1,6 +1,8 @@
 import { expect, type Page } from '@playwright/test'
 import {
   memberEmail,
+  noChatMemberEmail,
+  noChatOrganizationId,
   organizationId,
   requireEnv,
   signIn,
@@ -94,21 +96,38 @@ test.describe('Home on real data', () => {
   })
 })
 
-test('a member who cannot build lands on Search, not an error', async ({ page }) => {
-  await signIn(page, memberEmail(), liveRoute('/home'))
-  await expect(page).toHaveURL(liveRoutePattern('/search'))
-  await expect(page.getByRole('textbox', { name: 'Search' })).toBeVisible()
+test('a plain member lands on Home and may open a new chat', async ({ page }) => {
+  await signIn(page, memberEmail(), liveRoute(''))
+  await expect(page).toHaveURL(liveRoutePattern('/home'))
+  await page.goto(liveRoute('/chat'))
+  await expect(page).toHaveURL(liveRoutePattern('/chat', '(?:\\?|$)'))
 })
 
-test('a member who cannot build lands on Search from a deep link to a new chat or a saved workspace Home', async ({
+test('a member whose permission group withholds Chat lands on Search, not an error', async ({
   page,
 }) => {
-  await signIn(page, memberEmail(), liveRoute('/search'))
-  for (const deepLink of [liveRoute('/chat/new'), '/workspace/platform-live-workspace-main/home']) {
+  const organization = noChatOrganizationId()
+  await signIn(page, noChatMemberEmail(), liveRoute('/home', organization))
+  await expect(page).toHaveURL(liveRoutePattern('/search', '', organization))
+  await expect(page.getByRole('textbox', { name: 'Search' })).toBeVisible()
+  const nav = page.getByRole('navigation', { name: 'Main navigation' })
+  await expect(nav.getByRole('link', { name: 'Home', exact: true })).toHaveCount(0)
+})
+
+test('a member whose permission group withholds Chat lands on Search from a deep link to a new chat', async ({
+  page,
+}) => {
+  const organization = noChatOrganizationId()
+  await signIn(page, noChatMemberEmail(), liveRoute('/search', organization))
+  for (const deepLink of [liveRoute('', organization), liveRoute('/chat/new', organization)]) {
     await page.goto(deepLink)
-    await expect(page, deepLink).toHaveURL(liveRoutePattern('/search', '(?:\\?|$)'))
+    await expect(page, deepLink).toHaveURL(liveRoutePattern('/search', '(?:\\?|$)', organization))
     await expect(page.getByRole('textbox', { name: 'Search' })).toBeVisible()
   }
+  const create = await page.request.post('/api/mothership/chats', {
+    data: { organizationId: organization, mode: 'agent' },
+  })
+  expect(create.status()).toBe(403)
 })
 
 test.describe('Home for the seeded administrator', () => {

@@ -31,10 +31,10 @@ interface TroubleshootTarget {
  */
 export function useTroubleshootRun() {
   const surface = useOrganization()
-  const { organization, deployment, mothershipAvailable, canBuild } = surface
+  const { organization, mothershipAvailable } = surface
   const router = useRouter()
   return {
-    available: deployment.chatEnabled && mothershipAvailable && canBuild,
+    available: mothershipAvailable,
     troubleshoot({ workspaceId, executionId, workflowName }: TroubleshootTarget) {
       const context: ChatContext = {
         kind: 'logs',

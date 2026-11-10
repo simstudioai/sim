@@ -11,20 +11,26 @@ interface OrganizationLayoutProps {
 /**
  * Authorizes the organization the URL names: a viewer outside it gets not found, and a failed read
  * the unavailable state. A client navigation into the organization skips the shell, so the
- * organization gate runs here too.
+ * organization gate runs here too, for the location the proxy names (Settings stays reachable).
  */
 export default async function OrganizationLayout({ children, params }: OrganizationLayoutProps) {
   if (resolvePlatformMode() !== 'live') return children
-  const [{ organizationId }, { readOrganizationSurface }, { resolveOrganizationGate }] =
-    await Promise.all([
-      params,
-      import('@/platform/lib/data/surface'),
-      import('@/platform/lib/data/route-resolution'),
-    ])
-  const surface = await readOrganizationSurface(organizationId)
+  const [
+    { organizationId },
+    { readOrganizationSurface },
+    { readDocumentLocation, resolveOrganizationGate },
+  ] = await Promise.all([
+    params,
+    import('@/platform/lib/data/surface'),
+    import('@/platform/lib/data/route-resolution'),
+  ])
+  const [surface, location] = await Promise.all([
+    readOrganizationSurface(organizationId),
+    readDocumentLocation(),
+  ])
   if (surface.status === 'denied') notFound()
   if (surface.status !== 'ok') return <SurfaceUnavailable />
-  const gate = resolveOrganizationGate(surface.organization)
+  const gate = resolveOrganizationGate(surface.organization, location)
   if (gate) redirect(gate)
   return children
 }

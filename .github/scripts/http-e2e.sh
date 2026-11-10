@@ -197,6 +197,7 @@ platform_live_environment() {
   export PLATFORM_LIVE_REFUSED_INVITE_EMAIL=otto@platform-live.test
   export PLATFORM_LIVE_OFF_ORGANIZATION_ID=platform-live-organization-off
   export PLATFORM_LIVE_OFF_EMAIL=odessa@platform-live.test
+  export PLATFORM_LIVE_NO_CHAT_EMAIL=noor@platform-live.test
   export PLATFORM_LIVE_ORCHESTRATOR=1
   # The scripted agent's gated tool answers to this text (`scripted-agent.ts`).
   export PLATFORM_LIVE_APPROVAL_PROMPT='Run the approval probe'

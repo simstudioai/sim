@@ -168,13 +168,13 @@ function useComposerSettings(
 function legacySharedDraftKey(
   userId: string,
   organizationId: string,
-  { assistant, canBuild }: { assistant: boolean; canBuild: boolean }
+  assistant: boolean
 ): string | null {
   const key = `${userId}:organization:${organizationId}:new`
   if (!useMothershipDraftsStore.getState().drafts[key]) return null
   const persisted = toRecord(BrowserStorage.getItem<unknown>(LEGACY_CHAT_MODE_STORAGE, null))
   const modes = toRecord(toRecord(persisted.state).modes)
-  const legacyAssistant = !canBuild || modes[`${userId}:${organizationId}`] === 'assistant'
+  const legacyAssistant = modes[`${userId}:${organizationId}`] === 'assistant'
   return legacyAssistant === assistant ? key : null
 }
 
@@ -188,7 +188,7 @@ export function useLiveComposer({
   chatId,
   onPlanChange,
 }: ComposerOptions & { onPlanChange?: (active: boolean) => void }): ComposerController {
-  const { organization, canBuild } = useOrganization()
+  const { organization } = useOrganization()
   const { data: session } = useSession()
   const userId = session?.user?.id
   const assistant = requestMode === 'assistant'
@@ -227,9 +227,7 @@ export function useLiveComposer({
   useEffect(() => {
     if (storageApplied) return
     const legacyKey =
-      chatId || !userId
-        ? null
-        : legacySharedDraftKey(userId, organization.id, { assistant, canBuild })
+      chatId || !userId ? null : legacySharedDraftKey(userId, organization.id, assistant)
     if (legacyKey) useMothershipDraftsStore.getState().migrateDraft(legacyKey, initialKey)
     const stored = useMothershipDraftsStore.getState().drafts[initialKey]?.fileAttachments
     if (!attachedFiles.length && stored?.length)
@@ -241,7 +239,6 @@ export function useLiveComposer({
     userId,
     organization.id,
     assistant,
-    canBuild,
     initialKey,
     attachedFiles,
     restoreAttachedFiles,

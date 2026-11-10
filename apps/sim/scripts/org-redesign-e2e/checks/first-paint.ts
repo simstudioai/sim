@@ -212,8 +212,7 @@ export async function firstPaintChecks() {
     })
   })
   for (const persona of [MEMBER, ADMIN]) {
-    // A member who cannot build has no Home to measure (platform/docs/org-parity.md:255).
-    for (const entry of pages.filter(({ name }) => persona === ADMIN || name !== 'Home')) {
+    for (const entry of pages) {
       await check(
         `${persona.key} ${entry.name}: measured, no duplicate or prefetched-key fetch`,
         async () => {

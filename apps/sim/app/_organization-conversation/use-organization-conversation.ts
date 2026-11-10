@@ -111,13 +111,10 @@ interface UseConversationGateOptions {
 
 /** Whether the surface may mount, and for which identity. Its key remounts on any change to one. */
 export function useConversationGate({ chatId, requestMode }: UseConversationGateOptions) {
-  const { organization, viewer, searchAccess, canBuild, mothershipAvailable } = useOrganization()
+  const { organization, viewer, searchAccess, mothershipAvailable } = useOrganization()
   const isClient = useHydrated()
   const isRestoredChatEntry = useRestoredChatEntry({ chatId })
-  if (
-    !mothershipAvailable ||
-    (requestMode === 'assistant' ? !searchAccess.memberScoped : !canBuild)
-  )
+  if (!mothershipAvailable || (requestMode === 'assistant' && !searchAccess.memberScoped))
     return { status: 'denied' } as const
   if (isRestoredChatEntry) return { status: 'restoring' } as const
   if (!isClient) return { status: 'waiting' } as const
@@ -149,7 +146,7 @@ export function useOrganizationConversation({
   summaryRequest,
   onSummaryConsumed,
 }: UseOrganizationConversationOptions) {
-  const { organization, viewer, canBuild } = useOrganization()
+  const { organization, viewer } = useOrganization()
   const panelSurface = surface.kind === 'panel' ? surface : null
   const userId = viewer.userId
   const planEnabled = useFeatureFlag('mothership-plan-mode')
@@ -198,8 +195,7 @@ export function useOrganizationConversation({
     if (!useMothershipDraftsStore.getState().drafts[key]) return null
     const persisted = toRecord(BrowserStorage.getItem<unknown>('organization-chat-mode', null))
     const modes = toRecord(toRecord(persisted.state).modes)
-    const legacyMode =
-      !canBuild || modes[`${userId}:${organization.id}`] === 'assistant' ? 'assistant' : 'agent'
+    const legacyMode = modes[`${userId}:${organization.id}`] === 'assistant' ? 'assistant' : 'agent'
     return legacyMode === destinationMode ? key : null
   })
   const draftKeys = useMemo(
@@ -312,7 +308,6 @@ export function useOrganizationConversation({
     contexts?: ChatContext[],
     assistantSearch?: WorkspaceSearchFilters
   ) => {
-    if (requestMode !== 'assistant' && !canBuild) return
     if (requestMode === 'assistant') recordQuery(message)
     if (requestMode !== 'assistant' && !panelSurface) panel.prepareResourceViewForAgentTurn()
     void sendMessage(
@@ -360,7 +355,7 @@ export function useOrganizationConversation({
       : commit({ message: text.trim(), contexts })
   }
 
-  const allowBuildControls = requestMode !== 'assistant' && canBuild
+  const allowBuildControls = requestMode !== 'assistant'
   const stopGeneration = () => {
     void chat.stopGeneration()
   }

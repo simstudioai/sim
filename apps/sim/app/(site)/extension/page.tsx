@@ -17,11 +17,7 @@ export default async function ExtensionPage() {
     )
     if (organizationId) {
       const gate = await getOrganizationSurfaceGate(organizationId, session.user.id)
-      if (
-        gate?.organization.kind === 'team' &&
-        gate.mothershipAvailable &&
-        (gate.canBuild || gate.searchAccess.memberScoped)
-      ) {
+      if (gate?.organization.kind === 'team' && gate.mothershipAvailable) {
         redirect(`/extension/o/${encodeURIComponent(organizationId)}`)
       }
     }

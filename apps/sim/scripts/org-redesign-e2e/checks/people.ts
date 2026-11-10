@@ -33,8 +33,7 @@ export async function peoplePhaseChecks() {
   // Links is a Settings section now (org-parity.md, "Sim Links entry"), so it leaves the nav.
   await check('nav: People sits after Search', async () => {
     await onHome(MEMBER, async ({ page }) => {
-      // A member who cannot build has no Home (platform/docs/org-parity.md:255).
-      assert.deepEqual(await navLabels(page), ['Search', 'People', 'Integrations'])
+      assert.deepEqual(await navLabels(page), ['Home', 'Search', 'People', 'Integrations'])
     })
   })
   // Loading paints nothing (platform/AGENTS.md): People has no loading.tsx, so the shell keeps the

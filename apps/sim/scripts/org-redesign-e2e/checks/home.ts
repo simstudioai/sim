@@ -90,24 +90,21 @@ async function withWorkspaceActivity(run: () => Promise<void>) {
 }
 
 export async function homeChecks() {
-  section('3 Home: members who cannot build')
-  // A member who cannot build has no Home: /home, the nav and Back to app take them to Search, and
-  // their Assistant chats open under it (platform/docs/org-parity.md:18, :255, :348). The Home
-  // behaviour those cases proved runs below for a builder; what only a member's Home showed (its
-  // Assistant greeting, Get started, the connected member's widgets and their failure states, the
-  // narrow group's Connect buttons) is dropped with it.
+  section('3 Home: members')
+  // Chat follows the permission group, never the role, so every member here has Home; their
+  // Assistant chats still open under Search (platform/docs/org-parity.md).
   for (const persona of [MEMBER, CONNECTED, NARROW]) {
-    await check(`${persona.key}: /home lands on Search, with no Home to customize`, async () => {
+    await check(`${persona.key}: /home is their Home, listed in the nav`, async () => {
       await onHome(persona, async ({ page }) => {
-        await expect(page).toHaveURL((address) => address.pathname === org.search)
-        await expect(searchField(page)).toBeVisible()
-        await expect(page.getByRole('button', { name: 'Customize Home' })).toHaveCount(0)
+        await expect(page).toHaveURL((address) => address.pathname === org.home)
+        await expect(composer(page)).toBeVisible()
+        await expect(page.getByRole('button', { name: 'Customize Home' })).toBeVisible()
         await expect(
           page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', {
             name: 'Home',
             exact: true,
           })
-        ).toHaveCount(0)
+        ).toHaveCount(1)
       })
     })
   }
@@ -167,7 +164,7 @@ export async function homeChecks() {
         request.url().includes('/home/workspace-activity')
       )
       await page.goto(homeUrl)
-      await expect(page).toHaveURL((address) => address.pathname === org.search)
+      await expect(page).toHaveURL((address) => address.pathname === org.home)
       await expect(sidebar(page).getByText('No workspaces yet')).toBeVisible()
       assert.deepEqual(reads, [], 'A member with no workspaces read workspace activity')
     })
@@ -181,9 +178,8 @@ export async function homeChecks() {
     })
   })
 
-  section('3 Home: builder')
-  // Home's own behaviour, for a viewer who has Home. These ran as a member before Home was limited
-  // to builders (platform/docs/org-parity.md:255).
+  section('3 Home: administrator')
+  // Home's own behaviour, proved once for a viewer who has Home.
   await check('Home, Search and the agent keep separate drafts', async () => {
     await onHome(ADMIN, async ({ page }) => {
       await composer(page).fill('A draft on Home')

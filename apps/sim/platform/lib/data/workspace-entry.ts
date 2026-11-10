@@ -9,8 +9,7 @@ import { workspaceEntry, workspacePath } from '@/lib/navigation/paths'
 import { resolveRolledOutOrganizationId } from '@/lib/navigation/resolve-app-entry'
 import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
 import { listViewerWorkspaces } from '@/lib/workspaces/application/viewer-workspaces'
-import { surfaceHref } from '@/platform/lib/data/organization-model'
-import { resolveOrganizationGate } from '@/platform/lib/data/route-resolution'
+import { blockedWorkspaceEntryHref } from '@/platform/lib/data/route-resolution'
 import { asRouteResponse, requireSessionViewer } from '@/platform/lib/data/server-read'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 import { DEFAULT_WORKSPACE_SETTING } from '@/platform/lib/data/workspace-settings'
@@ -85,31 +84,22 @@ export async function resolveWorkspaceEntry(
     }
   }
   if (creationPolicy && !creationPolicy.canCreate) {
-    const forwardOrganizationId = await resolveForwardOrganizationId(
-      principal.userId,
-      activeOrganizationId
-    )
-    if (forwardOrganizationId) {
-      // The organization's own root picks the first page the viewer has there.
-      const scope = { routePrefix: `/o/${forwardOrganizationId}` }
-      return {
-        kind: 'redirect',
-        href: surfaceHref(scope, query.redirect === 'settings' ? '/settings' : ''),
-      }
-    }
+    const href = await resolveForwardHref(principal.userId, activeOrganizationId, query)
+    if (href) return { kind: 'redirect', href }
     return { kind: 'blocked', policy: creationPolicy }
   }
   return { kind: 'failed' }
 }
 
 /**
- * The organization a viewer who cannot create a workspace is handed to, as the workspace list route
- * decides it. A failed lookup leaves them on the blocked explanation, as it does there, and so does
- * an organization with nothing of theirs: its gate would send them straight back here.
+ * Where a viewer who cannot create a workspace is handed: the first page they have in the
+ * organization the workspace list route picks for them. A failed lookup leaves them on the blocked
+ * explanation, as it does there, and so does an organization with nothing of theirs.
  */
-async function resolveForwardOrganizationId(
+async function resolveForwardHref(
   userId: string,
-  activeOrganizationId: string | null
+  activeOrganizationId: string | null,
+  query: WorkspaceEntryQuery
 ): Promise<string | null> {
   const session = { user: { id: userId }, session: { activeOrganizationId } }
   let organizationId: string | null
@@ -121,6 +111,6 @@ async function resolveForwardOrganizationId(
   }
   if (!organizationId) return null
   const surface = await readOrganizationSurface(organizationId)
-  if (surface.status !== 'ok' || resolveOrganizationGate(surface.organization)) return null
-  return organizationId
+  if (surface.status !== 'ok') return null
+  return blockedWorkspaceEntryHref(surface.organization, query.redirect)
 }

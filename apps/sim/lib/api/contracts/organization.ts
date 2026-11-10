@@ -500,7 +500,6 @@ export const getOrganizationResponseSchema = z.object({
   chatAccess: z
     .object({
       mothershipAvailable: z.boolean(),
-      canBuild: z.boolean(),
       searchAccess: z.object({
         sourceMirrored: z.boolean(),
         memberScoped: z.boolean(),
@@ -534,7 +533,6 @@ const organizationSurfaceResponseSchema = z.object({
     canUseSearchMcp: z.boolean(),
   }),
   mothershipAvailable: z.boolean(),
-  canBuild: z.boolean(),
   searchAccess: z.object({
     sourceMirrored: z.boolean(),
     memberScoped: z.boolean(),

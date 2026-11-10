@@ -90,9 +90,7 @@ function ExtensionOrganizationChat({ context, history }: ExtensionOrganizationCh
   if (initialChatId && !history.data && history.isPending) return <ExtensionLoading />
   if (initialChatId && !selectedChat)
     return <ExtensionUnavailable scope='chat' onRetry={() => void history.refetch()} />
-  const requestMode = initialChatId
-    ? selectedChat?.mode
-    : (submittedMode ?? (context.canBuild ? 'agent' : 'assistant'))
+  const requestMode = initialChatId ? selectedChat?.mode : (submittedMode ?? 'agent')
   if (!requestMode)
     return history.isFetching ? (
       <ExtensionLoading />
@@ -101,16 +99,12 @@ function ExtensionOrganizationChat({ context, history }: ExtensionOrganizationCh
     )
   if (
     !context.mothershipAvailable ||
-    (requestMode === 'assistant' ? !context.searchAccess.memberScoped : !context.canBuild)
+    (requestMode === 'assistant' && !context.searchAccess.memberScoped)
   )
     return (
       <ExtensionUnavailable
         scope='chat'
-        onBackToChat={
-          context.mothershipAvailable && (context.canBuild || context.searchAccess.memberScoped)
-            ? () => selectChat(null)
-            : undefined
-        }
+        onBackToChat={context.mothershipAvailable ? () => selectChat(null) : undefined}
       />
     )
   return (

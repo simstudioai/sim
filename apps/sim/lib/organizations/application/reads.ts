@@ -114,7 +114,7 @@ export const getOrganization = defineAuthorizedOrganizationUseCase({
         getUserPermissionConfigForOrganization(context.organizationId),
         resolveKnowledgeAccessAvailability({ organizationId: context.organizationId }),
       ])
-      chatAccess = projectOrganizationChatAccess({ role: context.role, config, searchAccess })
+      chatAccess = projectOrganizationChatAccess({ config, searchAccess })
     }
     return {
       ...organization,

@@ -71,40 +71,65 @@ function queryRecord(query: URLSearchParams): Record<string, string | string[]> 
   return record
 }
 
-/** The legacy surface's rule for when a member has nothing of theirs on the organization surface. */
-function hasOrganizationSurface(organization: PlatformOrganization): boolean {
-  const { mothershipAvailable, searchAccess, navFlags } = organization
-  return mothershipAvailable || searchAccess.memberScoped || navFlags.people || navFlags.simLinks
-}
-
 /**
- * Where a member with nothing of theirs on the organization surface goes from any organization
- * page: their workspace, as legacy sent them. The workspace entry is outside the organization's
- * pages and forwards back only to an organization this gate passes, so it never redirects again.
- * The organization layout applies it to a client navigation into the organization.
+ * The first organization page the viewer has, in the legacy organization root's priority order, or
+ * `null` when nothing on the organization surface is theirs. The organization gate, the root's
+ * landing and the workspace entry's hand-off all read this one answer, so a page the gate lets
+ * through is always one the landing can reach, and none of them can send the viewer back to another.
  */
-export function resolveOrganizationGate(organization: PlatformOrganization): string | null {
-  return hasOrganizationSurface(organization) ? null : WORKSPACES_PATH
-}
-
-/** Where the organization's bare URL sends a viewer: the legacy organization root's priority chain. */
-function organizationLandingPath(organization: PlatformOrganization): string {
-  const { mothershipAvailable, canBuild, searchAccess, navFlags } = organization
+function organizationLandingHref(organization: PlatformOrganization): string | null {
+  const { mothershipAvailable, searchAccess, navFlags } = organization
   const routes = organizationRoutes(organization.organization.id)
-  if (mothershipAvailable && canBuild) return routes.home
+  if (mothershipAvailable) return routes.home
   if (searchAccess.memberScoped) return routes.search
   if (navFlags.people) return routes.people
-  return navFlags.simLinks ? routes.simLinks : WORKSPACES_PATH
+  return navFlags.simLinks ? routes.simLinks : null
+}
+
+/** Whether `pathname` is one of the organization's Settings pages, which decide their own sections. */
+function isSettingsPath(organization: PlatformOrganization, pathname: string): boolean {
+  const settings = surfaceHref(organization, '/settings')
+  return pathname === settings || pathname.startsWith(`${settings}/`)
 }
 
 /**
- * The legacy Home page's gate (a member who cannot build goes to Search, otherwise to their
- * workspace), then its resource panel: Home with `?resource=` was a new chat with that panel, which
- * the new chat owns.
+ * Where a member with nothing of theirs on the organization surface goes from an organization page:
+ * their workspace, as legacy sent them, with the query kept. Settings is exempt: its account and
+ * per-section pages stay reachable, each deciding its own visibility. The workspace entry hands a
+ * viewer back only to {@link organizationLandingHref}, which is never this gate's target, so it
+ * never redirects again. The organization layout applies it to a client navigation.
+ */
+export function resolveOrganizationGate(
+  organization: PlatformOrganization,
+  location: ProductLocation | null
+): string | null {
+  if (organizationLandingHref(organization)) return null
+  if (location && isSettingsPath(organization, location.pathname)) return null
+  return withQuery(WORKSPACES_PATH, location?.query ?? new URLSearchParams())
+}
+
+/**
+ * Where the bare `/workspace` entry sends a viewer who has no workspace and may not create one: the
+ * organization's Settings when the entry asked for them, else its landing page; `null` (the blocked
+ * explanation) when nothing on the organization is theirs. Never `/workspace` itself.
+ */
+export function blockedWorkspaceEntryHref(
+  organization: PlatformOrganization,
+  redirect: string | null
+): string | null {
+  const landing = organizationLandingHref(organization)
+  if (!landing) return null
+  return redirect === 'settings' ? surfaceHref(organization, '/settings') : landing
+}
+
+/**
+ * The legacy Home page's gate (a member without chat goes to Search, otherwise to their workspace),
+ * then its resource panel: Home with `?resource=` was a new chat with that panel, which the new chat
+ * owns.
  */
 function resolveHomeEntry(organization: PlatformOrganization, query: URLSearchParams) {
-  const { mothershipAvailable, canBuild, searchAccess } = organization
-  if (!mothershipAvailable || !canBuild)
+  const { mothershipAvailable, searchAccess } = organization
+  if (!mothershipAvailable)
     return searchAccess.memberScoped ? surfaceHref(organization, '/search') : WORKSPACES_PATH
   if (!query.get(resourceParam.key)) return null
   return `${surfaceHref(organization, '/chat')}?${query}`
@@ -160,11 +185,11 @@ export function resolveProductRedirect(
 
   if (root === 'o') {
     if (`/o/${id}` !== organization.routePrefix) return null
-    const gate = resolveOrganizationGate(organization)
+    const gate = resolveOrganizationGate(organization, { pathname, query })
     if (gate) return temporary(gate)
     const [section, ...subpath] = segments
     if (section === undefined)
-      return temporary(withQuery(organizationLandingPath(organization), query))
+      return temporary(withQuery(organizationLandingHref(organization) ?? WORKSPACES_PATH, query))
     if (section === 'home' && !subpath.length)
       return temporary(resolveHomeEntry(organization, query))
     if (section === 'search' && (!subpath.length || subpath[0] === 'chat'))
