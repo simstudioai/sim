@@ -22,21 +22,13 @@ import { localBin } from './local-bin'
 
 const MAX_PRUNED_PACKAGE_COUNT = 25
 
+/** The workspace folders `turbo prune` wrote under `root`; a missing folder throws, never reads as none. */
 async function listPackages(root: string): Promise<string[]> {
-  try {
-    const entries = await readdir(root)
-    const result: string[] = []
-    for (const entry of entries) {
-      const full = path.join(root, entry)
-      const s = await stat(full)
-      if (s.isDirectory()) {
-        result.push(entry)
-      }
-    }
-    return result
-  } catch {
-    return []
+  const result: string[] = []
+  for (const entry of await readdir(root)) {
+    if ((await stat(path.join(root, entry))).isDirectory()) result.push(entry)
   }
+  return result
 }
 
 async function main() {

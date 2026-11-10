@@ -65,14 +65,9 @@ function isCompiledSource(full: string, name: string): boolean {
   return !rel.startsWith('apps/sim/scripts/') && !rel.startsWith('apps/realtime/scripts/')
 }
 
+/** Every compiled source file under `dir`; a missing directory throws, so a moved root fails the check. */
 function walk(dir: string, acc: string[] = []): string[] {
-  let entries
-  try {
-    entries = readdirSync(dir, { withFileTypes: true })
-  } catch {
-    return acc
-  }
-  for (const e of entries) {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
     if (e.name.startsWith('.') || SKIP_DIRS.has(e.name)) continue
     const full = join(dir, e.name)
     if (e.isDirectory()) walk(full, acc)

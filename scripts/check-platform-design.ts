@@ -17,6 +17,7 @@ import {
   staleAllowlistFindings,
 } from './platform-allowlists'
 import { ORGANIZATION_ROUTES, PRODUCT_ROUTES } from './platform-product-routes'
+import { ruleDocumentation } from './platform-rule-docs'
 import {
   classifyPage,
   hasAsciiEllipsis,
@@ -1492,6 +1493,10 @@ function compareRendered(a: string, b: string) {
 }
 if (findings.size) {
   process.stderr.write(`${[...findings.keys()].sort(compareRendered).join('\n')}\n`)
+  const rules = [...new Set([...findings.values()].map(({ rule }) => rule))].sort(compareRendered)
+  process.stderr.write(
+    `\nWhere each rule is documented:\n${rules.map((rule) => `  ${rule}: ${ruleDocumentation(root, rule)}`).join('\n')}\n`
+  )
   process.exitCode = 1
 } else {
   process.stdout.write(
