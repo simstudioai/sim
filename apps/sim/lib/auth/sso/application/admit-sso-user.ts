@@ -27,6 +27,7 @@ import { resolveOrganizationSeatPolicyTx } from '@/lib/billing/organizations/sea
 import { reconcileOrganizationSeats } from '@/lib/billing/organizations/seats'
 import { assertOperationPrincipal, type OperationUseCase } from '@/lib/core/application/operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { acquirePersonalOrganizationWorkspaceLocksTx } from '@/lib/organizations/personal'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { isScimEntitledForOrganization } from '@/ee/scim/lib/entitlement'
 
@@ -85,6 +86,8 @@ async function runAdmissionTransaction(
       return { providerId, result: { kind: 'denied', reason: 'provider-not-found' } }
     }
     if (scope.organizationId) {
+      /** Admission may retire the personal organization: its workspace locks come first, as in every join. */
+      await acquirePersonalOrganizationWorkspaceLocksTx(tx, userId)
       await acquireOrganizationUserMutationLocks(tx, {
         userId,
         organizationIds: [scope.organizationId],
