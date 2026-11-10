@@ -9,6 +9,8 @@
  *   - maxSessionHours: number | null - Absolute session lifetime cap
  *   - idleTimeoutHours: number | null - Idle timeout
  *
+ * Refuses personal organizations, which hold no team configuration, with 409.
+ *
  * Response: AdminSingleResponse<{ success, organizationId }>
  */
 
@@ -32,6 +34,7 @@ import {
   adminForbiddenResponse,
   adminInvalidJsonResponse,
   adminNotFoundResponse,
+  adminPersonalOrganizationConflictResponse,
   adminValidationErrorResponse,
   adminWriteErrorResponse,
   singleResponse,
@@ -61,7 +64,7 @@ export const PATCH = withRouteHandler(
 
     try {
       const [existing] = await db
-        .select({ name: organization.name })
+        .select({ name: organization.name, kind: organization.kind })
         .from(organization)
         .where(eq(organization.id, organizationId))
         .limit(1)
@@ -69,6 +72,7 @@ export const PATCH = withRouteHandler(
       if (!existing) {
         return adminNotFoundResponse('Organization')
       }
+      if (existing.kind === 'personal') return adminPersonalOrganizationConflictResponse()
 
       /**
        * Same entitlement gate the settings UI applies. Without it the stored

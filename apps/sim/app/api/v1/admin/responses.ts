@@ -96,12 +96,18 @@ export function adminInternalErrorResponse(message = 'Internal server error'): N
  * conflict with the organization's kind, anything else a 500.
  */
 export function adminWriteErrorResponse(error: unknown, message: string): NextResponse {
-  if (getPostgresErrorCode(error) === '23514') {
-    return adminConflictResponse(
-      'The organization refuses this change: personal organizations hold no team configuration and no member besides their owner.'
-    )
-  }
+  if (getPostgresErrorCode(error) === '23514') return adminPersonalOrganizationConflictResponse()
   return adminInternalErrorResponse(message)
+}
+
+/**
+ * The refusal of team configuration on a personal organization, returned before the write by the
+ * routes that set it, so the answer never depends on the database's triggers being installed.
+ */
+export function adminPersonalOrganizationConflictResponse(): NextResponse {
+  return adminConflictResponse(
+    'The organization refuses this change: personal organizations hold no team configuration and no member besides their owner.'
+  )
 }
 
 export function adminNotConfiguredResponse(): NextResponse {

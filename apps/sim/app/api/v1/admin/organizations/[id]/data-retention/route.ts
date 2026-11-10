@@ -12,6 +12,8 @@
  * `taskCleanupHours`, `fileVersionRetentionHours`, `piiRedaction`, `retentionOverrides`.
  * Omitted keys keep their current value; `null` means "forever" for an hours field.
  *
+ * Refuses personal organizations, which hold no team configuration, with 409.
+ *
  * Response: AdminSingleResponse<{ success, organizationId }>
  */
 
@@ -30,6 +32,7 @@ import {
   adminBadRequestResponse,
   adminInvalidJsonResponse,
   adminNotFoundResponse,
+  adminPersonalOrganizationConflictResponse,
   adminValidationErrorResponse,
   adminWriteErrorResponse,
   singleResponse,
@@ -61,6 +64,7 @@ export const PATCH = withRouteHandler(
       const [existing] = await db
         .select({
           name: organization.name,
+          kind: organization.kind,
           dataRetentionSettings: organization.dataRetentionSettings,
         })
         .from(organization)
@@ -70,6 +74,7 @@ export const PATCH = withRouteHandler(
       if (!existing) {
         return adminNotFoundResponse('Organization')
       }
+      if (existing.kind === 'personal') return adminPersonalOrganizationConflictResponse()
 
       const merged: DataRetentionSettings = { ...(existing.dataRetentionSettings ?? {}) }
       if (body.logRetentionHours !== undefined) merged.logRetentionHours = body.logRetentionHours
