@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
+import { useRunPageCommands } from '@/app/(product)/workspace/[workspaceId]/logs/_components/live-runs/page-commands'
 import { RunDashboard } from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-dashboard/run-dashboard'
 import {
   type RunFilterOption,
@@ -44,6 +45,8 @@ export function LiveRuns({ workspaceId, integrationTriggers }: LiveRunsProps) {
   const options = useRunFilterOptions(workspaceId)
   const now = useMinuteClock()
   const commands = useRunCommands(workspaceId)
+  const exportHref = runExportHref(workspaceId, view)
+  useRunPageCommands({ exportHref, canExport: commands.canExport })
 
   const stop = async (target: RunCommandsTarget, workflowId: string) => {
     try {
@@ -141,7 +144,7 @@ export function LiveRuns({ workspaceId, integrationTriggers }: LiveRunsProps) {
       more={live.more}
       rowActions={rowActions}
       exportAction={{
-        href: runExportHref(workspaceId, view),
+        href: exportHref,
         disabled:
           !commands.canExport ||
           (view.view === 'dashboard' ? !dashboard.totals?.runs : live.runs.length === 0),
