@@ -3,12 +3,12 @@
 import { type MouseEvent, useEffect, useRef, useState } from 'react'
 import { Chip } from '@sim/emcn/button'
 import { Disclosure } from '@sim/emcn/disclosure'
-import { TextField } from '@sim/emcn/field'
 import { Icon } from '@sim/emcn/icon'
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { ActionMenu, ContextActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { useSearchParams } from 'next/navigation'
+import { RenameDialog } from '@/app/(product)/_components/rename-dialog/rename-dialog'
 import { SidebarSortMenu } from '@/app/(product)/_components/sidebar/collection-order'
 import { linkMenuActions, pinAction } from '@/app/(product)/_components/sidebar/row-links'
 import { SectionStatus } from '@/app/(product)/_components/sidebar/section-status'
@@ -19,7 +19,6 @@ import type { ShellActions, ShellChat } from '@/platform/lib/data/models/shell'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
-import { readFormText } from '@/platform/shared/row-links'
 import type { ShellQueryStatus } from '@/platform/shared/shell'
 
 const NO_SELECTION: ReadonlySet<string> = new Set()
@@ -254,28 +253,13 @@ export function ChatsSection({
           {page.control}
         </div>
       </Disclosure>
-      {renamingChat && (
-        <Modal
-          open
-          onOpenChange={() => setEditing(null)}
-          title='Rename chat'
-          confirmLabel='Save'
-          onConfirm={async (values) => {
-            const next = readFormText(values, 'title')
-            if (!next) throw new Error('Enter a chat name.')
-            if (next !== renamingChat.title) await actions.rename(renamingChat.id, next)
-          }}
-        >
-          <TextField
-            placeholder='Chat name'
-            label='Chat name'
-            name='title'
-            required
-            maxLength={CHAT_TITLE_MAX_LENGTH}
-            defaultValue={renamingChat.title}
-          />
-        </Modal>
-      )}
+      <RenameDialog
+        target={renamingChat ? { id: renamingChat.id, name: renamingChat.title } : null}
+        noun='chat'
+        maxLength={CHAT_TITLE_MAX_LENGTH}
+        onClose={() => setEditing(null)}
+        onRename={actions.rename}
+      />
       {editing?.kind === 'remove' && (
         <Modal
           open
