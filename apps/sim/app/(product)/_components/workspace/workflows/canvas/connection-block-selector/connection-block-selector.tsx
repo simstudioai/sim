@@ -27,14 +27,16 @@ import {
 import { CanvasTooltip } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/canvas-tooltip'
 import { OverflowSpan } from '@/app/(product)/_components/workspace/workflows/canvas/workflow-block/overflow-span'
 import {
+  buildBlockSearchIndex,
   captureEvent,
   filterAndCap,
-  type PendingConnect,
   Search,
   type SearchBlockItem,
   type SearchToolOperationItem,
+  useCustomBlockOverlayVersion,
+  usePermissionConfig,
+  useProvidersStore,
   useScopedWorkflowId,
-  useSearchModalStore,
   useWorkflowScope,
   X,
 } from '@/platform/lib/data/workflows'
@@ -96,6 +98,16 @@ const SELECTOR_PORTS: WorkflowBorderPort[] = [
     magnetizable: false,
   },
 ]
+
+/**
+ * The edge drag-release the picker completes: the dragged source handle and the canvas-space
+ * release point. A selection carries it on its event, so the canvas places the block at the drop
+ * point and wires it from that handle.
+ */
+export interface PendingConnect {
+  source: { nodeId: string; handleId: string }
+  position: { x: number; y: number }
+}
 
 /** Data the canvas attaches to the transient picker node. */
 export interface ConnectionBlockSelectorData extends Record<string, unknown> {
@@ -362,7 +374,22 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
   const deferredSearch = useDeferredValue(search)
   const isSearching = deferredSearch.trim().length > 0
   const recentStorageKey = `${RECENT_SELECTION_STORAGE_PREFIX}:${workspaceId}`
-  const { blocks, tools, toolOperations } = useSearchModalStore((state) => state.data)
+  const { filterBlocks, isToolAllowed } = usePermissionConfig()
+  const customBlockOverlayVersion = useCustomBlockOverlayVersion()
+  const providers = useProvidersStore((state) => state.providers)
+  const providerModelSignature = useMemo(
+    () =>
+      Object.values(providers)
+        .map((provider) => provider.models.join('\x00'))
+        .join('\x01'),
+    [providers]
+  )
+  /* Searchable dropdown options can list provider models, and custom blocks arrive with the
+     overlay, so both rebuild the index though neither is read here. */
+  const { blocks, tools, toolOperations } = useMemo(
+    () => buildBlockSearchIndex(filterBlocks, isToolAllowed),
+    [filterBlocks, isToolAllowed, providerModelSignature, customBlockOverlayVersion]
+  )
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

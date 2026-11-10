@@ -14,18 +14,15 @@ import {
   updateTogetherProviderModels,
   updateVLLMProviderModels,
 } from '@/providers/utils'
-import { useSearchModalStore } from '@/stores/modals/search/store'
 import { type ProviderName, useProvidersStore } from '@/stores/providers'
 
 const logger = createLogger('ProviderModelsLoader')
 
 function shouldLoadProviderModels(
   pathname: string | null,
-  workspaceId: string | undefined,
-  isSearchModalOpen: boolean
+  workspaceId: string | undefined
 ): boolean {
   if (!workspaceId) return false
-  if (isSearchModalOpen) return true
 
   const workspaceBase = `/workspace/${workspaceId}`
   return (
@@ -96,9 +93,7 @@ export function ProviderModelsLoader({
   const params = useParams()
   const pathname = usePathname()
   const workspaceId = scopedWorkspaceId ?? (params?.workspaceId as string | undefined)
-  const isSearchModalOpen = useSearchModalStore((state) => state.isOpen)
-  const shouldLoad =
-    Boolean(scopedWorkspaceId) || shouldLoadProviderModels(pathname, workspaceId, isSearchModalOpen)
+  const shouldLoad = Boolean(scopedWorkspaceId) || shouldLoadProviderModels(pathname, workspaceId)
 
   useSyncProvider('base', shouldLoad)
   useSyncProvider('ollama', shouldLoad)

@@ -42,6 +42,7 @@ import {
   CONNECTION_BLOCK_SELECTOR_DIMENSIONS,
   CONNECTION_BLOCK_SELECTOR_NODE_ID,
   type ConnectionBlockSelectorData,
+  type PendingConnect,
 } from '@/app/(product)/_components/workspace/workflows/canvas/connection-block-selector/connection-block-selector'
 import { Cursors } from '@/app/(product)/_components/workspace/workflows/canvas/cursors/cursors'
 import type { SubflowNodeData } from '@/app/(product)/_components/workspace/workflows/canvas/subflow-node/subflow-node'
@@ -72,6 +73,7 @@ import { ErrorBoundary } from '@/app/(product)/_components/workspace/workflows/c
 import { CanvasMenu } from '@/app/(product)/_components/workspace/workflows/canvas-menu/canvas-menu'
 import { CommandList } from '@/app/(product)/_components/workspace/workflows/command-list/command-list'
 import { FocusBlockDeepLink } from '@/app/(product)/_components/workspace/workflows/focus-block-deep-link/focus-block-deep-link'
+import { useInvokeGlobalCommand } from '@/app/(product)/_components/workspace/workflows/global-commands/global-commands'
 import { WorkflowSearchReplace } from '@/app/(product)/_components/workspace/workflows/search-replace/workflow-search-replace'
 import { WorkflowControls } from '@/app/(product)/_components/workspace/workflows/workflow-controls/workflow-controls'
 import {
@@ -117,7 +119,6 @@ import {
   type OAuthConnectEventDetail,
   type OAuthProvider,
   OPERATION_SUBBLOCK_ID,
-  type PendingConnect,
   prepareBlockState,
   reconcileCanvasEdges,
   reconcileCanvasNodes,
@@ -149,7 +150,6 @@ import {
   usePanelEditorSearchStore,
   usePanelEditorStore,
   usePanelStore,
-  useSearchModalStore,
   useSession,
   useShiftSelectionLock,
   useSnapToGridSize,
@@ -355,6 +355,7 @@ const WorkflowContent = memo(function WorkflowContent({
     : false
 
   const router = useRouter()
+  const invokeGlobalCommand = useInvokeGlobalCommand()
   const colorMode = usePlatformColorMode(canvasContainerRef)
   const reactFlowInstance = useReactFlow()
   const { screenToFlowPosition, getNodes, setNodes } = reactFlowInstance
@@ -1524,8 +1525,8 @@ const WorkflowContent = memo(function WorkflowContent({
   }, [contextMenuBlocks, edges, lastExecutionSnapshot, isExecuting])
 
   const handleContextAddBlock = useCallback(() => {
-    useSearchModalStore.getState().open()
-  }, [])
+    invokeGlobalCommand('focus-toolbar-search')
+  }, [invokeGlobalCommand])
 
   const handleContextOpenLogs = useCallback(() => {
     router.push(
@@ -3333,7 +3334,6 @@ const WorkflowContent = memo(function WorkflowContent({
    */
   const onConnectStart = useCallback<OnConnectStart>(
     (_event, params) => {
-      useSearchModalStore.getState().close()
       closeConnectionBlockSelector()
       canvasContainerRef.current?.setAttribute(
         'data-connection-line',
