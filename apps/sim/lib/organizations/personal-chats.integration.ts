@@ -133,6 +133,7 @@ async function backfilledOwner() {
 async function team(): Promise<{ teamId: string; teamOwnerId: string }> {
   const teamOwnerId = await createUser()
   const { organizationId } = await createOrganizationWithOwner({
+    actor: { type: 'system', name: 'Test' },
     ownerUserId: teamOwnerId,
     name: 'Team',
     slug: `team-${generateId()}`.toLowerCase(),
@@ -156,6 +157,7 @@ async function organizationChat(userId: string, organizationId: string): Promise
 
 function join(userId: string, organizationId: string) {
   return addUserToOrganization({
+    actor: { type: 'system', name: 'Test' },
     userId,
     organizationId,
     role: 'member',
@@ -425,6 +427,7 @@ describe('a personal organization’s chats when its owner joins a team', () => 
 
     expect(
       await removeUserFromOrganization({
+        actor: { type: 'system', name: 'Test' },
         userId: owner.userId,
         organizationId: teamId,
         memberId: membership.id,

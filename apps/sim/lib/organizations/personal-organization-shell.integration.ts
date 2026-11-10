@@ -355,7 +355,7 @@ describe('the organization surface a shell renders', () => {
 
   it('tells an organization that no longer exists apart from one the viewer is outside', async () => {
     const viewerId = await createUser()
-    await ensureUserOrganization(viewerId)
+    await ensureUserOrganization(viewerId, { atSignup: false })
 
     await expect(
       readOrganizationSurface.execute({

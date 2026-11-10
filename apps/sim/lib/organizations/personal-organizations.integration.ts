@@ -177,7 +177,11 @@ async function organizationContentOwners(content: {
   memorySpaceId: string
 }) {
   const [chat] = await db
-    .select({ organizationId: copilotChats.organizationId, userId: copilotChats.userId })
+    .select({
+      organizationId: copilotChats.organizationId,
+      workspaceId: copilotChats.workspaceId,
+      userId: copilotChats.userId,
+    })
     .from(copilotChats)
     .where(eq(copilotChats.id, content.chatId))
   const [file] = await db
@@ -456,7 +460,7 @@ describe('joining another organization', () => {
     })
     expect(await userStorage(joinerId)).toBe(2048)
     expect(await organizationContentOwners(content)).toEqual({
-      chat: { organizationId: teamId, userId: joinerId },
+      chat: { organizationId: null, workspaceId: joinerWorkspace, userId: joinerId },
       file: undefined,
       memorySpace: { organizationId: teamId, userId: joinerId },
     })
@@ -543,7 +547,7 @@ describe('starting a team from a personal organization', () => {
       kind: 'team',
     })
     expect(await organizationContentOwners(ownerContent)).toEqual({
-      chat: { organizationId: teamId, userId: ownerId },
+      chat: { organizationId: teamId, workspaceId: null, userId: ownerId },
       file: { organizationId: teamId, userId: ownerId },
       memorySpace: { organizationId: teamId, userId: ownerId },
     })
@@ -571,7 +575,11 @@ describe('starting a team from a personal organization', () => {
       billedAccountUserId: collaboratorId,
     })
     expect(await organizationContentOwners(collaboratorContent)).toEqual({
-      chat: { organizationId: collaboratorPersonal.organizationId, userId: collaboratorId },
+      chat: {
+        organizationId: collaboratorPersonal.organizationId,
+        workspaceId: null,
+        userId: collaboratorId,
+      },
       file: { organizationId: collaboratorPersonal.organizationId, userId: collaboratorId },
       memorySpace: { organizationId: collaboratorPersonal.organizationId, userId: collaboratorId },
     })
