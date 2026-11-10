@@ -785,23 +785,15 @@ async function exerciseViewport(
               await settle()
               const after = await heading.boundingBox()
               assert(after)
-              if (compactNavigation(width)) {
-                assert(
-                  Math.abs(after.y - before.y) <= 1,
-                  'Scrolling past a mobile draft must not move Home'
-                )
-                await page.mouse.move(width - 2, 300)
-                await page.mouse.wheel(0, 600)
-                await expect
-                  .poll(async () => (await heading.boundingBox())?.y ?? before.y)
-                  .toBeLessThan(before.y - 10)
-              } else {
-                await expect
-                  .poll(async () => (await heading.boundingBox())?.y ?? before.y, {
-                    message: 'Desktop scroll handoff must remain unchanged',
-                  })
-                  .toBeLessThan(before.y - 10)
-              }
+              // The composer contains its own scroll at every width; Home scrolls from outside it.
+              assert(Math.abs(after.y - before.y) <= 1, 'Scrolling past a draft must not move Home')
+              await page.mouse.move(width - 2, 300)
+              await page.mouse.wheel(0, 600)
+              await expect
+                .poll(async () => (await heading.boundingBox())?.y ?? before.y, {
+                  message: 'Scrolling beside the draft must move Home',
+                })
+                .toBeLessThan(before.y - 10)
               await capture(page, `${browserName}-${width}-draft-scroll`)
             } finally {
               await composer.fill('')
@@ -1426,9 +1418,8 @@ async function exerciseViewport(
             const bounds = await actions.boundingBox()
             assert(bounds)
             await page.touchscreen.tap(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2)
-            await expect(
-              page.getByRole('menuitem', { name: 'Auto layout', exact: true })
-            ).toBeVisible()
+            // The row's accessible name ends with its drawn shortcut hint (⇧L).
+            await expect(page.getByRole('menuitem', { name: /^Auto layout\b/ })).toBeVisible()
             await page.keyboard.press('Escape')
           } else {
             const canvasBounds = await canvas.boundingBox()
