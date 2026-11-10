@@ -43,3 +43,9 @@ package.json @simstudioai/deps
 bun.lock @simstudioai/deps
 **/bun.lock @simstudioai/deps
 bunfig.toml @simstudioai/deps
+
+# The freeze's own guard: the surface check, the package list it reads and the allowlists the
+# Platform checks grant. After the dependency rules, so the design owner's match wins here.
+/scripts/check-emcn-surface.ts @emir-karabeg
+/scripts/emcn-packages.ts @emir-karabeg
+/scripts/platform-allowlists.ts @emir-karabeg

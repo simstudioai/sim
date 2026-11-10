@@ -10,8 +10,12 @@
  * exported function's parameters as a type shape: literal values, opaque type names (`‹string›`),
  * and the members of the objects, arrays (`[]`) and callbacks (`()`, returning `⇒`) declared in the
  * package, to `MAX_DEPTH`. React and DOM attributes are named by their declaring interface under `…inherited`.
- * An exported stylesheet records its custom properties and its selectors and at-rules; each CSS
- * Module class records a fingerprint of the declarations of every rule that names it.
+ * An exported stylesheet records its custom properties, its selectors and at-rules, and a fingerprint
+ * of each rule's declarations, so a token's value counts; each CSS Module class records a
+ * fingerprint of the declarations of every rule that names it. Every non-test file under a frozen
+ * package's `src/` records a content fingerprint, so a change to a component's logic fails too:
+ * TypeScript is read as its syntax tree and CSS as its rules, so reformatting or a comment is no
+ * change.
  *
  * `@sim/emcn-auth` and `@sim/emcn-docs` are frozen with `@sim/emcn` and `@sim/emcn-platform`: the
  * design owner is their only author (`git log --format=%an -- packages/emcn-auth packages/emcn-docs`).
@@ -47,10 +51,14 @@ interface SubpathSurface {
 interface StylesheetSurface {
   properties: string[]
   selectors: string[]
+  /** Each rule's selector (or at-rule) with a fingerprint of its declarations. */
+  declarations: Record<string, string>
 }
 interface PackageSurface {
   exports: Record<string, SubpathSurface | StylesheetSurface | 'asset'>
   classes: Record<string, Record<string, string>>
+  /** Each source file under `src/` with a fingerprint of its content. */
+  sources: Record<string, string>
 }
 type Surface = Record<string, PackageSurface>
 
@@ -64,6 +72,8 @@ const normalizeCss = (text: string) =>
     .replace(/\s*([,>+~(){}:;])\s*/g, '$1')
     .trim()
 
+const fingerprint = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 12)
+
 /** The at-rules enclosing `node`, outermost first, each followed by a space. */
 function cssContext(node: postcss.Node) {
   let context = ''
@@ -76,17 +86,101 @@ function cssContext(node: postcss.Node) {
   return context
 }
 
+/** A rule's or at-rule's own declarations, normalized: `prop:value`, in order, `;`-joined. */
+function declarationText(node: postcss.Container) {
+  return (node.nodes ?? [])
+    .filter((child): child is postcss.Declaration => child.type === 'decl')
+    .map((decl) => `${decl.prop}:${normalizeCss(decl.value)}${decl.important ? '!important' : ''}`)
+    .join(';')
+}
+
+/** A stylesheet as its rules and declarations, so reformatting and comments are no change. */
+function normalizedStylesheet(text: string) {
+  const lines: string[] = []
+  const root = postcss.parse(text)
+  if (declarationText(root)) lines.push(`{${declarationText(root)}}`)
+  root.walk((node) => {
+    if (node.type === 'rule')
+      lines.push(`${cssContext(node)}${normalizeCss(node.selector)}{${declarationText(node)}}`)
+    if (node.type === 'atrule')
+      lines.push(
+        `${cssContext(node)}${normalizeCss(`@${node.name} ${node.params}`)}{${declarationText(node)}}`
+      )
+  })
+  return lines.join('\n')
+}
+
 function stylesheetSurface(file: string): StylesheetSurface {
   const properties = new Set<string>()
   const selectors = new Set<string>()
+  const declarations = new Map<string, string[]>()
+  const record = (key: string, node: postcss.Container) => {
+    selectors.add(key)
+    const text = declarationText(node)
+    if (text) declarations.set(key, [...(declarations.get(key) ?? []), text])
+  }
   postcss.parse(readFileSync(file, 'utf8')).walk((node) => {
     if (node.type === 'decl' && node.prop.startsWith('--')) properties.add(node.prop)
-    if (node.type === 'rule') selectors.add(cssContext(node) + normalizeCss(node.selector))
+    if (node.type === 'rule') record(cssContext(node) + normalizeCss(node.selector), node)
     if (node.type === 'atrule')
-      selectors.add(cssContext(node) + normalizeCss(`@${node.name} ${node.params}`))
+      record(cssContext(node) + normalizeCss(`@${node.name} ${node.params}`), node)
   })
-  return { properties: sorted(properties), selectors: sorted(selectors) }
+  return {
+    properties: sorted(properties),
+    selectors: sorted(selectors),
+    declarations: byKey(
+      [...declarations].map(([key, texts]): [string, string] => [
+        key,
+        fingerprint(texts.join('\n')),
+      ])
+    ),
+  }
 }
+
+/**
+ * TypeScript as its syntax tree: each node's kind with its name, literal, operator or declaration
+ * keyword. Whitespace, comments, separators and parentheses (the tree already holds precedence)
+ * leave no trace, so only a change to the code counts.
+ */
+function normalizedScript(text: string, file: string) {
+  const kind = /\.[jt]sx$/.test(file) ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.ESNext, false, kind)
+  const parts: string[] = []
+  const visit = (node: ts.Node): void => {
+    if (ts.isParenthesizedExpression(node) || ts.isParenthesizedTypeNode(node)) {
+      ts.forEachChild(node, visit)
+      return
+    }
+    if (ts.isJsxText(node)) {
+      const words = node.text.replace(/\s+/g, ' ').trim()
+      if (words) parts.push(`text:${words}`)
+      return
+    }
+    const fields = node as ts.Node & { text?: unknown; operator?: unknown; token?: unknown }
+    let part = ts.SyntaxKind[node.kind]
+    if (typeof fields.text === 'string' && !ts.isSourceFile(node)) part += `:${fields.text}`
+    if (typeof fields.operator === 'number') part += `:${ts.SyntaxKind[fields.operator]}`
+    if (typeof fields.token === 'number') part += `:${ts.SyntaxKind[fields.token]}`
+    if (ts.isVariableDeclarationList(node))
+      part += `:${node.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const | ts.NodeFlags.Using)}`
+    parts.push(part)
+    parts.push('(')
+    ts.forEachChild(node, visit)
+    parts.push(')')
+  }
+  visit(source)
+  return parts.join(' ')
+}
+
+/** A fingerprint of a source file's content, read as code or rules where the file is either. */
+function sourceFingerprint(file: string) {
+  const text = readFileSync(file, 'utf8')
+  if (/\.[cm]?[jt]sx?$/.test(file)) return fingerprint(normalizedScript(text, file))
+  if (file.endsWith('.css')) return fingerprint(normalizedStylesheet(text))
+  return fingerprint(text.replace(/\r\n/g, '\n').trim())
+}
+
+const isTestFile = (file: string) => /\.test\.[cm]?[jt]sx?$/.test(file)
 
 /** Each class a CSS Module names, with a fingerprint of the rules (and declarations) naming it. */
 function classFingerprints(file: string) {
@@ -103,10 +197,7 @@ function classFingerprints(file: string) {
     }
   })
   return byKey(
-    [...rules].map(([name, texts]): [string, string] => [
-      name,
-      createHash('sha256').update(texts.join('\n')).digest('hex').slice(0, 12),
-    ])
+    [...rules].map(([name, texts]): [string, string] => [name, fingerprint(texts.join('\n'))])
   )
 }
 
@@ -267,6 +358,12 @@ function readSurface(root: string): Surface {
         file.slice(prefix.length),
         classFingerprints(path.join(root, file)),
       ])
+    const sources = files
+      .filter((file) => file.startsWith(`${prefix}src/`) && !isTestFile(file))
+      .map((file): [string, string] => [
+        file.slice(prefix.length),
+        sourceFingerprint(path.join(root, file)),
+      ])
     surface[owner.name] = {
       exports: byKey(
         entries
@@ -281,6 +378,7 @@ function readSurface(root: string): Surface {
           ])
       ),
       classes: byKey(classes),
+      sources: byKey(sources),
     }
   }
   return surface
@@ -331,7 +429,8 @@ if (import.meta.main) {
         `EMCN's surface changed (${SNAPSHOT}):\n${diff.map((line) => `  ${line}`).join('\n')}\n\n` +
           'EMCN is frozen: compose the existing components and pass no new attribute, variant, ' +
           'option, item field, parameter, token, selector or class style through to them (a `~` ' +
-          'on a class means its declarations changed). Only the design owner (CODEOWNERS) changes ' +
+          'on a class or a stylesheet rule means its declarations changed, and on a source file ' +
+          'that its code changed). Only the design owner (CODEOWNERS) changes ' +
           'EMCN and regenerates the snapshot with `bun run check:emcn-surface -- --update`.\n'
       )
       process.exitCode = 1
