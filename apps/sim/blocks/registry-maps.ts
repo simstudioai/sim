@@ -161,6 +161,7 @@ import { HiggsfieldBlock, HiggsfieldBlockMeta } from '@/blocks/blocks/higgsfield
 import { HubSpotBlock, HubSpotBlockMeta } from '@/blocks/blocks/hubspot'
 import { HuggingFaceBlock, HuggingFaceBlockMeta } from '@/blocks/blocks/huggingface'
 import { HumanInTheLoopBlock, HumanInTheLoopV2Block } from '@/blocks/blocks/human_in_the_loop'
+import { HuntApiBlock, HuntApiBlockMeta } from '@/blocks/blocks/huntapi'
 import { HunterBlock, HunterBlockMeta } from '@/blocks/blocks/hunter'
 import { IAMBlock, IAMBlockMeta } from '@/blocks/blocks/iam'
 import { IcypeasBlock, IcypeasBlockMeta } from '@/blocks/blocks/icypeas'
@@ -559,6 +560,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   huggingface: HuggingFaceBlock,
   human_in_the_loop: HumanInTheLoopBlock,
   human_in_the_loop_v2: HumanInTheLoopV2Block,
+  huntapi: HuntApiBlock,
   hunter: HunterBlock,
   iam: IAMBlock,
   icypeas: IcypeasBlock,
@@ -920,6 +922,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   higgsfield: HiggsfieldBlockMeta,
   hubspot: HubSpotBlockMeta,
   huggingface: HuggingFaceBlockMeta,
+  huntapi: HuntApiBlockMeta,
   hunter: HunterBlockMeta,
   iam: IAMBlockMeta,
   icypeas: IcypeasBlockMeta,

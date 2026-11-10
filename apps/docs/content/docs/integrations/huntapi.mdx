@@ -1,0 +1,123 @@
+---
+title: HuntAPI
+description: Download videos and audio from public video URLs
+integration:
+  type: "huntapi"
+  color: "#FFFFFF"
+---
+
+import { ReferenceDetails } from "@/components/ui/reference-details"
+
+
+{/* MANUAL-CONTENT-START:intro */}
+[HuntAPI](https://www.huntapi.com/) downloads video and audio from public video URLs, with the video's metadata.
+
+With the HuntAPI block, you can:
+
+- **Download videos**: start a download in a chosen quality and format, with or without sound
+- **Extract audio**: start extracting a video's audio track as MP3, M4A or WAV
+- **Get the file**: check a download job and, once it completes, get the link to the file with the video's title, duration, uploader and view counts
+
+Downloads run as jobs: Download Video and Download Audio return a job ID, and Get Job returns the file link once the job's status is CompletedJob.
+
+Create an API key in the [HuntAPI dashboard](https://app.huntapi.com/) and paste it into the block.
+
+In Sim, the HuntAPI block lets your agents transcribe videos, archive content and collect video metadata.
+{/* MANUAL-CONTENT-END */}
+
+## Use the block [#usage-instructions]
+
+Start a download of a public video in a chosen quality and format, or extract its audio track, then check the job to get a link to the file with the video's title, duration, channel and view counts.
+
+## Actions
+
+### HuntAPI Download Video
+
+Start downloading a public video in a chosen quality and format. Returns a job ID; use Get Job to get the file link once the job completes.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | URL of the public video \(e.g., "https://www.youtube.com/watch?v=jNQXAC9IVRw") |
+| `videoQuality` | string | No | Quality: best, 1080p, 720p, 480p or 360p \(defaults to "best"\); videos over an hour are capped at 720p |
+| `videoFormat` | string | No | Preferred format: mp4, webm or mkv \(defaults to "mp4"\) |
+| `downloadType` | string | No | audio_video for the video with sound, video for the picture only \(defaults to "audio_video"\) |
+| `maxDuration` | number | No | Maximum duration in seconds; longer content is cut at this length |
+| `apiKey` | string | Yes | HuntAPI API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | ID of the download job, to pass to Get Job |
+
+</ReferenceDetails>
+
+### HuntAPI Download Audio
+
+Start extracting the audio track of a public video as MP3 or another format. Returns a job ID; use Get Job to get the file link once the job completes.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `url` | string | Yes | URL of the public video \(e.g., "https://www.youtube.com/watch?v=jNQXAC9IVRw") |
+| `audioQuality` | string | No | Quality: best, 320kbps, 256kbps or 128kbps \(defaults to "best"\) |
+| `audioFormat` | string | No | Preferred format: mp3, m4a or wav \(defaults to "mp3"\) |
+| `maxDuration` | number | No | Maximum duration in seconds; longer content is cut at this length |
+| `apiKey` | string | Yes | HuntAPI API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | ID of the download job, to pass to Get Job |
+
+</ReferenceDetails>
+
+### HuntAPI Get Job
+
+Get a download job's status and progress and, once it completes, the link to the file with the video's metadata.
+
+<ReferenceDetails>
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `jobId` | string | Yes | The job ID returned by Download Video or Download Audio |
+| `apiKey` | string | Yes | HuntAPI API key |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jobId` | string | ID of the download job |
+| `status` | string | Status of the job, CompletedJob once the file is ready |
+| `progress` | number | Progress of the job, from 0 to 100 |
+| `fileUrl` | string | Link to the downloaded file, once the job completes |
+| `createdAt` | string | When the job was created |
+| `completedAt` | string | When the job completed |
+| `durationMs` | number | Time the job took, in milliseconds |
+| `metadata` | object | Metadata of the video, once the job completes |
+|   ↳ `title` | string | Title of the video |
+|   ↳ `description` | string | Description of the video |
+|   ↳ `duration` | number | Duration of the video in seconds |
+|   ↳ `extension` | string | File extension of the download |
+|   ↳ `thumbnail` | string | URL of the video thumbnail |
+|   ↳ `uploader` | string | Name of the uploader |
+|   ↳ `uploaderUrl` | string | URL of the uploader's page |
+|   ↳ `viewCount` | number | Number of views |
+|   ↳ `likeCount` | number | Number of likes |
+|   ↳ `commentCount` | number | Number of comments |
+|   ↳ `uploadDate` | number | Upload date as a Unix timestamp in seconds |
+|   ↳ `webpageUrl` | string | URL of the video page |
+
+</ReferenceDetails>
+
+

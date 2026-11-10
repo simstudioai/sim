@@ -2670,6 +2670,11 @@ import {
 } from '@/tools/hubspot'
 import { huggingfaceChatTool } from '@/tools/huggingface'
 import {
+  huntapiDownloadAudioTool,
+  huntapiDownloadVideoTool,
+  huntapiGetJobTool,
+} from '@/tools/huntapi'
+import {
   hunterCompaniesFindTool,
   hunterDiscoverTool,
   hunterDomainSearchTool,
@@ -7150,6 +7155,9 @@ export const tools: Record<string, ExecutableToolConfig> = {
   http_request: httpRequestTool,
   webhook_request: webhookRequestTool,
   huggingface_chat: huggingfaceChatTool,
+  huntapi_download_video: huntapiDownloadVideoTool,
+  huntapi_download_audio: huntapiDownloadAudioTool,
+  huntapi_get_job: huntapiGetJobTool,
   llm_chat: llmChatTool,
   function_execute: functionExecuteTool,
   gamma_generate: gammaGenerateTool,

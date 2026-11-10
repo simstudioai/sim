@@ -196,6 +196,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/hubspot-setup.mdx',
   'integrations/hubspot.mdx',
   'integrations/huggingface.mdx',
+  'integrations/huntapi.mdx',
   'integrations/hunter.mdx',
   'integrations/iam.mdx',
   'integrations/icypeas.mdx',
