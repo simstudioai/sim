@@ -9,8 +9,12 @@ import {
   mistralParseInputSchema,
 } from '@/lib/internal/mistral/input'
 import { isMistralInputWithinLimit } from '@/lib/internal/mistral/input-size'
-import { executeMistralParse } from '@/lib/internal/mistral/operations'
-import type { InternalToolOperationHandler } from '@/lib/internal/tool-operations/types'
+import { executeMistralToolParse } from '@/lib/internal/mistral/operations'
+import { isInternalToolFileResult } from '@/lib/internal/tool-operations/file-result'
+import type {
+  InternalToolOperationHandler,
+  InternalToolOperationResult,
+} from '@/lib/internal/tool-operations/types'
 import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
 
 const logger = createLogger('MistralToolExecution')
@@ -26,7 +30,9 @@ function validationResponse(error: z.ZodError): Response {
   )
 }
 
-export const executeMistralTool: InternalToolOperationHandler = async (request) => {
+export const executeMistralTool: InternalToolOperationHandler<InternalToolOperationResult> = async (
+  request
+) => {
   request.signal?.throwIfAborted()
   if (!['mistral_parser', 'mistral_parser_v2', 'mistral_parser_v3'].includes(request.toolId)) {
     return Response.json(
@@ -51,14 +57,14 @@ export const executeMistralTool: InternalToolOperationHandler = async (request) 
   if (!parsed.success) return validationResponse(parsed.error)
 
   try {
-    const result = await executeMistralParse(parsed.data, {
+    const result = await executeMistralToolParse(request.toolId, parsed.data, {
       headers: request.headers,
       requestId: request.requestId,
       signal: request.signal,
       userId: request.context.userId,
     })
     request.signal?.throwIfAborted()
-    return Response.json(result)
+    return isInternalToolFileResult(result) ? result : Response.json(result)
   } catch (error) {
     request.signal?.throwIfAborted()
     if (error instanceof ProviderCapacityDeferredError) {

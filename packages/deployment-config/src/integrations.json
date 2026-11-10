@@ -18361,7 +18361,7 @@
       "type": "mistral_parse_v3",
       "slug": "mistral-parser",
       "name": "Mistral Parser",
-      "description": "Extract text from PDF documents",
+      "description": "Extract text, tables, and images from PDF documents",
       "longDescription": "Extract text from uploaded PDF documents, or from a URL.",
       "bgColor": "#000000",
       "iconName": "MistralIcon",
@@ -18379,7 +18379,7 @@
       "category": "tools",
       "integrationType": "ai",
       "tags": ["document-processing", "ocr"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "modal",
