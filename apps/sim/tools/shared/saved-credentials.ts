@@ -276,10 +276,6 @@ export const SUPABASE_CREDENTIAL_OAUTH = tokenCredentialOAuth('supabase', {
   apiKey: 'accessToken',
   projectId: 'domain',
 })
-/** Supabase's public-URL tool builds a link without a key, so the credential fills only the project. */
-export const SUPABASE_PUBLIC_URL_CREDENTIAL_OAUTH = tokenCredentialOAuth('supabase', {
-  projectId: 'domain',
-})
 export const TAILSCALE_CREDENTIAL_OAUTH = tokenCredentialOAuth('tailscale', {
   apiKey: 'accessToken',
 })

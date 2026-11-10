@@ -1,23 +1,40 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
+import {
+  inputValidationMock,
+  inputValidationMockFns,
+} from '@sim/testing/mocks/input-validation.mock'
 import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
+
 import {
   validateAlgoliaServiceAccount,
   validateAshbyServiceAccount,
   validateAzureDevOpsServiceAccount,
   validateBrexServiceAccount,
+  validateConvexServiceAccount,
   validateDevinServiceAccount,
+  validateDynatraceServiceAccount,
   validateElevenLabsServiceAccount,
+  validateEmailBisonServiceAccount,
   validateFlintServiceAccount,
+  validateGrafanaServiceAccount,
+  validateInfisicalServiceAccount,
   validateInstantlyServiceAccount,
   validateJotformServiceAccount,
+  validateJupyterServiceAccount,
+  validateLogfireServiceAccount,
   validateMailgunServiceAccount,
   validateNewRelicServiceAccount,
   validateOktaServiceAccount,
+  validatePlaneServiceAccount,
   validateResendServiceAccount,
   validateSupabaseServiceAccount,
   validateThriveServiceAccount,
+  validateTinybirdServiceAccount,
   validateTwilioServiceAccount,
   validateTypeformServiceAccount,
+  validateUpstashServiceAccount,
   validateVercelServiceAccount,
   validateYouTubeServiceAccount,
 } from '@/lib/credentials/token-service-accounts/validators/token-checks'
@@ -349,4 +366,29 @@ describe('saved credentials whose connection names a host, region, or account', 
       validateAzureDevOpsServiceAccount({ apiToken: 'bad', providerWorkspaceId: 'public-org' })
     ).rejects.toMatchObject({ code: 'invalid_credentials' })
   })
+})
+
+describe('saved credentials for a host the user chose', () => {
+  it.each([
+    ['Convex', validateConvexServiceAccount],
+    ['Dynatrace', validateDynatraceServiceAccount],
+    ['Email Bison', validateEmailBisonServiceAccount],
+    ['Grafana', validateGrafanaServiceAccount],
+    ['Infisical', validateInfisicalServiceAccount],
+    ['Jupyter', validateJupyterServiceAccount],
+    ['Logfire', validateLogfireServiceAccount],
+    ['Plane', validatePlaneServiceAccount],
+    ['Tinybird', validateTinybirdServiceAccount],
+    ['Upstash', validateUpstashServiceAccount],
+  ])(
+    '%s refuses credentials smuggled into the URL before sending the key anywhere',
+    async (_, validate) => {
+      inputValidationMockFns.mockSecureFetchWithValidation.mockReset()
+
+      await expect(
+        validate({ apiToken: 'secret', domain: 'https://user:pass@instance.example.com' })
+      ).rejects.toMatchObject({ code: 'invalid_credentials' })
+      expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
+    }
+  )
 })

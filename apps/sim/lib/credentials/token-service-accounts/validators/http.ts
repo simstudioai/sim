@@ -45,7 +45,7 @@ interface TokenCheck {
    * of a plain fetch.
    */
   egress?: Extract<EgressProfile, 'configuredEndpoint' | 'selfHostedService'>
-  /** The vendor echoes the token in its error body, so that body is never read into logs. */
+  /** The vendor echoes the token in its error body, so that body never reaches logs or error details. */
   errorBodyEchoesToken?: boolean
   /**
    * A cheap documented read that succeeds only with a valid token — the same
@@ -62,14 +62,10 @@ interface TokenCheck {
   forbiddenMeansScoped?: boolean
   /**
    * For a vendor that reports a rejected key inside a successful response (a
-   * GraphQL `errors` array): returns whether the parsed body proves the key.
+   * GraphQL `errors` array): returns whether the parsed body proves the key, or
+   * a display name read from it (a GitLab token's name) when it does.
    */
-  acceptsBody?: (body: unknown) => boolean
-  /**
-   * Names the credential from the verified reply (a GitLab token's name), used
-   * as its default display name alongside the domain or account id.
-   */
-  describe?: (body: unknown) => string | undefined
+  acceptsBody?: (body: unknown) => boolean | { displayName: string }
   /**
    * For a vendor whose error status alone doesn't say the key is bad (Fireflies
    * returns 500 with `auth_failed`; Brex returns its scope-error 403 for an
@@ -96,6 +92,49 @@ export function readJsonBody(response: ProviderResponse, serviceLabel: string): 
     maxBytes: MAX_CHECK_RESPONSE_BYTES,
     label: `${serviceLabel} credential check`,
   })
+}
+
+/**
+ * A typed http(s) base URL in the form tools build request paths on: a bare host
+ * is taken as https, trailing slashes are dropped, and any other scheme,
+ * credentials, a query, or a fragment is refused, since each would retarget the
+ * request. `allowPath: false` also refuses a path, for tools that append to the
+ * origin.
+ */
+export function normalizeHttpBaseUrl(
+  raw: string | undefined,
+  { allowPath = true }: { allowPath?: boolean } = {}
+): string {
+  const typed = (raw ?? '').trim()
+  if (!typed) throw new Error('missing URL')
+  const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`)
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('http(s) only')
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error('credentials, query, or fragment in URL')
+  }
+  const path = url.pathname.replace(/\/+$/, '')
+  if (path && !allowPath) throw new Error('path not allowed')
+  return `${url.origin}${path}`
+}
+
+/**
+ * Refuses a typed URL that carries credentials, before a tool's own normalizer
+ * can drop them silently and verify a different identity than the user meant.
+ */
+export function refuseUrlCredentials(raw: string | undefined): string {
+  const typed = (raw ?? '').trim()
+  const authority = typed.replace(/^[a-z][a-z\d+.-]*:\/\//i, '').split(/[/?#]/)[0]
+  if (authority.includes('@')) throw new Error('credentials in URL')
+  return typed
+}
+
+/** A domain that must be one of a fixed set (a region or regional host), compared case-insensitively. */
+export function allowedDomain(allowed: ReadonlySet<string>) {
+  return ({ domain }: TokenServiceAccountFields): string => {
+    const value = (domain ?? '').trim().toLowerCase()
+    if (!allowed.has(value)) throw new Error('unknown region')
+    return value
+  }
 }
 
 /** Runs `normalize` on a typed connection field, rejecting what it refuses as the user's input. */
@@ -224,6 +263,7 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
     }
     if (!scopedForbidden && !response.ok) {
       if (!check.errorBodyEchoesToken) await throwForProviderResponse(response, 'verify')
+      // The body echoes the token, so it is dropped unread.
       await response.body?.cancel().catch(() => undefined)
       throw new TokenServiceAccountValidationError(
         providerFailureCode(response.status),
@@ -240,11 +280,15 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
           step: 'verify',
         })
       }
-      if (!check.acceptsBody(body)) {
+      const verdict = check.acceptsBody(body)
+      if (!verdict) {
         throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
       }
-      const name = check.describe?.(body)
-      return name ? { ...accepted, displayName: where ? `${name} (${where})` : name } : accepted
+      if (typeof verdict === 'object') {
+        const name = verdict.displayName
+        return { ...accepted, displayName: where ? `${name} (${where})` : name }
+      }
+      return accepted
     }
     await response.body?.cancel().catch(() => undefined)
     return accepted

@@ -10,7 +10,10 @@ import type {
   TokenServiceAccountValidationResult,
 } from '@/lib/credentials/token-service-accounts/server'
 import {
+  allowedDomain,
+  normalizeHttpBaseUrl,
   readJsonBody,
+  refuseUrlCredentials,
   tokenCheckValidator,
 } from '@/lib/credentials/token-service-accounts/validators/http'
 import { buildJupyterAuthHeaders, normalizeJupyterServerUrl } from '@/lib/internal/jupyter/protocol'
@@ -21,7 +24,7 @@ import { buildDynatraceUrl, dynatraceHeaders } from '@/tools/dynatrace/utils'
 import { normalizeEmailBisonBaseUrl } from '@/tools/emailbison/utils'
 import { normalizeGitLabHost } from '@/tools/gitlab/utils'
 import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
-import { buildJotformHeaders, buildJotformUrl } from '@/tools/jotform/utils'
+import { buildJotformHeaders, buildJotformUrl, JOTFORM_REGION_HOSTS } from '@/tools/jotform/utils'
 import {
   getLogfireBaseUrl,
   LOGFIRE_READ_TOKEN_INFO_PATH,
@@ -33,7 +36,7 @@ import { getNerdGraphEndpoint, newRelicHeaders } from '@/tools/new_relic/utils'
 import { oktaHeaders } from '@/tools/okta/utils'
 import { planeApiUrl, planeHeaders } from '@/tools/plane/utils'
 import { supabaseBaseUrl } from '@/tools/supabase/utils'
-import { getThriveBaseUrl, getThriveHeaders } from '@/tools/thrive/utils'
+import { getThriveBaseUrl, getThriveHeaders, THRIVE_HOSTS } from '@/tools/thrive/utils'
 import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
 
 /**
@@ -43,6 +46,9 @@ import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
  * unknown-id lookup) sit alongside. Kept in one module so each new provider
  * costs a declaration, not a module, in every graph that verifies credentials.
  */
+
+/** Regions for vendors with one US and one EU API host. */
+const US_OR_EU: ReadonlySet<string> = new Set(['us', 'eu'])
 
 /** Affinity's whoami endpoint answers 200 for a valid key and 401 otherwise. */
 export const validateAffinityServiceAccount = tokenCheckValidator({
@@ -409,28 +415,12 @@ export const validateDubServiceAccount = tokenCheckValidator({
 })
 
 /**
- * Reduces a typed Dynatrace environment URL to the form `buildDynatraceUrl` appends
- * `/api/v2/...` to: SaaS or Managed / ActiveGate (`https://host:9999/e/<environment-id>`),
- * dropping a trailing slash and `/api/v1` or `/api/v2` as the tools do. A bare host gets
- * `https://`; userinfo, a query, or a fragment is refused.
- */
-function normalizeDynatraceEnvironmentUrl(raw: string | undefined): string {
-  const typed = (raw ?? '').trim()
-  if (!typed) throw new Error('missing environment URL')
-  const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`)
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('http(s) only')
-  if (url.username || url.password) throw new Error('credentials in URL')
-  if (url.search || url.hash) throw new Error('query or fragment')
-  return `${url.origin}${url.pathname}`.replace(/\/+$/, '').replace(/\/api\/v[12]$/, '')
-}
-
-/**
  * Dynatrace's token lookup accepts an access token with any scope and returns its own
  * metadata, including whether it is enabled; an unknown token gets 401.
  */
 export const validateDynatraceServiceAccount = tokenCheckValidator({
   serviceLabel: 'Dynatrace',
-  domain: ({ domain }) => normalizeDynatraceEnvironmentUrl(domain),
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain).replace(/\/api\/v[12]$/, ''),
   egress: 'configuredEndpoint',
   request: ({ apiToken, domain = '' }) => ({
     url: buildDynatraceUrl(domain, '/apiTokens/lookup'),
@@ -472,7 +462,7 @@ export const validateElevenLabsServiceAccount = tokenCheckValidator({
  */
 export const validateEmailBisonServiceAccount = tokenCheckValidator({
   serviceLabel: 'Email Bison',
-  domain: ({ domain }) => normalizeEmailBisonBaseUrl(domain ?? ''),
+  domain: ({ domain }) => normalizeEmailBisonBaseUrl(refuseUrlCredentials(domain)),
   egress: 'configuredEndpoint',
   request: ({ apiToken, domain }) => ({
     url: `${domain}/api/users`,
@@ -611,38 +601,14 @@ export const validateGitLabServiceAccount = tokenCheckValidator({
         reason: 'GitLab returned an unexpected token lookup',
       })
     }
-    return (
+    const usable =
       token.active &&
       token.revoked !== true &&
       token.scopes.some((scope) => GITLAB_API_SCOPES.has(String(scope)))
-    )
-  },
-  describe: (body) => {
-    const name = toRecord(body).name
-    return typeof name === 'string' && name.trim() ? name.trim() : undefined
+    const name = typeof token.name === 'string' ? token.name.trim() : ''
+    return usable && name ? { displayName: name } : usable
   },
 })
-
-/**
- * Normalizes a Grafana instance URL to `<origin><path>` with no trailing slash, the form
- * the tools append `/api/...` to; keeps a sub-path (Grafana under `/grafana`) and defaults
- * a bare host to https. Userinfo, a query, or a fragment is refused.
- */
-function normalizeGrafanaBaseUrl(raw: string | undefined): string {
-  const value = (raw ?? '').trim()
-  if (!value) throw new Error('missing instance URL')
-  const url = new URL(/^https?:\/\//i.test(value) ? value : `https://${value}`)
-  if (
-    (url.protocol !== 'https:' && url.protocol !== 'http:') ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash
-  ) {
-    throw new Error('Enter a Grafana URL like https://your-stack.grafana.net')
-  }
-  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`
-}
 
 /**
  * Grafana's `GET /api/user` needs a signed-in, non-anonymous identity but no role, so it
@@ -651,7 +617,7 @@ function normalizeGrafanaBaseUrl(raw: string | undefined): string {
  */
 export const validateGrafanaServiceAccount = tokenCheckValidator({
   serviceLabel: 'Grafana',
-  domain: ({ domain }) => normalizeGrafanaBaseUrl(domain),
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
   egress: 'configuredEndpoint',
   request: ({ apiToken, domain }) => ({
     url: `${domain}/api/user`,
@@ -728,29 +694,13 @@ export const validateIncidentioServiceAccount = tokenCheckValidator({
 })
 
 /**
- * Reduces a typed Infisical instance to the base URL the tools prefix every request with:
- * `us.infisical.com`, `https://eu.infisical.com/`, or a self-hosted URL (http allowed, a
- * reverse-proxy path kept) lose only a trailing slash; credentials, a query, or a fragment
- * is refused.
- */
-function normalizeInfisicalBaseUrl(raw: string | undefined): string {
-  const typed = (raw ?? '').trim()
-  if (!typed) throw new Error('missing host')
-  const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`)
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('http(s) only')
-  if (url.username || url.password) throw new Error('credentials in URL')
-  if (url.search || url.hash) throw new Error('query or fragment')
-  return `${url.origin}${url.pathname}`.replace(/\/+$/, '')
-}
-
-/**
  * Infisical's `GET /api/v1/identities/details`, called with a machine identity's own access token
  * on its instance (US, EU, or self-hosted), needs no project permission and answers the identity's
  * organization; a malformed, expired, or wrong-instance token gets a JSON 403 TokenError.
  */
 export const validateInfisicalServiceAccount = tokenCheckValidator({
   serviceLabel: 'Infisical',
-  domain: ({ domain }) => normalizeInfisicalBaseUrl(domain),
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
   egress: 'configuredEndpoint',
   request: ({ apiToken, domain }) => ({
     url: `${domain}/api/v1/identities/details`,
@@ -794,9 +744,6 @@ export const validateIntercomServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** The regions `buildJotformUrl` maps to a host; anything else is refused before the key is sent. */
-const JOTFORM_REGIONS: ReadonlySet<string> = new Set(['us', 'eu', 'hipaa'])
-
 /**
  * Jotform's account endpoint on the region's host (via the tools' URL builder) answers 200 for a
  * valid key and 401 otherwise; a key only works on the host that issued it, so a wrong region is
@@ -804,11 +751,7 @@ const JOTFORM_REGIONS: ReadonlySet<string> = new Set(['us', 'eu', 'hipaa'])
  */
 export const validateJotformServiceAccount = tokenCheckValidator({
   serviceLabel: 'Jotform',
-  domain: ({ domain }) => {
-    const region = (domain ?? '').trim().toLowerCase()
-    if (!JOTFORM_REGIONS.has(region)) throw new Error('unknown Jotform region')
-    return region
-  },
+  domain: allowedDomain(new Set(Object.keys(JOTFORM_REGION_HOSTS))),
   request: ({ apiToken, domain }) => ({
     url: buildJotformUrl({ apiKey: apiToken, region: domain }, 'user').toString(),
     headers: { ...buildJotformHeaders(apiToken), Accept: 'application/json' },
@@ -823,7 +766,7 @@ export const validateJotformServiceAccount = tokenCheckValidator({
  */
 export const validateJupyterServiceAccount = tokenCheckValidator({
   serviceLabel: 'Jupyter',
-  domain: ({ domain }) => normalizeJupyterServerUrl(domain),
+  domain: ({ domain }) => normalizeJupyterServerUrl(refuseUrlCredentials(domain)),
   egress: 'selfHostedService',
   request: ({ apiToken, domain }) => ({
     url: `${domain}/api/status`,
@@ -964,8 +907,6 @@ export const validateMailchimpServiceAccount = tokenCheckValidator({
   },
 })
 
-const MAILGUN_REGIONS: ReadonlySet<string> = new Set<MailgunRegion>(['us', 'eu'])
-
 /**
  * Listing one domain on the region's host answers 200 for a valid account API key and 401
  * ("Invalid private key") otherwise; a key from the other region is refused the same way, so the
@@ -974,11 +915,7 @@ const MAILGUN_REGIONS: ReadonlySet<string> = new Set<MailgunRegion>(['us', 'eu']
  */
 export const validateMailgunServiceAccount = tokenCheckValidator({
   serviceLabel: 'Mailgun',
-  domain: ({ domain }) => {
-    const region = (domain ?? '').trim().toLowerCase()
-    if (!MAILGUN_REGIONS.has(region)) throw new Error('unknown Mailgun region')
-    return region
-  },
+  domain: allowedDomain(US_OR_EU),
   forbiddenMeansScoped: true,
   request: ({ apiToken, domain }) => ({
     url: `${getMailgunApiBaseUrl(domain as MailgunRegion)}/domains?limit=1`,
@@ -1007,13 +944,9 @@ export const validateMem0ServiceAccount = tokenCheckValidator({
  */
 export const validateNewRelicServiceAccount = tokenCheckValidator({
   serviceLabel: 'New Relic',
-  domain: ({ domain }) => {
-    const region = (domain ?? '').trim().toLowerCase()
-    if (region !== 'us' && region !== 'eu') throw new Error('region must be us or eu')
-    return region
-  },
+  domain: allowedDomain(US_OR_EU),
   request: ({ apiToken, domain }) => ({
-    url: getNerdGraphEndpoint(domain === 'eu' ? 'eu' : 'us'),
+    url: getNerdGraphEndpoint(domain as 'us' | 'eu'),
     method: 'POST',
     headers: { ...newRelicHeaders(apiToken), Accept: 'application/json' },
     body: JSON.stringify({ query: '{ actor { user { id } } }' }),
@@ -1090,12 +1023,10 @@ export const validatePersonaServiceAccount = tokenCheckValidator({
  * own checks (no credentials, query, fragment, dot segments, or /api/vN suffix).
  */
 function normalizePlaneInstanceUrl(raw: string | undefined): string {
-  const input = raw?.trim() ?? ''
-  if (!input) throw new Error('missing instance URL')
-  const withScheme = /^[a-z][a-z\d+.-]*:\/\//i.test(input) ? input : `https://${input}`
-  planeApiUrl(withScheme, '/api/v1/users/me/')
-  const url = new URL(withScheme)
-  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`
+  const base = normalizeHttpBaseUrl(raw)
+  // The tools' own checks: no dot segments or /api/vN suffix.
+  planeApiUrl(base, '/api/v1/users/me/')
+  return base
 }
 
 /**
@@ -1373,25 +1304,13 @@ export const validateTelegramServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** The Thrive API hosts the block's Region dropdown offers; any other host would carry the key elsewhere. */
-const THRIVE_HOSTS = new Set([
-  'public.api.learn.link',
-  'public.api.mea.learn.tech',
-  'public.api.learnstaging.link',
-  'public.api.meastaging.learn.tech',
-])
-
 /**
  * Listing Thrive tags is a read with the same Basic `tenantId:apiKey` auth the tools send, on the
  * region host the key belongs to; a bad key or tenant gets 401.
  */
 export const validateThriveServiceAccount = tokenCheckValidator({
   serviceLabel: 'Thrive',
-  domain: ({ domain }) => {
-    const host = (domain ?? '').trim().toLowerCase()
-    if (!THRIVE_HOSTS.has(host)) throw new Error('unknown Thrive region host')
-    return host
-  },
+  domain: allowedDomain(THRIVE_HOSTS),
   workspaceId: ({ providerWorkspaceId }) => {
     const tenantId = (providerWorkspaceId ?? '').trim()
     // The tenant id is the Basic-auth username, so a colon would split it.
@@ -1405,22 +1324,6 @@ export const validateThriveServiceAccount = tokenCheckValidator({
 })
 
 /**
- * Reduces a typed Tinybird API base URL to the form the tools prefix their path with
- * (`base_url.trim().replace(/\/+$/, '')`): a Cloud region, self-managed, or Tinybird
- * Local URL becomes `<scheme>://<host>[:port][/prefix]`. A bare host gets `https://`;
- * userinfo, a query, or a fragment is refused, since each would retarget the request.
- */
-function normalizeTinybirdBaseUrl(raw: string | undefined): string {
-  const typed = (raw ?? '').trim()
-  if (!typed) throw new Error('missing base URL')
-  const url = new URL(/^https?:\/\//i.test(typed) ? typed : `https://${typed}`)
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('http(s) only')
-  if (url.username || url.password) throw new Error('credentials in URL')
-  if (url.search || url.hash) throw new Error('query or fragment')
-  return `${url.origin}${url.pathname}`.replace(/\/+$/, '')
-}
-
-/**
  * `SELECT 1` on Tinybird's Query API touches no resource and answers 200 for a token with a read
  * scope at the base URL it was typed with. An unknown or other-region token gets a 403 naming an
  * invalid authentication token (and echoing it); any other JSON 403 is a valid token without a
@@ -1428,7 +1331,7 @@ function normalizeTinybirdBaseUrl(raw: string | undefined): string {
  */
 export const validateTinybirdServiceAccount = tokenCheckValidator({
   serviceLabel: 'Tinybird',
-  domain: ({ domain }) => normalizeTinybirdBaseUrl(domain),
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain),
   egress: 'configuredEndpoint',
   errorBodyEchoesToken: true,
   forbiddenMeansScoped: true,
@@ -1487,28 +1390,6 @@ export const validateTypeformServiceAccount = tokenCheckValidator({
 })
 
 /**
- * Reduces a typed Upstash REST URL to the origin the tools prefix every command path
- * with (`${restUrl}/get/key`). A bare host gets `https://`; a non-http scheme, userinfo, a
- * path, a query, or a fragment is refused, since each would retarget the request.
- */
-function normalizeUpstashRestUrl(raw: string | undefined): string {
-  const value = (raw ?? '').trim().replace(/\/+$/, '')
-  if (!value) throw new Error('missing REST URL')
-  const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(value) ? value : `https://${value}`)
-  if (
-    (url.protocol !== 'https:' && url.protocol !== 'http:') ||
-    url.username ||
-    url.password ||
-    (url.pathname !== '/' && url.pathname !== '') ||
-    url.search ||
-    url.hash
-  ) {
-    throw new Error('Not an Upstash REST URL')
-  }
-  return url.origin
-}
-
-/**
  * PING answers `{"result":"PONG"}` for a standard token; a bad token gets 401. A token whose
  * ACL doesn't allow PING (a read-only or ACL-user token) gets a NOPERM error, which still
  * proves it authenticated. Any http(s) origin is accepted, as the legacy block accepted any
@@ -1516,7 +1397,7 @@ function normalizeUpstashRestUrl(raw: string | undefined): string {
  */
 export const validateUpstashServiceAccount = tokenCheckValidator({
   serviceLabel: 'Upstash',
-  domain: ({ domain }) => normalizeUpstashRestUrl(domain),
+  domain: ({ domain }) => normalizeHttpBaseUrl(domain, { allowPath: false }),
   egress: 'configuredEndpoint',
   request: ({ apiToken, domain }) => ({
     url: `${domain}/ping`,

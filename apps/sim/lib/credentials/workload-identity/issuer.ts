@@ -24,7 +24,7 @@ export const WORKLOAD_IDENTITY_PATH = '/oidc/workload'
 export const WORKLOAD_IDENTITY_ALGORITHM = 'RS256'
 export const WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS = 300
 /** The longest lifetime a relying party may ask for; Databricks caps its own token at an hour. */
-const MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS = 3600
+export const MAX_WORKLOAD_IDENTITY_TOKEN_TTL_SECONDS = 3600
 
 const PRIVATE_JWK_FIELDS = ['d', 'p', 'q', 'dp', 'dq', 'qi'] as const
 

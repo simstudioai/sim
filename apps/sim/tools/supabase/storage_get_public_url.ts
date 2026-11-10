@@ -1,5 +1,5 @@
 import { createInternalToolOperationInput } from '@/tools/operation-input'
-import { SUPABASE_PUBLIC_URL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
+import { tokenCredentialOAuth } from '@/tools/shared/saved-credentials'
 import type {
   SupabaseStorageGetPublicUrlParams,
   SupabaseStorageGetPublicUrlResponse,
@@ -14,7 +14,8 @@ export const storageGetPublicUrlTool: InternalToolConfig<
   name: 'Supabase Storage Get Public URL',
   description: 'Get the public URL for a file in a Supabase storage bucket',
   version: '1.0.0',
-  oauth: SUPABASE_PUBLIC_URL_CREDENTIAL_OAUTH,
+  // Builds a link without a key, so the credential fills only the project.
+  oauth: tokenCredentialOAuth('supabase', { projectId: 'domain' }),
 
   params: {
     projectId: {
