@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { ActionMenu, type MenuAction } from '@sim/emcn/menu/action-menu'
 import { SESSION_HELP } from '@/app/(product)/_components/session/shell-actions'
-import { openLinkInNewTab } from '@/app/(product)/_components/sidebar/row-links'
 import { SupportModal } from '@/app/(product)/_components/sidebar/support-modal'
 import type { ShellHelp } from '@/platform/lib/data/models/shell'
+import { openLinkInNewTab } from '@/platform/shared/row-links'
 
 interface HelpMenuProps {
   iconOnly?: boolean

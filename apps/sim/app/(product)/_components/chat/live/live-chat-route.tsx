@@ -4,19 +4,31 @@ import { ChatScreen } from '@/app/(product)/_components/chat/conversation/chat-s
 import { LiveChat } from '@/app/(product)/_components/chat/live/live-chat'
 import { readOpenChat } from '@/platform/lib/data/chat-gate'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
+import { followProductRoute, productLocation } from '@/platform/lib/data/route-resolution'
 import { readOrganizationSurface } from '@/platform/lib/data/surface'
 
-/** The legacy chat page's gates: the viewer may use chat, and an Assistant chat opens under Search. */
-export async function LiveChatRoute({ chatId }: { chatId?: string }) {
+interface LiveChatRouteProps {
+  chatId?: string
+  searchParams: Record<string, string | string[] | undefined>
+}
+
+/**
+ * The legacy chat page's gates: route resolution sends a viewer without chat on, and an Assistant
+ * chat opens under Search.
+ */
+export async function LiveChatRoute({ chatId, searchParams }: LiveChatRouteProps) {
   const surface = await readOrganizationSurface()
   // A tab left open on an organization the viewer has left, such as a retired personal one.
   if (surface.status === 'denied') notFound()
   if (surface.status !== 'ok') return null
   const { organization } = surface
-  if (!organization.mothershipAvailable)
-    redirect(
-      surfaceHref(organization, organization.searchAccess.memberScoped ? '/search' : '/settings')
+  await followProductRoute(
+    organization,
+    productLocation(
+      surfaceHref(organization, chatId ? `/chat/${encodeURIComponent(chatId)}` : '/chat'),
+      searchParams
     )
+  )
   const entry = chatId ? await readOpenChat(chatId, organization.organization.id) : null
   if (chatId && !entry) notFound()
   if (entry?.mode === 'assistant') redirect(surfaceHref(organization, `/search/chat/${chatId}`))

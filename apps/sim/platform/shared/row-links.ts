@@ -1,40 +1,36 @@
 import type { MenuAction } from '@sim/emcn/menu/action-menu'
 import { toast } from '@/lib/toast/sink'
 
-/**
- * Row actions for a link. `resolveHref` supplies what the browser will not add for a new tab or the
- * clipboard, unlike `next/link`, such as the zone's base path.
- */
-export function createRowLinks(resolveHref: (href: string) => string = (href) => href) {
-  const absoluteHref = (href: string) => new URL(resolveHref(href), window.location.origin).href
+const absoluteHref = (href: string) => new URL(href, window.location.origin).href
 
-  const openLinkInNewTab = (href: string) => {
-    window.open(absoluteHref(href), '_blank', 'noopener,noreferrer')
+export function openLinkInNewTab(href: string) {
+  window.open(absoluteHref(href), '_blank', 'noopener,noreferrer')
+}
+
+async function copyLink(href: string) {
+  try {
+    await navigator.clipboard.writeText(absoluteHref(href))
+  } catch {
+    toast.error('Failed to copy link')
   }
+}
 
-  const copyLink = async (href: string) => {
-    try {
-      await navigator.clipboard.writeText(absoluteHref(href))
-    } catch {
-      toast.error('Failed to copy link')
-    }
-  }
-
-  const openInNewTabAction = (href: string): MenuAction => ({
+export function openInNewTabAction(href: string): MenuAction {
+  return {
     id: 'open-new-tab',
     label: 'Open in new tab',
     icon: 'I037',
     onSelect: () => openLinkInNewTab(href),
-  })
+  }
+}
 
-  const copyLinkAction = (href: string): MenuAction => ({
+export function copyLinkAction(href: string): MenuAction {
+  return {
     id: 'copy-link',
     label: 'Copy link',
     icon: 'I006',
     onSelect: () => void copyLink(href),
-  })
-
-  return { openLinkInNewTab, openInNewTabAction, copyLinkAction }
+  }
 }
 
 /** A form dialog's text field, trimmed. */

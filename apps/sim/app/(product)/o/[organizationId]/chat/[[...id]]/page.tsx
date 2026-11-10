@@ -20,5 +20,5 @@ export default async function Page({
   }
   // Loaded only here, so a fixture build never evaluates the chat seam.
   const { LiveChatRoute } = await import('@/app/(product)/_components/chat/live/live-chat-route')
-  return <LiveChatRoute chatId={id?.[0]} />
+  return <LiveChatRoute chatId={id?.[0]} searchParams={query} />
 }

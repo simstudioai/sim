@@ -17,7 +17,6 @@ import { workspacePath } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
 import { usePageCommands } from '@/app/(product)/_components/command-menu/page-commands'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
-import { openInNewTabAction } from '@/app/(product)/_components/sidebar/row-links'
 import { AccessRequired } from '@/app/(product)/_components/workspace/access-required/access-required'
 import { BaseTagsModal } from '@/app/(product)/_components/workspace/knowledge/base-tags-modal/base-tags-modal'
 import {
@@ -98,6 +97,7 @@ import {
 } from '@/platform/lib/data/knowledge'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/platform/lib/data/pins'
 import { platformHref } from '@/platform/lib/navigation'
+import { openInNewTabAction } from '@/platform/shared/row-links'
 import { formatRelativeTime } from '@/platform/shared/time'
 
 const ROOT_LABEL = 'Knowledge bases'

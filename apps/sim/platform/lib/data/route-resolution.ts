@@ -122,15 +122,19 @@ export function blockedWorkspaceEntryHref(
   return redirect === 'settings' ? surfaceHref(organization, '/settings') : landing
 }
 
+/** Where a member without chat goes from Home or a chat page: Search, otherwise their workspace. */
+function chatlessHref(organization: PlatformOrganization): string {
+  return organization.searchAccess.memberScoped
+    ? surfaceHref(organization, '/search')
+    : WORKSPACES_PATH
+}
+
 /**
- * The legacy Home page's gate (a member without chat goes to Search, otherwise to their workspace),
- * then its resource panel: Home with `?resource=` was a new chat with that panel, which the new chat
- * owns.
+ * The legacy Home page's gate (a member without chat goes to {@link chatlessHref}), then its
+ * resource panel: Home with `?resource=` was a new chat with that panel, which the new chat owns.
  */
 function resolveHomeEntry(organization: PlatformOrganization, query: URLSearchParams) {
-  const { mothershipAvailable, searchAccess } = organization
-  if (!mothershipAvailable)
-    return searchAccess.memberScoped ? surfaceHref(organization, '/search') : WORKSPACES_PATH
+  if (!organization.mothershipAvailable) return chatlessHref(organization)
   if (!query.get(resourceParam.key)) return null
   return `${surfaceHref(organization, '/chat')}?${query}`
 }
@@ -192,6 +196,8 @@ export function resolveProductRedirect(
       return temporary(withQuery(organizationLandingHref(organization) ?? WORKSPACES_PATH, query))
     if (section === 'home' && !subpath.length)
       return temporary(resolveHomeEntry(organization, query))
+    if (section === 'chat' && subpath.length <= 1)
+      return temporary(organization.mothershipAvailable ? null : chatlessHref(organization))
     if (section === 'search' && (!subpath.length || subpath[0] === 'chat'))
       return temporary(
         resolveSearchEntry(organization, subpath.length > 0, query, rememberedSearchMode)
