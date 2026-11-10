@@ -1,7 +1,5 @@
 import type { DatabricksRunJobParams, DatabricksRunJobResponse } from '@/tools/databricks/types'
 import {
-  databricksHost,
-  databricksToken,
   databricksUrl,
   optionalDatabricksString,
   parseDatabricksJson,
@@ -81,11 +79,11 @@ export const runJobTool: ToolConfig<DatabricksRunJobParams, DatabricksRunJobResp
   },
 
   request: {
-    url: (params) => databricksUrl(databricksHost(params), '/api/2.2/jobs/run-now'),
+    url: (params) => databricksUrl(params.host, '/api/2.2/jobs/run-now'),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
       const body: Record<string, unknown> = {

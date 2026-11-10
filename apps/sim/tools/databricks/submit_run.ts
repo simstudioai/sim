@@ -5,8 +5,6 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   optionalDatabricksString,
   parseDatabricksJson,
@@ -123,10 +121,10 @@ export const submitRunTool: ToolConfig<DatabricksSubmitRunParams, DatabricksSubm
     },
   },
   request: {
-    url: (params) => databricksUrl(databricksHost(params), `/api/2.2/jobs/runs/submit`),
+    url: (params) => databricksUrl(params.host, `/api/2.2/jobs/runs/submit`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

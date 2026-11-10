@@ -4,8 +4,6 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   readDatabricksError,
 } from '@/tools/databricks/utils'
@@ -34,12 +32,12 @@ export const stopWarehouseTool: ToolConfig<
   request: {
     url: (params) =>
       databricksUrl(
-        databricksHost(params),
+        params.host,
         `/api/2.0/sql/warehouses/${safeUrlPathSegment(params.warehouseId, 'warehouseId')}/stop`
       ),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: () => ({}),

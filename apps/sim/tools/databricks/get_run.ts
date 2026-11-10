@@ -5,7 +5,7 @@ import {
   RUN_STATUS_OUTPUT,
   RUN_STATUS_OUTPUT_PROPERTIES,
 } from '@/tools/databricks/types'
-import { databricksHost, databricksToken, databricksUrl } from '@/tools/databricks/utils'
+import { databricksUrl } from '@/tools/databricks/utils'
 import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -57,7 +57,7 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
 
   request: {
     url: (params) => {
-      const url = new URL(databricksUrl(databricksHost(params), '/api/2.2/jobs/runs/get'))
+      const url = new URL(databricksUrl(params.host, '/api/2.2/jobs/runs/get'))
       url.searchParams.set('run_id', String(params.runId))
       if (params.includeHistory) url.searchParams.set('include_history', 'true')
       if (params.includeResolvedValues) url.searchParams.set('include_resolved_values', 'true')
@@ -67,7 +67,7 @@ export const getRunTool: ToolConfig<DatabricksGetRunParams, DatabricksGetRunResp
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
   },
 

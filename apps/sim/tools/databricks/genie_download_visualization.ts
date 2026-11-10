@@ -3,8 +3,6 @@ import type {
   DatabricksGenieDownloadVisualizationResponse,
 } from '@/tools/databricks/types'
 import {
-  databricksHost,
-  databricksToken,
   databricksUrl,
   GENIE_MESSAGE_PARAMS,
   GENIE_READ_RETRY,
@@ -36,14 +34,11 @@ export const genieDownloadVisualizationTool: ToolConfig<
 
   request: {
     url: (params) =>
-      databricksUrl(
-        databricksHost(params),
-        `${genieAttachmentPath(params)}/download-visualization`
-      ),
+      databricksUrl(params.host, `${genieAttachmentPath(params)}/download-visualization`),
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/octet-stream',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
     responseType: 'binary',
     retry: GENIE_READ_RETRY,

@@ -6,8 +6,6 @@ import {
 import {
   DATABRICKS_AUTH_PARAMS,
   databricksErrorMessage,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   GENIE_READ_RETRY,
   mapGenieSpace,
@@ -44,7 +42,7 @@ export const genieListSpacesTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = new URL(databricksUrl(databricksHost(params), '/api/2.0/genie/spaces'))
+      const url = new URL(databricksUrl(params.host, '/api/2.0/genie/spaces'))
       if (params.pageSize) url.searchParams.set('page_size', String(params.pageSize))
       if (params.pageToken) url.searchParams.set('page_token', params.pageToken)
       return url.toString()
@@ -52,7 +50,7 @@ export const genieListSpacesTool: ToolConfig<
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
     retry: GENIE_READ_RETRY,
   },

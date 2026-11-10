@@ -4,8 +4,6 @@ import type {
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   GENIE_READ_RETRY,
   GENIE_SPACE_PARAMS,
@@ -51,7 +49,7 @@ export const genieListConversationsTool: ToolConfig<
   request: {
     url: (params) => {
       const url = new URL(
-        databricksUrl(databricksHost(params), `${genieSpacePath(params.spaceId)}/conversations`)
+        databricksUrl(params.host, `${genieSpacePath(params.spaceId)}/conversations`)
       )
       if (params.includeAll) url.searchParams.set('include_all', 'true')
       if (params.pageSize) url.searchParams.set('page_size', String(params.pageSize))
@@ -61,7 +59,7 @@ export const genieListConversationsTool: ToolConfig<
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
     retry: GENIE_READ_RETRY,
   },

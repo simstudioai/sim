@@ -4,8 +4,6 @@ import type {
 } from '@/tools/databricks/types'
 import { GENIE_QUERY_RESULT_OUTPUTS } from '@/tools/databricks/types'
 import {
-  databricksHost,
-  databricksToken,
   databricksUrl,
   mapStatementResult,
   optionalDatabricksString,
@@ -56,7 +54,7 @@ export const getStatementTool: ToolConfig<
     url: (params) => {
       const url = new URL(
         databricksUrl(
-          databricksHost(params),
+          params.host,
           `/api/2.0/sql/statements/${safeUrlPathSegment(params.statementId, 'statementId')}`
         )
       )
@@ -67,7 +65,7 @@ export const getStatementTool: ToolConfig<
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
   },
 

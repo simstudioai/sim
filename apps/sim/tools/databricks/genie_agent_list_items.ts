@@ -5,8 +5,6 @@ import {
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   GENIE_READ_RETRY,
   GENIE_SPACE_PARAMS,
@@ -64,7 +62,7 @@ export const genieAgentListItemsTool: ToolConfig<
     url: (params) => {
       const url = new URL(
         databricksUrl(
-          databricksHost(params),
+          params.host,
           `${genieAgentPath(params.spaceId)}/conversations/${safeUrlPathSegment(params.conversationId, 'conversationId')}/items`
         )
       )
@@ -76,7 +74,7 @@ export const genieAgentListItemsTool: ToolConfig<
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
     retry: GENIE_READ_RETRY,
   },

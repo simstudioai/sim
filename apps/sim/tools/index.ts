@@ -131,8 +131,10 @@ import {
   projectToolModelInputParams,
   readRequestedDeadline,
 } from '@/tools/request-transport'
+import { AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
 import type {
   BYOKProviderId,
+  CredentialParamSource,
   ExecutableToolConfig,
   InternalToolConfig,
   ToolConfig,
@@ -600,11 +602,12 @@ interface HostedKeyInjectionResult {
   envVarName?: string
 }
 
-/**
- * Inject hosted API key if tool supports it and user didn't provide one.
- * Checks BYOK workspace keys first, then uses the HostedKeyRateLimiter for round-robin key selection.
- * Returns whether a hosted (billable) key was injected and which env var it came from.
- */
+const CREDENTIAL_FIELD_LABELS: Record<CredentialParamSource, string> = {
+  accessToken: 'token',
+  domain: 'host',
+  providerWorkspaceId: 'workspace ID',
+}
+
 /**
  * Fills the params a saved credential supplies (`oauth.credentialParams`) from
  * the resolved credential. Runs only after authorization, overwrites any value
@@ -619,12 +622,19 @@ function applyCredentialParams(
   for (const [param, source] of Object.entries(tool.oauth?.credentialParams ?? {})) {
     const value = credential[source]
     if (typeof value !== 'string' || value.length === 0) {
-      throw new Error(`${tool.name} needs a saved credential with a ${source}`)
+      throw new Error(
+        `${tool.name} needs a saved credential with a ${CREDENTIAL_FIELD_LABELS[source]}`
+      )
     }
     params[param] = value
   }
 }
 
+/**
+ * Inject hosted API key if tool supports it and user didn't provide one.
+ * Checks BYOK workspace keys first, then uses the HostedKeyRateLimiter for round-robin key selection.
+ * Returns whether a hosted (billable) key was injected and which env var it came from.
+ */
 async function injectHostedKeyIfNeeded(
   tool: ToolDefinition,
   params: Record<string, unknown>,
@@ -2213,6 +2223,9 @@ async function executeToolImplementation(
       // AWS tools that sign their own HTTP request need the session keys themselves.
       if (typeof window !== 'undefined') {
         throw new Error('Saved AWS credentials can only be used on the server')
+      }
+      if (!AWS_SESSION_SIGNED_TOOL_IDS.has(normalizedToolId)) {
+        throw new Error(`${tool.name} cannot sign with a saved AWS credential`)
       }
       const { resolveAuthorizedAwsCredential } = await import('@/lib/internal/aws/credentials')
       const session = await resolveAuthorizedAwsCredential(

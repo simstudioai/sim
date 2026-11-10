@@ -63,8 +63,9 @@ export interface ExecuteToolResult {
  *
  * Mirrors `injectHostedKeyIfNeeded`'s tests, in its order, so the two cannot
  * disagree about whether a value is coming: the tool declares `hosting`, the
- * deployment hosts keys, any `enabled` predicate accepts these params, and the
- * caller has not brought a key of their own — which wins where present.
+ * deployment hosts keys, any `enabled` predicate accepts these params, no saved
+ * credential supplies the key, and the caller has not brought a key of their
+ * own — which wins where present.
  *
  * Pre-dispatch only: the required-input exemption (a parameter Sim will fill is
  * not missing) and usage admission. It is deliberately NOT the metering gate —
@@ -77,6 +78,12 @@ function hostedKeyParamFor(
 ): string | undefined {
   if (!isHosted || !tool.hosting) return undefined
   if (tool.hosting.enabled && !tool.hosting.enabled(params)) return undefined
+  if (
+    (params.credential || params.oauthCredential) &&
+    tool.oauth?.credentialSuppliedParams?.includes(tool.hosting.apiKeyParam)
+  ) {
+    return undefined
+  }
   const supplied = params[tool.hosting.apiKeyParam]
   if (typeof supplied === 'string' && supplied.trim().length > 0) return undefined
   return tool.hosting.apiKeyParam

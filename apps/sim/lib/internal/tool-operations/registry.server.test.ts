@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  AWS_CREDENTIAL_OPERATION_TOOL_IDS,
   getInternalToolOperationHandler,
   getRegisteredInternalToolOperationIds,
   isInternalToolOperationRegistered,
 } from '@/lib/internal/tool-operations/registry.server'
+import toolMetadata from '@/tools/generated/tool-metadata'
+import { AWS_SESSION_SIGNED_TOOL_IDS } from '@/tools/shared/saved-credentials'
 import { getToolIds } from '@/tools/tool-ids'
 
 /**
@@ -34,5 +37,27 @@ describe('internal tool operation registry', () => {
   it('loads dynamic MCP operations without an HTTP route', async () => {
     expect(isInternalToolOperationRegistered('mcp-server-id-tool-name')).toBe(true)
     expect(await getInternalToolOperationHandler('mcp-server-id-tool-name')).toBeTypeOf('function')
+  })
+
+  /**
+   * A tool that authorizes saved AWS credentials but neither runs in a wrapped
+   * family nor signs with the session token would receive no keys and fail at
+   * run time with AWS's signature error.
+   */
+  it('routes every AWS-credential tool through a path that resolves the credential', () => {
+    const awsTools = Object.entries(toolMetadata)
+      .filter(([, metadata]) => metadata.oauth?.provider === 'aws')
+      .map(([toolId]) => toolId)
+
+    expect(awsTools.length).toBeGreaterThan(0)
+    for (const toolId of awsTools) {
+      expect(
+        AWS_CREDENTIAL_OPERATION_TOOL_IDS.has(toolId) || AWS_SESSION_SIGNED_TOOL_IDS.has(toolId),
+        toolId
+      ).toBe(true)
+    }
+    for (const toolId of AWS_SESSION_SIGNED_TOOL_IDS) {
+      expect(isInternalToolOperationRegistered(toolId), toolId).toBe(false)
+    }
   })
 })

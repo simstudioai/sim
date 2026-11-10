@@ -6,8 +6,6 @@ import type {
 import { GENIE_SPACE_OUTPUT_PROPERTIES } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   mapGenieSpace,
   optionalDatabricksString,
@@ -79,12 +77,12 @@ export const genieUpdateSpaceTool: ToolConfig<
     },
     url: (params) =>
       databricksUrl(
-        databricksHost(params),
+        params.host,
         `/api/2.0/genie/spaces/${safeUrlPathSegment(params.spaceId, 'spaceId')}`
       ),
     method: 'PATCH',
     headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

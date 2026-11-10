@@ -3,8 +3,6 @@ import type {
   DatabricksGenieSuccessResponse,
 } from '@/tools/databricks/types'
 import {
-  databricksHost,
-  databricksToken,
   databricksUrl,
   GENIE_MESSAGE_PARAMS,
   genieMessagePath,
@@ -41,12 +39,12 @@ export const genieSendFeedbackTool: ToolConfig<
   },
 
   request: {
-    url: (params) => databricksUrl(databricksHost(params), `${genieMessagePath(params)}/feedback`),
+    url: (params) => databricksUrl(params.host, `${genieMessagePath(params)}/feedback`),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => ({
       rating: params.rating,

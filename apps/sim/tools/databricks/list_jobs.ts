@@ -1,6 +1,6 @@
 import type { DatabricksListJobsParams, DatabricksListJobsResponse } from '@/tools/databricks/types'
 import { JOB_CLUSTERS_OUTPUT, JOB_TASK_OUTPUT } from '@/tools/databricks/types'
-import { databricksHost, databricksToken, databricksUrl } from '@/tools/databricks/utils'
+import { databricksUrl } from '@/tools/databricks/utils'
 import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -60,7 +60,7 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
     url: (params) => {
       const url = new URL(
         databricksUrl(
-          databricksHost(params),
+          params.host,
           `/api/${params.offset != null && !params.pageToken ? '2.1' : '2.2'}/jobs/list`
         )
       )
@@ -74,7 +74,7 @@ export const listJobsTool: ToolConfig<DatabricksListJobsParams, DatabricksListJo
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
   },
 

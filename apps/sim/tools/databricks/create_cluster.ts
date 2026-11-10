@@ -5,8 +5,6 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   optionalDatabricksString,
   parseDatabricksJson,
@@ -246,10 +244,10 @@ export const createClusterTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => databricksUrl(databricksHost(params), `/api/2.1/clusters/create`),
+    url: (params) => databricksUrl(params.host, `/api/2.1/clusters/create`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

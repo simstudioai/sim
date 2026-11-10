@@ -45,7 +45,10 @@ import { SUBBLOCK_ID_MIGRATIONS } from '@/lib/workflows/migrations/subblock-migr
 import { getAllBlocks, getBlock, getBlockMeta, getBlockRegistry } from '@/blocks/registry'
 import { readBlockRegistryAtRef } from '@/scripts/block-registry-snapshot'
 import { getToolMetadata } from '@/tools/metadata'
-import { OPERATION_RESOLVED_CREDENTIAL_PROVIDERS } from '@/tools/shared/saved-credentials'
+import {
+  credentialSuppliedParamsFor,
+  OPERATION_RESOLVED_CREDENTIAL_PROVIDERS,
+} from '@/tools/shared/saved-credentials'
 
 const baseRef = process.argv[2] || 'HEAD~1'
 
@@ -141,10 +144,7 @@ function checkCanonicalIdContract(): CheckResult {
       const tool = getToolMetadata(toolId)
       const toolParams = tool?.params
       if (!toolParams) continue
-      // A credential-only block supplies these through its saved-credential picker.
-      const credentialSupplied = subBlockKeys.has('oauthCredential')
-        ? new Set(tool?.oauth?.credentialSuppliedParams)
-        : new Set<string>()
+      const credentialSupplied = credentialSuppliedParamsFor(tool?.oauth, block.subBlocks ?? [])
 
       for (const [paramId, paramConfig] of Object.entries(toolParams)) {
         if (!paramConfig || typeof paramConfig !== 'object') continue
@@ -360,6 +360,29 @@ function findSelectorCoercions(file: string, source: ts.SourceFile): string[] {
 }
 
 /**
+ * Params that choose the host a request goes to. On a credential-only block the
+ * credential must fill them, or anyone allowed to use a shared credential could
+ * send its token to a server of their choosing.
+ */
+const HOST_PARAM_NAMES = new Set([
+  'domain',
+  'subdomain',
+  'host',
+  'hostname',
+  'baseUrl',
+  'base_url',
+  'apiHost',
+  'apiBaseUrl',
+  'apiUrl',
+  'serverUrl',
+  'instanceUrl',
+  'environmentUrl',
+  'deploymentUrl',
+  'tenantUrl',
+  'workspaceUrl',
+])
+
+/**
  * A credential-only successor (a block some legacy block's `sunset.replacedBy`
  * names, with a saved-credential picker) must actually receive its credential:
  * every tool authorizes the picker's provider, every param the credential
@@ -375,13 +398,23 @@ function checkSavedCredentialContract(): CheckResult {
 
   for (const block of getAllBlocks()) {
     if (!successors.has(block.type)) continue
+    const takesSavedCredential = (block.tools?.access ?? []).some(
+      (toolId) => (getToolMetadata(toolId)?.oauth?.credentialSuppliedParams?.length ?? 0) > 0
+    )
+    if (!takesSavedCredential) continue
     const picker = block.subBlocks.find(
       (subBlock) =>
         subBlock.type === 'oauth-input' &&
         subBlock.credentialKind === 'service-account' &&
-        subBlock.canonicalParamId === 'oauthCredential'
+        subBlock.canonicalParamId === 'oauthCredential' &&
+        subBlock.serviceId
     )
-    if (!picker?.serviceId) continue
+    if (!picker?.serviceId) {
+      errors.push(
+        `Block "${block.type}": its tools take a saved credential but it has no service-account picker with a serviceId and canonicalParamId 'oauthCredential'.`
+      )
+      continue
+    }
 
     for (const toolId of block.tools?.access ?? []) {
       const tool = getToolMetadata(toolId)
@@ -389,6 +422,11 @@ function checkSavedCredentialContract(): CheckResult {
       if (!tool || !oauth) {
         errors.push(`Block "${block.type}" → tool "${toolId}": no credential policy (oauth).`)
         continue
+      }
+      if (oauth.credentialKind !== 'service-account') {
+        errors.push(
+          `Block "${block.type}" → tool "${toolId}": accepts "${oauth.credentialKind ?? 'any'}" credentials, not the picker's service-account credential.`
+        )
       }
       if (oauth.provider !== picker.serviceId) {
         errors.push(
@@ -401,6 +439,26 @@ function checkSavedCredentialContract(): CheckResult {
           if (!mapped.has(param)) {
             errors.push(
               `Block "${block.type}" → tool "${toolId}": "${param}" is credential-supplied but nothing fills it (add it to credentialParams).`
+            )
+          }
+        }
+      }
+      if (!OPERATION_RESOLVED_CREDENTIAL_PROVIDERS.has(oauth.provider)) {
+        const pinned = new Set<string>([...mapped, ...(oauth.authoritativeParams ?? [])])
+        for (const param of Object.keys(tool.params ?? {})) {
+          if (HOST_PARAM_NAMES.has(param) && !pinned.has(param)) {
+            errors.push(
+              `Block "${block.type}" → tool "${toolId}": "${param}" decides where the saved credential is sent but the credential does not fill it (map it in credentialParams).`
+            )
+          }
+        }
+      }
+      // A conditional requirement (STS's unsigned calls) is the block's own decision.
+      if (!picker.required) {
+        for (const param of oauth.credentialSuppliedParams ?? []) {
+          if (tool.params?.[param]?.required) {
+            errors.push(
+              `Block "${block.type}" → tool "${toolId}": the credential is optional but "${param}" is required; make the param optional or the credential required.`
             )
           }
         }

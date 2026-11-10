@@ -3,12 +3,7 @@ import type {
   DatabricksListWarehousesResponse,
 } from '@/tools/databricks/types'
 import { WAREHOUSE_OUTPUT_PROPERTIES } from '@/tools/databricks/types'
-import {
-  databricksHost,
-  databricksToken,
-  databricksUrl,
-  mapWarehouse,
-} from '@/tools/databricks/utils'
+import { databricksUrl, mapWarehouse } from '@/tools/databricks/utils'
 import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -52,7 +47,7 @@ export const listWarehousesTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = new URL(databricksUrl(databricksHost(params), '/api/2.0/sql/warehouses'))
+      const url = new URL(databricksUrl(params.host, '/api/2.0/sql/warehouses'))
       url.searchParams.set('page_size', String(params.pageSize ?? 20))
       if (params.pageToken) url.searchParams.set('page_token', params.pageToken)
       return url.toString()
@@ -60,7 +55,7 @@ export const listWarehousesTool: ToolConfig<
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
   },
 

@@ -3,13 +3,7 @@ import type {
   DatabricksExecuteSqlResponse,
 } from '@/tools/databricks/types'
 import { GENIE_QUERY_RESULT_OUTPUTS } from '@/tools/databricks/types'
-import {
-  databricksHost,
-  databricksToken,
-  databricksUrl,
-  mapStatementResult,
-  parseDatabricksJson,
-} from '@/tools/databricks/utils'
+import { databricksUrl, mapStatementResult, parseDatabricksJson } from '@/tools/databricks/utils'
 import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -94,11 +88,11 @@ export const executeSqlTool: ToolConfig<DatabricksExecuteSqlParams, DatabricksEx
     },
 
     request: {
-      url: (params) => databricksUrl(databricksHost(params), '/api/2.0/sql/statements/'),
+      url: (params) => databricksUrl(params.host, '/api/2.0/sql/statements/'),
       method: 'POST',
       headers: (params) => ({
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${databricksToken(params)}`,
+        Authorization: `Bearer ${params.apiKey}`,
       }),
       body: (params) => {
         const body: Record<string, unknown> = {

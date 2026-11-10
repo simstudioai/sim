@@ -20,6 +20,7 @@ import { isNonEmpty } from '@/tools/merge-params'
 import { getToolMetadata, type ToolMetadata } from '@/tools/metadata'
 import { buildSubBlockForToolParam } from '@/tools/param-shape'
 import { safeAssign } from '@/tools/safe-assign'
+import { credentialSuppliedParamsFor } from '@/tools/shared/saved-credentials'
 import type {
   ExecutableToolConfig,
   OAuthConfig,
@@ -905,9 +906,10 @@ export function getSubBlocksForToolInput(
     }
 
     const claimedParamIds = buildClaimedParamIds(allSubBlocks, canonicalIndex)
+    const credentialSupplied = credentialSuppliedParamsFor(toolConfig.oauth, allSubBlocks)
 
     for (const [paramId, param] of Object.entries(toolConfig.params || {})) {
-      if (claimedParamIds.has(paramId)) continue
+      if (claimedParamIds.has(paramId) || credentialSupplied.has(paramId)) continue
 
       const visibility = toolParamVisibility[paramId]
       if (visibility === 'hidden' || visibility === 'llm-only') continue

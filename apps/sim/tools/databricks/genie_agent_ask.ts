@@ -4,8 +4,6 @@ import {
   GENIE_AGENT_ITEM_OUTPUT_PROPERTIES,
 } from '@/tools/databricks/types'
 import {
-  databricksHost,
-  databricksToken,
   databricksUrl,
   GENIE_SPACE_PARAMS,
   genieAgentErrorMessage,
@@ -59,13 +57,12 @@ export const genieAgentAskTool: ToolConfig<
       mode: 'project',
       select: (params) => ({ content: params.content }),
     },
-    url: (params) =>
-      databricksUrl(databricksHost(params), `${genieAgentPath(params.spaceId)}/responses`),
+    url: (params) => databricksUrl(params.host, `${genieAgentPath(params.spaceId)}/responses`),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => {
       const conversationId = params.conversationId?.trim()

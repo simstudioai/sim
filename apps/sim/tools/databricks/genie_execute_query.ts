@@ -5,8 +5,6 @@ import {
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   GENIE_QUERY_ATTACHMENT_PARAMS,
   genieAttachmentPath,
@@ -29,13 +27,12 @@ export const genieExecuteQueryTool: ToolConfig<
   params: GENIE_QUERY_ATTACHMENT_PARAMS,
 
   request: {
-    url: (params) =>
-      databricksUrl(databricksHost(params), `${genieAttachmentPath(params)}/execute-query`),
+    url: (params) => databricksUrl(params.host, `${genieAttachmentPath(params)}/execute-query`),
     method: 'POST',
     headers: (params) => ({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
     body: () => ({}),
   },

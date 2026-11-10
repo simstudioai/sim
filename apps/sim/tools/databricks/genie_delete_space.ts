@@ -4,8 +4,6 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   readDatabricksError,
 } from '@/tools/databricks/utils'
@@ -34,12 +32,12 @@ export const genieDeleteSpaceTool: ToolConfig<
   request: {
     url: (params) =>
       databricksUrl(
-        databricksHost(params),
+        params.host,
         `/api/2.0/genie/spaces/${safeUrlPathSegment(params.spaceId, 'spaceId')}`
       ),
     method: 'DELETE',
     headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
   },

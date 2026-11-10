@@ -2,8 +2,6 @@ import { filterUndefined } from '@sim/utils/object'
 import type { DatabricksDeleteJobParams, DatabricksSuccessResponse } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   readDatabricksError,
 } from '@/tools/databricks/utils'
@@ -26,10 +24,10 @@ export const deleteJobTool: ToolConfig<DatabricksDeleteJobParams, DatabricksSucc
     },
   },
   request: {
-    url: (params) => databricksUrl(databricksHost(params), `/api/2.2/jobs/delete`),
+    url: (params) => databricksUrl(params.host, `/api/2.2/jobs/delete`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

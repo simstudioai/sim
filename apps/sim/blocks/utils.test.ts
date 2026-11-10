@@ -58,6 +58,7 @@ vi.mock('@/stores/providers/store', () => ({
 
 vi.mock('@/lib/oauth/utils', () => oauthUtilsMock)
 
+import { S3Icon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import {
   getApiKeyCondition,
@@ -272,7 +273,7 @@ describe('withSavedCredential', () => {
     description: '',
     category: 'tools',
     bgColor: '#000',
-    icon: () => null,
+    icon: S3Icon,
     subBlocks: [
       { id: 'operation', title: 'Operation', type: 'dropdown', options: [] },
       { id: 'accessKeyId', title: 'Access Key ID', type: 'short-input', required: true },
@@ -317,5 +318,71 @@ describe('withSavedCredential', () => {
     }
 
     expect(() => withSavedCredential(withSelector, picker)).toThrow(/saved-credential twin/)
+  })
+
+  it('points fields that depended on a secret at the credential, keeping their other dependencies', () => {
+    const withDependents: BlockConfig = {
+      ...legacy,
+      subBlocks: [
+        ...legacy.subBlocks,
+        { id: 'region', title: 'Region', type: 'short-input' },
+        {
+          id: 'logGroup',
+          title: 'Log group',
+          type: 'file-selector',
+          selectorKey: 'cloudwatch.logGroups',
+          dependsOn: ['accessKeyId', 'secretAccessKey', 'region'],
+        },
+        {
+          id: 'bucket',
+          title: 'Bucket',
+          type: 'short-input',
+          dependsOn: { all: ['secretAccessKey'], any: ['region'] },
+        },
+      ],
+    }
+
+    const { subBlocks } = withSavedCredential(withDependents, picker, {
+      selectorKeys: { 'cloudwatch.logGroups': 'cloudwatch.savedLogGroups' },
+    })
+    const byId = new Map(subBlocks.map((subBlock) => [subBlock.id, subBlock]))
+
+    expect(byId.get('logGroup')).toMatchObject({
+      selectorKey: 'cloudwatch.savedLogGroups',
+      dependsOn: ['credential', 'region'],
+    })
+    expect(byId.get('bucket')?.dependsOn).toEqual({ all: ['credential'], any: ['region'] })
+  })
+
+  it('shows and requires the picker exactly where the replaced secret was', () => {
+    const conditional: BlockConfig = {
+      ...legacy,
+      subBlocks: legacy.subBlocks.map((subBlock) =>
+        subBlock.id === 'accessKeyId' && subBlock.mode !== 'trigger'
+          ? {
+              ...subBlock,
+              condition: { field: 'operation', value: 'unsigned', not: true },
+              required: { field: 'operation', value: 'unsigned', not: true },
+            }
+          : subBlock
+      ),
+    }
+
+    const { subBlocks } = withSavedCredential(conditional, picker)
+    const credential = subBlocks.find((subBlock) => subBlock.id === 'credential')
+
+    expect(credential?.condition).toEqual({ field: 'operation', value: 'unsigned', not: true })
+    expect(credential?.required).toEqual({ field: 'operation', value: 'unsigned', not: true })
+  })
+
+  it('refuses options that would silently do nothing', () => {
+    expect(() =>
+      withSavedCredential(legacy, picker, {
+        selectorKeys: { 'cloudwatch.logGroups': 'cloudwatch.savedLogGroups' },
+      })
+    ).toThrow(/unused selector twins/)
+    expect(() => withSavedCredential(legacy, picker, { params: () => ({}) })).toThrow(
+      /no tool params builder/
+    )
   })
 })

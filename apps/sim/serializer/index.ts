@@ -30,6 +30,7 @@ import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 import { getToolMetadata } from '@/tools/metadata'
 import { expandSubBlockValueToParams } from '@/tools/param-shape'
+import { credentialSuppliedParamsFor } from '@/tools/shared/saved-credentials'
 
 const logger = createLogger('Serializer')
 
@@ -715,7 +716,10 @@ export function collectBlockFieldIssues(
   const currentToolId = toolAccess?.length > 0 ? selectToolId(blockConfig, params) : null
   const currentTool = currentToolId ? getToolMetadata(currentToolId) : undefined
   const currentToolParams = currentTool?.params
-  const credentialSuppliedParams = new Set(currentTool?.oauth?.credentialSuppliedParams)
+  const credentialSuppliedParams = credentialSuppliedParamsFor(
+    currentTool?.oauth,
+    blockConfig.subBlocks || []
+  )
 
   // Validate tool parameters (for blocks with tools).
   // Lookup contract: a tool param's value lives under its own paramId in `params`.

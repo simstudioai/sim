@@ -5,8 +5,6 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   optionalDatabricksString,
   parseDatabricksJson,
@@ -115,12 +113,12 @@ export const editWarehouseTool: ToolConfig<
   request: {
     url: (params) =>
       databricksUrl(
-        databricksHost(params),
+        params.host,
         `/api/2.0/sql/warehouses/${safeUrlPathSegment(params.warehouseId, 'warehouseId')}/edit`
       ),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

@@ -5,8 +5,6 @@ import type {
 import { WAREHOUSE_OUTPUT_PROPERTIES } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   mapWarehouse,
   readDatabricksError,
@@ -36,14 +34,11 @@ export const getWarehouseTool: ToolConfig<
   request: {
     url: (params) =>
       databricksUrl(
-        databricksHost(params),
+        params.host,
         `/api/2.0/sql/warehouses/${safeUrlPathSegment(params.warehouseId, 'warehouseId')}`
       ),
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
-      Accept: 'application/json',
-    }),
+    headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },
   transformResponse: async (response) => {
     if (!response.ok)

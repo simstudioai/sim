@@ -3,8 +3,6 @@ import type {
   DatabricksGenieSuccessResponse,
 } from '@/tools/databricks/types'
 import {
-  databricksHost,
-  databricksToken,
   databricksUrl,
   GENIE_SPACE_PARAMS,
   genieConversationPath,
@@ -35,14 +33,11 @@ export const genieDeleteConversationTool: ToolConfig<
 
   request: {
     url: (params) =>
-      databricksUrl(
-        databricksHost(params),
-        genieConversationPath(params.spaceId, params.conversationId)
-      ),
+      databricksUrl(params.host, genieConversationPath(params.spaceId, params.conversationId)),
     method: 'DELETE',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
   },
 

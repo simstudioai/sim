@@ -6,8 +6,6 @@ import type {
 import { GENIE_SPACE_OUTPUT_PROPERTIES } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   mapGenieSpace,
   optionalDatabricksString,
@@ -64,10 +62,10 @@ export const genieCreateSpaceTool: ToolConfig<
       mode: 'project',
       select: (params) => ({ serializedSpace: params.serializedSpace }),
     },
-    url: (params) => databricksUrl(databricksHost(params), `/api/2.0/genie/spaces`),
+    url: (params) => databricksUrl(params.host, `/api/2.0/genie/spaces`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

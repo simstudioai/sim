@@ -27,6 +27,7 @@ import { TextractBlock, TextractV2Block, TextractV3Block } from '@/blocks/blocks
 import type { BlockConfig } from '@/blocks/types'
 import { Serializer } from '@/serializer'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+import { getSubBlocksForToolInput } from '@/tools/params'
 
 vi.mock('@/blocks', () => blocksMock)
 // Required-field validation reads the tools' real param declarations.
@@ -175,8 +176,10 @@ describe.each(VERSIONS)('$legacy.type legacy block', ({ legacy, secretIds }) => 
 
   it('still requires its inline secrets', () => {
     const message = missingRequiredFields(buildBlock(legacy, {}))
+    const titles = fieldTitles(legacy, secretIds)
 
-    for (const title of fieldTitles(legacy, secretIds)) expect(message).toContain(title)
+    expect(titles).toHaveLength(secretIds.length)
+    for (const title of titles) expect(message).toContain(title)
   })
 })
 
@@ -198,6 +201,18 @@ describe.each(VERSIONS)('$successor.type credential-only block', ({ successor, s
       )
 
       for (const id of secretIds) expect(message, operation).not.toContain(id)
+    }
+  })
+
+  it('never offers inline secret fields when used as an agent tool', () => {
+    for (const toolId of successor.tools.access) {
+      const fields =
+        getSubBlocksForToolInput(toolId, successor.type, undefined, undefined, successor)
+          ?.subBlocks ?? []
+      expect(fields.length, toolId).toBeGreaterThan(0)
+      const ids = fields.map((field) => field.id)
+
+      for (const id of secretIds) expect(ids, toolId).not.toContain(id)
     }
   })
 
@@ -228,5 +243,28 @@ describe.each(VERSIONS)('$successor.type credential-only block', ({ successor, s
         /access key|secret access|api key|token is required|host is required|cannot read properties of undefined/i
       )
     }
+  })
+})
+
+describe('sts_v2 unsigned calls', () => {
+  beforeEach(() => {
+    vi.spyOn(blocks, 'getBlock').mockReturnValue(STSV2Block)
+  })
+
+  it.each(['assume_role_with_web_identity', 'assume_role_with_saml'])(
+    'runs %s without a saved credential',
+    (operation) => {
+      const message = missingRequiredFields(buildBlock(STSV2Block, { operation }))
+
+      expect(message).not.toContain(fieldTitles(STSV2Block, ['credential'])[0])
+    }
+  )
+
+  it('still requires a credential for signed calls', () => {
+    const message = missingRequiredFields(
+      buildBlock(STSV2Block, { operation: 'get_caller_identity' })
+    )
+
+    expect(message).toContain(fieldTitles(STSV2Block, ['credential'])[0])
   })
 })

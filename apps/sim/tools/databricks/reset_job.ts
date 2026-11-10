@@ -2,8 +2,6 @@ import { filterUndefined } from '@sim/utils/object'
 import type { DatabricksResetJobParams, DatabricksSuccessResponse } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   parseDatabricksJson,
   readDatabricksError,
@@ -34,10 +32,10 @@ export const resetJobTool: ToolConfig<DatabricksResetJobParams, DatabricksSucces
     },
   },
   request: {
-    url: (params) => databricksUrl(databricksHost(params), `/api/2.2/jobs/reset`),
+    url: (params) => databricksUrl(params.host, `/api/2.2/jobs/reset`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

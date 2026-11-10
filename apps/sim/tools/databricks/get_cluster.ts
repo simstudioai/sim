@@ -2,7 +2,7 @@ import type {
   DatabricksGetClusterParams,
   DatabricksGetClusterResponse,
 } from '@/tools/databricks/types'
-import { databricksHost, databricksToken, databricksUrl } from '@/tools/databricks/utils'
+import { databricksUrl } from '@/tools/databricks/utils'
 import { DATABRICKS_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
@@ -38,14 +38,14 @@ export const getClusterTool: ToolConfig<DatabricksGetClusterParams, DatabricksGe
 
     request: {
       url: (params) => {
-        const url = new URL(databricksUrl(databricksHost(params), '/api/2.1/clusters/get'))
+        const url = new URL(databricksUrl(params.host, '/api/2.1/clusters/get'))
         url.searchParams.set('cluster_id', params.clusterId.trim())
         return url.toString()
       },
       method: 'GET',
       headers: (params) => ({
         Accept: 'application/json',
-        Authorization: `Bearer ${databricksToken(params)}`,
+        Authorization: `Bearer ${params.apiKey}`,
       }),
     },
 

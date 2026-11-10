@@ -71,9 +71,9 @@ interface SavedCredentialOptions {
   /** Replaces the tool params builder when the legacy one validates the replaced fields. */
   params?: NonNullable<BlockConfig['tools']['config']>['params']
   /**
-   * When the credential is required. Defaults to always; a block whose
-   * operations also run without a key (public endpoints, keyless self-hosted
-   * servers) passes a condition or `false`.
+   * When the credential is required. Defaults to the replaced secret's own
+   * `required`; a block whose operations also run without a key (public
+   * endpoints, keyless self-hosted servers) passes a condition or `false`.
    */
   required?: SubBlockConfig['required']
 }
@@ -95,20 +95,37 @@ export function withSavedCredential(
   // they belong to the trigger, not the tools, so they are left exactly as they are.
   const isTriggerField = (subBlock: SubBlockConfig) =>
     subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
+  // A basic/advanced pair shares its canonical id, so both halves are replaced.
   const isReplaced = (subBlock: SubBlockConfig) =>
-    replaced.has(subBlock.id) && !isTriggerField(subBlock)
+    replaced.has(subBlock.canonicalParamId ?? subBlock.id) && !isTriggerField(subBlock)
   const at = legacy.subBlocks.findIndex(isReplaced)
   if (at === -1) {
     throw new Error(`Block "${legacy.type}" has none of the fields a saved credential replaces`)
   }
 
+  // The picker shows and is required exactly where the secret it replaces was.
+  const { condition, required: secretRequired } = legacy.subBlocks[at]
+  if (typeof condition === 'function' || (condition && replaced.has(condition.field))) {
+    throw new Error(`Block "${legacy.type}": the replaced secret's condition cannot carry over`)
+  }
+  const required = options.required ?? secretRequired ?? true
+
+  const usedSelectorKeys = new Set<string>()
   const subBlocks = legacy.subBlocks
     .filter((subBlock) => !isReplaced(subBlock))
     .map((subBlock) =>
       isTriggerField(subBlock)
         ? subBlock
-        : dependOnCredential(subBlock, replaced, options.selectorKeys)
+        : dependOnCredential(subBlock, replaced, options.selectorKeys, usedSelectorKeys)
     )
+  const unusedSelectorKeys = Object.keys(options.selectorKeys ?? {}).filter(
+    (key) => !usedSelectorKeys.has(key)
+  )
+  if (unusedSelectorKeys.length > 0) {
+    throw new Error(
+      `Block "${legacy.type}": unused selector twins ${unusedSelectorKeys.join(', ')}`
+    )
+  }
   subBlocks.splice(
     at,
     0,
@@ -118,7 +135,8 @@ export function withSavedCredential(
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
       placeholder: `Select a ${picker.title.toLowerCase()}`,
-      required: options.required ?? true,
+      ...(condition ? { condition } : {}),
+      required,
     },
     {
       id: 'manualCredential',
@@ -127,7 +145,8 @@ export function withSavedCredential(
       canonicalParamId: 'oauthCredential',
       mode: 'advanced',
       placeholder: 'Enter credential ID',
-      required: options.required ?? true,
+      ...(condition ? { condition } : {}),
+      required,
     }
   )
 
@@ -135,6 +154,9 @@ export function withSavedCredential(
     Object.entries(legacy.inputs).filter(([key]) => !replaced.has(key))
   )
   const config = legacy.tools.config
+  if (options.params && !config) {
+    throw new Error(`Block "${legacy.type}" has no tool params builder to replace`)
+  }
 
   return {
     subBlocks,
@@ -149,7 +171,8 @@ export function withSavedCredential(
 function dependOnCredential(
   subBlock: SubBlockConfig,
   replaced: ReadonlySet<string>,
-  selectorKeys: SavedCredentialOptions['selectorKeys']
+  selectorKeys: SavedCredentialOptions['selectorKeys'],
+  usedSelectorKeys: Set<string>
 ): SubBlockConfig {
   const { dependsOn } = subBlock
   if (!dependsOn) return subBlock
@@ -162,6 +185,7 @@ function dependOnCredential(
   if (subBlock.selectorKey && !selectorKey) {
     throw new Error(`Selector "${subBlock.selectorKey}" needs a saved-credential twin`)
   }
+  if (subBlock.selectorKey) usedSelectorKeys.add(subBlock.selectorKey)
   const swap = (list: string[]) =>
     list.some((field) => replaced.has(field))
       ? ['credential', ...list.filter((field) => !replaced.has(field) && field !== 'credential')]

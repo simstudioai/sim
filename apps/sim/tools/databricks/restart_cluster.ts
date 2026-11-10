@@ -5,8 +5,6 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   optionalDatabricksString,
   readDatabricksError,
@@ -39,10 +37,10 @@ export const restartClusterTool: ToolConfig<
     },
   },
   request: {
-    url: (params) => databricksUrl(databricksHost(params), `/api/2.1/clusters/restart`),
+    url: (params) => databricksUrl(params.host, `/api/2.1/clusters/restart`),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) => {

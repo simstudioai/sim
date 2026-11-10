@@ -1,5 +1,5 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { tokenCheckValidator } from '@/lib/credentials/token-service-accounts/validators/http'
 
 const validate = tokenCheckValidator({
@@ -11,10 +11,6 @@ const validate = tokenCheckValidator({
 })
 
 describe('tokenCheckValidator', () => {
-  afterEach(() => {
-    vi.unstubAllGlobals()
-  })
-
   it('accepts a token the provider answers 2xx for, sending it only to the declared host', async () => {
     const fetch = vi.fn().mockResolvedValue(jsonResponse({ ok: true }))
     vi.stubGlobal('fetch', fetch)

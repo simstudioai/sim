@@ -12,8 +12,6 @@ import {
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   GENIE_SPACE_PARAMS,
   GENIE_TERMINAL_STATUSES,
@@ -81,7 +79,7 @@ export const genieAskTool: ToolConfig<DatabricksGenieAskParams, DatabricksGenieA
     url: (params) => {
       const conversationId = params.conversationId?.trim()
       return databricksUrl(
-        databricksHost(params),
+        params.host,
         conversationId
           ? `${genieConversationPath(params.spaceId, conversationId)}/messages`
           : `${genieSpacePath(params.spaceId)}/start-conversation`
@@ -91,7 +89,7 @@ export const genieAskTool: ToolConfig<DatabricksGenieAskParams, DatabricksGenieA
     headers: (params) => ({
       'Content-Type': 'application/json',
       Accept: 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
     body: (params) => ({
       content: params.content,
@@ -131,8 +129,8 @@ export const genieAskTool: ToolConfig<DatabricksGenieAskParams, DatabricksGenieA
     }
 
     const messageParams = {
-      host: databricksHost(params),
-      apiKey: databricksToken(params),
+      host: params.host,
+      apiKey: params.apiKey,
       spaceId: params.spaceId,
       conversationId,
       messageId,

@@ -5,8 +5,6 @@ import type {
 } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   optionalDatabricksString,
   readDatabricksError,
@@ -43,12 +41,12 @@ export const cancelStatementTool: ToolConfig<
   request: {
     url: (params) =>
       databricksUrl(
-        databricksHost(params),
+        params.host,
         `/api/2.0/sql/statements/${safeUrlPathSegment(params.statementId, 'statementId')}/cancel`
       ),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: (params) =>

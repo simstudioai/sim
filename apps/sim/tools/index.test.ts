@@ -3567,7 +3567,7 @@ describe('Internal Route Trust', () => {
 
       expect(result).toMatchObject({
         success: false,
-        error: expect.stringContaining('needs a saved credential with a domain'),
+        error: expect.stringContaining('needs a saved credential with a host'),
       })
       expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
     })

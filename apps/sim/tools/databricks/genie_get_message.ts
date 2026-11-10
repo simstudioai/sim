@@ -5,8 +5,6 @@ import {
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   GENIE_MESSAGE_PARAMS,
   GENIE_READ_RETRY,
@@ -30,11 +28,11 @@ export const genieGetMessageTool: ToolConfig<
   params: GENIE_MESSAGE_PARAMS,
 
   request: {
-    url: (params) => databricksUrl(databricksHost(params), genieMessagePath(params)),
+    url: (params) => databricksUrl(params.host, genieMessagePath(params)),
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
     retry: GENIE_READ_RETRY,
   },

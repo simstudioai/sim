@@ -1,4 +1,5 @@
 import type { OAuthService } from '@/lib/oauth'
+import type { SubBlockConfig } from '@/blocks/types'
 import type { CredentialParamSource, OAuthConfig } from '@/tools/types'
 
 /**
@@ -21,28 +22,19 @@ export const AWS_CREDENTIAL_OAUTH = {
 } as const satisfies OAuthConfig
 
 /**
- * Credential policy for every Databricks tool. The inline host and personal
- * access token keep working; a saved Databricks connection resolves to a
- * bearer token and workspace host, which reach the tools as `accessToken` and
- * `domain` (see `databricksToken` / `databricksHost`).
+ * AWS tools that sign their own HTTP request rather than running through an
+ * AWS operation family; the executor hands them the resolved session keys and
+ * token directly. Any other AWS tool must run through a wrapped family.
  */
-export const DATABRICKS_CREDENTIAL_OAUTH = {
-  required: false,
-  provider: 'databricks',
-  credentialKind: 'service-account',
-  credentialSuppliedParams: ['host', 'apiKey'],
-  /** The saved connection's workspace host always replaces a caller-supplied one. */
-  authoritativeParams: ['domain'],
-} as const satisfies OAuthConfig
+export const AWS_SESSION_SIGNED_TOOL_IDS: ReadonlySet<string> = new Set(['s3_get_object'])
 
 /**
  * Saved-credential providers whose tools resolve the credential inside their
- * own operation (AWS session keys, Databricks token helpers) rather than
- * through `credentialParams`.
+ * own operation (AWS mints session keys per call) rather than through
+ * `credentialParams`.
  */
 export const OPERATION_RESOLVED_CREDENTIAL_PROVIDERS: ReadonlySet<string> = new Set([
   AWS_CREDENTIAL_OAUTH.provider,
-  DATABRICKS_CREDENTIAL_OAUTH.provider,
 ])
 
 /**
@@ -64,3 +56,31 @@ export function tokenCredentialOAuth(
     credentialSuppliedParams: Object.keys(credentialParams),
   } as const satisfies OAuthConfig
 }
+
+/**
+ * The tool params a block's saved-credential picker supplies: the tool's
+ * `credentialSuppliedParams` when the block has a picker feeding
+ * `oauthCredential`, otherwise none. The single rule serializer validation,
+ * the block-registry checks, and agent tool-input fields all apply, so a
+ * credential-only block never asks for — and a legacy block never stops asking
+ * for — an inline secret.
+ */
+export function credentialSuppliedParamsFor(
+  oauth: Pick<OAuthConfig, 'credentialSuppliedParams'> | undefined,
+  subBlocks: readonly Pick<SubBlockConfig, 'canonicalParamId' | 'type'>[]
+): ReadonlySet<string> {
+  const hasPicker = subBlocks.some(
+    (subBlock) => subBlock.type === 'oauth-input' && subBlock.canonicalParamId === 'oauthCredential'
+  )
+  return new Set(hasPicker ? oauth?.credentialSuppliedParams : [])
+}
+
+/**
+ * Credential policy for every Databricks tool. A saved Databricks connection
+ * resolves to a bearer token and its workspace host, which fill the tools'
+ * inline `apiKey` and `host` — so the host always comes from the connection.
+ */
+export const DATABRICKS_CREDENTIAL_OAUTH = tokenCredentialOAuth('databricks', {
+  apiKey: 'accessToken',
+  host: 'domain',
+})

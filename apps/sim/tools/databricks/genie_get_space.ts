@@ -5,8 +5,6 @@ import {
 } from '@/tools/databricks/types'
 import {
   databricksErrorMessage,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   GENIE_READ_RETRY,
   GENIE_SPACE_PARAMS,
@@ -40,14 +38,14 @@ export const genieGetSpaceTool: ToolConfig<
 
   request: {
     url: (params) => {
-      const url = new URL(databricksUrl(databricksHost(params), genieSpacePath(params.spaceId)))
+      const url = new URL(databricksUrl(params.host, genieSpacePath(params.spaceId)))
       if (params.includeSerializedSpace) url.searchParams.set('include_serialized_space', 'true')
       return url.toString()
     },
     method: 'GET',
     headers: (params) => ({
       Accept: 'application/json',
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
     }),
     retry: GENIE_READ_RETRY,
   },

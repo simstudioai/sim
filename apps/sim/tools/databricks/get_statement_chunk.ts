@@ -5,8 +5,6 @@ import type {
 import { STATEMENT_RESULT_OUTPUT_PROPERTIES } from '@/tools/databricks/types'
 import {
   DATABRICKS_AUTH_PARAMS,
-  databricksHost,
-  databricksToken,
   databricksUrl,
   optionalDatabricksString,
   readDatabricksError,
@@ -48,7 +46,7 @@ export const getStatementChunkTool: ToolConfig<
   },
   request: {
     url: (params) => {
-      const origin = databricksUrl(databricksHost(params), '')
+      const origin = databricksUrl(params.host, '')
       if (!Number.isInteger(params.chunkIndex) || params.chunkIndex < 0)
         throw new Error('chunkIndex must be a nonnegative integer')
       const url = new URL(
@@ -59,10 +57,7 @@ export const getStatementChunkTool: ToolConfig<
       return url.toString()
     },
     method: 'GET',
-    headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
-      Accept: 'application/json',
-    }),
+    headers: (params) => ({ Authorization: `Bearer ${params.apiKey}`, Accept: 'application/json' }),
   },
   transformResponse: async (response) => {
     if (!response.ok)

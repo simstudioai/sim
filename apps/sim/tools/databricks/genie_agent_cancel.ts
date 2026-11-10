@@ -4,8 +4,6 @@ import type {
 } from '@/tools/databricks/types'
 import { GENIE_MESSAGE_OUTPUT_PROPERTIES } from '@/tools/databricks/types'
 import {
-  databricksHost,
-  databricksToken,
   databricksUrl,
   GENIE_SPACE_PARAMS,
   genieAgentPath,
@@ -44,12 +42,12 @@ export const genieAgentCancelTool: ToolConfig<
   request: {
     url: (params) =>
       databricksUrl(
-        databricksHost(params),
+        params.host,
         `${genieAgentPath(params.spaceId)}/conversations/${safeUrlPathSegment(params.conversationId, 'conversationId')}/responses/${safeUrlPathSegment(params.responseId, 'responseId')}/cancel`
       ),
     method: 'POST',
     headers: (params) => ({
-      Authorization: `Bearer ${databricksToken(params)}`,
+      Authorization: `Bearer ${params.apiKey}`,
       'Content-Type': 'application/json',
     }),
     body: () => ({}),
