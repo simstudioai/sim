@@ -6,6 +6,11 @@
  */
 import { matchPathPattern, organizationRoutes, WORKSPACES_PATH } from '@/lib/navigation/paths'
 import { settingsAliasHref } from '@/lib/navigation/settings-aliases'
+import {
+  getAccessRequestsSettingsHref,
+  getLegacyAccessRequestsQuery,
+  getLegacyAccessRequestsSettingsQuery,
+} from '@/ee/access-requests/lib/navigation'
 
 interface LegacyWorkspaceUrl {
   workspaceId: string
@@ -50,7 +55,6 @@ const ORGANIZATION_SETTINGS: readonly string[] = [
   'usage',
   'usage/events',
   'connected-accounts',
-  'access-control',
   'audit-logs',
   'sso',
   'domains',
@@ -90,6 +94,15 @@ const SETTINGS_REDIRECTS: readonly SettingsRedirect[] = [
     })
   ),
   {
+    legacy: 'settings/access-control',
+    target: ({ organizationId, workspaceId }, query) => {
+      const review = getLegacyAccessRequestsQuery('access-control', Object.fromEntries(query))
+      return review
+        ? withQuery(getAccessRequestsSettingsHref({ kind: 'workspace', workspaceId }), review)
+        : withQuery(organizationRoutes(organizationId).settingsSection('access-control'), query)
+    },
+  },
+  {
     legacy: 'settings/apikeys',
     target: ({ workspaceId }, query) =>
       withQuery(workspaceSettings(workspaceId, 'api-keys'), query),
@@ -97,7 +110,8 @@ const SETTINGS_REDIRECTS: readonly SettingsRedirect[] = [
   {
     legacy: 'access-requests',
     target: ({ workspaceId }, query) =>
-      withQuery(workspaceSettings(workspaceId, 'requests'), query),
+      getAccessRequestsSettingsHref({ kind: 'workspace', workspaceId }) +
+      getLegacyAccessRequestsSettingsQuery(Object.fromEntries(query)),
   },
   {
     legacy: 'settings/integrations',
@@ -164,11 +178,8 @@ export function mapLegacyWorkspaceUrl({
     return withQuery(routes.account(rest[1]), inWorkspace(query, workspaceId))
   if (head === 'integrations' && rest.length === 1)
     return withQuery(routes.integration(rest[0]), inWorkspace(query, workspaceId))
-  if (head === 'upgrade' && rest.length === 0) {
-    const reason = query.get('reason')
-    const plans = routes.settingsSection('billing/plans')
-    return reason ? withQuery(plans, new URLSearchParams({ reason })) : plans
-  }
+  if (head === 'upgrade' && rest.length === 0)
+    return withQuery(routes.settingsSection('billing/plans'), query)
 
   const settings = matchSettingsRedirect(segments)
   if (!settings) return null
