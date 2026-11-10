@@ -82,13 +82,16 @@ test('A message sent during a running turn steers it', async ({ page }) => {
   await field.fill('Count slowly from 1 to 50, one number per line.')
   await page.getByRole('button', { name: 'Send message' }).click()
   await expect(page.getByRole('button', { name: 'Stop response' })).toBeVisible()
+  const conversation = page.getByRole('region', { name: 'Conversation' })
+  // Stop shows before the agent's stream is open, and a steer the agent cannot place yet is held
+  // for after the response, so this steers once the turn is counting.
+  await expect(conversation.getByText(/^1\s/)).toBeVisible()
   const steered = page.waitForRequest(
     (request) => request.method() === 'POST' && request.url().includes('/api/copilot/chat/steer')
   )
   await field.fill('And then say done.')
   await field.press('Enter')
   expect((await steered).postDataJSON().content).toBe('And then say done.')
-  const conversation = page.getByRole('region', { name: 'Conversation' })
   await expect(conversation.getByText('And then say done.', { exact: true })).toBeVisible()
   await expect(conversation.getByText('Applied: And then say done.')).toBeVisible()
   await page.getByRole('button', { name: 'Stop response' }).click()
