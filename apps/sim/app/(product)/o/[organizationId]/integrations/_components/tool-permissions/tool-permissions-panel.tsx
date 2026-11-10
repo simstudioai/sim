@@ -1,7 +1,7 @@
 'use client'
 
+import { FailureNotice } from '@sim/emcn/status'
 import { ProviderHeading } from '@/app/(product)/o/[organizationId]/integrations/_components/provider-heading/provider-heading'
-import { QueryFailure } from '@/app/(product)/o/[organizationId]/integrations/_components/query-failure/query-failure'
 import { ToolPermissions } from '@/app/(product)/o/[organizationId]/integrations/_components/tool-permissions/tool-permissions'
 import { useToolPermissions, useToolPermissionsSearch } from '@/platform/lib/data/integrations'
 
@@ -19,7 +19,14 @@ export function ToolPermissionsPanel({
 }: ToolPermissionsPanelProps) {
   const { query, view, pending, save } = useToolPermissions(organizationId, credentialId)
   const { search, setSearch } = useToolPermissionsSearch()
-  if (query.error) return <QueryFailure message='Could not load tool permissions' query={query} />
+  if (query.error)
+    return (
+      <FailureNotice
+        message='Could not load tool permissions'
+        retrying={query.isFetching}
+        onRetry={() => void query.refetch()}
+      />
+    )
   if (!view) return null
   return (
     <>

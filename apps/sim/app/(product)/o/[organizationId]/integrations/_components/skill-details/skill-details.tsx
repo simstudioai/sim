@@ -10,6 +10,7 @@ import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { Modal } from '@sim/emcn/modal'
 import { MultiSelect } from '@sim/emcn/picker/multi-select'
+import { FailureNotice } from '@sim/emcn/status'
 import { ContentTabs } from '@sim/emcn/tabs/content-tabs'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useQueryStates } from 'nuqs'
@@ -20,7 +21,6 @@ import {
 } from '@/app/(product)/_components/resource-directory/resource-directory'
 import { SettingsLeaveGuard } from '@/app/(product)/_components/session-state/settings-leave-guard'
 import { PeopleSentence } from '@/app/(product)/o/[organizationId]/integrations/_components/people-sentence/people-sentence'
-import { QueryFailure } from '@/app/(product)/o/[organizationId]/integrations/_components/query-failure/query-failure'
 import styles from '@/app/(product)/o/[organizationId]/integrations/_components/skill-details/skill-details.module.css'
 import { useSettingsUnsavedGuard } from '@/platform/lib/data/settings-guard'
 import {
@@ -191,7 +191,11 @@ export function SkillDetails({
     return (
       <>
         {back}
-        <QueryFailure message='Could not load skills' query={skills} />
+        <FailureNotice
+          message='Could not load skills'
+          retrying={skills.isFetching}
+          onRetry={() => void skills.refetch()}
+        />
       </>
     )
   }
@@ -464,9 +468,10 @@ function SkillEditors({ workspaceId, skill, canEdit }: SkillEditorsProps) {
         </div>
       )}
       {editors.error ? (
-        <QueryFailure
+        <FailureNotice
           message="Couldn't load editors. You may no longer have access to this skill."
-          query={editors}
+          retrying={editors.isFetching}
+          onRetry={() => void editors.refetch()}
         />
       ) : (
         editors.data && (
