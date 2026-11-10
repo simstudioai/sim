@@ -292,9 +292,11 @@ const READ_WINDOW_CHARACTERS = 8000
 /** The read limit {@link READ_WINDOW_CHARACTERS} is sized for, which is the default limit. */
 const READ_WINDOW_LIMIT = 3
 /**
- * Characters the documents of one scaled read call share. It keeps the call's result, with about
- * a thousand characters of metadata per document, under the 50,000-character size at which MCP
- * clients such as Claude Code save a tool result to a file rather than show it.
+ * Characters the documents of one scaled read call share. Through four documents it keeps the
+ * call's result, with about a thousand characters of metadata per document, under the
+ * 50,000-character size at which MCP clients such as Claude Code save a tool result to a file
+ * rather than show it. From five documents the standard page per document is the larger, so
+ * those calls read exactly what they read without scaling.
  */
 const SCALED_READ_CALL_CHARACTERS = 40_000
 
