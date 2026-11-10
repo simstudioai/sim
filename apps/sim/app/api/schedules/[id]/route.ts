@@ -10,12 +10,14 @@ import { parseRequest } from '@/lib/api/server'
 import {
   createInternalResourceConcealmentPolicy,
   defineInternalJsonRoute,
+  extendInternalErrorPolicy,
   internalErrorResponse,
   internalOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { getSession } from '@/lib/auth'
+import { InsufficientWorkspacePermissionsError } from '@/lib/core/application'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -117,21 +119,30 @@ export const PUT = defineInternalJsonRoute({
   }),
   errorPolicy: createInternalResourceConcealmentPolicy({
     notFoundMessage: 'Schedule not found',
-    base: {
-      project: internalOrchestrationErrorPolicy.project,
-      unhandled: () => internalErrorResponse(500, { error: 'Failed to update schedule' }),
-    },
+    base: extendInternalErrorPolicy(
+      {
+        project: internalOrchestrationErrorPolicy.project,
+        unhandled: () => internalErrorResponse(500, { error: 'Failed to update schedule' }),
+      },
+      (error) =>
+        error instanceof InsufficientWorkspacePermissionsError
+          ? internalErrorResponse(403, {
+              error: 'Unauthorized: Access denied to write this workflow',
+            })
+          : null
+    ),
   }),
   parseOptions: {
     validationErrorResponse: () =>
       NextResponse.json({ error: 'Invalid request body' }, { status: 400 }),
   },
   mapInput: ({ params, body }) => ({
-    target: { kind: 'schedule_row' as const, scheduleId: params.id },
+    target: { kind: 'row' as const, table: 'schedule' as const, id: params.id },
     enabled: body.action === 'reactivate',
   }),
   useCase: setWorkflowTriggerEnabled,
-  present: ({ trigger, changed }, { input }) => {
+  present: ({ trigger, changes }, { input }) => {
+    const changed = changes.length > 0
     if (!input.enabled) {
       return {
         message: changed ? 'Schedule disabled successfully' : 'Schedule is already disabled',

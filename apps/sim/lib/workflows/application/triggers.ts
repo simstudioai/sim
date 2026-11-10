@@ -1,6 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
-import { Cron } from 'croner'
 import { capabilityGovernedPrincipalUserId } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { assertWorkspaceCapability } from '@/lib/permission-groups/capability-assertions'
@@ -15,13 +14,14 @@ import {
   assertedWorkflowWorkspaceId,
   resolvePrincipalWorkflowContext,
 } from '@/lib/workflows/application/principal-scope'
+import { validateCronExpression } from '@/lib/workflows/schedules/utils'
 import {
-  findLiveWorkflowTrigger,
+  findLiveBlockTriggers,
   findTriggerRowOwner,
+  isInRequestedState,
   type LiveWorkflowTriggerRecord,
   listLiveWorkflowTriggers,
-  setLiveScheduleEnabled,
-  setLiveWebhookEnabled,
+  setLiveTriggersEnabled,
   toWorkflowTriggerHealth,
   type WorkflowTriggerHealth,
   type WorkflowTriggerStatus,
@@ -34,7 +34,7 @@ interface ListWorkflowTriggersInput {
   assertedWorkspaceId?: string
 }
 
-/** Every trigger the live deployment serves, disabled ones included; empty when undeployed. */
+/** Every trigger the live deployment serves, disabled ones included. */
 export const listWorkflowTriggers = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.readTriggers,
   resolveContext: resolvePrincipalWorkflowContext<ListWorkflowTriggersInput>,
@@ -52,8 +52,7 @@ export const listWorkflowTriggers = defineAuthorizedWorkflowUseCase({
  */
 type WorkflowTriggerTarget =
   | { kind: 'block'; workflowId: string; blockId: string; assertedWorkspaceId?: string }
-  | { kind: 'schedule_row'; scheduleId: string }
-  | { kind: 'webhook_row'; webhookId: string }
+  | { kind: 'row'; table: LiveWorkflowTriggerRecord['table']; id: string }
 
 interface SetWorkflowTriggerEnabledInput {
   target: WorkflowTriggerTarget
@@ -67,10 +66,11 @@ interface TriggerTargetContext extends ActiveWorkflowApplicationContext {
 }
 
 interface SetWorkflowTriggerEnabledResult {
+  /** The target after the update; for a block with several live rows, the one the editor shows. */
   trigger: WorkflowTriggerHealth
   record: LiveWorkflowTriggerRecord
-  changed: boolean
-  previousStatus: WorkflowTriggerStatus
+  /** Every row this request switched; empty when all were already in the requested state. */
+  changes: { record: LiveWorkflowTriggerRecord; previousStatus: WorkflowTriggerStatus }[]
 }
 
 async function resolveTriggerTargetContext({
@@ -89,12 +89,9 @@ async function resolveTriggerTargetContext({
     return { ...workflowContext, blockId: target.blockId, notFoundMessage: TRIGGER_NOT_FOUND }
   }
 
-  const table = target.kind === 'schedule_row' ? 'schedule' : 'webhook'
+  const { table } = target
   const notFoundMessage = table === 'schedule' ? 'Schedule not found' : 'Webhook not found'
-  const row = await findTriggerRowOwner(
-    table,
-    target.kind === 'schedule_row' ? target.scheduleId : target.webhookId
-  )
+  const row = await findTriggerRowOwner(table, target.id)
   if (!row) throw new OrchestrationError('not_found', notFoundMessage)
   if (!row.workflowId) {
     throw new OrchestrationError('validation', 'Schedule has no associated workflow')
@@ -111,31 +108,18 @@ async function resolveTriggerTargetContext({
   }
 }
 
-/**
- * The run a re-enabled schedule is armed for. A completed schedule may come
- * back only while its cron still has a run ahead of it — and before its end
- * boundary — or it would complete again on the next tick.
- */
+/** The run a re-enabled schedule is armed for, refused when its cron has none ahead. */
 function nextScheduledRun(
   row: Extract<LiveWorkflowTriggerRecord, { table: 'schedule' }>['row']
 ): Date {
   if (!row.cronExpression) {
     throw new OrchestrationError('validation', 'Schedule has no cron expression')
   }
-  let cron: Cron
-  try {
-    cron = new Cron(row.cronExpression, { timezone: row.timezone || 'UTC' })
-  } catch {
+  const cron = validateCronExpression(row.cronExpression, row.timezone || 'UTC')
+  if (!cron.isValid || !cron.nextRun) {
     throw new OrchestrationError('validation', 'Schedule has invalid cron expression')
   }
-  const nextRun = cron.nextRun()
-  if (!nextRun || (row.endsAt && nextRun > row.endsAt)) {
-    throw new OrchestrationError(
-      'conflict',
-      'Schedule has no future runs; change its schedule and redeploy'
-    )
-  }
-  return nextRun
+  return cron.nextRun
 }
 
 /**
@@ -160,20 +144,10 @@ async function assertWebhookEnableAllowed(
   )
 }
 
-async function readLiveTarget(
-  context: TriggerTargetContext
-): Promise<LiveWorkflowTriggerRecord | null> {
-  const record = await findLiveWorkflowTrigger({
-    workflowId: context.workflowId,
-    blockId: context.blockId,
-    rowId: context.row?.id,
-  })
-  if (!record || (context.row && record.table !== context.row.table)) return null
-  return record
-}
-
 /**
  * Pauses or resumes one trigger of the live deployment without redeploying.
+ * A block target switches every live row of the block together; a legacy row
+ * target switches exactly that row.
  *
  * Enabling resets the failure counters, re-arms a schedule's next run, and
  * clears a poller's backoff. Disabling only closes Sim's gate: nothing is torn
@@ -184,89 +158,92 @@ export const setWorkflowTriggerEnabled = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.setTriggerEnabled,
   resolveContext: resolveTriggerTargetContext,
   async execute({ principal, input, context }): Promise<SetWorkflowTriggerEnabledResult> {
-    await requireMutableWorkflow(context.workflowId)
-    const current = await readLiveTarget(context)
-    if (!current) throw new OrchestrationError('not_found', context.notFoundMessage)
-    const before = toWorkflowTriggerHealth(current)
-    if (before.enabled === input.enabled) {
-      return { trigger: before, record: current, changed: false, previousStatus: before.status }
+    let [, current] = await Promise.all([
+      requireMutableWorkflow(context.workflowId),
+      findLiveBlockTriggers(context),
+    ])
+    if (current.length === 0) throw new OrchestrationError('not_found', context.notFoundMessage)
+    const pending = current.filter((record) => !isInRequestedState(record, input.enabled))
+    if (pending.length === 0) {
+      return { trigger: toWorkflowTriggerHealth(current[0]), record: current[0], changes: [] }
     }
 
-    const now = new Date()
-    let updated: LiveWorkflowTriggerRecord | null
-    if (current.table === 'schedule') {
-      updated = await setLiveScheduleEnabled({
-        workflowId: context.workflowId,
-        scheduleId: current.row.id,
-        enabled: input.enabled,
-        nextRunAt: input.enabled ? nextScheduledRun(current.row) : null,
-        now,
-      })
-    } else {
-      if (input.enabled) await assertWebhookEnableAllowed(principal, context)
-      updated = await setLiveWebhookEnabled({
-        workflowId: context.workflowId,
-        webhookId: current.row.id,
-        enabled: input.enabled,
-        now,
-      })
-    }
-
-    if (updated) {
-      return {
-        trigger: toWorkflowTriggerHealth(updated),
-        record: updated,
-        changed: true,
-        previousStatus: before.status,
+    const schedules: { id: string; nextRunAt: Date | null }[] = []
+    const webhookIds: string[] = []
+    for (const record of pending) {
+      if (record.table === 'schedule') {
+        schedules.push({
+          id: record.row.id,
+          nextRunAt: input.enabled ? nextScheduledRun(record.row) : null,
+        })
+      } else {
+        webhookIds.push(record.row.id)
       }
     }
+    if (input.enabled && webhookIds.length > 0) await assertWebhookEnableAllowed(principal, context)
 
-    const latest = await readLiveTarget(context)
-    if (!latest) throw new OrchestrationError('not_found', context.notFoundMessage)
-    const latestTrigger = toWorkflowTriggerHealth(latest)
-    if (latestTrigger.enabled !== input.enabled) {
-      throw new OrchestrationError('conflict', 'Trigger changed during the update; retry')
-    }
-    return {
-      trigger: latestTrigger,
-      record: latest,
-      changed: false,
-      previousStatus: before.status,
-    }
-  },
-  projectAudit: ({ input, result, context }) => {
-    if (!result.changed) return []
-    const verb = input.enabled ? 'Enabled' : 'Disabled'
-    const shared = {
+    const updated = await setLiveTriggersEnabled({
       workflowId: context.workflowId,
-      blockId: result.trigger.blockId,
       enabled: input.enabled,
-      previousStatus: result.previousStatus,
-    }
-    if (result.record.table === 'schedule') {
-      const { row } = result.record
-      return {
-        action: AuditAction.SCHEDULE_UPDATED,
-        resourceType: AuditResourceType.SCHEDULE,
-        resourceId: row.id,
-        resourceName: row.jobTitle ?? undefined,
-        description: `${verb} schedule "${row.jobTitle ?? row.id}"`,
-        metadata: {
-          ...shared,
-          sourceType: row.sourceType,
-          cronExpression: row.cronExpression,
-          timezone: row.timezone,
-        },
+      schedules,
+      webhookIds,
+      now: new Date(),
+    })
+    if (updated.length < pending.length) {
+      current = await findLiveBlockTriggers(context)
+      if (current.length === 0) throw new OrchestrationError('not_found', context.notFoundMessage)
+      if (current.some((record) => !isInRequestedState(record, input.enabled))) {
+        throw new OrchestrationError('conflict', 'Trigger changed during the update; retry')
       }
     }
-    const provider = result.record.row.provider || 'generic'
+
+    const previousStatusById = new Map(
+      pending.map((record) => [record.row.id, toWorkflowTriggerHealth(record).status])
+    )
+    const primary = updated.find((record) => record.row.id === current[0].row.id) ?? current[0]
     return {
-      action: AuditAction.WEBHOOK_UPDATED,
-      resourceType: AuditResourceType.WEBHOOK,
-      resourceId: result.record.row.id,
-      resourceName: provider,
-      description: `${verb} ${provider} webhook`,
-      metadata: { ...shared, provider },
+      trigger: toWorkflowTriggerHealth(primary),
+      record: primary,
+      changes: updated.map((record) => ({
+        record,
+        previousStatus:
+          previousStatusById.get(record.row.id) ?? toWorkflowTriggerHealth(record).status,
+      })),
     }
   },
+  projectAudit: ({ input, context, result }) =>
+    result.changes.map(({ record, previousStatus }) => {
+      const verb = input.enabled ? 'Enabled' : 'Disabled'
+      const shared = {
+        workflowId: context.workflowId,
+        blockId: record.row.blockId,
+        enabled: input.enabled,
+        previousStatus,
+      }
+      if (record.table === 'schedule') {
+        const { row } = record
+        return {
+          action: AuditAction.SCHEDULE_UPDATED,
+          resourceType: AuditResourceType.SCHEDULE,
+          resourceId: row.id,
+          resourceName: row.jobTitle ?? undefined,
+          description: `${verb} schedule "${row.jobTitle ?? row.id}"`,
+          metadata: {
+            ...shared,
+            sourceType: row.sourceType,
+            cronExpression: row.cronExpression,
+            timezone: row.timezone,
+          },
+        }
+      }
+      const provider = record.row.provider || 'generic'
+      return {
+        action: AuditAction.WEBHOOK_UPDATED,
+        resourceType: AuditResourceType.WEBHOOK,
+        resourceId: record.row.id,
+        resourceName: provider,
+        description: `${verb} ${provider} webhook`,
+        metadata: { ...shared, provider },
+      }
+    }),
 })

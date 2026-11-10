@@ -19,11 +19,14 @@ import { parseRequest } from '@/lib/api/server'
 import {
   createInternalResourceConcealmentPolicy,
   defineInternalJsonRoute,
+  extendInternalErrorPolicy,
+  internalErrorResponse,
   internalOrchestrationErrorPolicy,
   internalRateLimits,
   internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import { InsufficientWorkspacePermissionsError } from '@/lib/core/application'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -110,10 +113,14 @@ export const PATCH = defineInternalJsonRoute({
   }),
   errorPolicy: createInternalResourceConcealmentPolicy({
     notFoundMessage: 'Webhook not found',
-    base: internalOrchestrationErrorPolicy,
+    base: extendInternalErrorPolicy(internalOrchestrationErrorPolicy, (error) =>
+      error instanceof InsufficientWorkspacePermissionsError
+        ? internalErrorResponse(403, { error: 'Access denied' })
+        : null
+    ),
   }),
   mapInput: ({ params, body }) => ({
-    target: { kind: 'webhook_row' as const, webhookId: params.id },
+    target: { kind: 'row' as const, table: 'webhook' as const, id: params.id },
     enabled: body.isActive,
   }),
   useCase: setWorkflowTriggerEnabled,

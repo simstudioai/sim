@@ -1,8 +1,23 @@
 import { db } from '@sim/db'
 import { webhook, workflowDeploymentVersion, workflowSchedule } from '@sim/db/schema'
 import { compareStrings } from '@sim/utils/string'
-import { and, asc, eq, inArray, isNotNull, isNull, ne, or, type SQL, sql } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  ne,
+  notExists,
+  or,
+  type SQL,
+  sql,
+} from 'drizzle-orm'
+import type { AnyPgColumn } from 'drizzle-orm/pg-core'
 import { resolveDeployedWebhookUrl } from '@/lib/webhooks/deployed-urls'
+import { POLL_BACKOFF_UNTIL_KEY, POLL_SOURCE_FAILURES_KEY } from '@/lib/webhooks/polling/utils'
 import { isInternalTriggerProvider, isPollingWebhookProvider } from '@/triggers/constants'
 
 /**
@@ -51,15 +66,31 @@ function activeDeploymentVersionIds(workflowId: string) {
 }
 
 /**
+ * The deployment-version test every delivery path and editor read applies: the
+ * row belongs to the active version, or the workflow has no active version and
+ * the row names none (a deploy that predates versions). The schedule dispatcher
+ * additionally skips that versionless case, so such a schedule is listed and
+ * switchable, exactly as the editor shows it, but does not fire.
+ */
+function servedByLiveDeployment(deploymentVersionId: AnyPgColumn, workflowId: string): SQL {
+  const predicate = or(
+    inArray(deploymentVersionId, activeDeploymentVersionIds(workflowId)),
+    and(isNull(deploymentVersionId), notExists(activeDeploymentVersionIds(workflowId)))
+  )
+  if (!predicate) throw new Error('Live deployment predicate is empty')
+  return predicate
+}
+
+/**
  * The schedule rows the live deployment serves. Job schedules share the table
  * but belong to no workflow deployment, so they are excluded by source.
  */
 function liveSchedulePredicate(workflowId: string): SQL {
   const predicate = and(
     eq(workflowSchedule.workflowId, workflowId),
-    inArray(workflowSchedule.deploymentVersionId, activeDeploymentVersionIds(workflowId)),
+    servedByLiveDeployment(workflowSchedule.deploymentVersionId, workflowId),
     isNull(workflowSchedule.archivedAt),
-    eq(workflowSchedule.sourceType, 'workflow'),
+    or(eq(workflowSchedule.sourceType, 'workflow'), isNull(workflowSchedule.sourceType)),
     isNotNull(workflowSchedule.blockId)
   )
   if (!predicate) throw new Error('Live schedule predicate is empty')
@@ -67,17 +98,17 @@ function liveSchedulePredicate(workflowId: string): SQL {
 }
 
 /**
- * The webhook rows the live deployment serves. `isActive` is the enablement
- * gate, never the liveness test: a disabled row of the active version is still
- * live, while a `candidate`, `retired`, or `orphaned` registration — or any row
- * of an older version — is not, and must never be revived by an enable.
+ * The webhook rows the live deployment serves, matching the delivery and
+ * polling lookups. `isActive` is the enablement gate, never the liveness test:
+ * a disabled row of the active version is still live, while a row of an older
+ * version, or a `candidate`, `retired`, or `orphaned` registration (always
+ * archived), is not, and must never be revived by an enable.
  */
 function liveWebhookPredicate(workflowId: string): SQL {
   const predicate = and(
     eq(webhook.workflowId, workflowId),
-    inArray(webhook.deploymentVersionId, activeDeploymentVersionIds(workflowId)),
+    servedByLiveDeployment(webhook.deploymentVersionId, workflowId),
     isNull(webhook.archivedAt),
-    or(eq(webhook.registrationStatus, 'active'), isNull(webhook.registrationStatus)),
     isNotNull(webhook.blockId)
   )
   if (!predicate) throw new Error('Live webhook predicate is empty')
@@ -138,21 +169,13 @@ function withBlockId<R extends { blockId: string | null }>(row: R): R & { blockI
   return { ...row, blockId: row.blockId }
 }
 
-/** Every trigger the workflow's live deployment serves, ordered by block. Empty when undeployed. */
+/** Every trigger the workflow's live deployment serves, ordered by block. */
 export async function listLiveWorkflowTriggers(
   workflowId: string
 ): Promise<LiveWorkflowTriggerRecord[]> {
   const [schedules, webhooks] = await Promise.all([
-    db
-      .select()
-      .from(workflowSchedule)
-      .where(liveSchedulePredicate(workflowId))
-      .orderBy(asc(workflowSchedule.blockId), asc(workflowSchedule.id)),
-    db
-      .select()
-      .from(webhook)
-      .where(liveWebhookPredicate(workflowId))
-      .orderBy(asc(webhook.blockId), asc(webhook.id)),
+    db.select().from(workflowSchedule).where(liveSchedulePredicate(workflowId)),
+    db.select().from(webhook).where(liveWebhookPredicate(workflowId)),
   ])
   const records: LiveWorkflowTriggerRecord[] = [
     ...schedules.map((row) => ({ table: 'schedule' as const, row: withBlockId(row) })),
@@ -191,116 +214,124 @@ export async function findTriggerRowOwner(
 }
 
 /**
- * The live trigger a block serves, optionally pinned to one row id. A row that
- * exists but is not live — an older version, an archived row, a non-active
- * registration — reads as absent.
+ * The live rows a block serves: its schedules, or else its webhook rows, newest
+ * first as the editor reads them. A block normally has one, but rows written
+ * before registrations were tracked can leave several. Pinned to `row`, only
+ * that row, and only while it is live: an older version, an archived row, or a
+ * non-active registration reads as absent.
  */
-export async function findLiveWorkflowTrigger(input: {
+export async function findLiveBlockTriggers(input: {
   workflowId: string
   blockId: string
-  rowId?: string
-}): Promise<LiveWorkflowTriggerRecord | null> {
-  const [schedule] = await db
-    .select()
-    .from(workflowSchedule)
-    .where(
-      and(
-        liveSchedulePredicate(input.workflowId),
-        eq(workflowSchedule.blockId, input.blockId),
-        input.rowId ? eq(workflowSchedule.id, input.rowId) : undefined
-      )
-    )
-    .orderBy(asc(workflowSchedule.id))
-    .limit(1)
-  if (schedule) return { table: 'schedule', row: withBlockId(schedule) }
+  row?: { table: LiveWorkflowTriggerRecord['table']; id: string }
+}): Promise<LiveWorkflowTriggerRecord[]> {
+  const { row } = input
+  const [schedules, webhooks] = await Promise.all([
+    row?.table === 'webhook'
+      ? []
+      : db
+          .select()
+          .from(workflowSchedule)
+          .where(
+            and(
+              liveSchedulePredicate(input.workflowId),
+              eq(workflowSchedule.blockId, input.blockId),
+              row ? eq(workflowSchedule.id, row.id) : undefined
+            )
+          )
+          .orderBy(asc(workflowSchedule.id)),
+    row?.table === 'schedule'
+      ? []
+      : db
+          .select()
+          .from(webhook)
+          .where(
+            and(
+              liveWebhookPredicate(input.workflowId),
+              eq(webhook.blockId, input.blockId),
+              row ? eq(webhook.id, row.id) : undefined
+            )
+          )
+          .orderBy(desc(webhook.updatedAt), asc(webhook.id)),
+  ])
+  if (schedules.length > 0) {
+    return schedules.map((schedule) => ({ table: 'schedule', row: withBlockId(schedule) }))
+  }
+  return webhooks.map((hook) => ({ table: 'webhook', row: withBlockId(hook) }))
+}
 
-  const [row] = await db
-    .select()
-    .from(webhook)
-    .where(
-      and(
-        liveWebhookPredicate(input.workflowId),
-        eq(webhook.blockId, input.blockId),
-        input.rowId ? eq(webhook.id, input.rowId) : undefined
-      )
-    )
-    .orderBy(asc(webhook.id))
-    .limit(1)
-  return row ? { table: 'webhook', row: withBlockId(row) } : null
+/** Whether a live row already is in the requested state. Disabling moves a completed schedule to `disabled`. */
+export function isInRequestedState(record: LiveWorkflowTriggerRecord, enabled: boolean): boolean {
+  if (record.table === 'webhook') return record.row.isActive === enabled
+  return record.row.status === (enabled ? 'active' : 'disabled')
 }
 
 /**
- * Flips one live schedule row in a single conditional write. The predicate is
- * re-evaluated by the `UPDATE` itself, so a redeploy that retires the row
- * between the caller's read and this write leaves it untouched and returns
- * `null`, as does a row already in the requested state.
+ * Switches live rows in one transaction of conditional writes. Each `UPDATE`
+ * re-evaluates liveness and the current state itself, so a row a redeploy
+ * retired, or one already switched, since the caller's read is left untouched
+ * and absent from the result.
  *
- * Enabling resets both failure counters and arms `nextRunAt`; disabling clears
- * the pending run and any claim.
+ * Enabling a schedule resets both failure counters and arms `nextRunAt`;
+ * disabling clears the pending run and any claim. Enabling a webhook resets the
+ * failure count and drops a poller's source backoff, so a re-enabled polling
+ * trigger is polled on the next tick instead of waiting out a window earned
+ * before it was disabled.
  */
-export async function setLiveScheduleEnabled(input: {
+export async function setLiveTriggersEnabled(input: {
   workflowId: string
-  scheduleId: string
   enabled: boolean
-  nextRunAt: Date | null
+  schedules: { id: string; nextRunAt: Date | null }[]
+  webhookIds: string[]
   now: Date
-}): Promise<LiveWorkflowTriggerRecord | null> {
-  const [updated] = await db
-    .update(workflowSchedule)
-    .set(
-      input.enabled
-        ? {
-            status: 'active',
-            failedCount: 0,
-            infraRetryCount: 0,
-            nextRunAt: input.nextRunAt,
-            updatedAt: input.now,
-          }
-        : { status: 'disabled', nextRunAt: null, lastQueuedAt: null, updatedAt: input.now }
-    )
-    .where(
-      and(
-        eq(workflowSchedule.id, input.scheduleId),
-        liveSchedulePredicate(input.workflowId),
-        input.enabled
-          ? ne(workflowSchedule.status, 'active')
-          : eq(workflowSchedule.status, 'active')
-      )
-    )
-    .returning()
-  return updated ? { table: 'schedule', row: withBlockId(updated) } : null
-}
+}): Promise<LiveWorkflowTriggerRecord[]> {
+  const { workflowId, enabled, now } = input
+  return db.transaction(async (tx) => {
+    const updated: LiveWorkflowTriggerRecord[] = []
+    for (const schedule of input.schedules) {
+      const [row] = await tx
+        .update(workflowSchedule)
+        .set(
+          enabled
+            ? {
+                status: 'active',
+                failedCount: 0,
+                infraRetryCount: 0,
+                nextRunAt: schedule.nextRunAt,
+                updatedAt: now,
+              }
+            : { status: 'disabled', nextRunAt: null, lastQueuedAt: null, updatedAt: now }
+        )
+        .where(
+          and(
+            eq(workflowSchedule.id, schedule.id),
+            liveSchedulePredicate(workflowId),
+            ne(workflowSchedule.status, enabled ? 'active' : 'disabled')
+          )
+        )
+        .returning()
+      if (row) updated.push({ table: 'schedule', row: withBlockId(row) })
+    }
 
-/**
- * Flips one live webhook row in a single conditional write, with the same
- * race guarantees as {@link setLiveScheduleEnabled}.
- *
- * Enabling resets the failure count and drops a poller's source backoff, so a
- * re-enabled polling trigger is polled on the next tick instead of waiting out
- * a window earned before it was disabled.
- */
-export async function setLiveWebhookEnabled(input: {
-  workflowId: string
-  webhookId: string
-  enabled: boolean
-  now: Date
-}): Promise<LiveWorkflowTriggerRecord | null> {
-  /** The keys `recordPollSourceFailure` writes; literals, because `jsonb - $1` is overloaded. */
-  const clearedBackoff = sql`(${webhook.providerConfig}::jsonb - 'pollBackoffUntil' - 'pollSourceFailures')::json`
-  const [updated] = await db
-    .update(webhook)
-    .set(
-      input.enabled
-        ? { isActive: true, failedCount: 0, providerConfig: clearedBackoff, updatedAt: input.now }
-        : { isActive: false, updatedAt: input.now }
-    )
-    .where(
-      and(
-        eq(webhook.id, input.webhookId),
-        liveWebhookPredicate(input.workflowId),
-        eq(webhook.isActive, !input.enabled)
-      )
-    )
-    .returning()
-  return updated ? { table: 'webhook', row: withBlockId(updated) } : null
+    if (input.webhookIds.length > 0) {
+      const clearedBackoff = sql`(${webhook.providerConfig}::jsonb - ${POLL_BACKOFF_UNTIL_KEY}::text - ${POLL_SOURCE_FAILURES_KEY}::text)::json`
+      const rows = await tx
+        .update(webhook)
+        .set(
+          enabled
+            ? { isActive: true, failedCount: 0, providerConfig: clearedBackoff, updatedAt: now }
+            : { isActive: false, updatedAt: now }
+        )
+        .where(
+          and(
+            inArray(webhook.id, input.webhookIds),
+            liveWebhookPredicate(workflowId),
+            eq(webhook.isActive, !enabled)
+          )
+        )
+        .returning()
+      for (const row of rows) updated.push({ table: 'webhook', row: withBlockId(row) })
+    }
+    return updated
+  })
 }

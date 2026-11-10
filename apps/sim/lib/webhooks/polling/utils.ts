@@ -28,8 +28,8 @@ const POLL_TICK_TOLERANCE_MS = 10_000
 /** Ceiling on a source's own `Retry-After`, so a hostile feed cannot park a trigger for days. */
 const POLL_RETRY_AFTER_MAX_MS = 24 * 60 * 60_000
 
-const POLL_BACKOFF_UNTIL_KEY = 'pollBackoffUntil'
-const POLL_SOURCE_FAILURES_KEY = 'pollSourceFailures'
+export const POLL_BACKOFF_UNTIL_KEY = 'pollBackoffUntil'
+export const POLL_SOURCE_FAILURES_KEY = 'pollSourceFailures'
 
 /**
  * Whether a webhook is inside the backoff window {@link recordPollSourceFailure}

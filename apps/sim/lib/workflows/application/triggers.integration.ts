@@ -31,6 +31,7 @@ import {
   listWorkflowTriggers,
   setWorkflowTriggerEnabled,
 } from '@/lib/workflows/application/triggers'
+import { setLiveTriggersEnabled } from '@/lib/workflows/triggers/health'
 
 vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
@@ -46,6 +47,7 @@ const groupId = generateId()
 const workflowId = generateId()
 const lockedWorkflowId = generateId()
 const undeployedWorkflowId = generateId()
+const versionlessWorkflowId = generateId()
 const oldVersionId = generateId()
 const activeVersionId = generateId()
 const lockedVersionId = generateId()
@@ -57,12 +59,16 @@ const completedScheduleId = generateId()
 const badCronScheduleId = generateId()
 const lockedScheduleId = generateId()
 const undeployedScheduleId = generateId()
+const unversionedScheduleId = generateId()
+const versionlessScheduleId = generateId()
 const liveWebhookId = generateId()
 const candidateWebhookId = generateId()
 const retiredWebhookId = generateId()
 const oldWebhookId = generateId()
 const pollingWebhookId = generateId()
 const eventWebhookId = generateId()
+const twinWebhookIds = [generateId(), generateId()]
+const versionlessWebhookId = generateId()
 const hookPath = `trigger-health-${generateId()}`
 
 const writer = createSessionPrincipal({ userId: writerId })
@@ -125,13 +131,13 @@ function auditRows(resourceId: string) {
     .where(and(eq(auditLog.workspaceId, workspaceId), eq(auditLog.resourceId, resourceId)))
 }
 
-async function surfaceStatus(run: () => Promise<unknown>): Promise<number> {
+async function surfaceStatus(run: () => Promise<unknown>): Promise<number | undefined> {
   const error = await run().then(
     () => null,
     (caught: unknown) => caught
   )
   expect(error).not.toBeNull()
-  return v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(error).status
+  return v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(error)?.status
 }
 
 const emptyState = { blocks: {}, edges: [], loops: {}, parallels: {} }
@@ -211,11 +217,12 @@ beforeAll(async () => {
       { id: workflowId, locked: false, isDeployed: true },
       { id: lockedWorkflowId, locked: true, isDeployed: true },
       { id: undeployedWorkflowId, locked: false, isDeployed: false },
-    ].map((row) => ({
+      { id: versionlessWorkflowId, locked: false, isDeployed: true },
+    ].map((row, index) => ({
       ...row,
       userId: ownerId,
       workspaceId,
-      name: 'Trigger health fixture',
+      name: `Trigger health fixture ${index}`,
       lastSynced: now,
       createdAt: now,
       updatedAt: now,
@@ -271,9 +278,9 @@ beforeAll(async () => {
       workflowId,
       deploymentVersionId: activeVersionId,
       blockId: 'done',
+      cronExpression: '0 0 30 2 *',
       status: 'completed',
       failedCount: 0,
-      endsAt: new Date(now.getTime() - 60_000),
     },
     {
       ...disabledSchedule,
@@ -288,6 +295,20 @@ beforeAll(async () => {
       id: lockedScheduleId,
       workflowId: lockedWorkflowId,
       deploymentVersionId: lockedVersionId,
+      blockId: 'sched',
+    },
+    {
+      ...disabledSchedule,
+      id: unversionedScheduleId,
+      workflowId,
+      deploymentVersionId: null,
+      blockId: 'sched',
+    },
+    {
+      ...disabledSchedule,
+      id: versionlessScheduleId,
+      workflowId: versionlessWorkflowId,
+      deploymentVersionId: null,
       blockId: 'sched',
     },
     {
@@ -320,6 +341,7 @@ beforeAll(async () => {
       blockId: 'hook',
       path: `${hookPath}-candidate`,
       registrationStatus: 'candidate',
+      archivedAt: now,
     },
     {
       ...dormantWebhook,
@@ -327,6 +349,7 @@ beforeAll(async () => {
       blockId: 'hook',
       path: `${hookPath}-retired`,
       registrationStatus: 'retired',
+      archivedAt: now,
     },
     {
       ...dormantWebhook,
@@ -357,6 +380,21 @@ beforeAll(async () => {
       path: `${hookPath}-evt`,
       isActive: true,
     },
+    ...twinWebhookIds.map((id, index) => ({
+      ...dormantWebhook,
+      id,
+      blockId: 'twin',
+      path: `${hookPath}-twin-${index}`,
+      failedCount: 100,
+    })),
+    {
+      ...dormantWebhook,
+      id: versionlessWebhookId,
+      workflowId: versionlessWorkflowId,
+      deploymentVersionId: null,
+      blockId: 'hook',
+      path: `${hookPath}-versionless`,
+    },
   ])
 })
 
@@ -383,6 +421,8 @@ check('lists only the live deployment’s rows, disabled ones included', async (
     ['hook', 'webhook', 'disabled'],
     ['poll', 'polling', 'disabled'],
     ['sched', 'schedule', 'disabled'],
+    ['twin', 'webhook', 'disabled'],
+    ['twin', 'webhook', 'disabled'],
   ])
   const hook = triggers.find((trigger) => trigger.blockId === 'hook')
   expect(hook?.url).toContain(`/api/webhooks/trigger/${hookPath}`)
@@ -404,15 +444,20 @@ check('lists only the live deployment’s rows, disabled ones included', async (
 check('enabling a schedule resets its counters and arms the next run', async () => {
   const before = Date.now()
   const result = await setBlock('sched', true)
-  expect(result.changed).toBe(true)
+  expect(result.changes).toHaveLength(1)
   expect(result.trigger).toMatchObject({ enabled: true, status: 'active', failedCount: 0 })
 
   const live = await scheduleRow(liveScheduleId)
   expect(live).toMatchObject({ status: 'active', failedCount: 0, infraRetryCount: 0 })
   expect(live.nextRunAt?.getTime()).toBeGreaterThan(before)
 
-  const old = await scheduleRow(oldScheduleId)
-  expect(old).toMatchObject({ status: 'disabled', failedCount: 100, infraRetryCount: 3 })
+  for (const id of [oldScheduleId, unversionedScheduleId]) {
+    expect(await scheduleRow(id)).toMatchObject({
+      status: 'disabled',
+      failedCount: 100,
+      infraRetryCount: 3,
+    })
+  }
 })
 
 check('a no-op write records no audit, a real change records one', async () => {
@@ -421,10 +466,10 @@ check('a no-op write records no audit, a real change records one', async () => {
   expect(enabled).toMatchObject({ action: 'schedule.updated', actorId: writerId })
 
   const noop = await setBlock('sched', true)
-  expect(noop.changed).toBe(false)
+  expect(noop.changes).toEqual([])
 
   const disabled = await setBlock('sched', false)
-  expect(disabled.changed).toBe(true)
+  expect(disabled.changes).toHaveLength(1)
   expect(await scheduleRow(liveScheduleId)).toMatchObject({
     status: 'disabled',
     nextRunAt: null,
@@ -437,14 +482,14 @@ check('legacy row ids never revive a row the live deployment does not serve', as
   await expect(
     setWorkflowTriggerEnabled.execute({
       principal: writer,
-      input: { target: { kind: 'schedule_row', scheduleId: oldScheduleId }, enabled: true },
+      input: { target: { kind: 'row', table: 'schedule', id: oldScheduleId }, enabled: true },
     })
   ).rejects.toMatchObject({ code: 'not_found', message: 'Schedule not found' })
   for (const webhookId of [candidateWebhookId, retiredWebhookId, oldWebhookId]) {
     await expect(
       setWorkflowTriggerEnabled.execute({
         principal: writer,
-        input: { target: { kind: 'webhook_row', webhookId }, enabled: true },
+        input: { target: { kind: 'row', table: 'webhook', id: webhookId }, enabled: true },
       })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Webhook not found' })
   }
@@ -452,18 +497,88 @@ check('legacy row ids never revive a row the live deployment does not serve', as
 
   const viaRow = await setWorkflowTriggerEnabled.execute({
     principal: writer,
-    input: { target: { kind: 'schedule_row', scheduleId: liveScheduleId }, enabled: true },
+    input: { target: { kind: 'row', table: 'schedule', id: liveScheduleId }, enabled: true },
   })
-  expect(viaRow.changed).toBe(true)
+  expect(viaRow.changes).toHaveLength(1)
   expect(viaRow.record.row.id).toBe(liveScheduleId)
 })
 
-check('an invalid cron is a 400 and an exhausted schedule is a 409', async () => {
-  await expect(setBlock('badcron', true)).rejects.toMatchObject({ code: 'validation' })
-  await expect(setBlock('done', true)).rejects.toMatchObject({ code: 'conflict' })
-  expect((await scheduleRow(badCronScheduleId)).status).toBe('disabled')
-  expect((await scheduleRow(completedScheduleId)).status).toBe('completed')
+check('the write itself refuses a row that is no longer live', async () => {
+  const updated = await setLiveTriggersEnabled({
+    workflowId,
+    enabled: true,
+    schedules: [{ id: oldScheduleId, nextRunAt: new Date(Date.now() + 60_000) }],
+    webhookIds: [oldWebhookId, candidateWebhookId],
+    now: new Date(),
+  })
+  expect(updated).toEqual([])
+  expect((await scheduleRow(oldScheduleId)).status).toBe('disabled')
+  expect((await webhookRow(oldWebhookId)).isActive).toBe(false)
+  expect((await webhookRow(candidateWebhookId)).isActive).toBe(false)
 })
+
+check('a versionless deploy is switchable exactly as delivery serves it', async () => {
+  const { triggers } = await listWorkflowTriggers.execute({
+    principal: reader,
+    input: { workflowId: versionlessWorkflowId },
+  })
+  expect(triggers.map((trigger) => [trigger.blockId, trigger.kind])).toEqual([
+    ['hook', 'webhook'],
+    ['sched', 'schedule'],
+  ])
+  const schedule = await setWorkflowTriggerEnabled.execute({
+    principal: writer,
+    input: { target: { kind: 'row', table: 'schedule', id: versionlessScheduleId }, enabled: true },
+  })
+  expect(schedule.changes).toHaveLength(1)
+  const hook = await setWorkflowTriggerEnabled.execute({
+    principal: writer,
+    input: { target: { kind: 'row', table: 'webhook', id: versionlessWebhookId }, enabled: true },
+  })
+  expect(hook.changes).toHaveLength(1)
+  expect((await webhookRow(versionlessWebhookId)).isActive).toBe(true)
+})
+
+check('a block switches every live row together; a row id switches only that row', async () => {
+  const [first, second] = twinWebhookIds
+  const viaRow = await setWorkflowTriggerEnabled.execute({
+    principal: writer,
+    input: { target: { kind: 'row', table: 'webhook', id: first }, enabled: true },
+  })
+  expect(viaRow.changes.map((change) => change.record.row.id)).toEqual([first])
+  expect((await webhookRow(second)).isActive).toBe(false)
+
+  const viaBlock = await setBlock('twin', false)
+  expect(viaBlock.changes.map((change) => change.record.row.id)).toEqual([first])
+  const enabled = await setBlock('twin', true)
+  expect(enabled.changes.map((change) => change.record.row.id).sort()).toEqual(
+    [...twinWebhookIds].sort()
+  )
+  for (const id of twinWebhookIds) {
+    expect(await webhookRow(id)).toMatchObject({ isActive: true, failedCount: 0 })
+  }
+  await expect.poll(async () => (await auditRows(second)).length).toBe(1)
+})
+
+check(
+  'an invalid or exhausted cron is refused; disabling a completed schedule sticks',
+  async () => {
+    await expect(setBlock('badcron', true)).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Schedule has invalid cron expression',
+    })
+    await expect(setBlock('done', true)).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Schedule has invalid cron expression',
+    })
+    expect((await scheduleRow(badCronScheduleId)).status).toBe('disabled')
+    expect((await scheduleRow(completedScheduleId)).status).toBe('completed')
+
+    const disabled = await setBlock('done', false)
+    expect(disabled.changes.map((change) => change.previousStatus)).toEqual(['completed'])
+    expect((await scheduleRow(completedScheduleId)).status).toBe('disabled')
+  }
+)
 
 check('a locked workflow refuses the change', async () => {
   await expect(
@@ -499,11 +614,11 @@ check('the webhook capability gates enabling only, and only governed callers', a
     expect((await webhookRow(liveWebhookId)).isActive).toBe(false)
 
     const byKey = await setBlock('hook', true, workspaceKey)
-    expect(byKey.changed).toBe(true)
+    expect(byKey.changes).toHaveLength(1)
     expect((await webhookRow(liveWebhookId)).isActive).toBe(true)
 
     const disabled = await setBlock('hook', false)
-    expect(disabled.changed).toBe(true)
+    expect(disabled.changes).toHaveLength(1)
     expect((await webhookRow(liveWebhookId)).isActive).toBe(false)
   } finally {
     await setWebhookTriggersWithheld(false)
@@ -511,7 +626,7 @@ check('the webhook capability gates enabling only, and only governed callers', a
 
   const enabled = await setWorkflowTriggerEnabled.execute({
     principal: writer,
-    input: { target: { kind: 'webhook_row', webhookId: liveWebhookId }, enabled: true },
+    input: { target: { kind: 'row', table: 'webhook', id: liveWebhookId }, enabled: true },
   })
   expect(enabled.trigger).toMatchObject({ kind: 'webhook', enabled: true })
   for (const id of [candidateWebhookId, retiredWebhookId, oldWebhookId]) {
