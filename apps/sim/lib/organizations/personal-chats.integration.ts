@@ -15,6 +15,8 @@ const { inheritedEnv, worker } = await vi.hoisted(async () => {
   const worker = {
     requests: [] as Array<{ url: string; apiKey: unknown; body: Record<string, unknown> }>,
     rescopeStatus: 200,
+    /** Overrides the refusal body, as a proxy in front of the worker answers its own 404. */
+    rescopeBody: null as string | null,
   }
   const server = createServer(async (request, response) => {
     let raw = ''
@@ -30,7 +32,10 @@ const { inheritedEnv, worker } = await vi.hoisted(async () => {
       response.end(JSON.stringify({ rescoped: body.chatIds.length }))
     } else {
       response.writeHead(request.url === '/api/chats/rescope' ? worker.rescopeStatus : 404)
-      response.end(JSON.stringify({ error: 'Not found' }))
+      response.end(
+        (request.url === '/api/chats/rescope' && worker.rescopeBody) ||
+          JSON.stringify({ error: 'Not found' })
+      )
     }
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -507,6 +512,21 @@ describe('moving the worker’s copy of moved chats', () => {
       expect(state.availableAt.getTime()).toBeGreaterThan(Date.now() + 5 * 60 * 1000)
     } finally {
       worker.rescopeStatus = 200
+    }
+  })
+
+  it('retries, spending an attempt, on a 404 that is not the worker’s missing route', async () => {
+    worker.rescopeStatus = 404
+    worker.rescopeBody = '<html><body>404 Not Found</body></html>'
+    try {
+      const eventId = await queuedMove()
+
+      expect(await processOutboxEventById(eventId, chatRescopeOutboxHandlers)).toBe('pending')
+
+      expect(await eventState(eventId)).toMatchObject({ status: 'pending', attempts: 1 })
+    } finally {
+      worker.rescopeStatus = 200
+      worker.rescopeBody = null
     }
   })
 

@@ -22,11 +22,27 @@ const RESCOPE_TIMEOUT_MS = 30_000
  */
 const MISSING_ROUTE_BACKOFF_MS = 10 * 60 * 1000
 
+/**
+ * Whether a 404 is the worker's own unknown-route answer (`{"error":"Not found"}`), the only 404
+ * that means the route is not deployed yet. Any other 404, a proxy's or a load balancer's, is a
+ * refusal like any other and spends an attempt.
+ */
+async function isMissingRoute(response: Response): Promise<boolean> {
+  const body: unknown = await response.json().catch(() => null)
+  return (
+    typeof body === 'object' &&
+    body !== null &&
+    'error' in body &&
+    body.error === 'Not found' &&
+    Object.keys(body).length === 1
+  )
+}
+
 export const chatRescopeOutboxHandlers = {
   /**
    * Delivers the Stop of every run the move stopped (its Stop is already durable; this reaches
    * the worker, the desktop and the run's controller), then moves the worker's copy of the chats.
-   * Any refusal other than a missing route throws for the outbox to retry; the worker's move is
+   * Any refusal other than the worker's missing-route 404 throws for the outbox to retry; the worker's move is
    * idempotent, and a repeated Stop of an ended run is a no-op.
    */
   [CHAT_RESCOPE_EVENT]: async (rawPayload, context) => {
@@ -62,8 +78,7 @@ export const chatRescopeOutboxHandlers = {
       spanName: 'sim → worker /api/chats/rescope',
       operation: 'rescope_chats',
     })
-    if (response.status === 404) {
-      await response.body?.cancel().catch(() => undefined)
+    if (response.status === 404 && (await isMissingRoute(response))) {
       return deferOutboxHandler(
         'The worker has no chat rescope route yet',
         MISSING_ROUTE_BACKOFF_MS,
