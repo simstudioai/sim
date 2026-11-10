@@ -89,6 +89,23 @@ export function readEnvFile(target: EnvTarget): EnvFile {
 }
 
 /**
+ * Quotes a value only when `#`, edge whitespace, or a leading quote would change
+ * it for `parseValue`, Next's dotenv, Bun, or Docker Compose. Single quotes are
+ * preferred because all four read them literally.
+ */
+function formatEnvValue(key: string, value: string): string {
+  if (/[\r\n]/.test(value)) {
+    throw new Error(`${key} cannot be written to an environment file: it contains a line break`)
+  }
+  if (value === value.trim() && !value.includes('#') && !/^["'`]/.test(value)) return value
+  if (!value.includes("'")) return `'${value}'`
+  if (!/["\\$`]/.test(value)) return `"${value}"`
+  throw new Error(
+    `${key} cannot be written to an environment file: it mixes quotes with a # or edge whitespace`
+  )
+}
+
+/**
  * Sets a key in env-file content: replaces the active line, uncomments a
  * commented-out line, or appends. Returns the new content.
  */
@@ -102,7 +119,7 @@ export function upsertEnv(content: string, key: string, value: string): string {
   }
   const activeIdx = activeIndexes[0] ?? -1
   const idx = activeIdx !== -1 ? activeIdx : lines.findIndex((l) => commentedRe.test(l))
-  const newLine = `${key}=${value}`
+  const newLine = `${key}=${formatEnvValue(key, value)}`
   if (idx === -1) {
     const trailing = lines.length > 0 && lines[lines.length - 1] === ''
     if (trailing) lines.splice(lines.length - 1, 0, newLine)

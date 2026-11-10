@@ -288,8 +288,45 @@ export const LIVE_NOT_STARTED_MESSAGE =
 export const LIVE_OVER_ACCOUNT_LIMIT_MESSAGE = `Not searched: one search covers at most ${MAX_ACCOUNTS} accounts. Search this source or account alone.`
 /** Previews center on the query's longest matching term, like indexed passages. */
 const PREVIEW_CHARACTERS = 1800
-/** Characters one read returns, the same page budget indexed document reads use. */
+/** Characters one read returns at the default limit, the page budget indexed document reads use. */
 const READ_WINDOW_CHARACTERS = 8000
+/** The read limit {@link READ_WINDOW_CHARACTERS} is sized for, which is the default limit. */
+const READ_WINDOW_LIMIT = 3
+/**
+ * Characters the documents of one scaled read call share. Through four documents it keeps the
+ * call's result, with about a thousand characters of metadata per document, under the
+ * 50,000-character size at which MCP clients such as Claude Code save a tool result to a file
+ * rather than show it. From five documents the standard page per document is the larger, so
+ * those calls read exactly what they read without scaling.
+ */
+const SCALED_READ_CALL_CHARACTERS = 40_000
+
+/**
+ * Where one read's window ends. A live document is one chunk, so a caller that scales the window
+ * gets a longer one when it asks for more chunks than the default, bounded by an even share of the
+ * call's budget across the documents it reads. The share counts the window as the result encodes
+ * it, since JSON escapes quotes, backslashes and line breaks, so a longer window is shortened until
+ * its encoded text fits. The window is never shorter than the standard page, which is also what a
+ * read at or below the default limit, or from any other caller, returns.
+ */
+function readWindowEnd(
+  content: string,
+  start: number,
+  { limit, scaledWindow }: Pick<LiveReadInput, 'limit' | 'scaledWindow'>
+): number {
+  const standardEnd = Math.min(content.length, start + READ_WINDOW_CHARACTERS)
+  if (!scaledWindow || limit <= READ_WINDOW_LIMIT) return standardEnd
+  const scaled = Math.floor((READ_WINDOW_CHARACTERS * limit) / READ_WINDOW_LIMIT)
+  const share = Math.floor(SCALED_READ_CALL_CHARACTERS / Math.max(1, scaledWindow.documentsInCall))
+  const budget = Math.min(scaled, share)
+  let end = Math.min(content.length, start + budget)
+  for (let attempt = 0; attempt < 3 && end > standardEnd; attempt++) {
+    const encoded = JSON.stringify(content.slice(start, end)).length - 2
+    if (encoded <= budget) return end
+    end = start + Math.floor(((end - start) * budget) / encoded)
+  }
+  return standardEnd
+}
 
 /**
  * Verifies candidates in rank order. A revoked grant fails the whole account; any other
@@ -990,6 +1027,11 @@ export type LiveReadInput = ResourceOwner & {
   documentId: string
   filters?: WorkspaceSearchFilters
   limit: number
+  /**
+   * Lengthens the window for a limit above the default, sharing one call's budget across the
+   * documents it reads, as {@link readWindowEnd} sizes it.
+   */
+  scaledWindow?: { documentsInCall: number }
   startChunkIndex?: number
   startOffset?: number
   resultSecretRegistry: ResolvedSecretTraceRegistry
@@ -1135,7 +1177,7 @@ export const readLiveDocument = defineAuthorizedKnowledgeUseCase({
         'validation',
         'This document changed. Read again from the beginning'
       )
-    const end = Math.min(content.length, start + READ_WINDOW_CHARACTERS)
+    const end = readWindowEnd(content, start, input)
     return {
       documentId: input.documentId,
       knowledgeBaseId: '',

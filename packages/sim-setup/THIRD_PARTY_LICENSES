@@ -9,6 +9,19 @@ Copyright (c) 2016-present Vercel, Inc.
 chalk
 Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
 
+fast-string-truncated-width and fast-string-width
+Copyright (c) 2024-present Fabio Spampinato
+
+fast-wrap-ansi
+Copyright (c) 2025 James Garbutt
+Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)
+
+ipaddr.js
+Copyright (C) 2011-2017 whitequark <whitequark@whitequark.org>
+
+sisteransi
+Copyright (c) 2018 Terkel Gjervig Nielsen
+
 The dependencies above are licensed under the MIT License:
 
 Permission is hereby granted, free of charge, to any person obtaining a copy

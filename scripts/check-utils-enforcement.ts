@@ -38,9 +38,8 @@ const UTILS_SOURCE = 'packages/utils/src/'
 
 /** Other files allowed to use the underlying primitives. */
 const ALLOWLISTED_FILES = new Set([
-  // Published standalone CLIs: `@sim/utils` is private, so they carry local
+  // Published standalone SDK: `@sim/utils` is private, so it carries local
   // copies rather than a dependency that only resolves inside the monorepo.
-  'packages/cli/src/index.ts',
   'packages/ts-sdk/src/index.ts',
   // CJS bundle — cannot use ES module imports
   'apps/sim/lib/execution/isolated-vm-worker.cjs',

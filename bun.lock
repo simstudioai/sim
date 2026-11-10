@@ -550,22 +550,6 @@
         "typescript": "^7.0.2",
       },
     },
-    "packages/cli": {
-      "name": "simstudio",
-      "version": "0.1.19",
-      "bin": {
-        "simstudio": "dist/index.js",
-      },
-      "dependencies": {
-        "chalk": "5.6.2",
-        "commander": "^11.1.0",
-      },
-      "devDependencies": {
-        "@sim/tsconfig": "workspace:*",
-        "@types/node": "24.19.2",
-        "typescript": "^7.0.2",
-      },
-    },
     "packages/db": {
       "name": "@sim/db",
       "version": "0.1.0",
@@ -4407,7 +4391,6 @@
 
     "simple-update-notifier": ["simple-update-notifier@2.0.0", "", { "dependencies": { "semver": "^7.5.3" } }, "sha512-a2B9Y0KlNXl9u/vsW6sTIu9vGEpfKu2wRV6l1H3XEas/0gUIzGzBoP/IouTcUQbm9JWZLH3COxyn03TYlFax6w=="],
 
-    "simstudio": ["simstudio@workspace:packages/cli"],
 
     "simstudio-ts-sdk": ["simstudio-ts-sdk@workspace:packages/ts-sdk"],
 

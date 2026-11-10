@@ -298,6 +298,7 @@ export function createKnowledgeMcpServer(context: KnowledgeMcpContext): McpServe
                 ...options,
                 documentId: id,
                 organizationId,
+                scaledWindow: { documentsInCall: documentId ? 1 : batch.length },
                 resultSecretRegistry: registry,
                 signal,
               },

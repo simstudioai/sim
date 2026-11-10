@@ -153,7 +153,6 @@
       "ignoreIssues": { "components/icons/icons.tsx": ["exports", "types", "duplicates"] }
     },
     "apps/pii": { "includeEntryExports": false },
-    "packages/cli": { "includeEntryExports": false },
     "packages/db": {
       "includeEntryExports": false,
       "entry": [

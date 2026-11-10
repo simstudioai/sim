@@ -4,7 +4,7 @@ import { truncate } from '@sim/utils/string'
 import { EMAIL_SETUP, JOBS_SETUP, STORAGE_SETUP } from '../capability-config'
 import { promptCapabilitySetup, stageCapabilitySetupTransition } from '../capability-setup'
 import { resolveDatabase } from '../db'
-import type { Detection } from '../detect'
+import { type Detection, exposedManagedContainers, LOOPBACK_HOST } from '../detect'
 import { ROOT, readEnvFile, reconcileEnvValues, writeEnvValues } from '../env-files'
 import { SetupError } from '../errors'
 import { pgProbe } from '../probes'
@@ -75,6 +75,12 @@ export async function runDevMode(
   detection: Detection,
   quick: boolean
 ): Promise<{ startNow: boolean; script: string }> {
+  const exposed = exposedManagedContainers(detection)
+  if (exposed.length > 0) {
+    p.log.warn(
+      `${exposed.join(' and ')} ${exposed.length > 1 ? 'publish their ports' : 'publishes its port'} on every network interface (created by an earlier sim-setup). To keep ${exposed.length > 1 ? 'them' : 'it'} on ${LOOPBACK_HOST}, stop the app, run ${theme.command('npx sim-setup down')} (data is kept), then re-run ${theme.command('npx sim-setup')}.`
+    )
+  }
   const sim = readEnvFile('sim')
   const dsn = await resolveDatabase(detection, sim.vars.get('DATABASE_URL'))
   const secrets = collectSecrets(sim)
