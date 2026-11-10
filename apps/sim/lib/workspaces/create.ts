@@ -1,5 +1,5 @@
 import { db } from '@sim/db'
-import { permissions, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
+import { permissions, user, type WorkspaceMode, workflow, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresConstraintName, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
@@ -347,11 +347,9 @@ async function holdsActiveWorkspace(tx: DbTransaction, userId: string): Promise<
  */
 export async function listWorkspacesEnsuringDefault({
   userId,
-  userName,
   activeOrganizationId,
 }: {
   userId: string
-  userName: string | null | undefined
   activeOrganizationId: string | null
 }): Promise<WorkspaceListPayload> {
   const payload = await listWorkspacesForViewer({ userId, activeOrganizationId, scope: 'active' })
@@ -364,9 +362,14 @@ export async function listWorkspacesEnsuringDefault({
         organizationIds: creationPolicy.organizationId ? [creationPolicy.organizationId] : [],
       })
       if (await holdsActiveWorkspace(tx, userId)) return null
+      const [owner] = await tx
+        .select({ name: user.name })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1)
       const defaultWorkspace = await createWorkspaceInTransaction(tx, {
         userId,
-        name: defaultWorkspaceName(userName),
+        name: defaultWorkspaceName(owner?.name),
         organizationId: creationPolicy.organizationId,
         workspaceMode: creationPolicy.workspaceMode,
         billedAccountUserId: creationPolicy.billedAccountUserId,

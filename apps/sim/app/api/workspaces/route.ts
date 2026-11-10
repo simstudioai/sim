@@ -1,244 +1,101 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { db } from '@sim/db'
-import { workflow } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
-import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
-import { and, eq, isNull } from 'drizzle-orm'
-import { type NextRequest, NextResponse } from 'next/server'
-import { listWorkspacesQuerySchema } from '@/lib/api/contracts'
-import { createWorkspaceContract } from '@/lib/api/contracts/workspaces'
-import { parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { getActiveOrganizationId } from '@/lib/auth/session-response'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { resolveRolledOutOrganizationId } from '@/lib/navigation/resolve-app-entry'
-import { ensureViewerOrganization } from '@/lib/organizations/application/viewer-organization'
-import { capabilityRefusalResponse } from '@/lib/permission-groups/capability-response'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { createWorkspace, listWorkspacesEnsuringDefault } from '@/lib/workspaces/create'
-import { listWorkspacesForViewer, type WorkspaceListPayload } from '@/lib/workspaces/list'
+import { getPostgresErrorCode } from '@sim/utils/errors'
+import { createWorkspaceContract, listWorkspacesContract } from '@/lib/api/contracts/workspaces'
+import { validationErrorResponse } from '@/lib/api/server'
 import {
-  getWorkspaceCreationPolicy,
-  WorkspaceCreationCapabilityWithheldError,
-  WorkspaceCreationContextChangedError,
-  WorkspaceOwnerMissingError,
-} from '@/lib/workspaces/policy'
+  defineInternalJsonRoute,
+  extendInternalErrorPolicy,
+  type InternalErrorPolicy,
+  internalErrorResponse,
+  internalOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { OrganizationMembershipNotFoundError } from '@/lib/core/application/organization-authorization'
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
+import { captureServerEvent } from '@/lib/posthog/server'
+import {
+  createViewerWorkspace,
+  listViewerWorkspaces,
+} from '@/lib/workspaces/application/viewer-workspaces'
+import { WorkspaceOwnerMissingError } from '@/lib/workspaces/policy'
 
-const logger = createLogger('Workspaces')
-
-/** A failed lookup leaves the viewer on the blocked picker rather than failing the list. */
-async function resolveForwardOrganizationId(session: {
-  user: { id: string }
-}): Promise<string | undefined> {
-  try {
-    return (await resolveRolledOutOrganizationId(session)) ?? undefined
-  } catch (error) {
-    logger.warn('Could not resolve an organization to forward a blocked viewer to', {
-      error: getErrorMessage(error),
-    })
-    return undefined
-  }
-}
-
-// Get all workspaces for the current user
-export const GET = withRouteHandler(async (request: Request) => {
-  const session = await getSession()
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const scopeResult = listWorkspacesQuerySchema.safeParse(
-    Object.fromEntries(new URL(request.url).searchParams.entries())
-  )
-  if (!scopeResult.success) {
-    return NextResponse.json(
-      { error: 'Invalid query parameters', details: scopeResult.error.issues },
-      { status: 400 }
-    )
-  }
-  const { scope } = scopeResult.data
-
-  const activeOrganizationId = getActiveOrganizationId(session)
-  if (scope !== 'active') {
-    return NextResponse.json(
-      await listWorkspacesForViewer({ userId: session.user.id, activeOrganizationId, scope })
-    )
-  }
-
-  let payload: WorkspaceListPayload
-  try {
-    payload = await listWorkspacesEnsuringDefault({
-      userId: session.user.id,
-      userName: session.user.name,
-      activeOrganizationId,
-    })
-  } catch (error) {
+const viewerWorkspaceErrorPolicy: InternalErrorPolicy = extendInternalErrorPolicy(
+  internalOrchestrationErrorPolicy,
+  (error) => {
     /** A cached session cookie outlived the account it belongs to. */
-    if (error instanceof WorkspaceOwnerMissingError) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    throw error
+    if (error instanceof WorkspaceOwnerMissingError)
+      return internalErrorResponse(401, { error: 'Unauthorized' })
+    if (error instanceof OrganizationMembershipNotFoundError)
+      return internalErrorResponse(403, { error: 'Forbidden - Not a member of this organization' })
+    return null
   }
+)
 
-  const [firstWorkspace] = payload.workspaces
-  if (!firstWorkspace) {
-    return NextResponse.json({
-      ...payload,
-      forwardOrganizationId: payload.creationPolicy.canCreate
-        ? undefined
-        : await resolveForwardOrganizationId(session),
-    })
-  }
-
-  await ensureWorkflowsHaveWorkspace(session.user.id, firstWorkspace.id)
-  return NextResponse.json(payload)
+export const GET = defineInternalJsonRoute({
+  contract: listWorkspacesContract,
+  auth: internalSessionAuth,
+  operation: listViewerWorkspaces.operation,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve workspace listing behavior' }),
+  errorPolicy: viewerWorkspaceErrorPolicy,
+  parseOptions: {
+    validationErrorResponse: (error) => validationErrorResponse(error, 'Invalid query parameters'),
+  },
+  mapInput: ({ query }) => query,
+  useCase: listViewerWorkspaces,
 })
 
-// POST /api/workspaces - Create a new workspace
-export const POST = withRouteHandler(async (req: NextRequest) => {
-  const session = await getSession()
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  try {
-    const parsed = await parseRequest(createWorkspaceContract, req, {})
-    if (!parsed.success) return parsed.response
-    const { name, skipDefaultWorkflow, organizationId } = parsed.data.body
-    const activeOrganizationId = organizationId ?? getActiveOrganizationId(session)
-    let creationPolicy = await getWorkspaceCreationPolicy({
-      userId: session.user.id,
-      activeOrganizationId,
-    })
-    /** A new workspace lands in the creator's organization, so they need one first. */
-    if (creationPolicy.observedOrganizationId === null) {
-      await ensureViewerOrganization.execute({
-        principal: { kind: 'session', userId: session.user.id, sessionId: session.session.id },
-        input: {},
-      })
-      creationPolicy = await getWorkspaceCreationPolicy({
-        userId: session.user.id,
-        activeOrganizationId,
-      })
-    }
-
-    if (!creationPolicy.canCreate) {
+export const POST = defineInternalJsonRoute({
+  contract: createWorkspaceContract,
+  auth: internalSessionAuth,
+  operation: createViewerWorkspace.operation,
+  rateLimit: internalRateLimits.none({ reason: 'Preserve workspace creation behavior' }),
+  errorPolicy: {
+    ...extendInternalErrorPolicy(viewerWorkspaceErrorPolicy, (error) => {
       /**
-       * The preflight refusal and the revocation-race refusal are the same
-       * decision reached at two moments, so they must be the same body. Without
-       * this branch the common path — the group already denied `workspace.create`
-       * when the policy was read — answered a bare `{ error }`, while only the
-       * race the `catch` below handles carried
-       * `details.code: PERMISSION_GROUP_CAPABILITY_BLOCKED`. A client that keys
-       * off the code then saw the capability refusal in the rarer case only.
+       * The preflight refusal and the revocation-race refusal are the same decision reached at
+       * two moments, so both carry `details.code: PERMISSION_GROUP_CAPABILITY_BLOCKED`.
        */
-      if (creationPolicy.blockedReasonCode === 'permission-group-denied') {
-        return capabilityRefusalResponse('workspace.create')
-      }
-      return NextResponse.json(
-        { error: creationPolicy.reason || 'Workspace creation is not available.' },
-        { status: creationPolicy.status }
-      )
-    }
-
-    const newWorkspace = await createWorkspace({
-      userId: session.user.id,
-      name,
-      skipDefaultWorkflow,
-      organizationId: creationPolicy.organizationId,
-      workspaceMode: creationPolicy.workspaceMode,
-      billedAccountUserId: creationPolicy.billedAccountUserId,
-      observedOrganizationId: creationPolicy.observedOrganizationId,
-      governingPermissionGroupOrganizationId: creationPolicy.governingPermissionGroupOrganizationId,
-    })
-
+      if (error instanceof PermissionGroupCapabilityError)
+        return internalErrorResponse(403, {
+          error: error.message,
+          details: { code: error.detailCode },
+        })
+      /**
+       * A lock timeout is contention, not a fault: creation serializes on the organization's
+       * mutation locks and on `permission_group:<org>`, so a concurrent create or a
+       * permission-group admin write can exhaust the `lock_timeout`. The caller should retry.
+       */
+      if (getPostgresErrorCode(error) === '55P03')
+        return internalErrorResponse(503, {
+          error: 'This organization is being updated by another request. Please try again.',
+        })
+      return null
+    }),
+    unhandled: () => internalErrorResponse(500, { error: 'Failed to create workspace' }),
+  },
+  mapInput: ({ body }) => body,
+  useCase: createViewerWorkspace,
+  onSuccess: ({ principal, result }) => {
     captureServerEvent(
-      session.user.id,
+      principal.userId,
       'workspace_created',
       {
-        workspace_id: newWorkspace.id,
-        name: newWorkspace.name,
-        workspace_mode: newWorkspace.workspaceMode,
-        organization_id: newWorkspace.organizationId,
+        workspace_id: result.id,
+        name: result.name,
+        workspace_mode: result.workspaceMode,
+        organization_id: result.organizationId,
       },
       {
-        groups: { workspace: newWorkspace.id },
+        groups: { workspace: result.id },
         setOnce: { first_workspace_created_at: new Date().toISOString() },
       }
     )
-
-    recordAudit({
-      workspaceId: newWorkspace.id,
-      actorId: session.user.id,
-      actorName: session.user.name,
-      actorEmail: session.user.email,
-      action: AuditAction.WORKSPACE_CREATED,
-      resourceType: AuditResourceType.WORKSPACE,
-      resourceId: newWorkspace.id,
-      resourceName: newWorkspace.name,
-      description: `Created workspace "${newWorkspace.name}"`,
-      metadata: {
-        name: newWorkspace.name,
-        workspaceMode: newWorkspace.workspaceMode,
-        organizationId: newWorkspace.organizationId,
-      },
-      request: req,
-    })
-
-    return NextResponse.json({ workspace: newWorkspace })
-  } catch (error) {
-    if (error instanceof WorkspaceCreationCapabilityWithheldError) {
-      return capabilityRefusalResponse('workspace.create')
-    }
-    if (error instanceof WorkspaceCreationContextChangedError) {
-      return NextResponse.json(
-        {
-          error:
-            'Your organization membership changed while this workspace was being created. Please try again.',
-        },
-        { status: 409 }
-      )
-    }
-    /** A cached session cookie outlived the account it belongs to. */
-    if (error instanceof WorkspaceOwnerMissingError) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-    /**
-     * A lock timeout is contention, not a fault: creation serializes on the
-     * organization's mutation locks and now also on `permission_group:<org>`,
-     * so a concurrent create or a permission-group admin write can exhaust the
-     * `lock_timeout` and abort this transaction. Answer 503 like the
-     * permission-group routes do, rather than letting it reach the generic 500
-     * below — the caller should retry, and a 500 tells them the opposite.
-     */
-    if (getPostgresErrorCode(error) === '55P03') {
-      return NextResponse.json(
-        { error: 'This organization is being updated by another request. Please try again.' },
-        { status: 503 }
-      )
-    }
-    logger.error('Error creating workspace:', error)
-    return NextResponse.json({ error: 'Failed to create workspace' }, { status: 500 })
-  }
+  },
+  present: (workspace) => ({
+    workspace: {
+      ...workspace,
+      createdAt: workspace.createdAt.toISOString(),
+      updatedAt: workspace.updatedAt.toISOString(),
+    },
+  }),
 })
-
-async function ensureWorkflowsHaveWorkspace(userId: string, defaultWorkspaceId: string) {
-  const orphanedWorkflows = await db
-    .select()
-    .from(workflow)
-    .where(and(eq(workflow.userId, userId), isNull(workflow.workspaceId)))
-
-  if (orphanedWorkflows.length > 0) {
-    await db
-      .update(workflow)
-      .set({
-        workspaceId: defaultWorkspaceId,
-        updatedAt: new Date(),
-      })
-      .where(and(eq(workflow.userId, userId), isNull(workflow.workspaceId)))
-
-    logger.info(`Fixed ${orphanedWorkflows.length} orphaned workflows for user ${userId}`)
-  }
-}

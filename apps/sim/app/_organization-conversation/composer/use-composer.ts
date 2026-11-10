@@ -13,6 +13,7 @@ import { UNAVAILABLE_CONTEXT_NOTICE } from '@/lib/mothership/chat/context'
 import type { ChatMessage, ChatRequestMode } from '@/lib/mothership/chat/types'
 import { useOrganization } from '@/lib/organizations/provider'
 import { getSkillsQueryOptions } from '@/hooks/queries/skills'
+import { useWorkspaceListOrganizationId } from '@/hooks/queries/utils/workspace-list-organization'
 import { fetchWorkspacesList, useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useChatInputFocus } from '@/hooks/use-chat-input-focus'
 import type {
@@ -92,6 +93,7 @@ export function useComposer({
   const imagesOnly = requestMode === 'assistant'
   const { organization } = useOrganization()
   const queryClient = useQueryClient()
+  const listOrganizationId = useWorkspaceListOrganizationId()
   const { data: allWorkspaces = [], isPending: workspacesPending } = useWorkspacesQuery(!imagesOnly)
   const waitsForLists = waitsForFullLists && !imagesOnly
   const workspaces = (imagesOnly ? [] : allWorkspaces).filter(
@@ -206,7 +208,7 @@ export function useComposer({
 
   const settleSkillLists = async () => {
     const pendingIds = workspacesPending
-      ? (await fetchWorkspacesList(queryClient))
+      ? (await fetchWorkspacesList(queryClient, listOrganizationId))
           .filter((workspace) => workspace.organizationId === organization.id)
           .map((workspace) => workspace.id)
       : workspaces.flatMap((workspace, index) =>

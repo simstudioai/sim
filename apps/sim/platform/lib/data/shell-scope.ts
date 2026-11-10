@@ -16,7 +16,7 @@ import { readSessionViewer } from '@/platform/lib/data/server-read'
  * creates the organization and its owner membership only, and their workspaces stay where they are.
  * The shell's reads fall back to it when no URL names an organization the viewer can open.
  */
-export const ensureViewerLandingOrganization = cache(async (): Promise<string | null> => {
+const ensureViewerLandingOrganization = cache(async (): Promise<string | null> => {
   const viewer = await readSessionViewer()
   if (!viewer) return null
   return ensureViewerOrganization.execute({ principal: viewer.principal, input: {} })

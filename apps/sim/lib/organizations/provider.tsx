@@ -4,6 +4,7 @@ import { createContext, type ReactNode, useContext } from 'react'
 import { SocketProvider } from '@/components/workspace-providers/socket-provider'
 import { useSession } from '@/lib/auth/client'
 import type { OrganizationSurfaceContext } from '@/lib/organizations/surface'
+import { WorkspaceListOrganizationContext } from '@/hooks/queries/utils/workspace-list-organization'
 import { SourceHistoryProvider } from '@/hooks/sim-search/source-history'
 import { useMothershipChatEvents } from '@/hooks/use-mothership-chat-events'
 import { useSeedDeploymentShape } from '@/hooks/use-seed-deployment-shape'
@@ -37,24 +38,26 @@ export function OrganizationProvider({ children, context }: OrganizationProvider
   )
   return (
     <OrganizationContextValue.Provider value={context}>
-      <SocketProvider
-        user={
-          session?.user
-            ? {
-                id: session.user.id,
-                name: session.user.name ?? undefined,
-                email: session.user.email,
-              }
-            : undefined
-        }
-      >
-        <SourceHistoryProvider
-          organizationId={context.searchAccess.memberScoped ? context.organization.id : undefined}
-          userId={session?.user?.id}
+      <WorkspaceListOrganizationContext.Provider value={context.organization.id}>
+        <SocketProvider
+          user={
+            session?.user
+              ? {
+                  id: session.user.id,
+                  name: session.user.name ?? undefined,
+                  email: session.user.email,
+                }
+              : undefined
+          }
         >
-          {children}
-        </SourceHistoryProvider>
-      </SocketProvider>
+          <SourceHistoryProvider
+            organizationId={context.searchAccess.memberScoped ? context.organization.id : undefined}
+            userId={session?.user?.id}
+          >
+            {children}
+          </SourceHistoryProvider>
+        </SocketProvider>
+      </WorkspaceListOrganizationContext.Provider>
     </OrganizationContextValue.Provider>
   )
 }

@@ -115,7 +115,7 @@ async function buildWorkspacesWithInviteFlags(
  * workspace id, pins, and the workspace creation policy.
  *
  * Performs no writes: `listWorkspacesEnsuringDefault` creates the default
- * workspace first, and the route repairs orphaned workflows.
+ * workspace first, adopting the user's orphaned workflows into it.
  */
 export async function listWorkspacesForViewer(params: {
   userId: string

@@ -25,6 +25,7 @@ import {
   type WorkspacesResponse,
 } from '@/lib/api/contracts'
 import { workspaceKeys } from '@/hooks/queries/utils/workspace-keys'
+import { useWorkspaceListOrganizationId } from '@/hooks/queries/utils/workspace-list-organization'
 import {
   normalizeWorkspace,
   normalizeWorkspacesResponse,
@@ -39,10 +40,14 @@ const WORKSPACE_MEMBERS_STALE_TIME = 5 * 60 * 1000
 export const WORKSPACE_ADMIN_LIST_STALE_TIME = 60 * 1000
 
 async function fetchWorkspaces(
-  scope: WorkspaceQueryScope = 'active',
+  scope: WorkspaceQueryScope,
+  organizationId: string | undefined,
   signal?: AbortSignal
 ): Promise<WorkspacesResponse> {
-  const data = await requestJson(listWorkspacesContract, { query: { scope }, signal })
+  const data = await requestJson(listWorkspacesContract, {
+    query: { scope, organizationId },
+    signal,
+  })
   return normalizeWorkspacesResponse(data)
 }
 
@@ -54,9 +59,10 @@ const selectWorkspaces = (data: WorkspacesResponse): Workspace[] => data.workspa
  * you also need `lastActiveWorkspaceId`.
  */
 export function useWorkspacesQuery(enabled = true, scope: WorkspaceQueryScope = 'active') {
+  const organizationId = useWorkspaceListOrganizationId()
   return useQuery({
     queryKey: workspaceKeys.list(scope),
-    queryFn: ({ signal }) => fetchWorkspaces(scope, signal),
+    queryFn: ({ signal }) => fetchWorkspaces(scope, organizationId, signal),
     select: selectWorkspaces,
     enabled,
     staleTime: WORKSPACE_LIST_STALE_TIME,
@@ -67,11 +73,12 @@ export function useWorkspacesQuery(enabled = true, scope: WorkspaceQueryScope = 
 /** Resolves the list through the cache, for a caller that must wait for it outside a render. */
 export async function fetchWorkspacesList(
   queryClient: QueryClient,
+  organizationId: string | undefined,
   scope: WorkspaceQueryScope = 'active'
 ) {
   const data = await queryClient.fetchQuery({
     queryKey: workspaceKeys.list(scope),
-    queryFn: ({ signal }) => fetchWorkspaces(scope, signal),
+    queryFn: ({ signal }) => fetchWorkspaces(scope, organizationId, signal),
     staleTime: WORKSPACE_LIST_STALE_TIME,
   })
   return selectWorkspaces(data)
@@ -82,18 +89,20 @@ export async function fetchWorkspacesList(
  * Used by the redirect page to determine which workspace to open.
  */
 export function useWorkspacesWithMetadata(enabled = true) {
+  const organizationId = useWorkspaceListOrganizationId()
   return useQuery({
     queryKey: workspaceKeys.list('active'),
-    queryFn: ({ signal }) => fetchWorkspaces('active', signal),
+    queryFn: ({ signal }) => fetchWorkspaces('active', organizationId, signal),
     enabled,
     staleTime: WORKSPACE_LIST_STALE_TIME,
   })
 }
 
 export function useWorkspaceCreationPolicy(enabled = true) {
+  const organizationId = useWorkspaceListOrganizationId()
   return useQuery({
     queryKey: workspaceKeys.list('active'),
-    queryFn: ({ signal }) => fetchWorkspaces('active', signal),
+    queryFn: ({ signal }) => fetchWorkspaces('active', organizationId, signal),
     select: (data) => data.creationPolicy,
     enabled,
     staleTime: WORKSPACE_LIST_STALE_TIME,
@@ -118,9 +127,10 @@ function selectOrderedWorkspaces(data: WorkspacesResponse): Workspace[] {
  * `pinnedResourceTypeSchema` for why that is the one kind read this way.
  */
 export function usePinnedWorkspaceIds(enabled = true) {
+  const organizationId = useWorkspaceListOrganizationId()
   return useQuery({
     queryKey: workspaceKeys.list('active'),
-    queryFn: ({ signal }) => fetchWorkspaces('active', signal),
+    queryFn: ({ signal }) => fetchWorkspaces('active', organizationId, signal),
     select: selectPinnedWorkspaceIds,
     enabled,
     staleTime: WORKSPACE_LIST_STALE_TIME,
@@ -129,9 +139,10 @@ export function usePinnedWorkspaceIds(enabled = true) {
 
 /** The viewer's active workspaces in switcher order: pinned, then most recently visited. */
 export function useOrderedWorkspacesQuery(enabled = true) {
+  const organizationId = useWorkspaceListOrganizationId()
   return useQuery({
     queryKey: workspaceKeys.list('active'),
-    queryFn: ({ signal }) => fetchWorkspaces('active', signal),
+    queryFn: ({ signal }) => fetchWorkspaces('active', organizationId, signal),
     select: selectOrderedWorkspaces,
     enabled,
     staleTime: WORKSPACE_LIST_STALE_TIME,
@@ -402,13 +413,17 @@ export interface AdminWorkspace {
 async function fetchAdminWorkspaces(
   userId: string | undefined,
   organizationId: string | undefined,
+  listOrganizationId: string | undefined,
   signal?: AbortSignal
 ): Promise<AdminWorkspace[]> {
   if (!userId) {
     return []
   }
 
-  const workspacesData = await requestJson(listWorkspacesContract, { query: {}, signal })
+  const workspacesData = await requestJson(listWorkspacesContract, {
+    query: { organizationId: listOrganizationId },
+    signal,
+  })
   const allUserWorkspaces = workspacesData.workspaces.map(normalizeWorkspace)
 
   return allUserWorkspaces
@@ -440,9 +455,11 @@ export function useAdminWorkspaces(
   organizationId?: string,
   options?: { enabled?: boolean }
 ) {
+  const listOrganizationId = useWorkspaceListOrganizationId()
   return useQuery({
     queryKey: [...workspaceKeys.adminList(userId), organizationId ?? ''] as const,
-    queryFn: ({ signal }) => fetchAdminWorkspaces(userId, organizationId, signal),
+    queryFn: ({ signal }) =>
+      fetchAdminWorkspaces(userId, organizationId, listOrganizationId, signal),
     enabled: Boolean(userId) && (options?.enabled ?? true),
     staleTime: WORKSPACE_ADMIN_LIST_STALE_TIME,
     placeholderData: keepPreviousData,
