@@ -981,7 +981,7 @@ const scenarios: Scenario[] = [
       const steerArrived = createGate()
       await page.route(`**${STEER_PATH}`, async () => {
         steerArrived.release()
-        await sleep(600_000)
+        await new Promise<never>(() => {})
       })
       await send(page, steer)
       await steerArrived.released
@@ -1155,9 +1155,17 @@ const scenarios: Scenario[] = [
       await send(page, message)
       await model.waitFor(message)
       await expect(conversation(page).getByText(held)).toBeVisible()
+      const droppedRequests: string[] = []
+      const recordDrop = (request: { url(): string }) => droppedRequests.push(request.url())
+      page.on('requestfailed', recordDrop)
       await context.setOffline(true)
+      // The page itself saw the connection go, so the drop is real and not a no-op.
+      await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false)
       await sleep(3_000)
       await context.setOffline(false)
+      await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(true)
+      page.off('requestfailed', recordDrop)
+      evidence.offline = { pageSawOffline: true, droppedRequests }
       gate.release()
       await waitForIdle(page)
       const [row] = await userRows(chatId, message)
@@ -1660,7 +1668,14 @@ async function runScenario(scenario: Scenario) {
   }
 }
 
+/** Every scenario id `CHAT_STEERING_E2E_ONLY` names that no scenario has: a typo runs nothing. */
+const unknownScenarios = (only ?? []).filter(
+  (id) => !scenarios.some((scenario) => scenario.id === id)
+)
+
 try {
+  if (unknownScenarios.length > 0)
+    throw new Error(`CHAT_STEERING_E2E_ONLY names no scenario: ${unknownScenarios.join(', ')}`)
   await mkdir(dirname(reportPath), { recursive: true })
   await model.listen()
   await proxy.listen()
@@ -1678,6 +1693,15 @@ try {
   await warmUp()
   logger.info('Warm-up finished', { durationMs: Math.round(performance.now() - warmStart) })
   for (const scenario of scenarios) await runScenario(scenario)
+  if (!checks.some((check) => check.status !== 'skipped')) {
+    checks.push({
+      name: 'scenario selection',
+      status: 'failed',
+      durationMs: 0,
+      error: 'No scenario ran',
+    })
+    process.exitCode = 1
+  }
 } catch (error) {
   logger.error('Suite failed', { error: getErrorMessage(error) })
   await context
@@ -1692,16 +1716,15 @@ try {
   })
   process.exitCode = 1
 } finally {
-  await browser?.close().catch(() => undefined)
-  for (const key of uploadedKeys) await rm(join(uploadsPath, key), { force: true })
-  await model.close()
-  await proxy.close()
-  await sql.end()
-  await workerSql.end()
+  // The report is written before cleanup, so a cleanup that throws or hangs still leaves it.
+  const failed = checks.some((check) => check.status === 'failed')
+  const ran = checks.some((check) => check.status === 'passed')
+  await mkdir(dirname(reportPath), { recursive: true })
   await writeFile(
     reportPath,
     JSON.stringify(
       {
+        status: failed || !ran ? 'failed' : 'passed',
         startedAt,
         finishedAt: new Date().toISOString(),
         scope:
@@ -1726,4 +1749,10 @@ try {
       2
     )
   )
+  await browser?.close().catch(() => undefined)
+  for (const key of uploadedKeys) await rm(join(uploadsPath, key), { force: true })
+  await model.close()
+  await proxy.close()
+  await sql.end()
+  await workerSql.end()
 }
