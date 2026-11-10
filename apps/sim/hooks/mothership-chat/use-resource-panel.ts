@@ -11,12 +11,11 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useQueryState, useQueryStates } from 'nuqs'
+import { useQueryState } from 'nuqs'
 import {
   resolveResourceEventPresentation,
   resolveResourceSelectionUpdate,
 } from '@/components/mothership-chat/resource-view-policy'
-import { tableDetailParsers, tableDetailUrlKeys } from '@/components/tables/search-params'
 import { resourceParam, resourceUrlKeys } from '@/lib/mothership/chat/search-params'
 import {
   getChatResourceSelectionId,
@@ -45,7 +44,6 @@ export function useResourcePanelController() {
     ...resourceParam.parser,
     ...resourceUrlKeys,
   })
-  const [, setTableParams] = useQueryStates(tableDetailParsers, tableDetailUrlKeys)
   const activeResourceParamRef = useRef(activeResourceParam)
   activeResourceParamRef.current = activeResourceParam
   /**
@@ -115,10 +113,6 @@ export function useResourcePanelController() {
         next.delete(resourceId)
         return next
       })
-    }
-    if (presentation.activateResource && options?.tableViewId) {
-      /** A live view request replaces the host URL's previous table selection. */
-      void setTableParams({ view: options.tableViewId, sort: null, dir: null })
     }
     if (presentation.activateResource && activeResourceId !== resourceId) {
       activeResourceParamRef.current = resourceId

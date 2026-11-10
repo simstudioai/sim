@@ -615,7 +615,6 @@ export function selectDeletedWorkflowResources(
 
 export interface ResourceEventOptions {
   activate?: boolean
-  tableViewId?: string
 }
 
 export type ResourceEventHandler = (resourceId: string, options?: ResourceEventOptions) => void

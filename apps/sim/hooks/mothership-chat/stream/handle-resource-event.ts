@@ -352,9 +352,7 @@ export function handleResourceEvent(ctx: StreamLoopContext, parsed: ResourceEven
   }
 
   if (!shouldSuppressFileResourceActivation) {
-    if (resource.type === 'table' && resource.viewId) {
-      onResourceEvent?.(getChatResourceSelectionId(resource), { tableViewId: resource.viewId })
-    } else onResourceEvent?.(getChatResourceSelectionId(resource))
+    onResourceEvent?.(getChatResourceSelectionId(resource))
   }
 
   if (resource.type === 'workflow' && workspaceId) {
