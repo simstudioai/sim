@@ -13,7 +13,6 @@ import {
   DirectoryBack,
   DirectoryHeading,
 } from '@/app/(product)/_components/resource-directory/resource-directory'
-import { SettingsLeaveGuard } from '@/app/(product)/_components/session-state/settings-leave-guard'
 import { PeopleSentence } from '@/app/(product)/o/[organizationId]/integrations/_components/people-sentence/people-sentence'
 import styles from '@/app/(product)/o/[organizationId]/integrations/_components/resource-details/resource-details.module.css'
 import {
@@ -69,7 +68,6 @@ export function ResourceDetails({
   const { guardBack } = useSettingsUnsavedGuard({ isDirty: editor.dirty, onDiscard: discard })
   return (
     <>
-      <SettingsLeaveGuard />
       <DirectoryBack
         href={backHref}
         label={kind === 'skill' ? 'Back to Skills' : 'Back to MCPs'}

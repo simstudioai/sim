@@ -769,24 +769,22 @@ export function KnowledgeList({ workspaceId }: KnowledgeListProps) {
         align='end'
         actions={sortActions({ columns: SORTS, sort, dir, onSort: preferences.setSort })}
       />
-      <Button
-        variant='quiet'
-        size='compact'
-        icon='I100'
-        disabled={!canEdit || createFolder.isPending}
-        onClick={() => void handleCreateFolder()}
-      >
-        New folder
-      </Button>
-      <Button
-        variant='secondary'
-        size='compact'
-        icon='I074'
-        disabled={!canEdit}
-        onClick={() => setCreating(true)}
-      >
-        New base
-      </Button>
+      {canEdit && (
+        <Button
+          variant='quiet'
+          size='compact'
+          icon='I100'
+          disabled={createFolder.isPending}
+          onClick={() => void handleCreateFolder()}
+        >
+          New folder
+        </Button>
+      )}
+      {canEdit && (
+        <Button variant='secondary' size='compact' icon='I074' onClick={() => setCreating(true)}>
+          New base
+        </Button>
+      )}
     </ControlBar>
   )
 

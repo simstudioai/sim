@@ -1,14 +1,6 @@
 'use client'
 
-import {
-  type ReactNode,
-  Suspense,
-  useEffect,
-  useEffectEvent,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react'
+import { type ReactNode, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { IconButton } from '@sim/emcn/button'
 import { useCompactViewport } from '@sim/emcn/layout/use-compact-viewport'
 import { OverflowText } from '@sim/emcn/overflow-text'
@@ -19,12 +11,10 @@ import { compareStrings } from '@sim/utils/string'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { CommandMenu } from '@/app/(product)/_components/command-menu/command-menu'
 import { PageCommandsProvider } from '@/app/(product)/_components/command-menu/page-commands'
-import {
-  useDesktopCommands,
-  useDesktopHost,
-} from '@/app/(product)/_components/desktop/desktop-host'
+import { useDesktopHost } from '@/app/(product)/_components/desktop/desktop-host'
 import { NotificationTray } from '@/app/(product)/_components/notification-tray/notification-tray'
 import styles from '@/app/(product)/_components/platform-shell/platform-shell.module.css'
+import { useShellShortcuts } from '@/app/(product)/_components/platform-shell/shell-shortcuts'
 import { WindowHistoryButtons } from '@/app/(product)/_components/platform-shell/window-history'
 import { useSessionShell } from '@/app/(product)/_components/session/shell-actions'
 import { orderSidebarItems } from '@/app/(product)/_components/sidebar/collection-order'
@@ -36,14 +26,6 @@ import { useLiveShellActions } from '@/platform/lib/data/shell-context'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'
 import { workspaceLocation } from '@/platform/lib/workspace-navigation'
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    (target instanceof HTMLElement && target.isContentEditable)
-  )
-}
 
 interface PlatformShellProps {
   data: ShellData | null
@@ -137,37 +119,10 @@ export function PlatformShell({ data, banner, children }: PlatformShellProps) {
     if (!restored && pathname.startsWith('/workspace/')) viewport?.scrollTo({ top: 0 })
   }, [pathname])
 
-  const toggleOnShortcut = useEffectEvent(() => toggle())
-
-  useEffect(() => {
-    function shortcut(event: KeyboardEvent) {
-      if (
-        event.defaultPrevented ||
-        event.isComposing ||
-        event.altKey ||
-        event.shiftKey ||
-        !(event.metaKey || event.ctrlKey)
-      )
-        return
-      const key = event.key.toLowerCase()
-      const modal = event.target instanceof Element ? event.target.closest('dialog:modal') : null
-      const canOpen = !modal || modal === drawerRef.current
-      if (key === 'k') {
-        event.preventDefault()
-        setCommand((open) => !open && canOpen)
-      }
-      if (key === 'b' && canOpen && !isEditableTarget(event.target)) {
-        event.preventDefault()
-        toggleOnShortcut()
-      }
-    }
-    document.addEventListener('keydown', shortcut)
-    return () => document.removeEventListener('keydown', shortcut)
-  }, [])
-
-  useDesktopCommands((command) => {
-    if (command === 'toggle-sidebar') toggle()
-    if (command === 'open-search') setCommand((open) => !open)
+  useShellShortcuts({
+    drawer: drawerRef,
+    toggleSidebar: () => toggle(),
+    toggleCommand: (canOpen) => setCommand((open) => !open && canOpen),
   })
 
   function navigate(path: string) {

@@ -131,6 +131,7 @@ export function IntegrationDetails({
           onReconnect={account.canReconnect ? () => onReconnect(account.id) : undefined}
           onDisconnect={disconnect}
           permissions={account.hasToolPermissions ? renderToolPermissions(account.id) : undefined}
+          sites={account.sites}
         />
       )
     if (!workspaceApp) return null

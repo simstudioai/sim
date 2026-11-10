@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { useIntegrationCenterResources } from '@/app/(product)/_components/session/integration-center-changes'
 import { useOrganizationIntegrations } from '@/app/(product)/_components/session/integration-changes'
+import { SettingsLeaveGuard } from '@/app/(product)/_components/session-state/settings-leave-guard'
 import { IntegrationDetails } from '@/app/(product)/o/[organizationId]/integrations/_components/fixtures/integration-details/integration-details'
 import { MemberSecrets } from '@/app/(product)/o/[organizationId]/integrations/_components/fixtures/member-secrets/member-secrets'
 import { IntegrationCenter } from '@/app/(product)/o/[organizationId]/integrations/_components/integration-center/integration-center'
@@ -39,6 +40,8 @@ interface IntegrationsPageProps {
 export function IntegrationsPage({ data, center, section, catalog }: IntegrationsPageProps) {
   return (
     <NuqsAdapter>
+      {/* The live shell mounts this dialog for every page; a fixture build's shell does not. */}
+      <SettingsLeaveGuard />
       <IntegrationsContent data={data} center={center} section={section} catalog={catalog} />
     </NuqsAdapter>
   )

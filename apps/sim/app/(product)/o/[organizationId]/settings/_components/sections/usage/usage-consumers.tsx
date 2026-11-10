@@ -4,15 +4,16 @@ import type { ReactNode } from 'react'
 import { Avatar } from '@sim/emcn/avatar'
 import { DataTable, TableLabel } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
-import { Icon } from '@sim/emcn/icon'
 import { ActionMenu } from '@sim/emcn/menu/action-menu'
 import { OverflowText } from '@sim/emcn/overflow-text'
 import { FailureNotice } from '@sim/emcn/status'
+import { BrandMark } from '@/app/(product)/_components/brand-mark/brand-mark'
 import styles from '@/app/(product)/o/[organizationId]/settings/_components/sections/usage/usage-section.module.css'
-import type {
-  OrganizationUsageBreakdown,
-  UsageBreakdownDimension,
-  UsageList,
+import {
+  MODEL_PROVIDER_ICONS,
+  type OrganizationUsageBreakdown,
+  type UsageBreakdownDimension,
+  type UsageList,
 } from '@/platform/lib/data/usage'
 import { EMPTY_COPY } from '@/platform/shared/usage'
 
@@ -40,7 +41,7 @@ function ConsumerName({
         dimension === 'member' ? (
           <Avatar size='inline' name={row.label} src={row.image ?? undefined} />
         ) : row.providerId ? (
-          <Icon providerId={row.providerId} />
+          <BrandMark providerId={row.providerId} icon={MODEL_PROVIDER_ICONS[row.providerId]} />
         ) : undefined
       }
     >

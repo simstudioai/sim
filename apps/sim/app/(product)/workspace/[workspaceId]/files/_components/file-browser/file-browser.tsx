@@ -1013,33 +1013,39 @@ export function FileBrowser({ workspaceId }: FileBrowserProps) {
         align='end'
         actions={sortActions({ columns: SORTS, sort, dir, onSort: preferences.setSort })}
       />
-      <Button
-        variant='quiet'
-        size='compact'
-        icon='I117'
-        disabled={!canEdit || uploading}
-        onClick={chooseFiles}
-      >
-        {uploadLabel}
-      </Button>
-      <Button
-        variant='quiet'
-        size='compact'
-        icon='I100'
-        disabled={!canEdit || createFolder.isPending}
-        onClick={() => void handleCreateFolder()}
-      >
-        New folder
-      </Button>
-      <Button
-        variant='secondary'
-        size='compact'
-        icon='I074'
-        disabled={!canEdit || uploading || creatingFile}
-        onClick={() => void handleCreateFile()}
-      >
-        New file
-      </Button>
+      {canEdit && (
+        <Button
+          variant='quiet'
+          size='compact'
+          icon='I117'
+          disabled={uploading}
+          onClick={chooseFiles}
+        >
+          {uploadLabel}
+        </Button>
+      )}
+      {canEdit && (
+        <Button
+          variant='quiet'
+          size='compact'
+          icon='I100'
+          disabled={createFolder.isPending}
+          onClick={() => void handleCreateFolder()}
+        >
+          New folder
+        </Button>
+      )}
+      {canEdit && (
+        <Button
+          variant='secondary'
+          size='compact'
+          icon='I074'
+          disabled={uploading || creatingFile}
+          onClick={() => void handleCreateFile()}
+        >
+          New file
+        </Button>
+      )}
     </ControlBar>
   )
 

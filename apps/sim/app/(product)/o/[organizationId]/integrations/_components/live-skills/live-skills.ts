@@ -3,6 +3,7 @@
 import { usePathname, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { useSkills } from '@/platform/lib/data/skills'
+import { useWorkspaceUserPermissions } from '@/platform/lib/data/tables/permissions'
 import {
   integrationsPageParams,
   serializeIntegrationsPage,
@@ -24,6 +25,7 @@ export function useLiveSkills(workspaceId: string | undefined) {
   })
   const onSkills = view.tab === 'skills' && Boolean(workspaceId)
   const query = useSkills(onSkills && workspaceId ? workspaceId : '')
+  const { canEdit } = useWorkspaceUserPermissions(workspaceId ?? '')
   const listed = query.isPlaceholderData ? undefined : query.data
   const base = platformHref(pathname, search)
   const linkTo = (resource: string | null) =>
@@ -45,6 +47,8 @@ export function useLiveSkills(workspaceId: string | undefined) {
     query,
     rows,
     settled: Boolean(listed),
+    /** Whether the viewer may create a skill, which needs write access to the workspace. */
+    canCreate: canEdit,
     open,
     /** The skill the URL opens on the Skills tab, `null` for a new one; absent when none is open. */
     detail:

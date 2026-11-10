@@ -5,6 +5,7 @@
  * row offering it with no Assistant to send to, or while its results are still changing; a summary
  * that reads the whole search rather than its document; a summary sent while the viewer is still on
  * Search; one sent twice as the conversation re-renders; and one stranded when the viewer starts over.
+ * Clear history: a refused clear passing silently, and a second click sending another clear.
  */
 
 import { act } from 'react'
@@ -13,6 +14,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SessionContext, type SessionHookResult } from '@/lib/auth/session-context'
+import { connectToastSink } from '@/lib/toast/sink'
 import type { SourceRowData } from '@/platform/lib/data/models/source-row'
 import { type SummaryRequest, useSendSummary } from '@/platform/lib/data/search-summary'
 
@@ -20,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   organization: { id: 'org-1', name: 'Org', mothershipAvailable: true },
   params: {} as Record<string, unknown>,
   search: { isFetching: false },
+  clearHistory: { mutateAsync: vi.fn(async () => undefined), isPending: false },
 }))
 
 vi.mock('next/navigation', () => nextNavigationMock)
@@ -61,7 +64,7 @@ vi.mock('@/hooks/queries/kb/knowledge', () => ({
 }))
 vi.mock('@/hooks/queries/search-history', () => ({
   useSearchHistory: () => ({ data: undefined, isPending: true, isError: false }),
-  useClearSearchHistory: () => ({ mutate: vi.fn() }),
+  useClearSearchHistory: () => mocks.clearHistory,
   useRecordSearchHistory: () => ({ mutate: vi.fn() }),
 }))
 
@@ -109,6 +112,8 @@ afterEach(() => {
 })
 
 beforeEach(() => {
+  mocks.clearHistory.mutateAsync = vi.fn(async () => undefined)
+  mocks.clearHistory.isPending = false
   mocks.organization.mothershipAvailable = true
   mocks.search.isFetching = false
   mocks.params = {
@@ -233,5 +238,38 @@ describe('sending a summary into the conversation', () => {
     const send = vi.fn()
     renderHook(() => useSendSummary({ request: undefined, send }), undefined)
     expect(send).not.toHaveBeenCalled()
+  })
+})
+
+describe('Clear history', () => {
+  it('tells the viewer when the server refuses the clear', async () => {
+    const shown: { message: string; variant?: string }[] = []
+    const disconnect = connectToastSink({
+      show: (toast) => {
+        shown.push(toast)
+        return 'toast'
+      },
+      dismiss: () => undefined,
+    })
+    try {
+      mocks.clearHistory.mutateAsync = vi.fn(async () => {
+        throw new Error('Service unavailable')
+      })
+      const { result } = renderHook(() => useSearchSurface(undefined), undefined)
+      await act(() => result.current.history.clear())
+      expect(shown).toEqual([
+        expect.objectContaining({ variant: 'error', message: "Couldn't clear search history" }),
+      ])
+    } finally {
+      disconnect()
+    }
+  })
+
+  it('sends no second clear while one is in flight', async () => {
+    mocks.clearHistory.isPending = true
+    const { result } = renderHook(() => useSearchSurface(undefined), undefined)
+    expect(result.current.history.clearing).toBe(true)
+    await act(() => result.current.history.clear())
+    expect(mocks.clearHistory.mutateAsync).not.toHaveBeenCalled()
   })
 })

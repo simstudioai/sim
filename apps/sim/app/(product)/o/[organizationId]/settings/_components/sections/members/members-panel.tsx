@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { EmptyState } from '@sim/emcn/empty-state'
+import { ConfirmDialog } from '@sim/emcn/modal/confirm-dialog'
 import { SearchField } from '@sim/emcn/search-field'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
@@ -24,13 +25,24 @@ import { SeatsOverview } from '@/app/(product)/o/[organizationId]/settings/_comp
 import { TransferOwnershipModal } from '@/app/(product)/o/[organizationId]/settings/_components/sections/members/transfer-ownership-modal'
 import { useMemberSearch, useMembers } from '@/platform/lib/data/members'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { filterRoster, type MemberRowModel } from '@/platform/shared/members'
+import {
+  filterRoster,
+  type InvitationRowModel,
+  type MemberRowModel,
+} from '@/platform/shared/members'
 
 interface MembersPanelProps {
   organization: PlatformOrganization
 }
 
 const LOAD_FAILED = 'Failed to load organization members'
+
+interface WorkspaceRemoval {
+  userId: string
+  name: string
+  workspaceId: string
+  workspaceName: string
+}
 
 export function MembersPanel({ organization }: MembersPanelProps) {
   const members = useMembers(organization)
@@ -39,6 +51,8 @@ export function MembersPanel({ organization }: MembersPanelProps) {
   const [removal, setRemoval] = useState<RemovalTarget | null>(null)
   const [transferring, setTransferring] = useState(false)
   const [credits, setCredits] = useState<MemberRowModel | null>(null)
+  const [workspaceRemoval, setWorkspaceRemoval] = useState<WorkspaceRemoval | null>(null)
+  const [revoking, setRevoking] = useState<InvitationRowModel | null>(null)
   const { roster, actions } = members
   const searching = search.trim().length > 0
   const visible = roster.model && filterRoster(roster.model, search)
@@ -101,6 +115,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
                   row={row}
                   canManage={members.canManage}
                   actions={actions}
+                  onRevoke={setRevoking}
                 />
               ))}
             </SettingsSection>
@@ -118,6 +133,14 @@ export function MembersPanel({ organization }: MembersPanelProps) {
                   row={row}
                   workspaceId={workspace.id}
                   actions={actions}
+                  onRemove={(member) =>
+                    setWorkspaceRemoval({
+                      userId: member.userId,
+                      name: member.name || member.email,
+                      workspaceId: workspace.id,
+                      workspaceName: workspace.name,
+                    })
+                  }
                 />
               ))}
               {workspace.invitations.map((row) => (
@@ -127,6 +150,7 @@ export function MembersPanel({ organization }: MembersPanelProps) {
                   workspaceId={workspace.id}
                   canManage={members.canManage}
                   actions={actions}
+                  onRevoke={setRevoking}
                 />
               ))}
             </SettingsSection>
@@ -174,6 +198,24 @@ export function MembersPanel({ organization }: MembersPanelProps) {
       )}
       {members.canManage && <InviteModal open={inviting} onOpenChange={setInviting} />}
       <RemoveMemberModal target={removal} onClose={() => setRemoval(null)} />
+      <ConfirmDialog
+        target={workspaceRemoval}
+        onClose={() => setWorkspaceRemoval(null)}
+        title='Remove from workspace'
+        description={({ name, workspaceName }) => `${name} will lose access to ${workspaceName}.`}
+        confirmLabel='Remove'
+        pendingLabel='Removing…'
+        onConfirm={({ userId, workspaceId }) => actions.removeFromWorkspace(userId, workspaceId)}
+      />
+      <ConfirmDialog
+        target={revoking}
+        onClose={() => setRevoking(null)}
+        title='Revoke invite'
+        description={({ email }) => `The invite sent to ${email} will stop working.`}
+        confirmLabel='Revoke'
+        pendingLabel='Revoking…'
+        onConfirm={({ id }) => actions.revokeInvitation(id)}
+      />
       <TransferOwnershipModal
         open={transferring}
         onClose={() => setTransferring(false)}

@@ -828,33 +828,39 @@ export function WorkflowsRoute({ workspaceId }: WorkflowsRouteProps) {
         align='end'
         actions={sortActions({ columns: SORTS, sort, dir, onSort })}
       />
-      <Button
-        variant='quiet'
-        size='compact'
-        icon='I117'
-        disabled={createBlocked || ops.isImporting}
-        onClick={() => fileInput.current?.click()}
-      >
-        {ops.isImporting ? 'Importing…' : 'Import'}
-      </Button>
-      <Button
-        variant='quiet'
-        size='compact'
-        icon='I100'
-        disabled={createBlocked || ops.isCreatingFolder}
-        onClick={() => void createFolderIn(folderId)}
-      >
-        New folder
-      </Button>
-      <Button
-        variant='secondary'
-        size='compact'
-        icon='I074'
-        disabled={createBlocked || ops.isCreatingWorkflow}
-        onClick={() => ops.createWorkflow(folderId)}
-      >
-        New workflow
-      </Button>
+      {canEdit && (
+        <Button
+          variant='quiet'
+          size='compact'
+          icon='I117'
+          disabled={currentLocked || ops.isImporting}
+          onClick={() => fileInput.current?.click()}
+        >
+          {ops.isImporting ? 'Importing…' : 'Import'}
+        </Button>
+      )}
+      {canEdit && (
+        <Button
+          variant='quiet'
+          size='compact'
+          icon='I100'
+          disabled={currentLocked || ops.isCreatingFolder}
+          onClick={() => void createFolderIn(folderId)}
+        >
+          New folder
+        </Button>
+      )}
+      {canEdit && (
+        <Button
+          variant='secondary'
+          size='compact'
+          icon='I074'
+          disabled={currentLocked || ops.isCreatingWorkflow}
+          onClick={() => ops.createWorkflow(folderId)}
+        >
+          New workflow
+        </Button>
+      )}
     </ControlBar>
   )
 

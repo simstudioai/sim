@@ -577,6 +577,10 @@ const seamHelpers: ReasonedAllowlist = {
     ['stores']
   ),
   ...granted(
+    'Model provider brand glyphs the Usage breakdown shows, which live outside the icon barrel.',
+    ['components/icons/nebius', 'components/icons/thinking-machines']
+  ),
+  ...granted(
     "Workspace Secrets and BYOK settings: the secrets editor's row helpers and record writes, credential-sharing email resolution and the provider brand glyphs.",
     [
       'components/icons',
@@ -834,6 +838,8 @@ const seamClosureViews: ReasonedAllowlist = {
   'components/workspace-providers/socket-provider.tsx':
     'The one realtime socket the workspace tabs and the workflow editor share',
   'components/icons.tsx': 'The glyph set block configs name their icons from',
+  'components/icons/nebius.tsx': 'A model provider glyph the Usage breakdown shows',
+  'components/icons/thinking-machines.tsx': 'A model provider glyph the Usage breakdown shows',
 }
 /**
  * What the workflow seam's closure may reach beyond `seamClosureViews`: the editor's context

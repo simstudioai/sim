@@ -737,24 +737,28 @@ export function TableList({ workspaceId }: TableListProps) {
         align='end'
         actions={sortActions({ columns: SORTS, sort, dir, onSort: preferences.setSort })}
       />
-      <Button
-        variant='quiet'
-        size='compact'
-        icon='I100'
-        disabled={!canEdit || createFolder.isPending}
-        onClick={() => void handleCreateFolder()}
-      >
-        New folder
-      </Button>
-      <Button
-        variant='secondary'
-        size='compact'
-        icon='I074'
-        disabled={!canEdit || createTable.isPending}
-        onClick={() => void handleCreateTable()}
-      >
-        New table
-      </Button>
+      {canEdit && (
+        <Button
+          variant='quiet'
+          size='compact'
+          icon='I100'
+          disabled={createFolder.isPending}
+          onClick={() => void handleCreateFolder()}
+        >
+          New folder
+        </Button>
+      )}
+      {canEdit && (
+        <Button
+          variant='secondary'
+          size='compact'
+          icon='I074'
+          disabled={createTable.isPending}
+          onClick={() => void handleCreateTable()}
+        >
+          New table
+        </Button>
+      )}
     </ControlBar>
   )
 
