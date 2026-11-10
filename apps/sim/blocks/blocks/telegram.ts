@@ -1,8 +1,8 @@
 import { TelegramIcon } from '@/components/icons'
 import { resolveHttpsUrlFromFileInput } from '@/lib/uploads/utils/file'
-import type { BlockConfig, BlockMeta } from '@/blocks/types'
+import type { BlockConfig, BlockMeta, BlockToolParams } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -44,8 +44,207 @@ const AUDIO_FIELD = ['audioFile', 'audioRef', 'audio'] as const
 const ANIMATION_FIELD = ['animationFile', 'animationRef', 'animation'] as const
 const DOCUMENT_FIELD = ['attachmentFiles', 'files'] as const
 
+/** Coerce string/number input to a finite number, throwing with a labeled message. */
+function requireNumber(value: unknown, label: string): number {
+  const num = Number(value)
+  if (value === undefined || value === null || value === '' || Number.isNaN(num)) {
+    throw new Error(`${label} is required and must be a number.`)
+  }
+  return num
+}
+
+/** Coerce agent-supplied "true"/"false" strings (or booleans) to a real boolean. */
+function toBoolean(value: unknown): boolean {
+  return value === true || String(value).toLowerCase() === 'true'
+}
+
+/** Builds Telegram tool params; a saved credential supplies the bot token, so only the legacy block requires it inline. */
+function telegramToolParams(params: BlockToolParams, requireBotToken: boolean) {
+  if (requireBotToken && !params.botToken) {
+    throw new Error('Bot token required for this operation')
+  }
+
+  const chatId = (params.chatId || '').trim()
+  if (!chatId) {
+    throw new Error('Chat ID is required.')
+  }
+
+  const commonParams = {
+    botToken: params.botToken,
+    chatId,
+  }
+
+  switch (params.operation) {
+    case 'telegram_message':
+      if (!params.text) {
+        throw new Error('Message text is required.')
+      }
+      return {
+        ...commonParams,
+        text: params.text,
+      }
+    case 'telegram_delete_message':
+      return {
+        ...commonParams,
+        messageId: requireNumber(params.messageId, 'Message ID'),
+      }
+    case 'telegram_send_photo': {
+      return {
+        ...commonParams,
+        photo: resolveTelegramMedia(params.photoSource, params.photo, 'Photo'),
+        caption: params.caption,
+      }
+    }
+    case 'telegram_send_video': {
+      return {
+        ...commonParams,
+        video: resolveTelegramMedia(params.videoSource, params.video, 'Video'),
+        caption: params.caption,
+      }
+    }
+    case 'telegram_send_audio': {
+      return {
+        ...commonParams,
+        audio: resolveTelegramMedia(params.audioSource, params.audio, 'Audio'),
+        caption: params.caption,
+      }
+    }
+    case 'telegram_send_animation': {
+      return {
+        ...commonParams,
+        animation: resolveTelegramMedia(params.animationSource, params.animation, 'Animation'),
+        caption: params.caption,
+      }
+    }
+    case 'telegram_send_document': {
+      // files is the canonical param for both basic (attachmentFiles) and advanced modes
+      return {
+        ...commonParams,
+        files: normalizeFileInput(params.files),
+        caption: params.caption,
+      }
+    }
+    case 'telegram_edit_message_text':
+      if (!params.text) {
+        throw new Error('Message text is required.')
+      }
+      return {
+        ...commonParams,
+        messageId: requireNumber(params.messageId, 'Message ID'),
+        text: params.text,
+      }
+    case 'telegram_forward_message': {
+      const fromChatId = (params.fromChatId || '').trim()
+      if (!fromChatId) {
+        throw new Error('Source chat ID is required.')
+      }
+      return {
+        ...commonParams,
+        fromChatId,
+        messageId: requireNumber(params.messageId, 'Message ID'),
+      }
+    }
+    case 'telegram_copy_message': {
+      const fromChatId = (params.fromChatId || '').trim()
+      if (!fromChatId) {
+        throw new Error('Source chat ID is required.')
+      }
+      return {
+        ...commonParams,
+        fromChatId,
+        messageId: requireNumber(params.messageId, 'Message ID'),
+        caption: params.caption,
+      }
+    }
+    case 'telegram_send_location':
+      return {
+        ...commonParams,
+        latitude: requireNumber(params.latitude, 'Latitude'),
+        longitude: requireNumber(params.longitude, 'Longitude'),
+      }
+    case 'telegram_send_contact':
+      if (!params.phoneNumber || !params.firstName) {
+        throw new Error('Phone number and first name are required.')
+      }
+      return {
+        ...commonParams,
+        phoneNumber: params.phoneNumber,
+        firstName: params.firstName,
+        lastName: params.lastName,
+        vcard: params.vcard,
+      }
+    case 'telegram_send_poll': {
+      if (!params.question) {
+        throw new Error('Poll question is required.')
+      }
+      const pollParams: Record<string, unknown> = {
+        ...commonParams,
+        question: params.question,
+        options: params.pollOptions,
+      }
+      if (params.isAnonymous !== undefined && params.isAnonymous !== '') {
+        pollParams.isAnonymous = toBoolean(params.isAnonymous)
+      }
+      if (params.allowsMultipleAnswers !== undefined && params.allowsMultipleAnswers !== '') {
+        pollParams.allowsMultipleAnswers = toBoolean(params.allowsMultipleAnswers)
+      }
+      return pollParams
+    }
+    case 'telegram_pin_message': {
+      const pinParams: Record<string, unknown> = {
+        ...commonParams,
+        messageId: requireNumber(params.messageId, 'Message ID'),
+      }
+      if (params.disableNotification !== undefined && params.disableNotification !== '') {
+        pinParams.disableNotification = toBoolean(params.disableNotification)
+      }
+      return pinParams
+    }
+    case 'telegram_unpin_message': {
+      const unpinParams: Record<string, unknown> = { ...commonParams }
+      if (params.messageId !== undefined && params.messageId !== '') {
+        unpinParams.messageId = requireNumber(params.messageId, 'Message ID')
+      }
+      return unpinParams
+    }
+    case 'telegram_set_message_reaction': {
+      const reactionParams: Record<string, unknown> = {
+        ...commonParams,
+        messageId: requireNumber(params.messageId, 'Message ID'),
+        reaction: params.reactionEmoji,
+      }
+      if (params.isBig !== undefined && params.isBig !== '') {
+        reactionParams.isBig = toBoolean(params.isBig)
+      }
+      return reactionParams
+    }
+    case 'telegram_send_chat_action':
+      if (!params.action) {
+        throw new Error('Chat action is required.')
+      }
+      return {
+        ...commonParams,
+        action: params.action,
+      }
+    case 'telegram_get_chat':
+      return { ...commonParams }
+    case 'telegram_get_chat_member':
+      return {
+        ...commonParams,
+        userId: requireNumber(params.userId, 'User ID'),
+      }
+    default:
+      return {
+        ...commonParams,
+        text: params.text,
+      }
+  }
+}
+
 export const TelegramBlock: BlockConfig = {
   type: 'telegram',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'telegram_v2' },
   name: 'Telegram',
   description: 'Interact with Telegram',
   authMode: AuthMode.BotToken,
@@ -613,202 +812,7 @@ export const TelegramBlock: BlockConfig = {
     ],
     config: {
       tool: (params) => params.operation || 'telegram_message',
-      params: (params) => {
-        if (!params.botToken) throw new Error('Bot token required for this operation')
-
-        const chatId = (params.chatId || '').trim()
-        if (!chatId) {
-          throw new Error('Chat ID is required.')
-        }
-
-        const commonParams = {
-          botToken: params.botToken,
-          chatId,
-        }
-
-        /** Coerce string/number input to a finite number, throwing with a labeled message. */
-        const requireNumber = (value: unknown, label: string): number => {
-          const num = Number(value)
-          if (value === undefined || value === null || value === '' || Number.isNaN(num)) {
-            throw new Error(`${label} is required and must be a number.`)
-          }
-          return num
-        }
-
-        /** Coerce agent-supplied "true"/"false" strings (or booleans) to a real boolean. */
-        const toBoolean = (value: unknown): boolean =>
-          value === true || String(value).toLowerCase() === 'true'
-
-        switch (params.operation) {
-          case 'telegram_message':
-            if (!params.text) {
-              throw new Error('Message text is required.')
-            }
-            return {
-              ...commonParams,
-              text: params.text,
-            }
-          case 'telegram_delete_message':
-            return {
-              ...commonParams,
-              messageId: requireNumber(params.messageId, 'Message ID'),
-            }
-          case 'telegram_send_photo': {
-            return {
-              ...commonParams,
-              photo: resolveTelegramMedia(params.photoSource, params.photo, 'Photo'),
-              caption: params.caption,
-            }
-          }
-          case 'telegram_send_video': {
-            return {
-              ...commonParams,
-              video: resolveTelegramMedia(params.videoSource, params.video, 'Video'),
-              caption: params.caption,
-            }
-          }
-          case 'telegram_send_audio': {
-            return {
-              ...commonParams,
-              audio: resolveTelegramMedia(params.audioSource, params.audio, 'Audio'),
-              caption: params.caption,
-            }
-          }
-          case 'telegram_send_animation': {
-            return {
-              ...commonParams,
-              animation: resolveTelegramMedia(
-                params.animationSource,
-                params.animation,
-                'Animation'
-              ),
-              caption: params.caption,
-            }
-          }
-          case 'telegram_send_document': {
-            // files is the canonical param for both basic (attachmentFiles) and advanced modes
-            return {
-              ...commonParams,
-              files: normalizeFileInput(params.files),
-              caption: params.caption,
-            }
-          }
-          case 'telegram_edit_message_text':
-            if (!params.text) {
-              throw new Error('Message text is required.')
-            }
-            return {
-              ...commonParams,
-              messageId: requireNumber(params.messageId, 'Message ID'),
-              text: params.text,
-            }
-          case 'telegram_forward_message': {
-            const fromChatId = (params.fromChatId || '').trim()
-            if (!fromChatId) {
-              throw new Error('Source chat ID is required.')
-            }
-            return {
-              ...commonParams,
-              fromChatId,
-              messageId: requireNumber(params.messageId, 'Message ID'),
-            }
-          }
-          case 'telegram_copy_message': {
-            const fromChatId = (params.fromChatId || '').trim()
-            if (!fromChatId) {
-              throw new Error('Source chat ID is required.')
-            }
-            return {
-              ...commonParams,
-              fromChatId,
-              messageId: requireNumber(params.messageId, 'Message ID'),
-              caption: params.caption,
-            }
-          }
-          case 'telegram_send_location':
-            return {
-              ...commonParams,
-              latitude: requireNumber(params.latitude, 'Latitude'),
-              longitude: requireNumber(params.longitude, 'Longitude'),
-            }
-          case 'telegram_send_contact':
-            if (!params.phoneNumber || !params.firstName) {
-              throw new Error('Phone number and first name are required.')
-            }
-            return {
-              ...commonParams,
-              phoneNumber: params.phoneNumber,
-              firstName: params.firstName,
-              lastName: params.lastName,
-              vcard: params.vcard,
-            }
-          case 'telegram_send_poll': {
-            if (!params.question) {
-              throw new Error('Poll question is required.')
-            }
-            const pollParams: Record<string, unknown> = {
-              ...commonParams,
-              question: params.question,
-              options: params.pollOptions,
-            }
-            if (params.isAnonymous !== undefined && params.isAnonymous !== '') {
-              pollParams.isAnonymous = toBoolean(params.isAnonymous)
-            }
-            if (params.allowsMultipleAnswers !== undefined && params.allowsMultipleAnswers !== '') {
-              pollParams.allowsMultipleAnswers = toBoolean(params.allowsMultipleAnswers)
-            }
-            return pollParams
-          }
-          case 'telegram_pin_message': {
-            const pinParams: Record<string, unknown> = {
-              ...commonParams,
-              messageId: requireNumber(params.messageId, 'Message ID'),
-            }
-            if (params.disableNotification !== undefined && params.disableNotification !== '') {
-              pinParams.disableNotification = toBoolean(params.disableNotification)
-            }
-            return pinParams
-          }
-          case 'telegram_unpin_message': {
-            const unpinParams: Record<string, unknown> = { ...commonParams }
-            if (params.messageId !== undefined && params.messageId !== '') {
-              unpinParams.messageId = requireNumber(params.messageId, 'Message ID')
-            }
-            return unpinParams
-          }
-          case 'telegram_set_message_reaction': {
-            const reactionParams: Record<string, unknown> = {
-              ...commonParams,
-              messageId: requireNumber(params.messageId, 'Message ID'),
-              reaction: params.reactionEmoji,
-            }
-            if (params.isBig !== undefined && params.isBig !== '') {
-              reactionParams.isBig = toBoolean(params.isBig)
-            }
-            return reactionParams
-          }
-          case 'telegram_send_chat_action':
-            if (!params.action) {
-              throw new Error('Chat action is required.')
-            }
-            return {
-              ...commonParams,
-              action: params.action,
-            }
-          case 'telegram_get_chat':
-            return { ...commonParams }
-          case 'telegram_get_chat_member':
-            return {
-              ...commonParams,
-              userId: requireNumber(params.userId, 'User ID'),
-            }
-          default:
-            return {
-              ...commonParams,
-              text: params.text,
-            }
-        }
-      },
+      params: (params) => telegramToolParams(params, true),
     },
   },
   inputs: {
@@ -1028,3 +1032,16 @@ export const TelegramBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const TelegramV2Block: BlockConfig = {
+  ...TelegramBlock,
+  type: 'telegram_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    TelegramBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'telegram', title: 'Telegram Credential' },
+    { params: (params) => telegramToolParams(params, false) }
+  ),
+}

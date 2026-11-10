@@ -5783,7 +5783,6 @@
   "apps/sim/tools/types.ts#InternalToolOperationConfig",
   "apps/sim/tools/utils.ts#RequestParams",
   "apps/sim/tools/utils.ts#getClientEnvVars",
-  "apps/sim/tools/whatsapp/utils.ts#WHATSAPP_GRAPH_VERSION",
   "apps/sim/tools/whatsapp/utils.ts#WHATSAPP_MEDIA_TYPES",
   "apps/sim/tools/wikipedia/types.ts#WIKIPEDIA_CONTENT_URLS_OUTPUT",
   "apps/sim/tools/wikipedia/types.ts#WIKIPEDIA_CONTENT_URLS_OUTPUT_PROPERTIES",

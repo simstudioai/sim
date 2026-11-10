@@ -2,6 +2,7 @@ import type {
   RootlyIncidentActionResponse,
   RootlyResolveIncidentParams,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyResolveIncidentTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyResolveIncidentTool: ToolConfig<
   name: 'Rootly Resolve Incident',
   description: 'Transition a Rootly incident to the resolved state.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

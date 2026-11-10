@@ -1,5 +1,6 @@
 import type { AshbyOffer } from '@/tools/ashby/types'
 import { ashbyAuthHeaders, ashbyErrorMessage, mapOffer, OFFER_OUTPUTS } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyGetOfferParams {
@@ -17,6 +18,7 @@ export const getOfferTool: ToolConfig<AshbyGetOfferParams, AshbyGetOfferResponse
   name: 'Ashby Get Offer',
   description: 'Retrieves full details about a single offer by its ID.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

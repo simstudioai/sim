@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CancelSubscriptionParams, SubscriptionResponse } from '@/tools/stripe/types'
 import { SUBSCRIPTION_METADATA_OUTPUT_PROPERTIES, SUBSCRIPTION_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
@@ -10,6 +11,7 @@ export const stripeCancelSubscriptionTool: ToolConfig<
   name: 'Stripe Cancel Subscription',
   description: 'Cancel a subscription',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

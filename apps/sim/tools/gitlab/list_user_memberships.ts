@@ -3,6 +3,7 @@ import type {
   GitLabListUserMembershipsResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabListUserMembershipsTool: ToolConfig<
@@ -15,6 +16,7 @@ export const gitlabListUserMembershipsTool: ToolConfig<
   description:
     "List a user's project and group memberships. Requires an administrator access token (GET /users/:id/memberships is admin-only). For a non-admin path, iterate List Members on each project or group instead.",
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

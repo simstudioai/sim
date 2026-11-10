@@ -3,6 +3,7 @@ import type {
   GitLabDeleteSamlGroupLinkResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabDeleteSamlGroupLinkTool: ToolConfig<
@@ -14,6 +15,7 @@ export const gitlabDeleteSamlGroupLinkTool: ToolConfig<
   name: 'GitLab Delete SAML Group Link',
   description: 'Delete a SAML group link from a GitLab group (GitLab Premium/Ultimate)',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

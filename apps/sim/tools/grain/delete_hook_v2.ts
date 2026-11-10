@@ -1,4 +1,5 @@
 import type { GrainDeleteHookV2Params, GrainDeleteHookV2Response } from '@/tools/grain/types'
+import { GRAIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const grainDeleteHookV2Tool: ToolConfig<GrainDeleteHookV2Params, GrainDeleteHookV2Response> =
@@ -7,6 +8,7 @@ export const grainDeleteHookV2Tool: ToolConfig<GrainDeleteHookV2Params, GrainDel
     name: 'Grain Delete Webhook',
     description: 'Delete a webhook by ID (v2 API)',
     version: '2.0.0',
+    oauth: GRAIN_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

@@ -1,4 +1,5 @@
 import type { RootlyGetAlertParams, RootlyGetAlertResponse } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyGetAlertTool: ToolConfig<RootlyGetAlertParams, RootlyGetAlertResponse> = {
@@ -6,6 +7,7 @@ export const rootlyGetAlertTool: ToolConfig<RootlyGetAlertParams, RootlyGetAlert
   name: 'Rootly Get Alert',
   description: 'Retrieve a single alert by ID from Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

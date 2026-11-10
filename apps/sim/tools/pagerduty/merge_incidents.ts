@@ -2,6 +2,7 @@ import type {
   PagerDutyMergeIncidentsParams,
   PagerDutyMergeIncidentsResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const mergeIncidentsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const mergeIncidentsTool: ToolConfig<
   description:
     'Merge one or more source incidents into a target incident. Source incidents are resolved and their alerts move to the target.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

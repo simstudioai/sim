@@ -1,8 +1,15 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { describe, expect, it, vi } from 'vitest'
 import {
+  validateAshbyServiceAccount,
   validateBrexServiceAccount,
+  validateElevenLabsServiceAccount,
   validateFlintServiceAccount,
+  validateInstantlyServiceAccount,
+  validateResendServiceAccount,
+  validateTypeformServiceAccount,
+  validateVercelServiceAccount,
+  validateYouTubeServiceAccount,
 } from '@/lib/credentials/token-service-accounts/validators/token-checks'
 
 describe('Flint saved API key verification', () => {
@@ -89,6 +96,199 @@ describe('Brex saved token verification', () => {
 
     await expect(validateBrexServiceAccount({ apiToken: 'bxt_scoped' })).resolves.toMatchObject({
       displayName: 'Brex',
+    })
+  })
+})
+
+describe('saved key verification for vendors with scoped keys', () => {
+  it('accepts a valid Instantly key that lacks the campaigns scope', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ message: 'Insufficient scope' }, 403))
+    )
+
+    await expect(validateInstantlyServiceAccount({ apiToken: 'leads-only' })).resolves.toBeTruthy()
+  })
+
+  it('accepts a valid YouTube key that is out of quota for today', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ error: { code: 403, errors: [{ reason: 'quotaExceeded' }] } }, 403)
+        )
+    )
+
+    await expect(validateYouTubeServiceAccount({ apiToken: 'AIza-valid' })).resolves.toBeTruthy()
+  })
+
+  it('rejects a YouTube key whose project has the API turned off', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ error: { code: 403, errors: [{ reason: 'accessNotConfigured' }] } }, 403)
+        )
+    )
+
+    await expect(validateYouTubeServiceAccount({ apiToken: 'AIza-off' })).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+  })
+})
+
+describe('Ashby saved API key verification', () => {
+  it('accepts a valid key that lacks the read permission for this endpoint', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ success: false, errorInfo: { code: 'missing_endpoint_permission' } }, 403)
+        )
+    )
+
+    await expect(validateAshbyServiceAccount({ apiToken: 'scoped' })).resolves.toMatchObject({
+      displayName: 'Ashby',
+    })
+  })
+
+  it('accepts a valid key whose missing permission Ashby names in its errors list', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            { success: false, errors: [{ message: 'missing_endpoint_permission' }] },
+            403
+          )
+        )
+    )
+
+    await expect(validateAshbyServiceAccount({ apiToken: 'scoped' })).resolves.toMatchObject({
+      displayName: 'Ashby',
+    })
+  })
+
+  it('rejects a deactivated key Ashby answers with a 403', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ success: false, errorInfo: { code: 'invalid_api_key' } }, 403)
+        )
+    )
+
+    await expect(validateAshbyServiceAccount({ apiToken: 'revoked' })).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+  })
+})
+
+describe('Resend saved API key verification', () => {
+  it('accepts a sending-only key Resend refuses for listing domains', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ name: 'restricted_api_key', message: 'restricted' }, 401))
+    )
+
+    await expect(validateResendServiceAccount({ apiToken: 're_send' })).resolves.toMatchObject({
+      displayName: 'Resend',
+    })
+  })
+
+  it('rejects an unknown key', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ name: 'validation_error', message: 'API key is invalid' }, 401)
+        )
+    )
+
+    await expect(validateResendServiceAccount({ apiToken: 're_bad' })).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+  })
+})
+
+describe('Typeform saved token verification', () => {
+  it('rejects an unknown token Typeform answers with a 403', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ code: 'AUTHENTICATION_FAILED' }, 403))
+    )
+
+    await expect(validateTypeformServiceAccount({ apiToken: 'bad' })).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+  })
+})
+
+describe('Vercel saved token verification', () => {
+  it('rejects an unknown token Vercel flags as invalid in its 403', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ error: { code: 'forbidden', invalidToken: true } }, 403))
+    )
+
+    await expect(validateVercelServiceAccount({ apiToken: 'bad' })).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+  })
+
+  it('accepts a valid token without access to the user record', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse({ error: { code: 'forbidden' } }, 403))
+    )
+
+    await expect(validateVercelServiceAccount({ apiToken: 'scoped' })).resolves.toMatchObject({
+      displayName: 'Vercel',
+    })
+  })
+})
+
+describe('ElevenLabs saved API key verification', () => {
+  it('accepts a valid key without the user permission', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ detail: { status: 'missing_permissions', message: 'user_read' } }, 401)
+        )
+    )
+
+    await expect(
+      validateElevenLabsServiceAccount({ apiToken: 'sk_scoped' })
+    ).resolves.toMatchObject({ displayName: 'ElevenLabs' })
+  })
+
+  it('rejects an unknown key', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse(
+            { detail: { status: 'invalid_api_key', message: 'API key is invalid.' } },
+            400
+          )
+        )
+    )
+
+    await expect(validateElevenLabsServiceAccount({ apiToken: 'sk_bad' })).rejects.toMatchObject({
+      code: 'invalid_credentials',
     })
   })
 })

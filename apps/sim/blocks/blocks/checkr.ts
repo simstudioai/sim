@@ -1,5 +1,6 @@
 import { CheckrIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const CANDIDATE_ID_REQUIRED_OPS = [
@@ -115,6 +116,8 @@ function toOptionalNumber(value: unknown): number | undefined {
 
 export const CheckrBlock: BlockConfig = {
   type: 'checkr',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'checkr_v2' },
   name: 'Checkr',
   description: 'Run and manage background checks with Checkr',
   longDescription:
@@ -1691,3 +1694,17 @@ export const CheckrBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CheckrV2Block: BlockConfig = {
+  ...CheckrBlock,
+  type: 'checkr_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(CheckrBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'checkr',
+    title: 'Checkr Credential',
+  }),
+}

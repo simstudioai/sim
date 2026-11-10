@@ -2,6 +2,7 @@ import type {
   RootlyAcknowledgeAlertParams,
   RootlyAcknowledgeAlertResponse,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyAcknowledgeAlertTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyAcknowledgeAlertTool: ToolConfig<
   name: 'Rootly Acknowledge Alert',
   description: 'Acknowledge an alert in Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

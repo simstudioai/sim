@@ -1,4 +1,5 @@
 import type { RootlyListSchedulesParams, RootlyListSchedulesResponse } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListSchedulesTool: ToolConfig<
@@ -9,6 +10,7 @@ export const rootlyListSchedulesTool: ToolConfig<
   name: 'Rootly List Schedules',
   description: 'List on-call schedules from Rootly with optional search filtering.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

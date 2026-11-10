@@ -1,3 +1,4 @@
+import { WHATSAPP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { WhatsAppSendReactionParams, WhatsAppSendResponse } from '@/tools/whatsapp/types'
 import {
@@ -13,6 +14,7 @@ export const sendReactionTool: ToolConfig<WhatsAppSendReactionParams, WhatsAppSe
   description:
     'React to a WhatsApp message with an emoji. Send an empty emoji to remove an existing reaction.',
   version: '1.0.0',
+  oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
   params: {
     phoneNumber: {

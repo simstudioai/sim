@@ -1,5 +1,6 @@
 import type { CalendlyGetUserParams, CalendlyGetUserResponse } from '@/tools/calendly/types'
 import { toUuid } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getUserTool: ToolConfig<CalendlyGetUserParams, CalendlyGetUserResponse> = {
@@ -7,6 +8,7 @@ export const getUserTool: ToolConfig<CalendlyGetUserParams, CalendlyGetUserRespo
   name: 'Calendly Get User',
   description: 'Get information about a specific Calendly user',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

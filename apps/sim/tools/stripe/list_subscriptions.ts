@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ListSubscriptionsParams, SubscriptionListResponse } from '@/tools/stripe/types'
 import { LIST_METADATA_OUTPUT_PROPERTIES, SUBSCRIPTION_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
@@ -11,6 +12,7 @@ export const stripeListSubscriptionsTool: ToolConfig<
   description:
     'List one page of subscriptions. Follow starting_after while metadata.has_more is true.',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

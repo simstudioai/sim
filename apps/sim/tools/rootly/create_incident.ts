@@ -1,4 +1,5 @@
 import type { RootlyCreateIncidentParams, RootlyCreateIncidentResponse } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyCreateIncidentTool: ToolConfig<
@@ -9,6 +10,7 @@ export const rootlyCreateIncidentTool: ToolConfig<
   name: 'Rootly Create Incident',
   description: 'Create a new incident in Rootly with optional severity, services, and teams.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

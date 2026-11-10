@@ -5,6 +5,7 @@ import { Mem0Block } from '@/blocks/blocks/mem0'
 import { PulseV2Block } from '@/blocks/blocks/pulse'
 import { ReductoV2Block } from '@/blocks/blocks/reducto'
 import { S3Block } from '@/blocks/blocks/s3'
+import { TelegramBlock } from '@/blocks/blocks/telegram'
 import { TextractV2Block } from '@/blocks/blocks/textract'
 import { ZepBlock } from '@/blocks/blocks/zep'
 import type { BlockConfig } from '@/blocks/types'
@@ -73,6 +74,13 @@ const cases: Array<{
     secret: { botToken: 'B' },
     sent: { botToken: 'B' },
     values: { operation: 'discord_send_message' },
+  },
+  {
+    block: TelegramBlock,
+    missingSecretError: 'Bot token required for this operation',
+    secret: { botToken: 'B' },
+    sent: { botToken: 'B' },
+    values: { operation: 'telegram_message', chatId: 'chat', text: 'hi' },
   },
   ...[ExtendV2Block, PulseV2Block, ReductoV2Block].map((block) => ({
     block,

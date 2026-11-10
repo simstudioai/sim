@@ -1,4 +1,5 @@
 import type { RootlyUpdateIncidentParams, RootlyUpdateIncidentResponse } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyUpdateIncidentTool: ToolConfig<
@@ -9,6 +10,7 @@ export const rootlyUpdateIncidentTool: ToolConfig<
   name: 'Rootly Update Incident',
   description: 'Update an existing incident in Rootly (status, severity, summary, etc.).',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,4 +1,5 @@
 import type { SentryListTeamsParams, SentryListTeamsResponse } from '@/tools/sentry/types'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTeamsTool: ToolConfig<SentryListTeamsParams, SentryListTeamsResponse> = {
@@ -7,6 +8,7 @@ export const listTeamsTool: ToolConfig<SentryListTeamsParams, SentryListTeamsRes
   description:
     'List all teams in a Sentry organization. Useful for discovering the team slug required when creating a project. Returns team details including slug, name, member count, and associated projects.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

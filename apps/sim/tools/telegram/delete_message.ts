@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { TELEGRAM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TelegramDeleteMessageParams,
   TelegramDeleteMessageResponse,
@@ -14,6 +15,7 @@ export const telegramDeleteMessageTool: ToolConfig<
   description:
     'Delete messages in Telegram channels or chats through the Telegram Bot API. Requires the message ID of the message to delete.',
   version: '1.0.0',
+  oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
   params: {

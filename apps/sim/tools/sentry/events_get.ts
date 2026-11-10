@@ -1,4 +1,5 @@
 import type { SentryGetEventParams, SentryGetEventResponse } from '@/tools/sentry/types'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventResponse> = {
@@ -7,6 +8,7 @@ export const getEventTool: ToolConfig<SentryGetEventParams, SentryGetEventRespon
   description:
     'Retrieve detailed information about a specific Sentry event by its ID. Returns complete event details including stack traces, breadcrumbs, context, and user information.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

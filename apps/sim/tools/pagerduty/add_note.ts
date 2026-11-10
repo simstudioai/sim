@@ -1,4 +1,5 @@
 import type { PagerDutyAddNoteParams, PagerDutyAddNoteResponse } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const addNoteTool: ToolConfig<PagerDutyAddNoteParams, PagerDutyAddNoteResponse> = {
@@ -6,6 +7,7 @@ export const addNoteTool: ToolConfig<PagerDutyAddNoteParams, PagerDutyAddNoteRes
   name: 'PagerDuty Add Note',
   description: 'Add a note to an existing PagerDuty incident.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

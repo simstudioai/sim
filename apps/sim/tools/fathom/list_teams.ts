@@ -1,4 +1,5 @@
 import type { FathomListTeamsParams, FathomListTeamsResponse } from '@/tools/fathom/types'
+import { FATHOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listTeamsTool: ToolConfig<FathomListTeamsParams, FathomListTeamsResponse> = {
@@ -6,6 +7,7 @@ export const listTeamsTool: ToolConfig<FathomListTeamsParams, FathomListTeamsRes
   name: 'Fathom List Teams',
   description: 'List teams in your Fathom organization.',
   version: '1.0.0',
+  oauth: FATHOM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

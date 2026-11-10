@@ -1,4 +1,5 @@
 import type { FathomGetTranscriptParams, FathomGetTranscriptResponse } from '@/tools/fathom/types'
+import { FATHOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getTranscriptTool: ToolConfig<FathomGetTranscriptParams, FathomGetTranscriptResponse> =
@@ -7,6 +8,7 @@ export const getTranscriptTool: ToolConfig<FathomGetTranscriptParams, FathomGetT
     name: 'Fathom Get Transcript',
     description: 'Get the full transcript for a specific meeting recording.',
     version: '1.0.0',
+    oauth: FATHOM_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

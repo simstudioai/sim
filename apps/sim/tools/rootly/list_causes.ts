@@ -1,4 +1,5 @@
 import type { RootlyListCausesParams, RootlyListCausesResponse } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListCausesTool: ToolConfig<RootlyListCausesParams, RootlyListCausesResponse> = {
@@ -6,6 +7,7 @@ export const rootlyListCausesTool: ToolConfig<RootlyListCausesParams, RootlyList
   name: 'Rootly List Causes',
   description: 'List causes from Rootly with optional search filtering.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

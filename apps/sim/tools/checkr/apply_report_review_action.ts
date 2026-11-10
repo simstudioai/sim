@@ -9,6 +9,7 @@ import {
   checkrId,
   checkrUrl,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const REVIEW_DECISIONS = ['continue', 'skip_remaining'] as const
@@ -22,6 +23,7 @@ export const checkrApplyReportReviewActionTool: ToolConfig<
   description:
     'Continue or skip the remaining screenings on a report that is paused awaiting a review action.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

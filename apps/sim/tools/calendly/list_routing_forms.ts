@@ -3,6 +3,7 @@ import type {
   CalendlyListRoutingFormsResponse,
 } from '@/tools/calendly/types'
 import { toResourceUri } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listRoutingFormsTool: ToolConfig<
@@ -13,6 +14,7 @@ export const listRoutingFormsTool: ToolConfig<
   name: 'Calendly List Routing Forms',
   description: 'Retrieve the routing forms of an organization, including their questions',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

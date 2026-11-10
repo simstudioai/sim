@@ -12,6 +12,10 @@ import {
   readJsonBody,
   tokenCheckValidator,
 } from '@/lib/credentials/token-service-accounts/validators/http'
+import { ashbyAuthHeaders } from '@/tools/ashby/utils'
+import { checkrHeaders } from '@/tools/checkr/utils'
+import { GRANOLA_API_BASE, granolaHeaders } from '@/tools/granola/utils'
+import { WHATSAPP_GRAPH_VERSION } from '@/tools/whatsapp/utils'
 
 /**
  * Token checks for saved-credential providers whose key is verified by one
@@ -88,6 +92,29 @@ export const validateApolloServiceAccount = tokenCheckValidator({
 })
 
 /**
+ * Listing Ashby candidate sources answers 200 for a valid key. Ashby refuses an
+ * unknown, wrong or deactivated key with 401 or 403; a valid key without the
+ * module's read permission gets an error naming `missing_endpoint_permission`,
+ * which still proves the key.
+ */
+export const validateAshbyServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Ashby',
+  request: ({ apiToken }) => ({
+    url: 'https://api.ashbyhq.com/source.list',
+    method: 'POST',
+    headers: ashbyAuthHeaders(apiToken),
+    body: '{}',
+  }),
+  provesKey: (errorBody) => {
+    const { errorInfo, errors } = toRecord(errorBody)
+    const messages = toArray(errors).map((entry) =>
+      typeof entry === 'string' ? entry : toRecord(entry).message
+    )
+    return [toRecord(errorInfo).code, ...messages].includes('missing_endpoint_permission')
+  },
+})
+
+/**
  * Brex's current-user endpoint answers 200 for a valid user token. An unknown
  * token gets the same JSON 403 as a token missing the user scope, told apart
  * only by its message.
@@ -141,6 +168,28 @@ export const validateBufferServiceAccount = tokenCheckValidator({
     const account = toRecord(toRecord(toRecord(body).data).account)
     return typeof account.id === 'string' && account.id.length > 0
   },
+})
+
+/**
+ * Calendly's current-user endpoint answers 200 for a valid token and 401
+ * otherwise; a valid token without the `users:read` scope gets a JSON 403.
+ */
+export const validateCalendlyServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Calendly',
+  forbiddenMeansScoped: true,
+  request: ({ apiToken }) => ({
+    url: 'https://api.calendly.com/users/me',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
+/** Checkr's account endpoint answers 200 for a valid production secret key and 401 otherwise. */
+export const validateCheckrServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Checkr',
+  request: ({ apiToken }) => ({
+    url: 'https://api.checkr.com/v1/account',
+    headers: checkrHeaders(apiToken),
+  }),
 })
 
 /** Listing Circleback tags answers 200 for a valid key and 401 otherwise. */
@@ -225,13 +274,19 @@ export const validateDubServiceAccount = tokenCheckValidator({
   forbiddenMeansScoped: true,
 })
 
-/** ElevenLabs returns the key owner's account for a valid key and 401 otherwise. */
+/**
+ * ElevenLabs returns the key owner's account for a valid key and 400/401 for a bad one. A key
+ * without the user permission gets a 401 naming `missing_permissions`, or a 403, both of which
+ * still prove it authenticated.
+ */
 export const validateElevenLabsServiceAccount = tokenCheckValidator({
   serviceLabel: 'ElevenLabs',
   request: ({ apiToken }) => ({
     url: 'https://api.elevenlabs.io/v1/user',
     headers: { 'xi-api-key': apiToken, Accept: 'application/json' },
   }),
+  forbiddenMeansScoped: true,
+  provesKey: (errorBody) => toRecord(toRecord(errorBody).detail).status === 'missing_permissions',
 })
 
 /** Enrich's credit-balance endpoint costs no credits and succeeds only for a valid key. */
@@ -253,6 +308,15 @@ export const validateExtendServiceAccount = tokenCheckValidator({
       'x-extend-api-version': '2025-04-21',
       Accept: 'application/json',
     },
+  }),
+})
+
+/** Fathom's list-teams endpoint answers 200 for a valid API key and 401 otherwise. */
+export const validateFathomServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Fathom',
+  request: ({ apiToken }) => ({
+    url: 'https://api.fathom.ai/external/v1/teams',
+    headers: { 'X-Api-Key': apiToken, Accept: 'application/json' },
   }),
 })
 
@@ -328,6 +392,37 @@ export const validateGammaServiceAccount = tokenCheckValidator({
   }),
 })
 
+/**
+ * Grain's list-teams endpoint (a read-only POST, as the tools call it) answers 200 for a valid
+ * access token and 401 `invalid_token` otherwise.
+ */
+export const validateGrainServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Grain',
+  request: ({ apiToken }) => ({
+    url: 'https://api.grain.com/_/public-api/v2/teams',
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      'Public-Api-Version': '2025-10-31',
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+  }),
+})
+
+/**
+ * Listing one Granola note answers 200 for a valid personal or workspace API key and 401 otherwise.
+ * An Enterprise admin can turn off note scopes for members, so a JSON 403 still proves the key.
+ */
+export const validateGranolaServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Granola',
+  forbiddenMeansScoped: true,
+  request: ({ apiToken }) => ({
+    url: `${GRANOLA_API_BASE}/notes?page_size=1`,
+    headers: { ...granolaHeaders(apiToken), Accept: 'application/json' },
+  }),
+})
+
 /** Hex's list-projects endpoint (the one the Hex tools call) answers 200 for a valid token and 401 otherwise. */
 export const validateHexServiceAccount = tokenCheckValidator({
   serviceLabel: 'Hex',
@@ -355,13 +450,17 @@ export const validateIncidentioServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Instantly's campaign list (the one the Instantly tools call) answers 200 for a valid key and 401 otherwise. */
+/**
+ * Instantly's campaign list (the one the Instantly tools call) answers 200 for a valid key and
+ * 401 for a bad one; a valid key without the campaigns scope gets 403.
+ */
 export const validateInstantlyServiceAccount = tokenCheckValidator({
   serviceLabel: 'Instantly',
   request: ({ apiToken }) => ({
     url: 'https://api.instantly.ai/api/v2/campaigns?limit=1',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
+  forbiddenMeansScoped: true,
 })
 
 /** Intercom's identify-admin endpoint answers 200 with the token's admin and 401 to an unknown token. */
@@ -392,6 +491,21 @@ export const validateLaunchdarklyServiceAccount = tokenCheckValidator({
   request: ({ apiToken }) => ({
     url: 'https://app.launchdarkly.com/api/v2/caller-identity',
     headers: { Authorization: apiToken, Accept: 'application/json' },
+  }),
+})
+
+/**
+ * Lemlist's team endpoint answers 200 for a valid API key and 401 otherwise; the key is the
+ * Basic-auth password with an empty username, as the tools send it.
+ */
+export const validateLemlistServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Lemlist',
+  request: ({ apiToken }) => ({
+    url: 'https://api.lemlist.com/api/team',
+    headers: {
+      Authorization: `Basic ${Buffer.from(`:${apiToken}`).toString('base64')}`,
+      Accept: 'application/json',
+    },
   }),
 })
 
@@ -465,6 +579,22 @@ export const validateOtterServiceAccount = tokenCheckValidator({
   }),
 })
 
+/**
+ * Listing one PagerDuty user answers 200 for a valid REST API key and 401 for an unknown one; a
+ * JSON 403 comes only from an authenticated key whose user lacks access to the user list.
+ */
+export const validatePagerDutyServiceAccount = tokenCheckValidator({
+  serviceLabel: 'PagerDuty',
+  request: ({ apiToken }) => ({
+    url: 'https://api.pagerduty.com/users?limit=1',
+    headers: {
+      Authorization: `Token token=${apiToken}`,
+      Accept: 'application/vnd.pagerduty+json;version=2',
+    },
+  }),
+  forbiddenMeansScoped: true,
+})
+
 /** Listing one inquiry answers 200 for a valid key with inquiry read access and 401 otherwise. */
 export const validatePersonaServiceAccount = tokenCheckValidator({
   serviceLabel: 'Persona',
@@ -533,6 +663,20 @@ export const validateReductoServiceAccount = tokenCheckValidator({
   }),
 })
 
+/**
+ * Resend's list-domains endpoint answers 200 for a full-access key. A sending-only key gets a 401
+ * named `restricted_api_key`, which still proves Resend authenticated it; an unknown key gets a
+ * `validation_error` and an inactive or suspended one a 403, both of which reject it.
+ */
+export const validateResendServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Resend',
+  request: ({ apiToken }) => ({
+    url: 'https://api.resend.com/domains',
+    headers: { Authorization: `Bearer ${apiToken.trim()}`, Accept: 'application/json' },
+  }),
+  provesKey: (errorBody) => toRecord(errorBody).name === 'restricted_api_key',
+})
+
 /** Rippling's current-user endpoint answers 200 for a valid token with the sso-me.read scope and 401 otherwise. */
 export const validateRipplingServiceAccount = tokenCheckValidator({
   serviceLabel: 'Rippling',
@@ -552,11 +696,38 @@ export const validateRocketlaneServiceAccount = tokenCheckValidator({
   }),
 })
 
+/**
+ * Listing one Rootly severity (a read every key role has) answers 200 for a valid key and 401
+ * for a bad one; a key whose role can't read severities gets the vendor's JSON 403.
+ */
+export const validateRootlyServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Rootly',
+  forbiddenMeansScoped: true,
+  request: ({ apiToken }) => ({
+    url: 'https://api.rootly.com/v1/severities?page%5Bsize%5D=1',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/vnd.api+json' },
+  }),
+})
+
 /** SendGrid's scopes endpoint lists the scopes of the key that calls it, so any valid key gets 200 and a bad one 401. */
 export const validateSendGridServiceAccount = tokenCheckValidator({
   serviceLabel: 'SendGrid',
   request: ({ apiToken }) => ({
     url: 'https://api.sendgrid.com/v3/scopes',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
+/**
+ * Listing the token's Sentry organizations answers 200 for a valid token and 401 for a bad one;
+ * a token without `org:read` (an organization token, or a narrowly scoped one) gets Sentry's JSON
+ * 403.
+ */
+export const validateSentryServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Sentry',
+  forbiddenMeansScoped: true,
+  request: ({ apiToken }) => ({
+    url: 'https://sentry.io/api/0/organizations/',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
 })
@@ -597,22 +768,43 @@ export const validateSportmonksServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Square's list-locations read answers 200 for a valid production access token and 401 otherwise. */
+/**
+ * Square's list-locations read answers 200 for a valid production access token and 401 for a bad
+ * one; a token without the merchant-profile scope gets 403.
+ */
 export const validateSquareServiceAccount = tokenCheckValidator({
   serviceLabel: 'Square',
   request: ({ apiToken }) => ({
     url: 'https://connect.squareup.com/v2/locations',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
+  forbiddenMeansScoped: true,
 })
 
-/** Listing devices in the token's default tailnet (`-`) answers 200 for a valid token and 401 otherwise. */
+/**
+ * Listing one customer answers 200 for a valid secret key and 401 for an unknown
+ * one; a restricted key without customer read access gets Stripe's JSON 403.
+ */
+export const validateStripeServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Stripe',
+  forbiddenMeansScoped: true,
+  request: ({ apiToken }) => ({
+    url: 'https://api.stripe.com/v1/customers?limit=1',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
+/**
+ * Listing devices in the token's default tailnet (`-`) answers 200 for a valid token and 401 for a
+ * bad one; an OAuth token without the devices scope gets 403.
+ */
 export const validateTailscaleServiceAccount = tokenCheckValidator({
   serviceLabel: 'Tailscale',
   request: ({ apiToken }) => ({
     url: 'https://api.tailscale.com/api/v2/tailnet/-/devices',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
+  forbiddenMeansScoped: true,
 })
 
 /** Tavily's usage endpoint answers 200 for a valid key and 401 otherwise. */
@@ -624,11 +816,33 @@ export const validateTavilyServiceAccount = tokenCheckValidator({
   }),
 })
 
+/** Telegram's getMe exists to test a bot token: 200 for a valid one, 401 or 404 otherwise. */
+export const validateTelegramServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Telegram',
+  request: ({ apiToken }) => ({
+    url: `https://api.telegram.org/bot${encodeURIComponent(apiToken)}/getMe`,
+    headers: { Accept: 'application/json' },
+  }),
+})
+
 /** Listing one run needs a valid environment secret key; Trigger.dev answers 401 for any other. */
 export const validateTriggerDevServiceAccount = tokenCheckValidator({
   serviceLabel: 'Trigger.dev',
   request: ({ apiToken }) => ({
     url: 'https://api.trigger.dev/api/v1/runs?page%5Bsize%5D=1',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
+/**
+ * Listing one form answers 200 for a token with the forms:read scope the
+ * Typeform tools need. Typeform answers an unknown token with a 403, so every
+ * refusal rejects it.
+ */
+export const validateTypeformServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Typeform',
+  request: ({ apiToken }) => ({
+    url: 'https://api.typeform.com/forms?page_size=1',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
   }),
 })
@@ -642,6 +856,33 @@ export const validateUptimeRobotServiceAccount = tokenCheckValidator({
   }),
 })
 
+/**
+ * Vercel's current-user endpoint answers 200 for a valid token. An unknown token
+ * gets a 403 flagged `invalidToken`; any other JSON 403 is a valid token
+ * without access to the user record.
+ */
+export const validateVercelServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Vercel',
+  forbiddenMeansScoped: true,
+  rejectsKey: (errorBody) => toRecord(toRecord(errorBody).error).invalidToken === true,
+  request: ({ apiToken }) => ({
+    url: 'https://api.vercel.com/v2/user',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
+/**
+ * The Graph API's /me answers 200 for any valid access token and a 4xx
+ * OAuthException (code 190) for an invalid, expired, or revoked one.
+ */
+export const validateWhatsAppServiceAccount = tokenCheckValidator({
+  serviceLabel: 'WhatsApp',
+  request: ({ apiToken }) => ({
+    url: `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/me?fields=id`,
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
 /** You.com's account balance read costs no credits and answers 200 only for a valid key. */
 export const validateYouComServiceAccount = tokenCheckValidator({
   serviceLabel: 'You.com',
@@ -651,13 +892,37 @@ export const validateYouComServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Listing video categories costs one quota unit; Google answers 400/403 for an invalid or restricted key. */
+/**
+ * Google's 403 reasons for a valid key that is only out of quota for now. Mirrors
+ * `isGoogleQuotaReason` in the Google connectors, whose module is too heavy for this graph.
+ */
+const YOUTUBE_QUOTA_REASONS = new Set([
+  'quotaExceeded',
+  'dailyLimitExceeded',
+  'rateLimitExceeded',
+  'userRateLimitExceeded',
+  'RATE_LIMIT_EXCEEDED',
+])
+
+/**
+ * Listing video categories costs one quota unit. Google answers 400 for an invalid key and 403
+ * for a restricted one or a project without the YouTube API; a 403 for spent quota still proves
+ * the key, so only that one is accepted.
+ */
 export const validateYouTubeServiceAccount = tokenCheckValidator({
   serviceLabel: 'YouTube',
   request: ({ apiToken }) => ({
     url: `https://www.googleapis.com/youtube/v3/videoCategories?part=snippet&regionCode=US&key=${encodeURIComponent(apiToken)}`,
     headers: { Accept: 'application/json' },
   }),
+  forbiddenMeansScoped: true,
+  rejectsKey: (errorBody) => {
+    const error = toRecord(toRecord(errorBody).error)
+    if (error.code !== 403) return false
+    return !toArray(error.errors).some((entry) =>
+      YOUTUBE_QUOTA_REASONS.has(String(toRecord(entry).reason))
+    )
+  },
 })
 
 /** Listing one thread needs a valid project key; Zep answers 401 for any other. */

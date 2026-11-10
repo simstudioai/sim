@@ -1,3 +1,4 @@
+import { TYPEFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TypeformFilesParams, TypeformFilesResponse } from '@/tools/typeform/types'
 import type { InternalToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const filesTool: InternalToolConfig<TypeformFilesParams, TypeformFilesRes
   name: 'Typeform Files',
   description: 'Download files uploaded in Typeform responses',
   version: '1.0.0',
+  oauth: TYPEFORM_CREDENTIAL_OAUTH,
 
   params: {
     formId: {

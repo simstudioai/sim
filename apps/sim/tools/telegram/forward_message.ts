@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { TELEGRAM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TelegramForwardMessageParams,
   TelegramMessage,
@@ -15,6 +16,7 @@ export const telegramForwardMessageTool: ToolConfig<
   name: 'Telegram Forward Message',
   description: 'Forward a message from one Telegram chat to another through the Telegram Bot API.',
   version: '1.0.0',
+  oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
   params: {

@@ -6,6 +6,10 @@ import { z } from 'zod'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
 import { validateDatabricksWorkspaceHost } from '@/lib/core/security/input-validation'
 import { parseServiceAccountConfig } from '@/lib/credentials/service-account-config'
+import {
+  providerFailureCode,
+  TokenServiceAccountValidationError,
+} from '@/lib/credentials/token-service-accounts/errors'
 import { WORKLOAD_IDENTITY_AUDIENCES } from '@/lib/credentials/workload-identity/audiences'
 import {
   mintWorkloadIdentityToken,
@@ -13,6 +17,7 @@ import {
 } from '@/lib/credentials/workload-identity/issuer'
 import {
   bindWorkloadIdentitySubject,
+  newWorkloadIdentitySubject,
   type WorkloadIdentityCredentialOwner,
   WorkloadIdentitySubjectError,
 } from '@/lib/credentials/workload-identity/subject'
@@ -112,7 +117,11 @@ const storedSecretSchema = z
   .strict()
 
 export class DatabricksCredentialError extends Error {
-  constructor(message: string) {
+  /** @param status Databricks' HTTP status, when Databricks itself refused the request. */
+  constructor(
+    message: string,
+    readonly status?: number
+  ) {
     super(message)
     this.name = 'DatabricksCredentialError'
   }
@@ -145,7 +154,10 @@ async function requestWorkspaceToken(
         : typeof payload.error === 'string'
           ? payload.error
           : `HTTP ${response.status}`
-    throw new DatabricksCredentialError(`Databricks rejected the token request: ${reason}`)
+    throw new DatabricksCredentialError(
+      `Databricks rejected the token request: ${reason}`,
+      response.status
+    )
   }
   return payload.access_token
 }
@@ -212,6 +224,67 @@ function bindSubject(
   }
 }
 
+/** Proves a configuration by calling the workspace's SCIM `Me` with the resolved token. */
+async function verifyWorkspaceIdentity(
+  config: DatabricksCredentialConfig,
+  owner: WorkloadIdentityOwner
+): Promise<string> {
+  try {
+    const token = await resolveDatabricksAccessToken(config, owner)
+    const response = await fetch(`${workspaceOrigin(config.host)}/api/2.0/preview/scim/v2/Me`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
+      redirect: 'error',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
+    if (!response.ok) throw new Error(`workspace returned HTTP ${response.status}`)
+    const me = (await response.json().catch(() => ({}))) as {
+      userName?: unknown
+      displayName?: unknown
+    }
+    return (
+      (typeof me.userName === 'string' && me.userName) ||
+      (typeof me.displayName === 'string' && me.displayName) ||
+      config.host
+    )
+  } catch (error) {
+    throw new DatabricksCredentialError(
+      `Could not verify the Databricks credential: ${getErrorMessage(error, 'Unknown error')}`
+    )
+  }
+}
+
+/**
+ * Sim signs tokens for any service principal a member names, and every Sim
+ * tenant shares the issuer and audience, so a federation policy that matches on
+ * a claim other than `sub` (a `subject_claim` of `sim_workspace_id`, say) would
+ * let other Sim credentials act as the principal. Exchanging a subject no
+ * credential holds must be refused before the credential is saved.
+ */
+async function assertPolicyPinsSubject(
+  config: Extract<DatabricksCredentialConfig, { authType: 'oidc_federation' }>,
+  owner: WorkloadIdentityOwner
+): Promise<void> {
+  try {
+    await resolveDatabricksAccessToken(
+      { ...config, subject: newWorkloadIdentitySubject(owner) },
+      owner,
+      AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    )
+  } catch (error) {
+    const refused =
+      error instanceof DatabricksCredentialError &&
+      error.status !== undefined &&
+      providerFailureCode(error.status) === 'invalid_credentials'
+    if (refused) return
+    throw new DatabricksCredentialError(
+      `Sim could not confirm the federation policy limits this service principal to this credential: ${getErrorMessage(error, 'Unknown error')}. Try again.`
+    )
+  }
+  throw new DatabricksCredentialError(
+    `This service principal's federation policy also trusts other Sim credentials. Use the policy shown in the dialog, which matches the sub claim to ${config.subject}, so only this credential can use it.`
+  )
+}
+
 /**
  * Validates the submitted configuration, proves it by calling the workspace's
  * SCIM `Me` endpoint with the resolved token, and returns the encrypted blob
@@ -236,28 +309,15 @@ export async function verifyAndEncryptDatabricksCredential(
     config = submitted
   }
 
-  let identity: string
-  try {
-    const token = await resolveDatabricksAccessToken(config, owner)
-    const response = await fetch(`${workspaceOrigin(config.host)}/api/2.0/preview/scim/v2/Me`, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' },
-      redirect: 'error',
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    })
-    if (!response.ok) throw new Error(`workspace returned HTTP ${response.status}`)
-    const me = (await response.json().catch(() => ({}))) as {
-      userName?: unknown
-      displayName?: unknown
-    }
-    identity =
-      (typeof me.userName === 'string' && me.userName) ||
-      (typeof me.displayName === 'string' && me.displayName) ||
-      config.host
-  } catch (error) {
-    throw new DatabricksCredentialError(
-      `Could not verify the Databricks credential: ${getErrorMessage(error, 'Unknown error')}`
-    )
-  }
+  // The subject-pin probe is independent of the verification, so both run at
+  // once; a verification failure still reports first.
+  const [verified, pinned] = await Promise.allSettled([
+    verifyWorkspaceIdentity(config, owner),
+    config.authType === 'oidc_federation' ? assertPolicyPinsSubject(config, owner) : undefined,
+  ])
+  if (verified.status === 'rejected') throw verified.reason
+  if (pinned.status === 'rejected') throw pinned.reason
+  const identity = verified.value
 
   const { encrypted } = await encryptSecret(
     JSON.stringify({ type: DATABRICKS_CREDENTIAL_SECRET_TYPE, config })
@@ -299,8 +359,18 @@ export async function resolveDatabricksCredentialToken(
   const owner: WorkloadIdentityOwner = row.workspaceId
     ? { workspaceId: row.workspaceId }
     : { organizationId: row.organizationId ?? undefined }
-  return {
-    accessToken: await resolveDatabricksAccessToken(config, owner, signal),
-    domain: config.host,
+  try {
+    return {
+      accessToken: await resolveDatabricksAccessToken(config, owner, signal),
+      domain: config.host,
+    }
+  } catch (error) {
+    if (!(error instanceof DatabricksCredentialError)) throw error
+    // Report in the shared service-account codes: an outage is not a bad credential.
+    throw new TokenServiceAccountValidationError(
+      error.status === undefined ? 'invalid_credentials' : providerFailureCode(error.status),
+      error.status ?? 400,
+      { step: 'token', reason: error.message }
+    )
   }
 }

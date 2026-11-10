@@ -1,4 +1,5 @@
 import type { SentryListEventsParams, SentryListEventsResponse } from '@/tools/sentry/types'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEventsResponse> = {
@@ -7,6 +8,7 @@ export const listEventsTool: ToolConfig<SentryListEventsParams, SentryListEvents
   description:
     'List events from a Sentry project. Can be filtered by issue ID, query, or time period. Returns event details including context, tags, and user information.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

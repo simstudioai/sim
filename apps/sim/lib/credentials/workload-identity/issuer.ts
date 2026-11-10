@@ -55,6 +55,42 @@ async function toPublicJwk(key: KeyObject): Promise<JWK> {
   return { ...exported, kid, alg: WORKLOAD_IDENTITY_ALGORITHM, use: 'sig' }
 }
 
+/**
+ * The retiring key's public JWK, or null when it is unset or unusable. A bad
+ * retiring key only drops that key from the JWKS; the current key keeps signing.
+ */
+async function loadPreviousPublicJwk(): Promise<JWK | null> {
+  const previousKey = env.WORKLOAD_IDENTITY_PREVIOUS_KEY
+  if (!previousKey) return null
+  try {
+    return await toPublicJwk(createPublicKey(normalizePem(previousKey)))
+  } catch (error) {
+    logger.error('Workload identity previous key is set but unusable', { error })
+    return null
+  }
+}
+
+/**
+ * AWS and Databricks fetch discovery and keys from the issuer over https on the
+ * default port, and discovery appends paths to it, so any other issuer (or one
+ * with a query or fragment) can never be trusted; keyless stays off
+ * rather than advertising an issuer no relying party accepts.
+ */
+function assertPublicIssuer(issuer: string): void {
+  const url = new URL(issuer)
+  if (url.protocol !== 'https:' || url.port || url.search || url.hash) {
+    throw new Error(
+      'Workload identity issuer must be an https URL without a port, query, or fragment'
+    )
+  }
+  if (!env.WORKLOAD_IDENTITY_ISSUER?.trim()) {
+    logger.warn(
+      'Workload identity issuer follows the app URL; set WORKLOAD_IDENTITY_ISSUER so customer trust policies survive a URL change',
+      { issuer }
+    )
+  }
+}
+
 let signingMaterial: Promise<SigningMaterial> | undefined
 
 /**
@@ -67,18 +103,21 @@ function loadSigningMaterial(): Promise<SigningMaterial> {
   if (!signingKey) return Promise.reject(new WorkloadIdentityNotConfiguredError())
   if (!signingMaterial) {
     signingMaterial = (async () => {
+      assertPublicIssuer(getWorkloadIdentityIssuer())
       const privateKey = createPrivateKey(normalizePem(signingKey))
       const current = await toPublicJwk(privateKey)
       const keys = [current]
-      const previousKey = env.WORKLOAD_IDENTITY_PREVIOUS_KEY
-      if (previousKey) {
-        const previous = await toPublicJwk(createPublicKey(normalizePem(previousKey)))
-        if (previous.kid !== current.kid) keys.push(previous)
-      }
+      const previous = await loadPreviousPublicJwk()
+      if (previous && previous.kid !== current.kid) keys.push(previous)
       return { privateKey, kid: current.kid as string, jwks: { keys } }
     })()
     signingMaterial.catch((error: unknown) => {
-      logger.error('Workload identity signing key is set but unusable', { error })
+      logger.error(
+        'Workload identity is configured but unusable (check the signing key and issuer)',
+        {
+          error,
+        }
+      )
     })
   }
   return signingMaterial

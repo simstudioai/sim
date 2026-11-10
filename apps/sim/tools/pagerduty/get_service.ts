@@ -2,6 +2,7 @@ import type {
   PagerDutyGetServiceParams,
   PagerDutyGetServiceResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getServiceTool: ToolConfig<PagerDutyGetServiceParams, PagerDutyGetServiceResponse> = {
@@ -9,6 +10,7 @@ export const getServiceTool: ToolConfig<PagerDutyGetServiceParams, PagerDutyGetS
   name: 'PagerDuty Get Service',
   description: 'Get a single service from PagerDuty by ID.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

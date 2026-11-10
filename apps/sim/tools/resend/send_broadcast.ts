@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { SendBroadcastParams, SendBroadcastResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendSendBroadcastTool')
@@ -9,6 +10,7 @@ export const resendSendBroadcastTool: ToolConfig<SendBroadcastParams, SendBroadc
   name: 'Send Broadcast',
   description: 'Send a broadcast immediately or schedule it for later',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     broadcastId: {

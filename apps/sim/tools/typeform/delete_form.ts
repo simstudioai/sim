@@ -1,3 +1,4 @@
+import { TYPEFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TypeformDeleteFormParams, TypeformDeleteFormResponse } from '@/tools/typeform/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const deleteFormTool: ToolConfig<TypeformDeleteFormParams, TypeformDelete
   name: 'Typeform Delete Form',
   description: 'Permanently delete a form and all its responses',
   version: '1.0.0',
+  oauth: TYPEFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

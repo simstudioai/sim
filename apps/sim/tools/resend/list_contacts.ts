@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ListContactsParams, ListContactsResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendListContactsTool')
@@ -9,6 +10,7 @@ export const resendListContactsTool: ToolConfig<ListContactsParams, ListContacts
   name: 'List Contacts',
   description: 'List all contacts in Resend',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     resendApiKey: {

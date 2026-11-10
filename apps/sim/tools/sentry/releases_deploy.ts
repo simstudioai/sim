@@ -1,4 +1,5 @@
 import type { SentryCreateDeployParams, SentryCreateDeployResponse } from '@/tools/sentry/types'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createDeployTool: ToolConfig<SentryCreateDeployParams, SentryCreateDeployResponse> = {
@@ -7,6 +8,7 @@ export const createDeployTool: ToolConfig<SentryCreateDeployParams, SentryCreate
   description:
     'Create a deploy record for a Sentry release in a specific environment. Deploys track when and where releases are deployed. Returns the created deploy details.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

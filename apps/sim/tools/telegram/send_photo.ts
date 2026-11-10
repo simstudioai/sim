@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { TELEGRAM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TelegramPhoto,
   TelegramSendPhotoParams,
@@ -13,6 +14,7 @@ export const telegramSendPhotoTool: ToolConfig<TelegramSendPhotoParams, Telegram
     name: 'Telegram Send Photo',
     description: 'Send photos to Telegram channels or users through the Telegram Bot API.',
     version: '1.0.0',
+    oauth: TELEGRAM_CREDENTIAL_OAUTH,
     errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
     params: {

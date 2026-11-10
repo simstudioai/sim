@@ -2,6 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { CalendlyIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -26,6 +27,8 @@ function parseJsonArray(value: unknown, field: string): unknown {
 
 export const CalendlyBlock: BlockConfig = {
   type: 'calendly',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'calendly_v2' },
   name: 'Calendly',
   description: 'Manage Calendly scheduling and events',
   authMode: AuthMode.ApiKey,
@@ -792,3 +795,19 @@ export const CalendlyBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const CalendlyV2Block: BlockConfig = {
+  ...CalendlyBlock,
+  type: 'calendly_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Manage event types, scheduled events, invitees, and webhooks. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted).',
+  ...withSavedCredential(CalendlyBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'calendly',
+    title: 'Calendly Credential',
+  }),
+}

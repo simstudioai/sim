@@ -3,6 +3,7 @@ import type {
   CalendlyDeleteInviteeNoShowResponse,
 } from '@/tools/calendly/types'
 import { toUuid } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const deleteInviteeNoShowTool: ToolConfig<
@@ -13,6 +14,7 @@ export const deleteInviteeNoShowTool: ToolConfig<
   name: 'Calendly Unmark Invitee No-Show',
   description: 'Remove the no-show status from an invitee',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

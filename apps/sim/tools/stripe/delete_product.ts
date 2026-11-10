@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { DeleteProductParams, ProductDeleteResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const stripeDeleteProductTool: ToolConfig<DeleteProductParams, ProductDel
   name: 'Stripe Delete Product',
   description: 'Permanently delete a product',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

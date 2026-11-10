@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { TELEGRAM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TelegramMessage,
   TelegramSendMessageParams,
@@ -16,6 +17,7 @@ export const telegramMessageTool: ToolConfig<
   description:
     'Send a text message through the Telegram Bot API. Markdown is converted to Telegram HTML before sending; the response includes the sent message and recipient chat.',
   version: '1.0.0',
+  oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
   params: {

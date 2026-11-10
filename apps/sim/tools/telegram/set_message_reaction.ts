@@ -1,4 +1,5 @@
 import { ErrorExtractorId } from '@/tools/error-extractors'
+import { TELEGRAM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TelegramBooleanResponse,
   TelegramSetMessageReactionParams,
@@ -15,6 +16,7 @@ export const telegramSetMessageReactionTool: ToolConfig<
   description:
     'Set or remove an emoji reaction on a message in a Telegram chat through the Telegram Bot API.',
   version: '1.0.0',
+  oauth: TELEGRAM_CREDENTIAL_OAUTH,
   errorExtractor: ErrorExtractorId.TELEGRAM_DESCRIPTION,
 
   params: {

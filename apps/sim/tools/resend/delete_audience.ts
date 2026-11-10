@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { DeleteAudienceParams, DeleteAudienceResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendDeleteAudienceTool')
@@ -9,6 +10,7 @@ export const resendDeleteAudienceTool: ToolConfig<DeleteAudienceParams, DeleteAu
   name: 'Delete Audience',
   description: 'Delete an audience from Resend by ID',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     audienceId: {

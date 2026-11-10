@@ -1,3 +1,4 @@
+import { WHATSAPP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 import type { WhatsAppUploadMediaParams, WhatsAppUploadMediaResponse } from '@/tools/whatsapp/types'
 
@@ -10,6 +11,7 @@ export const uploadMediaTool: InternalToolConfig<
   description:
     'Upload a file to WhatsApp and get a media ID for sending. Uploaded media is retained for 30 days and can back many sends.',
   version: '1.0.0',
+  oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
   params: {
     file: {

@@ -2,7 +2,7 @@
 title: Calendly
 description: Manage Calendly scheduling and events
 integration:
-  type: "calendly"
+  type: "calendly_v2"
   color: "#FFFFFF"
 ---
 
@@ -17,7 +17,7 @@ Webhook subscriptions require a paid plan and the permissions for their user or 
 
 ## Use the block [#usage-instructions]
 
-Manage event types, scheduled events, invitees, and webhooks. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted). Requires Personal Access Token.
+Manage event types, scheduled events, invitees, and webhooks. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted).
 
 ## Actions
 
@@ -31,7 +31,6 @@ Get information about the currently authenticated Calendly user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 
 #### Output
 
@@ -61,7 +60,6 @@ Get information about a specific Calendly user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `userUuid` | string | Yes | User UUID. Format: UUID \(e.g., "abc123-def456"\), full URI \(e.g., "https://api.calendly.com/users/abc123-def456"), or the constant "me" for the authenticated user |
 
 #### Output
@@ -95,7 +93,6 @@ Retrieve a list of all event types for a user or organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `user` | string | No | Return only event types that belong to this user. Format: URI \(e.g., "https://api.calendly.com/users/abc123-def456") |
 | `organization` | string | No | Return only event types that belong to this organization. Format: URI \(e.g., "https://api.calendly.com/organizations/abc123-def456") |
 | `count` | number | No | Number of results per page. Format: integer \(default: 20, max: 100\) |
@@ -140,7 +137,6 @@ Get detailed information about a specific event type
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `eventTypeUuid` | string | Yes | Event type UUID. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/event_types/abc123-def456") |
 
 #### Output
@@ -181,7 +177,6 @@ Retrieve bookable time slots for an event type within a date range
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `eventTypeUri` | string | Yes | Event type to check. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/event_types/abc123-def456") |
 | `startTime` | string | Yes | Start of the availability range. Cannot be in the past. Format: ISO 8601 \(e.g., "2024-01-01T00:00:00Z"\) |
 | `endTime` | string | Yes | End of the availability range. Must be in the future and no more than 31 days after the start. Format: ISO 8601 \(e.g., "2024-01-15T00:00:00Z"\) |
@@ -208,7 +203,6 @@ Retrieve a list of scheduled events for a user or organization
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `user` | string | No | Return events that belong to this user. Either "user" or "organization" must be provided. Format: URI \(e.g., "https://api.calendly.com/users/abc123-def456") |
 | `organization` | string | No | Return events that belong to this organization. Either "user" or "organization" must be provided. Format: URI \(e.g., "https://api.calendly.com/organizations/abc123-def456") |
 | `invitee_email` | string | No | Return events where invitee has this email |
@@ -259,7 +253,6 @@ Get detailed information about a specific scheduled event
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `eventUuid` | string | Yes | Scheduled event UUID. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/scheduled_events/abc123-def456") |
 
 #### Output
@@ -304,7 +297,6 @@ Retrieve a list of invitees for a scheduled event
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `eventUuid` | string | Yes | Scheduled event UUID. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/scheduled_events/abc123-def456") |
 | `count` | number | No | Number of results per page. Format: integer \(default: 20, max: 100\) |
 | `email` | string | No | Filter invitees by email address |
@@ -353,7 +345,6 @@ Retrieve a single invitee of a scheduled event, including their intake answers
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `eventUuid` | string | Yes | Scheduled event UUID. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/scheduled_events/abc123-def456") |
 | `inviteeUuid` | string | Yes | Invitee UUID. Format: UUID \(e.g., "abc123-def456"\) or full invitee URI \(e.g., "https://api.calendly.com/scheduled_events/abc123/invitees/def456") |
 
@@ -416,7 +407,6 @@ Book a meeting by creating an invitee on an event type at a chosen time. Require
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `eventTypeUri` | string | Yes | Event type to book. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/event_types/abc123-def456") |
 | `startTime` | string | Yes | Start time of the booking in UTC. Must be an available slot. Format: ISO 8601 \(e.g., "2024-01-15T09:00:00Z"\) |
 | `inviteeEmail` | string | Yes | Email address of the invitee being booked |
@@ -463,7 +453,6 @@ Cancel a scheduled event
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `eventUuid` | string | Yes | Scheduled event UUID to cancel. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/scheduled_events/abc123-def456") |
 | `reason` | string | No | Reason for cancellation \(will be sent to invitees\) |
 
@@ -489,7 +478,6 @@ Mark an invitee of a scheduled event as a no-show
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `inviteeUri` | string | Yes | Full invitee URI to mark as a no-show. Format: URI \(e.g., "https://api.calendly.com/scheduled_events/abc123/invitees/def456") |
 
 #### Output
@@ -513,7 +501,6 @@ Remove the no-show status from an invitee
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `noShowUuid` | string | Yes | No-show UUID to remove. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/invitee_no_shows/abc123-def456") |
 
 #### Output
@@ -535,7 +522,6 @@ Create a single-use scheduling link for an event type
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `eventTypeUri` | string | Yes | Event type the link books. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/event_types/abc123-def456") |
 
 #### Output
@@ -559,7 +545,6 @@ Retrieve a user's internal and external busy times within a date range, based on
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `user` | string | Yes | User whose busy times are returned. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/users/abc123-def456") |
 | `startTime` | string | Yes | Start of the requested range. Cannot be in the past. Format: ISO 8601 \(e.g., "2024-01-01T00:00:00Z"\) |
 | `endTime` | string | Yes | End of the requested range. Must be after the start and no more than 7 days later. Format: ISO 8601 \(e.g., "2024-01-07T00:00:00Z"\) |
@@ -589,7 +574,6 @@ Retrieve a user's availability schedules, working hours, and date overrides
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `user` | string | Yes | User whose schedules are returned. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/users/abc123-def456") |
 
 #### Output
@@ -622,7 +606,6 @@ Retrieve the members of an organization, including each member profile and role
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `organization` | string | No | Return memberships that belong to this organization. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/organizations/abc123-def456") |
 | `user` | string | No | Return memberships that belong to this user. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/users/abc123-def456") |
 | `email` | string | No | Filter memberships by member email address |
@@ -671,7 +654,6 @@ Retrieve the routing forms of an organization, including their questions
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `organization` | string | Yes | Organization whose routing forms are returned. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/organizations/abc123-def456") |
 | `count` | number | No | Number of results per page. Format: integer \(default: 20, max: 100\) |
 | `pageToken` | string | No | Page token for pagination. Format: opaque string from previous response next_page_token |
@@ -713,7 +695,6 @@ Retrieve the submissions of a routing form, including answers and routing result
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Calendly Personal Access Token |
 | `formUri` | string | Yes | Routing form whose submissions are returned. Format: UUID \(e.g., "abc123-def456"\) or full URI \(e.g., "https://api.calendly.com/routing_forms/abc123-def456") |
 | `count` | number | No | Number of results per page. Format: integer \(default: 20, max: 100\) |
 | `pageToken` | string | No | Page token for pagination. Format: opaque string from previous response next_page_token |

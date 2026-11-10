@@ -1,5 +1,6 @@
 import type { GitLabCreateIssueParams, GitLabCreateIssueResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabCreateIssueTool: ToolConfig<GitLabCreateIssueParams, GitLabCreateIssueResponse> =
@@ -9,6 +10,7 @@ export const gitlabCreateIssueTool: ToolConfig<GitLabCreateIssueParams, GitLabCr
     name: 'GitLab Create Issue',
     description: 'Create a new issue in a GitLab project',
     version: '1.0.0',
+    oauth: GITLAB_CREDENTIAL_OAUTH,
 
     params: {
       accessToken: {

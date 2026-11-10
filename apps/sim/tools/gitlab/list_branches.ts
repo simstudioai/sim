@@ -1,5 +1,6 @@
 import type { GitLabListBranchesParams, GitLabListBranchesResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabListBranchesTool: ToolConfig<
@@ -11,6 +12,7 @@ export const gitlabListBranchesTool: ToolConfig<
   name: 'GitLab List Branches',
   description: 'List branches in a GitLab project repository',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

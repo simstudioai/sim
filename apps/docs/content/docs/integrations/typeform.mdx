@@ -2,7 +2,7 @@
 title: Typeform
 description: Interact with Typeform
 integration:
-  type: "typeform"
+  type: "typeform_v2"
   color: "#262627"
 ---
 
@@ -10,12 +10,12 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Typeform](https://www.typeform.com/) in Sim to retrieve form responses, download submitted files, and get form insights. Switch to trigger mode to start a workflow when a form is submitted. The integration requires an API key.
+Use [Typeform](https://www.typeform.com/) in Sim to retrieve form responses, download submitted files, and get form insights. Switch to trigger mode to start a workflow when a form is submitted. Actions sign in with a saved Typeform credential (a personal access token with the `forms:read` scope); the trigger takes its own token.
 {/* MANUAL-CONTENT-END */}
 
 ## Use the block [#usage-instructions]
 
-Retrieve responses, download files, and get form insights. Use trigger mode to start a workflow when a form is submitted. Requires API Key.
+Retrieve responses, download files, and get form insights. Use trigger mode to start a workflow when a form is submitted.
 
 ## Actions
 
@@ -30,7 +30,6 @@ Retrieve form responses from Typeform
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `formId` | string | Yes | Typeform form ID \(e.g., "abc123XYZ"\) |
-| `apiKey` | string | Yes | Typeform Personal Access Token |
 | `pageSize` | number | No | Number of responses to retrieve \(e.g., 10, 25, 50\) |
 | `before` | string | No | Cursor token for fetching the next page of older responses |
 | `after` | string | No | Cursor token for fetching the next page of newer responses |
@@ -63,7 +62,6 @@ Download files uploaded in Typeform responses
 | `fieldId` | string | Yes | Unique ID of the file upload field |
 | `filename` | string | Yes | Filename of the uploaded file |
 | `inline` | boolean | No | Whether to request the file with inline Content-Disposition |
-| `apiKey` | string | Yes | Typeform Personal Access Token |
 
 #### Output
 
@@ -87,7 +85,6 @@ Retrieve insights and analytics for Typeform forms
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `formId` | string | Yes | Typeform form ID \(e.g., "abc123XYZ"\) |
-| `apiKey` | string | Yes | Typeform Personal Access Token |
 
 #### Output
 
@@ -128,7 +125,6 @@ Retrieve a list of all forms in your Typeform account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Typeform Personal Access Token |
 | `search` | string | No | Search query to filter forms by title \(e.g., "Customer Feedback"\) |
 | `page` | number | No | Page number for pagination \(e.g., 1, 2, 3\) |
 | `pageSize` | number | No | Number of forms per page \(e.g., 10, 25, 50, max: 200\) |
@@ -154,7 +150,6 @@ Retrieve complete details and structure of a specific form
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Typeform Personal Access Token |
 | `formId` | string | Yes | Form unique identifier \(e.g., "abc123XYZ"\) |
 
 #### Output
@@ -187,7 +182,6 @@ Create a new form with fields and settings
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Typeform Personal Access Token |
 | `title` | string | Yes | Form title |
 | `type` | string | No | Form type \(default: "form"\). Options: "form", "quiz" |
 | `workspaceId` | string | No | Workspace ID to create the form in \(e.g., "ws_abc123"\) |
@@ -222,7 +216,6 @@ Update an existing form using JSON Patch operations
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Typeform Personal Access Token |
 | `formId` | string | Yes | Form unique identifier to update \(e.g., "abc123XYZ"\) |
 | `operations` | json | Yes | Array of JSON Patch operations \(RFC 6902\). Each operation needs: op \(add/remove/replace\), path, and value \(for add/replace\) |
 
@@ -244,7 +237,6 @@ Permanently delete a form and all its responses
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Typeform Personal Access Token |
 | `formId` | string | Yes | Form unique identifier to delete \(e.g., "abc123XYZ"\) |
 
 #### Output

@@ -7,6 +7,7 @@ import {
   CANDIDATE_OUTPUTS,
   mapCandidate,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 interface AshbyUpdateCandidateParams {
@@ -38,6 +39,7 @@ export const updateCandidateTool: ToolConfig<
   name: 'Ashby Update Candidate',
   description: 'Updates an existing candidate record in Ashby. Only provided fields are changed.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

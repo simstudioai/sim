@@ -1,4 +1,5 @@
 import { ashbyAuthHeaders, ashbyErrorMessage, ashbyLimit } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyListNotesParams {
@@ -32,6 +33,7 @@ export const listNotesTool: ToolConfig<AshbyListNotesParams, AshbyListNotesRespo
   name: 'Ashby List Notes',
   description: 'Lists all notes on a candidate with pagination support.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

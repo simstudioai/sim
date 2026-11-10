@@ -2,6 +2,7 @@ import type {
   RootlyCreateActionItemParams,
   RootlyCreateActionItemResponse,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyCreateActionItemTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyCreateActionItemTool: ToolConfig<
   name: 'Rootly Create Action Item',
   description: 'Create a new action item for an incident in Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

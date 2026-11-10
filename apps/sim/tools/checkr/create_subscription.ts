@@ -14,6 +14,7 @@ import {
   mapSubscription,
   trimmed,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrCreateSubscriptionTool: ToolConfig<
@@ -25,6 +26,7 @@ export const checkrCreateSubscriptionTool: ToolConfig<
   description:
     'Schedule a recurring background check for a candidate, running a package every interval starting on a date.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

@@ -2,6 +2,7 @@ import type {
   RootlyAddIncidentEventParams,
   RootlyAddIncidentEventResponse,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyAddIncidentEventTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyAddIncidentEventTool: ToolConfig<
   name: 'Rootly Add Incident Event',
   description: 'Add a timeline event to an existing incident in Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

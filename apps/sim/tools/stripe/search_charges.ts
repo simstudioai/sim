@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ChargeListResponse, SearchChargesParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const stripeSearchChargesTool: ToolConfig<SearchChargesParams, ChargeList
   name: 'Stripe Search Charges',
   description: 'Search for charges using query syntax',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { WHATSAPP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 import type { WhatsAppSendMediaParams, WhatsAppSendResponse } from '@/tools/whatsapp/types'
 import { whatsappSendOutputs } from '@/tools/whatsapp/utils'
@@ -8,6 +9,7 @@ export const sendMediaTool: InternalToolConfig<WhatsAppSendMediaParams, WhatsApp
   description:
     'Send an image, document, video, audio, or sticker message. Accepts an uploaded file, a media ID, or a public link.',
   version: '1.0.0',
+  oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
   params: {
     phoneNumber: {

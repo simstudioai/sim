@@ -8,6 +8,7 @@ import {
   checkrId,
   checkrUrl,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /** Screening type → Checkr collection path, exactly as the API reference spells each one. */
@@ -51,6 +52,7 @@ export const checkrGetScreeningTool: ToolConfig<
   description:
     'Retrieve the results of one screening in a report, such as an SSN trace, county criminal search, or motor vehicle report. Get the screening ID from the report.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

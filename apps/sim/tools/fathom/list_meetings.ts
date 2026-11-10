@@ -1,4 +1,5 @@
 import type { FathomListMeetingsParams, FathomListMeetingsResponse } from '@/tools/fathom/types'
+import { FATHOM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMeetingsResponse> = {
@@ -6,6 +7,7 @@ export const listMeetingsTool: ToolConfig<FathomListMeetingsParams, FathomListMe
   name: 'Fathom List Meetings',
   description: 'List recent meetings recorded by the user or shared to their team.',
   version: '1.0.0',
+  oauth: FATHOM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

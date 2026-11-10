@@ -1632,7 +1632,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "ashby",
+      "type": "ashby_v2",
       "slug": "ashby",
       "name": "Ashby",
       "description": "Manage candidates, jobs, and applications in Ashby",
@@ -1907,11 +1907,12 @@
         }
       ],
       "triggerCount": 17,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "ashby",
       "category": "tools",
       "integrationType": "hr",
       "tags": ["hiring"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "athena_v2",
@@ -4161,11 +4162,11 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "calendly",
+      "type": "calendly_v2",
       "slug": "calendly",
       "name": "Calendly",
       "description": "Manage Calendly scheduling and events",
-      "longDescription": "Manage event types, scheduled events, invitees, and webhooks. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted). Requires Personal Access Token.",
+      "longDescription": "Manage event types, scheduled events, invitees, and webhooks. Trigger workflows based on Calendly webhook events (invitee scheduled, invitee canceled, routing form submitted).",
       "bgColor": "#FFFFFF",
       "iconName": "CalendlyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/calendly",
@@ -4271,11 +4272,12 @@
         }
       ],
       "triggerCount": 4,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "calendly",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["scheduling", "calendar", "meeting"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "cbinsights",
@@ -4398,7 +4400,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "checkr",
+      "type": "checkr_v2",
       "slug": "checkr",
       "name": "Checkr",
       "description": "Run and manage background checks with Checkr",
@@ -4791,11 +4793,12 @@
         }
       ],
       "triggerCount": 31,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "checkr",
       "category": "tools",
       "integrationType": "hr",
       "tags": ["hiring", "identity", "webhooks"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "circleback_v2",
@@ -9305,7 +9308,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "fathom",
+      "type": "fathom_v2",
       "slug": "fathom",
       "name": "Fathom",
       "description": "Access meeting recordings, transcripts, and summaries",
@@ -9353,11 +9356,12 @@
         }
       ],
       "triggerCount": 2,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "fathom",
       "category": "tools",
       "integrationType": "analytics",
       "tags": ["meeting", "note-taking"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "findymail",
@@ -10543,7 +10547,7 @@
       "updatedAt": "2026-10-20"
     },
     {
-      "type": "gitlab",
+      "type": "gitlab_v2",
       "slug": "gitlab",
       "name": "GitLab",
       "description": "Interact with GitLab projects, issues, merge requests, and pipelines",
@@ -10847,11 +10851,12 @@
         }
       ],
       "triggerCount": 6,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "gitlab",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["version-control", "ci-cd"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "gmail_v2",
@@ -12565,7 +12570,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "grain_v2",
+      "type": "grain_v3",
       "slug": "grain",
       "name": "Grain",
       "description": "Access meeting recordings, transcripts, and AI summaries",
@@ -12670,14 +12675,15 @@
         }
       ],
       "triggerCount": 11,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "grain",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["meeting", "note-taking"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
-      "type": "granola",
+      "type": "granola_v2",
       "slug": "granola",
       "name": "Granola",
       "description": "Access meeting notes, transcripts, and audit events from Granola",
@@ -12747,11 +12753,12 @@
         }
       ],
       "triggerCount": 4,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "granola",
       "category": "tools",
       "integrationType": "productivity",
       "tags": ["meeting", "note-taking"],
-      "updatedAt": "2026-08-20"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "greenhouse_v2",
@@ -16046,7 +16053,7 @@
       "updatedAt": "2026-08-18"
     },
     {
-      "type": "lemlist",
+      "type": "lemlist_v2",
       "slug": "lemlist",
       "name": "Lemlist",
       "description": "Manage outreach activities, leads, and send emails via Lemlist",
@@ -16117,11 +16124,12 @@
         }
       ],
       "triggerCount": 9,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "lemlist",
       "category": "tools",
       "integrationType": "email",
       "tags": ["sales-engagement", "email-marketing", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "linear_v2",
@@ -19742,7 +19750,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "pagerduty",
+      "type": "pagerduty_v2",
       "slug": "pagerduty",
       "name": "PagerDuty",
       "description": "Manage incidents and on-call schedules with PagerDuty",
@@ -19846,11 +19854,12 @@
         }
       ],
       "triggerCount": 6,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "pagerduty",
       "category": "tools",
       "integrationType": "observability",
       "tags": ["incident-management", "monitoring"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "parallel_ai",
@@ -23048,11 +23057,11 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "resend",
+      "type": "resend_v2",
       "slug": "resend",
       "name": "Resend",
       "description": "Send emails and manage contacts with Resend.",
-      "longDescription": "Send emails, retrieve email status, manage contacts, and view domains. Requires API Key.",
+      "longDescription": "Send emails, retrieve email status, manage contacts, and view domains.",
       "bgColor": "#181C1E",
       "iconName": "ResendIcon",
       "docsUrl": "https://docs.sim.ai/integrations/resend",
@@ -23166,11 +23175,12 @@
         }
       ],
       "triggerCount": 8,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "resend",
       "category": "tools",
       "integrationType": "email",
       "tags": ["email-marketing", "messaging"],
-      "updatedAt": "2026-10-20"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "revenuecat",
@@ -23906,7 +23916,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "rootly",
+      "type": "rootly_v2",
       "slug": "rootly",
       "name": "Rootly",
       "description": "Manage incidents, alerts, and on-call with Rootly",
@@ -24104,11 +24114,12 @@
         }
       ],
       "triggerCount": 4,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "rootly",
       "category": "tools",
       "integrationType": "observability",
       "tags": ["incident-management", "monitoring"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "s3_v2",
@@ -25372,7 +25383,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "sentry",
+      "type": "sentry_v2",
       "slug": "sentry",
       "name": "Sentry",
       "description": "Manage Sentry issues, projects, events, and releases",
@@ -25463,11 +25474,12 @@
         }
       ],
       "triggerCount": 5,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "sentry",
       "category": "tools",
       "integrationType": "observability",
       "tags": ["error-tracking", "monitoring"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "serper",
@@ -28071,7 +28083,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "stripe",
+      "type": "stripe_v2",
       "slug": "stripe",
       "name": "Stripe",
       "description": "Process payments and manage Stripe data",
@@ -28290,11 +28302,12 @@
         }
       ],
       "triggerCount": 1,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "stripe",
       "category": "tools",
       "integrationType": "commerce",
       "tags": ["payments", "subscriptions", "webhooks"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "supabase",
@@ -28639,7 +28652,7 @@
       "updatedAt": "2026-11-10"
     },
     {
-      "type": "telegram",
+      "type": "telegram_v2",
       "slug": "telegram",
       "name": "Telegram",
       "description": "Interact with Telegram",
@@ -28734,11 +28747,12 @@
         }
       ],
       "triggerCount": 1,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "telegram",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["messaging", "webhooks", "automation"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "temporal",
@@ -29600,11 +29614,11 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "typeform",
+      "type": "typeform_v2",
       "slug": "typeform",
       "name": "Typeform",
       "description": "Interact with Typeform",
-      "longDescription": "Retrieve responses, download files, and get form insights. Use trigger mode to start a workflow when a form is submitted. Requires API Key.",
+      "longDescription": "Retrieve responses, download files, and get form insights. Use trigger mode to start a workflow when a form is submitted.",
       "bgColor": "#262627",
       "iconName": "TypeformIcon",
       "docsUrl": "https://docs.sim.ai/integrations/typeform",
@@ -29651,11 +29665,12 @@
         }
       ],
       "triggerCount": 1,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "typeform",
       "category": "tools",
       "integrationType": "documents",
       "tags": ["forms", "data-analytics"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "upstash",
@@ -29996,7 +30011,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "vercel",
+      "type": "vercel_v2",
       "slug": "vercel",
       "name": "Vercel",
       "description": "Manage Vercel deployments, projects, and infrastructure",
@@ -30274,11 +30289,12 @@
         }
       ],
       "triggerCount": 8,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "vercel",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["cloud", "ci-cd"],
-      "updatedAt": "2026-08-18"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "wealthbox",
@@ -30388,7 +30404,7 @@
       "updatedAt": "2026-10-14"
     },
     {
-      "type": "whatsapp",
+      "type": "whatsapp_v2",
       "slug": "whatsapp",
       "name": "WhatsApp",
       "description": "Send WhatsApp messages",
@@ -30439,11 +30455,12 @@
         }
       ],
       "triggerCount": 1,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "whatsapp",
       "category": "tools",
       "integrationType": "communication",
       "tags": ["messaging", "automation", "customer-support", "marketing"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "wikipedia",

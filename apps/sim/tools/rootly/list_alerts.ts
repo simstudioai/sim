@@ -1,4 +1,5 @@
 import type { RootlyListAlertsParams, RootlyListAlertsResponse } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListAlertsTool: ToolConfig<RootlyListAlertsParams, RootlyListAlertsResponse> = {
@@ -6,6 +7,7 @@ export const rootlyListAlertsTool: ToolConfig<RootlyListAlertsParams, RootlyList
   name: 'Rootly List Alerts',
   description: 'List alerts from Rootly with optional filtering by status, source, and services.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ChargeListResponse, ListChargesParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const stripeListChargesTool: ToolConfig<ListChargesParams, ChargeListResp
   name: 'Stripe List Charges',
   description: 'List all charges',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
