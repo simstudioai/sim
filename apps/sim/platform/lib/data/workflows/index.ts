@@ -163,7 +163,7 @@ export { isMacPlatform } from '@/lib/core/utils/platform'
 export { getBaseUrl } from '@/lib/core/utils/urls'
 export { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 /** The canvas chrome's shortcut definitions and the search panel's resource hooks. */
-export { createCommand } from '@/lib/global-commands/commands'
+export { type CommandId, createCommand } from '@/lib/global-commands/commands'
 export { createMcpToolId } from '@/lib/mcp/shared'
 export { sendMothershipMessage } from '@/lib/mothership/events'
 export type { OAuthConnectEventDetail } from '@/lib/mothership/tools/client/base-tool'
@@ -197,6 +197,11 @@ export {
 export { resolveSelectedTriggerId } from '@/lib/workflows/blocks/canvas-trigger-sentence'
 export { resolveCanvasCodePreview } from '@/lib/workflows/blocks/code-preview'
 export { calculateWorkflowBlockDimensions } from '@/lib/workflows/blocks/deterministic-dimensions'
+export {
+  buildBlockSearchIndex,
+  type SearchBlockItem,
+  type SearchToolOperationItem,
+} from '@/lib/workflows/blocks/search-index'
 /** A version comparison's per-block and per-edge status, as the read-only preview paints them. */
 export type {
   BlockDiffStatus,
@@ -369,12 +374,6 @@ export {
   useLastRunPath,
 } from '@/stores/execution'
 export type { WorkflowFolder } from '@/stores/folders/types'
-export { useSearchModalStore } from '@/stores/modals/search/store'
-export type {
-  PendingConnect,
-  SearchBlockItem,
-  SearchToolOperationItem,
-} from '@/stores/modals/search/types'
 export { useVariablesModalStore } from '@/stores/modals/variables/store'
 export {
   usePanelEditorSearchStore,
@@ -385,6 +384,7 @@ export {
 export type { ActiveSearchTarget } from '@/stores/panel/editor/store'
 export type { ToolbarSectionKey } from '@/stores/panel/toolbar/store'
 export { usePresenceStore } from '@/stores/presence/store'
+export { useProvidersStore } from '@/stores/providers/store'
 export { useUndoRedoStore } from '@/stores/undo-redo'
 export { useVariablesStore } from '@/stores/variables/store'
 export { useWorkflowDiffStore } from '@/stores/workflow-diff/store'

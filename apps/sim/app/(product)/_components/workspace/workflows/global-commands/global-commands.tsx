@@ -10,7 +10,7 @@ import {
   useRef,
 } from 'react'
 import { generateId } from '@sim/utils/id'
-import { createLogger, isMacPlatform } from '@/platform/lib/data/workflows'
+import { type CommandId, createLogger, isMacPlatform } from '@/platform/lib/data/workflows'
 
 const logger = createLogger('GlobalCommands')
 
@@ -224,4 +224,16 @@ export function useRegisterGlobalCommands(commands: GlobalCommand[] | (() => Glo
     const unregister = ctx.register(wrappedCommands)
     return unregister
   }, [])
+}
+
+/**
+ * Runs a registered command by id, as its shortcut would, so a menu item or button reaches the
+ * same behaviour without duplicating it. Returns false when nothing has registered that id.
+ */
+export function useInvokeGlobalCommand(): (id: CommandId) => boolean {
+  const ctx = useContext(GlobalCommandsContext)
+  if (!ctx) {
+    throw new Error('useInvokeGlobalCommand must be used within GlobalCommandsProvider')
+  }
+  return ctx.invoke
 }

@@ -5,12 +5,8 @@ import { Icon, type IconName } from '@sim/emcn/icon'
 import { useRouter } from 'next/navigation'
 import { workspacePath } from '@/lib/navigation/paths'
 import styles from '@/app/(product)/_components/workspace/workflows/command-list/command-list.module.css'
-import {
-  createLogger,
-  usePreventZoom,
-  useSearchModalStore,
-  useWorkflowScope,
-} from '@/platform/lib/data/workflows'
+import { useInvokeGlobalCommand } from '@/app/(product)/_components/workspace/workflows/global-commands/global-commands'
+import { createLogger, usePreventZoom, useWorkflowScope } from '@/platform/lib/data/workflows'
 import { platformHref } from '@/platform/lib/navigation'
 
 const logger = createLogger('WorkflowCommandList')
@@ -44,7 +40,7 @@ const commands: CommandItem[] = [
   {
     label: 'Search Blocks',
     icon: 'I089',
-    shortcut: 'K',
+    shortcut: ['⌥', 'F'],
   },
 ]
 
@@ -55,7 +51,7 @@ const commands: CommandItem[] = [
 export function CommandList() {
   const { workspaceId } = useWorkflowScope()
   const router = useRouter()
-  const openSearchModal = useSearchModalStore((s) => s.open)
+  const invokeGlobalCommand = useInvokeGlobalCommand()
   const preventZoomRef = usePreventZoom()
 
   /**
@@ -64,7 +60,7 @@ export function CommandList() {
    * Mirrors the behavior of the corresponding global keyboard shortcuts:
    * - New Agent: add an agent block to the canvas
    * - Logs: navigate to workspace logs
-   * - Search Blocks: open the universal search modal
+   * - Search Blocks: focus the toolbar's block search
    *
    * @param label - Command label that was clicked.
    */
@@ -90,7 +86,7 @@ export function CommandList() {
             return
           }
           case 'Search Blocks': {
-            openSearchModal()
+            invokeGlobalCommand('focus-toolbar-search')
             return
           }
           default:
@@ -100,7 +96,7 @@ export function CommandList() {
         logger.error('Failed to handle command click in command list', { error, label })
       }
     },
-    [router, workspaceId, openSearchModal]
+    [router, workspaceId, invokeGlobalCommand]
   )
 
   /**

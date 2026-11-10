@@ -189,7 +189,6 @@
     "apps/sim/scripts/copilot-messages-reconcile.ts": 1,
     "apps/sim/scripts/export-workflow.ts": 4,
     "apps/sim/stores/execution/store.ts": 1,
-    "apps/sim/stores/modals/search/store.ts": 1,
     "apps/sim/stores/operation-queue/store.ts": 1,
     "apps/sim/stores/panel/editor/store.ts": 1,
     "apps/sim/stores/providers/store.ts": 1,

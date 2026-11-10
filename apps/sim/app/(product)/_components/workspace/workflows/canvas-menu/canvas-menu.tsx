@@ -106,7 +106,7 @@ export function CanvasMenu({
       {
         id: 'add-block',
         label: 'Add Block',
-        shortcut: '⌘K',
+        shortcut: '⌘⌥F',
         separatorBefore: true,
         disabled: disableEdit,
         onSelect: () => {
