@@ -7,9 +7,8 @@ import type { SettingsSection } from '@/components/settings/workspace-navigation
 import { useOptionalWorkspaceHostContext } from '@/components/workspace-providers/workspace-host-context'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
 import { useSession } from '@/lib/auth/client'
-import { buildUpgradeHref } from '@/lib/billing/upgrade-reasons'
 import { canManageWorkspaceBilling } from '@/lib/billing/workspace-permissions'
-import { APP_ENTRY_PATH } from '@/lib/navigation/paths'
+import { APP_ENTRY_PATH, organizationRoutes, workspacePath } from '@/lib/navigation/paths'
 import { popSettingsReturnUrl, rememberSettingsReturnUrl } from '@/lib/navigation/settings-return'
 
 interface SettingsNavigationOptions {
@@ -46,7 +45,10 @@ export function resolveSettingsHref({
     hostContext &&
     !canManageWorkspaceBilling(hostContext, viewerUserId)
   ) {
-    return buildUpgradeHref()
+    // The workspace's own organization pays for it; `/upgrade` would open the viewer's plans.
+    return hostContext.hostOrganizationId
+      ? organizationRoutes(hostContext.hostOrganizationId).settingsSection('billing/plans')
+      : workspacePath(workspaceId, 'upgrade')
   }
 
   const searchParams = new URLSearchParams()

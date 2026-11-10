@@ -42,7 +42,7 @@ const HOST_CONTEXT: WorkspaceHostContext = {
 }
 
 describe('resolveSettingsHref unified settings navigation', () => {
-  it('sends external workspace admins to the workspace contact-admin upgrade state', () => {
+  it("sends an external workspace admin to the plans of the workspace's organization, not their own", () => {
     expect(
       resolveSettingsHref({
         options: { section: 'billing' },
@@ -50,6 +50,6 @@ describe('resolveSettingsHref unified settings navigation', () => {
         hostContext: HOST_CONTEXT,
         viewerUserId: 'external-a',
       })
-    ).toBe('/upgrade')
+    ).toBe('/o/org-b/settings/billing/plans')
   })
 })
