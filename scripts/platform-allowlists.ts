@@ -219,7 +219,6 @@ const seamHelpers: ReasonedAllowlist = {
     'lib/core/utils/save-file',
     'lib/core/utils/csv',
     'lib/core/utils/csv-download',
-    'lib/core/config/env',
     'lib/core/utils/timezone',
     'lib/core/utils/timezone-picker',
     'lib/core/utils/urls',
