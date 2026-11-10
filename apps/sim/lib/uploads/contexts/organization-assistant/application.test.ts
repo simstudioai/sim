@@ -131,14 +131,15 @@ describe('private organization Assistant images', () => {
     expect(mocks.download).not.toHaveBeenCalled()
   })
 
-  it.each([{ organizationId: 'other-org' }, { principal: { ...principal, userId: 'other-user' } }])(
-    'rejects a mismatched asserted owner',
-    async (input) => {
-      dbChainMockFns.limit.mockResolvedValueOnce([session])
-      await expect(read(input)).rejects.toMatchObject({ code: 'not_found' })
-      expect(mocks.download).not.toHaveBeenCalled()
-    }
-  )
+  it.each([
+    { organizationId: 'other-org' },
+    { workspaceId: 'other-workspace' },
+    { principal: { ...principal, userId: 'other-user' } },
+  ])('rejects a mismatched asserted owner', async (input) => {
+    dbChainMockFns.limit.mockResolvedValueOnce([session])
+    await expect(read(input)).rejects.toMatchObject({ code: 'not_found' })
+    expect(mocks.download).not.toHaveBeenCalled()
+  })
 
   it('refuses absent, incomplete, or purged records', async () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
