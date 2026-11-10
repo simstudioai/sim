@@ -18,11 +18,11 @@ import { authorizeOrganizationOperation } from '@/lib/core/application/organizat
 import { defineOrganizationOperation } from '@/lib/core/application/organization-operation'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
+// permission-group-exempt: moving a plan onto an organization requires its current owner or admin, who sit above every group
 const subscriptionTransferOperation = defineOrganizationOperation({
   id: 'billing.subscription.transfer',
   minimumRole: 'admin',
   principalKinds: ['session'],
-  // permission-group-exempt: moving a plan onto an organization requires its current owner or admin, who sit above every group
   capability: 'none',
 })
 

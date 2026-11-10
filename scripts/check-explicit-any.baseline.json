@@ -1255,7 +1255,6 @@
     "apps/sim/hooks/queries/deployments.ts": 5,
     "apps/sim/hooks/queries/kb/connectors-cache.test.tsx": 1,
     "apps/sim/hooks/queries/schedules.ts": 2,
-    "apps/sim/hooks/queries/search-history.ts": 2,
     "apps/sim/hooks/queries/selectors.ts": 1,
     "apps/sim/hooks/queries/workflow-mcp-servers.ts": 2,
     "apps/sim/hooks/queries/workflows.ts": 1,
