@@ -1114,6 +1114,49 @@ const EMCN_CONSUMER_OVERRIDES: ReasonedAllowlist = {
     "The OAuth consent view sizes a scope row's Icon with auth utilities; design-owner code that predates the repo-wide rule",
 }
 
+/**
+ * Views that ask with a hand-built confirm `Modal` (`confirm-owner`). `ConfirmDialog` has no cancel
+ * label, so only a question whose refusal is its own answer, named by the page, keeps the Modal.
+ */
+const CONFIRM_OWNERS: ReasonedAllowlist = {
+  [`${PRODUCT_ROUTES}_components/chat/panel/browser-session/page-prompts.tsx`]:
+    "A page's leave and permission prompts answer Stay or Block, which ConfirmDialog's Cancel cannot say",
+}
+
+/** Views with a hand-built back button (`back-owner`), each held for its design owner. */
+const BACK_OWNERS: ReasonedAllowlist = {
+  ...granted(
+    "People's tab and header are hand-built for the design owner's pass (P8 people-frame)",
+    [
+      `${ORGANIZATION_ROUTES}people/_components/directory-sync/directory-sync-page.tsx`,
+      `${ORGANIZATION_ROUTES}people/_components/person/person.tsx`,
+    ]
+  ),
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/usage/activity.tsx`]:
+    "Usage's workspace drill-in is held for the design owner's pass (P13)",
+}
+
+/**
+ * Views with hand-built tabs (`tab-owner`). `ContentTabs` unmounts a hidden panel and lays out its
+ * own header, and EMCN is frozen, so a tab set it cannot express keeps its roles here.
+ */
+const TAB_OWNERS: ReasonedAllowlist = {
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/right-panel/right-panel.tsx`]:
+    'Toolbar, Editor and Variables stay mounted while hidden, as legacy keeps their state; ContentTabs unmounts them',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/terminal/output-panel/output-panel.tsx`]:
+    'Output and Input switch one shared viewer from a header that expands the panel; ContentTabs owns separate panels and its header',
+}
+
+/** Views with a hand-built `role='alert'` (`alert-owner`), where no EMCN owner fits the message. */
+const ALERT_OWNERS: ReasonedAllowlist = {
+  [`${PRODUCT_ROUTES}_components/organization-menu/organization-menu.tsx`]:
+    "The menu's inline rename Input names this message in its describedBy; a TextField would add a visible label row",
+  [`${PRODUCT_ROUTES}_components/secrets-editor/secrets-editor.tsx`]:
+    "A secret row's message spans the row's grid of bare Inputs, which have no error slot; InlineNotice cannot take that grid placement",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/_components/custom-tool-editor/custom-tool-editor.tsx`]:
+    "The schema and code editors have no error slot; their message sits inline in the editor's action bar beside Generate",
+}
+
 export const PLATFORM_ALLOWLISTS = {
   LIVE_ONLY_ROUTES,
   FIXTURE_BRANCH_VIEWS,
@@ -1122,6 +1165,10 @@ export const PLATFORM_ALLOWLISTS = {
   EMCN_CONSUMER_OVERRIDES,
   LOADING_COPY_OWNERS,
   HELPER_COPY_OWNERS,
+  CONFIRM_OWNERS,
+  BACK_OWNERS,
+  TAB_OWNERS,
+  ALERT_OWNERS,
   FRAMES_OUTSIDE_SURFACE,
   LOCAL_TOKEN_OWNERS,
   serverSeamHelpers,

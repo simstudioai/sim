@@ -21,12 +21,17 @@ import { ruleDocumentation } from './platform-rule-docs'
 import {
   classifyPage,
   type HelperCopyKind,
+  handRole,
   hasAsciiEllipsis,
   helperCopy,
   inFixtureBranch,
   isFixtureModeBranch,
+  isHandBack,
+  isHandConfirm,
   isLoadingCopy,
+  isNativeTitle,
   isUnownedLoadFailure,
+  titleCaseWords,
 } from './platform-source-rules'
 import { productUsage } from './platform-variant-usage'
 import { listRepoFiles } from './repo-files'
@@ -282,6 +287,8 @@ const inRouteTree = (file: string) => file.startsWith(PRODUCT_ROUTES)
  * desktop and public-environment pieces the site's root layout loads, so it alone may import them.
  */
 const PRODUCT_ROOT_LAYOUT = `${PRODUCT_ROUTES}layout.tsx`
+/** `DirectoryBack`, the page-level way back, whose chip carries the back glyph. */
+const BACK_OWNER = `${PRODUCT_ROUTES}_components/resource-directory/resource-directory.tsx`
 /** The one table cell whose width is a caller's value, carried to its CSS as a custom property. */
 const COLUMN_WIDTH_OWNER = `${shared}components/data-display/data-display`
 /** The calendar day column, which places each event by its time through an inline style. */
@@ -1047,6 +1054,10 @@ function checkJs(file: string, content: string) {
     file.startsWith('platform/checks/') ||
     /\.test\.[jt]sx?$/.test(file)
   const authoredCopy = !file.startsWith('platform/checks/') && !/\.test\.[jt]sx?$/.test(file)
+  /** Product views and helpers, where the copy and ownership rules apply; EMCN is frozen. */
+  const ownsProductCopy = inPlatformTree(file) && authoredCopy
+  /** Fixture and generated data carries example names and titles, not interface copy. */
+  const authoredData = !/(?:^|\/)fixtures\//.test(file) && !/\.generated\.[jt]sx?$/.test(file)
   const reported = new Set<string>()
   /** Reports `rule` once per file unless `allowlist` grants the file. */
   const reportFileOnce = (
@@ -1120,6 +1131,46 @@ function checkJs(file: string, content: string) {
       )
     if (inPlatform && authoredCopy && hasAsciiEllipsis(node))
       reportFileOnce('copy-ellipsis', null, node, 'Write the ellipsis as … in product copy')
+    if (ownsProductCopy) {
+      if (isHandConfirm(node) && !grants('CONFIRM_OWNERS', file))
+        report(
+          'confirm-owner',
+          location(node),
+          'Ask through ConfirmDialog, which owns the pending label, closes on success and shows a failure'
+        )
+      if (isHandBack(node) && file !== BACK_OWNER && !grants('BACK_OWNERS', file))
+        report(
+          'back-owner',
+          location(node),
+          'Go back through DirectoryBack on a page or DetailHeader in Settings, labelled with a bare noun'
+        )
+      const role = handRole(node)
+      if ((role === 'tab' || role === 'tablist') && !grants('TAB_OWNERS', file))
+        report(
+          'tab-owner',
+          location(node),
+          `Use ContentTabs, which owns role=${role} and arrow keys`
+        )
+      if (role === 'alert' && !grants('ALERT_OWNERS', file))
+        report(
+          'alert-owner',
+          location(node),
+          "Show a failed action through InlineNotice intent='danger', a failed read through FailureNotice, a field's message through its error"
+        )
+      if (isNativeTitle(node))
+        report(
+          'native-title',
+          location(node),
+          'Show the full value through Tooltip or OverflowText'
+        )
+      const titleCase = authoredData ? titleCaseWords(node) : []
+      if (titleCase.length)
+        report(
+          'copy-case',
+          location(node),
+          `Write ${titleCase.join(', ')} in sentence case; a product, plan or brand name goes in PROPER_NOUNS or PROPER_PHRASES (scripts/platform-source-rules.ts)`
+        )
+    }
     if (
       inPlatformTree(file) &&
       authoredCopy &&

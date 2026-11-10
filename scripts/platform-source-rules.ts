@@ -179,10 +179,277 @@ export function isUnownedLoadFailure(node: ts.Node): boolean {
   return !(tag && FAILURE_OWNERS.has(tag.split('.').pop() ?? tag))
 }
 
-/** Rendered copy that spells an ellipsis as three periods after a word. */
+/** Whether a string is the value of an object or record property, such as a status label. */
+function isPropertyValue(node: ts.Node): boolean {
+  if (!ts.isStringLiteralLike(node) && !ts.isTemplateHead(node)) return false
+  const root = valueRoot(node)
+  return ts.isPropertyAssignment(root.parent) && root.parent.initializer === root
+}
+
+/**
+ * Rendered copy, or an object or record property's string value (a status or column label), that
+ * spells an ellipsis as three periods after a word.
+ */
 export function hasAsciiEllipsis(node: ts.Node): boolean {
-  const rendered = renderedText(node)
-  return Boolean(rendered && /[\p{L}\p{N}]\.\.\.(?!\.)/u.test(rendered.text))
+  const text =
+    renderedText(node)?.text ??
+    (isPropertyValue(node) ? (node as ts.StringLiteralLike | ts.TemplateHead).text : undefined)
+  return Boolean(text && /[\p{L}\p{N}]\.\.\.(?!\.)/u.test(text))
+}
+
+/** The last segment of a JSX tag (`Menu.Item` → `Item`). */
+function tagName(element: ts.JsxOpeningLikeElement): string {
+  const tag = element.tagName.getText()
+  return tag.slice(tag.lastIndexOf('.') + 1)
+}
+
+/** A JSX attribute's literal string value, unwrapped from a JSX expression container. */
+function literalAttribute(element: ts.JsxOpeningLikeElement, name: string): string | undefined {
+  const value = element.attributes.properties.find(
+    (property): property is ts.JsxAttribute =>
+      ts.isJsxAttribute(property) && property.name.getText() === name
+  )?.initializer
+  const expression = value && ts.isJsxExpression(value) ? value.expression : value
+  return expression && ts.isStringLiteralLike(expression) ? expression.text : undefined
+}
+
+/** A `Modal` opened as a confirmation, which `ConfirmDialog` owns with its pending label. */
+export function isHandConfirm(node: ts.Node): boolean {
+  return (
+    (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) &&
+    tagName(node) === 'Modal' &&
+    literalAttribute(node, 'variant') === 'confirm'
+  )
+}
+
+/** A text `Button` or `Chip` led by a back glyph: a way back that `DirectoryBack` or `DetailHeader` owns. */
+export function isHandBack(node: ts.Node): boolean {
+  if (!ts.isJsxOpeningElement(node) && !ts.isJsxSelfClosingElement(node)) return false
+  const icon = literalAttribute(node, 'icon')
+  return (
+    (tagName(node) === 'Button' || tagName(node) === 'Chip') && (icon === 'I093' || icon === 'I140')
+  )
+}
+
+/** The roles an EMCN primitive owns: tabs (`ContentTabs`) and alerts (`InlineNotice`, `FailureNotice`). */
+const OWNED_ROLES = new Set(['tab', 'tablist', 'alert'])
+
+/** The literal `role` a JSX attribute hand-builds, when an EMCN primitive owns it. */
+export function handRole(node: ts.Node): string | undefined {
+  if (!ts.isJsxAttribute(node) || node.name.getText() !== 'role') return
+  const value =
+    node.initializer && ts.isJsxExpression(node.initializer)
+      ? node.initializer.expression
+      : node.initializer
+  if (value && ts.isStringLiteralLike(value) && OWNED_ROLES.has(value.text)) return value.text
+}
+
+/** Elements whose `title` is their accessible name, not a hover tooltip. */
+const TITLED_EMBEDS = new Set(['iframe', 'frame', 'object', 'embed'])
+
+/** A native `title=` tooltip on a DOM element, which `Tooltip` or `OverflowText` owns. */
+export function isNativeTitle(node: ts.Node): boolean {
+  if (!ts.isJsxAttribute(node) || node.name.getText() !== 'title') return false
+  const element = node.parent.parent
+  const tag = element.tagName.getText()
+  return /^[a-z][\w-]*$/.test(tag) && !TITLED_EMBEDS.has(tag)
+}
+
+/** Attributes and data properties whose value is a control's or dialog's name. */
+const NAMING_ATTRIBUTES = new Set(['label', 'title', 'confirmLabel', 'pendingLabel', 'cancelLabel'])
+const NAMING_PROPERTIES = new Set(['label', 'confirmLabel', 'pendingLabel', 'cancelLabel'])
+/** Controls whose text is their name: a button, a menu or list item, a chip. */
+const NAMED_CONTROL = /^(?:button|\w*Button|\w*Item|Chip)$/
+
+/**
+ * Capitalized words that stay capitalized mid-label: Sim's products (Chat, Assistant, Search), its
+ * plans, the Agent block, brands and services, key names and the calendar. Product surfaces that
+ * are also tabs or pages (logs, runs, skills, integrations) are common nouns mid-label. An all-caps
+ * or mixed-case word (`API`, `SSO`, `OAuth`, `GitHub`) is never read as Title Case, so it needs no
+ * entry.
+ */
+export const PROPER_NOUNS: ReadonlySet<string> = new Set([
+  'Sim',
+  'Chat',
+  'Assistant',
+  'Search',
+  'Agent',
+  'Enterprise',
+  'Max',
+  'Team',
+  'Pro',
+  'Slack',
+  'Google',
+  'Gmail',
+  'Microsoft',
+  'Outlook',
+  'Excel',
+  'Entra',
+  'Azure',
+  'Notion',
+  'Linear',
+  'Jira',
+  'Confluence',
+  'Salesforce',
+  'Zoom',
+  'Dropbox',
+  'Stripe',
+  'Discord',
+  'Telegram',
+  'Twilio',
+  'Anthropic',
+  'Claude',
+  'Gemini',
+  'Grok',
+  'Mistral',
+  'Docker',
+  'Python',
+  'Chrome',
+  'Safari',
+  'Firefox',
+  'Windows',
+  'Linux',
+  'Mac',
+  'Apple',
+  'Okta',
+  'Databricks',
+  'Lucid',
+  'Airtable',
+  'Asana',
+  'Figma',
+  'Gong',
+  'Zendesk',
+  'Intercom',
+  'Shopify',
+  'Supabase',
+  'Snowflake',
+  'Postgres',
+  'Redis',
+  'Vercel',
+  'Cloudflare',
+  'Cursor',
+  'Markdown',
+  'Esc',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+  'English',
+  'I',
+])
+
+/** Names whose later words are capitalized only inside the name: products, plans and OS settings. */
+export const PROPER_PHRASES: readonly string[] = [
+  'AWS Marketplace',
+  'Claude Code',
+  'Claude Desktop',
+  'Compute Units',
+  'Control Center',
+  'Credential Groups',
+  'Generic Secrets',
+  'GitHub App',
+  'Google Calendar',
+  'Google Docs',
+  'Google Drive',
+  'Google Meet',
+  'Google Sheets',
+  'Microsoft Teams',
+  'Microsoft Word',
+  'Oracle Database',
+  'Screen Recording',
+  'Sim Dark',
+  'Sim Light',
+  'Sim Mailer',
+  'Slack Search',
+  'System Settings',
+  'VS Code',
+]
+
+/** The literal copy under a naming value: string and template parts, conditional and fallback branches. */
+function namingCopy(node: ts.Node): string[] {
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return [node.text]
+  if (ts.isTemplateExpression(node))
+    return [
+      [node.head.text, ...node.templateSpans.map((span) => span.literal.text)].join(' # '),
+      ...node.templateSpans.flatMap((span) => namingCopy(span.expression)),
+    ]
+  if (ts.isParenthesizedExpression(node) || ts.isJsxExpression(node))
+    return node.expression ? namingCopy(node.expression) : []
+  if (ts.isConditionalExpression(node))
+    return [...namingCopy(node.whenTrue), ...namingCopy(node.whenFalse)]
+  if (
+    ts.isBinaryExpression(node) &&
+    [ts.SyntaxKind.QuestionQuestionToken, ts.SyntaxKind.BarBarToken].includes(
+      node.operatorToken.kind
+    )
+  )
+    return [...namingCopy(node.left), ...namingCopy(node.right)]
+  if (ts.isArrowFunction(node) && !ts.isBlock(node.body)) return namingCopy(node.body)
+  return []
+}
+
+/**
+ * The Title Case words in one label: capitalized words after the first, except a proper noun or
+ * name, a word that starts a new sentence or clause (after `.`, `!`, `?`, `:` or a `·` separator),
+ * or a quoted name. Each part of a hyphenated word counts.
+ */
+function titleCaseIn(text: string): string[] {
+  const named = PROPER_PHRASES.reduce(
+    (copy, phrase) => copy.replaceAll(phrase, phrase.replace(/\s+/g, '_')),
+    text.replace(/[“"][^”"]*[”"]/g, ' “” ')
+  )
+  const found: string[] = []
+  let opensClause = true
+  for (const token of named.split(/\s+/)) {
+    if (!token) continue
+    for (const word of token
+      .split('-')
+      .map((part) => part.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, ''))) {
+      if (!opensClause && /^\p{Lu}\p{Ll}+$/u.test(word) && !PROPER_NOUNS.has(word)) found.push(word)
+      opensClause = false
+    }
+    opensClause = /[.!?:·]$/.test(token)
+  }
+  return found
+}
+
+/**
+ * The Title Case words in a control's or dialog's name, which Platform copy writes in sentence case:
+ * a literal `label`, `title`, `confirmLabel`, `pendingLabel` or `cancelLabel` attribute, a `label`
+ * in menu, column or option data, or the text of a button, menu item or chip.
+ */
+export function titleCaseWords(node: ts.Node): string[] {
+  let copy: string[] = []
+  if (ts.isJsxAttribute(node) && NAMING_ATTRIBUTES.has(node.name.getText()) && node.initializer)
+    copy = namingCopy(node.initializer)
+  else if (
+    ts.isPropertyAssignment(node) &&
+    NAMING_PROPERTIES.has(node.name.getText()) &&
+    ts.isObjectLiteralExpression(node.parent)
+  )
+    copy = namingCopy(node.initializer)
+  else if (
+    (ts.isJsxText(node) || ts.isJsxExpression(node)) &&
+    ts.isJsxElement(node.parent) &&
+    NAMED_CONTROL.test(tagName(node.parent.openingElement))
+  )
+    copy = ts.isJsxText(node) ? [node.text.trim()] : namingCopy(node)
+  return copy.filter(Boolean).flatMap(titleCaseIn)
 }
 
 /** `process.env.SIM_PLATFORM_FIXTURES` or `resolvePlatformMode()`. */

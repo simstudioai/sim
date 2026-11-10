@@ -15,6 +15,17 @@ paths:
 
 This applies to app UI outside the Platform: settings rows, modals, panels, cards, list rows, empty states, form fields, and section headers. Platform views (`app/(product)`, `platform`) follow the stricter one-line-per-control rule in `apps/sim/platform/AGENTS.md`, which `check:platform-design` enforces (`helper-copy`); marketing surfaces (`app/(landing)`, docs) follow `constitution.md`.
 
+## Platform copy vocabulary
+
+Platform views also share one vocabulary, documented in `apps/sim/platform/AGENTS.md` (Code-first product design) and enforced by `check:platform-design`:
+
+- **Sentence case** for every literal `label`, `title`, `confirmLabel`, `pendingLabel` and `cancelLabel`, for `label`s in menu, column, sort and command data, and for button, menu item and chip text (`copy-case`). Product, plan and brand names keep their capitals through `PROPER_NOUNS` / `PROPER_PHRASES` in `scripts/platform-source-rules.ts`; a page or tab name inside a label is a common noun ("Open logs", "Switch to runs").
+- **The `…` glyph**, never three periods, in rendered copy and in object or record values such as status labels (`copy-ellipsis`).
+- **Confirmations** go through `ConfirmDialog` with a real `pendingLabel` ("Deleting…"), `safe` when nothing is lost (`confirm-owner`). Titles are "{Verb} {noun}" with no question mark, identical for one object everywhere; unsaved changes read "Unsaved changes" / "Discard".
+- **Verbs**: editing saves with "Save", creating says "Create {noun}", adding a connection or credential says "Add {noun}", OAuth keeps "Connect".
+- **Empty and no-results**: an empty list is `EmptyState` (`Muted` in a narrow rail or dialog picker); no results read "No matching {noun}", the query in curly quotes, no period.
+- **Back, tabs, alerts, tooltips** belong to their owners: `DirectoryBack` / `DetailHeader` with bare-noun labels (`back-owner`), `ContentTabs` (`tab-owner`), `InlineNotice` / `FailureNotice` / a field's `error` (`alert-owner`), and `Tooltip` / `OverflowText` rather than a native `title=` (`native-title`). Statuses use Logs' words: a failed run reads "Failed".
+
 **Carve-out — settings section metadata.** `SettingsNavigationItem.description` in `components/settings/navigation.ts` stays required, and `SettingsPanel` keeps rendering it as the page subtitle. Settings sections are reached through a nav list where the description is the only thing distinguishing adjacent sections, so it earns its place by the "prevents misunderstanding" test. Keep those descriptions verb-first and one line, per `sim-settings-pages.md`. Everything else on a settings page — inline `<p>` blurbs under section headings, field hints, modal bodies, row subtitles — follows the default rule above.
 
 ## The default is no description
