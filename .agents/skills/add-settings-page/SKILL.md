@@ -38,7 +38,7 @@ Key paths:
    `actions`, `search`, `children`, modal siblings in a fragment.
 4. **If the page has editable state**, wire the shared save/discard stack exactly as in
    `.claude/rules/sim-settings-pages.md` "Save / Discard + unsaved-changes guard"
-   (`saveDiscardActions()`, `useSettingsUnsavedGuard` before any early return).
+   (Save/Discard as header actions, `useSettingsUnsavedGuard` before any early return).
 5. **Verify:** the local gate in the root `CLAUDE.md` ("How your work is checked").
 
 ## Mode B — Audit existing settings pages
@@ -50,8 +50,7 @@ Each grep lists candidates; review every match against the expected ones named b
 1. Find hand-rolled shells that should be `SettingsPanel`:
    `git grep -n "flex h-full flex-col bg-\[var(--bg)\]" -- 'apps/sim/**/settings/**' 'apps/sim/ee/' ':(exclude)apps/sim/platform/**'`
    — expected match: the shared header shell (`components/settings/settings-header.tsx`); an
-   entitlement/loading gate is also fine. `CredentialDetailLayout` (the `settings/secrets/[credentialId]` exception) is
-   an exempt hand-rolled shell outside these pathspecs. A detail sub-view is never a match: it
+   entitlement/loading gate is also fine. A detail sub-view is never a match: it
    passes `back={{ text, icon: ArrowLeft, onSelect }}` to `SettingsPanel`. Anything else is a
    violation: render it through `SettingsPanel`.
 2. Find hand-rolled title blocks:
@@ -65,7 +64,7 @@ Each grep lists candidates; review every match against the expected ones named b
    scope.
 4. Confirm each page imports `SettingsPanel` and that its registry entry has an
    accurate `description` of consistent length with its peers.
-   - Editable pages: confirm Save/Discard go through `saveDiscardActions()` and
+   - Editable pages: confirm Save/Discard are header actions (`id: 'discard'`, a primary Save) and
      dirty is wired via `useSettingsUnsavedGuard` (called before early-return
      gates) — flag any hand-rolled Save button, `beforeunload`, or unsaved modal.
      `git grep -n "beforeunload" -- 'apps/sim/**/settings/**' 'apps/sim/ee/' 'apps/sim/components/settings/' ':(exclude)apps/sim/platform/**' 'apps/sim/hooks/use-settings-browser-navigation.ts' ':(exclude,glob)**/*.test.*'`
