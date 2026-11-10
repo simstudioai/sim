@@ -484,7 +484,7 @@ describe('joining another organization', () => {
 })
 
 describe('starting a team from a personal organization', () => {
-  it('converts the personal organization in place and seats collaborators as today', async () => {
+  it('converts the personal organization in place and keeps a collaborator with their own as an external member', async () => {
     const ownerId = await createUser()
     const collaboratorId = await createUser()
     const ownerWorkspace = await createLegacyPersonalWorkspace(ownerId, 'Owner workspace')
@@ -554,20 +554,24 @@ describe('starting a team from a personal organization', () => {
     expect(await userStorage(ownerId)).toBe(0)
 
     expect(await membershipOf(collaboratorId)).toEqual({
-      organizationId: teamId,
-      role: 'member',
-      kind: 'team',
+      organizationId: collaboratorPersonal.organizationId,
+      role: 'owner',
+      kind: 'personal',
     })
-    expect(await organizationExists(collaboratorPersonal.organizationId)).toBe(false)
     expect(await workspaceRow(collaboratorWorkspace)).toMatchObject({
-      organizationId: null,
-      workspaceMode: 'personal',
+      organizationId: collaboratorPersonal.organizationId,
       billedAccountUserId: collaboratorId,
     })
-    expect((await organizationContentOwners(collaboratorContent)).chat).toEqual({
-      organizationId: teamId,
-      userId: collaboratorId,
+    expect(await organizationContentOwners(collaboratorContent)).toEqual({
+      chat: { organizationId: collaboratorPersonal.organizationId, userId: collaboratorId },
+      file: { organizationId: collaboratorPersonal.organizationId, userId: collaboratorId },
+      memorySpace: { organizationId: collaboratorPersonal.organizationId, userId: collaboratorId },
     })
+    const [collaboratorAccess] = await db
+      .select({ permissionType: permissions.permissionType })
+      .from(permissions)
+      .where(and(eq(permissions.userId, collaboratorId), eq(permissions.entityId, ownerWorkspace)))
+    expect(collaboratorAccess).toEqual({ permissionType: 'write' })
   })
 })
 
