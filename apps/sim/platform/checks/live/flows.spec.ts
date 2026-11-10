@@ -1,7 +1,12 @@
 import { expect, type Page } from '@playwright/test'
 import { escapeRegExp } from '@sim/utils/string'
-import { adminEmail, requireEnv, signInAsAdmin } from '@/platform/checks/live/session'
-import { openChatMenu, revealChat } from '@/platform/checks/live/support/chats'
+import {
+  adminEmail,
+  organizationId,
+  requireEnv,
+  signInAsAdmin,
+} from '@/platform/checks/live/session'
+import { openChatMenu, revealChat, withSeededChat } from '@/platform/checks/live/support/chats'
 import { withLiveDatabase } from '@/platform/checks/live/support/database'
 import { liveRoute } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
@@ -19,18 +24,18 @@ async function pressShortcut(page: Page, key: string) {
 }
 
 test('a chat pins and marks unread, and both survive a reload', async ({ page }) => {
-  await signInAsAdmin(page, liveRoute('/home'))
-  await openChatMenu(page, 'Quarterly review')
-  await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
-  await page.reload()
-  await openChatMenu(page, 'Quarterly review')
-  await expect(page.getByRole('menuitem', { name: 'Unpin', exact: true })).toBeVisible()
-  await page.getByRole('menuitem', { name: 'Mark as unread', exact: true }).click()
-  await page.reload()
-  await openChatMenu(page, 'Quarterly review')
-  await page.getByRole('menuitem', { name: 'Mark as read', exact: true }).click()
-  await openChatMenu(page, 'Quarterly review')
-  await page.getByRole('menuitem', { name: 'Unpin', exact: true }).click()
+  await withSeededChat({ email: adminEmail() }, async ({ title }) => {
+    await signInAsAdmin(page, liveRoute('/home'))
+    await openChatMenu(page, title)
+    await page.getByRole('menuitem', { name: 'Pin', exact: true }).click()
+    await page.reload()
+    await openChatMenu(page, title)
+    await expect(page.getByRole('menuitem', { name: 'Unpin', exact: true })).toBeVisible()
+    await page.getByRole('menuitem', { name: 'Mark as unread', exact: true }).click()
+    await page.reload()
+    await openChatMenu(page, title)
+    await expect(page.getByRole('menuitem', { name: 'Mark as read', exact: true })).toBeVisible()
+  })
 })
 
 test('a workspace pins and renames through its row menu', async ({ page }) => {
@@ -50,11 +55,14 @@ test('a workspace pins and renames through its row menu', async ({ page }) => {
     await page.reload()
     await expect(list.getByRole('link', { name: 'Growth', exact: true })).toBeVisible()
   } finally {
-    // The seeded name is what every other check and a rerun look the workspace up by.
-    await withLiveDatabase(
-      (sql) =>
-        sql`update workspace set name = 'Marketing' where id = 'platform-live-workspace-second'`
-    )
+    // The seeded name is what every other check and a rerun look the workspace up by, and a pin
+    // reorders the section every later check reads.
+    await withLiveDatabase(async (sql) => {
+      await sql`update workspace set name = 'Marketing' where id = 'platform-live-workspace-second'`
+      await sql`delete from pinned_item where resource_type = 'workspace'
+        and resource_id = 'platform-live-workspace-second'
+        and user_id = (select id from "user" where email = ${adminEmail()})`
+    })
   }
 })
 
@@ -94,11 +102,16 @@ test('Mod+K opens the palette, which finds a real workspace and a chat', async (
 })
 
 test('a deleted chat restores from Recently deleted back into the sidebar', async ({ page }) => {
-  await signInAsAdmin(page, liveRoute('/settings/recently-deleted'))
-  await page.getByRole('button', { name: 'Restore', exact: true }).first().click()
-  await expect(page.getByRole('heading', { name: 'No deleted chats' })).toBeVisible()
-  await page.goto(liveRoute('/home'))
-  await revealChat(page, 'Retired plan')
+  await withSeededChat({ email: adminEmail(), deleted: true }, async ({ title }) => {
+    await signInAsAdmin(page, liveRoute('/settings/recently-deleted'))
+    await page.getByRole('searchbox', { name: 'Search deleted chats' }).fill(title)
+    const row = page.getByRole('region', { name: 'Deleted chats' })
+    await expect(row.getByText(title, { exact: true })).toBeVisible()
+    await row.getByRole('button', { name: 'Restore', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'No chats match your search' })).toBeVisible()
+    await page.goto(liveRoute('/home'))
+    await revealChat(page, title)
+  })
 })
 
 test('a pending invite resends and revokes from its row', async ({ page }) => {
@@ -139,15 +152,22 @@ test('member search lives in the URL and narrows the roster', async ({ page }) =
 test('a notification preference writes and survives a reload', async ({ page }) => {
   await signInAsAdmin(page, liveRoute('/settings/notifications'))
   const toggle = page.getByRole('switch', { name: 'Canvas error notifications' })
-  const before = await toggle.isChecked()
-  await toggle.click()
-  await expect
-    .poll(async () => {
-      await page.reload()
-      return toggle.isChecked()
-    })
-    .toBe(!before)
-  await toggle.click()
+  // The seeded administrator has no settings row, so the preference reads its default: on.
+  await expect(toggle).toBeChecked()
+  try {
+    await toggle.click()
+    await expect
+      .poll(async () => {
+        await page.reload()
+        return toggle.isChecked()
+      })
+      .toBe(false)
+  } finally {
+    await withLiveDatabase(
+      (sql) => sql`update settings set error_notifications_enabled = true
+        where user_id = (select id from "user" where email = ${adminEmail()})`
+    )
+  }
 })
 
 test('Search mode on Home offers Get started with its real steps', async ({ page }) => {
@@ -164,20 +184,28 @@ test('a permission group created in the form opens, saves its name and deletes',
 }) => {
   await signInAsAdmin(page, liveRoute('/settings/access-control'))
   const name = `Form group ${Date.now()}`
-  await page.getByRole('button', { name: 'Create group' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Create permission group' })
-  await dialog.getByRole('textbox', { name: 'Name' }).fill(name)
-  await dialog.getByText('Make this the organization default group').click()
-  await dialog.getByRole('button', { name: 'Create', exact: true }).click()
-  await expect(dialog).toBeHidden()
-  await page.getByRole('button', { name: new RegExp(`^${escapeRegExp(name)}`) }).click()
-  await expect(page).toHaveURL(/group-id=/)
-  await page.reload()
-  await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue(name)
-  await page.getByRole('button', { name: 'Delete', exact: true }).first().click()
-  await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click()
-  await expect(page).not.toHaveURL(/group-id=/)
-  await expect(page.getByText(name)).toHaveCount(0)
+  try {
+    await page.getByRole('button', { name: 'Create group' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Create permission group' })
+    await dialog.getByRole('textbox', { name: 'Name' }).fill(name)
+    await dialog.getByText('Make this the organization default group').click()
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+    await expect(dialog).toBeHidden()
+    await page.getByRole('button', { name: new RegExp(`^${escapeRegExp(name)}`) }).click()
+    await expect(page).toHaveURL(/group-id=/)
+    await page.reload()
+    await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue(name)
+    await page.getByRole('button', { name: 'Delete', exact: true }).first().click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click()
+    await expect(page).not.toHaveURL(/group-id=/)
+    await expect(page.getByText(name)).toHaveCount(0)
+  } finally {
+    // While it stands it is the organization's default group, which governs every later check.
+    await withLiveDatabase(
+      (sql) =>
+        sql`delete from permission_group where organization_id = ${organizationId()} and name = ${name}`
+    )
+  }
 })
 
 test('Requests opens for an administrator and switches views in the URL', async ({ page }) => {

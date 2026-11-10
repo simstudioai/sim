@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test'
-import { signInAsAdmin } from '@/platform/checks/live/session'
+import { adminEmail, signInAsAdmin } from '@/platform/checks/live/session'
+import { databaseNow, removeChatsStartedSince } from '@/platform/checks/live/support/chats'
 import { liveRoute, liveRoutePattern } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
@@ -64,15 +65,21 @@ test('Summarize on a result switches to Assistant and asks about that document',
       },
     })
   )
-  await signInAsAdmin(page, liveRoute('/search?mode=search&q=renewal'))
-  await page.getByRole('button', { name: 'Actions for Renewal plan' }).click()
-  const posted = page.waitForRequest(
-    (request) => request.method() === 'POST' && request.url().includes('/api/mothership/chat')
-  )
-  await page.getByRole('menuitem', { name: 'Summarize' }).click()
-  await expect(page).toHaveURL(/mode=assistant/)
-  const body = (await posted).postDataJSON()
-  expect(body.message).toBe('Summarize "Renewal plan"')
-  expect(body.assistantSearch.documentIds).toEqual(['doc-renewal'])
-  await expect(page.getByRole('radio', { name: 'Assistant' })).toBeChecked()
+  const startedAt = await databaseNow()
+  try {
+    await signInAsAdmin(page, liveRoute('/search?mode=search&q=renewal'))
+    await page.getByRole('button', { name: 'Actions for Renewal plan' }).click()
+    const posted = page.waitForRequest(
+      (request) => request.method() === 'POST' && request.url().includes('/api/mothership/chat')
+    )
+    await page.getByRole('menuitem', { name: 'Summarize' }).click()
+    await expect(page).toHaveURL(/mode=assistant/)
+    const body = (await posted).postDataJSON()
+    expect(body.message).toBe('Summarize "Renewal plan"')
+    expect(body.assistantSearch.documentIds).toEqual(['doc-renewal'])
+    await expect(page.getByRole('radio', { name: 'Assistant' })).toBeChecked()
+  } finally {
+    // The turn starts an Assistant chat, which would list above the seeded ones in every later check.
+    await removeChatsStartedSince(adminEmail(), startedAt)
+  }
 })

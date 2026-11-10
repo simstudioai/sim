@@ -1,10 +1,23 @@
 import { expect } from '@playwright/test'
-import { requireEnv, signInAsAdmin } from '@/platform/checks/live/session'
+import { adminEmail, requireEnv, signInAsAdmin } from '@/platform/checks/live/session'
+import { databaseNow, removeChatsStartedSince } from '@/platform/checks/live/support/chats'
 import { liveRoute, liveRoutePattern } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
 /** A model turn needs a reachable orchestrator, which not every environment running these has. */
 const orchestrator = process.env.PLATFORM_LIVE_ORCHESTRATOR === '1'
+
+/**
+ * Every turn here starts a chat for the seeded administrator. Each check deletes the ones it
+ * started, so the Chats section and Recently deleted read the same for every later check and rerun.
+ */
+let startedAt: Date
+test.beforeEach(async () => {
+  startedAt = await databaseNow()
+})
+test.afterEach(async () => {
+  await removeChatsStartedSince(adminEmail(), startedAt)
+})
 
 test('Home hands a draft to a new chat, which posts it for this organization', async ({ page }) => {
   await signInAsAdmin(page, liveRoute('/home'))
