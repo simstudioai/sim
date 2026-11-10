@@ -12,6 +12,7 @@ import {
   toJsonObject,
   trimOrUndefined,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateQuestionTool: ToolConfig<
@@ -23,6 +24,7 @@ export const updateQuestionTool: ToolConfig<
   description:
     'Edit the properties of a form question, such as its label, order, or validation. Only the supplied properties change.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

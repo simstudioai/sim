@@ -1,3 +1,4 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { DevinGetSessionParams, DevinGetSessionResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
@@ -8,6 +9,7 @@ export const devinGetSessionTool: ToolConfig<DevinGetSessionParams, DevinGetSess
   description:
     'Retrieve details of an existing Devin session including status, tags, pull requests, and structured output.',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

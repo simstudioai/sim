@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaDeactivateUserParams, OktaDeactivateUserResponse } from '@/tools/okta/types'
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaDeactivateUser')
@@ -15,6 +16,7 @@ export const oktaDeactivateUserTool: ToolConfig<
   description:
     'Deactivate a user in your Okta organization. This transitions the user to DEPROVISIONED status.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

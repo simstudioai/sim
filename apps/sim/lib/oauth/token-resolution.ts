@@ -357,6 +357,15 @@ export async function resolveCredentialToken(
         return { ok: false, status: 403, error: authz.error || 'Unauthorized' }
       }
 
+      // A saved secret is released only to a tool of its own provider, never on a bare ID.
+      if (!input.toolId) {
+        return {
+          ok: false,
+          status: 400,
+          code: 'SERVICE_ACCOUNT_TOOL_REQUIRED',
+          error: 'A tool ID is required to use a saved credential',
+        }
+      }
       const bindingError = validateToolCredentialBinding(
         input.toolId,
         resolved.providerId,

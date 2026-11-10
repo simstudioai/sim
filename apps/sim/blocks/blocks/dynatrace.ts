@@ -1,6 +1,7 @@
 import { DynatraceIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 /** Operations that accept the shared `from` timeframe parameter. */
 const FROM_OPERATIONS = [
@@ -111,6 +112,8 @@ const SETTINGS_OBJECT_ID_OPERATIONS = [
 
 export const DynatraceBlock: BlockConfig = {
   type: 'dynatrace',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'dynatrace_v2' },
   name: 'Dynatrace',
   description: 'Manage Dynatrace problems, metrics, entities, logs, SLOs, settings, and security',
   longDescription:
@@ -2310,3 +2313,40 @@ export const DynatraceBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const DynatraceV2Block: BlockConfig = {
+  ...DynatraceBlock,
+  type: 'dynatrace_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  canvasPresentation: {
+    ...DynatraceBlock.canvasPresentation,
+    defaultTitle: 'Dynatrace',
+    sentences: {
+      byOperation: {
+        ...DynatraceBlock.canvasPresentation?.sentences?.byOperation,
+        dynatrace_list_problems: ['List problems', { text: 'matching', field: 'problemSelector' }],
+        dynatrace_list_metrics: ['List metrics', { text: 'matching', field: 'text' }],
+        dynatrace_list_entity_types: ['List entity types'],
+        dynatrace_list_events: ['List events', { text: 'matching', field: 'eventSelector' }],
+        dynatrace_search_logs: ['Search logs', { text: 'for', field: 'logQuery' }],
+        dynatrace_list_slos: ['List SLOs', { text: 'matching', field: 'sloSelector' }],
+        dynatrace_list_security_problems: [
+          'List security problems',
+          { text: 'matching', field: 'securityProblemSelector' },
+        ],
+        dynatrace_list_attacks: ['List attacks', { text: 'matching', field: 'attackSelector' }],
+        dynatrace_list_settings_schemas: ['List settings schemas'],
+        dynatrace_list_synthetic_monitors: ['List synthetic monitors'],
+        dynatrace_get_audit_logs: ['Get audit logs', { text: 'matching', field: 'auditFilter' }],
+      },
+    },
+  },
+  ...withSavedCredential(DynatraceBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'dynatrace',
+    title: 'Dynatrace Credential',
+  }),
+}

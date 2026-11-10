@@ -1,5 +1,6 @@
 import type { AddListMemberParams, AddListMemberResult } from '@/tools/mailgun/types'
 import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
+import { MAILGUN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunAddListMemberTool: ToolConfig<AddListMemberParams, AddListMemberResult> = {
@@ -7,6 +8,7 @@ export const mailgunAddListMemberTool: ToolConfig<AddListMemberParams, AddListMe
   name: 'Mailgun Add List Member',
   description: 'Add a member to a mailing list',
   version: '1.0.0',
+  oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

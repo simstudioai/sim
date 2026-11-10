@@ -1,3 +1,4 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisKeysParams, UpstashRedisKeysResponse } from '@/tools/upstash/types'
 
@@ -6,6 +7,7 @@ export const upstashRedisKeysTool: ToolConfig<UpstashRedisKeysParams, UpstashRed
   name: 'Upstash Redis Keys',
   description: 'List keys matching a pattern in Upstash Redis. Defaults to listing all keys (*).',
   version: '1.0.0',
+  oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {
     restUrl: {

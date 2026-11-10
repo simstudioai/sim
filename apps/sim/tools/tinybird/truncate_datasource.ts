@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { TINYBIRD_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   TinybirdTruncateDatasourceParams,
   TinybirdTruncateDatasourceResponse,
@@ -21,6 +22,7 @@ export const truncateDatasourceTool: ToolConfig<
   name: 'Tinybird Truncate Data Source',
   description: 'Delete all rows from a Tinybird Data Source.',
   version: '1.0.0',
+  oauth: TINYBIRD_CREDENTIAL_OAUTH,
   errorExtractor: 'nested-error-object',
 
   params: {

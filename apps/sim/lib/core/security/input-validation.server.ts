@@ -1005,7 +1005,7 @@ function createValidatedFetch(
 ): { fetch: typeof fetch; dispatcher: OutboundFetchDispatcher } {
   const dispatcher = createOutboundTransport({ ...options, direct })
   const rawFetch = async (url: string, init: UndiciRequestInit): Promise<Response> => {
-    const selected = await dispatcher.selectDispatcher()
+    const selected = await dispatcher.selectDispatcher(url, init.signal ?? undefined)
     if (!selected) throw new OutboundRoutingError('GATEWAY_UNAVAILABLE')
     return undiciRequestAsResponse(url, init, selected, options.maxResponseSize)
   }
@@ -1155,7 +1155,7 @@ export async function secureFetchWithPinnedIP(
     resolvedIP,
     proxyUrl: options.proxyUrl,
   })
-  const outboundDispatcher = await transport.selectDispatcher()
+  const outboundDispatcher = await transport.selectDispatcher(url, options.signal)
 
   return new Promise((resolve, reject) => {
     const parsed = new URL(url)

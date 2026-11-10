@@ -7,6 +7,7 @@ import {
   requireValue,
   trimOrUndefined,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateLabelTool: ToolConfig<JotformUpdateLabelParams, JotformUpdateLabelResponse> = {
@@ -14,6 +15,7 @@ export const updateLabelTool: ToolConfig<JotformUpdateLabelParams, JotformUpdate
   name: 'Jotform Update Label',
   description: 'Rename a Jotform label or change its color.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

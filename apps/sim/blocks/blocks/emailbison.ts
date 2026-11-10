@@ -1,6 +1,7 @@
 import { EmailBisonIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 const LEAD_MUTATION_OPERATIONS = ['create_lead', 'update_lead'] as const
@@ -34,6 +35,8 @@ const EMAILBISON_TRIGGER_IDS = [
 
 export const EmailBisonBlock: BlockConfig = {
   type: 'emailbison',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'emailbison_v2' },
   name: 'Email Bison',
   description: 'Manage Email Bison leads, campaigns, replies, and tags',
   longDescription:
@@ -771,3 +774,17 @@ export const EmailBisonBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const EmailBisonV2Block: BlockConfig = {
+  ...EmailBisonBlock,
+  type: 'emailbison_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(EmailBisonBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'emailbison',
+    title: 'Email Bison Credential',
+  }),
+}

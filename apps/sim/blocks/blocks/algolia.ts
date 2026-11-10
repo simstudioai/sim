@@ -1,9 +1,12 @@
 import { AlgoliaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const AlgoliaBlock: BlockConfig = {
   type: 'algolia',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'algolia_v2' },
   name: 'Algolia',
   description: 'Search and manage Algolia indices',
   longDescription:
@@ -847,3 +850,17 @@ export const AlgoliaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const AlgoliaV2Block: BlockConfig = {
+  ...AlgoliaBlock,
+  type: 'algolia_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(AlgoliaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'algolia',
+    title: 'Algolia Credential',
+  }),
+}

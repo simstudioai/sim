@@ -1,7 +1,11 @@
 import { truncate } from '@sim/utils/string'
+import type { EgressProfile } from '@/lib/core/security/egress/profiles'
+import { secureFetchWithValidation } from '@/lib/core/security/input-validation.server'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   fetchProvider,
+  isHostNotFound,
+  type ProviderResponse,
   providerFailureCode,
   TokenServiceAccountValidationError,
   throwForProviderResponse,
@@ -23,8 +27,31 @@ interface TokenCheck {
   /** Service name used as the default display name. */
   serviceLabel: string
   /**
+   * For a credential whose domain is part of the connection (a host, instance
+   * URL, or region): normalizes what was typed into exactly the form the tools
+   * use, throwing for anything they couldn't safely use. The result is what
+   * {@link request} sees and what the credential stores, so runs reach only the
+   * verified host.
+   */
+  domain?: (fields: TokenServiceAccountFields) => string
+  /**
+   * For a credential whose account id is part of the connection (an org slug,
+   * account SID): returns it trimmed, throwing for a value that could steer the
+   * request's path or host.
+   */
+  workspaceId?: (fields: TokenServiceAccountFields) => string
+  /**
+   * The request goes to a host the user chose (self-hosted or white-label), so
+   * it runs through the same SSRF-guarded egress profile as the tools instead
+   * of a plain fetch.
+   */
+  egress?: Extract<EgressProfile, 'configuredEndpoint' | 'selfHostedService'>
+  /** The vendor echoes the token in its error body, so that body never reaches logs or error details. */
+  errorBodyEchoesToken?: boolean
+  /**
    * A cheap documented read that succeeds only with a valid token — the same
-   * host and auth scheme the service's tools use.
+   * host and auth scheme the service's tools use. `fields` carries the
+   * normalized domain and account id.
    */
   request: (fields: TokenServiceAccountFields) => TokenCheckRequest
   /**
@@ -36,9 +63,10 @@ interface TokenCheck {
   forbiddenMeansScoped?: boolean
   /**
    * For a vendor that reports a rejected key inside a successful response (a
-   * GraphQL `errors` array): returns whether the parsed body proves the key.
+   * GraphQL `errors` array): returns whether the parsed body proves the key, or
+   * a display name read from it (a GitLab token's name) when it does.
    */
-  acceptsBody?: (body: unknown) => boolean
+  acceptsBody?: (body: unknown) => boolean | { displayName: string }
   /**
    * For a vendor whose error status alone doesn't say the key is bad (Fireflies
    * returns 500 with `auth_failed`; Brex returns its scope-error 403 for an
@@ -56,13 +84,99 @@ interface TokenCheck {
 }
 
 const MAX_CHECK_RESPONSE_BYTES = 64 * 1024
+/** The guarded fetch refuses a larger declared body outright; JSON reads stay capped at {@link MAX_CHECK_RESPONSE_BYTES}. */
+const MAX_EGRESS_RESPONSE_BYTES = 1024 * 1024
 
 /** Reads a credential check's JSON response, capped so a hostile body can't exhaust memory. */
-export function readJsonBody(response: Response, serviceLabel: string): Promise<unknown> {
+export function readJsonBody(response: ProviderResponse, serviceLabel: string): Promise<unknown> {
   return readResponseJsonWithLimit(response, {
     maxBytes: MAX_CHECK_RESPONSE_BYTES,
     label: `${serviceLabel} credential check`,
   })
+}
+
+/**
+ * A typed http(s) base URL in the form tools build request paths on: a bare host
+ * is taken as https, trailing slashes are dropped, and any other scheme,
+ * credentials, a query, or a fragment is refused, since each would retarget the
+ * request.
+ */
+export function normalizeHttpBaseUrl(raw: string | undefined): string {
+  const typed = (raw ?? '').trim()
+  if (!typed) throw new Error('missing URL')
+  // `https:/host` would otherwise get a second scheme and parse as a host named `https`.
+  if (/^https?:(?!\/\/)/i.test(typed)) throw new Error('malformed scheme')
+  const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`)
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new Error('http(s) only')
+  if (url.username || url.password || url.search || url.hash) {
+    throw new Error('credentials, query, or fragment in URL')
+  }
+  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`
+}
+
+/**
+ * Refuses a typed URL that carries credentials or a non-http(s) scheme, before a
+ * tool's own normalizer can drop the credentials silently or read the scheme as
+ * a host, and so verify a different identity or host than the user meant.
+ */
+export function refuseUnsafeTypedUrl(raw: string | undefined): string {
+  const typed = (raw ?? '').trim()
+  if (/^(?!https?:\/\/)[a-z][a-z\d+.-]*:\/\//i.test(typed)) throw new Error('http(s) only')
+  const authority = typed.replace(/^[a-z][a-z\d+.-]*:\/\//i, '').split(/[/?#]/)[0]
+  if (authority.includes('@')) throw new Error('credentials in URL')
+  return typed
+}
+
+/** A domain that must be one of a fixed set (a region or regional host), compared case-insensitively. */
+export function allowedDomain(allowed: ReadonlySet<string>) {
+  return ({ domain }: TokenServiceAccountFields): string => {
+    const value = (domain ?? '').trim().toLowerCase()
+    if (!allowed.has(value)) throw new Error('unknown region')
+    return value
+  }
+}
+
+/** Runs `normalize` on a typed connection field, rejecting what it refuses as the user's input. */
+function normalizedField(
+  normalize: ((fields: TokenServiceAccountFields) => string) | undefined,
+  fields: TokenServiceAccountFields,
+  field: 'domain' | 'account id'
+): string | undefined {
+  if (!normalize) return undefined
+  try {
+    return normalize(fields)
+  } catch {
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+      step: 'verify',
+      reason: `invalid ${field}`,
+    })
+  }
+}
+
+/** Sends a check through the guarded egress profile, mapping a host that doesn't exist to `site_not_found`. */
+async function sendThroughEgress(
+  profile: NonNullable<TokenCheck['egress']>,
+  { url, method = 'GET', headers, body }: TokenCheckRequest
+): Promise<ProviderResponse> {
+  try {
+    return await secureFetchWithValidation(url, {
+      profile,
+      method,
+      headers,
+      body,
+      timeout: 10_000,
+      maxRedirects: 0,
+      maxResponseBytes: MAX_EGRESS_RESPONSE_BYTES,
+      logUrlValidationDetails: false,
+    })
+  } catch (error) {
+    const notFound = isHostNotFound(error)
+    throw new TokenServiceAccountValidationError(
+      notFound ? 'site_not_found' : 'provider_unavailable',
+      notFound ? 400 : 502,
+      { step: 'verify', reason: notFound ? 'host does not resolve' : 'host unreachable' }
+    )
+  }
 }
 
 /**
@@ -72,18 +186,41 @@ export function readJsonBody(response: Response, serviceLabel: string): Promise<
  * token is never forwarded to another host.
  */
 export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValidator {
-  const accepted: TokenServiceAccountValidationResult = {
-    displayName: check.serviceLabel,
-    principal: null,
-    auditMetadata: {},
-  }
-  return async (fields): Promise<TokenServiceAccountValidationResult> => {
-    const { url, method = 'GET', headers, body } = check.request(fields)
-    const response = await fetchProvider(
-      url,
-      { method, headers, body, redirect: 'error' },
-      'verify'
-    )
+  return async (typed): Promise<TokenServiceAccountValidationResult> => {
+    const domain = normalizedField(check.domain, typed, 'domain')
+    const workspaceId = normalizedField(check.workspaceId, typed, 'account id')
+    const fields = {
+      ...typed,
+      ...(domain === undefined ? {} : { domain }),
+      ...(workspaceId === undefined ? {} : { providerWorkspaceId: workspaceId }),
+    }
+    const where = domain ?? workspaceId
+    const accepted: TokenServiceAccountValidationResult = {
+      displayName: where ? `${check.serviceLabel} (${where})` : check.serviceLabel,
+      principal: null,
+      auditMetadata: {
+        ...(domain === undefined ? {} : { domain }),
+        ...(workspaceId === undefined ? {} : { accountId: workspaceId }),
+      },
+      ...(domain === undefined ? {} : { normalizedDomain: domain }),
+    }
+    const request = check.request(fields)
+    const response: ProviderResponse = check.egress
+      ? await sendThroughEgress(check.egress, request)
+      : await fetchProvider(
+          request.url,
+          {
+            method: request.method ?? 'GET',
+            headers: request.headers,
+            body: request.body,
+            redirect: 'error',
+          },
+          'verify',
+          // A host built from the typed domain or account id that doesn't exist is the user's typo.
+          domain === undefined && workspaceId === undefined
+            ? undefined
+            : { dnsFailureCode: 'site_not_found' }
+        )
     // A JSON 403 is the vendor's own answer; an HTML one is a firewall or CDN page.
     const scopedForbidden =
       check.forbiddenMeansScoped &&
@@ -115,12 +252,22 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
         response.status,
         {
           step: 'verify',
-          body: errorBody === unreadable ? '' : truncate(JSON.stringify(errorBody) ?? '', 500),
+          body:
+            errorBody === unreadable || check.errorBodyEchoesToken
+              ? ''
+              : truncate(JSON.stringify(errorBody) ?? '', 500),
         }
       )
     }
-    if (!scopedForbidden) {
-      await throwForProviderResponse(response, 'verify')
+    if (!scopedForbidden && !response.ok) {
+      if (!check.errorBodyEchoesToken) await throwForProviderResponse(response, 'verify')
+      // The body echoes the token, so it is dropped unread.
+      await response.body?.cancel().catch(() => undefined)
+      throw new TokenServiceAccountValidationError(
+        providerFailureCode(response.status),
+        response.status,
+        { step: 'verify' }
+      )
     }
     if (check.acceptsBody && response.ok) {
       let body: unknown
@@ -131,8 +278,13 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
           step: 'verify',
         })
       }
-      if (!check.acceptsBody(body)) {
+      const verdict = check.acceptsBody(body)
+      if (!verdict) {
         throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
+      }
+      if (typeof verdict === 'object') {
+        const name = verdict.displayName
+        return { ...accepted, displayName: where ? `${name} (${where})` : name }
       }
       return accepted
     }

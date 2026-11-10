@@ -1,5 +1,6 @@
 import { mapJupyterKernel } from '@/lib/internal/jupyter/protocol'
 import type { JupyterListKernelsParams, JupyterListKernelsResponse } from '@/tools/jupyter/types'
+import { JUPYTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const jupyterListKernelsTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const jupyterListKernelsTool: InternalToolConfig<
   name: 'Jupyter List Kernels',
   description: 'List running kernels on a Jupyter server',
   version: '1.0.0',
+  oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {
     serverUrl: {

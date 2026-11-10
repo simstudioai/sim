@@ -1,3 +1,4 @@
+import { UPSTASH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { UpstashRedisExpireParams, UpstashRedisExpireResponse } from '@/tools/upstash/types'
 
@@ -9,6 +10,7 @@ export const upstashRedisExpireTool: ToolConfig<
   name: 'Upstash Redis EXPIRE',
   description: 'Set a timeout on a key in Upstash Redis. After the timeout, the key is deleted.',
   version: '1.0.0',
+  oauth: UPSTASH_CREDENTIAL_OAUTH,
 
   params: {
     restUrl: {

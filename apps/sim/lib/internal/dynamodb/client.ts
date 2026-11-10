@@ -8,13 +8,12 @@ import {
   ScanCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb'
-import { awsClientCredentials } from '@/lib/internal/aws/credentials'
+import { awsClientConfig } from '@/lib/internal/aws/credentials'
 import type { DynamoDBConnectionConfig, DynamoDBTableSchema } from '@/tools/dynamodb/types'
 
 export function createDynamoDBClient(config: DynamoDBConnectionConfig): DynamoDBDocumentClient {
   const client = new DynamoDBClient({
-    region: config.region,
-    credentials: awsClientCredentials(config.accessKeyId, config.secretAccessKey),
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 
   return DynamoDBDocumentClient.from(client, {
@@ -220,8 +219,7 @@ export async function deleteItem(
  */
 export function createRawDynamoDBClient(config: DynamoDBConnectionConfig): DynamoDBClient {
   return new DynamoDBClient({
-    region: config.region,
-    credentials: awsClientCredentials(config.accessKeyId, config.secretAccessKey),
+    ...awsClientConfig(config.region, config.accessKeyId, config.secretAccessKey),
   })
 }
 

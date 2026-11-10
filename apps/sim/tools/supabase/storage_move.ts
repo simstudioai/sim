@@ -1,3 +1,4 @@
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   STORAGE_MOVE_OUTPUT_PROPERTIES,
   type SupabaseStorageMoveParams,
@@ -11,6 +12,7 @@ export const storageMoveTool: ToolConfig<SupabaseStorageMoveParams, SupabaseStor
   name: 'Supabase Storage Move',
   description: 'Move a file within a Supabase storage bucket',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

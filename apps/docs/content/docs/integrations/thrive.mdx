@@ -2,7 +2,7 @@
 title: Thrive
 description: Manage users, audiences, learning and CPD on Thrive
 integration:
-  type: "thrive"
+  type: "thrive_v2"
   color: "#FFFFFF"
 ---
 
@@ -29,9 +29,6 @@ Create a new user in Thrive.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `ref` | string | Yes | Your organisation's unique identifier for this individual |
 | `firstName` | string | Yes | The given name of the individual |
 | `lastName` | string | Yes | The family name of the individual |
@@ -85,9 +82,6 @@ Update an existing user in Thrive by ref. Only the fields provided are changed.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `ref` | string | Yes | The user ref to update |
 | `firstName` | string | No | The given name of the individual |
 | `lastName` | string | No | The family name of the individual |
@@ -141,9 +135,6 @@ Permanently delete (obfuscate) a user in Thrive by ref while retaining training 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `ref` | string | Yes | The user ref to delete |
 
 #### Output
@@ -164,9 +155,6 @@ Suspend a user in Thrive by ref, marking the account inactive.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `ref` | string | Yes | The user ref to suspend |
 | `endDate` | string | No | The date this individual left your organisation \(ISO 8601\) |
 
@@ -207,9 +195,6 @@ Search users in Thrive and return basic user information with pagination.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `page` | number | No | Page number for pagination \(default 1\) |
 | `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
 | `updatedSince` | string | No | Return only users updated on or after this date/time \(ISO 8601\) |
@@ -280,9 +265,6 @@ Get a single user in Thrive by their ID and return basic user information.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `id` | string | Yes | The user ID |
 
 #### Output
@@ -343,9 +325,6 @@ Get a single user in Thrive by their ref and return basic user information.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `ref` | string | Yes | The user ref |
 
 #### Output
@@ -387,9 +366,6 @@ List audiences and structures in Thrive with pagination.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `apiControlled` | boolean | No | Filter to only return audiences which are / are not API controlled |
 | `updatedSince` | string | No | Return only audiences updated on or after this date/time \(ISO 8601\) |
 | `page` | number | No | Page number for pagination \(default 1\) |
@@ -430,9 +406,6 @@ Create a new audience or structure in Thrive.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `name` | string | No | The name of the audience \(max 100 characters\) |
 | `reference` | string | No | The external reference for the audience \(max 100 characters\) |
 | `parentId` | string | No | The id or reference of the parent audience/structure; leave blank for a parent audience/structure |
@@ -468,9 +441,6 @@ Get a single audience or structure in Thrive by id or reference.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceId` | string | Yes | The audience id or audience reference |
 
 #### Output
@@ -503,9 +473,6 @@ Update an audience in Thrive, optionally moving it to a new parent.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceId` | string | Yes | The audience id or audience reference |
 | `name` | string | No | The name of the audience \(max 100 characters\) |
 | `reference` | string | No | The external reference for the audience \(max 100 characters\) |
@@ -541,9 +508,6 @@ Delete an audience in Thrive (only if it has no child audiences).
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceId` | string | Yes | The audience id or audience reference |
 
 #### Output
@@ -564,9 +528,6 @@ List the members of a Thrive audience with pagination.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceId` | string | Yes | The audience id or audience reference |
 | `page` | number | No | Page number for pagination \(default 1\) |
 | `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
@@ -597,9 +558,6 @@ Add members to a Thrive audience by email, ref, or id.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceId` | string | Yes | The audience id or audience reference |
 | `users` | string | Yes | JSON array of user emails/refs/ids to add \(1-100\). Example: \["user@example.com"\] |
 
@@ -630,9 +588,6 @@ Replace a Thrive audience's entire members list with the given users (does not s
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceId` | string | Yes | The audience id or audience reference |
 | `users` | string | Yes | JSON array of user emails/refs/ids that replaces the whole members list \(1-100, no empty array\). Example: \["user@example.com"\] |
 
@@ -663,9 +618,6 @@ Remove a single member from a Thrive audience.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceId` | string | Yes | The audience id or audience reference |
 | `userRef` | string | Yes | The user email, ref, or id to remove |
 
@@ -687,9 +639,6 @@ List the managers of a Thrive audience.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceId` | string | Yes | The audience id or audience reference |
 
 #### Output
@@ -717,9 +666,6 @@ Add managers to a Thrive audience with their permissions.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceId` | string | Yes | The audience id or audience reference |
 | `managers` | string | Yes | JSON array of manager objects \(1-100\). Each: \{"reference":"user@example.com","permissions":\{"audienceManager":\{"manageContent":true,"assignments":true\},"peopleManager":\{"canViewLearnPage":true,"insights":false,"manage":false\},"administrator":\{"canAddAudienceManagers":false\}\}\} |
 
@@ -750,9 +696,6 @@ Replace a Thrive audience's entire manager list with the given managers (does no
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceId` | string | Yes | The audience id or audience reference |
 | `managers` | string | Yes | JSON array of manager objects that replaces the whole manager list \(1-100, no empty array\). Each: \{"reference":"user@example.com","permissions":\{"audienceManager":\{"manageContent":true,"assignments":true\},"peopleManager":\{"canViewLearnPage":true,"insights":false,"manage":false\},"administrator":\{"canAddAudienceManagers":false\}\}\} |
 
@@ -783,9 +726,6 @@ Remove a single manager from a Thrive audience.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceId` | string | Yes | The audience id or audience reference |
 | `userId` | string | Yes | The user email, ref, or id to remove as a manager |
 
@@ -807,9 +747,6 @@ List compliance assignments in Thrive, optionally filtered by audience.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceId` | string | No | Filter by audience ID or audience reference |
 | `updatedSince` | string | No | Return only items updated on or after this date/time \(ISO 8601\) |
 | `page` | number | No | Page number for pagination \(default 1\) |
@@ -845,9 +782,6 @@ Create a compliance assignment in Thrive for an audience and content item.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceId` | string | Yes | The audience ID |
 | `contentId` | string | Yes | The content ID for the primary content |
 | `alternativeContentIds` | string | No | JSON array of content IDs that can also complete the assignment |
@@ -885,9 +819,6 @@ Get a single compliance assignment in Thrive by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `assignmentId` | string | Yes | The assignment ID |
 
 #### Output
@@ -920,9 +851,6 @@ Update a compliance assignment in Thrive.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `assignmentId` | string | Yes | The assignment ID |
 | `audienceId` | string | Yes | The audience ID |
 | `contentId` | string | No | The content ID for the primary content |
@@ -960,9 +888,6 @@ Delete a compliance assignment in Thrive.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `assignmentId` | string | Yes | The assignment ID |
 | `audienceId` | string | Yes | The audience ID |
 
@@ -984,9 +909,6 @@ List enrolments for a compliance assignment in Thrive.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `assignmentId` | string | Yes | The assignment ID |
 | `updatedAtFrom` | string | No | Start date to filter enrolments from \(ISO 8601\) |
 | `updatedAtTo` | string | No | Date to filter enrolments up to \(ISO 8601\). Requires updatedAtFrom. |
@@ -1029,9 +951,6 @@ Get a single enrolment for a compliance assignment in Thrive.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `assignmentId` | string | Yes | The assignment ID |
 | `enrolmentId` | string | Yes | The enrolment ID |
 
@@ -1070,9 +989,6 @@ List learning completion records in Thrive, optionally filtered by user or conte
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `contentId` | string | No | Filter by content |
 | `isRPL` | boolean | No | Filter by completions imported via Recognition of Prior Learning \(RPL\) |
 | `userId` | string | No | Filter by user |
@@ -1109,9 +1025,6 @@ Get a single learning completion record in Thrive by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `id` | string | Yes | The completion ID |
 
 #### Output
@@ -1142,9 +1055,6 @@ Record a learning completion in Thrive for a user and content item.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `userId` | string | Yes | The user ID |
 | `contentId` | string | Yes | The content ID for the content completed |
 | `completedAt` | string | Yes | ISO8601 timestamp when the completion occurred |
@@ -1167,9 +1077,6 @@ Get a single content record in Thrive by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `id` | string | Yes | Unique identifier of the content item |
 
 #### Output
@@ -1208,9 +1115,6 @@ Query content records in Thrive with pagination and filtering options.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `page` | number | No | Page number for pagination \(default 1\) |
 | `perPage` | number | No | Number of results per page \(1-1000, default 20\) |
 | `types` | string | No | Comma-separated content types \(article, assessment, broadcast, cmi5, elearning, event, file, pathway, question, quiz, scorm, url, video, mixed\). If both set, omitTypes is ignored. |
@@ -1258,9 +1162,6 @@ Get a single activity record in Thrive by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `id` | string | Yes | Unique identifier of the activity |
 
 #### Output
@@ -1290,9 +1191,6 @@ Query activity records in Thrive with pagination and filtering options.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `page` | number | No | Page number for pagination \(default 1\) |
 | `perPage` | number | No | Number of results per page \(1-1000, default 20\) |
 | `actions` | string | No | comma-separated activity types e.g. viewed,completed |
@@ -1334,9 +1232,6 @@ Get a single CPD category in Thrive by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `categoryId` | string | Yes | The CPD category ID |
 
 #### Output
@@ -1359,9 +1254,6 @@ Query CPD categories in Thrive and return results with pagination.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `page` | number | No | Page number for pagination \(default 1\) |
 | `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
 | `updatedSince` | string | No | Return only items updated on or after this date/time \(ISO 8601\) |
@@ -1391,9 +1283,6 @@ Get a single CPD log entry in Thrive by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `logEntryId` | string | Yes | The CPD log entry ID |
 
 #### Output
@@ -1426,9 +1315,6 @@ Query CPD log entries in Thrive and return results with pagination.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `page` | number | No | Page number for pagination \(default 1\) |
 | `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
 | `entryDateFrom` | string | No | Filter entries after this date \(format YYYY-MM-DD hh:mm:ss\) |
@@ -1469,9 +1355,6 @@ Get a single CPD requirement summary in Thrive by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `audienceRequirementId` | string | Yes | The CPD requirement ID |
 
 #### Output
@@ -1497,9 +1380,6 @@ Query CPD requirement summaries in Thrive and return results with pagination.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `page` | number | No | Page number for pagination \(default 1\) |
 | `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
 | `updatedSince` | string | No | Return only items updated on or after this date/time \(ISO 8601\) |
@@ -1532,9 +1412,6 @@ Query CPD user log summaries in Thrive and return results with pagination.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `entryDateFrom` | string | Yes | Filter entries after this date \(format YYYY-MM-DDThh:mm:ss\) |
 | `entryDateTo` | string | Yes | Filter entries before this date \(format YYYY-MM-DDThh:mm:ss\) |
 | `userIds` | string | No | Comma-separated user IDs to filter by |
@@ -1566,9 +1443,6 @@ List tags in Thrive and return tag information with pagination.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `page` | number | No | Page number for pagination \(default 1\) |
 | `perPage` | number | No | Number of results per page \(1-1000, default 100\) |
 | `updatedSince` | string | No | Return only tags updated on or after this date/time \(ISO 8601\) |
@@ -1602,9 +1476,6 @@ Get a single tag in Thrive by its ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `tagId` | string | Yes | The tag ID |
 
 #### Output
@@ -1631,9 +1502,6 @@ Add one or more tags to a learner in Thrive.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `userId` | string | Yes | The learner ID |
 | `tags` | string | Yes | JSON array of tag names to add \(1-100\). Example: \["leadership"\] |
 
@@ -1656,9 +1524,6 @@ Remove one or more tags from a learner in Thrive.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `userId` | string | Yes | The learner ID |
 | `tags` | string | Yes | JSON array of tag names to remove \(1-100\). Example: \["leadership"\] |
 
@@ -1681,9 +1546,6 @@ Update skills and levels for a learner in Thrive.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 | `userId` | string | Yes | The learner ID |
 | `skills` | string | Yes | JSON array of skill objects \(1-100\). Each: \{"tagName":"leadership","level":1,"targetLevel":3\}. level/targetLevel optional \(min -1\). |
 
@@ -1706,9 +1568,6 @@ Get the available skill levels configured in Thrive.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `tenantId` | string | Yes | Thrive Tenant ID \(used as the Basic auth username\) |
-| `apiKey` | string | Yes | Thrive API key \(used as the Basic auth password\) |
-| `host` | string | No | Region-specific API host |
 
 #### Output
 

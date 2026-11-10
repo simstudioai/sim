@@ -1,5 +1,6 @@
 import type { ListMessagesParams, ListMessagesResult } from '@/tools/mailgun/types'
 import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
+import { MAILGUN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunListMessagesTool: ToolConfig<ListMessagesParams, ListMessagesResult> = {
@@ -7,6 +8,7 @@ export const mailgunListMessagesTool: ToolConfig<ListMessagesParams, ListMessage
   name: 'Mailgun List Messages',
   description: 'List events (logs) for messages sent through Mailgun',
   version: '1.0.0',
+  oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

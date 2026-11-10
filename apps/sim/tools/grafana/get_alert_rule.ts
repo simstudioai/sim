@@ -4,6 +4,7 @@ import {
   type GrafanaGetAlertRuleResponse,
 } from '@/tools/grafana/types'
 import { mapAlertRule } from '@/tools/grafana/utils'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getAlertRuleTool: ToolConfig<GrafanaGetAlertRuleParams, GrafanaGetAlertRuleResponse> =
@@ -12,6 +13,7 @@ export const getAlertRuleTool: ToolConfig<GrafanaGetAlertRuleParams, GrafanaGetA
     name: 'Grafana Get Alert Rule',
     description: 'Get a specific alert rule by its UID',
     version: '1.0.0',
+    oauth: GRAFANA_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

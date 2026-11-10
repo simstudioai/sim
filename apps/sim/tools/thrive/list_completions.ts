@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   ThriveListCompletionsParams,
   ThriveListCompletionsResponse,
@@ -20,6 +21,7 @@ export const listCompletionsTool: ToolConfig<
   description:
     'List learning completion records in Thrive, optionally filtered by user or content.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

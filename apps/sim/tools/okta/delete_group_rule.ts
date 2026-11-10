@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaDeleteGroupRuleParams, OktaDeleteGroupRuleResponse } from '@/tools/okta/types'
 import { isOktaFlagEnabled, oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaDeleteGroupRule')
@@ -15,6 +16,7 @@ export const oktaDeleteGroupRuleTool: ToolConfig<
   description:
     'Permanently delete a group rule. Destructive and irreversible. Optionally also removes the users that this rule had assigned from those groups, which revokes any access those groups grant.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

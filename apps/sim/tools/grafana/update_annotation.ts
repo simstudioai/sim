@@ -2,6 +2,7 @@ import type {
   GrafanaUpdateAnnotationParams,
   GrafanaUpdateAnnotationResponse,
 } from '@/tools/grafana/types'
+import { GRAFANA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateAnnotationTool: ToolConfig<
@@ -12,6 +13,7 @@ export const updateAnnotationTool: ToolConfig<
   name: 'Grafana Update Annotation',
   description: 'Update an existing annotation',
   version: '1.0.0',
+  oauth: GRAFANA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

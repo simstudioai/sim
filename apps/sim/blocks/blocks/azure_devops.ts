@@ -1,6 +1,7 @@
 import { AzureIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import type { AzureDevOpsBasicWorkItemType } from '@/tools/azure_devops/types'
 import { AZURE_DEVOPS_BASIC_WORK_ITEM_STATES } from '@/tools/azure_devops/utils'
 import { getTrigger } from '@/triggers'
@@ -14,6 +15,8 @@ function normalizeDate(input: unknown): string | undefined {
 
 export const AzureDevOpsBlock: BlockConfig = {
   type: 'azure_devops',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'azure_devops_v2' },
   name: 'Azure DevOps',
   description: 'Interact with Azure DevOps pipelines, builds, and work items',
   longDescription:
@@ -797,3 +800,17 @@ export const AzureDevOpsBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const AzureDevOpsV2Block: BlockConfig = {
+  ...AzureDevOpsBlock,
+  type: 'azure_devops_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(AzureDevOpsBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'azure_devops',
+    title: 'Azure DevOps Credential',
+  }),
+}

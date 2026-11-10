@@ -1,9 +1,12 @@
 import { GrafanaIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const GrafanaBlock: BlockConfig = {
   type: 'grafana',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'grafana_v2' },
   name: 'Grafana',
   description: 'Interact with Grafana dashboards, alerts, and annotations',
   authMode: AuthMode.ApiKey,
@@ -1596,3 +1599,17 @@ export const GrafanaBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const GrafanaV2Block: BlockConfig = {
+  ...GrafanaBlock,
+  type: 'grafana_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(GrafanaBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'grafana',
+    title: 'Grafana Credential',
+  }),
+}

@@ -1,13 +1,15 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { SupabaseIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 
 /** Canonical basic/advanced pair for the storage upload payload. */
 const FILE_DATA_FIELD = ['file', 'fileContent'] as const
 
 export const SupabaseBlock: BlockConfig = {
   type: 'supabase',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'supabase_v2' },
   name: 'Supabase',
   description: 'Use Supabase database',
   authMode: AuthMode.ApiKey,
@@ -1591,3 +1593,18 @@ export const SupabaseBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SupabaseV2Block: BlockConfig = {
+  ...SupabaseBlock,
+  type: 'supabase_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Supports database operations (query, insert, update, delete, upsert), full-text search, RPC functions, Edge Function invocation, row counting, vector search, and complete storage management (upload, download, list, move, copy, delete files and buckets).',
+  ...withSavedCredential(
+    SupabaseBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'supabase', title: 'Supabase Credential' },
+    { required: true }
+  ),
+}

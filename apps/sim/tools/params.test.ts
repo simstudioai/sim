@@ -1172,6 +1172,32 @@ describe('hybrid saved-credential tools', () => {
     expect(modelBlockedParams).toContain('domain')
   })
 
+  it('neither asks the model for nor accepts what a selected saved credential supplies', async () => {
+    const azureLike = {
+      ...(hybridTool as object),
+      id: 'azure_devops_list_pipelines',
+      oauth: {
+        required: false,
+        provider: 'azure_devops',
+        credentialKind: 'service-account',
+        credentialParams: { accessToken: 'accessToken', organization: 'providerWorkspaceId' },
+        credentialSuppliedParams: ['accessToken', 'organization'],
+      },
+      params: {
+        accessToken: { type: 'string', required: true, visibility: 'user-only' },
+        organization: { type: 'string', required: true, visibility: 'user-or-llm' },
+        project: { type: 'string', required: true, visibility: 'user-or-llm' },
+      },
+    } as never
+
+    const withCredential = await createLLMToolSchema(azureLike, { credential: 'cred-1' })
+    const inline = await createLLMToolSchema(azureLike, {})
+
+    expect(withCredential.schema.required).toEqual(['project'])
+    expect(withCredential.modelBlockedParams).toContain('organization')
+    expect(inline.schema.required).toEqual(['organization', 'project'])
+  })
+
   it('leaves a required-OAuth tool’s model-blocked params exactly as declared', async () => {
     const oauthTool = {
       ...(hybridTool as object),

@@ -2,7 +2,7 @@
 title: Twilio SMS
 description: Send SMS messages
 integration:
-  type: "twilio_sms"
+  type: "twilio_sms_v2"
   color: "#F22F46"
 ---
 
@@ -31,8 +31,6 @@ Send text messages to single or multiple recipients using the Twilio API.
 | --------- | ---- | -------- | ----------- |
 | `phoneNumbers` | string | Yes | Phone numbers to send the message to in E.164 format \(e.g., +15551234567\), separated by newlines |
 | `message` | string | Yes | Message to send |
-| `accountSid` | string | Yes | Twilio Account SID |
-| `authToken` | string | Yes | Twilio Auth Token |
 | `fromNumber` | string | Yes | Twilio phone number to send the message from in E.164 format \(e.g., +15551234567\) |
 
 #### Output

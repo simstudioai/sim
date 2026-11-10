@@ -11,6 +11,7 @@ import {
   requireValue,
   toJsonArray,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createQuestionsTool: ToolConfig<
@@ -21,6 +22,7 @@ export const createQuestionsTool: ToolConfig<
   name: 'Jotform Create Questions',
   description: 'Add several questions to an existing Jotform form in one call.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

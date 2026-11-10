@@ -1,3 +1,4 @@
+import { DEVIN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { DevinCreateSessionParams, DevinCreateSessionResponse } from './types'
 import { DEVIN_SESSION_OUTPUT_PROPERTIES } from './types'
@@ -12,6 +13,7 @@ export const devinCreateSessionTool: ToolConfig<
   description:
     'Create a new Devin session with a prompt. Devin will autonomously work on the task described in the prompt.',
   version: '1.0.0',
+  oauth: DEVIN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

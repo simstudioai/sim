@@ -12712,6 +12712,24 @@ export type RemovePermissionGroupMemberResponse = {
   data: RemovePermissionGroupMemberResponseRef0
 }
 
+/** `DELETE /api/v2/workspaces/[workspaceId]/members/[userId]` */
+export type RemoveWorkspaceMemberParams = {
+  workspaceId: string
+  userId: string
+}
+
+export type RemoveWorkspaceMemberQuery = Record<string, unknown>
+
+type RemoveWorkspaceMemberResponseRef0 = {
+  userId: string
+  deleted: true
+  organizationMembershipRemoved: boolean
+}
+
+export type RemoveWorkspaceMemberResponse = {
+  data: RemoveWorkspaceMemberResponseRef0
+}
+
 /** `PATCH /api/v2/files/[fileId]` */
 export type RenameFileParams = {
   fileId: string
@@ -15887,6 +15905,32 @@ type UpdateWorkspaceForkMappingsResponseRef0 = {
 
 export type UpdateWorkspaceForkMappingsResponse = {
   data: UpdateWorkspaceForkMappingsResponseRef0
+}
+
+/** `PATCH /api/v2/workspaces/[workspaceId]/members/[userId]` */
+export type UpdateWorkspaceMemberParams = {
+  workspaceId: string
+  userId: string
+}
+
+export type UpdateWorkspaceMemberQuery = Record<string, unknown>
+
+export type UpdateWorkspaceMemberBody = {
+  role: 'admin' | 'write' | 'read'
+}
+
+type UpdateWorkspaceMemberResponseRef0 = {
+  userId: string
+  email: string
+  name: string
+  image: string | null
+  role: 'admin' | 'write' | 'read'
+  isExternal: boolean
+  joinedAt: string
+}
+
+export type UpdateWorkspaceMemberResponse = {
+  data: UpdateWorkspaceMemberResponseRef0
 }
 
 /** `POST /api/v2/knowledge/[knowledgeBaseId]/documents` */
@@ -23137,6 +23181,18 @@ export const V2_OPERATIONS = {
     summary: 'Remove permission group member',
     workspaceKeyUnsupported: true,
   },
+  removeWorkspaceMember: {
+    method: 'DELETE',
+    path: '/api/v2/workspaces/[workspaceId]/members/[userId]',
+    pathParams: ['workspaceId', 'userId'] as const,
+    pathParamDocs: {
+      workspaceId: 'Workspace the member belongs to.',
+      userId: 'User identifier of the workspace member, as returned by List workspace members.',
+    },
+    responseMode: 'json',
+    summary: 'Remove workspace member',
+    workspaceKeyUnsupported: true,
+  },
   renameFile: {
     method: 'PATCH',
     path: '/api/v2/files/[fileId]',
@@ -25085,6 +25141,27 @@ export const V2_OPERATIONS = {
         required: true,
         describe:
           'Mapping entries addressed by resource type and `sourceId`. `targetId: null` clears a mapping.',
+      },
+    },
+  },
+  updateWorkspaceMember: {
+    method: 'PATCH',
+    path: '/api/v2/workspaces/[workspaceId]/members/[userId]',
+    pathParams: ['workspaceId', 'userId'] as const,
+    pathParamDocs: {
+      workspaceId: 'Workspace the member belongs to.',
+      userId: 'User identifier of the workspace member, as returned by List workspace members.',
+    },
+    responseMode: 'json',
+    summary: 'Update workspace member',
+    workspaceKeyUnsupported: true,
+    body: {
+      role: {
+        kind: 'enum',
+        required: true,
+        values: ['admin', 'write', 'read'] as const,
+        describe:
+          'New workspace role. Inherited organization Admin access, the workspace owner, and the workspace billing account keep Admin and cannot be changed here.',
       },
     },
   },

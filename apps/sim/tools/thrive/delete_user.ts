@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveDeleteResponse, ThriveDeleteUserParams } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -8,6 +9,7 @@ export const deleteUserTool: ToolConfig<ThriveDeleteUserParams, ThriveDeleteResp
   description:
     'Permanently delete (obfuscate) a user in Thrive by ref while retaining training history.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { validateOktaDomain } from '@/lib/core/security/input-validation'
 import type { OktaGetUserParams, OktaGetUserResponse, OktaUser } from '@/tools/okta/types'
 import { oktaHeaders, throwOktaError } from '@/tools/okta/utils'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('OktaGetUser')
@@ -11,6 +12,7 @@ export const oktaGetUserTool: ToolConfig<OktaGetUserParams, OktaGetUserResponse>
   name: 'Get User from Okta',
   description: 'Get a specific user by ID or login from your Okta organization',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

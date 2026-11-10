@@ -1,5 +1,6 @@
 import type { OktaUpdateGroupParams, OktaUpdateGroupResponse } from '@/tools/okta/types'
 import { createInternalToolOperationInput } from '@/tools/operation-input'
+import { OKTA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const oktaUpdateGroupTool: InternalToolConfig<
@@ -11,6 +12,7 @@ export const oktaUpdateGroupTool: InternalToolConfig<
   description:
     'Update a group profile in your Okta organization. Only groups of OKTA_GROUP type can be updated. Fields left blank keep their stored value.',
   version: '1.0.0',
+  oauth: OKTA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

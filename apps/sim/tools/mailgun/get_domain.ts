@@ -1,5 +1,6 @@
 import type { GetDomainParams, GetDomainResult } from '@/tools/mailgun/types'
 import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
+import { MAILGUN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunGetDomainTool: ToolConfig<GetDomainParams, GetDomainResult> = {
@@ -7,6 +8,7 @@ export const mailgunGetDomainTool: ToolConfig<GetDomainParams, GetDomainResult> 
   name: 'Mailgun Get Domain',
   description: 'Get details of a specific domain',
   version: '1.0.0',
+  oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

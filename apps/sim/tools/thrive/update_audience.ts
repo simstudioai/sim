@@ -1,3 +1,4 @@
+import { THRIVE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ThriveAudienceResponse, ThriveUpdateAudienceParams } from '@/tools/thrive/types'
 import { THRIVE_AUDIENCE_OUTPUT_PROPERTIES } from '@/tools/thrive/types'
 import { getThriveBaseUrl, getThriveHeaders, parseThriveResponse } from '@/tools/thrive/utils'
@@ -8,6 +9,7 @@ export const updateAudienceTool: ToolConfig<ThriveUpdateAudienceParams, ThriveAu
   name: 'Thrive Update Audience',
   description: 'Update an audience in Thrive, optionally moving it to a new parent.',
   version: '1.0.0',
+  oauth: THRIVE_CREDENTIAL_OAUTH,
 
   params: {
     tenantId: {

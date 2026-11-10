@@ -10,6 +10,7 @@ import {
   parseJotformResponse,
   requireValue,
 } from '@/tools/jotform/utils'
+import { JOTFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listFormSubmissionsTool: ToolConfig<
@@ -21,6 +22,7 @@ export const listFormSubmissionsTool: ToolConfig<
   description:
     'List the submissions received by one form, with each answer available both by question ID and by question label.',
   version: '1.0.0',
+  oauth: JOTFORM_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

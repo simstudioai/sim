@@ -1,9 +1,12 @@
 import { InfisicalIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 
 export const InfisicalBlock: BlockConfig = {
   type: 'infisical',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'infisical_v2' },
   name: 'Infisical',
   description: 'Manage secrets with Infisical',
   longDescription: 'List, get, create, update, and delete secrets across project environments.',
@@ -364,3 +367,23 @@ export const InfisicalBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const InfisicalV2Block: BlockConfig = {
+  ...InfisicalBlock,
+  type: 'infisical_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'List, get, create, update, and delete secrets across project environments on Infisical Cloud or a self-hosted instance.',
+  ...withSavedCredential(
+    InfisicalBlock,
+    {
+      id: 'credential',
+      type: 'oauth-input',
+      serviceId: 'infisical',
+      title: 'Infisical Credential',
+    },
+    { required: true }
+  ),
+}

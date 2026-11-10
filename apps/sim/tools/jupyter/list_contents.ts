@@ -1,5 +1,6 @@
 import { encodeJupyterPath, parseJupyterContentModel } from '@/lib/internal/jupyter/protocol'
 import type { JupyterListContentsParams, JupyterListContentsResponse } from '@/tools/jupyter/types'
+import { JUPYTER_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 
 export const jupyterListContentsTool: InternalToolConfig<
@@ -10,6 +11,7 @@ export const jupyterListContentsTool: InternalToolConfig<
   name: 'Jupyter List Contents',
   description: 'List files, notebooks, and subdirectories at a path on a Jupyter server',
   version: '1.0.0',
+  oauth: JUPYTER_CREDENTIAL_OAUTH,
 
   params: {
     serverUrl: {

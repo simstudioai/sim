@@ -2,6 +2,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { NewRelicIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import type { NewRelicCustomAttributes } from '@/tools/new_relic/types'
 
 function parseCustomAttributes(value: unknown): NewRelicCustomAttributes | undefined {
@@ -20,6 +21,8 @@ function parseCustomAttributes(value: unknown): NewRelicCustomAttributes | undef
 
 export const NewRelicBlock: BlockConfig = {
   type: 'new_relic',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'new_relic_v2' },
   name: 'New Relic',
   description: 'Query observability data and record deployments in New Relic',
   longDescription:
@@ -476,3 +479,23 @@ export const NewRelicBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const NewRelicV2Block: BlockConfig = {
+  ...NewRelicBlock,
+  type: 'new_relic_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Run NRQL queries, search monitored entities, fetch entity details, and record deployment change events.',
+  ...withSavedCredential(
+    NewRelicBlock,
+    {
+      id: 'credential',
+      type: 'oauth-input',
+      serviceId: 'new_relic',
+      title: 'New Relic Credential',
+    },
+    { required: true }
+  ),
+}

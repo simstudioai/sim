@@ -13,7 +13,7 @@ export interface PublicWorkspaceDetail {
   updatedAt: Date
 }
 
-interface WorkspaceMemberRow {
+export interface WorkspaceMemberRow {
   userId: string
   email: string
   name: string
@@ -26,6 +26,8 @@ interface WorkspaceMemberRow {
 interface QueryWorkspaceMembersOptions {
   limit: number
   afterEmail?: string
+  /** Restricts both member sources to one user, for a single-member read. */
+  userId?: string
 }
 
 export interface WorkspaceMemberPage {
@@ -153,6 +155,7 @@ export async function queryPublicWorkspaceMembers(
 
   const emailOrder = sql<string>`${user.email} COLLATE "C"`
   const emailCursor = options.afterEmail ? gt(emailOrder, options.afterEmail) : undefined
+  const userFilter = options.userId ? eq(user.id, options.userId) : undefined
   const sourceLimit = options.limit + 1
   const hasRelevantOrganizationMembership = workspaceRow.organizationId
     ? sql<boolean>`EXISTS (
@@ -183,7 +186,8 @@ export async function queryPublicWorkspaceMembers(
       and(
         eq(permissions.entityType, 'workspace'),
         eq(permissions.entityId, workspaceId),
-        emailCursor
+        emailCursor,
+        userFilter
       )
     )
     .orderBy(asc(emailOrder))
@@ -204,7 +208,8 @@ export async function queryPublicWorkspaceMembers(
           and(
             eq(member.organizationId, workspaceRow.organizationId),
             inArray(member.role, [...ORG_ADMIN_ROLES]),
-            emailCursor
+            emailCursor,
+            userFilter
           )
         )
         .orderBy(asc(emailOrder))
@@ -258,4 +263,17 @@ export async function queryPublicWorkspaceMembers(
     members,
     nextEmail: hasMore ? (members.at(-1)?.email ?? null) : null,
   }
+}
+
+/**
+ * One effective member, projected exactly as the roster projects them, or null
+ * when the user holds neither an explicit grant nor inherited organization
+ * admin access (or the workspace is archived).
+ */
+export async function getPublicWorkspaceMember(
+  workspaceId: string,
+  userId: string
+): Promise<WorkspaceMemberRow | null> {
+  const page = await queryPublicWorkspaceMembers(workspaceId, { limit: 1, userId })
+  return page?.members[0] ?? null
 }

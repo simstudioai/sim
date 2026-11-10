@@ -1,3 +1,4 @@
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   STORAGE_BUCKET_OUTPUT_PROPERTIES,
   type SupabaseStorageListBucketsParams,
@@ -14,6 +15,7 @@ export const storageListBucketsTool: ToolConfig<
   name: 'Supabase Storage List Buckets',
   description: 'List all storage buckets in Supabase',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {

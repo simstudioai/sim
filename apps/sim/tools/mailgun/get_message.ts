@@ -1,5 +1,6 @@
 import type { GetMessageParams, GetMessageResult } from '@/tools/mailgun/types'
 import { getMailgunApiBaseUrl } from '@/tools/mailgun/utils'
+import { MAILGUN_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const mailgunGetMessageTool: ToolConfig<GetMessageParams, GetMessageResult> = {
@@ -7,6 +8,7 @@ export const mailgunGetMessageTool: ToolConfig<GetMessageParams, GetMessageResul
   name: 'Mailgun Get Message',
   description: 'Retrieve a stored message by its key',
   version: '1.0.0',
+  oauth: MAILGUN_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

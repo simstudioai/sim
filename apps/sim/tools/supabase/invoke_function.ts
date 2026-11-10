@@ -1,4 +1,5 @@
 import { isRecordLike } from '@sim/utils/object'
+import { SUPABASE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type {
   SupabaseInvokeFunctionParams,
   SupabaseInvokeFunctionResponse,
@@ -36,6 +37,7 @@ export const invokeFunctionTool: ToolConfig<
   name: 'Supabase Invoke Edge Function',
   description: 'Invoke a Supabase Edge Function over HTTP',
   version: '1.0.0',
+  oauth: SUPABASE_CREDENTIAL_OAUTH,
 
   params: {
     projectId: {
