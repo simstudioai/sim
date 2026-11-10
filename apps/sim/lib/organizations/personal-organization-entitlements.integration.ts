@@ -5,11 +5,18 @@
  * between a personal organization and that configuration.
  */
 import { db } from '@sim/db'
-import { member, organization, user, userStats } from '@sim/db/schema'
+import {
+  member,
+  organization,
+  organizationMemberUsageLimit,
+  subscription,
+  user,
+  userStats,
+} from '@sim/db/schema'
 import { deleteOutboxEventsNaming } from '@sim/db/testing/outbox-fixtures'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
 import { generateId } from '@sim/utils/id'
-import { inArray } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
 vi.hoisted(() => {
@@ -17,11 +24,13 @@ vi.hoisted(() => {
   process.env.SCIM_ENABLED = 'true'
 })
 
+import { transferSubscriptionToOrganization } from '@/lib/billing/application/subscription-transfer'
 import {
   isOrganizationFeatureEntitled,
   isOrganizationOnEnterprisePlan,
 } from '@/lib/billing/core/subscription'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
+import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import {
   updateOrganizationDataRetention,
   updateOrganizationWhitelabel,
@@ -71,6 +80,9 @@ afterAll(async () => {
     .from(member)
     .where(inArray(member.userId, userIds))
   await deleteOutboxEventsNaming(db, [...userIds, ...organizations.map((row) => row.id)])
+  await db
+    .delete(subscription)
+    .where(inArray(subscription.referenceId, [...userIds, ...organizations.map((row) => row.id)]))
   if (organizations.length > 0) {
     await db.delete(organization).where(
       inArray(
@@ -169,5 +181,58 @@ describe('team configuration on a personal organization', () => {
     expect(await open(personalOwnerId, personalId, 'recently-deleted')).toBe(true)
     expect(await open(teamOwnerId, teamId, 'members')).toBe(true)
     expect(await open(teamOwnerId, teamId, 'sso')).toBe(true)
+  })
+})
+
+describe('billing on a personal organization', () => {
+  it('refuses moving a Team subscription onto it, and moves one onto a team', async () => {
+    const { personalOwnerId, personalId, teamOwnerId, teamId } = await personalAndTeam()
+    const subscriptionFor = async (referenceId: string) => {
+      const id = generateId()
+      await db
+        .insert(subscription)
+        .values({ id, plan: 'team', referenceId, status: 'active', seats: 1 })
+      return id
+    }
+    const personalSubscription = await subscriptionFor(personalOwnerId)
+    const teamSubscription = await subscriptionFor(teamOwnerId)
+
+    await expect(
+      transferSubscriptionToOrganization.execute({
+        principal: createSessionPrincipal({ userId: personalOwnerId }),
+        input: { subscriptionId: personalSubscription, organizationId: personalId },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'A subscription cannot be transferred to a personal organization.',
+    })
+    await expect(
+      transferSubscriptionToOrganization.execute({
+        principal: createSessionPrincipal({ userId: teamOwnerId }),
+        input: { subscriptionId: teamSubscription, organizationId: teamId },
+      })
+    ).resolves.toMatchObject({ transferred: true })
+  })
+
+  it('refuses a per-member usage limit, and sets one on a team', async () => {
+    const { personalOwnerId, personalId, teamOwnerId, teamId } = await personalAndTeam()
+    const limitOf = (organizationId: string, userId: string) =>
+      db
+        .select({ usageLimit: organizationMemberUsageLimit.usageLimit })
+        .from(organizationMemberUsageLimit)
+        .where(
+          and(
+            eq(organizationMemberUsageLimit.organizationId, organizationId),
+            eq(organizationMemberUsageLimit.userId, userId)
+          )
+        )
+
+    await expect(setOrgMemberUsageLimit(personalId, personalOwnerId, 10)).rejects.toMatchObject({
+      code: 'forbidden',
+      message: 'Only team organizations can use per-member usage limits.',
+    })
+    expect(await limitOf(personalId, personalOwnerId)).toEqual([])
+    await setOrgMemberUsageLimit(teamId, teamOwnerId, 10)
+    expect(await limitOf(teamId, teamOwnerId)).toHaveLength(1)
   })
 })
