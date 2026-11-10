@@ -268,7 +268,7 @@ it('adds a keyless AWS role: shows what to paste into AWS and submits the signed
 
 it('adds AWS access keys: submits only the keys, never a subject, and requires both', async () => {
   const dialog = await open('aws-service-account', 'AWS')
-  await chooseAuthType(dialog, 'Access keys')
+  await chooseAuthType(dialog, 'Access keys (long-lived)')
 
   expect(labelled(dialog, 'Issuer')).toBeNull()
   expect(labelled(dialog, 'Role ARN')).toBeNull()
@@ -287,12 +287,12 @@ it('adds AWS access keys: submits only the keys, never a subject, and requires b
 
 it('drops a secret when the auth type that used it is left', async () => {
   const dialog = await open('aws-service-account', 'AWS')
-  await chooseAuthType(dialog, 'Access keys')
+  await chooseAuthType(dialog, 'Access keys (long-lived)')
   type(input(dialog, 'Access key ID'), 'AKIAEXAMPLEKEY12345')
   type(input(dialog, 'Secret access key'), 'first-secret')
 
   await chooseAuthType(dialog, 'IAM role (keyless, via Sim OIDC)')
-  await chooseAuthType(dialog, 'Access keys')
+  await chooseAuthType(dialog, 'Access keys (long-lived)')
 
   expect(input(dialog, 'Secret access key').value).toBe('')
   expect(input(dialog, 'Access key ID').value).toBe('AKIAEXAMPLEKEY12345')
@@ -322,7 +322,7 @@ it('offers keyless sign-in disabled, with no instructions, where the deployment 
   keyless = { available: false }
   const dialog = await open('aws-service-account', 'AWS')
 
-  expect(authTypeTrigger(dialog).textContent).toContain('Access keys')
+  expect(authTypeTrigger(dialog).textContent).toContain('Access keys (long-lived)')
   expect(labelled(dialog, 'Issuer')).toBeNull()
   act(() => authTypeTrigger(dialog).click())
   await settle()
@@ -336,7 +336,7 @@ it('never offers keyless sign-in to an organization credential, and never mints 
     scope: { kind: 'organization', organizationId: 'org-1' },
   })
 
-  expect(authTypeTrigger(dialog).textContent).toContain('Access keys')
+  expect(authTypeTrigger(dialog).textContent).toContain('Access keys (long-lived)')
   expect(requests.some((request) => request.path === '/api/credentials/workload-identity')).toBe(
     false
   )

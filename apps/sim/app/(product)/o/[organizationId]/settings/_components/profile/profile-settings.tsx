@@ -36,7 +36,7 @@ export function ProfileForm({
   const displayName = name || email
   return (
     <SettingsSection title='Profile'>
-      <SettingsRow label='Picture' description='PNG or JPEG, up to 5MB'>
+      <SettingsRow label='Picture'>
         <IdentityButton
           label={uploading ? 'Uploading profile picture' : 'Change profile picture'}
           onClick={uploading ? undefined : () => picker.current?.click()}
@@ -58,7 +58,7 @@ export function ProfileForm({
           onChange={onPictureChange}
         />
       </SettingsRow>
-      <SettingsRow label='Name' description='Set your display name'>
+      <SettingsRow label='Name'>
         <IdentityButton
           label={name || 'Set name'}
           trailingIcon='I036'
@@ -89,7 +89,7 @@ export function ProfileForm({
           />
         </Modal>
       </SettingsRow>
-      <SettingsRow label='Email' description='Your account email'>
+      <SettingsRow label='Email'>
         <span data-type='T067'>{email || '—'}</span>
       </SettingsRow>
     </SettingsSection>

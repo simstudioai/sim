@@ -380,10 +380,7 @@ export function GroupDetail({
           )}
           {tools.length > 0 && (
             <SettingsSection title='Integrations and Triggers'>
-              <SettingsRow
-                label='All integrations and triggers'
-                description='Choose access for an integration, then expand it to set individual tools. Parent restrictions apply to every tool.'
-              >
+              <SettingsRow label='All integrations and triggers'>
                 <PermissionBulkSelect targets={targets(tools)} controls={controls} />
               </SettingsRow>
               {tools.map((block) => (

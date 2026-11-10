@@ -186,7 +186,7 @@ function ConfigFields({
     const value = fields[field.id] ?? ''
     if (field.options?.length)
       return (
-        <SettingsRow key={field.id} field label={field.label} description={field.hint}>
+        <SettingsRow key={field.id} field label={field.label}>
           <Select
             label={field.label}
             value={value}
@@ -202,7 +202,6 @@ function ConfigFields({
         value={value}
         onChange={setValue}
         placeholder={field.placeholder ?? field.label}
-        hint={field.hint}
         required={field.required}
       />
     )

@@ -209,7 +209,7 @@ export function SkillDetails({
         errors={errors}
         onEdit={edit}
         viewOnly={!editable}
-        nameHint={lockReason}
+        readOnlyReason={lockReason}
       />
     </div>
   )

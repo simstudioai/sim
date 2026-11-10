@@ -14,7 +14,6 @@ import {
   isSkillNameConflictError,
   readSkillFile,
   SKILL_IMPORT_ACCEPT,
-  SKILL_NAME_HINT,
   type SkillDefinition,
   useCreateSkill,
   useUpdateSkill,
@@ -146,7 +145,6 @@ export function SkillModal({
         onEdit={edit}
         viewOnly={readOnly}
         disabled={saving}
-        nameHint={SKILL_NAME_HINT}
       />
       {!isEditing && (
         <FileField
@@ -154,7 +152,6 @@ export function SkillModal({
           optional
           accept={SKILL_IMPORT_ACCEPT}
           prompt={importing ? 'Importing…' : 'Choose a SKILL.md or ZIP, or drag it here'}
-          hint='.md file with YAML frontmatter, or .zip containing a SKILL.md'
           error={importError}
           disabled={importing || saving}
           onFileChange={(file) => void handleImportFile(file)}

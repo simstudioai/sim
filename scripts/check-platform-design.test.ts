@@ -1131,3 +1131,65 @@ it('fails the route and copy rules: live-only-route, fixture-branch-in-view, fix
     rmSync(root, { recursive: true, force: true })
   }
 }, 30_000)
+
+it('fails [helper-copy] for a hint, a form subtitle or a static row subtitle, and passes reasons, errors and confirm bodies', () => {
+  const { root, put, run } = productFixture()
+  const view = 'app/(product)/o/[organizationId]/home/_components/key-form/key-form.tsx'
+  try {
+    put(
+      view,
+      `import { SelectField, TextField } from '@sim/emcn/field'
+      import { Modal } from '@sim/emcn/modal'
+      import { SettingsRow } from '@sim/emcn/settings-section'
+      import { Picker } from '@/app/(product)/o/[organizationId]/home/_components/picker/picker'
+      export function KeyForm({ note, removing }: { note?: string; removing: boolean }) {
+        return <>
+          <Modal title='Add key' description='Keys are encrypted and stored securely.'>
+            <TextField label='Name' placeholder='my-key' hint='Lowercase letters only.' />
+            <TextField label='Region' placeholder='us-east-1' error='Enter a region.' />
+            <SelectField label='Plan' options={[]} disabledReason='Upgrade first.' aria-description='Billing plan' />
+            <Picker label='Owner' hint={note} />
+            <Picker label='Team' hint='Pick the owning team.' />
+            <SettingsRow label='Theme' description='Select your preferred color theme' />
+            <SettingsRow label='Status' description={removing ? 'Removing' : 'Active'} />
+          </Modal>
+          <Modal variant='confirm' title='Remove key' description='This cannot be undone.' />
+        </>
+      }
+      export const FIELDS = [
+        { id: 'stsRegion', label: 'STS region', hint: 'Only needed for GovCloud keys.' },
+        { id: 'roleArn', label: 'Role ARN', hint: '' },
+      ]`
+    )
+    put(
+      'app/(product)/o/[organizationId]/home/_components/picker/picker.tsx',
+      `export function Picker({ label, hint }: { label: string; hint?: string }) { return <p title={hint}>{label}</p> }`
+    )
+    const result = run()
+    expect(result.status).toBe(1)
+    const helperCopy = result.output.split('\n').filter((line) => line.includes('[helper-copy]'))
+    for (const line of [7, 8, 12, 13, 20])
+      expect(
+        helperCopy.some((finding) => finding.startsWith(`${view}:${line} [helper-copy]`))
+      ).toBe(true)
+    expect(helperCopy).toHaveLength(5)
+    expect(helperCopy.join('\n')).toContain('bake it into the placeholder, label or option')
+    expect(result.output).toContain(`${view}#Name`)
+
+    writeAllowlists(root, {
+      HELPER_COPY_OWNERS: {
+        [`${view}#Add key`]: 'The fixture keeps its dialog subtitle to prove a grant',
+        [`${view}#Name`]: 'The fixture keeps its field hint to prove a grant',
+        [`${view}#Team`]: 'The fixture keeps its wrapper hint to prove a grant',
+        [`${view}#Theme`]: 'The fixture keeps its row subtitle to prove a grant',
+        [`${view}#stsRegion`]: 'The fixture keeps its descriptor hint to prove a grant',
+        [`${view}#Unused`]: 'Grants nothing, so the check names it stale',
+      },
+    })
+    const granted = run()
+    expect(granted.output).not.toContain('[helper-copy]')
+    expect(granted.output).toContain(`HELPER_COPY_OWNERS names ${view}#Unused`)
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}, 30_000)

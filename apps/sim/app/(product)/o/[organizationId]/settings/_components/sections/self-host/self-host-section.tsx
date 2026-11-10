@@ -5,10 +5,7 @@ import { CHAT_KEYS_HREF } from '@/platform/lib/data/self-host'
 export default function SelfHostSection() {
   return (
     <SettingsSurface>
-      <SettingsRow
-        label='Chat keys'
-        description='Model-provider keys that power Chat on this deployment.'
-      >
+      <SettingsRow label='Chat keys'>
         <Button
           size='compact'
           trailingIcon='I037'

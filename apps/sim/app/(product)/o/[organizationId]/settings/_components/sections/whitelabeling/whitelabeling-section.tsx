@@ -11,7 +11,6 @@ import { FailureNotice } from '@sim/emcn/status'
 import {
   ActionRow,
   FieldStack,
-  Muted,
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type { SettingsSectionProps } from '@/app/(product)/o/[organizationId]/settings/_components/section-registry'
@@ -72,17 +71,15 @@ function ColorField({ label, placeholder, value, valid, onChange }: ColorFieldPr
 
 interface ImageFieldProps {
   label: string
-  hint: string
   disabled: boolean
   image: ReturnType<typeof useWhitelabelForm>['logo']
 }
 
-function ImageField({ label, hint, disabled, image }: ImageFieldProps) {
+function ImageField({ label, disabled, image }: ImageFieldProps) {
   return (
     <FileField
       kind='image'
       label={label}
-      hint={hint}
       accept={IMAGE_ACCEPT}
       optional
       disabled={disabled}
@@ -115,33 +112,18 @@ function WhitelabelForm({ organizationId, settings, uploadWorkspaceId }: Whitela
       }}
     >
       <SectionStack>
-        <Muted>
-          These overrides apply to this organization’s workspaces. Clear a field to restore its
-          default.
-        </Muted>
         <SettingsSection title='Brand identity'>
           <FieldStack>
             <TextField
               label='Brand name'
-              hint='Replaces "Sim" in the sidebar and select UI elements.'
               placeholder='Your Company'
               maxLength={64}
               value={text.brandName}
               onChange={(value) => form.change('brandName', value)}
             />
             <div className={styles.pair}>
-              <ImageField
-                label='Logo'
-                hint='Square image for the collapsed sidebar. PNG, JPEG, SVG or WebP, up to 5 MB.'
-                disabled={form.saving}
-                image={form.logo}
-              />
-              <ImageField
-                label='Wordmark'
-                hint='Wide image for the expanded sidebar. PNG, JPEG, SVG or WebP, up to 5 MB.'
-                disabled={form.saving}
-                image={form.wordmark}
-              />
+              <ImageField label='Logo (square)' disabled={form.saving} image={form.logo} />
+              <ImageField label='Wordmark (wide)' disabled={form.saving} image={form.wordmark} />
             </div>
           </FieldStack>
         </SettingsSection>

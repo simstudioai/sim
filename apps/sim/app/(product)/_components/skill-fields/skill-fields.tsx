@@ -28,8 +28,8 @@ interface SkillFieldsProps {
   onEdit: (next: SkillDraft, changed: readonly (keyof SkillDraft)[]) => void
   viewOnly?: boolean
   disabled?: boolean
-  /** Guidance under the name, such as why the skill cannot be edited. */
-  nameHint?: string
+  /** Why a view-only skill cannot be edited, which a read-only field cannot otherwise show. */
+  readOnlyReason?: string
 }
 
 /**
@@ -42,7 +42,7 @@ export function SkillFields({
   onEdit,
   viewOnly = false,
   disabled = false,
-  nameHint,
+  readOnlyReason,
 }: SkillFieldsProps) {
   function editContent(value: string) {
     const parsed = parseSkillMarkdown(value)
@@ -58,8 +58,8 @@ export function SkillFields({
       <TextField
         label='Name'
         name='name'
-        placeholder='Skill name'
-        hint={nameHint}
+        placeholder='my-skill'
+        hint={readOnlyReason}
         error={errors.name}
         value={draft.name}
         onChange={(name) => onEdit({ ...draft, name }, ['name'])}

@@ -28,13 +28,10 @@ import { plural } from '@/platform/shared/plural'
 const ACCEPTED_FILES = '.csv,.tsv,.xlsx,.xls'
 
 const SOURCES = {
-  file: { name: 'Spreadsheet', description: 'Upload a CSV or Excel file' },
-  okta: { name: 'Okta', description: 'Read profiles from your Okta directory' },
-  entra: { name: 'Microsoft Entra ID', description: 'Read profiles from Microsoft Graph' },
-  directory: {
-    name: 'SCIM provisioning',
-    description: 'Use directory data already provisioned to Sim',
-  },
+  file: { name: 'Spreadsheet' },
+  okta: { name: 'Okta' },
+  entra: { name: 'Microsoft Entra ID' },
+  directory: { name: 'SCIM provisioning' },
 } as const
 
 type ImportSource = keyof typeof SOURCES
@@ -214,7 +211,6 @@ export function ImportModal({ organizationId, onClose, onOpenSync }: ImportModal
               .filter((key) => key !== 'directory' || canProvision)
               .map((key) => ({ value: key, label: SOURCES[key].name }))}
             value={source}
-            hint={SOURCES[source].description}
             disabled={pending}
             onValueChange={(next) => {
               setSource(next as ImportSource)
@@ -301,7 +297,6 @@ export function ImportModal({ organizationId, onClose, onOpenSync }: ImportModal
                 onFileChange={(file) => void chooseFile(file)}
                 disabled={pending}
                 error={fileError}
-                hint='CSV or Excel with an email column, plus any of title, department, location, start date, and manager email.'
               />
               <div>
                 <Button variant='quiet' size='compact' onClick={downloadImportTemplate}>

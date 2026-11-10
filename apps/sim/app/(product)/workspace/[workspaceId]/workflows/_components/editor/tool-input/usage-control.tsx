@@ -16,10 +16,10 @@ const EXPRESSION_CONFIG = {
 } as const satisfies SubBlockConfig
 
 const MODE_OPTIONS = [
-  { value: 'auto', label: 'Auto', hint: 'model decides' },
-  { value: 'force', label: 'Force', hint: 'always use' },
-  { value: 'none', label: 'None', hint: 'disable tool' },
-] as const satisfies ReadonlyArray<{ value: UsageControlValue; label: string; hint: string }>
+  { value: 'auto', label: 'Auto', note: 'model decides' },
+  { value: 'force', label: 'Force', note: 'always use' },
+  { value: 'none', label: 'None', note: 'disable tool' },
+] as const satisfies ReadonlyArray<{ value: UsageControlValue; label: string; note: string }>
 
 interface ToolUsageControlProps {
   blockId: string
@@ -89,7 +89,7 @@ export function ToolUsageControl({
             const unsupported = option.value === 'force' && !supportsForce
             return {
               value: option.value,
-              label: `${option.label} (${unsupported ? 'not supported by model' : option.hint})`,
+              label: `${option.label} (${unsupported ? 'not supported by model' : option.note})`,
               disabled: unsupported,
             }
           })}

@@ -250,8 +250,7 @@ export function useMemberCredits(userId: string) {
   }
 }
 
-const SEAT_WARNING =
-  'invites beyond that may fail. External collaborators and existing members do not use seats.'
+const SEAT_WARNING = 'invites beyond that may fail.'
 
 /**
  * Sending invitations from any entry on this surface. The seat warning is advisory by design: the

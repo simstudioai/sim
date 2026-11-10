@@ -23,10 +23,7 @@ export function InboxEnableToggle({ workspaceId, enabled, address }: InboxEnable
 
   return (
     <SettingsSection title='Email inbox'>
-      <SettingsRow
-        label='Enable email inbox'
-        description='Allow this workspace to receive tasks via email'
-      >
+      <SettingsRow label='Enable email inbox'>
         <Switch
           label='Enable email inbox'
           checked={enabled}
@@ -44,7 +41,6 @@ export function InboxEnableToggle({ workspaceId, enabled, address }: InboxEnable
         open={enabling}
         onOpenChange={setEnabling}
         title='Enable email inbox'
-        description='An email address will be created for this workspace. Anyone in the allowed senders list can email it to create tasks.'
         confirmLabel={toggleInbox.isPending ? 'Enabling…' : 'Enable'}
         pending={toggleInbox.isPending}
         onConfirm={() =>
@@ -61,7 +57,6 @@ export function InboxEnableToggle({ workspaceId, enabled, address }: InboxEnable
           value={username}
           onChange={setUsername}
           placeholder='Leave blank to auto-generate'
-          hint='Leave blank for an auto-generated address.'
           autoComplete='off'
         />
       </Modal>

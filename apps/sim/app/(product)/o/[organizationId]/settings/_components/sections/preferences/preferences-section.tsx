@@ -55,7 +55,7 @@ function Preferences({ fixture }: PreferencesSectionProps) {
   const snap = useSnapToGridSetting()
   return (
     <SavedSettingsSection title='Preferences'>
-      <SettingsRow label='Theme' description='Select your preferred color theme'>
+      <SettingsRow label='Theme'>
         <ChoiceMenu
           label='Theme'
           options={THEMES}
@@ -81,22 +81,28 @@ function Preferences({ fixture }: PreferencesSectionProps) {
       <BooleanRow
         setting='autoConnect'
         label='Auto-connect on drop'
-        description='Connect a dropped block to the nearest block automatically'
-        preview='auto-connect-on-drop'
+        preview={{
+          clip: 'auto-connect-on-drop',
+          caption: 'Connect a dropped block to the nearest block automatically',
+        }}
       />
       <BooleanRow
         setting='autoFocusOnClick'
         label='Auto-focus on click'
-        description='Center the canvas on a block when you click it'
-        preview='auto-focus-on-click'
+        preview={{
+          clip: 'auto-focus-on-click',
+          caption: 'Center the canvas on a block when you click it',
+        }}
       />
       <BooleanRow
         setting='errorNotificationsEnabled'
         label='Canvas error notifications'
-        description='Show error popups on blocks when a workflow run fails'
-        preview='canvas-error-notification'
+        preview={{
+          clip: 'canvas-error-notification',
+          caption: 'Show error popups on blocks when a workflow run fails',
+        }}
       />
-      <SettingsRow label='Snap to grid' description='Align blocks to a grid as you move them'>
+      <SettingsRow label='Snap to grid'>
         <ChoiceMenu
           label='Snap to grid'
           options={snap.options}
@@ -105,11 +111,7 @@ function Preferences({ fixture }: PreferencesSectionProps) {
           onValueChange={snap.set}
         />
       </SettingsRow>
-      <BooleanRow
-        setting='showActionBar'
-        label='Show canvas controls'
-        description='Show the zoom and layout controls on the canvas'
-      />
+      <BooleanRow setting='showActionBar' label='Show canvas controls' />
     </SavedSettingsSection>
   )
 }

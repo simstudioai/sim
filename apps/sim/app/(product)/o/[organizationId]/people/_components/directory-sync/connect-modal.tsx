@@ -19,13 +19,6 @@ import {
   useProvisioningConnection,
 } from '@/platform/shared/people'
 
-const SOURCE_DESCRIPTIONS: Record<SyncSource, string> = {
-  okta: 'Keep your org chart current with an hourly directory sync. You can disconnect at any time.',
-  entra:
-    'Register an app in your Microsoft Entra tenant and grant administrator consent for the Microsoft Graph User.Read.All application permission. Use the client secret value.',
-  scim: 'Use profiles from your organization’s existing SCIM provisioning connection.',
-}
-
 interface ConnectModalProps {
   organizationId: string
   source: SyncSource
@@ -76,15 +69,11 @@ export function ConnectModal({ organizationId, source, onClose, onConnected }: C
         return false
       }}
     >
-      <p className={styles.secondary} data-type='T060'>
-        {SOURCE_DESCRIPTIONS[source]}
-      </p>
       {source === 'okta' && (
         <>
           <TextField
             label='Okta domain'
             placeholder='company.okta.com'
-            hint='Your organization’s Okta domain.'
             autoComplete='off'
             value={draft.domain}
             error={errors.domain}
@@ -94,7 +83,6 @@ export function ConnectModal({ organizationId, source, onClose, onConnected }: C
           <SecretField
             label='API token'
             placeholder='Paste your API token'
-            hint='Use a token with permission to read directory users.'
             value={draft.token}
             error={errors.token}
             disabled={disabled}
@@ -134,7 +122,7 @@ export function ConnectModal({ organizationId, source, onClose, onConnected }: C
             onChange={(clientSecret) => change({ clientSecret })}
           />
           <ExternalLink href='https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app'>
-            Register an application
+            Register an app with Graph User.Read.All
           </ExternalLink>
         </>
       )}
@@ -170,9 +158,7 @@ export function ConnectModal({ organizationId, source, onClose, onConnected }: C
           </div>
         </div>
       )}
-      <InlineNotice
-        message={`Profiles and managers will be managed by ${name}. People without Sim accounts are included without granting them access.${source === 'scim' ? '' : ' Sim stores these credentials encrypted for scheduled syncs.'}`}
-      />
+      <InlineNotice message={`Profiles and managers will be managed by ${name}.`} />
       {disabled && (
         <p className={styles.secondary} data-type='T060'>
           Sync is running. You can close this window and return for the result.

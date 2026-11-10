@@ -38,7 +38,6 @@ export default function GeneralSection(props: SettingsSectionProps) {
           backLabel='General'
           backHref={generalHref(organization, query)}
           title='Privacy'
-          description='Control what Sim collects about how you use it.'
         />
         <PrivacySection
           organization={organization}

@@ -297,11 +297,6 @@ function ConnectorDialog({
               label: credential.name || credential.provider,
             }))}
             disabled={busy}
-            hint={
-              isSearchIndex
-                ? 'Members sync with their own accounts connected in Integrations.'
-                : undefined
-            }
           />
         )}
       {fields(

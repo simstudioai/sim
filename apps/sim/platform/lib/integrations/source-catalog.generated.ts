@@ -15,7 +15,6 @@ export const searchSourceCatalog = [
       {
         id: 'docIds',
         label: 'Documents',
-        hint: 'The picker shows opened documents; use IDs for others.',
         required: false,
         optional: false,
         placeholder: 'All accessible, previously opened documents',
@@ -24,7 +23,6 @@ export const searchSourceCatalog = [
       {
         id: 'docIds',
         label: 'Document IDs',
-        hint: 'Use IDs for documents absent from the picker.',
         required: false,
         optional: false,
         placeholder: 'Leave empty to discover documents',
@@ -33,7 +31,6 @@ export const searchSourceCatalog = [
       {
         id: 'organizationId',
         label: 'Enterprise organization ID',
-        hint: 'Optional; validates documents against your Enterprise organization.',
         required: false,
         optional: false,
         placeholder: 'org-… (optional)',
@@ -135,7 +132,6 @@ export const searchSourceCatalog = [
       {
         id: 'repository',
         label: 'Repository',
-        hint: 'One repository per source.',
         required: true,
         optional: false,
         placeholder: 'Select a repository',
@@ -143,7 +139,6 @@ export const searchSourceCatalog = [
       {
         id: 'pathPrefix',
         label: 'Path Filter',
-        hint: 'Code files only.',
         required: false,
         optional: true,
         placeholder: 'e.g. docs/, src/components/',
@@ -151,7 +146,6 @@ export const searchSourceCatalog = [
       {
         id: 'extensions',
         label: 'File Extensions',
-        hint: 'Code files only; separate extensions with commas.',
         required: false,
         optional: true,
         placeholder: 'e.g. .md, .txt, .mdx',
@@ -173,7 +167,6 @@ export const searchSourceCatalog = [
       {
         id: 'host',
         label: 'Host',
-        hint: 'Self-managed GitLab host.',
         required: true,
         optional: false,
         placeholder: 'gitlab.example.com',
@@ -188,7 +181,6 @@ export const searchSourceCatalog = [
       {
         id: 'contentTypes',
         label: 'Content',
-        hint: 'Defaults to Wiki & Issues.',
         required: false,
         optional: false,
         placeholder: 'Wiki & Issues',
@@ -204,7 +196,6 @@ export const searchSourceCatalog = [
       {
         id: 'ref',
         label: 'Branch',
-        hint: 'Branch or tag for code; blank uses the default branch.',
         required: false,
         optional: true,
         placeholder: 'Default branch',
@@ -213,7 +204,6 @@ export const searchSourceCatalog = [
       {
         id: 'pathPrefix',
         label: 'Path Filter',
-        hint: 'Code files only.',
         required: false,
         optional: true,
         placeholder: 'e.g. docs/',
@@ -222,7 +212,6 @@ export const searchSourceCatalog = [
       {
         id: 'fileExtensions',
         label: 'File Extensions',
-        hint: 'Code files only; separate extensions with commas.',
         required: false,
         optional: true,
         placeholder: 'e.g. .md, .txt, .mdx',
@@ -243,7 +232,6 @@ export const searchSourceCatalog = [
       {
         id: 'issueLabels',
         label: 'Issue Labels',
-        hint: 'All labels must match.',
         required: false,
         optional: true,
         placeholder: 'e.g. bug,docs (comma-separated)',
@@ -252,7 +240,6 @@ export const searchSourceCatalog = [
       {
         id: 'issueMilestone',
         label: 'Issue Milestone',
-        hint: 'Exact title.',
         required: false,
         optional: true,
         placeholder: 'e.g. v1.0 (milestone title)',
@@ -282,7 +269,6 @@ export const searchSourceCatalog = [
       {
         id: 'userEmails',
         label: 'Users',
-        hint: 'Optional; blank allows all Workspace mailboxes.',
         required: false,
         optional: true,
         placeholder: 'All active Google Workspace users',
@@ -290,7 +276,6 @@ export const searchSourceCatalog = [
       {
         id: 'label',
         label: 'Labels',
-        hint: 'Selected labels; blank allows all.',
         required: false,
         optional: false,
         placeholder: 'Select one or more labels',
@@ -299,7 +284,6 @@ export const searchSourceCatalog = [
       {
         id: 'label',
         label: 'Labels',
-        hint: 'Use label names or system labels such as INBOX.',
         required: false,
         optional: false,
         placeholder: 'e.g. INBOX, Engineering (comma-separated)',
@@ -345,7 +329,6 @@ export const searchSourceCatalog = [
       {
         id: 'query',
         label: 'Search Filter',
-        hint: 'Additional Gmail API search filter.',
         required: false,
         optional: true,
         placeholder: 'e.g. from:boss@company.com subject:report has:attachment',
@@ -374,7 +357,6 @@ export const searchSourceCatalog = [
       {
         id: 'userEmails',
         label: 'Users',
-        hint: 'Optional; blank allows all Workspace users.',
         required: false,
         optional: true,
         placeholder: 'All active Google Workspace users',
@@ -382,7 +364,6 @@ export const searchSourceCatalog = [
       {
         id: 'calendarId',
         label: 'Calendars',
-        hint: 'Primary means each member’s primary calendar.',
         required: false,
         optional: false,
         placeholder: 'Select one or more calendars',
@@ -391,7 +372,6 @@ export const searchSourceCatalog = [
       {
         id: 'calendarId',
         label: 'Calendar IDs',
-        hint: 'Primary means each member’s primary calendar.',
         required: false,
         optional: false,
         placeholder: 'e.g. primary, team@group.calendar.google.com (comma-separated for multiple)',
@@ -413,7 +393,6 @@ export const searchSourceCatalog = [
       {
         id: 'searchQuery',
         label: 'Search Query',
-        hint: 'Matches event text and attendee names.',
         required: false,
         optional: true,
         placeholder: 'e.g. standup, sprint review (optional)',
@@ -421,7 +400,6 @@ export const searchSourceCatalog = [
       {
         id: 'includeAttendees',
         label: 'Include Attendees',
-        hint: 'Include attendee details in results.',
         required: false,
         optional: true,
         placeholder: 'Yes (default)',
@@ -454,7 +432,6 @@ export const searchSourceCatalog = [
       {
         id: 'userEmails',
         label: 'Users',
-        hint: 'Optional; blank allows all Workspace users.',
         required: false,
         optional: true,
         placeholder: 'All active Google Workspace users',
@@ -462,7 +439,6 @@ export const searchSourceCatalog = [
       {
         id: 'folderId',
         label: 'Folders',
-        hint: 'Selected folders and subfolders; blank allows all.',
         required: false,
         optional: false,
         placeholder: 'Select one or more folders (optional)',
@@ -471,7 +447,6 @@ export const searchSourceCatalog = [
       {
         id: 'folderId',
         label: 'Folder IDs',
-        hint: 'Selected folders and subfolders; blank allows all.',
         required: false,
         optional: false,
         placeholder: 'e.g. 1aBcDeFg…, 2cDeFgHi… (comma-separated for multiple)',

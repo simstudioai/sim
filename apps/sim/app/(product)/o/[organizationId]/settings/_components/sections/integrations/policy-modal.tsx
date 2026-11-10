@@ -86,14 +86,6 @@ export function PolicyModal({ organizationId, integration, onClose }: PolicyModa
     else toast.success('Search settings saved')
   }
 
-  const hint =
-    provider === 'gitlab'
-      ? 'Access follows the configured project permissions.'
-      : accessMode === 'member'
-        ? undefined
-        : provider === 'github'
-          ? 'Only added repositories that each member can access.'
-          : 'Only configured resources that each member can access.'
   const message = error || update.error
   return (
     <Modal
@@ -120,7 +112,7 @@ export function PolicyModal({ organizationId, integration, onClose }: PolicyModa
         return false
       }}
     >
-      <FieldFrame label='Account mode' hint={hint}>
+      <FieldFrame label='Account mode'>
         {provider === 'gitlab' ? (
           <Muted>Service account</Muted>
         ) : supportsServiceAccount ? (
@@ -145,14 +137,7 @@ export function PolicyModal({ organizationId, integration, onClose }: PolicyModa
       </FieldFrame>
       {accessMode === 'service_account' &&
         (provider === 'gitlab' || provider === 'github' ? (
-          <FieldFrame
-            label={provider === 'github' ? 'Repositories' : 'Projects and permissions'}
-            hint={
-              provider === 'gitlab'
-                ? 'Admin tokens check current permissions; other tokens use CSV mappings.'
-                : undefined
-            }
-          >
+          <FieldFrame label={provider === 'github' ? 'Repositories' : 'Projects and permissions'}>
             {integration.approved ? (
               <div>
                 <Chip href={providerHref}>

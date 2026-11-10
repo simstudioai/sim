@@ -237,11 +237,6 @@ export function PolicyDetail({
               ? 'Add workspace override'
               : 'Edit workspace override'
         }
-        description={
-          isOrg
-            ? 'Applied to every workspace without its own override.'
-            : 'Overrides the organization defaults for the selected workspaces.'
-        }
       />
       <FormFieldset disabled={isSaving}>
         {!isOrg && (
@@ -347,10 +342,7 @@ export function PolicyDetail({
           </ActionRow>
         </SettingsRow>
         {canRemove && (
-          <SettingsRow
-            label='Workspace override'
-            description='Use the organization defaults for these workspaces.'
-          >
+          <SettingsRow label='Workspace override'>
             <Button
               variant='quiet'
               destructive

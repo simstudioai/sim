@@ -104,11 +104,6 @@ function CreateGroupModal({
         label='Workspaces'
         searchLabel='Search workspaces…'
         placeholder={isDefault ? 'All workspaces' : 'Select workspaces…'}
-        hint={
-          isDefault
-            ? undefined
-            : "Applies to all members of the selected workspaces. Restrict to specific people later from the group's Members section."
-        }
         options={workspaceOptions}
         value={workspaceIds}
         onValueChange={setWorkspaceIds}

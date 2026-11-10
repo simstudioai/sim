@@ -36,6 +36,9 @@ export function LinkEditor({
 }: LinkEditorProps) {
   const editor = useLinkEditor(organizationId, link, initialName, initialUrl)
   const { draft, errors, pending } = editor
+  const accessReason = editor.canManage
+    ? undefined
+    : 'Only the creator or an organization admin can change access.'
   return (
     <Modal
       open
@@ -65,7 +68,6 @@ export function LinkEditor({
           value={draft.defaultUrl ?? ''}
           onChange={(value) => editor.change('defaultUrl', value || null)}
           error={errors.defaultUrl}
-          hint={`Opens when no value fills ${LINK_LIMITS.variable}.`}
         />
       )}
       <TextField
@@ -87,25 +89,20 @@ export function LinkEditor({
         onChange={(value) => editor.change('description', value)}
         error={errors.description}
       />
-      <FieldFrame
-        label='Access'
-        hint={
-          editor.canManage
-            ? undefined
-            : 'Only the creator or an organization admin can change access.'
-        }
-      >
+      <FieldFrame label='Access'>
         <div className={styles.access}>
           <Checkbox
             label='Hide from the Links page'
             checked={draft.unlisted}
             disabled={!editor.canManage || pending}
+            disabledReason={accessReason}
             onCheckedChange={(checked) => editor.change('unlisted', checked)}
           />
           <Checkbox
             label='Only the creator and admins can edit'
             checked={draft.restrictEdit}
             disabled={!editor.canManage || pending}
+            disabledReason={accessReason}
             onCheckedChange={(checked) => editor.change('restrictEdit', checked)}
           />
         </div>

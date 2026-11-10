@@ -94,6 +94,157 @@ const LOADING_COPY_OWNERS: ReasonedAllowlist = {
     'Predates the Generating synonym: the prompt field shows its streaming generation, not a read',
 }
 
+/**
+ * Helper lines that stay (`helper-copy`, `platform/AGENTS.md`): a field, form dialog, settings row or
+ * page header says what it needs in its label, placeholder or options, never in a second line. Each
+ * entry names one line as `<file>#<label, title or field id>` and why nothing else can carry it.
+ */
+const HELPER_COPY_OWNERS: ReasonedAllowlist = {
+  ...granted(
+    "The design owner's copy, held for his review: listed in the helper-copy audit, not rewritten by it",
+    [
+      `${PRODUCT_ROUTES}_components/oauth-connect-modal/oauth-connect-modal.tsx#{connect.title}`,
+      `${PRODUCT_ROUTES}_components/oauth-connect-modal/oauth-connect-modal.tsx#Environment URL`,
+      `${PRODUCT_ROUTES}_components/service-account-modal/atlassian-service-account-modal.tsx#API token`,
+      `${PRODUCT_ROUTES}_components/service-account-modal/oracle-database-account-modal.tsx#PEM wallet`,
+      `${PRODUCT_ROUTES}_components/service-account-modal/oracle-database-account-modal.tsx#Protocol`,
+      `${PRODUCT_ROUTES}_components/service-account-modal/slack-bot-modal.tsx#Additional permissions`,
+      `${PRODUCT_ROUTES}_components/workspace/files/share-modal/share-modal.tsx#Access`,
+      `${PRODUCT_ROUTES}_components/workspace/files/share-modal/share-modal.tsx#Allowed emails`,
+      `${PRODUCT_ROUTES}_components/workspace/files/share-modal/share-modal.tsx#Password`,
+      `${PRODUCT_ROUTES}_components/workspace/knowledge/add-connector-modal/add-connector-modal.tsx#{members ? 'Account for browsing' : form.canConnectOAuth ? 'Account' : 'Service account'}`,
+      `${PRODUCT_ROUTES}_components/workspace/knowledge/add-connector-modal/add-connector-modal.tsx#Sync frequency`,
+      `${PRODUCT_ROUTES}_components/workspace/knowledge/add-documents-modal/add-documents-modal.tsx#Documents`,
+      `${PRODUCT_ROUTES}_components/workspace/knowledge/base-tags-modal/base-tags-modal.tsx#{\`Documents using “\${viewed.displayName}”\`}`,
+      `${PRODUCT_ROUTES}_components/workspace/knowledge/connector-modal/connector-modal.tsx#{isSearchIndex ? form.requiresServiceAccount ? 'Service account' : 'Account' : 'Indexing account'}`,
+      `${PRODUCT_ROUTES}_components/workspace/knowledge/connector-modal/connector-modal.tsx#{name}`,
+      `${PRODUCT_ROUTES}_components/workspace/knowledge/connector-modal/connector-modal.tsx#Sync frequency`,
+      `${PRODUCT_ROUTES}_components/workspace/knowledge/connector-selector-field/connector-selector-field.tsx#{label}`,
+      `${PRODUCT_ROUTES}_components/workspace/tables/enrichments-panel/enrichment-config.tsx#{input.required ? input.name : \`\${input.name} (optional)\`}`,
+      `${PRODUCT_ROUTES}_components/workspace/tables/enrichments-panel/enrichment-config.tsx#{output.name}`,
+      `${PRODUCT_ROUTES}_components/workspace/tables/row-modal/row-modal.tsx#{column.name}`,
+      `${PRODUCT_ROUTES}_components/workspace/tables/row-modal/row-modal.tsx#{isAddMode ? 'Add Row' : 'Edit Row'}`,
+      `${PRODUCT_ROUTES}_components/workspace/tables/select-field/select-field.tsx#{column.name}`,
+      `${PRODUCT_ROUTES}_components/workspace/tables/workflow-panel/input-mapping-fields.tsx#{field.name}`,
+      `${ORGANIZATION_ROUTES}settings/_components/sections/preferences/preferences-section.tsx#Time zone`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/_components/create-mcp-server-modal/create-mcp-server-modal.tsx#Access`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/_components/mcp-server-form/mcp-server-form.tsx#Client secret`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/_components/mcp-server-form/mcp-server-form.tsx#Server URL`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/knowledge/_components/create-base-modal/create-base-modal.tsx#Chunking strategy`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/knowledge/_components/create-base-modal/create-base-modal.tsx#Custom separators`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/knowledge/_components/create-base-modal/create-base-modal.tsx#Overlap (tokens)`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/knowledge/_components/create-base-modal/create-base-modal.tsx#Upload documents`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/api-tab/api-info-modal.tsx#Access`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/api-tab/api-tab.tsx#Endpoint`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/api-tab/api-tab.tsx#Status endpoint`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/api-tab/api-tab.tsx#Usage limits`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/chat-tab/chat-tab.tsx#{form.authType === 'email' ? 'Allowed emails' : 'Allowed SSO emails'}`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/chat-tab/chat-tab.tsx#IdentifierField`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/chat-tab/chat-tab.tsx#Password`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/chat-tab/chat-tab.tsx#URL`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/mcp-tab/mcp-tab.tsx#ParameterDescriptions`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/mcp-tab/mcp-tab.tsx#Servers`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/mcp-tab/mcp-tab.tsx#Tool name`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/parameter-descriptions/parameter-descriptions.tsx#Parameters`,
+      `${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/version-description/version-description.tsx#Version description`,
+    ]
+  ),
+  [`${PRODUCT_ROUTES}_components/chat/panel/browser-session/page-prompts.tsx#{title}`]:
+    'A browser permission prompt names the site asking and what it wants before the viewer answers',
+  [`${PRODUCT_ROUTES}_components/chat/panel/browser-session/page-prompts.tsx#Sign in`]:
+    'Names the site or proxy asking for a password, and warns when the connection is not private',
+  [`${PRODUCT_ROUTES}_components/invite-modal/invite-modal.tsx#Email addresses`]:
+    'Seat warning: the state of the plan, shown only when the invites exceed the open seats',
+  [`${PRODUCT_ROUTES}_components/service-account-modal/service-account-modal.tsx#{field.label}`]:
+    "A soft format warning, shown only while a pasted value misses the provider's usual shape",
+  [`${PRODUCT_ROUTES}_components/skill-fields/skill-fields.tsx#Name`]:
+    'Why a view-only skill cannot be edited; a read-only TextField has no disabledReason',
+  [`${PRODUCT_ROUTES}_components/workspace/knowledge/connector-fields/connector-fields.tsx#{label}`]:
+    "The connector registry's own field description (apps/sim/connectors), shared with the legacy knowledge UI",
+  [`${ORGANIZATION_ROUTES}integrations/_components/resource-editor/resource-editor.tsx#Key`]:
+    "Design owner's copy, held for his review: the key's format could move into its placeholder",
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/access-control/group-detail.tsx#Organization default`]:
+    'Who the default group covers, external workspace members included, which its label cannot say',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/account/account-section.tsx#Delete account`]:
+    'The irreversible consequence of deleting the account',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/billing/credit-usage.tsx#{summary.total}`]:
+    'Names the period the total covers: a value label, not a subtitle',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/browser/browser-section.tsx#{SUGGESTIONS_LABEL}`]:
+    'Privacy: the toggle sends what you type in the address bar to Google',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/browser/import-modal.tsx#Import from your browser`]:
+    'Privacy: what an import copies, that nothing is uploaded and that later changes do not sync',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/browser/password-detail.tsx#{site}`]:
+    'Security: a saved password stays on this device and Chat can never read or type it',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/connected-accounts/credential-groups.tsx#Shared account pool`]:
+    'A state the page cannot otherwise show: no workspace has access until one is allowed',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/connected-accounts/fixture-credential-groups.tsx#Member accounts`]:
+    'Fixture twin of the live reconnect consequence below',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/connected-accounts/group-providers.tsx#App configurations`]:
+    'Consequence: accounts whose app configuration changed must reconnect',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/desktop/computer-use.tsx#{ALLOW_LABEL}`]:
+    'Security: each app needs approval and an action can be stopped or revoked',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/integrations/connector-access.tsx#{slackSetupOnly ? 'Slack app' : allowWorkspace ? 'Connection method' : 'Sync using'}`]:
+    'Why the chosen connection method is unavailable here, shown only then',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/integrations/connector-config-fields.tsx#{label}`]:
+    "The connector registry's own field description (apps/sim/connectors), shared with the legacy knowledge UI",
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/integrations/connector-selector.tsx#{label}`]:
+    "Forwards a connector registry field's description from connector-config-fields",
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/integrations/connector-settings-fields.tsx#{isSearchIndex ? requiresServiceAccount ? 'Service account' : 'Account' : 'Indexing account'}`]:
+    'An empty account picker: the viewer must connect an account in Integrations first',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/integrations/connector-settings-fields.tsx#GitHubConnectionField`]:
+    'Consequence of the pending access change: it keeps the current repository',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/integrations/github-connection-field.tsx#GitHub`]:
+    'Forwards the pending-change consequence from connector-settings-fields',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/integrations/github-connection-field.tsx#GitHub account`]:
+    'Forwards the pending-change consequence from connector-settings-fields',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/members/seats-overview.tsx#No active Team subscription`]:
+    'The action that unblocks invites when there is no Team plan',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/mothership/mothership-licenses.tsx#Sample license key`]:
+    'One-time value: the sample appears once and cannot activate a deployment',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/privacy/privacy-section.tsx#{TELEMETRY_LABEL}`]:
+    'Privacy: what the diagnostics toggle shares and what it does not control',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/search-mcp/search-mcp-section.tsx#claude`]:
+    'Per-app setup steps the Search MCP docs defer to ("Use the instructions displayed in Sim")',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/search-mcp/search-mcp-section.tsx#claude-code`]:
+    'Per-app setup steps the Search MCP docs defer to ("Use the instructions displayed in Sim")',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/search-mcp/search-mcp-section.tsx#codex`]:
+    'Per-app setup steps the Search MCP docs defer to ("Use the instructions displayed in Sim")',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/search-mcp/search-mcp-section.tsx#cursor`]:
+    'Per-app setup steps the Search MCP docs defer to ("Use the instructions displayed in Sim")',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/search-mcp/search-mcp-section.tsx#devin`]:
+    'Per-app setup steps the Search MCP docs defer to ("Use the instructions displayed in Sim")',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/search-mcp/search-mcp-section.tsx#other`]:
+    'Per-app setup steps the Search MCP docs defer to ("Use the instructions displayed in Sim")',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/search-mcp/search-mcp-section.tsx#Server URL`]:
+    "Renders the selected app's setup steps",
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/search-mcp/search-mcp-section.tsx#Terminal command`]:
+    "Renders the selected app's setup steps",
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/sso/domains-panel.tsx#Host / name`]:
+    'Prevents a failed DNS verification when the provider appends the zone',
+  [`${ORGANIZATION_ROUTES}settings/_components/sections/sso/scim-panel.tsx#Token`]:
+    'One-time secret: Sim stores only a digest and cannot show the token again',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/byok/byok-key-manager.tsx#{editingMeta ? \`\${isUpdatingExistingKey ? 'Update' : 'Add'} \${editingMeta.name} API Key\` : 'API Key'}`]:
+    'Security: an organization key reaches every workspace and the Pi sandbox; shown only at that scope',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/custom-blocks/custom-block-detail.tsx#Trace runs in consumer logs`]:
+    'Security: tracing exposes the source workflow to readers without access to this workspace',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/forks/fork-sync-view.tsx#Deleted references`]:
+    'The loss the viewer consents to by checking the box',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/forks/fork-synced-workflows.tsx#Sync new workflows by default`]:
+    'Scope: the setting applies to every workspace in the fork lineage',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/inbox/inbox-settings.tsx#{member.email}`]:
+    'Tags a workspace member among the allowed senders: a value, not a subtitle',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/inbox/inbox-settings.tsx#Change email address`]:
+    'Irreversible consequence: the old address stops receiving email at once',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/secrets/secret-detail.tsx#Show value in logs and Chat`]:
+    "Security: who can read the secret's value once it shows in runs",
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/settings/_components/sections/teammates/invite-teammates-modal.tsx#Emails`]:
+    'Why invites are blocked, or the seat warning when invites exceed the open seats',
+  [`${PRODUCT_ROUTES}workspace/[workspaceId]/_components/create-api-key-modal/create-api-key-modal.tsx#API key`]:
+    'One-time secret: the key is not shown again',
+  [`${PRODUCT_ROUTES}_components/oauth-connect-modal/oauth-connect-modal.tsx#Environment`]:
+    'Picking the wrong Salesforce login server fails as a plain bad-password error',
+}
+
 /** Frames that size a composer docked between surfaces, where foundation tokens do not reach. */
 const FRAMES_OUTSIDE_SURFACE: ReasonedAllowlist = {
   [`${ORGANIZATION_ROUTES}home/_components/home-dashboard/home-dashboard.module.css`]:
@@ -970,6 +1121,7 @@ export const PLATFORM_ALLOWLISTS = {
   UNEXPORTED_VARIANT_OWNERS,
   EMCN_CONSUMER_OVERRIDES,
   LOADING_COPY_OWNERS,
+  HELPER_COPY_OWNERS,
   FRAMES_OUTSIDE_SURFACE,
   LOCAL_TOKEN_OWNERS,
   serverSeamHelpers,

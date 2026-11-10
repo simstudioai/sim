@@ -18,8 +18,6 @@ import {
 interface ConfigServiceAccountAuthType {
   value: string
   label: string
-  /** What this choice stores, shown under the choice. */
-  hint: string
   /** Signs in through Sim's workload-identity issuer, so it needs a deployment with one. */
   keyless?: boolean
 }
@@ -33,7 +31,6 @@ interface ConfigServiceAccountField {
   secret?: boolean
   /** Left out of the configuration when empty. */
   optional?: boolean
-  hint?: string
   /** The auth types that show and submit this field. */
   authTypes: readonly string[]
 }
@@ -56,11 +53,9 @@ export interface ConfigServiceAccountDescriptor {
   /** The auth type a new credential starts on where keyless is not offered. */
   keyedDefault: string
   fields: readonly ConfigServiceAccountField[]
-  displayNamePlaceholder: string
   /** The one snippet that makes the customer's cloud trust this keyless credential. */
   trustSnippet: {
     label: string
-    hint: string
     build: (trust: KeylessTrust, values: Readonly<Record<string, string>>) => string
   }
 }
@@ -115,18 +110,15 @@ const AWS: ConfigServiceAccountDescriptor = {
     {
       value: 'oidc_role',
       label: 'IAM role (keyless, via Sim OIDC)',
-      hint: 'No keys are stored. Sim signs a short-lived token that your role trusts.',
       keyless: true,
     },
     {
       value: 'access_keys',
-      label: 'Access keys',
-      hint: 'Sim signs requests with these long-lived keys.',
+      label: 'Access keys (long-lived)',
     },
     {
       value: 'assume_role',
       label: 'Access keys that assume an IAM role',
-      hint: 'Sim uses the keys only to assume the role, then works with temporary credentials.',
     },
   ],
   keyedDefault: 'access_keys',
@@ -146,10 +138,9 @@ const AWS: ConfigServiceAccountDescriptor = {
     },
     {
       id: 'stsRegion',
-      label: 'STS region',
-      placeholder: 'us-east-1',
+      label: 'GovCloud or China STS region',
+      placeholder: 'us-gov-west-1',
       optional: true,
-      hint: 'Only needed for AWS GovCloud or China keys, e.g. us-gov-west-1 or cn-north-1.',
       authTypes: ['access_keys'],
     },
     {
@@ -166,10 +157,8 @@ const AWS: ConfigServiceAccountDescriptor = {
       authTypes: ['assume_role'],
     },
   ],
-  displayNamePlaceholder: 'Defaults to the AWS identity ARN',
   trustSnippet: {
     label: 'Role trust policy',
-    hint: 'Add the issuer and audience above as an IAM identity provider (once per AWS account), set this as the role’s trust policy, then grant the role the permissions your workflows need.',
     build: (trust, values) => buildAwsTrustPolicy(trust, values.roleArn ?? ''),
   },
 }
@@ -184,18 +173,15 @@ const DATABRICKS: ConfigServiceAccountDescriptor = {
     {
       value: 'oidc_federation',
       label: 'Service principal (keyless, via Sim OIDC)',
-      hint: 'No secret is stored. Sim signs a short-lived token your service principal trusts.',
       keyless: true,
     },
     {
       value: 'service_principal',
       label: 'Service principal OAuth secret',
-      hint: 'Sim exchanges the OAuth secret for a short-lived workspace token on each run.',
     },
     {
       value: 'personal_access_token',
       label: 'Personal access token',
-      hint: 'Sim sends this token on every request.',
     },
   ],
   keyedDefault: 'service_principal',
@@ -227,10 +213,8 @@ const DATABRICKS: ConfigServiceAccountDescriptor = {
       authTypes: ['service_principal'],
     },
   ],
-  displayNamePlaceholder: 'Defaults to the Databricks identity',
   trustSnippet: {
     label: 'Federation policy',
-    hint: 'An account admin runs this once, with the service principal’s numeric ID, before you save.',
     build: (trust) => buildDatabricksFederationCommand(trust),
   },
 }

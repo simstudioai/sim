@@ -197,7 +197,6 @@ export function IntegrationDetails({
         <Modal
           open
           title={`Connect ${app.name}`}
-          description={`Review access before continuing to ${app.name}.`}
           confirmLabel='Continue'
           confirmDisabled={pending || !isConnectable(integration)}
           onOpenChange={setConnecting}

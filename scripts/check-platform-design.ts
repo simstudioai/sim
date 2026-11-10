@@ -20,7 +20,9 @@ import { ORGANIZATION_ROUTES, PRODUCT_ROUTES } from './platform-product-routes'
 import { ruleDocumentation } from './platform-rule-docs'
 import {
   classifyPage,
+  type HelperCopyKind,
   hasAsciiEllipsis,
+  helperCopy,
   inFixtureBranch,
   isFixtureModeBranch,
   isLoadingCopy,
@@ -1448,6 +1450,59 @@ for (const file of sourceFiles) {
       if (specifier) checkImport(file, specifier)
     })
   }
+}
+/**
+ * Field data the Platform renders that lives outside its tree: the credential descriptors behind its
+ * connect dialogs, the OAuth client settings they ask for, and the generator of its integration
+ * catalog. A `hint` written there reaches a Platform field as surely as one written in a view.
+ */
+const HINT_DATA_MODULES: ReadonlySet<string> = new Set([
+  'lib/credentials/client-credential-accounts/descriptors.ts',
+  'lib/credentials/config-service-accounts/descriptors.ts',
+  'lib/credentials/token-service-accounts/descriptors.ts',
+  'lib/oauth/oauth.ts',
+  '../../scripts/platform-integration-connections.ts',
+])
+const HELPER_COPY_MESSAGES: Record<HelperCopyKind, string> = {
+  'field-hint': 'A field has no hint line',
+  'dialog-subtitle': 'A form dialog has no subtitle',
+  'row-subtitle': 'A settings row or page header has no written subtitle',
+  'data-hint': 'Field data carries no hint',
+}
+/**
+ * `helper-copy`: a field, form dialog, settings row or page header says what it needs in its own
+ * label, placeholder or options, never in a second line beneath. A line that must stay (a one-time
+ * secret warning, a consequence nothing else can show) is named in `HELPER_COPY_OWNERS` as
+ * `<file>#<label, title or field id>` with its reason.
+ */
+function checkHelperCopy(file: string) {
+  const content = read(file)
+  const source = ts.createSourceFile(
+    file,
+    content,
+    ts.ScriptTarget.Latest,
+    true,
+    file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+  )
+  for (const { kind, node, subject } of helperCopy(source)) {
+    const entry = `${file}#${subject}`
+    if (grants('HELPER_COPY_OWNERS', entry)) continue
+    const line = source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1
+    report(
+      'helper-copy',
+      `${file}:${line}`,
+      `${HELPER_COPY_MESSAGES[kind]}: bake it into the placeholder, label or option, or delete it. A line that must stay goes in HELPER_COPY_OWNERS as ${entry} with its reason`
+    )
+  }
+}
+for (const file of listedFiles) {
+  if (
+    /\.tsx?$/.test(file) &&
+    !/\.test\.tsx?$/.test(file) &&
+    !file.startsWith('platform/checks/') &&
+    (inRouteTree(file) || file.startsWith(platform) || HINT_DATA_MODULES.has(file))
+  )
+    checkHelperCopy(file)
 }
 for (const [file, sheet] of sheets) checkCss(file, sheet)
 for (const row of evidence) {

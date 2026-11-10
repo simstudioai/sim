@@ -1,7 +1,6 @@
 interface SourceField {
   id: string
   label: string
-  hint?: string
   required: boolean
   options?: readonly { value: string; label: string }[]
   placeholder?: string

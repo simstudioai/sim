@@ -109,7 +109,6 @@ export function useConfigServiceAccountForm({
           : { value: type.value, label: type.label }
       ),
       value: authType,
-      hint: chosen?.hint,
       error: setupError,
     },
   ]
@@ -124,7 +123,6 @@ export function useConfigServiceAccountForm({
       multiline: false,
       required: !field.optional,
       value: values[field.id] ?? '',
-      hint: field.hint,
     })
   }
 
@@ -137,19 +135,15 @@ export function useConfigServiceAccountForm({
       multiline: false,
       required: true,
       options: [
-        { value: 'keep', label: 'Keep the subject this credential already uses' },
-        { value: 'new', label: 'Issue a new subject' },
+        { value: 'keep', label: 'Keep the current subject' },
+        { value: 'new', label: 'Issue a new subject (update your trust policy first)' },
       ],
       value: subjectChoice,
-      hint:
-        subjectChoice === 'keep'
-          ? 'Your existing trust configuration keeps working.'
-          : 'You must update your trust configuration to the new subject before saving.',
     })
   }
 
   if (keyless && trust) {
-    const copy = (id: string, label: string, value: string, hint?: string, multiline = false) =>
+    const copy = (id: string, label: string, value: string, multiline = false) =>
       fields.push({
         id,
         label,
@@ -159,21 +153,14 @@ export function useConfigServiceAccountForm({
         required: false,
         copy: true,
         value,
-        hint,
       })
     copy('issuer', 'Issuer', trust.issuer)
     copy('audience', 'Audience', trust.audience)
-    copy(
-      'subject',
-      'Subject',
-      trust.subject,
-      'Unique to this credential. Your configuration trusts only this subject.'
-    )
+    copy('subject', 'Subject', trust.subject)
     copy(
       'trustSnippet',
       descriptor.trustSnippet.label,
       descriptor.trustSnippet.build(trust, values),
-      descriptor.trustSnippet.hint,
       true
     )
   }

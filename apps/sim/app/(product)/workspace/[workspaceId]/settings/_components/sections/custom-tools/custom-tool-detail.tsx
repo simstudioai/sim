@@ -206,11 +206,7 @@ export function CustomToolDetail({
         backLabel='Custom tools'
         onBack={() => guard.guardBack(onBack)}
         title={identity.name || tool?.title || 'New tool'}
-        description={
-          identity.description ||
-          tool?.schema.function.description ||
-          'Define the JSON schema your agents call, and the code that runs.'
-        }
+        description={identity.description || tool?.schema.function.description}
       >
         {tool && !readOnly && (
           <Button

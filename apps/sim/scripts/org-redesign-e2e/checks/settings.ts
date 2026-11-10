@@ -168,7 +168,7 @@ async function organizationSectionChecks() {
           (request) => request.method() === 'PUT' && request.url().endsWith('/session-policy')
         )
         await page.goto(settingsUrl('security'))
-        const idle = page.getByRole('textbox', { name: 'Idle timeout (hours)' })
+        const idle = page.getByRole('textbox', { name: 'Idle timeout' })
         const save = page.getByRole('button', { name: 'Save', exact: true })
         await idle.fill('1')
         await save.click()
@@ -198,9 +198,7 @@ async function organizationSectionChecks() {
   await check('Sim Search in Slack: an empty organization is offered setup', async () => {
     await withSession(ADMIN, async ({ page }) => {
       await page.goto(settingsUrl('search-slack'))
-      await expect(
-        page.getByText('Connect your workspace to ask questions in Slack.')
-      ).toBeVisible()
+      await expect(page.getByText('Slack', { exact: true }).first()).toBeVisible()
       const setUp = /^(Set up|Install Sim Search)$/
       await page
         .getByRole('button', { name: setUp })
@@ -627,7 +625,10 @@ export async function settingsChecks() {
           page.getByText(/Enter a valid issuer URL|Issuer URL must/).first()
         ).toBeVisible()
         assert.equal(bodies.length, 0, 'An invalid form reached the server')
-        const providerId = page.getByRole('combobox', { name: 'Provider ID', exact: true })
+        const providerId = page.getByRole('combobox', {
+          name: 'Provider ID (permanent)',
+          exact: true,
+        })
         await providerId.click()
         await page.getByRole('combobox', { name: 'Select or enter a provider ID' }).fill('e2e-oidc')
         await page.keyboard.press('Escape')
@@ -660,7 +661,10 @@ export async function settingsChecks() {
           await route.fulfill({ status: 503, json: { error: 'Stubbed: no identity provider' } })
         })
         await page.goto(settingsUrl('sso'))
-        const providerId = page.getByRole('combobox', { name: 'Provider ID', exact: true })
+        const providerId = page.getByRole('combobox', {
+          name: 'Provider ID (permanent)',
+          exact: true,
+        })
         await providerId.click()
         await page.getByRole('combobox', { name: 'Select or enter a provider ID' }).fill('e2e-oidc')
         await page.keyboard.press('Escape')

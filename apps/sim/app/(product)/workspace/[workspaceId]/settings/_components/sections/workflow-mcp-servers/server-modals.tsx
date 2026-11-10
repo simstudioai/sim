@@ -84,8 +84,7 @@ export function EditToolModal({ workspaceId, serverId, tool, onClose }: EditTool
         entries.map(([name, property]) => (
           <TextField
             key={name}
-            label={name}
-            hint={property.type || 'any'}
+            label={`${name} (${property.type || 'any'})`}
             placeholder={`Enter description for ${name}`}
             value={parameterDescriptions[name] || ''}
             onChange={(value) =>
@@ -124,7 +123,6 @@ export function AddWorkflowModal({
         if (!next) onClose()
       }}
       title='Add workflow'
-      description='Select a deployed workflow to add to this MCP server. The workflow will be available as a tool.'
       confirmLabel={addTool.isPending ? 'Adding…' : 'Add workflow'}
       confirmDisabled={!workflowId}
       onConfirm={async () => {
@@ -202,19 +200,12 @@ export function EditServerModal({
         onChange={setDescription}
         optional
       />
-      <FieldFrame
-        label='Access'
-        hint={
-          isPublic
-            ? 'Anyone with the URL can call this server without authentication'
-            : 'Clients sign in with OAuth, or send a Sim API key in the X-API-Key header'
-        }
-      >
+      <FieldFrame label='Access'>
         <SegmentedControl
           label='Server access'
           options={[
             { value: 'private', label: 'Private', disabled: !canChangeVisibility },
-            { value: 'public', label: 'Public', disabled: !canChangeVisibility },
+            { value: 'public', label: 'Public (no auth)', disabled: !canChangeVisibility },
           ]}
           value={isPublic ? 'public' : 'private'}
           onSelect={(value) => setIsPublic(value === 'public')}

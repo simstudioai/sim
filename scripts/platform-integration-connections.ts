@@ -55,11 +55,6 @@ function descriptorField(
       ? { visibleWhen: { field: 'authMethod', values: field.requiredForAuthMethods } }
       : {}),
     ...(field.id === 'authMethod' && defaultAuthMethod ? { defaultValue: defaultAuthMethod } : {}),
-    ...('hint' in field && field.hint
-      ? { hint: field.hint }
-      : field.hintMessage
-        ? { hint: field.hintMessage }
-        : {}),
   }
 }
 
@@ -85,7 +80,6 @@ function configSetup(providerId: string): Pick<CredentialConnection, 'setup' | '
         placeholder: field.placeholder,
         ...(field.secret ? { secret: true } : {}),
         ...(field.optional ? { optional: true } : {}),
-        ...(field.hint ? { hint: field.hint } : {}),
         visibleWhen: { field: 'authType', values: field.authTypes },
       })),
     ],
@@ -266,7 +260,6 @@ const GITLAB_PERSONAL_TOKEN: CredentialConnection = {
       label: 'Personal access token',
       placeholder: 'glpat-…',
       secret: true,
-      hint: 'Only you can use this connection.',
     },
   ],
 }

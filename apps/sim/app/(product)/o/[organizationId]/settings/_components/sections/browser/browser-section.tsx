@@ -200,10 +200,7 @@ function BrowserSettings({
             {downloadDirectoryPending ? 'Choosing…' : 'Change'}
           </Button>
         </SettingsRow>
-        <SettingsRow
-          label='Passwords'
-          description='Saved logins for the built-in browser, encrypted on this device.'
-        >
+        <SettingsRow label='Passwords'>
           <Button size='compact' onClick={onOpenPasswords}>
             Manage
           </Button>
@@ -217,10 +214,7 @@ function BrowserSettings({
             </Button>
           </SettingsRow>
         ))}
-        <SettingsRow
-          label='Clear all browsing data'
-          description='Cookies, site data, and cache. Your Sim account and saved passwords are not affected.'
-        >
+        <SettingsRow label='Clear all browsing data'>
           <Button variant='quiet' destructive size='compact' onClick={() => setConfirming('all')}>
             Clear all
           </Button>

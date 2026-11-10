@@ -138,7 +138,11 @@ export function ReviewModal({ organizationId, requestId, onClose }: ReviewModalP
                   inputMode='numeric'
                   value={newLimit}
                   onChange={setNewLimit}
-                  hint='Enter a whole number above the current limit.'
+                  error={
+                    newLimit.trim() && !review.isValidLimit(parsedLimit)
+                      ? 'Enter a whole number above the current limit.'
+                      : undefined
+                  }
                 />
               )}
             </>

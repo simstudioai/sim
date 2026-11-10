@@ -379,7 +379,6 @@ export interface OAuthClientConfigurationField {
   placeholder: string
   secret: boolean
   options?: readonly { value: string; label: string }[]
-  hint?: string
 }
 
 export interface OAuthServiceConfig {

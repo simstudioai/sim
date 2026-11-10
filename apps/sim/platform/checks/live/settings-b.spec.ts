@@ -124,7 +124,7 @@ test.describe('governance settings', () => {
 
   test('security validates session bounds before writing', async ({ page }) => {
     await openSection(page, 'security')
-    const field = page.getByRole('textbox', { name: 'Idle timeout (hours)' })
+    const field = page.getByRole('textbox', { name: 'Idle timeout' })
     await field.fill('0')
     const writes: string[] = []
     page.on('request', (request) => {

@@ -84,7 +84,6 @@ function LicenseForm({ generate }: LicenseFormProps) {
             placeholder='Order form or approval reference'
             label='Approval reference'
             required
-            hint='Enter the signed order form or written approval reference.'
             value={draft.approvalReference}
             onChange={(value) => setDraft({ ...draft, approvalReference: value })}
           />
@@ -127,10 +126,7 @@ export function MothershipLicenses({ env }: LicensesProps) {
         <LicenseForm generate={(draft) => actions.generateSampleLicense(env, draft)} />
       ) : (
         <SettingsSection title='Generate license'>
-          <SettingsRow
-            label='Enterprise license'
-            description='Issue a license using the approved order reference.'
-          >
+          <SettingsRow label='Enterprise license'>
             <Button
               size='compact'
               render={<Link href={licenseGeneratorHref(env)}>Generate license</Link>}
