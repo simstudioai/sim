@@ -5545,6 +5545,7 @@ export type ExecuteWorkflowBody = {
   run?:
     | {
         source: 'deployment'
+        version?: number
       }
     | {
         source: 'manual'
@@ -7905,6 +7906,7 @@ type GetWorkflowRunResponseRef2 = {
   startedAt: string | null
   endedAt: string | null
   durationMs: number | null
+  version: number | null
   paused: {
     contextId: string | null
     pausedAt: string
@@ -18558,7 +18560,7 @@ export const V2_OPERATIONS = {
       run: {
         kind: 'unknown',
         describe:
-          'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
+          'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.',
       },
       async: {
         kind: 'boolean',

@@ -1383,7 +1383,12 @@ export const EXECUTE_OPTION_CONSTRAINTS =
 export const v2WorkflowRunSelectionSchema = z.discriminatedUnion('source', [
   z
     .object({
-      source: z.literal('deployment').describe('Execute the active deployed workflow state.'),
+      source: z.literal('deployment').describe('Execute a deployed workflow version.'),
+      version: versionNumberSchema
+        .optional()
+        .describe(
+          'Deployment version to execute instead of the active one. Requires an API key or OAuth access token with workspace write access, and the workflow must be deployed. An unknown version returns `404`.'
+        ),
     })
     .strict(),
   z
@@ -1448,9 +1453,10 @@ export type V2WorkflowRunSelection = z.input<typeof v2WorkflowRunSelectionSchema
 /**
  * Strict public execute body. Async is body-selected (`async: true`) — v2 has
  * no `X-Execution-Mode`/`X-Stream-Response` headers. `run` selects the public
- * deployment/manual behavior, while internal executor facts (`triggerType`,
- * `useDraftState`, deployment pinning, and source snapshots) remain trusted
- * server-side options and are NEVER wire fields.
+ * deployment/manual behavior (a deployment run may name a version number),
+ * while internal executor facts (`triggerType`, `useDraftState`, deployment
+ * version row ids, and source snapshots) remain trusted server-side options and
+ * are NEVER wire fields.
  *
  * The rejected option combinations are enforced by the route after parsing and
  * described on the fields they constrain; {@link EXECUTE_OPTION_CONSTRAINTS}
@@ -1465,7 +1471,7 @@ export const v2ExecuteWorkflowBodySchema = z
     run: v2WorkflowRunSelectionSchema
       .optional()
       .describe(
-        'Workflow state and entry point to execute. Omit for the active deployment. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.'
+        'Workflow state and entry point to execute. Omit for the active deployment; `source: "deployment"` with `version` runs that deployment version. Manual execution requires OAuth or personal-key write access and supports synchronous or streamed runs only; `waitTimeoutSeconds` lets a synchronous one continue in the background.'
       ),
     async: z
       .boolean()
@@ -1938,6 +1944,13 @@ export const v2WorkflowRunStatusSchema = z
       .number()
       .nullable()
       .describe('Run duration in milliseconds, or null while active.'),
+    version: z
+      .number()
+      .int()
+      .nullable()
+      .describe(
+        'Deployment version the run executed. Null for a manual run, a queued run not yet started, or a run whose version no longer exists.'
+      ),
     paused: workflowExecutionPausedDetailSchema
       .omit({ pausedExecutionId: true })
       .nullable()

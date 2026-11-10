@@ -612,6 +612,8 @@ const workflowExecutionStatusResponseSchema = z.object({
   startedAt: z.string(),
   endedAt: z.string().nullable(),
   totalDurationMs: z.number().nullable(),
+  /** Deployment version number the run executed; null for draft or not-yet-recorded runs. */
+  deploymentVersion: z.number().int().nullable(),
   paused: workflowExecutionPausedDetailSchema.nullable(),
   cost: z.object({ total: z.number() }).nullable(),
   error: z.string().nullable(),

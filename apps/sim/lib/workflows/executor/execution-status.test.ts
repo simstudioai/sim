@@ -454,6 +454,7 @@ describe('getWorkflowExecutionStatus settled resume attempts', () => {
       startedAt: '2026-08-05T12:00:01.000Z',
       endedAt: '2026-08-05T12:00:05.000Z',
       totalDurationMs: 4000,
+      deploymentVersion: null,
       paused: null,
       cost: { total: 0.5 },
       error: null,

@@ -1,5 +1,10 @@
 import { db } from '@sim/db'
-import { pausedExecutions, resumeQueue, workflowExecutionLogs } from '@sim/db/schema'
+import {
+  pausedExecutions,
+  resumeQueue,
+  workflowDeploymentVersion,
+  workflowExecutionLogs,
+} from '@sim/db/schema'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { WorkflowExecutionStatusResponse } from '@/lib/api/contracts/workflows'
 import { getJobQueue } from '@/lib/core/async-jobs'
@@ -105,6 +110,7 @@ function projectQueueJob(
     startedAt: startedAt.toISOString(),
     endedAt: endedAt?.toISOString() ?? null,
     totalDurationMs: endedAt ? endedAt.getTime() - startedAt.getTime() : null,
+    deploymentVersion: null,
     paused: null,
     cost: null,
     error: status === 'failed' ? (job.error ?? 'Execution failed') : null,
@@ -316,8 +322,13 @@ async function readWorkflowExecutionStatus(
       totalDurationMs: workflowExecutionLogs.totalDurationMs,
       executionData: executionDataReadByPoll(input),
       costTotal: workflowExecutionLogs.costTotal,
+      deploymentVersion: workflowDeploymentVersion.version,
     })
     .from(workflowExecutionLogs)
+    .leftJoin(
+      workflowDeploymentVersion,
+      eq(workflowDeploymentVersion.id, workflowExecutionLogs.deploymentVersionId)
+    )
     .where(
       and(
         eq(workflowExecutionLogs.executionId, executionId),
@@ -380,6 +391,7 @@ async function readWorkflowExecutionStatus(
       startedAt: startedAt.toISOString(),
       endedAt: null,
       totalDurationMs: null,
+      deploymentVersion: logRow?.deploymentVersion ?? null,
       paused: null,
       cost: null,
       error: null,
@@ -452,6 +464,7 @@ async function readWorkflowExecutionStatus(
     startedAt: logRow.startedAt.toISOString(),
     endedAt: logRow.endedAt?.toISOString() ?? null,
     totalDurationMs: logRow.totalDurationMs ?? null,
+    deploymentVersion: logRow.deploymentVersion ?? null,
     paused,
     cost,
   }

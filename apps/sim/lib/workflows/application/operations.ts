@@ -443,6 +443,16 @@ export const workflowOperations = {
     contentDelivery: 'sourced',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  // permission-group-exempt: running a chosen deployment version is governed by workspace role; public_api.use withholds the unauthenticated surface, which does not reach this operation
+  executeVersion: defineWorkspaceOperation({
+    id: 'workflows.execute_version',
+    oauthScope: 'api:write',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    capability: 'none',
+    contentDelivery: 'sourced',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   // permission-group-exempt: a manual run is governed by workspace role; public_api.use withholds the unauthenticated surface, which does not reach this operation
   executeManual: defineWorkspaceOperation({
     id: 'workflows.manual.execute',

@@ -1122,6 +1122,28 @@ export async function getWorkflowDeploymentVersion(
   return row ?? null
 }
 
+/**
+ * Resolves a deployment version number to its row id without reading the
+ * version's state. Returns null when the workflow has no such version.
+ */
+export async function getWorkflowDeploymentVersionId(
+  workflowId: string,
+  version: number
+): Promise<string | null> {
+  const [row] = await db
+    .select({ id: workflowDeploymentVersion.id })
+    .from(workflowDeploymentVersion)
+    .where(
+      and(
+        eq(workflowDeploymentVersion.workflowId, workflowId),
+        eq(workflowDeploymentVersion.version, version)
+      )
+    )
+    .limit(1)
+
+  return row?.id ?? null
+}
+
 export interface ListWorkflowVersionsOptions {
   /** Caps the rows read. Omitted reads every version. */
   limit?: number
