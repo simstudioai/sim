@@ -47,7 +47,6 @@ import {
   useMcpTools,
   usePanelEditorSearchStore,
   usePanelEditorStore,
-  usePanelStore,
   useScopedWorkflowId,
   useSubBlockStore,
   useUserPermissionsContext,
@@ -385,7 +384,6 @@ function WorkflowSearchReplacePanel({ focusRef }: WorkflowSearchReplacePanelProp
       if (!match) return
       if (!isFloatingLayout()) {
         useVariablesModalStore.getState().setIsOpen(false)
-        usePanelStore.getState().setIsMobilePanelOpen(match.blockType !== 'note')
       }
       usePanelEditorStore.getState().setCurrentBlockId(match.blockId)
       usePanelEditorSearchStore.getState().setActiveSearchTarget({

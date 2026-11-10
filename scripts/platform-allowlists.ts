@@ -685,7 +685,6 @@ const seamHelpers: ReasonedAllowlist = {
       'lib/workspaces/naming',
       'providers/models',
       'stores/canvas-mode',
-      'stores/chat/store',
       'stores/constants',
       'stores/execution',
       'stores/modals/search/store',
