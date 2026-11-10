@@ -147,8 +147,7 @@ export function withSavedCredential(
       `Block "${legacy.type}": unused selector twins ${unusedSelectorKeys.join(', ')}`
     )
   }
-  // The picker sits right under the operation picker, the first thing a user
-  // sets; a block without one keeps it where its secret was.
+  // Under the operation picker because that is the first field a user sets.
   const operationAt = subBlocks.findIndex(
     (subBlock) => subBlock.id === 'operation' && !isTriggerModeSubBlock(subBlock)
   )

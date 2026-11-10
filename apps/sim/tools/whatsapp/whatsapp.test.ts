@@ -26,7 +26,7 @@ describe('WhatsApp request URL and headers', () => {
   it.each(['../../999/register#', '..', '123/subscribed_apps?'])(
     'refuses a phone number ID that would leave its path segment (%s)',
     (phoneNumberId) => {
-      expect(() => sendMessageTool.request.url({ ...auth, phoneNumberId })).toThrow()
+      expect(() => sendMessageTool.request.url({ ...auth, phoneNumberId })).toThrow(/phoneNumberId/)
     }
   )
 })

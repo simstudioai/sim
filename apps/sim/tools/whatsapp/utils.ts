@@ -15,7 +15,7 @@ export function buildMessagesUrl(phoneNumberId: string | undefined): string {
 
 /** Build the media upload endpoint for a given business phone number ID. */
 export function buildMediaUploadUrl(phoneNumberId: string): string {
-  return `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/${encodeURIComponent(phoneNumberId.trim())}/media`
+  return `https://graph.facebook.com/${WHATSAPP_GRAPH_VERSION}/${safeUrlPathSegment(phoneNumberId.trim(), 'phoneNumberId')}/media`
 }
 
 /** Build the media metadata endpoint for a media ID, optionally scoped to a phone number. */

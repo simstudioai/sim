@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
@@ -174,9 +174,9 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
   const oauthAvailable = Boolean(oauthService) && (availability?.oauthAvailable ?? true)
   const [oauthOpen, setOAuthOpen] = useState(false)
   const [personalTokenOpen, setPersonalTokenOpen] = useState(false)
+  const isGitLab = integration.slug === 'gitlab'
   const personalTokenAvailable =
-    integration.slug === 'gitlab' &&
-    (availability?.state === 'ready' || availability?.state === 'limited')
+    isGitLab && (availability?.state === 'ready' || availability?.state === 'limited')
 
   const { data: credentials = [], isPending: credentialsLoading } = useWorkspaceCredentials({
     workspaceId,
@@ -190,22 +190,21 @@ function IntegrationBlockDetailContent({ integration, workspaceId }: Integration
    * credential lists on every product it powers. Comparing resolved
    * `providerId`s instead hides it from all of them.
    */
-  const connectedCredentials = useMemo(() => {
-    const serviceCredentials = oauthService
-      ? credentials.filter(
-          (c) =>
-            (c.type === 'oauth' || c.type === 'service_account') &&
-            c.providerId &&
-            credentialProviderMatchesService(c.providerId, oauthService)
-        )
-      : []
-    if (integration.slug !== 'gitlab') return serviceCredentials
-    // GitLab also has personal tokens, which Copilot acts with on the person's behalf.
-    return [
-      ...credentials.filter((c) => c.type === 'personal_token' && c.providerId === 'gitlab'),
-      ...serviceCredentials,
-    ]
-  }, [credentials, oauthService, integration.slug])
+  const serviceCredentials = oauthService
+    ? credentials.filter(
+        (c) =>
+          (c.type === 'oauth' || c.type === 'service_account') &&
+          c.providerId &&
+          credentialProviderMatchesService(c.providerId, oauthService)
+      )
+    : []
+  // GitLab also has personal tokens, which Copilot acts with on the person's behalf.
+  const connectedCredentials = isGitLab
+    ? [
+        ...credentials.filter((c) => c.type === 'personal_token' && c.providerId === 'gitlab'),
+        ...serviceCredentials,
+      ]
+    : serviceCredentials
   const [serviceAccountOpen, setServiceAccountOpen] = useState(false)
   const serviceAccountTarget = useServiceAccountConnectTarget({
     serviceAccountProviderId: oauthService?.serviceAccountProviderId,
