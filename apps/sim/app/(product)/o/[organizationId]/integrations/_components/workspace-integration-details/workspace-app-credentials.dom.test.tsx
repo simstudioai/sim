@@ -18,7 +18,6 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 vi.mock('next/navigation', () => nextNavigationMock)
 vi.mock('@/lib/auth/client', () => authClientMock)
 
-import { getTokenServiceAccountDescriptor } from '@/lib/credentials/token-service-accounts/descriptors'
 import {
   useWorkspaceAppCredentials,
   WorkspaceAppDialogs,
@@ -27,6 +26,8 @@ import type { WorkspaceAppDetail } from '@/platform/lib/integrations/workspace-c
 
 const WORKSPACE = { id: '3f0c7a52-1b6e-4d2a-9c8f-5e7d1a2b3c4d', name: 'Acme' }
 const PROVIDER = 'fireflies-service-account'
+/** The Fireflies descriptor's one field, which the server verifies as `apiToken`. */
+const API_KEY_FIELD = 'API key'
 
 /** Fireflies as the catalog projects it: its one method is the token service account. */
 const FIREFLIES: WorkspaceAppDetail = {
@@ -155,8 +156,7 @@ it("offers a token app's connect method and submits the descriptor's fields", as
 
   const dialog = document.body.querySelector('dialog[open]')
   if (!dialog) throw new Error('The connect dialog did not open')
-  const descriptor = getTokenServiceAccountDescriptor(PROVIDER)
-  for (const field of descriptor?.fields ?? []) type(fieldIn(dialog, field.label), ' ff-secret ')
+  type(fieldIn(dialog, API_KEY_FIELD), ' ff-secret ')
   const confirm = [...dialog.querySelectorAll('button')].find(
     (button) => button.textContent?.trim() === 'Add API key'
   )
