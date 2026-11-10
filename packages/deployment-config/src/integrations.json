@@ -7382,7 +7382,7 @@
       "slug": "databricks",
       "name": "Databricks",
       "description": "Run SQL, manage jobs, and ask Genie agents on Databricks",
-      "longDescription": "Execute parameterized SQL and retrieve result chunks, create and manage jobs, submit and repair runs, manage compute clusters and SQL warehouses, and create or update Genie spaces. Ask Genie questions or run agent research, inspect conversations, and retrieve query results and charts. Connect with a personal access token and workspace host URL.",
+      "longDescription": "Execute parameterized SQL and retrieve result chunks, create and manage jobs, submit and repair runs, manage compute clusters and SQL warehouses, and create or update Genie spaces. Ask Genie questions or run agent research, inspect conversations, and retrieve query results and charts.",
       "bgColor": "#F9F7F4",
       "iconName": "DatabricksIcon",
       "docsUrl": "https://docs.sim.ai/integrations/databricks",
@@ -7608,7 +7608,7 @@
       "category": "tools",
       "integrationType": "databases",
       "tags": ["data-warehouse", "data-analytics", "cloud"],
-      "updatedAt": "2026-11-09"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "datadog",

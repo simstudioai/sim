@@ -8,6 +8,7 @@ import {
 import { db } from '@sim/db'
 import { credential } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, or } from 'drizzle-orm'
 import { z } from 'zod'
 import { decryptSecret, encryptSecret } from '@/lib/core/security/encryption'
@@ -27,11 +28,14 @@ import { AWS_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/oauth/types'
 /**
  * Saved AWS identities for every AWS block.
  *
- * Three modes, all resolved server-side at execution. Keys and session tokens
- * stay out of block outputs, logs, and model input — except where AWS itself
- * requires them in a value the block returns: an S3 presigned download URL made
- * with temporary credentials carries the temporary access key ID and its
- * session token (never the secret), and expires with the session.
+ * Three modes, all resolved server-side at execution. The stored keys and the
+ * sessions resolved from them stay out of block outputs, logs, and model input,
+ * with two exceptions: an S3 presigned URL made with temporary credentials
+ * carries the temporary access key ID and session token (never the secret), and
+ * operations whose purpose is to issue AWS credentials (STS assume role and get
+ * session token, IAM create access key) return the credentials they issue, as
+ * the same operations do with inline keys. Using a credential therefore includes
+ * issuing whatever its IAM permissions allow.
  * - `access_keys`: a long-lived IAM user key pair, used as-is (today's inline behavior).
  * - `assume_role`: a key pair that assumes a role, optionally with an external ID.
  * - `oidc_role`: no stored key at all — Sim signs a short-lived OIDC token for
@@ -288,11 +292,39 @@ export async function verifyAndEncryptAwsCredential(
   } catch (error) {
     throw verificationFailure(config, error)
   }
+  if (config.authType === 'oidc_role') await assertRolePinsSubject(config, owner)
 
   const { encrypted } = await encryptSecret(
     JSON.stringify({ type: AWS_CREDENTIAL_SECRET_TYPE, config })
   )
   return { encryptedServiceAccountKey: encrypted, callerArn }
+}
+
+/**
+ * Sim signs tokens for any role ARN a member types in, so a role that trusts
+ * Sim's issuer without pinning `sub` could be assumed from any Sim workspace.
+ * Retrying the role with a subject no credential holds must be denied before
+ * the credential is saved.
+ */
+async function assertRolePinsSubject(
+  config: Extract<AwsCredentialConfig, { authType: 'oidc_role' }>,
+  owner: WorkloadIdentityOwner
+): Promise<void> {
+  const unboundSubject = config.subject.replace(/[^:]+$/, generateId().replace(/-/g, ''))
+  try {
+    await resolveAwsSessionCredentials({ ...config, subject: unboundSubject }, owner, {
+      roleSessionName: buildAwsRoleSessionName('verify'),
+      signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS),
+    })
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AccessDenied') return
+    throw new AwsCredentialError(
+      `Sim could not confirm the role's trust policy limits it to this credential: ${getErrorMessage(error, 'Unknown error')}. Try again.`
+    )
+  }
+  throw new AwsCredentialError(
+    `This role trusts every Sim subject. Use the trust policy shown in the dialog, whose sub condition pins ${config.subject}, so only this credential can assume the role.`
+  )
 }
 
 /**

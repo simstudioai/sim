@@ -209,7 +209,8 @@ export function withSavedCredential(
       credentialKind: 'service-account',
       canonicalParamId: 'oauthCredential',
       mode: 'basic',
-      placeholder: `Select a ${picker.title.toLowerCase()}`,
+      // 'AWS Credential' → 'Select AWS credential': sentence case, brand casing kept.
+      placeholder: `Select ${picker.title.replace(/\s(\S+)$/, (_, noun: string) => ` ${noun.toLowerCase()}`)}`,
       ...(condition ? { condition } : {}),
       required,
     },

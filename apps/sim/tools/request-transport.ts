@@ -249,8 +249,10 @@ function assertExternalRequestUrl(url: string): void {
 }
 
 /**
- * The URL {@link prepareToolRequest} would request for these params, without
- * formatting headers or body — for checks that only need the destination.
+ * The URL a tool's builder produces for these params after the same model-input
+ * projection {@link prepareToolRequest} applies, validated as an external URL.
+ * Skips headers, body, and the private-provenance refusals — for static checks
+ * that only need the destination.
  */
 export function prepareToolRequestUrl(tool: ToolConfig, params: Record<string, unknown>): string {
   const requestInput = projectToolModelInputParams(tool, params, undefined)

@@ -46,7 +46,7 @@ export const prepareWorkloadIdentity = defineAuthorizedWorkspaceUseCase({
   authorizationOptions: {},
   execute: async ({ principal, input }): Promise<PrepareWorkloadIdentityResult> => {
     // A deployment without a signing key offers only key- and secret-based credentials.
-    if (!isWorkloadIdentityConfigured()) return { available: false }
+    if (!(await isWorkloadIdentityConfigured())) return { available: false }
     const grant = issueWorkloadIdentitySubject(
       input.provider,
       { workspaceId: input.workspaceId },

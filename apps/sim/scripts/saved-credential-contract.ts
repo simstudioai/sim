@@ -28,7 +28,7 @@ export interface HostSteeringResult {
  * treated as host-steering — deliberately broad, since a miss leaks a secret.
  */
 const DESTINATION_PARAM =
-  /(host|hostname|domain|endpoint|url|uri|origin|server|region|instance|shop|account|site|org|tenant)$/i
+  /(host|hostname|domain|endpoint|url|uri|origin|server|region|instance|shop|account|site|org|tenant|workspace|team|subdomain|space|cluster|environment|location|project)(name|slug|id)?$/i
 
 const PROBE_HOST = 'hostprobe.example.net'
 const PROBE_VALUES = [PROBE_HOST, `https://${PROBE_HOST}`]
@@ -69,13 +69,15 @@ function alternateValues(value: unknown): string[] {
   const text = typeof value === 'string' ? value : 'x'
   return [
     ...STRING_PLACEHOLDERS.filter((candidate) => candidate !== text),
-    text.replace(/0/g, '1'),
+    // Every digit rotated, so a numeric tenant (`1` → `2`) or key-derived host moves.
+    text.replace(/\d/g, (digit) => String((Number(digit) + 1) % 10)),
     text.replace(/^([a-z]+)/i, '$1alt'),
   ]
 }
 
 export function hostSteeringParams(tool: ExecutableToolConfig): HostSteeringResult {
-  // An internal operation calls the vendor from server code with a fixed host.
+  // An internal operation has no request URL to probe: its server handler picks the
+  // destination, and the AWS families' handlers reach only AWS endpoints.
   if (isInternalToolConfig(tool)) return { params: [], probed: true }
   const params: [string, ProbeableParam][] = Object.entries(tool.params ?? {})
   const stringParams = params.filter(([, param]) => param.type === 'string').map(([name]) => name)

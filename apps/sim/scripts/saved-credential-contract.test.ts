@@ -48,7 +48,7 @@ describe('hostSteeringParams', () => {
     const tool = requestTool(
       { domain: required, companyId: required },
       (p: Record<string, unknown>) =>
-        `https://api.example.com/companies/${p.companyId}?domain=${encodeURIComponent(p.domain)}`
+        `https://api.example.com/companies/${p.companyId}?domain=${encodeURIComponent(String(p.domain))}`
     )
 
     expect(hostSteeringParams(tool)).toEqual({ params: [], probed: true })
@@ -66,7 +66,7 @@ describe('hostSteeringParams', () => {
     const tool = requestTool(
       { indexHost: optional, id: required },
       (p: Record<string, unknown>) => {
-        const host = p.indexHost ?? 'default.svc.pinecone.io'
+        const host = String(p.indexHost ?? 'default.svc.pinecone.io')
         if (!host.endsWith('.pinecone.io')) throw new Error('not a Pinecone host')
         return `https://${host}/vectors/${p.id}`
       }
@@ -93,5 +93,23 @@ describe('hostSteeringParams', () => {
     })
 
     expect(hostSteeringParams(tool).params).toEqual(['host'])
+  })
+
+  it('finds a numeric tenant id that picks the vendor subdomain', () => {
+    const tool = requestTool({ accountId: required, id: required }, (p) => {
+      const account = String(p.accountId)
+      if (!/^\d+$/.test(account)) throw new Error('account ids are numeric')
+      return `https://${account}.api.example.com/items/${p.id}`
+    })
+
+    expect(hostSteeringParams(tool).params).toEqual(['accountId'])
+  })
+
+  it('falls back to workspace-like names when the URL never builds', () => {
+    const tool = requestTool({ workspaceSlug: required, query: required }, () => {
+      throw new Error('validated elsewhere')
+    })
+
+    expect(hostSteeringParams(tool)).toEqual({ params: ['workspaceSlug'], probed: false })
   })
 })

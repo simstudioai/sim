@@ -89,6 +89,18 @@ describe('workload identity issuer', () => {
     expect(jwks.keys.every((key) => key.d === undefined)).toBe(true)
   })
 
+  it('treats a malformed signing key as not configured instead of advertising a broken issuer', async () => {
+    setEnv('WORKLOAD_IDENTITY_SIGNING_KEY', 'not a PEM key')
+    const issuer = await loadIssuer()
+    const { workloadIdentityDiscoveryResponse, workloadIdentityJwksResponse } = await import(
+      '@/lib/credentials/workload-identity/responses'
+    )
+
+    expect(await issuer.isWorkloadIdentityConfigured()).toBe(false)
+    expect((await workloadIdentityDiscoveryResponse()).status).toBe(404)
+    expect((await workloadIdentityJwksResponse()).status).toBe(404)
+  })
+
   it('publishes nothing and refuses to sign when no signing key is configured', async () => {
     setEnv('WORKLOAD_IDENTITY_SIGNING_KEY', undefined)
     const issuer = await loadIssuer()
@@ -96,8 +108,8 @@ describe('workload identity issuer', () => {
       '@/lib/credentials/workload-identity/responses'
     )
 
-    expect(issuer.isWorkloadIdentityConfigured()).toBe(false)
-    expect(workloadIdentityDiscoveryResponse().status).toBe(404)
+    expect(await issuer.isWorkloadIdentityConfigured()).toBe(false)
+    expect((await workloadIdentityDiscoveryResponse()).status).toBe(404)
     expect((await workloadIdentityJwksResponse()).status).toBe(404)
     await expect(
       issuer.mintWorkloadIdentityToken({

@@ -39,9 +39,10 @@ interface TokenCheck {
    */
   acceptsBody?: (body: unknown) => boolean
   /**
-   * For a vendor that answers a rejected key with a server error (Fireflies
-   * returns 500 with `auth_failed`): returns whether the error body names a bad
-   * key, so the user is told the key is wrong rather than the vendor down.
+   * For a vendor whose error status alone doesn't say the key is bad (Fireflies
+   * returns 500 with `auth_failed`; Brex returns its scope-error 403 for an
+   * unknown key): returns whether the error body names a bad key. Checked
+   * before {@link forbiddenMeansScoped} accepts a 403.
    */
   rejectsKey?: (errorBody: unknown) => boolean
 }
@@ -74,10 +75,13 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       check.forbiddenMeansScoped &&
       response.status === 403 &&
       (response.headers.get('content-type') ?? '').includes('application/json')
-    if (check.rejectsKey && !response.ok && !scopedForbidden) {
+    if (check.rejectsKey && !response.ok) {
       const errorBody = await readJsonBody(response, check.serviceLabel).catch(() => null)
       if (check.rejectsKey(errorBody)) {
         throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
+      }
+      if (scopedForbidden) {
+        return { displayName: check.serviceLabel, principal: null, auditMetadata: {} }
       }
       const callerError =
         response.status >= 400 &&

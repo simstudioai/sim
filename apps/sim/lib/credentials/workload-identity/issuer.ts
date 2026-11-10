@@ -1,4 +1,5 @@
 import { createPrivateKey, createPublicKey, type KeyObject } from 'node:crypto'
+import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { calculateJwkThumbprint, type JWK, SignJWT } from 'jose'
 import { env } from '@/lib/core/config/env'
@@ -16,6 +17,8 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
  * credential resolves; tokens never reach a block output, the model, or a
  * browser.
  */
+
+const logger = createLogger('WorkloadIdentityIssuer')
 
 export const WORKLOAD_IDENTITY_PATH = '/oidc/workload'
 export const WORKLOAD_IDENTITY_ALGORITHM = 'RS256'
@@ -81,9 +84,19 @@ function loadSigningMaterial(): Promise<SigningMaterial> {
   return signingMaterial
 }
 
-/** Whether this deployment can mint workload-identity tokens. */
-export function isWorkloadIdentityConfigured(): boolean {
-  return Boolean(env.WORKLOAD_IDENTITY_SIGNING_KEY)
+/**
+ * Whether this deployment can mint workload-identity tokens: a signing key is
+ * set and parses, so a malformed key never advertises an issuer that can't sign.
+ */
+export async function isWorkloadIdentityConfigured(): Promise<boolean> {
+  if (!env.WORKLOAD_IDENTITY_SIGNING_KEY) return false
+  try {
+    await loadSigningMaterial()
+    return true
+  } catch (error) {
+    logger.error('Workload identity signing key is set but unusable', { error })
+    return false
+  }
 }
 
 /** The issuer URL customers register as an OIDC identity provider. Stable for the deployment's life. */

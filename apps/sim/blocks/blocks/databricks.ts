@@ -2797,6 +2797,8 @@ export const DatabricksV2Block: BlockConfig = {
   authMode: AuthMode.OAuth,
   hideFromToolbar: false,
   sunset: undefined,
+  longDescription:
+    'Execute parameterized SQL and retrieve result chunks, create and manage jobs, submit and repair runs, manage compute clusters and SQL warehouses, and create or update Genie spaces. Ask Genie questions or run agent research, inspect conversations, and retrieve query results and charts.',
   ...withSavedCredential(DatabricksBlock, {
     id: 'credential',
     type: 'oauth-input',

@@ -10,7 +10,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-[AWS Identity and Access Management (IAM)](https://aws.amazon.com/iam/) controls access to AWS resources. Use this integration to manage users, roles, policies, groups, and access keys, or simulate a principal’s permissions before changing them.
+[AWS Identity and Access Management (IAM)](https://aws.amazon.com/iam/) controls access to AWS resources. Use this integration to manage users, roles, policies, groups, and access keys, or simulate a principal’s permissions before changing them. Connect with a saved [AWS credential](/integrations/aws-credentials).
 
 `Simulate Principal Policy` returns one result per action regardless of how many resource ARNs you pass. The top-level decision is the **aggregate** across every resource — most restrictive wins — and the top-level resource name is an ARN *template* for the resource type, not one of your ARNs. Per-resource answers live in `resourceSpecificResults`, and when you supply concrete ARNs, missing context keys are reported there too rather than at the top level. Read `resourceSpecificResults` whenever you simulate against more than one resource: the aggregate alone will tell you a principal is denied when it is in fact allowed on some of them.
 

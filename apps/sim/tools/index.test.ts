@@ -198,8 +198,16 @@ vi.mock(
   () => workspaceFileSecretProvenanceMock
 )
 
-const { mockResolveExecutorCredentialToken } = vi.hoisted(() => ({
-  mockResolveExecutorCredentialToken: vi.fn(),
+const { mockResolveExecutorCredentialToken, mockResolveAuthorizedAwsCredential } = vi.hoisted(
+  () => ({
+    mockResolveExecutorCredentialToken: vi.fn(),
+    mockResolveAuthorizedAwsCredential: vi.fn(),
+  })
+)
+
+vi.mock('@/lib/internal/aws/credentials', () => ({
+  resolveAuthorizedAwsCredential: (...args: unknown[]) =>
+    mockResolveAuthorizedAwsCredential(...args),
 }))
 
 vi.mock('@/executor/utils/credential-token', () => ({
@@ -456,6 +464,7 @@ import { buildBlockExecutionError } from '@/executor/utils/errors'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool, postProcessToolOutput } from '@/tools'
 import { tools } from '@/tools/registry'
+import { s3GetObjectTool } from '@/tools/s3/get_object'
 import { tokenCredentialOAuth } from '@/tools/shared/saved-credentials'
 import { createToolConfig, getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
@@ -1105,6 +1114,120 @@ describe('executeTool Function', () => {
     expect(mockExecuteFunction.mock.calls[0]?.[0].input.body.userId).toBeUndefined()
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
     expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  describe('saved AWS credentials', () => {
+    const awsCredential = { accessToken: 'aws-credential', credentialType: 'service_account' }
+    const context = () =>
+      createToolExecutionContext({
+        userId: 'user-1',
+        workspaceId: 'workspace-456',
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+      })
+
+    it('hands an AWS operation the authorized credential, and nothing without one', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue(awsCredential)
+      mockExecuteInternalToolOperation.mockResolvedValue(Response.json({ account: '1' }))
+
+      await executeTool(
+        'sts_get_caller_identity',
+        { region: 'us-east-1', credential: 'aws-credential' },
+        { executionContext: context() }
+      )
+      await executeTool(
+        'sts_get_caller_identity',
+        { region: 'us-east-1', accessKeyId: 'key', secretAccessKey: 'secret' },
+        { executionContext: context() }
+      )
+
+      const [withCredential, inline] = mockExecuteInternalToolOperation.mock.calls
+      expect(withCredential?.[0].context.authorizedServiceAccountCredential).toEqual({
+        credentialId: 'aws-credential',
+        service: 'aws',
+      })
+      expect(inline?.[0].context.authorizedServiceAccountCredential).toBeUndefined()
+    })
+
+    it('refuses a credential of the wrong kind before the operation runs', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue({
+        accessToken: 'oauth-token',
+        credentialType: 'oauth',
+      })
+
+      const result = await executeTool(
+        'sts_get_caller_identity',
+        { region: 'us-east-1', credential: 'oauth-credential' },
+        { executionContext: context() }
+      )
+
+      expect(result.success).toBe(false)
+      expect(mockExecuteInternalToolOperation).not.toHaveBeenCalled()
+    })
+
+    it("signs S3 get_object with the credential's session, scoped to the run's workspace", async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue(awsCredential)
+      mockResolveAuthorizedAwsCredential.mockResolvedValue({
+        accessKeyId: 'ASIASESSION',
+        secretAccessKey: 'session-secret',
+        sessionToken: 'session-token',
+      })
+
+      mockValidateUrlWithDNS.mockResolvedValue({ isValid: true, resolvedIP: '52.216.0.1' })
+      ;(tools as Record<string, unknown>).s3_get_object = s3GetObjectTool
+      const result = await executeTool(
+        's3_get_object',
+        {
+          s3Uri: 'https://bucket.s3.us-east-1.amazonaws.com/report.csv',
+          credential: 'aws-credential',
+        },
+        { executionContext: context() }
+      ).finally(() => Reflect.deleteProperty(tools, 's3_get_object'))
+
+      expect(result.error).not.toMatch(/sign|credential/i)
+      expect(mockResolveAuthorizedAwsCredential).toHaveBeenCalledWith(
+        'aws-credential',
+        expect.objectContaining({ workspaceId: 'workspace-456', executionId: 'execution-1' }),
+        undefined
+      )
+      expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
+        'https://bucket.s3.us-east-1.amazonaws.com/report.csv',
+        expect.anything(),
+        expect.objectContaining({
+          headers: expect.objectContaining({ 'x-amz-security-token': 'session-token' }),
+        })
+      )
+    })
+
+    it('refuses to hand session keys to any other self-signing AWS tool', async () => {
+      mockResolveExecutorCredentialToken.mockResolvedValue(awsCredential)
+      const toolId = 'test_unsigned_aws_request'
+      ;(tools as Record<string, unknown>)[toolId] = {
+        id: toolId,
+        name: 'Unsigned AWS fixture',
+        description: 'An AWS request tool outside the session-signed set',
+        version: '1.0.0',
+        oauth: { required: false, provider: 'aws', credentialKind: 'service-account' },
+        params: {},
+        request: { url: 'https://example.amazonaws.com/', method: 'GET', headers: () => ({}) },
+        transformResponse: async () => ({ success: true, output: {} }),
+      }
+      try {
+        const result = await executeTool(
+          toolId,
+          { credential: 'aws-credential' },
+          { executionContext: context() }
+        )
+
+        expect(result).toMatchObject({
+          success: false,
+          error: expect.stringContaining('cannot sign with a saved AWS credential'),
+        })
+        expect(mockResolveAuthorizedAwsCredential).not.toHaveBeenCalled()
+      } finally {
+        Reflect.deleteProperty(tools, toolId)
+      }
+    })
   })
 
   it('executes registered internal tools in process through the shared provider operation', async () => {

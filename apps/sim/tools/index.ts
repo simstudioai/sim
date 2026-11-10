@@ -2968,9 +2968,8 @@ async function executeDeclaredInternalOperation({
         toolId,
         input: operationInput,
         headers,
-        context: authorizedServiceAccountCredential
-          ? { ...context, authorizedServiceAccountCredential }
-          : context,
+        // Always written, so only this executor's authorization can set it.
+        context: { ...context, authorizedServiceAccountCredential },
         requestId,
         signal: operationController.signal,
       })

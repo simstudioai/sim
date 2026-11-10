@@ -10,7 +10,7 @@ import { ReferenceDetails } from "@/components/ui/reference-details"
 
 
 {/* MANUAL-CONTENT-START:intro */}
-Use [Amazon SQS](https://aws.amazon.com/sqs/) to send, receive, and delete messages, extend visibility timeouts, and manage queues, attributes, and tags. Batch message actions accept up to 10 entries. Dead-letter actions list source queues and start, inspect, or cancel message move tasks.
+Use [Amazon SQS](https://aws.amazon.com/sqs/) to send, receive, and delete messages, extend visibility timeouts, and manage queues, attributes, and tags. Batch message actions accept up to 10 entries. Dead-letter actions list source queues and start, inspect, or cancel message move tasks. Connect with a saved [AWS credential](/integrations/aws-credentials).
 
 A workflow can long-poll for work, process each message, and delete it after success. Receiving a message does not remove it: if processing fails and it is not deleted, it becomes available again after the visibility timeout.
 {/* MANUAL-CONTENT-END */}

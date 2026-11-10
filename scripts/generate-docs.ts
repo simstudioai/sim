@@ -771,19 +771,26 @@ function biomeSortCompare(a: string, b: string): number {
   return a.length - b.length
 }
 
+/**
+ * Adds a bare-name alias for each versioned block type (`github_v2` → `github`)
+ * so lookups by base type resolve: trigger provider names on the docs side, and
+ * template icon clusters (`otherBlockTypes` are base types) in the app.
+ */
+function withBareNameAliases(iconMapping: Record<string, IconRef>): Record<string, IconRef> {
+  const withAliases: Record<string, IconRef> = { ...iconMapping }
+  for (const [blockType, iconRef] of Object.entries(iconMapping)) {
+    const baseType = stripVersionSuffix(blockType)
+    if (baseType !== blockType && !withAliases[baseType]) {
+      withAliases[baseType] = iconRef
+    }
+  }
+  return withAliases
+}
+
 function writeIconMapping(iconMapping: Record<string, IconRef>, coreBlockTypes: string[]): void {
   try {
     const iconMappingPath = path.join(rootDir, 'apps/docs/components/ui/icon-mapping.ts')
-
-    // Add bare-name aliases for versioned block types so trigger provider names resolve correctly.
-    // e.g. github_v2 → github, fireflies_v2 → fireflies, gmail_v2 → gmail
-    const withAliases: Record<string, IconRef> = { ...iconMapping }
-    for (const [blockType, iconRef] of Object.entries(iconMapping)) {
-      const baseType = stripVersionSuffix(blockType)
-      if (baseType !== blockType && !withAliases[baseType]) {
-        withAliases[baseType] = iconRef
-      }
-    }
+    const withAliases = withBareNameAliases(iconMapping)
 
     const imports = renderIconImports(Object.values(withAliases))
     const coreTypeEntries = coreBlockTypes.map((type) => `  '${type}',`).join('\n')
@@ -1971,12 +1978,11 @@ async function buildTriggerRegistry(): Promise<Map<string, TriggerInfo>> {
  * Write the icon mapping TypeScript file for the shared integrations data
  * directory (`apps/sim/lib/integrations`). Mirrors `writeIconMapping` (the
  * docs-app variant) but targets the sim app so it imports from
- * `@/components/icons`. Unlike the docs variant, no bare-name aliasing is
- * applied because consumers always look up by the canonical (possibly
- * versioned) `integration.type` emitted into `integrations.json`.
+ * `@/components/icons`.
  */
-function writeIntegrationsIconMapping(iconMapping: Record<string, IconRef>): void {
+function writeIntegrationsIconMapping(rawIconMapping: Record<string, IconRef>): void {
   try {
+    const iconMapping = withBareNameAliases(rawIconMapping)
     if (!fs.existsSync(INTEGRATIONS_DATA_PATH)) {
       fs.mkdirSync(INTEGRATIONS_DATA_PATH, { recursive: true })
     }

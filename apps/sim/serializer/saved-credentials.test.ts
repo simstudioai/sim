@@ -235,11 +235,13 @@ function valuesFor(ids: readonly string[], prefix: string): Record<string, strin
   return Object.fromEntries(ids.map((id) => [id, `${prefix}-${id}`]))
 }
 
-function operations(config: BlockConfig): string[] {
+/** Every operation, or the single default when a block has no operation dropdown. */
+function operations(config: BlockConfig): (string | undefined)[] {
   const operation = config.subBlocks.find((subBlock) => subBlock.id === 'operation')
   const options =
     typeof operation?.options === 'function' ? operation.options() : operation?.options
-  return options?.map((option) => option.id) ?? []
+  const ids = options?.map((option) => option.id) ?? []
+  return ids.length > 0 ? ids : [undefined]
 }
 
 function firstOperation(config: BlockConfig): string | undefined {
@@ -313,7 +315,7 @@ describe.each(VERSIONS)('$successor.type credential-only block', ({ successor, s
   it('passes validation with only a saved credential, in every operation', () => {
     for (const operation of operations(successor)) {
       const message = missingRequiredFields(
-        buildBlock(successor, { operation, credential: 'cred-1' })
+        buildBlock(successor, { ...(operation ? { operation } : {}), credential: 'cred-1' })
       )
 
       for (const id of secretIds) expect(message, operation).not.toContain(id)
@@ -346,7 +348,9 @@ describe.each(VERSIONS)('$successor.type credential-only block', ({ successor, s
 
   it('builds tool params without asking for inline secrets, in every operation', () => {
     for (const operation of operations(successor)) {
-      const params = serialize(buildBlock(successor, { operation, credential: 'cred-1' }))
+      const params = serialize(
+        buildBlock(successor, { ...(operation ? { operation } : {}), credential: 'cred-1' })
+      )
       let message = ''
       try {
         successor.tools.config?.params?.(params)

@@ -1,6 +1,9 @@
 import { jsonResponse } from '@sim/testing/helpers/http'
 import { describe, expect, it, vi } from 'vitest'
-import { validateFlintServiceAccount } from '@/lib/credentials/token-service-accounts/validators/token-checks'
+import {
+  validateBrexServiceAccount,
+  validateFlintServiceAccount,
+} from '@/lib/credentials/token-service-accounts/validators/token-checks'
 
 describe('Flint saved API key verification', () => {
   it("accepts a key Flint answers with its own 'Task not found' for an unknown task", async () => {
@@ -38,6 +41,38 @@ describe('Flint saved API key verification', () => {
 
     await expect(validateFlintServiceAccount({ apiToken: 'any' })).rejects.toMatchObject({
       code: 'provider_unavailable',
+    })
+  })
+})
+
+describe('Brex saved token verification', () => {
+  it('rejects an unknown token Brex answers with its scope-style 403', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ type: 'FORBIDDEN', message: 'Invalid or Revoked Token' }, 403)
+        )
+    )
+
+    await expect(validateBrexServiceAccount({ apiToken: 'bxt_unknown' })).rejects.toMatchObject({
+      code: 'invalid_credentials',
+    })
+  })
+
+  it('accepts a valid token that only lacks the user scope', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({ type: 'FORBIDDEN', message: 'Insufficient scope for this request' }, 403)
+        )
+    )
+
+    await expect(validateBrexServiceAccount({ apiToken: 'bxt_scoped' })).resolves.toMatchObject({
+      displayName: 'Brex',
     })
   })
 })

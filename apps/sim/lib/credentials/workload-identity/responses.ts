@@ -20,12 +20,12 @@ function notConfigured() {
   return new NextResponse(null, { status: 404 })
 }
 
-export function workloadIdentityDiscoveryResponse() {
-  if (!isWorkloadIdentityConfigured()) return notConfigured()
+export async function workloadIdentityDiscoveryResponse() {
+  if (!(await isWorkloadIdentityConfigured())) return notConfigured()
   return NextResponse.json(getWorkloadIdentityDiscoveryDocument(), { headers: DISCOVERY_HEADERS })
 }
 
 export async function workloadIdentityJwksResponse() {
-  if (!isWorkloadIdentityConfigured()) return notConfigured()
+  if (!(await isWorkloadIdentityConfigured())) return notConfigured()
   return NextResponse.json(await getWorkloadIdentityJwks(), { headers: DISCOVERY_HEADERS })
 }

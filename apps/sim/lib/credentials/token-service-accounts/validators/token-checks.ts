@@ -1,4 +1,5 @@
 import { toArray, toRecord } from '@sim/utils/object'
+import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   fetchProvider,
   TokenServiceAccountValidationError,
@@ -84,10 +85,15 @@ export const validateApolloServiceAccount = tokenCheckValidator({
   }),
 })
 
-/** Brex's current-user endpoint answers 200 for a valid user token and 401 otherwise. */
+/**
+ * Brex's current-user endpoint answers 200 for a valid user token. An unknown
+ * token gets the same JSON 403 as a token missing the user scope, told apart
+ * only by its message.
+ */
 export const validateBrexServiceAccount = tokenCheckValidator({
   serviceLabel: 'Brex',
   forbiddenMeansScoped: true,
+  rejectsKey: (errorBody) => /invalid or revoked token/i.test(String(toRecord(errorBody).message)),
   request: ({ apiToken }) => ({
     url: 'https://api.brex.com/v2/users/me',
     headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
@@ -275,10 +281,10 @@ export const validateFirefliesServiceAccount = tokenCheckValidator({
 
 /**
  * Flint has no identity endpoint, so the key is checked against the documented get-task route
- * with an ID no organization owns: an accepted key gets 404, a rejected one gets 401.
+ * with an ID no organization owns, shaped like the documented `bg-550e8400-a1b2c3d4` so a format
+ * check can't answer first: an accepted key gets 404, a rejected one gets 401.
  */
-const FLINT_VERIFY_URL =
-  'https://app.tryflint.com/api/v1/agent/tasks/bg-00000000-0000-4000-8000-000000000000-00000000'
+const FLINT_VERIFY_URL = 'https://app.tryflint.com/api/v1/agent/tasks/bg-00000000-00000000'
 
 /** Verifies a Flint API key. */
 export async function validateFlintServiceAccount(
@@ -301,7 +307,12 @@ export async function validateFlintServiceAccount(
   }
   if (response.status !== 404) await throwForProviderResponse(response, 'get_task')
   // Only Flint's own JSON answer proves the key; an HTML 404 from a proxy proves nothing.
-  const body = toRecord(await response.json().catch(() => null))
+  const body = toRecord(
+    await readResponseJsonWithLimit(response, {
+      maxBytes: 64 * 1024,
+      label: 'Flint credential check',
+    }).catch(() => null)
+  )
   if (body.error !== 'Task not found') {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'get_task',
@@ -357,10 +368,7 @@ export const validateInstantlyServiceAccount = tokenCheckValidator({
   }),
 })
 
-/**
- * Intercom's identify-admin endpoint answers 200 with the token's admin, 401 to an unknown
- * token, and a JSON 403 to a valid token missing the scope, which still proves the token.
- */
+/** Intercom's identify-admin endpoint answers 200 with the token's admin and 401 to an unknown token. */
 export const validateIntercomServiceAccount = tokenCheckValidator({
   serviceLabel: 'Intercom',
   request: ({ apiToken }) => ({
