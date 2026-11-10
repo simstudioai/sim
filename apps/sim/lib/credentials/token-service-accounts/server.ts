@@ -19,6 +19,7 @@ import {
   PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID,
   SHOPIFY_SERVICE_ACCOUNT_PROVIDER_ID,
   SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+  TAVILY_SERVICE_ACCOUNT_PROVIDER_ID,
   TOKEN_SERVICE_ACCOUNT_SECRET_TYPE,
   type TokenServiceAccountProviderId,
   TRELLO_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -43,6 +44,7 @@ import { validateNotionServiceAccount } from '@/lib/credentials/token-service-ac
 import { validatePipedriveServiceAccount } from '@/lib/credentials/token-service-accounts/validators/pipedrive'
 import { validateShopifyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/shopify'
 import { validateSnowflakeServiceAccount } from '@/lib/credentials/token-service-accounts/validators/snowflake'
+import { validateTavilyServiceAccount } from '@/lib/credentials/token-service-accounts/validators/tavily'
 import { validateTrelloServiceAccount } from '@/lib/credentials/token-service-accounts/validators/trello'
 import { validateWealthboxServiceAccount } from '@/lib/credentials/token-service-accounts/validators/wealthbox'
 import { validateWebflowServiceAccount } from '@/lib/credentials/token-service-accounts/validators/webflow'
@@ -113,6 +115,7 @@ const TOKEN_SERVICE_ACCOUNT_VALIDATORS: Record<
   [GAUGE_SERVICE_ACCOUNT_PROVIDER_ID]: validateGaugeServiceAccount,
   [HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID]: validateHiggsfieldServiceAccount,
   [FLOW_SERVICE_ACCOUNT_PROVIDER_ID]: validateFlowServiceAccount,
+  [TAVILY_SERVICE_ACCOUNT_PROVIDER_ID]: validateTavilyServiceAccount,
 }
 
 export function getTokenServiceAccountValidator(

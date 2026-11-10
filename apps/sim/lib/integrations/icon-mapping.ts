@@ -573,7 +573,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   table: Table,
   table_v2: Table,
   tailscale: TailscaleIcon,
-  tavily: TavilyIcon,
+  tavily_v2: TavilyIcon,
   telegram: TelegramIcon,
   temporal: TemporalIcon,
   textract_v3: TextractIcon,

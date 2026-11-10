@@ -85,6 +85,7 @@ export const FLOW_SERVICE_ACCOUNT_PROVIDER_ID = 'flow-service-account' as const
 export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
 export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
+export const TAVILY_SERVICE_ACCOUNT_PROVIDER_ID = 'tavily-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
 
@@ -116,6 +117,7 @@ export type TokenServiceAccountProviderId =
   | typeof CODA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof TAVILY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FLOW_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
@@ -522,6 +524,23 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     docsUrl: 'https://docs.sim.ai/integrations/snowflake-service-account',
     invalidCredentialsHelp:
       'Snowflake rejected this token. Check that it belongs to a user on this exact account host, that it has not expired or been revoked, that a network policy allows Sim to reach the account, and that the SQL API is enabled for the account.',
+  },
+  [TAVILY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: TAVILY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Tavily',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 'tvly-...',
+        secret: true,
+        hintPattern: /^tvly-/,
+        hintMessage: 'Tavily API keys start with tvly-.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/tavily',
   },
 }
 

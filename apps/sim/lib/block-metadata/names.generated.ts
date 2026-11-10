@@ -284,7 +284,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   supabase: 'Supabase',
   table_v2: 'Table',
   tailscale: 'Tailscale',
-  tavily: 'Tavily',
+  tavily_v2: 'Tavily',
   telegram: 'Telegram',
   temporal: 'Temporal',
   textract_v3: 'AWS Textract',

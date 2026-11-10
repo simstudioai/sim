@@ -39,6 +39,7 @@ export const SERVICE_ACCOUNT_PROVIDER_BY_OAUTH_SERVICE_ID = {
   salesforce: 'salesforce-service-account',
   shopify: 'shopify-service-account',
   slack: 'slack-custom-bot',
+  tavily: 'tavily-service-account',
   trello: 'trello-service-account',
   vanta: 'vanta-service-account',
   wealthbox: 'wealthbox-service-account',

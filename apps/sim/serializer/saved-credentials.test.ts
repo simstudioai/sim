@@ -22,6 +22,7 @@ import { SESBlock, SESV2Block } from '@/blocks/blocks/ses'
 import { SQSBlock, SQSV2Block } from '@/blocks/blocks/sqs'
 import { SSMBlock, SSMV2Block } from '@/blocks/blocks/ssm'
 import { STSBlock, STSV2Block } from '@/blocks/blocks/sts'
+import { TavilyBlock, TavilyV2Block } from '@/blocks/blocks/tavily'
 import { TextractBlock, TextractV2Block, TextractV3Block } from '@/blocks/blocks/textract'
 import type { BlockConfig } from '@/blocks/types'
 import { Serializer } from '@/serializer'
@@ -39,7 +40,7 @@ vi.unmock('@/tools/metadata')
 const VERSIONS: Array<{
   legacy: BlockConfig
   successor: BlockConfig
-  secretIds: [string, string]
+  secretIds: readonly string[]
 }> = [
   {
     legacy: AppConfigBlock,
@@ -110,7 +111,12 @@ const VERSIONS: Array<{
     successor: TextractV3Block,
     secretIds: ['accessKeyId', 'secretAccessKey'],
   },
+  { legacy: TavilyBlock, successor: TavilyV2Block, secretIds: ['apiKey'] },
 ]
+
+function valuesFor(ids: readonly string[], prefix: string): Record<string, string> {
+  return Object.fromEntries(ids.map((id) => [id, `${prefix}-${id}`]))
+}
 
 function operations(config: BlockConfig): string[] {
   const operation = config.subBlocks.find((subBlock) => subBlock.id === 'operation')
@@ -161,12 +167,9 @@ describe.each(VERSIONS)('$legacy.type legacy block', ({ legacy, secretIds }) => 
   })
 
   it('serializes its inline secrets exactly as before', () => {
-    const params = serialize(
-      buildBlock(legacy, { [secretIds[0]]: 'inline-one', [secretIds[1]]: 'inline-two' })
-    )
+    const params = serialize(buildBlock(legacy, valuesFor(secretIds, 'inline')))
 
-    expect(params[secretIds[0]]).toBe('inline-one')
-    expect(params[secretIds[1]]).toBe('inline-two')
+    for (const id of secretIds) expect(params[id]).toBe(`inline-${id}`)
     expect(params.oauthCredential).toBeUndefined()
   })
 
@@ -202,14 +205,12 @@ describe.each(VERSIONS)('$successor.type credential-only block', ({ successor, s
     const params = serialize(
       buildBlock(successor, {
         credential: 'cred-1',
-        [secretIds[0]]: 'stale-one',
-        [secretIds[1]]: 'stale-two',
+        ...valuesFor(secretIds, 'stale'),
       })
     )
 
     expect(params.oauthCredential).toBe('cred-1')
-    expect(params[secretIds[0]]).toBeUndefined()
-    expect(params[secretIds[1]]).toBeUndefined()
+    for (const id of secretIds) expect(params[id]).toBeUndefined()
   })
 
   it('builds tool params without asking for inline secrets, in every operation', () => {

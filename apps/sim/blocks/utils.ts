@@ -54,6 +54,7 @@ export const SERVICE_ACCOUNT_SUBBLOCKS: SubBlockConfig[] = [
 const INLINE_SECRET_FIELDS = {
   aws: ['accessKeyId', 'secretAccessKey', 'awsAccessKeyId', 'awsSecretAccessKey'],
   databricks: ['host', 'apiKey'],
+  tavily: ['apiKey'],
 } as const satisfies Record<string, readonly string[]>
 
 /** The saved-credential picker; {@link withSavedCredential} completes the standard fields. */

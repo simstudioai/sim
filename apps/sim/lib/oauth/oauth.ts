@@ -76,6 +76,7 @@ import {
   SlackIcon,
   SnowflakeIcon,
   SpotifyIcon,
+  TavilyIcon,
   TikTokIcon,
   TrelloIcon,
   VantaIcon,
@@ -1697,6 +1698,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'gauge',
+  },
+  tavily: {
+    name: 'Tavily',
+    icon: TavilyIcon,
+    services: {
+      tavily: {
+        name: 'Tavily',
+        description: 'Search, extract, crawl, and map the web with Tavily.',
+        providerId: 'tavily',
+        serviceAccountProviderId: 'tavily-service-account',
+        icon: TavilyIcon,
+        baseProviderIcon: TavilyIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'tavily',
   },
   higgsfield: {
     name: 'Higgsfield',

@@ -28549,11 +28549,11 @@
       "updatedAt": "2026-10-26"
     },
     {
-      "type": "tavily",
+      "type": "tavily_v2",
       "slug": "tavily",
       "name": "Tavily",
       "description": "Search and extract information",
-      "longDescription": "Search the web, extract content from URLs, crawl sites, and map their URLs. Requires an API key.",
+      "longDescription": "Search the web, extract content from URLs, crawl sites, and map their URLs.",
       "bgColor": "#FFFFFF",
       "iconName": "TavilyIcon",
       "docsUrl": "https://docs.sim.ai/integrations/tavily",
@@ -28578,11 +28578,12 @@
       "operationCount": 4,
       "triggers": [],
       "triggerCount": 0,
-      "authType": "api-key",
+      "authType": "oauth",
+      "oauthServiceId": "tavily",
       "category": "tools",
       "integrationType": "search",
       "tags": ["web-scraping", "enrichment"],
-      "updatedAt": "2026-10-14"
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "telegram",

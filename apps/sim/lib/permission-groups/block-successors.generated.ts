@@ -74,6 +74,7 @@ export const BLOCK_ACCESS_SUCCESSORS: Record<string, string> = {
   sts: 'sts_v2',
   stt: 'stt_v2',
   table: 'table_v2',
+  tavily: 'tavily_v2',
   textract: 'textract_v3',
   textract_v2: 'textract_v3',
   video_generator: 'video_generator_v3',

@@ -371,7 +371,7 @@ import { SupabaseBlock, SupabaseBlockMeta } from '@/blocks/blocks/supabase'
 import { TableBlock } from '@/blocks/blocks/table'
 import { TableV2Block } from '@/blocks/blocks/table_v2'
 import { TailscaleBlock, TailscaleBlockMeta } from '@/blocks/blocks/tailscale'
-import { TavilyBlock, TavilyBlockMeta } from '@/blocks/blocks/tavily'
+import { TavilyBlock, TavilyBlockMeta, TavilyV2Block } from '@/blocks/blocks/tavily'
 import { TelegramBlock, TelegramBlockMeta } from '@/blocks/blocks/telegram'
 import { TemporalBlock, TemporalBlockMeta } from '@/blocks/blocks/temporal'
 import {
@@ -775,6 +775,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   table_v2: TableV2Block,
   tailscale: TailscaleBlock,
   tavily: TavilyBlock,
+  tavily_v2: TavilyV2Block,
   telegram: TelegramBlock,
   temporal: TemporalBlock,
   textract: TextractBlock,
@@ -1125,6 +1126,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   supabase: SupabaseBlockMeta,
   tailscale: TailscaleBlockMeta,
   tavily: TavilyBlockMeta,
+  tavily_v2: TavilyBlockMeta,
   telegram: TelegramBlockMeta,
   temporal: TemporalBlockMeta,
   textract: TextractBlockMeta,
