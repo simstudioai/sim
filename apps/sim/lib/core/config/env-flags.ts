@@ -622,6 +622,12 @@ export const isCohereConfigured = isTruthy(getEnv('NEXT_PUBLIC_COHERE_CONFIGURED
 export const isInvitationsDisabled = isTruthy(env.DISABLE_INVITATIONS)
 
 /**
+ * The browser-visible switch that hides the invitation UI. Client code reads it, folded together
+ * with {@link isInvitationsDisabled}, as `invitationsDisabled` on the deployment shape.
+ */
+export const isInvitationUiDisabled = isTruthy(getEnv('NEXT_PUBLIC_DISABLE_INVITATIONS'))
+
+/**
  * Is public API access disabled globally
  * When true, the public API toggle is hidden and public API access is blocked
  */

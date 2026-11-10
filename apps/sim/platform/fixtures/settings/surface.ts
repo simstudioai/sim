@@ -53,6 +53,7 @@ export function settingsSurface(scenario: Scenario, plan: PreviewPlan): Platform
       chatEnabled: true,
       azureConfigured: false,
       cohereConfigured: false,
+      invitationsDisabled: false,
       features,
     },
     navFlags: {

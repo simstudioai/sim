@@ -70,6 +70,7 @@ const NARROW_MEMBER_SURFACE = {
     chatEnabled: true,
     azureConfigured: false,
     cohereConfigured: false,
+    invitationsDisabled: false,
     features: {
       accessControl: true,
       auditLogs: false,

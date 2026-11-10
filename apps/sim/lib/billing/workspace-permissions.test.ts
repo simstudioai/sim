@@ -41,6 +41,7 @@ const DEPLOYMENT: DeploymentShape = {
   chatEnabled: true,
   azureConfigured: false,
   cohereConfigured: false,
+  invitationsDisabled: false,
   features: {
     accessControl: false,
     auditLogs: false,

@@ -51,6 +51,7 @@ interface EnvFlagsMockState {
   isAzureConfigured: boolean
   isCohereConfigured: boolean
   isInvitationsDisabled: boolean
+  isInvitationUiDisabled: boolean
   isPublicApiDisabled: boolean
   isGoogleAuthDisabled: boolean
   isGithubAuthDisabled: boolean
@@ -109,6 +110,7 @@ const defaultEnvFlagsState: EnvFlagsMockState = {
   isAzureConfigured: false,
   isCohereConfigured: false,
   isInvitationsDisabled: false,
+  isInvitationUiDisabled: false,
   isPublicApiDisabled: false,
   isGoogleAuthDisabled: false,
   isGithubAuthDisabled: false,
