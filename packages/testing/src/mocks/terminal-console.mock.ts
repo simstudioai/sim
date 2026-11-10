@@ -78,6 +78,8 @@ const stateValue = {
   entryLocationById: {},
   isOpen: false,
   _hasHydrated: true,
+  chatHandoff: null,
+  setChatHandoff: vi.fn(),
 }
 
 /**

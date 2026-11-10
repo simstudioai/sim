@@ -76,7 +76,6 @@ import {
   MOTHERSHIP_DESKTOP_EXECUTOR_HEADER,
   MOTHERSHIP_STREAM_REPLAY_HEADER,
 } from '@/lib/mothership/constants'
-import { sendMothershipMessage } from '@/lib/mothership/events'
 import type { AssistantSearchLevel } from '@/lib/mothership/generated/assistant'
 import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
 import {
@@ -4200,16 +4199,13 @@ export function useChat(
     ]
   )
   /**
-   * Hands a send the unmount cleanup withdrew to whatever chat surface comes
-   * next: the live replacement's listener when one is mounted, else a one-shot
-   * stored handoff for the next mount. Both lanes carry `userMessageId`, so
-   * whoever picks it up retries as the same send rather than a new one.
+   * Hands a send the unmount cleanup withdrew to the next chat surface as a
+   * one-shot stored handoff. It carries `userMessageId`, so whoever picks it up
+   * retries as the same send rather than a new one.
    */
   const handOffWithdrawnSend = useCallback(
     (send: WithdrawnSend) => {
-      const payload = sendPayload(send)
-      if (sendMothershipMessage(payload, send.userMessageId)) return
-      const { content, ...payloadFields } = payload
+      const { content, ...payloadFields } = sendPayload(send)
       MothershipHandoffStorage.store(
         { message: content, ...payloadFields, resumeUserMessageId: send.userMessageId },
         organizationId ? { organizationId } : workspaceId!

@@ -322,7 +322,7 @@ export function WorkflowEdgeView({
         )}
       </g>
 
-      {isSelected && (
+      {isSelected && data?.onDelete && (
         <EdgeLabelRenderer>
           <button
             aria-label='Delete connection'

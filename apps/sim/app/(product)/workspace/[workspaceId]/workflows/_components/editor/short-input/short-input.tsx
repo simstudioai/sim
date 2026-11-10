@@ -24,10 +24,6 @@ import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_component
 import type { WandControlHandlers } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/sub-block/wand-control'
 import { SubBlockInputController } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/sub-block-input-controller/sub-block-input-controller'
 import {
-  WandButton,
-  WandPromptBar,
-} from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/wand-prompt-bar/wand-prompt-bar'
-import {
   type SubBlockConfig,
   useAccessibleReferencePrefixes,
   useSubBlockValue,
@@ -73,8 +69,6 @@ interface ShortInputProps {
   /** Show the block's webhook URL instead of a stored value. */
   useWebhookUrl?: boolean
   wandControlRef?: MutableRefObject<WandControlHandlers | null>
-  /** The sub-block's label row owns the AI prompt, so the field shows none of its own. */
-  hideInternalWand?: boolean
   workflowSearchValuePath?: Array<string | number>
   /** Which kind of workflow-search match the field highlights: a sub-block's or a subflow's. */
   workflowSearchTargetKind?: 'subblock' | 'subflow'
@@ -102,7 +96,6 @@ export const ShortInput = memo(function ShortInput({
   readOnly = false,
   useWebhookUrl = false,
   wandControlRef,
-  hideInternalWand = false,
   workflowSearchValuePath = [],
   workflowSearchTargetKind = 'subblock',
   allowReferences = true,
@@ -141,7 +134,6 @@ export const ShortInput = memo(function ShortInput({
   })
   persistSubBlockValueRef.current = (value: string) => setSubBlockValue(value)
 
-  const isWandEnabled = config.wandConfig?.enabled ?? false
   const reactFlowInstance = useReactFlow()
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
@@ -245,23 +237,10 @@ export const ShortInput = memo(function ShortInput({
     [wandHook]
   )
 
-  const showInternalWand = isWandEnabled && !hideInternalWand
   const fieldDisabled = isPreview || disabled
 
   return (
     <div className={styles.field}>
-      {showInternalWand && (
-        <WandPromptBar
-          isVisible={wandHook.isPromptVisible}
-          isLoading={wandHook.isLoading}
-          isStreaming={wandHook.isStreaming}
-          promptValue={wandHook.promptInputValue}
-          onSubmit={(prompt) => wandHook.generateStream({ prompt })}
-          onCancel={wandHook.isStreaming ? wandHook.cancelGeneration : wandHook.hidePromptInline}
-          onChange={wandHook.updatePromptValue}
-          placeholder={config.wandConfig?.placeholder || 'Describe what you want to generate…'}
-        />
-      )}
       <SubBlockInputController
         blockId={blockId}
         subBlockId={subBlockId}
@@ -307,11 +286,7 @@ export const ShortInput = memo(function ShortInput({
                 }),
               })
           return (
-            <div
-              className={styles.frame}
-              data-disabled={fieldDisabled || undefined}
-              data-trailing={showInternalWand || undefined}
-            >
+            <div className={styles.frame} data-disabled={fieldDisabled || undefined}>
               <input
                 ref={ref as RefObject<HTMLInputElement>}
                 className={styles.input}
@@ -346,18 +321,6 @@ export const ShortInput = memo(function ShortInput({
               <div ref={overlayRef} className={styles.overlay} data-type='T043' aria-hidden='true'>
                 <span className={styles.overlayText}>{formattedText}</span>
               </div>
-              {showInternalWand && !isPreview && !wandHook.isStreaming && (
-                <span className={styles.trailing}>
-                  <WandButton
-                    onClick={
-                      wandHook.isPromptVisible
-                        ? wandHook.hidePromptInline
-                        : wandHook.showPromptInline
-                    }
-                    disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
-                  />
-                </span>
-              )}
             </div>
           )
         }}

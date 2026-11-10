@@ -24,6 +24,7 @@ import {
   ToggleButton,
   toggleFromHeader,
 } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/terminal/toggle-button/toggle-button'
+import { useChatHandoff } from '@/platform/lib/data/chat-handoff'
 import {
   type ConsoleEntry,
   collectExpandableNodeIds,
@@ -43,9 +44,7 @@ import {
 import {
   createCommand,
   isMacPlatform,
-  sendMothershipMessage,
   TERMINAL_HEIGHT,
-  useDeploymentShape,
   useIsMobile,
   useWorkflowRegistry,
 } from '@/platform/lib/data/workflows'
@@ -135,7 +134,7 @@ export function Terminal() {
   const entries = useWorkflowConsoleEntries(
     hasConsoleHydrated && typeof activeWorkflowId === 'string' ? activeWorkflowId : undefined
   )
-  const { chatEnabled } = useDeploymentShape()
+  const chat = useChatHandoff()
   const { copy } = useClipboard()
 
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
@@ -486,15 +485,15 @@ export function Terminal() {
       const runId = entry.executionId
       actions.push({ id: 'copy-run-id', label: 'Copy run ID', onSelect: () => void copy(runId) })
     }
-    if (chatEnabled && !entry.success) {
+    if (chat.available && !entry.success) {
       actions.push({
         id: 'fix-in-chat',
         label: 'Fix in chat',
         separatorBefore: actions.length > 0,
         onSelect: () => {
           const error = entry.error ? String(entry.error) : 'Unknown error'
-          sendMothershipMessage({
-            content: `${error}\n\nError in ${entry.blockName || 'Unknown Block'}.\n\nPlease fix this.`,
+          chat.handOff({
+            message: `${error}\n\nError in ${entry.blockName || 'Unknown Block'}.\n\nPlease fix this.`,
           })
         },
       })

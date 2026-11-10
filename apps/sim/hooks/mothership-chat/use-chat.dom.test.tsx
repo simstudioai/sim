@@ -511,70 +511,6 @@ function renderUseChatInChat(
   }
 }
 
-/**
- * Mounts a surface shaped like `home.tsx`: it drives `useChat` AND registers the
- * `mothership-send-message` listener that claims the event with
- * `preventDefault`. Unmounting it exercises whether the departing surface's own
- * still-attached listener can claim the recovery event its teardown emitted,
- * which would suppress the storage fallback and strand the message.
- */
-function renderHomeLikeSurface(): {
-  getResult: () => ReturnType<typeof useChat>
-  claimedByOwnListener: () => number
-  unmount: () => void
-} {
-  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
-  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  const container = document.createElement('div')
-  const root = createRoot(container)
-  mountedRoots.push(root)
-  let result: ReturnType<typeof useChat> | undefined
-  let claims = 0
-
-  function HomeLike() {
-    const chat = useChat('ws-1', undefined)
-    result = chat
-    const { sendMessage } = chat
-    // Mirrors home.tsx — declared AFTER useChat, so on unmount React runs
-    // useChat's cleanup (which aborts) before this removeEventListener.
-    useEffect(() => {
-      const handler = (e: Event) => {
-        const detail = (e as CustomEvent<{ message?: string; resumeUserMessageId?: string }>).detail
-        if (!detail?.message) return
-        claims++
-        e.preventDefault()
-        sendMessage(detail.message, undefined, undefined, {
-          ...(detail.resumeUserMessageId
-            ? { resumeUserMessageId: detail.resumeUserMessageId }
-            : {}),
-        })
-      }
-      window.addEventListener('mothership-send-message', handler)
-      return () => window.removeEventListener('mothership-send-message', handler)
-    }, [sendMessage])
-    return null
-  }
-
-  act(() => {
-    root.render(
-      <ToastProvider>
-        <QueryClientProvider client={queryClient}>
-          {(<HomeLike />) as ReactNode}
-        </QueryClientProvider>
-      </ToastProvider>
-    )
-  })
-
-  return {
-    getResult: () => {
-      if (result === undefined) throw new Error('Hook result is not ready')
-      return result
-    },
-    claimedByOwnListener: () => claims,
-    unmount: () => act(() => root.unmount()),
-  }
-}
-
 /** Holds the chat POST of the first send until the test settles it. */
 function holdFirstSend(): PromiseWithResolvers<Response> {
   const post = Promise.withResolvers<Response>()
@@ -2096,45 +2032,6 @@ describe('useChat remount send recovery', () => {
     )
   })
 
-  it('delivers a withdrawn chatless send to a live replacement surface', async () => {
-    const attachment = {
-      id: 'file-1',
-      key: 'uploads/file-1',
-      filename: 'notes.txt',
-      media_type: 'text/plain',
-      size: 12,
-    }
-    const received: Array<{
-      message: string
-      fileAttachments?: unknown[]
-      resumeUserMessageId?: string
-    }> = []
-    const claim = (event: Event) => {
-      received.push((event as CustomEvent<(typeof received)[number]>).detail)
-      event.preventDefault()
-    }
-    window.addEventListener('mothership-send-message', claim)
-
-    try {
-      const { getResult, unmount } = renderUseChat()
-      await act(async () => {
-        void getResult().sendMessage('hello from the palette', [attachment])
-      })
-      await waitFor(() => state.postBodies.length === 1)
-
-      unmount()
-      await waitFor(() => received.length === 1)
-
-      expect(received[0].message).toBe('hello from the palette')
-      expect(received[0].fileAttachments).toEqual([attachment])
-      // Carried so the replacement retries as the same send, not a new one.
-      expect(received[0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
-      expect(window.localStorage.getItem('sim_mothership_handoff')).toBeNull()
-    } finally {
-      window.removeEventListener('mothership-send-message', claim)
-    }
-  })
-
   it('re-persists a withdrawn chatless send as a handoff for the next mount', async () => {
     const attachment = {
       id: 'file-2',
@@ -2174,26 +2071,6 @@ describe('useChat remount send recovery', () => {
     })
 
     expect(MothershipHandoffStorage.consume('ws-1')).toBeNull()
-  })
-
-  /**
-   * A departing surface's own listener must not claim the recovery event its
-   * teardown emitted: claiming returns `true`, which suppresses the storage
-   * fallback, and the message would be stranded exactly where this fix is meant
-   * to save it.
-   */
-  it('does not let a departing surface claim its own recovery event', async () => {
-    const surface = renderHomeLikeSurface()
-    await act(async () => {
-      void surface.getResult().sendMessage('must survive my own teardown')
-    })
-    await waitFor(() => state.postBodies.length === 1)
-
-    surface.unmount()
-    await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
-
-    expect(surface.claimedByOwnListener()).toBe(0)
-    expect(MothershipHandoffStorage.consume('ws-1')?.message).toBe('must survive my own teardown')
   })
 
   describe('a new chat’s messages when its surface unmounts', () => {
@@ -2265,19 +2142,6 @@ describe('useChat remount send recovery', () => {
         ['First', handoff?.resumeUserMessageId],
         ['Second', secondId],
       ])
-    })
-
-    it('hands off a message sent during the admission to a live replacement', async () => {
-      const replacement = renderHomeLikeSurface()
-      const { view, secondId } = await sendTwoDuringAdmission()
-      admitSends()
-      view.unmount()
-      await waitFor(() => state.postBodies.length === 3)
-
-      expect(replacement.claimedByOwnListener()).toBe(1)
-      expect(state.postBodies[1].message).toBe('First')
-      expect(state.postBodies[2]).toMatchObject({ message: 'Second', userMessageId: secondId })
-      expect(window.localStorage.getItem('sim_mothership_handoff')).toBeNull()
     })
 
     /** Its POST came back with no answer, so no send is out to come back withdrawn. */
@@ -2929,7 +2793,7 @@ describe('useChat remount send recovery', () => {
         }
         return fetchStub(input, init)
       })
-      const { getResult } = renderHomeLikeSurface()
+      const { getResult } = renderUseChat()
 
       await act(async () => {
         await getResult().sendMessage('First message, told it was already sent')

@@ -20,10 +20,6 @@ import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_component
 import type { WandControlHandlers } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/sub-block/wand-control'
 import { SubBlockInputController } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/sub-block-input-controller/sub-block-input-controller'
 import {
-  WandButton,
-  WandPromptBar,
-} from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/wand-prompt-bar/wand-prompt-bar'
-import {
   type SubBlockConfig,
   useAccessibleReferencePrefixes,
   useSubBlockValue,
@@ -47,7 +43,6 @@ interface LongInputProps {
   onChange?: (value: string) => void
   disabled?: boolean
   wandControlRef?: MutableRefObject<WandControlHandlers | null>
-  hideInternalWand?: boolean
   workflowSearchValuePath?: Array<string | number>
 }
 
@@ -69,7 +64,6 @@ export function LongInput({
   onChange,
   disabled,
   wandControlRef,
-  hideInternalWand = false,
   workflowSearchValuePath = [],
 }: LongInputProps) {
   const activeSearchTarget = useActiveSearchTarget()
@@ -95,7 +89,6 @@ export function LongInput({
   })
   persistSubBlockValueRef.current = (value: string) => setSubBlockValue(value)
 
-  const isWandEnabled = config.wandConfig?.enabled ?? false
   const accessiblePrefixes = useAccessibleReferencePrefixes(blockId)
 
   const shouldForceTagDropdown = useCallback(
@@ -127,23 +120,10 @@ export function LongInput({
     [wandHook]
   )
 
-  const showInternalWand = isWandEnabled && !hideInternalWand
   const fieldDisabled = isPreview || disabled
 
   return (
     <div className={styles.field}>
-      {showInternalWand && (
-        <WandPromptBar
-          isVisible={wandHook.isPromptVisible}
-          isLoading={wandHook.isLoading}
-          isStreaming={wandHook.isStreaming}
-          promptValue={wandHook.promptInputValue}
-          onSubmit={(prompt) => wandHook.generateStream({ prompt })}
-          onCancel={wandHook.isStreaming ? wandHook.cancelGeneration : wandHook.hidePromptInline}
-          onChange={wandHook.updatePromptValue}
-          placeholder={config.wandConfig?.placeholder || 'Describe what you want to generate…'}
-        />
-      )}
       <SubBlockInputController
         blockId={blockId}
         subBlockId={subBlockId}
@@ -209,18 +189,6 @@ export function LongInput({
                 disabled={fieldDisabled}
                 spellCheck={false}
               />
-              {showInternalWand && !isPreview && !wandHook.isStreaming && (
-                <span className={styles.trailing}>
-                  <WandButton
-                    onClick={
-                      wandHook.isPromptVisible
-                        ? wandHook.hidePromptInline
-                        : wandHook.showPromptInline
-                    }
-                    disabled={wandHook.isLoading || wandHook.isStreaming || disabled}
-                  />
-                </span>
-              )}
             </div>
           )
         }}
