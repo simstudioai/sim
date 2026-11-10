@@ -284,7 +284,6 @@ vi.mock('@/stores/workflows/workflow/store', () => ({
 import {
   type ChatWorkflowRunResult,
   useWorkflowExecution,
-  WorkflowAttachmentUploadError,
 } from '@/components/workflow-editor/hooks/use-workflow-execution'
 
 nextNavigationMockFns.mockUseParams.mockReturnValue({ workspaceId: 'workspace-1' })
@@ -748,7 +747,6 @@ describe('useWorkflowExecution attachment uploads', () => {
       }
     })
 
-    expect(uploadError).toBeInstanceOf(WorkflowAttachmentUploadError)
     expect((uploadError as Error).message).toBe(
       'Failed to upload report.pdf: Workspace file storage limit exceeded'
     )

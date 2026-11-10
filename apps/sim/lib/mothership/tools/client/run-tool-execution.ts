@@ -676,14 +676,6 @@ function notifyRunToolReleased(workflowId: string): void {
   }
 }
 
-/** The resource's Stop button refers to its displayed execution, which may be a manual run. */
-export function stopRunToolForExecution(workflowId: string, executionId: string | null): boolean {
-  const active = runToolOwner(workflowId)
-  if (!executionId || active?.execution?.id !== executionId) return false
-  stopRunToolExecutions(new Set([active.toolCallId]))
-  return true
-}
-
 /** Cancels exact tool-owned executions; a workflow's current UI pointer is not ownership. */
 export function stopRunToolExecutions(toolCallIds: ReadonlySet<string>): void {
   dropWaitingRunTools(toolCallIds)

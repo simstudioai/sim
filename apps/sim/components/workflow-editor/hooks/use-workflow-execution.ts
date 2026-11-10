@@ -193,13 +193,6 @@ export interface ChatWorkflowRunResult {
   uploadedAttachments: UploadedWorkflowAttachment[]
 }
 
-export class WorkflowAttachmentUploadError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'WorkflowAttachmentUploadError'
-  }
-}
-
 /**
  * Builds the manual-run workflow input from a trigger's inputFormat subblock.
  * Named fields are coerced by type; file-typed fields are excluded as named
@@ -701,7 +694,7 @@ export function useWorkflowExecution() {
             finishOwnedExecution(activeWorkflowId, persistenceExecution)
             setIsDebugging(activeWorkflowId, false)
             setActiveBlocks(activeWorkflowId, new Set())
-            throw new WorkflowAttachmentUploadError(message)
+            throw new Error(message)
           }
         }
 

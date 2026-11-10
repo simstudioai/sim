@@ -25,7 +25,7 @@ interface UseCopyToClipboardReturn {
  * Starts an async clipboard write while the caller still has transient user activation.
  * Deferred text uses `ClipboardItem` when available and an immediate fallback otherwise.
  */
-export function writeTextToClipboard(content: ClipboardContent): Promise<void> {
+function writeTextToClipboard(content: ClipboardContent): Promise<void> {
   if (typeof content === 'string') return navigator.clipboard.writeText(content)
 
   if (typeof ClipboardItem !== 'undefined' && typeof navigator.clipboard.write === 'function') {

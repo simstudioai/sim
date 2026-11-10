@@ -35,10 +35,4 @@ export const managedSourceParam = {
   parser: parseAsString,
 } as const
 
-/** A setup detour carries intent, never an arbitrary redirect URL. */
-export const searchSetupReturnParam = {
-  key: 'search-setup',
-  parser: parseAsStringLiteral([...SEARCH_SETUP_SOURCES, 'search']),
-} as const
-
 export type SearchSetupSource = NonNullable<ReturnType<typeof searchSetupParam.parser.parse>>

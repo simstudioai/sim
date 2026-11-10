@@ -32,20 +32,6 @@ export function isFolderOrAncestorLocked(
   return false
 }
 
-/**
- * Returns the human-readable path for a folder, e.g. `'Engineering / Backend'`.
- * Returns `null` when the folder is at workspace root or unknown. Cycles or
- * missing ancestors short-circuit by returning the segments resolved so far.
- */
-export function getFolderPath(
-  folderId: string | null | undefined,
-  folders: Record<string, WorkflowFolder>,
-  separator = ' / '
-): string | null {
-  const segments = folderAncestorChain(folderId, (id) => folders[id]).map((folder) => folder.name)
-  return segments.length > 0 ? segments.join(separator) : null
-}
-
 /** Returns the canonical public API path for a folder and rejects corrupt trees. */
 export function getCanonicalFolderPath(
   folderId: string | null | undefined,
@@ -100,8 +86,9 @@ export function disambiguateLabelByFolder(
   duplicateNames: Set<string>
 ): string {
   if (!duplicateNames.has(name)) return name
-  const folderPath = getFolderPath(folderId, folders)
-  return folderPath ? `${name} (${folderPath})` : `${name} (Root)`
+  // Cycles or missing ancestors stop at the segments resolved so far.
+  const segments = folderAncestorChain(folderId, (id) => folders[id]).map((folder) => folder.name)
+  return segments.length > 0 ? `${name} (${segments.join(' / ')})` : `${name} (Root)`
 }
 
 /**
