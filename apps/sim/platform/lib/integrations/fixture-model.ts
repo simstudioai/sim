@@ -50,7 +50,7 @@ export interface IntegrationsData {
 
 export function memberIntegrationHref(
   path: string,
-  search: Pick<URLSearchParams, 'get'>,
+  search: URLSearchParams,
   query = search.get('q')
 ) {
   return integrationCenterHref(platformHref(path, search), search, query)
