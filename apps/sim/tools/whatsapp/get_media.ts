@@ -1,3 +1,4 @@
+import { WHATSAPP_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InternalToolConfig } from '@/tools/types'
 import type { WhatsAppGetMediaParams, WhatsAppGetMediaResponse } from '@/tools/whatsapp/types'
 
@@ -7,6 +8,7 @@ export const getMediaTool: InternalToolConfig<WhatsAppGetMediaParams, WhatsAppGe
   description:
     'Download media a customer sent you. Takes the media ID from an incoming WhatsApp message and stores the file in the workflow.',
   version: '1.0.0',
+  oauth: WHATSAPP_CREDENTIAL_OAUTH,
 
   params: {
     mediaId: {

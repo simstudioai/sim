@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ListPaymentIntentsParams, PaymentIntentListResponse } from '@/tools/stripe/types'
 import { LIST_METADATA_OUTPUT_PROPERTIES, PAYMENT_INTENT_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
@@ -10,6 +11,7 @@ export const stripeListPaymentIntentsTool: ToolConfig<
   name: 'Stripe List Payment Intents',
   description: 'List all Payment Intents',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

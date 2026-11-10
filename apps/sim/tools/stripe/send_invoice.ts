@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineStripeKeyedSite,
   type StripeDeliveryContextParams,
@@ -19,6 +20,7 @@ export const stripeSendInvoiceTool: ToolConfig<
   name: 'Stripe Send Invoice',
   description: 'Send an invoice to the customer',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

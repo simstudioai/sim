@@ -1,6 +1,7 @@
 import { VercelIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -11,6 +12,8 @@ const DEPLOY_TARGET_PROJECT_FIELD = ['name', 'project'] as const
 
 export const VercelBlock: BlockConfig = {
   type: 'vercel',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'vercel_v2' },
   name: 'Vercel',
   description: 'Manage Vercel deployments, projects, and infrastructure',
   longDescription:
@@ -2349,3 +2352,17 @@ export const VercelBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const VercelV2Block: BlockConfig = {
+  ...VercelBlock,
+  type: 'vercel_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(VercelBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'vercel',
+    title: 'Vercel Credential',
+  }),
+}

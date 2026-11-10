@@ -9,6 +9,7 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Tt', 'Pr', 'Sn', 'Ur'] as const
@@ -22,6 +23,7 @@ export const semrushDomainPlaCopiesTool: ToolConfig<
   description:
     'List the unique product listing ads a domain runs, with product title, price, and shop name.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,10 +1,13 @@
 import { ResendIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const ResendBlock: BlockConfig = {
   type: 'resend',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'resend_v2' },
   name: 'Resend',
   description: 'Send emails and manage contacts with Resend.',
   longDescription:
@@ -598,3 +601,18 @@ export const ResendBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const ResendV2Block: BlockConfig = {
+  ...ResendBlock,
+  type: 'resend_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription: 'Send emails, retrieve email status, manage contacts, and view domains.',
+  ...withSavedCredential(ResendBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'resend',
+    title: 'Resend Credential',
+  }),
+}

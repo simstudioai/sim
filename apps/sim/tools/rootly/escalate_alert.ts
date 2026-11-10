@@ -1,4 +1,5 @@
 import type { RootlyAlertActionResponse, RootlyEscalateAlertParams } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyEscalateAlertTool: ToolConfig<
@@ -9,6 +10,7 @@ export const rootlyEscalateAlertTool: ToolConfig<
   name: 'Rootly Escalate Alert',
   description: 'Escalate a Rootly alert, optionally to a specific escalation policy or level.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

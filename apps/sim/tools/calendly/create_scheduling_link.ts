@@ -3,6 +3,7 @@ import type {
   CalendlyCreateSchedulingLinkResponse,
 } from '@/tools/calendly/types'
 import { toResourceUri } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 /** Calendly only supports single-use links today, so the event count is fixed at one. */
@@ -16,6 +17,7 @@ export const createSchedulingLinkTool: ToolConfig<
   name: 'Calendly Create Scheduling Link',
   description: 'Create a single-use scheduling link for an event type',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

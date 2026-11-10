@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { VercelListWebhooksParams, VercelListWebhooksResponse } from '@/tools/vercel/types'
 
@@ -9,6 +10,7 @@ export const vercelListWebhooksTool: ToolConfig<
   name: 'Vercel List Webhooks',
   description: 'List webhooks for a Vercel project or team',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

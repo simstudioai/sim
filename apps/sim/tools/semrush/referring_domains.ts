@@ -9,6 +9,7 @@ import {
   readSemrushReport,
   SEMRUSH_BACKLINKS_URL,
 } from '@/tools/semrush/utils'
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = [
@@ -30,6 +31,7 @@ export const semrushReferringDomainsTool: ToolConfig<
   description:
     'List the domains linking to a target, with Authority Score, backlink count, and country.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

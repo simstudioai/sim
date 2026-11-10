@@ -1,4 +1,5 @@
 import type { SentryUpdateIssueParams, SentryUpdateIssueResponse } from '@/tools/sentry/types'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIssueResponse> = {
@@ -7,6 +8,7 @@ export const updateIssueTool: ToolConfig<SentryUpdateIssueParams, SentryUpdateIs
   description:
     'Update a Sentry issue by changing its status, assignment, bookmark state, or other properties. Returns the updated issue details.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

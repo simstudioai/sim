@@ -9,6 +9,7 @@ import {
   readSemrushReport,
   SEMRUSH_BACKLINKS_URL,
 } from '@/tools/semrush/utils'
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['anchor', 'domains_num', 'backlinks_num', 'first_seen', 'last_seen'] as const
@@ -22,6 +23,7 @@ export const semrushBacklinksAnchorsTool: ToolConfig<
   description:
     'List the anchor texts used in backlinks to a target, with domain and backlink counts.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

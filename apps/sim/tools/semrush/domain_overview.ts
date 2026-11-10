@@ -4,6 +4,7 @@ import type {
   SemrushDomainOverviewRow,
 } from '@/tools/semrush/types'
 import { buildSemrushUrl, readSemrushReport, SEMRUSH_ANALYTICS_URL } from '@/tools/semrush/utils'
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Dn', 'Rk', 'Or', 'Ot', 'Oc', 'Ad', 'At', 'Ac'] as const
@@ -17,6 +18,7 @@ export const semrushDomainOverviewTool: ToolConfig<
   description:
     'Get the Semrush rank plus organic and paid search totals for a domain in one regional database.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

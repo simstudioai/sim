@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { EventResponse, RetrieveEventParams } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const stripeRetrieveEventTool: ToolConfig<RetrieveEventParams, EventRespo
   name: 'Stripe Retrieve Event',
   description: 'Retrieve an existing Event by ID',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

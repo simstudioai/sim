@@ -2,10 +2,13 @@ import { Bug } from '@sim/emcn/icons'
 import { SentryIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const SentryBlock: BlockConfig = {
   type: 'sentry',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'sentry_v2' },
   name: 'Sentry',
   description: 'Manage Sentry issues, projects, events, and releases',
   authMode: AuthMode.ApiKey,
@@ -885,3 +888,17 @@ export const SentryBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const SentryV2Block: BlockConfig = {
+  ...SentryBlock,
+  type: 'sentry_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(SentryBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'sentry',
+    title: 'Sentry Credential',
+  }),
+}

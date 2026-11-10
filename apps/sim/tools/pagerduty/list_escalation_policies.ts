@@ -2,6 +2,7 @@ import type {
   PagerDutyListEscalationPoliciesParams,
   PagerDutyListEscalationPoliciesResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEscalationPoliciesTool: ToolConfig<
@@ -12,6 +13,7 @@ export const listEscalationPoliciesTool: ToolConfig<
   name: 'PagerDuty List Escalation Policies',
   description: 'List escalation policies from PagerDuty with an optional name filter.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

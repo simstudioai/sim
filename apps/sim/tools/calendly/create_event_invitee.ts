@@ -3,6 +3,7 @@ import type {
   CalendlyCreateEventInviteeResponse,
 } from '@/tools/calendly/types'
 import { toResourceUri, toStringArray } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createEventInviteeTool: ToolConfig<
@@ -14,6 +15,7 @@ export const createEventInviteeTool: ToolConfig<
   description:
     'Book a meeting by creating an invitee on an event type at a chosen time. Requires a paid Calendly plan',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

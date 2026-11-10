@@ -9,6 +9,7 @@ import {
   readSemrushReport,
   SEMRUSH_BACKLINKS_URL,
 } from '@/tools/semrush/utils'
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = [
@@ -31,6 +32,7 @@ export const semrushBacklinksIndexedPagesTool: ToolConfig<
   description:
     'List the pages of a target that attract backlinks, with response code and link counts.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

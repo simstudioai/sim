@@ -4,6 +4,7 @@ import type {
   SemrushKeywordDifficultyRow,
 } from '@/tools/semrush/types'
 import { buildSemrushUrl, readSemrushReport, SEMRUSH_ANALYTICS_URL } from '@/tools/semrush/utils'
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Ph', 'Kd'] as const
@@ -16,6 +17,7 @@ export const semrushKeywordDifficultyTool: ToolConfig<
   name: 'Semrush Keyword Difficulty',
   description: 'Get the Keyword Difficulty Index for up to 100 keywords at once.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

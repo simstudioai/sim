@@ -1,4 +1,5 @@
 import type { LemlistSendEmailParams, LemlistSendEmailResponse } from '@/tools/lemlist/types'
+import { LEMLIST_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const sendEmailTool: ToolConfig<LemlistSendEmailParams, LemlistSendEmailResponse> = {
@@ -6,6 +7,7 @@ export const sendEmailTool: ToolConfig<LemlistSendEmailParams, LemlistSendEmailR
   name: 'Lemlist Send Email',
   description: 'Sends an email to a contact through the Lemlist inbox.',
   version: '1.0.0',
+  oauth: LEMLIST_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

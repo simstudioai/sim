@@ -4,6 +4,7 @@ import type {
   SemrushBacklinksOverviewRow,
 } from '@/tools/semrush/types'
 import { buildSemrushUrl, readSemrushReport, SEMRUSH_BACKLINKS_URL } from '@/tools/semrush/utils'
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = [
@@ -32,6 +33,7 @@ export const semrushBacklinksOverviewTool: ToolConfig<
   description:
     'Get the Authority Score and backlink profile totals for a domain, subdomain, or URL.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

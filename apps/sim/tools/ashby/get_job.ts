@@ -1,5 +1,6 @@
 import type { AshbyGetJobParams, AshbyGetJobResponse } from '@/tools/ashby/types'
 import { ashbyAuthHeaders, ashbyErrorMessage, JOB_OUTPUTS, mapJob } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
@@ -7,6 +8,7 @@ export const getJobTool: ToolConfig<AshbyGetJobParams, AshbyGetJobResponse> = {
   name: 'Ashby Get Job',
   description: 'Retrieves full details about a single job by its ID.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

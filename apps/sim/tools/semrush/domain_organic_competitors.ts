@@ -9,6 +9,7 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Dn', 'Cr', 'Np', 'Or', 'Ot', 'Oc', 'Ad'] as const
@@ -21,6 +22,7 @@ export const semrushDomainOrganicCompetitorsTool: ToolConfig<
   name: 'Semrush Organic Competitors',
   description: 'List the domains competing with a target domain in Google organic search results.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

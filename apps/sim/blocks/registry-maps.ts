@@ -15,7 +15,7 @@ import { ApolloBlock, ApolloBlockMeta, ApolloV2Block } from '@/blocks/blocks/apo
 import { AppConfigBlock, AppConfigBlockMeta, AppConfigV2Block } from '@/blocks/blocks/appconfig'
 import { ArxivBlock, ArxivBlockMeta } from '@/blocks/blocks/arxiv'
 import { AsanaBlock, AsanaBlockMeta } from '@/blocks/blocks/asana'
-import { AshbyBlock, AshbyBlockMeta } from '@/blocks/blocks/ashby'
+import { AshbyBlock, AshbyBlockMeta, AshbyV2Block } from '@/blocks/blocks/ashby'
 import { AthenaBlock, AthenaBlockMeta, AthenaV2Block } from '@/blocks/blocks/athena'
 import { AttioBlock, AttioBlockMeta } from '@/blocks/blocks/attio'
 import {
@@ -35,10 +35,10 @@ import {
 } from '@/blocks/blocks/browser_use'
 import { BufferBlock, BufferBlockMeta, BufferV2Block } from '@/blocks/blocks/buffer'
 import { CalComBlock, CalComBlockMeta } from '@/blocks/blocks/calcom'
-import { CalendlyBlock, CalendlyBlockMeta } from '@/blocks/blocks/calendly'
+import { CalendlyBlock, CalendlyBlockMeta, CalendlyV2Block } from '@/blocks/blocks/calendly'
 import { CbInsightsBlock, CbInsightsBlockMeta } from '@/blocks/blocks/cbinsights'
 import { ChatTriggerBlock } from '@/blocks/blocks/chat_trigger'
-import { CheckrBlock, CheckrBlockMeta } from '@/blocks/blocks/checkr'
+import { CheckrBlock, CheckrBlockMeta, CheckrV2Block } from '@/blocks/blocks/checkr'
 import { CirclebackBlock, CirclebackBlockMeta, CirclebackV2Block } from '@/blocks/blocks/circleback'
 import { ClayBlock, ClayBlockMeta } from '@/blocks/blocks/clay'
 import { ClerkBlock, ClerkBlockMeta, ClerkV2Block } from '@/blocks/blocks/clerk'
@@ -95,7 +95,7 @@ import { EnrowBlock, EnrowBlockMeta } from '@/blocks/blocks/enrow'
 import { EvaluatorBlock } from '@/blocks/blocks/evaluator'
 import { ExaBlock, ExaBlockMeta } from '@/blocks/blocks/exa'
 import { ExtendBlock, ExtendBlockMeta, ExtendV2Block, ExtendV3Block } from '@/blocks/blocks/extend'
-import { FathomBlock, FathomBlockMeta } from '@/blocks/blocks/fathom'
+import { FathomBlock, FathomBlockMeta, FathomV2Block } from '@/blocks/blocks/fathom'
 import { FileBlock, FileV2Block, FileV3Block, FileV4Block, FileV5Block } from '@/blocks/blocks/file'
 import { FindymailBlock, FindymailBlockMeta } from '@/blocks/blocks/findymail'
 import { FirecrawlBlock, FirecrawlBlockMeta } from '@/blocks/blocks/firecrawl'
@@ -157,8 +157,14 @@ import { GoogleTasksBlock, GoogleTasksBlockMeta } from '@/blocks/blocks/google_t
 import { GoogleTranslateBlock, GoogleTranslateBlockMeta } from '@/blocks/blocks/google_translate'
 import { GoogleVaultBlock, GoogleVaultBlockMeta } from '@/blocks/blocks/google_vault'
 import { GrafanaBlock, GrafanaBlockMeta } from '@/blocks/blocks/grafana'
-import { GrainBlock, GrainBlockMeta, GrainV2Block, GrainV2BlockMeta } from '@/blocks/blocks/grain'
-import { GranolaBlock, GranolaBlockMeta } from '@/blocks/blocks/granola'
+import {
+  GrainBlock,
+  GrainBlockMeta,
+  GrainV2Block,
+  GrainV2BlockMeta,
+  GrainV3Block,
+} from '@/blocks/blocks/grain'
+import { GranolaBlock, GranolaBlockMeta, GranolaV2Block } from '@/blocks/blocks/granola'
 import {
   GreenhouseBlock,
   GreenhouseBlockMeta,
@@ -227,7 +233,7 @@ import {
   LaunchDarklyV2Block,
 } from '@/blocks/blocks/launchdarkly'
 import { LeadMagicBlock, LeadMagicBlockMeta } from '@/blocks/blocks/leadmagic'
-import { LemlistBlock, LemlistBlockMeta } from '@/blocks/blocks/lemlist'
+import { LemlistBlock, LemlistBlockMeta, LemlistV2Block } from '@/blocks/blocks/lemlist'
 import { LinearBlock, LinearBlockMeta, LinearV2Block } from '@/blocks/blocks/linear'
 import { LinkedInBlock, LinkedInBlockMeta } from '@/blocks/blocks/linkedin'
 import { LinkupBlock, LinkupBlockMeta } from '@/blocks/blocks/linkup'
@@ -301,7 +307,7 @@ import {
 import { OracleDatabaseBlock, OracleDatabaseBlockMeta } from '@/blocks/blocks/oracledb'
 import { OtterBlock, OtterBlockMeta, OtterV2Block } from '@/blocks/blocks/otter'
 import { OutlookBlock, OutlookBlockMeta } from '@/blocks/blocks/outlook'
-import { PagerDutyBlock, PagerDutyBlockMeta } from '@/blocks/blocks/pagerduty'
+import { PagerDutyBlock, PagerDutyBlockMeta, PagerDutyV2Block } from '@/blocks/blocks/pagerduty'
 import { ParallelBlock, ParallelBlockMeta } from '@/blocks/blocks/parallel'
 import { PeopleDataLabsBlock, PeopleDataLabsBlockMeta } from '@/blocks/blocks/peopledatalabs'
 import { PerplexityBlock, PerplexityBlockMeta } from '@/blocks/blocks/perplexity'
@@ -336,12 +342,12 @@ import {
   ReductoV2Block,
   ReductoV3Block,
 } from '@/blocks/blocks/reducto'
-import { ResendBlock, ResendBlockMeta } from '@/blocks/blocks/resend'
+import { ResendBlock, ResendBlockMeta, ResendV2Block } from '@/blocks/blocks/resend'
 import { ResponseBlock } from '@/blocks/blocks/response'
 import { RevenueCatBlock, RevenueCatBlockMeta } from '@/blocks/blocks/revenuecat'
 import { RipplingBlock, RipplingBlockMeta, RipplingV2Block } from '@/blocks/blocks/rippling'
 import { RocketlaneBlock, RocketlaneBlockMeta, RocketlaneV2Block } from '@/blocks/blocks/rocketlane'
-import { RootlyBlock, RootlyBlockMeta } from '@/blocks/blocks/rootly'
+import { RootlyBlock, RootlyBlockMeta, RootlyV2Block } from '@/blocks/blocks/rootly'
 import { RouterBlock, RouterV2Block } from '@/blocks/blocks/router'
 import { RssBlock, RssBlockMeta } from '@/blocks/blocks/rss'
 import { S3Block, S3BlockMeta, S3V2Block } from '@/blocks/blocks/s3'
@@ -356,10 +362,10 @@ import {
   SecretsManagerBlockMeta,
   SecretsManagerV2Block,
 } from '@/blocks/blocks/secrets_manager'
-import { SemrushBlock, SemrushBlockMeta } from '@/blocks/blocks/semrush'
+import { SemrushBlock, SemrushBlockMeta, SemrushV2Block } from '@/blocks/blocks/semrush'
 import { SendblueBlock, SendblueBlockMeta } from '@/blocks/blocks/sendblue'
 import { SendGridBlock, SendGridBlockMeta, SendGridV2Block } from '@/blocks/blocks/sendgrid'
-import { SentryBlock, SentryBlockMeta } from '@/blocks/blocks/sentry'
+import { SentryBlock, SentryBlockMeta, SentryV2Block } from '@/blocks/blocks/sentry'
 import { SerperBlock, SerperBlockMeta } from '@/blocks/blocks/serper'
 import { ServiceNowBlock, ServiceNowBlockMeta, ServiceNowV2Block } from '@/blocks/blocks/servicenow'
 import { SESBlock, SESBlockMeta, SESV2Block } from '@/blocks/blocks/ses'
@@ -383,7 +389,7 @@ import { SSMBlock, SSMBlockMeta, SSMV2Block } from '@/blocks/blocks/ssm'
 import { StagehandBlock, StagehandBlockMeta } from '@/blocks/blocks/stagehand'
 import { StartTriggerBlock } from '@/blocks/blocks/start_trigger'
 import { StarterBlock } from '@/blocks/blocks/starter'
-import { StripeBlock, StripeBlockMeta } from '@/blocks/blocks/stripe'
+import { StripeBlock, StripeBlockMeta, StripeV2Block } from '@/blocks/blocks/stripe'
 import { STSBlock, STSBlockMeta, STSV2Block } from '@/blocks/blocks/sts'
 import { SttBlock, SttV2Block } from '@/blocks/blocks/stt'
 import { SupabaseBlock, SupabaseBlockMeta } from '@/blocks/blocks/supabase'
@@ -391,7 +397,7 @@ import { TableBlock } from '@/blocks/blocks/table'
 import { TableV2Block } from '@/blocks/blocks/table_v2'
 import { TailscaleBlock, TailscaleBlockMeta, TailscaleV2Block } from '@/blocks/blocks/tailscale'
 import { TavilyBlock, TavilyBlockMeta, TavilyV2Block } from '@/blocks/blocks/tavily'
-import { TelegramBlock, TelegramBlockMeta } from '@/blocks/blocks/telegram'
+import { TelegramBlock, TelegramBlockMeta, TelegramV2Block } from '@/blocks/blocks/telegram'
 import { TemporalBlock, TemporalBlockMeta } from '@/blocks/blocks/temporal'
 import {
   TextractBlock,
@@ -414,7 +420,7 @@ import {
 import { TtsBlock } from '@/blocks/blocks/tts'
 import { TwilioSMSBlock, TwilioSMSBlockMeta } from '@/blocks/blocks/twilio'
 import { TwilioVoiceBlock, TwilioVoiceBlockMeta } from '@/blocks/blocks/twilio_voice'
-import { TypeformBlock, TypeformBlockMeta } from '@/blocks/blocks/typeform'
+import { TypeformBlock, TypeformBlockMeta, TypeformV2Block } from '@/blocks/blocks/typeform'
 import { UpstashBlock, UpstashBlockMeta } from '@/blocks/blocks/upstash'
 import {
   UptimeRobotBlock,
@@ -423,7 +429,7 @@ import {
 } from '@/blocks/blocks/uptimerobot'
 import { VantaBlock, VantaBlockMeta } from '@/blocks/blocks/vanta'
 import { VariablesBlock } from '@/blocks/blocks/variables'
-import { VercelBlock, VercelBlockMeta } from '@/blocks/blocks/vercel'
+import { VercelBlock, VercelBlockMeta, VercelV2Block } from '@/blocks/blocks/vercel'
 import {
   VideoGeneratorBlock,
   VideoGeneratorV2Block,
@@ -434,7 +440,7 @@ import { WaitBlock } from '@/blocks/blocks/wait'
 import { WealthboxBlock, WealthboxBlockMeta } from '@/blocks/blocks/wealthbox'
 import { WebflowBlock, WebflowBlockMeta } from '@/blocks/blocks/webflow'
 import { WebhookRequestBlock } from '@/blocks/blocks/webhook_request'
-import { WhatsAppBlock, WhatsAppBlockMeta } from '@/blocks/blocks/whatsapp'
+import { WhatsAppBlock, WhatsAppBlockMeta, WhatsAppV2Block } from '@/blocks/blocks/whatsapp'
 import { WikipediaBlock, WikipediaBlockMeta } from '@/blocks/blocks/wikipedia'
 import { WindchillBlock, WindchillBlockMeta } from '@/blocks/blocks/windchill'
 import { WizaBlock, WizaBlockMeta } from '@/blocks/blocks/wiza'
@@ -480,6 +486,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   arxiv: ArxivBlock,
   asana: AsanaBlock,
   ashby: AshbyBlock,
+  ashby_v2: AshbyV2Block,
   athena: AthenaBlock,
   athena_v2: AthenaV2Block,
   attio: AttioBlock,
@@ -499,9 +506,11 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   buffer_v2: BufferV2Block,
   calcom: CalComBlock,
   calendly: CalendlyBlock,
+  calendly_v2: CalendlyV2Block,
   cbinsights: CbInsightsBlock,
   chat_trigger: ChatTriggerBlock,
   checkr: CheckrBlock,
+  checkr_v2: CheckrV2Block,
   circleback: CirclebackBlock,
   circleback_v2: CirclebackV2Block,
   clay: ClayBlock,
@@ -574,6 +583,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   extend_v2: ExtendV2Block,
   extend_v3: ExtendV3Block,
   fathom: FathomBlock,
+  fathom_v2: FathomV2Block,
   file: FileBlock,
   file_v2: FileV2Block,
   file_v3: FileV3Block,
@@ -627,7 +637,9 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   grafana: GrafanaBlock,
   grain: GrainBlock,
   grain_v2: GrainV2Block,
+  grain_v3: GrainV3Block,
   granola: GranolaBlock,
+  granola_v2: GranolaV2Block,
   greenhouse: GreenhouseBlock,
   greenhouse_v2: GreenhouseV2Block,
   greptile: GreptileBlock,
@@ -682,6 +694,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   launchdarkly_v2: LaunchDarklyV2Block,
   leadmagic: LeadMagicBlock,
   lemlist: LemlistBlock,
+  lemlist_v2: LemlistV2Block,
   linear: LinearBlock,
   linear_v2: LinearV2Block,
   linkedin: LinkedInBlock,
@@ -742,6 +755,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   otter_v2: OtterV2Block,
   outlook: OutlookBlock,
   pagerduty: PagerDutyBlock,
+  pagerduty_v2: PagerDutyV2Block,
   parallel_ai: ParallelBlock,
   peopledatalabs: PeopleDataLabsBlock,
   perplexity: PerplexityBlock,
@@ -783,6 +797,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   reducto_v2: ReductoV2Block,
   reducto_v3: ReductoV3Block,
   resend: ResendBlock,
+  resend_v2: ResendV2Block,
   response: ResponseBlock,
   revenuecat: RevenueCatBlock,
   rippling: RipplingBlock,
@@ -790,6 +805,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   rocketlane: RocketlaneBlock,
   rocketlane_v2: RocketlaneV2Block,
   rootly: RootlyBlock,
+  rootly_v2: RootlyV2Block,
   router: RouterBlock,
   router_v2: RouterV2Block,
   rss: RssBlock,
@@ -804,10 +820,12 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   secrets_manager: SecretsManagerBlock,
   secrets_manager_v2: SecretsManagerV2Block,
   semrush: SemrushBlock,
+  semrush_v2: SemrushV2Block,
   sendblue: SendblueBlock,
   sendgrid: SendGridBlock,
   sendgrid_v2: SendGridV2Block,
   sentry: SentryBlock,
+  sentry_v2: SentryV2Block,
   serper: SerperBlock,
   servicenow: ServiceNowBlock,
   servicenow_v2: ServiceNowV2Block,
@@ -845,6 +863,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   start_trigger: StartTriggerBlock,
   starter: StarterBlock,
   stripe: StripeBlock,
+  stripe_v2: StripeV2Block,
   sts: STSBlock,
   sts_v2: STSV2Block,
   stt: SttBlock,
@@ -857,6 +876,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   tavily: TavilyBlock,
   tavily_v2: TavilyV2Block,
   telegram: TelegramBlock,
+  telegram_v2: TelegramV2Block,
   temporal: TemporalBlock,
   textract: TextractBlock,
   textract_v2: TextractV2Block,
@@ -874,12 +894,14 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   twilio_sms: TwilioSMSBlock,
   twilio_voice: TwilioVoiceBlock,
   typeform: TypeformBlock,
+  typeform_v2: TypeformV2Block,
   upstash: UpstashBlock,
   uptimerobot: UptimeRobotBlock,
   uptimerobot_v2: UptimeRobotV2Block,
   vanta: VantaBlock,
   variables: VariablesBlock,
   vercel: VercelBlock,
+  vercel_v2: VercelV2Block,
   video_generator: VideoGeneratorBlock,
   video_generator_v2: VideoGeneratorV2Block,
   video_generator_v3: VideoGeneratorV3Block,
@@ -890,6 +912,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   webflow: WebflowBlock,
   webhook_request: WebhookRequestBlock,
   whatsapp: WhatsAppBlock,
+  whatsapp_v2: WhatsAppV2Block,
   wikipedia: WikipediaBlock,
   windchill: WindchillBlock,
   wiza: WizaBlock,

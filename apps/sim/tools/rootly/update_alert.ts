@@ -1,4 +1,5 @@
 import type { RootlyUpdateAlertParams, RootlyUpdateAlertResponse } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyUpdateAlertTool: ToolConfig<RootlyUpdateAlertParams, RootlyUpdateAlertResponse> =
@@ -7,6 +8,7 @@ export const rootlyUpdateAlertTool: ToolConfig<RootlyUpdateAlertParams, RootlyUp
     name: 'Rootly Update Alert',
     description: 'Update an existing alert in Rootly.',
     version: '1.0.0',
+    oauth: ROOTLY_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

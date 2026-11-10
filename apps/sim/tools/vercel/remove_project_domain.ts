@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
@@ -13,6 +14,7 @@ export const vercelRemoveProjectDomainTool: ToolConfig<
   name: 'Vercel Remove Project Domain',
   description: 'Remove a domain from a Vercel project',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

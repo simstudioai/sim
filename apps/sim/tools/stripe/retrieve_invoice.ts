@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { InvoiceResponse, RetrieveInvoiceParams } from '@/tools/stripe/types'
 import { INVOICE_METADATA_OUTPUT_PROPERTIES, INVOICE_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const stripeRetrieveInvoiceTool: ToolConfig<RetrieveInvoiceParams, Invoic
   name: 'Stripe Retrieve Invoice',
   description: 'Retrieve an existing invoice by ID',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

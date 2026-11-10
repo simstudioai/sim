@@ -13,6 +13,7 @@ import {
   mapAdverseAction,
   mapListMeta,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrListAdverseActionsTool: ToolConfig<
@@ -23,6 +24,7 @@ export const checkrListAdverseActionsTool: ToolConfig<
   name: 'Checkr List Adverse Actions',
   description: 'List the adverse actions for a report, optionally filtered by context.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

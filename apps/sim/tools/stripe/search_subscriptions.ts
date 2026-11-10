@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { SearchSubscriptionsParams, SubscriptionSearchResponse } from '@/tools/stripe/types'
 import { LIST_METADATA_OUTPUT_PROPERTIES, SUBSCRIPTION_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
@@ -11,6 +12,7 @@ export const stripeSearchSubscriptionsTool: ToolConfig<
   description:
     'Search one page of subscriptions using query syntax. Pass metadata.next_page as page to continue.',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

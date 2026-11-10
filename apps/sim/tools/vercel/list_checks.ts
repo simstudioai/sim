@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelListChecksParams, VercelListChecksResponse } from '@/tools/vercel/types'
@@ -7,6 +8,7 @@ export const vercelListChecksTool: ToolConfig<VercelListChecksParams, VercelList
   name: 'Vercel List Checks',
   description: 'List all checks for a deployment',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

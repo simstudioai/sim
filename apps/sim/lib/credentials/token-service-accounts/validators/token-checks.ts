@@ -708,3 +708,260 @@ export const validateZepServiceAccount = tokenCheckValidator({
     headers: { Authorization: `Api-Key ${apiToken}`, Accept: 'application/json' },
   }),
 })
+
+/**
+ * Listing Ashby candidate sources answers 200 for a valid key and 401 for an
+ * unknown one. A valid key without the module's read permission gets a JSON 403
+ * naming `missing_endpoint_permission`, which still proves the key; Ashby
+ * documents 403 for a wrong or deactivated key too, so any other error envelope
+ * rejects it.
+ */
+export const validateAshbyServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Ashby',
+  forbiddenMeansScoped: true,
+  request: ({ apiToken }) => ({
+    url: 'https://api.ashbyhq.com/source.list',
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${btoa(`${apiToken}:`)}`,
+      Accept: 'application/json; version=1',
+      'Content-Type': 'application/json',
+    },
+    body: '{}',
+  }),
+  rejectsKey: (errorBody) => {
+    const envelope = toRecord(errorBody)
+    if (envelope.success !== false) return false
+    const codes = [
+      toRecord(envelope.errorInfo).code,
+      ...toArray(envelope.errors).map((entry) =>
+        typeof entry === 'string' ? entry : toRecord(entry).message
+      ),
+    ]
+    return !codes.some(
+      (code) => typeof code === 'string' && code.includes('missing_endpoint_permission')
+    )
+  },
+})
+
+/**
+ * Calendly's current-user endpoint answers 200 for a valid token and 401
+ * otherwise; a valid token without the `users:read` scope gets a JSON 403.
+ */
+export const validateCalendlyServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Calendly',
+  forbiddenMeansScoped: true,
+  request: ({ apiToken }) => ({
+    url: 'https://api.calendly.com/users/me',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
+/** Checkr's account endpoint answers 200 for a valid production secret key and 401 otherwise. */
+export const validateCheckrServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Checkr',
+  request: ({ apiToken }) => ({
+    url: 'https://api.checkr.com/v1/account',
+    headers: { Authorization: `Basic ${btoa(`${apiToken.trim()}:`)}`, Accept: 'application/json' },
+  }),
+})
+
+/** Fathom's list-teams endpoint answers 200 for a valid API key and 401 otherwise. */
+export const validateFathomServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Fathom',
+  request: ({ apiToken }) => ({
+    url: 'https://api.fathom.ai/external/v1/teams',
+    headers: { 'X-Api-Key': apiToken, Accept: 'application/json' },
+  }),
+})
+
+/**
+ * Grain's list-teams endpoint (a read-only POST, as the tools call it) answers 200 for a valid
+ * access token and 401 `invalid_token` otherwise.
+ */
+export const validateGrainServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Grain',
+  request: ({ apiToken }) => ({
+    url: 'https://api.grain.com/_/public-api/v2/teams',
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiToken}`,
+      'Public-Api-Version': '2025-10-31',
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+  }),
+})
+
+/** Listing one Granola note answers 200 for a valid personal or workspace API key and 401 otherwise. */
+export const validateGranolaServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Granola',
+  request: ({ apiToken }) => ({
+    url: 'https://public-api.granola.ai/v1/notes?page_size=1',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
+/**
+ * Lemlist's team endpoint answers 200 for a valid API key and 401 otherwise; the key is the
+ * Basic-auth password with an empty username, as the tools send it.
+ */
+export const validateLemlistServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Lemlist',
+  request: ({ apiToken }) => ({
+    url: 'https://api.lemlist.com/api/team',
+    headers: {
+      Authorization: `Basic ${Buffer.from(`:${apiToken}`).toString('base64')}`,
+      Accept: 'application/json',
+    },
+  }),
+})
+
+/**
+ * Listing one PagerDuty user answers 200 for a valid REST API key and 401 for an unknown one; a
+ * JSON 403 comes only from an authenticated key whose user lacks access to the user list.
+ */
+export const validatePagerDutyServiceAccount = tokenCheckValidator({
+  serviceLabel: 'PagerDuty',
+  request: ({ apiToken }) => ({
+    url: 'https://api.pagerduty.com/users?limit=1',
+    headers: {
+      Authorization: `Token token=${apiToken}`,
+      Accept: 'application/vnd.pagerduty+json;version=2',
+    },
+  }),
+  forbiddenMeansScoped: true,
+})
+
+/**
+ * Resend's list-domains endpoint answers 200 for a full-access key. A sending-access key gets a
+ * JSON 401 named `restricted_api_key`, which still proves Resend authenticated it; an unknown key
+ * gets a `validation_error` (400, or 401 on sending endpoints) and an inactive or suspended one a
+ * 403, all of which reject it.
+ */
+export async function validateResendServiceAccount(
+  fields: TokenServiceAccountFields
+): Promise<TokenServiceAccountValidationResult> {
+  const response = await fetchProvider(
+    'https://api.resend.com/domains',
+    {
+      headers: { Authorization: `Bearer ${fields.apiToken.trim()}`, Accept: 'application/json' },
+      redirect: 'error',
+    },
+    'verify'
+  )
+  if (response.status === 401) {
+    const body = toRecord(await readJsonBody(response, 'Resend').catch(() => null))
+    if (body.name === 'restricted_api_key') {
+      return { displayName: 'Resend', principal: null, auditMetadata: {} }
+    }
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
+  }
+  await throwForProviderResponse(response, 'verify')
+  await response.body?.cancel().catch(() => undefined)
+  return { displayName: 'Resend', principal: null, auditMetadata: {} }
+}
+
+/**
+ * Listing one Rootly severity (a read every key role has) answers 200 for a valid key and 401
+ * for a bad one; a key whose role can't read severities gets the vendor's JSON 403.
+ */
+export const validateRootlyServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Rootly',
+  forbiddenMeansScoped: true,
+  request: ({ apiToken }) => ({
+    url: 'https://api.rootly.com/v1/severities?page%5Bsize%5D=1',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/vnd.api+json' },
+  }),
+})
+
+/**
+ * Semrush's API-units balance check is free, answers 200 for a valid key and 400 for a bad one.
+ * It lives on www.semrush.com, not the report host, and takes the key as the same `key` query
+ * parameter the report tools send.
+ */
+export const validateSemrushServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Semrush',
+  request: ({ apiToken }) => ({
+    url: `https://www.semrush.com/users/countapiunits.html?key=${encodeURIComponent(apiToken)}`,
+    headers: { Accept: 'text/plain' },
+  }),
+})
+
+/**
+ * Listing the token's Sentry organizations answers 200 for a valid token and 401 for a bad one;
+ * a token without `org:read` (an organization token, or a narrowly scoped one) gets Sentry's JSON
+ * 403.
+ */
+export const validateSentryServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Sentry',
+  forbiddenMeansScoped: true,
+  request: ({ apiToken }) => ({
+    url: 'https://sentry.io/api/0/organizations/',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
+/**
+ * Listing one customer answers 200 for a valid secret key and 401 for an unknown
+ * one; a restricted key without customer read access gets Stripe's JSON 403.
+ */
+export const validateStripeServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Stripe',
+  forbiddenMeansScoped: true,
+  request: ({ apiToken }) => ({
+    url: 'https://api.stripe.com/v1/customers?limit=1',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
+/** Telegram's getMe exists to test a bot token: 200 for a valid one, 401 or 404 otherwise. */
+export const validateTelegramServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Telegram',
+  request: ({ apiToken }) => ({
+    url: `https://api.telegram.org/bot${encodeURIComponent(apiToken)}/getMe`,
+    headers: { Accept: 'application/json' },
+  }),
+})
+
+/**
+ * Listing one form answers 200 for a valid token. Typeform answers an unknown
+ * token with a 403 `AUTHENTICATION_FAILED`, so only a JSON 403 naming another
+ * code is read as a valid token without the forms:read scope.
+ */
+export const validateTypeformServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Typeform',
+  forbiddenMeansScoped: true,
+  rejectsKey: (errorBody) => toRecord(errorBody).code === 'AUTHENTICATION_FAILED',
+  request: ({ apiToken }) => ({
+    url: 'https://api.typeform.com/forms?page_size=1',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
+/**
+ * Vercel's current-user endpoint answers 200 for a valid token. An unknown token
+ * gets a 403 flagged `invalidToken`; any other JSON 403 is a valid token
+ * without access to the user record.
+ */
+export const validateVercelServiceAccount = tokenCheckValidator({
+  serviceLabel: 'Vercel',
+  forbiddenMeansScoped: true,
+  rejectsKey: (errorBody) => toRecord(toRecord(errorBody).error).invalidToken === true,
+  request: ({ apiToken }) => ({
+    url: 'https://api.vercel.com/v2/user',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})
+
+/**
+ * The Graph API's /me answers 200 for any valid access token and a 4xx
+ * OAuthException (code 190) for an invalid, expired, or revoked one.
+ */
+export const validateWhatsAppServiceAccount = tokenCheckValidator({
+  serviceLabel: 'WhatsApp',
+  request: ({ apiToken }) => ({
+    url: 'https://graph.facebook.com/v25.0/me?fields=id',
+    headers: { Authorization: `Bearer ${apiToken}`, Accept: 'application/json' },
+  }),
+})

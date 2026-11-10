@@ -4,6 +4,7 @@ import type {
   SemrushKeywordOverviewRow,
 } from '@/tools/semrush/types'
 import { buildSemrushUrl, readSemrushReport, SEMRUSH_ANALYTICS_URL } from '@/tools/semrush/utils'
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Ph', 'Nq', 'Cp', 'Co', 'Nr', 'Kd', 'In', 'Td'] as const
@@ -16,6 +17,7 @@ export const semrushKeywordOverviewTool: ToolConfig<
   name: 'Semrush Keyword Overview',
   description: 'Get search volume, CPC, competition, difficulty, and intent for a single keyword.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

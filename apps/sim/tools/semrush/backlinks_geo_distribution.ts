@@ -9,6 +9,7 @@ import {
   readSemrushReport,
   SEMRUSH_BACKLINKS_URL,
 } from '@/tools/semrush/utils'
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['country', 'domains_num', 'backlinks_num'] as const
@@ -21,6 +22,7 @@ export const semrushBacklinksGeoDistributionTool: ToolConfig<
   name: 'Semrush Backlink Country Distribution',
   description: 'Break a target’s backlink profile down by the country of its referring domains.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

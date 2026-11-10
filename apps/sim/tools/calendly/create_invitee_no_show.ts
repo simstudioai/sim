@@ -2,6 +2,7 @@ import type {
   CalendlyCreateInviteeNoShowParams,
   CalendlyCreateInviteeNoShowResponse,
 } from '@/tools/calendly/types'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createInviteeNoShowTool: ToolConfig<
@@ -12,6 +13,7 @@ export const createInviteeNoShowTool: ToolConfig<
   name: 'Calendly Mark Invitee No-Show',
   description: 'Mark an invitee of a scheduled event as a no-show',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

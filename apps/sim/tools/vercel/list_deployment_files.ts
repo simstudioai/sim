@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
@@ -13,6 +14,7 @@ export const vercelListDeploymentFilesTool: ToolConfig<
   name: 'Vercel List Deployment Files',
   description: 'List files in a Vercel deployment',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

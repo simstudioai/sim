@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelGetTeamParams, VercelGetTeamResponse } from '@/tools/vercel/types'
@@ -7,6 +8,7 @@ export const vercelGetTeamTool: ToolConfig<VercelGetTeamParams, VercelGetTeamRes
   name: 'Vercel Get Team',
   description: 'Get information about a specific Vercel team',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

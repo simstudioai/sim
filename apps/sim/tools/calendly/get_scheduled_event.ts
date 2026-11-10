@@ -3,6 +3,7 @@ import type {
   CalendlyGetScheduledEventResponse,
 } from '@/tools/calendly/types'
 import { toUuid } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getScheduledEventTool: ToolConfig<
@@ -13,6 +14,7 @@ export const getScheduledEventTool: ToolConfig<
   name: 'Calendly Get Scheduled Event',
   description: 'Get detailed information about a specific scheduled event',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

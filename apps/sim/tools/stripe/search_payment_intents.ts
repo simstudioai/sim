@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { PaymentIntentListResponse, SearchPaymentIntentsParams } from '@/tools/stripe/types'
 import { LIST_METADATA_OUTPUT_PROPERTIES, PAYMENT_INTENT_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
@@ -10,6 +11,7 @@ export const stripeSearchPaymentIntentsTool: ToolConfig<
   name: 'Stripe Search Payment Intents',
   description: 'Search for Payment Intents using query syntax',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

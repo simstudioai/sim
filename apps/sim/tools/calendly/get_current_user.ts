@@ -2,6 +2,7 @@ import type {
   CalendlyGetCurrentUserParams,
   CalendlyGetCurrentUserResponse,
 } from '@/tools/calendly/types'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getCurrentUserTool: ToolConfig<
@@ -12,6 +13,7 @@ export const getCurrentUserTool: ToolConfig<
   name: 'Calendly Get Current User',
   description: 'Get information about the currently authenticated Calendly user',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

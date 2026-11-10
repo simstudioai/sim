@@ -2,6 +2,7 @@ import type {
   PagerDutyUpdateIncidentParams,
   PagerDutyUpdateIncidentResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateIncidentTool: ToolConfig<
@@ -12,6 +13,7 @@ export const updateIncidentTool: ToolConfig<
   name: 'PagerDuty Update Incident',
   description: 'Update an incident in PagerDuty (acknowledge, resolve, change urgency, etc.).',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

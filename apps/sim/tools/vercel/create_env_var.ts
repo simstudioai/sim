@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelCreateEnvVarParams, VercelCreateEnvVarResponse } from '@/tools/vercel/types'
@@ -10,6 +11,7 @@ export const vercelCreateEnvVarTool: ToolConfig<
   name: 'Vercel Create Environment Variable',
   description: 'Create an environment variable for a Vercel project',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

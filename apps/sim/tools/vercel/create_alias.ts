@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type { VercelCreateAliasParams, VercelCreateAliasResponse } from '@/tools/vercel/types'
@@ -8,6 +9,7 @@ export const vercelCreateAliasTool: ToolConfig<VercelCreateAliasParams, VercelCr
     name: 'Vercel Create Alias',
     description: 'Assign an alias (domain/subdomain) to a deployment',
     version: '1.0.0',
+    oauth: VERCEL_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

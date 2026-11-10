@@ -2,6 +2,7 @@ import type {
   PagerDutySnoozeIncidentParams,
   PagerDutySnoozeIncidentResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const snoozeIncidentTool: ToolConfig<
@@ -13,6 +14,7 @@ export const snoozeIncidentTool: ToolConfig<
   description:
     'Snooze a triggered PagerDuty incident for a number of seconds, after which it returns to triggered.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

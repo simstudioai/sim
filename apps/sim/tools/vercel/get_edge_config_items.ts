@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
 import type {
@@ -13,6 +14,7 @@ export const vercelGetEdgeConfigItemsTool: ToolConfig<
   name: 'Vercel Get Edge Config Items',
   description: 'Get all items in an Edge Config store',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

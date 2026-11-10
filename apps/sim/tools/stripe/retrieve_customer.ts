@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerResponse, RetrieveCustomerParams } from '@/tools/stripe/types'
 import { CUSTOMER_METADATA_OUTPUT_PROPERTIES, CUSTOMER_OUTPUT } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const stripeRetrieveCustomerTool: ToolConfig<RetrieveCustomerParams, Cust
   name: 'Stripe Retrieve Customer',
   description: 'Retrieve an existing customer by ID',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

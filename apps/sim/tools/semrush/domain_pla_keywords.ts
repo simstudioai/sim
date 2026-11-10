@@ -9,6 +9,7 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Ph', 'Po', 'Pp', 'Pd', 'Nq', 'Sn', 'Ur', 'Tt', 'Pr', 'Ts'] as const
@@ -22,6 +23,7 @@ export const semrushDomainPlaKeywordsTool: ToolConfig<
   description:
     'List the keywords that trigger a domain’s product listing ads, with the promoted product and price.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,6 +2,7 @@ import type {
   RootlyListEnvironmentsParams,
   RootlyListEnvironmentsResponse,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListEnvironmentsTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyListEnvironmentsTool: ToolConfig<
   name: 'Rootly List Environments',
   description: 'List environments configured in Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

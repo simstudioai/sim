@@ -1,9 +1,12 @@
 import { PagerDutyIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const PagerDutyBlock: BlockConfig = {
   type: 'pagerduty',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'pagerduty_v2' },
   name: 'PagerDuty',
   description: 'Manage incidents and on-call schedules with PagerDuty',
   triggerAllowed: true,
@@ -1228,3 +1231,17 @@ export const PagerDutyBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const PagerDutyV2Block: BlockConfig = {
+  ...PagerDutyBlock,
+  type: 'pagerduty_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(PagerDutyBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'pagerduty',
+    title: 'PagerDuty Credential',
+  }),
+}

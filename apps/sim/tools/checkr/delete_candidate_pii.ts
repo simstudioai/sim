@@ -12,6 +12,7 @@ import {
   mapCandidate,
   trimmed,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrDeleteCandidatePiiTool: ToolConfig<
@@ -23,6 +24,7 @@ export const checkrDeleteCandidatePiiTool: ToolConfig<
   description:
     "Request removal of a candidate's personally identifiable information. Fails if PII was already removed.",
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

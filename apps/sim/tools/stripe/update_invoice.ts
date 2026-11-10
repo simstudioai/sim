@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineStripeKeyedSite,
   type StripeDeliveryContextParams,
@@ -20,6 +21,7 @@ export const stripeUpdateInvoiceTool: ToolConfig<
   name: 'Stripe Update Invoice',
   description: 'Update an existing invoice',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

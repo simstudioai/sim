@@ -9,6 +9,7 @@ import {
   readSemrushReport,
   SEMRUSH_BACKLINKS_URL,
 } from '@/tools/semrush/utils'
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = [
@@ -30,6 +31,7 @@ export const semrushBacklinksTool: ToolConfig<SemrushBacklinksParams, SemrushBac
   description:
     'List the backlinks pointing at a domain, subdomain, or URL, with source page, anchor, and authority.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -204,6 +204,31 @@ export const UPTIMEROBOT_CREDENTIAL_OAUTH = tokenCredentialOAuth('uptimerobot', 
 export const YOUCOM_CREDENTIAL_OAUTH = tokenCredentialOAuth('youcom', { apiKey: 'accessToken' })
 export const YOUTUBE_CREDENTIAL_OAUTH = tokenCredentialOAuth('youtube', { apiKey: 'accessToken' })
 export const ZEP_CREDENTIAL_OAUTH = tokenCredentialOAuth('zep', { apiKey: 'accessToken' })
+export const ASHBY_CREDENTIAL_OAUTH = tokenCredentialOAuth('ashby', { apiKey: 'accessToken' })
+export const CALENDLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('calendly', { apiKey: 'accessToken' })
+export const CHECKR_CREDENTIAL_OAUTH = tokenCredentialOAuth('checkr', { apiKey: 'accessToken' })
+export const FATHOM_CREDENTIAL_OAUTH = tokenCredentialOAuth('fathom', { apiKey: 'accessToken' })
+export const GRAIN_CREDENTIAL_OAUTH = tokenCredentialOAuth('grain', { apiKey: 'accessToken' })
+export const GRANOLA_CREDENTIAL_OAUTH = tokenCredentialOAuth('granola', { apiKey: 'accessToken' })
+export const LEMLIST_CREDENTIAL_OAUTH = tokenCredentialOAuth('lemlist', { apiKey: 'accessToken' })
+export const PAGERDUTY_CREDENTIAL_OAUTH = tokenCredentialOAuth('pagerduty', {
+  apiKey: 'accessToken',
+})
+export const RESEND_CREDENTIAL_OAUTH = tokenCredentialOAuth('resend', {
+  resendApiKey: 'accessToken',
+})
+export const ROOTLY_CREDENTIAL_OAUTH = tokenCredentialOAuth('rootly', { apiKey: 'accessToken' })
+export const SEMRUSH_CREDENTIAL_OAUTH = tokenCredentialOAuth('semrush', { apiKey: 'accessToken' })
+export const SENTRY_CREDENTIAL_OAUTH = tokenCredentialOAuth('sentry', { apiKey: 'accessToken' })
+export const STRIPE_CREDENTIAL_OAUTH = tokenCredentialOAuth('stripe', { apiKey: 'accessToken' })
+export const TELEGRAM_CREDENTIAL_OAUTH = tokenCredentialOAuth('telegram', {
+  botToken: 'accessToken',
+})
+export const TYPEFORM_CREDENTIAL_OAUTH = tokenCredentialOAuth('typeform', { apiKey: 'accessToken' })
+export const VERCEL_CREDENTIAL_OAUTH = tokenCredentialOAuth('vercel', { apiKey: 'accessToken' })
+export const WHATSAPP_CREDENTIAL_OAUTH = tokenCredentialOAuth('whatsapp', {
+  accessToken: 'accessToken',
+})
 
 /**
  * Every saved-credential policy keyed by the picker's service id. A
@@ -272,6 +297,23 @@ export const SAVED_CREDENTIAL_OAUTH = {
   youcom: YOUCOM_CREDENTIAL_OAUTH,
   youtube: YOUTUBE_CREDENTIAL_OAUTH,
   zep: ZEP_CREDENTIAL_OAUTH,
+  ashby: ASHBY_CREDENTIAL_OAUTH,
+  calendly: CALENDLY_CREDENTIAL_OAUTH,
+  checkr: CHECKR_CREDENTIAL_OAUTH,
+  fathom: FATHOM_CREDENTIAL_OAUTH,
+  grain: GRAIN_CREDENTIAL_OAUTH,
+  granola: GRANOLA_CREDENTIAL_OAUTH,
+  lemlist: LEMLIST_CREDENTIAL_OAUTH,
+  pagerduty: PAGERDUTY_CREDENTIAL_OAUTH,
+  resend: RESEND_CREDENTIAL_OAUTH,
+  rootly: ROOTLY_CREDENTIAL_OAUTH,
+  semrush: SEMRUSH_CREDENTIAL_OAUTH,
+  sentry: SENTRY_CREDENTIAL_OAUTH,
+  stripe: STRIPE_CREDENTIAL_OAUTH,
+  telegram: TELEGRAM_CREDENTIAL_OAUTH,
+  typeform: TYPEFORM_CREDENTIAL_OAUTH,
+  vercel: VERCEL_CREDENTIAL_OAUTH,
+  whatsapp: WHATSAPP_CREDENTIAL_OAUTH,
 } as const
 
 export type SavedCredentialService = keyof typeof SAVED_CREDENTIAL_OAUTH

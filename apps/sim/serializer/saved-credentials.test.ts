@@ -2,6 +2,7 @@ import { createBlock } from '@sim/testing/factories/block.factory'
 import { blocksMock } from '@sim/testing/mocks/blocks.mock'
 import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { isTriggerModeSubBlock } from '@/lib/workflows/subblocks/visibility'
 import * as blocks from '@/blocks'
 import { AffinityBlock, AffinityV2Block } from '@/blocks/blocks/affinity'
 import { AgentMailBlock, AgentMailV2Block } from '@/blocks/blocks/agentmail'
@@ -10,11 +11,14 @@ import { AhrefsBlock, AhrefsV2Block } from '@/blocks/blocks/ahrefs'
 import { ApifyBlock, ApifyV2Block } from '@/blocks/blocks/apify'
 import { ApolloBlock, ApolloV2Block } from '@/blocks/blocks/apollo'
 import { AppConfigBlock, AppConfigV2Block } from '@/blocks/blocks/appconfig'
+import { AshbyBlock, AshbyV2Block } from '@/blocks/blocks/ashby'
 import { AthenaBlock, AthenaV2Block } from '@/blocks/blocks/athena'
 import { BrexBlock, BrexV2Block } from '@/blocks/blocks/brex'
 import { BrightDataBlock, BrightDataV2Block } from '@/blocks/blocks/brightdata'
 import { BrowserUseBlock, BrowserUseV2Block } from '@/blocks/blocks/browser_use'
 import { BufferBlock, BufferV2Block } from '@/blocks/blocks/buffer'
+import { CalendlyBlock, CalendlyV2Block } from '@/blocks/blocks/calendly'
+import { CheckrBlock, CheckrV2Block } from '@/blocks/blocks/checkr'
 import { CirclebackBlock, CirclebackV2Block } from '@/blocks/blocks/circleback'
 import { ClerkBlock, ClerkV2Block } from '@/blocks/blocks/clerk'
 import { CloudflareBlock, CloudflareV2Block } from '@/blocks/blocks/cloudflare'
@@ -33,9 +37,12 @@ import { EC2Block, EC2V2Block } from '@/blocks/blocks/ec2'
 import { ElevenLabsBlock, ElevenLabsV2Block } from '@/blocks/blocks/elevenlabs'
 import { EnrichBlock, EnrichV2Block } from '@/blocks/blocks/enrich'
 import { ExtendV2Block, ExtendV3Block } from '@/blocks/blocks/extend'
+import { FathomBlock, FathomV2Block } from '@/blocks/blocks/fathom'
 import { FirefliesV2Block, FirefliesV3Block } from '@/blocks/blocks/fireflies'
 import { FlintBlock, FlintV2Block } from '@/blocks/blocks/flint'
 import { GammaBlock, GammaV2Block } from '@/blocks/blocks/gamma'
+import { GrainV2Block, GrainV3Block } from '@/blocks/blocks/grain'
+import { GranolaBlock, GranolaV2Block } from '@/blocks/blocks/granola'
 import { HexBlock, HexV2Block } from '@/blocks/blocks/hex'
 import { HuggingFaceBlock, HuggingFaceV2Block } from '@/blocks/blocks/huggingface'
 import { IAMBlock, IAMV2Block } from '@/blocks/blocks/iam'
@@ -46,12 +53,14 @@ import { IntercomV2Block, IntercomV3Block } from '@/blocks/blocks/intercom'
 import { LambdaBlock, LambdaV2Block } from '@/blocks/blocks/lambda'
 import { LangsmithBlock, LangsmithV2Block } from '@/blocks/blocks/langsmith'
 import { LaunchDarklyBlock, LaunchDarklyV2Block } from '@/blocks/blocks/launchdarkly'
+import { LemlistBlock, LemlistV2Block } from '@/blocks/blocks/lemlist'
 import { LinqBlock, LinqV2Block } from '@/blocks/blocks/linq'
 import { LoopsBlock, LoopsV2Block } from '@/blocks/blocks/loops'
 import { LumaBlock, LumaV2Block } from '@/blocks/blocks/luma'
 import { MailchimpBlock, MailchimpV2Block } from '@/blocks/blocks/mailchimp'
 import { Mem0Block, Mem0V2Block } from '@/blocks/blocks/mem0'
 import { OtterBlock, OtterV2Block } from '@/blocks/blocks/otter'
+import { PagerDutyBlock, PagerDutyV2Block } from '@/blocks/blocks/pagerduty'
 import { PersonaBlock, PersonaV2Block } from '@/blocks/blocks/persona'
 import { ProfoundBlock, ProfoundV2Block } from '@/blocks/blocks/profound'
 import { PulseV2Block, PulseV3Block } from '@/blocks/blocks/pulse'
@@ -60,11 +69,15 @@ import { QuiverV2Block, QuiverV3Block } from '@/blocks/blocks/quiver'
 import { RB2BBlock, RB2BV2Block } from '@/blocks/blocks/rb2b'
 import { RDSBlock, RDSV2Block } from '@/blocks/blocks/rds'
 import { ReductoV2Block, ReductoV3Block } from '@/blocks/blocks/reducto'
+import { ResendBlock, ResendV2Block } from '@/blocks/blocks/resend'
 import { RipplingBlock, RipplingV2Block } from '@/blocks/blocks/rippling'
 import { RocketlaneBlock, RocketlaneV2Block } from '@/blocks/blocks/rocketlane'
+import { RootlyBlock, RootlyV2Block } from '@/blocks/blocks/rootly'
 import { S3Block, S3V2Block } from '@/blocks/blocks/s3'
 import { SecretsManagerBlock, SecretsManagerV2Block } from '@/blocks/blocks/secrets_manager'
+import { SemrushBlock, SemrushV2Block } from '@/blocks/blocks/semrush'
 import { SendGridBlock, SendGridV2Block } from '@/blocks/blocks/sendgrid'
+import { SentryBlock, SentryV2Block } from '@/blocks/blocks/sentry'
 import { SESBlock, SESV2Block } from '@/blocks/blocks/ses'
 import { SimilarwebBlock, SimilarwebV2Block } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourV2Block } from '@/blocks/blocks/sixtyfour'
@@ -73,12 +86,17 @@ import { SportmonksBlock, SportmonksV2Block } from '@/blocks/blocks/sportmonks'
 import { SQSBlock, SQSV2Block } from '@/blocks/blocks/sqs'
 import { SquareBlock, SquareV2Block } from '@/blocks/blocks/square'
 import { SSMBlock, SSMV2Block } from '@/blocks/blocks/ssm'
+import { StripeBlock, StripeV2Block } from '@/blocks/blocks/stripe'
 import { STSBlock, STSV2Block } from '@/blocks/blocks/sts'
 import { TailscaleBlock, TailscaleV2Block } from '@/blocks/blocks/tailscale'
 import { TavilyBlock, TavilyV2Block } from '@/blocks/blocks/tavily'
+import { TelegramBlock, TelegramV2Block } from '@/blocks/blocks/telegram'
 import { TextractBlock, TextractV2Block, TextractV3Block } from '@/blocks/blocks/textract'
 import { TriggerDevBlock, TriggerDevV2Block } from '@/blocks/blocks/trigger_dev'
+import { TypeformBlock, TypeformV2Block } from '@/blocks/blocks/typeform'
 import { UptimeRobotBlock, UptimeRobotV2Block } from '@/blocks/blocks/uptimerobot'
+import { VercelBlock, VercelV2Block } from '@/blocks/blocks/vercel'
+import { WhatsAppBlock, WhatsAppV2Block } from '@/blocks/blocks/whatsapp'
 import { YouComBlock, YouComV2Block } from '@/blocks/blocks/youcom'
 import { YouTubeBlock, YouTubeV2Block } from '@/blocks/blocks/youtube'
 import { ZepBlock, ZepV2Block } from '@/blocks/blocks/zep'
@@ -229,6 +247,23 @@ const VERSIONS: Array<{
   { legacy: QuiverV2Block, successor: QuiverV3Block, secretIds: ['apiKey'] },
   { legacy: ReductoV2Block, successor: ReductoV3Block, secretIds: ['apiKey'] },
   { legacy: FlintBlock, successor: FlintV2Block, secretIds: ['apiKey'] },
+  { legacy: AshbyBlock, successor: AshbyV2Block, secretIds: ['apiKey'] },
+  { legacy: CalendlyBlock, successor: CalendlyV2Block, secretIds: ['apiKey'] },
+  { legacy: CheckrBlock, successor: CheckrV2Block, secretIds: ['apiKey'] },
+  { legacy: FathomBlock, successor: FathomV2Block, secretIds: ['apiKey'] },
+  { legacy: GrainV2Block, successor: GrainV3Block, secretIds: ['apiKey'] },
+  { legacy: GranolaBlock, successor: GranolaV2Block, secretIds: ['apiKey'] },
+  { legacy: LemlistBlock, successor: LemlistV2Block, secretIds: ['apiKey'] },
+  { legacy: PagerDutyBlock, successor: PagerDutyV2Block, secretIds: ['apiKey'] },
+  { legacy: ResendBlock, successor: ResendV2Block, secretIds: ['resendApiKey'] },
+  { legacy: RootlyBlock, successor: RootlyV2Block, secretIds: ['apiKey'] },
+  { legacy: SemrushBlock, successor: SemrushV2Block, secretIds: ['apiKey'] },
+  { legacy: SentryBlock, successor: SentryV2Block, secretIds: ['apiKey'] },
+  { legacy: StripeBlock, successor: StripeV2Block, secretIds: ['apiKey'] },
+  { legacy: TelegramBlock, successor: TelegramV2Block, secretIds: ['botToken'] },
+  { legacy: TypeformBlock, successor: TypeformV2Block, secretIds: ['apiKey'] },
+  { legacy: VercelBlock, successor: VercelV2Block, secretIds: ['apiKey'] },
+  { legacy: WhatsAppBlock, successor: WhatsAppV2Block, secretIds: ['accessToken'] },
 ]
 
 function valuesFor(ids: readonly string[], prefix: string): Record<string, string> {
@@ -250,7 +285,7 @@ function firstOperation(config: BlockConfig): string | undefined {
 
 function fieldTitles(config: BlockConfig, ids: readonly string[]): string[] {
   return config.subBlocks
-    .filter((subBlock) => ids.includes(subBlock.id))
+    .filter((subBlock) => ids.includes(subBlock.id) && !isTriggerModeSubBlock(subBlock))
     .map((subBlock) => subBlock.title ?? subBlock.id)
 }
 

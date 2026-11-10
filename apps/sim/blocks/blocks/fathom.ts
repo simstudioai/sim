@@ -1,10 +1,13 @@
 import { FathomIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 import { fathomTriggerOptions } from '@/triggers/fathom/utils'
 
 export const FathomBlock: BlockConfig = {
   type: 'fathom',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'fathom_v2' },
   name: 'Fathom',
   description: 'Access meeting recordings, transcripts, and summaries',
   authMode: AuthMode.ApiKey,
@@ -402,3 +405,17 @@ export const FathomBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const FathomV2Block: BlockConfig = {
+  ...FathomBlock,
+  type: 'fathom_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(FathomBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'fathom',
+    title: 'Fathom Credential',
+  }),
+}

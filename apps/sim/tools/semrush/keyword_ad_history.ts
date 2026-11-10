@@ -9,6 +9,7 @@ import {
   readSemrushReport,
   SEMRUSH_ANALYTICS_URL,
 } from '@/tools/semrush/utils'
+import { SEMRUSH_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const COLUMNS = ['Dn', 'Dt', 'Po', 'Ur', 'Tt', 'Ds', 'Vu'] as const
@@ -22,6 +23,7 @@ export const semrushKeywordAdHistoryTool: ToolConfig<
   description:
     'List which domains advertised on a keyword month by month, with the copy each one used.',
   version: '1.0.0',
+  oauth: SEMRUSH_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

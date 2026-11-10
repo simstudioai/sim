@@ -1,10 +1,13 @@
 import { TypeformIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const TypeformBlock: BlockConfig = {
   type: 'typeform',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'typeform_v2' },
   name: 'Typeform',
   description: 'Interact with Typeform',
   authMode: AuthMode.ApiKey,
@@ -594,3 +597,19 @@ export const TypeformBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const TypeformV2Block: BlockConfig = {
+  ...TypeformBlock,
+  type: 'typeform_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  longDescription:
+    'Retrieve responses, download files, and get form insights. Use trigger mode to start a workflow when a form is submitted.',
+  ...withSavedCredential(TypeformBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'typeform',
+    title: 'Typeform Credential',
+  }),
+}

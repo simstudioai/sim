@@ -1,4 +1,5 @@
 import type { SentryCreateProjectParams, SentryCreateProjectResponse } from '@/tools/sentry/types'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCreateProjectResponse> =
@@ -8,6 +9,7 @@ export const createProjectTool: ToolConfig<SentryCreateProjectParams, SentryCrea
     description:
       'Create a new Sentry project in an organization. Requires a team to associate the project with. Returns the created project details.',
     version: '1.0.0',
+    oauth: SENTRY_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

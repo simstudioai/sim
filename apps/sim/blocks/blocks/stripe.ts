@@ -1,6 +1,7 @@
 import { StripeIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 /**
@@ -11,6 +12,8 @@ const CAPTURE_AMOUNT_FIELD = ['amount_to_capture', 'amount'] as const
 
 export const StripeBlock: BlockConfig = {
   type: 'stripe',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'stripe_v2' },
   name: 'Stripe',
   description: 'Process payments and manage Stripe data',
   authMode: AuthMode.ApiKey,
@@ -1091,3 +1094,17 @@ export const StripeBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const StripeV2Block: BlockConfig = {
+  ...StripeBlock,
+  type: 'stripe_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(StripeBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'stripe',
+    title: 'Stripe Credential',
+  }),
+}
