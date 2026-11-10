@@ -142,9 +142,10 @@ export const HuntApiBlock: BlockConfig = {
     access: ['huntapi_download_video', 'huntapi_download_audio', 'huntapi_get_job'],
     config: {
       tool: (params) => `huntapi_${params.operation}`,
-      params: (params) => {
+      params: (params, context) => {
+        const operation = context?.operation ?? params.operation
         const result: Record<string, unknown> = {}
-        if (['download_video', 'download_audio'].includes(params.operation)) {
+        if (['download_video', 'download_audio'].includes(operation)) {
           result.maxDuration = parseOptionalNumberInput(params.maxDuration, 'Max Duration', {
             integer: true,
             min: 1,

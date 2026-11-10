@@ -1,10 +1,33 @@
 import { toNumberOrNull, toStringOrNull } from '@sim/utils/coerce'
-import { toRecord } from '@sim/utils/object'
-import type { HuntApiGetJobParams, HuntApiGetJobResponse } from '@/tools/huntapi/types'
+import { toRecord, toRecordOrNull } from '@sim/utils/object'
+import type {
+  HuntApiGetJobParams,
+  HuntApiGetJobResponse,
+  HuntApiMediaMetadata,
+} from '@/tools/huntapi/types'
 import { HUNT_API_MEDIA_METADATA_OUTPUT_PROPERTIES } from '@/tools/huntapi/types'
-import { mapHuntApiMediaMetadata } from '@/tools/huntapi/utils'
 import type { ToolConfig } from '@/tools/types'
 import { safeUrlPathSegment } from '@/tools/url-path'
+
+/** Reads a `HuntApiMediaMetadata` from an untyped HuntAPI API payload. */
+function mapHuntApiMediaMetadata(value: unknown): HuntApiMediaMetadata | null {
+  const record = toRecordOrNull(value)
+  if (!record) return null
+  return {
+    title: toStringOrNull(record.title),
+    description: toStringOrNull(record.description),
+    duration: toNumberOrNull(record.duration),
+    extension: toStringOrNull(record.ext),
+    thumbnail: toStringOrNull(record.thumbnail),
+    uploader: toStringOrNull(record.uploader),
+    uploaderUrl: toStringOrNull(record.uploader_url),
+    viewCount: toNumberOrNull(record.view_count),
+    likeCount: toNumberOrNull(record.like_count),
+    commentCount: toNumberOrNull(record.comment_count),
+    uploadDate: toNumberOrNull(record.upload_date),
+    webpageUrl: toStringOrNull(record.original_url),
+  }
+}
 
 export const huntapiGetJobTool: ToolConfig<HuntApiGetJobParams, HuntApiGetJobResponse> = {
   id: 'huntapi_get_job',
