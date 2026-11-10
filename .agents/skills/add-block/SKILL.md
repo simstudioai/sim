@@ -165,7 +165,7 @@ A block that takes a secret inline keeps running for existing workflows; the sav
 version is a new block type that spreads it. Keep the successor an object literal with the picker
 written inline, because the docs generator reads the source text:
 
-```typescript
+```typescript illustrative
 export const ServiceV2Block: BlockConfig = {
   ...ServiceBlock,
   type: 'service_v2',

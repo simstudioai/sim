@@ -221,7 +221,8 @@ test('Granola connects with its API key and keeps every template in page flow', 
   // Display name, description and the API key, which stays masked until revealed.
   await expect(connect.getByRole('textbox')).toHaveCount(3)
   await expect(connect.getByRole('textbox', { name: 'API key', exact: true })).toHaveAttribute(
-    'data-masked'
+    'type',
+    'password'
   )
   // The catalog lists no reads for Granola's key, so the dialog has no access list to show.
   await expect(connect.getByRole('region', { name: 'Connection access', exact: true })).toHaveCount(

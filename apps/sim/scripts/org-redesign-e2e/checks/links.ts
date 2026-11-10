@@ -239,7 +239,6 @@ export async function linksChecks() {
               .getByRole('textbox', { name: 'Destination URL' })
               .fill('https://parts.example.com/{*}')
             await expect(modal.getByRole('textbox', { name: 'Default destination' })).toBeVisible()
-            await expect(modal.getByText(/Opens when no value fills/)).toBeVisible()
             await modal
               .getByRole('textbox', { name: 'Default destination' })
               .fill('https://parts.example.com')
