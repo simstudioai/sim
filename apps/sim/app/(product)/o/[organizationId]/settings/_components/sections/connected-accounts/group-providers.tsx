@@ -18,14 +18,14 @@ import {
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import type {
-  CredentialGroupsData,
-  CredentialProvider,
-  DatabricksConfiguration,
-} from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
-import type {
   CredentialGroupActions,
   DatabricksDraft,
 } from '@/platform/lib/data/credential-group-actions'
+import type {
+  CredentialGroupsData,
+  CredentialProvider,
+  DatabricksConfiguration,
+} from '@/platform/lib/data/models/connected-accounts'
 
 interface GroupProvidersProps {
   data: CredentialGroupsData

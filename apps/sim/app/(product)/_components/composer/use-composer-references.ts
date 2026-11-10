@@ -1,7 +1,6 @@
 'use client'
 
 import { type KeyboardEvent, type PointerEvent, useId, useMemo, useRef, useState } from 'react'
-import type { ComposerController } from '@/app/(product)/_components/composer/model'
 import {
   type ComposerOption,
   filterOptions,
@@ -16,6 +15,7 @@ import {
   SLASH_TOKEN,
   triggerAt,
 } from '@/app/(product)/_components/composer/reference-text'
+import type { ComposerController } from '@/platform/lib/data/models/composer'
 
 export function useComposerReferences(composer: ComposerController) {
   const editor = useRef<HTMLTextAreaElement>(null)

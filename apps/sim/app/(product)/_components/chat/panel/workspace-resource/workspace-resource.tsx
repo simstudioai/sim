@@ -1,12 +1,12 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import type { PlatformResource } from '@/app/(product)/_components/chat/model'
 import { TabUrlState } from '@/app/(product)/_components/chat/panel/workspace-resource/tab-url-state'
 import styles from '@/app/(product)/_components/chat/panel/workspace-resource/workspace-resource.module.css'
 import { AccessBoundary } from '@/app/(product)/_components/workspace/access-required/access-boundary'
 import { EmbeddedWorkspacePages } from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
 import { WorkspaceSession } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
+import type { PlatformResource } from '@/platform/lib/data/models/chat'
 
 /** The workspace's realtime socket, only for the pages that show presence or edit together. */
 const WorkspaceRealtime = dynamic(

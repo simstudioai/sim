@@ -6,7 +6,7 @@ import {
   ToolActivity,
   ToolInteraction,
 } from '@/app/(product)/_components/chat/message/tool-activity'
-import type { PlatformLane } from '@/app/(product)/_components/chat/model'
+import type { PlatformLane } from '@/platform/lib/data/models/chat'
 
 /** One subagent's work under its own disclosure. A held approval renders outside the collapse. */
 export function LaneActivity({ lane }: { lane: PlatformLane }) {

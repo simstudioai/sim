@@ -34,6 +34,6 @@ OpenAPI distinguishes short summaries from detailed descriptions and recommends 
 
 Agent guidance emphasizes clear purpose, inputs, outputs, and caveats. [OpenAI's function-calling guide](https://developers.openai.com/api/docs/guides/function-calling) recommends detail sufficient to use a tool correctly. [Anthropic's tool guide](https://platform.claude.com/docs/en/agents-and-tools/tool-use/define-tools) recommends several sentences and more for complex tools. Neither establishes a universal optimal word count. Evaluate tool selection and argument correctness on representative tasks before claiming an agent-performance improvement from shorter descriptions.
 
-Edit operation metadata here and field descriptions in their source contracts. Regenerate with `bun run generate:openapi`, `bun run generate:cli-api`, and `bun run generate:cli-docs`; check with the matching `check:*` commands and `bun run check:api-validation`. Do not edit generated artifacts by hand.
+Edit operation metadata here and field descriptions in their source contracts. Regenerate with `bun run generate:openapi`, `bun run generate:cli-api`, and `bun run generate:cli-docs`; check with the matching `check:*` commands and `bun run check:api-validation:strict`. Do not edit generated artifacts by hand.
 
 The CLI currently consumes operation summaries and input descriptions. Full operation descriptions are published in OpenAPI but are not displayed in CLI help; do not assume those paragraphs reach every agent.

@@ -1,12 +1,12 @@
 import 'server-only'
+import type { Scenario } from '@/platform/fixtures'
 import type {
   ChatAttachment,
   ComposerInventory,
   ComposerReference,
-} from '@/app/(product)/_components/composer/model'
-import type { ShellWorkspace } from '@/app/(product)/_components/model'
-import type { CredentialGroupsData } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
-import type { Scenario } from '@/platform/fixtures'
+} from '@/platform/lib/data/models/composer'
+import type { CredentialGroupsData } from '@/platform/lib/data/models/connected-accounts'
+import type { ShellWorkspace } from '@/platform/lib/data/models/shell'
 import type { IntegrationCatalogEntry } from '@/platform/lib/integrations/catalog-model'
 
 interface SkillExample {

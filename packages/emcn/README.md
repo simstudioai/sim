@@ -12,7 +12,7 @@ EMCN is Sim's modern shared component system, derived from the new Platform UI. 
 
 ## Frozen surface
 
-The public surface of `@sim/emcn` and `@sim/emcn-platform` (export subpaths, exported names, component props and their variant values, CSS Module classes) is recorded in `scripts/emcn-surface.json`, and `bun run check:emcn-surface` fails on any difference. Only the design owner (CODEOWNERS) changes these packages or regenerates the snapshot. Product code composes the components as they stand; a part a second feature needs moves to the nearest shared product owner (`apps/sim/app/(product)/_components/`). Legacy UI stays custom or `@sim/emcn-legacy`.
+The public surface of `@sim/emcn`, `@sim/emcn-auth`, `@sim/emcn-docs` and `@sim/emcn-platform` (export subpaths, exported names, component props and their variant values, CSS Module classes) is recorded in `scripts/emcn-surface.json`, and `bun run check:emcn-surface` fails on any difference. Only the design owner (CODEOWNERS) changes these packages or regenerates the snapshot. Product code composes the components as they stand; a part a second feature needs moves to the nearest shared product owner (`apps/sim/app/(product)/_components/`). Legacy UI stays custom or `@sim/emcn-legacy`.
 
 ## Component structure
 

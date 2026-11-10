@@ -24,10 +24,11 @@
  * reading every catalog export it has. `lib/` and `blocks/` are not scanned: they define
  * and derive the catalogs, and no module there renders a list to a viewer.
  */
-import { readdirSync, readFileSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { escapeRegExp } from '@sim/utils/string'
+import { listRepoFiles } from './repo-files'
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../apps/sim')
 const SCAN_ROOTS = ['app', 'components', 'hooks', 'stores', 'ee', 'platform'] as const
@@ -183,17 +184,12 @@ function isScanned(path: string): boolean {
   )
 }
 
+/** The scanned roots' repository files, so build output (`.next`) and `node_modules` never count. */
 function collectSources(): SourceFile[] {
-  return SCAN_ROOTS.flatMap((root) =>
-    readdirSync(join(APP_ROOT, root), { recursive: true, encoding: 'utf8' })
-      .map((entry) =>
-        relative(APP_ROOT, join(APP_ROOT, root, entry))
-          .split('\\')
-          .join('/')
-      )
-      .filter(isScanned)
-      .map((path) => ({ path, source: readFileSync(join(APP_ROOT, path), 'utf8') }))
-  )
+  return listRepoFiles(APP_ROOT)
+    .filter((path) => SCAN_ROOTS.some((root) => path.startsWith(`${root}/`)))
+    .filter(isScanned)
+    .map((path) => ({ path, source: readFileSync(join(APP_ROOT, path), 'utf8') }))
 }
 
 function main() {
