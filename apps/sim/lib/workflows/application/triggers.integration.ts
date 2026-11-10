@@ -19,6 +19,7 @@ import {
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { createLogger } from '@sim/logger'
 import {
+  createExecutorPrincipal,
   createSessionPrincipal,
   createWorkspaceApiKeyPrincipal,
 } from '@sim/testing/factories/principal.factory'
@@ -29,6 +30,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { markWebhookFailed } from '@/lib/webhooks/polling/utils'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 import {
   listWorkflowTriggers,
   setWorkflowTriggerEnabled,
@@ -72,6 +74,8 @@ const eventWebhookId = generateId()
 const twinWebhookIds = [generateId(), generateId()]
 const versionlessWebhookId = generateId()
 const scalarConfigWebhookId = generateId()
+const presaveWebhookId = generateId()
+const executorWebhookId = generateId()
 const flakyWebhookId = generateId()
 const hookPath = `trigger-health-${generateId()}`
 
@@ -402,6 +406,20 @@ beforeAll(async () => {
     },
     {
       ...dormantWebhook,
+      id: presaveWebhookId,
+      workflowId: undeployedWorkflowId,
+      deploymentVersionId: null,
+      blockId: 'presave',
+      path: `${hookPath}-presave`,
+    },
+    {
+      ...dormantWebhook,
+      id: executorWebhookId,
+      blockId: 'exec',
+      path: `${hookPath}-exec`,
+    },
+    {
+      ...dormantWebhook,
       id: flakyWebhookId,
       blockId: 'flaky',
       provider: 'gmail',
@@ -440,6 +458,7 @@ check('lists only the live deployment’s rows, disabled ones included', async (
     ['badcron', 'schedule', 'disabled'],
     ['done', 'schedule', 'completed'],
     ['evt', 'event', 'active'],
+    ['exec', 'webhook', 'disabled'],
     ['flaky', 'polling', 'active'],
     ['hook', 'webhook', 'disabled'],
     ['poll', 'polling', 'disabled'],
@@ -527,37 +546,54 @@ check('legacy row ids never revive a row the live deployment does not serve', as
   expect(viaRow.record.row.id).toBe(liveScheduleId)
 })
 
-check('the write itself refuses a row that is no longer live', async () => {
+check('a switch is all or nothing: one row no longer live rolls back the rest', async () => {
   const updated = await setLiveTriggersEnabled({
     workflowId,
     enabled: true,
-    schedules: [{ id: oldScheduleId, nextRunAt: new Date(Date.now() + 60_000) }],
-    webhookIds: [oldWebhookId, candidateWebhookId],
-    scheduleLiveness: 'editor',
+    schedules: [
+      { id: badCronScheduleId, nextRunAt: new Date(Date.now() + 60_000) },
+      { id: oldScheduleId, nextRunAt: new Date(Date.now() + 60_000) },
+    ],
+    webhookIds: [twinWebhookIds[1], oldWebhookId, candidateWebhookId],
+    liveness: 'editor',
     now: new Date(),
   })
-  expect(updated).toEqual([])
+  expect(updated).toBeNull()
   expect((await scheduleRow(oldScheduleId)).status).toBe('disabled')
+  expect((await scheduleRow(badCronScheduleId)).status).toBe('disabled')
+  expect((await webhookRow(twinWebhookIds[1])).isActive).toBe(false)
   expect((await webhookRow(oldWebhookId)).isActive).toBe(false)
   expect((await webhookRow(candidateWebhookId)).isActive).toBe(false)
 })
 
-check('a versionless schedule is hidden from v2 but kept for the editor row id', async () => {
-  const { triggers } = await listWorkflowTriggers.execute({
-    principal: reader,
-    input: { workflowId: versionlessWorkflowId },
-  })
-  expect(triggers.map((trigger) => [trigger.blockId, trigger.kind])).toEqual([['hook', 'webhook']])
-  await expect(
-    setWorkflowTriggerEnabled.execute({
-      principal: writer,
-      input: {
-        target: { kind: 'block', workflowId: versionlessWorkflowId, blockId: 'sched' },
-        enabled: true,
-      },
+check('rows that never run are hidden from v2 but kept for the editor row id', async () => {
+  for (const id of [versionlessWorkflowId, undeployedWorkflowId]) {
+    const { triggers } = await listWorkflowTriggers.execute({
+      principal: reader,
+      input: { workflowId: id },
     })
-  ).rejects.toMatchObject({ code: 'not_found' })
+    expect(triggers).toEqual([])
+  }
+  for (const [id, blockId] of [
+    [versionlessWorkflowId, 'sched'],
+    [versionlessWorkflowId, 'hook'],
+    [undeployedWorkflowId, 'presave'],
+  ]) {
+    await expect(
+      setWorkflowTriggerEnabled.execute({
+        principal: writer,
+        input: { target: { kind: 'block', workflowId: id, blockId }, enabled: true },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  }
   expect((await scheduleRow(versionlessScheduleId)).status).toBe('disabled')
+  expect((await webhookRow(presaveWebhookId)).isActive).toBe(false)
+
+  const presave = await setWorkflowTriggerEnabled.execute({
+    principal: writer,
+    input: { target: { kind: 'row', table: 'webhook', id: presaveWebhookId }, enabled: true },
+  })
+  expect(presave.changes).toHaveLength(1)
 
   const schedule = await setWorkflowTriggerEnabled.execute({
     principal: writer,
@@ -640,6 +676,23 @@ check('read access lists but cannot write; other tenants see not found', async (
   expect(await surfaceStatus(() => setBlock('sched', false, outsider))).toBe(404)
   expect(await surfaceStatus(() => setBlock('sched', false, foreignKey))).toBe(404)
   expect((await scheduleRow(liveScheduleId)).status).toBe('active')
+})
+
+check('a workflow run’s executor delegation may enable, ungoverned by the group', async () => {
+  const executor = createExecutorPrincipal({
+    audience: WORKFLOW_DELEGATION_AUDIENCE,
+    workspaceId,
+    subjectUserId: writerId,
+    delegationContext: { kind: 'workflow_execution', workflowId },
+  })
+  await setWebhookTriggersWithheld(true)
+  try {
+    const enabled = await setBlock('exec', true, executor)
+    expect(enabled.changes).toHaveLength(1)
+    expect((await webhookRow(executorWebhookId)).isActive).toBe(true)
+  } finally {
+    await setWebhookTriggersWithheld(false)
+  }
 })
 
 check('the webhook capability gates enabling only, and only governed callers', async () => {

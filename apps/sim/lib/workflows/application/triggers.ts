@@ -21,8 +21,8 @@ import {
   isInRequestedState,
   type LiveWorkflowTriggerRecord,
   listLiveWorkflowTriggers,
-  type ScheduleLiveness,
   setLiveTriggersEnabled,
+  type TriggerLiveness,
   toWorkflowTriggerHealth,
   type WorkflowTriggerHealth,
   type WorkflowTriggerStatus,
@@ -161,10 +161,10 @@ export const setWorkflowTriggerEnabled = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.setTriggerEnabled,
   resolveContext: resolveTriggerTargetContext,
   async execute({ principal, input, context }): Promise<SetWorkflowTriggerEnabledResult> {
-    // A legacy row id keeps the versionless schedules the editor shows; a block target sees only what fires.
-    const scheduleLiveness: ScheduleLiveness = context.row ? 'editor' : 'dispatched'
-    const readLive = () => findLiveBlockTriggers({ ...context, scheduleLiveness })
-    let [, current] = await Promise.all([requireMutableWorkflow(context.workflowId), readLive()])
+    // A legacy row id keeps the rows the editor shows; a block target sees only what runs.
+    const liveness: TriggerLiveness = context.row ? 'editor' : 'running'
+    const readLive = () => findLiveBlockTriggers({ ...context, liveness })
+    const [, current] = await Promise.all([requireMutableWorkflow(context.workflowId), readLive()])
     if (current.length === 0) throw new OrchestrationError('not_found', context.notFoundMessage)
     const pending = current.filter((record) => !isInRequestedState(record, input.enabled))
     if (pending.length === 0) {
@@ -190,15 +190,17 @@ export const setWorkflowTriggerEnabled = defineAuthorizedWorkflowUseCase({
       enabled: input.enabled,
       schedules,
       webhookIds,
-      scheduleLiveness,
+      liveness,
       now: new Date(),
     })
-    if (updated.length < pending.length) {
-      current = await readLive()
-      if (current.length === 0) throw new OrchestrationError('not_found', context.notFoundMessage)
-      if (current.some((record) => !isInRequestedState(record, input.enabled))) {
+    if (!updated) {
+      // Nothing was written. Succeed only if a concurrent request already reached the requested state.
+      const latest = await readLive()
+      if (latest.length === 0) throw new OrchestrationError('not_found', context.notFoundMessage)
+      if (latest.some((record) => !isInRequestedState(record, input.enabled))) {
         throw new OrchestrationError('conflict', 'Trigger changed during the update; retry')
       }
+      return { trigger: toWorkflowTriggerHealth(latest[0]), record: latest[0], changes: [] }
     }
 
     const previousStatusById = new Map(

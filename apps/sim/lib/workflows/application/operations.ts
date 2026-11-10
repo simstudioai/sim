@@ -22,6 +22,18 @@ const WORKFLOW_READ_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot', 'executor'],
 } as const
 
+/** Every caller, including a workflow run's executor delegation. */
+const EXECUTOR_REACHABLE_WORKFLOW_PRINCIPAL_POLICY = {
+  principalKinds: [
+    'session',
+    'personal_api_key',
+    'oauth_access_token',
+    'workspace_api_key',
+    'delegated',
+  ],
+  delegatedServices: ['copilot', 'executor'],
+} as const
+
 const HUMAN_WORKFLOW_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'oauth_access_token', 'delegated'],
   delegatedServices: ['copilot'],
@@ -356,6 +368,8 @@ export const workflowOperations = {
    * Pausing or resuming one trigger of the live deployment. Not a deploy: the
    * deployed graph and its provider registrations are untouched, so it is a
    * write rather than an admin act, and a workspace key may perform it.
+   * A workflow run's executor delegation may too, as it could before this
+   * moved onto the use case.
    *
    * permission-group-exempt: `triggers.webhook` is asserted inside the use case and only for enabling a webhook-table row, because a group that withholds inbound webhooks must still let a member switch a live one off
    */
@@ -366,7 +380,7 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     capability: 'none',
     contentDelivery: 'none',
-    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+    ...EXECUTOR_REACHABLE_WORKFLOW_PRINCIPAL_POLICY,
   }),
   activateVersion: defineWorkspaceOperation({
     id: 'workflows.versions.activate',

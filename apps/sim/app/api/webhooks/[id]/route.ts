@@ -23,7 +23,6 @@ import {
   internalErrorResponse,
   internalOrchestrationErrorPolicy,
   internalRateLimits,
-  internalSessionAuth,
 } from '@/lib/api/server/routes'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { InsufficientWorkspacePermissionsError } from '@/lib/core/application'
@@ -32,6 +31,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { cleanupExternalWebhook } from '@/lib/webhooks/provider-subscriptions'
+import { internalWorkflowSessionOrExecutorAuth } from '@/lib/workflows/api'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { setWorkflowTriggerEnabled } from '@/lib/workflows/application/triggers'
 
@@ -103,10 +103,12 @@ export const GET = withRouteHandler(
  * `triggers.webhook` gate on re-enabling. The id must name the live
  * deployment's row: a candidate, retired, or older-version registration answers
  * 404 instead of being revived.
+ * Admits a session or a workflow run's executor delegation; the executor is not
+ * judged against the triggering member's permission group.
  */
 export const PATCH = defineInternalJsonRoute({
   contract: updateWebhookContract,
-  auth: internalSessionAuth,
+  auth: internalWorkflowSessionOrExecutorAuth,
   operation: workflowOperations.setTriggerEnabled,
   rateLimit: internalRateLimits.none({
     reason: 'Webhook enablement retains its existing session admission policy.',
