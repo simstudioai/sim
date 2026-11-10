@@ -15,9 +15,11 @@ async function watchFrames(page: Page, action: () => Promise<void>) {
     const region = [...document.querySelectorAll('[data-scroll-axis="vertical"]')].find((element) =>
       element.querySelector('main')
     )
+    // Without the region nothing is observed, and no frame could ever read as blank.
+    if (!region) throw new Error('No vertical scroll region holds the page column')
     const frames: { heading: boolean; blank: boolean }[] = []
     const record = () => {
-      const visible = [...(region?.querySelectorAll('main') ?? [])].filter(
+      const visible = [...region.querySelectorAll('main')].filter(
         (element) => element.getBoundingClientRect().height > 0
       )
       frames.push({
@@ -28,7 +30,7 @@ async function watchFrames(page: Page, action: () => Promise<void>) {
       })
     }
     const observer = new MutationObserver(record)
-    if (region) observer.observe(region, { childList: true, subtree: true, attributes: true })
+    observer.observe(region, { childList: true, subtree: true, attributes: true })
     Object.assign(window, { __frames: frames, __stopFrames: () => observer.disconnect() })
   })
   await action()
@@ -42,8 +44,11 @@ async function watchFrames(page: Page, action: () => Promise<void>) {
   })
 }
 
+/** The first visible match's box. A missing one fails, so two missing boxes never compare equal. */
 async function box(page: Page, selector: string) {
-  return page.locator(selector).filter({ visible: true }).first().boundingBox()
+  const found = await page.locator(selector).filter({ visible: true }).first().boundingBox()
+  if (!found) throw new Error(`${selector} has no box on screen`)
+  return found
 }
 
 test('a workspace opens beside the organization sidebar, which stays as it is', async ({
@@ -93,16 +98,16 @@ test('workspace tabs share the Integrations heading, tab row and control positio
     await expect(main(page).getByRole('heading', { level: 1, name: 'IT operations' })).toBeVisible()
     const heading = await box(page, 'main h1')
     const tabs = await box(page, 'main nav')
-    expect(heading?.x).toBe(reference.heading?.x)
-    expect(heading?.y).toBe(reference.heading?.y)
-    expect(tabs?.x).toBe(reference.tabs?.x)
-    expect(tabs?.y).toBe(reference.tabs?.y)
+    expect(heading.x).toBe(reference.heading.x)
+    expect(heading.y).toBe(reference.heading.y)
+    expect(tabs.x).toBe(reference.tabs.x)
+    expect(tabs.y).toBe(reference.tabs.y)
     if (searched) {
-      expect((await box(page, 'main input'))?.x).toBe(reference.search?.x)
-      expect((await box(page, 'main input'))?.y).toBe(reference.search?.y)
+      expect((await box(page, 'main input')).x).toBe(reference.search.x)
+      expect((await box(page, 'main input')).y).toBe(reference.search.y)
     }
     if (sorted)
-      expect((await box(page, 'main button[aria-label^="Sort"]'))?.x).toBe(reference.sort?.x)
+      expect((await box(page, 'main button[aria-label^="Sort"]')).x).toBe(reference.sort.x)
   }
 })
 
@@ -121,6 +126,7 @@ test('tab changes keep a heading on screen and mark the current tab', async ({ p
         'page'
       )
     })
+    expect(frames.length, `${name} changed nothing on screen`).toBeGreaterThan(0)
     expect(frames.filter((frame) => frame.blank || !frame.heading)).toEqual([])
   }
 })

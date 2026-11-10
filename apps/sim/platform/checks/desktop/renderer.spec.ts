@@ -159,7 +159,10 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
     expect(position).toBeGreaterThan(0)
     await chatLink.click()
     await page.waitForURL(/\/chat\/weekly-review\?/)
-    expect(await nav.evaluate((element) => element.scrollTop)).toBe(position)
+    // The navigation's scroll settles after the route commits; a single read races it.
+    await expect
+      .poll(async () => Math.abs((await nav.evaluate((element) => element.scrollTop)) - position))
+      .toBeLessThanOrEqual(1)
     await page.getByRole('button', { name: 'Open chat panel' }).press('Enter')
     const panel = page.getByRole('complementary', { name: 'Chat panel' })
     await expect(panel.getByRole('button', { name: 'New panel tab' })).toBeFocused()
@@ -177,20 +180,27 @@ test('the actual desktop renderer shares product routes, reserves native chrome 
     await page.getByRole('menuitemradio', { name: '125%' }).click()
     const image = panel.getByRole('img', { name: 'Linear homepage' })
     await expect(image).toBeVisible()
-    expect(
-      await image.evaluate(
-        (el) => el.getBoundingClientRect().width / (el.parentElement?.clientWidth || 1)
+    await expect
+      .poll(() =>
+        image.evaluate(
+          (el) => el.getBoundingClientRect().width / (el.parentElement?.clientWidth || 1)
+        )
       )
-    ).toBeCloseTo(1.25, 1)
+      .toBeCloseTo(1.25, 1)
     await page.screenshot({ path: testInfo.outputPath('desktop-chat.png') })
     await page.getByRole('button', { name: 'Collapse sidebar' }).click()
     await expect(panel.getByRole('tab', { selected: true })).toHaveAccessibleName('Linear')
     await panel.getByRole('button', { name: 'Expand panel' }).click()
-    const navigation = await page.getByRole('button', { name: 'Expand sidebar' }).boundingBox()
     const firstTab = panel.getByRole('tab', { name: 'Terminal' })
-    const firstTabBox = await firstTab.boundingBox()
-    if (!navigation || !firstTabBox) throw new Error('The navigation and first tab must be visible')
-    expect(firstTabBox.x).toBeGreaterThanOrEqual(navigation.x + navigation.width)
+    // The panel expands with a transition, so the gap is read until it settles, within a pixel.
+    await expect
+      .poll(async () => {
+        const navigation = await page.getByRole('button', { name: 'Expand sidebar' }).boundingBox()
+        const firstTabBox = await firstTab.boundingBox()
+        if (!navigation || !firstTabBox) return Number.NEGATIVE_INFINITY
+        return firstTabBox.x - (navigation.x + navigation.width)
+      }, 'the first tab clears the navigation')
+      .toBeGreaterThanOrEqual(-1)
     await firstTab.click()
     await expect(panel.getByRole('region', { name: 'Terminal history' })).toBeVisible()
     await panel.getByRole('button', { name: 'Restore split panel' }).click()
