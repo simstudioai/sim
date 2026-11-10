@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Button } from '@sim/emcn/button'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from '@/lib/toast/sink'
@@ -8,7 +8,6 @@ import { usePageCommands } from '@/app/(product)/_components/command-menu/page-c
 import {
   DeployModal,
   type DeployTab,
-  isDeployTab,
 } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/deploy/deploy-modal/deploy-modal'
 import {
   apiKeysQueryOptions,
@@ -35,8 +34,7 @@ interface DeployButtonProps {
 /**
  * The legacy editor's Deploy control: Deploy, Update or Live from one derived deployment verdict.
  * An undeployed workflow deploys on click (after the readiness wait and pre-deploy checks); a
- * deployed one opens the deployment modal. The `open-deploy-modal` window event and search's
- * "Deploy workflow" open it too.
+ * deployed one opens the deployment modal. Search's "Deploy workflow" runs the same click.
  */
 export function DeployButton({ workspaceId, workflowId }: DeployButtonProps) {
   const queryClient = useQueryClient()
@@ -114,16 +112,6 @@ export function DeployButton({ workspaceId, workflowId }: DeployButtonProps) {
         ]
       : []
   )
-
-  useEffect(() => {
-    const openFromEvent = (event: Event) => {
-      const detail = event instanceof CustomEvent ? (event.detail as { tab?: unknown }) : null
-      setOpen(true)
-      if (isDeployTab(detail?.tab)) setTab(detail.tab)
-    }
-    window.addEventListener('open-deploy-modal', openFromEvent)
-    return () => window.removeEventListener('open-deploy-modal', openFromEvent)
-  }, [])
 
   const prefetch = () => {
     if (isRegistryLoading || isDisabled) return

@@ -50,7 +50,6 @@ import {
 } from '@/platform/lib/data/workflow-deploy'
 import {
   createLogger,
-  useDeploymentShape,
   usePermissionConfig,
   useUserPermissionsContext,
   useWorkflowMap,
@@ -65,8 +64,8 @@ export type DeployTab = 'general' | 'api' | 'mcp' | 'chat'
 
 const DEPLOY_TABS: readonly DeployTab[] = ['general', 'api', 'mcp', 'chat']
 
-/** Whether an `open-deploy-modal` event named one of the dialog's tabs. */
-export function isDeployTab(value: unknown): value is DeployTab {
+/** Whether a tab control's value names one of the dialog's tabs. */
+function isDeployTab(value: unknown): value is DeployTab {
   return DEPLOY_TABS.some((tab) => tab === value)
 }
 
@@ -123,7 +122,6 @@ function DeployDialog({
   const needsRedeployment = status === 'changed'
   const queryClient = useQueryClient()
   const { navigateToSettings } = useSettingsNavigation()
-  const { chatEnabled } = useDeploymentShape()
   const userPermissions = useUserPermissionsContext()
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
   const { data: workflowMap = {} } = useWorkflowMap(workspaceId)
@@ -148,9 +146,7 @@ function DeployDialog({
     { id: 'general', label: 'General' },
     ...(permissionConfig.hideDeployApi ? [] : [{ id: 'api' as const, label: 'API' }]),
     ...(permissionConfig.hideDeployMcp ? [] : [{ id: 'mcp' as const, label: 'MCP' }]),
-    ...(chatEnabled && !permissionConfig.hideDeployChatbot
-      ? [{ id: 'chat' as const, label: 'Chat' }]
-      : []),
+    ...(!permissionConfig.hideDeployChatbot ? [{ id: 'chat' as const, label: 'Chat' }] : []),
   ]
   const current: DeployTab = visibleTabs.some((entry) => entry.id === tab) ? tab : 'general'
 
