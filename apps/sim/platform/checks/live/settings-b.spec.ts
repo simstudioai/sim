@@ -1,5 +1,13 @@
 import { expect, type Page } from '@playwright/test'
-import { organizationId, signInAsAdmin } from '@/platform/checks/live/session'
+import { generateId } from '@sim/utils/id'
+import {
+  adminEmail,
+  memberEmail,
+  organizationId,
+  seedSession,
+  signInAsAdmin,
+} from '@/platform/checks/live/session'
+import { withLiveDatabase } from '@/platform/checks/live/support/database'
 import { liveRoute } from '@/platform/checks/routes'
 import { test } from '@/platform/checks/test'
 
@@ -64,26 +72,54 @@ test.describe('governance settings', () => {
     expect(types).not.toContain('slack')
   })
 
-  test('the catalog refuses a non-admin session', async ({ playwright, baseURL }) => {
+  test('the catalog refuses a signed-out request and a non-admin member', async ({
+    page,
+    playwright,
+    baseURL,
+  }) => {
+    const catalog = `/api/organizations/${organizationId()}/permission-groups/editor-catalog`
     const anonymous = await playwright.request.newContext({ baseURL })
-    const response = await anonymous.get(
-      `/api/organizations/${organizationId()}/permission-groups/editor-catalog`
-    )
-    expect(response.status()).toBe(401)
+    expect((await anonymous.get(catalog)).status()).toBe(401)
     await anonymous.dispose()
+
+    const member = await seedSession(memberEmail())
+    await page.context().clearCookies({ name: /^better-auth\./ })
+    await page.context().addCookies([member.cookie])
+    expect((await page.request.get(catalog)).status()).toBe(403)
   })
 
   test('single sign-on never receives a stored client secret', async ({ page }) => {
-    // Signed in elsewhere first, so the body read here cannot belong to a page that navigated away.
-    await openSection(page, 'general')
-    const providers = page.waitForResponse(
-      (response) =>
-        response.request().method() === 'GET' && response.url().includes('/api/auth/sso/providers')
-    )
-    await page.goto(liveRoute('/settings/sso'))
-    await expect(page.getByRole('radio', { name: 'Domains' })).toBeAttached()
-    expect(await (await providers).text()).not.toMatch(/"clientSecret":"(?!\[REDACTED\])/)
-    await expect(page.getByRole('button', { name: /Copy Client secret/ })).toHaveCount(0)
+    const providerId = `platform-live-sso-${generateId()}`
+    const clientSecret = `platform-live-secret-${generateId()}`
+    await withLiveDatabase(async (sql) => {
+      await sql`insert into sso_provider (id, issuer, domain, oidc_config, user_id, provider_id, organization_id)
+        values (${providerId}, 'https://idp.platform-live.test', 'platform-live.test',
+          ${JSON.stringify({ issuer: 'https://idp.platform-live.test', clientId: 'platform-live-client', clientSecret })},
+          (select id from "user" where email = ${adminEmail()}), ${providerId}, ${organizationId()})`
+    })
+    try {
+      // Signed in elsewhere first, so the body read here cannot belong to a page that navigated away.
+      await openSection(page, 'general')
+      const providers = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' &&
+          response.url().includes('/api/auth/sso/providers')
+      )
+      await page.goto(liveRoute('/settings/sso'))
+      await expect(page.getByRole('radio', { name: 'Domains' })).toBeAttached()
+      const body = await (await providers).text()
+      expect(body).not.toContain(clientSecret)
+      const listed = (
+        JSON.parse(body) as { providers: { providerId: string; oidcConfig: string | null }[] }
+      ).providers.find((provider) => provider.providerId === providerId)
+      expect(listed?.oidcConfig, 'the seeded provider was not listed').toBeTruthy()
+      expect(JSON.parse(listed?.oidcConfig ?? '{}').clientSecret).toBe('[REDACTED]')
+      await expect(page.getByRole('button', { name: /Copy Client secret/ })).toHaveCount(0)
+    } finally {
+      await withLiveDatabase(
+        (sql) => sql`delete from sso_provider where provider_id = ${providerId}`
+      )
+    }
   })
 
   test('security validates session bounds before writing', async ({ page }) => {

@@ -22,10 +22,19 @@ test('a self-hosted organization is served the product surface', async ({ page }
   expect(surface.deployment.hosted).toBe(false)
   expect(surface.deployment.billingEnabled).toBe(false)
 
-  for (const route of ['/home', '/settings/members']) {
+  for (const [route, title] of [
+    ['/home', /\S/],
+    ['/settings/members', 'Members'],
+  ] as const) {
     const response = await page.goto(liveRoute(route))
     expect(response?.status(), route).toBe(200)
     await expect(page).toHaveURL(liveRoutePattern(route, '(?:\\?|$)'))
     await expect(page.getByRole('complementary', { name: 'Platform sidebar' })).toBeVisible()
+    // The section's own heading, so a shell around a missing page does not pass.
+    await expect(
+      page.getByRole('main').getByRole('heading', { level: 1, name: title }),
+      route
+    ).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Page not found' }), route).toHaveCount(0)
   }
 })

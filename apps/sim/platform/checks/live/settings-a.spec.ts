@@ -53,7 +53,15 @@ test('a display name saves through the profile read', async ({ page }) => {
       .getByRole('dialog', { name: 'Edit display name' })
       .getByRole('textbox', { name: 'Display name' })
       .fill(name)
-    await page.getByRole('button', { name: 'Save', exact: true }).click()
+    const [saved] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PATCH' &&
+          new URL(response.url()).pathname === '/api/users/me/profile'
+      ),
+      page.getByRole('button', { name: 'Save', exact: true }).click(),
+    ])
+    expect(saved.ok(), 'the profile write was refused').toBe(true)
     await page.reload()
     await expect(page.getByRole('region', { name: 'Profile' })).toContainText(name)
   } finally {
@@ -66,14 +74,15 @@ test('a display name saves through the profile read', async ({ page }) => {
 
 test('unbacked preferences stay out of live settings', async ({ page }) => {
   await page.goto(settings())
+  // The backed row first, so the absences below are read from a painted section.
+  await expect(page.getByRole('switch', { name: 'Canvas error notifications' })).toBeVisible()
   await expect(page.getByRole('combobox', { name: 'Interface font' })).toHaveCount(0)
   await expect(page.getByRole('combobox', { name: 'Code font' })).toHaveCount(0)
-  await expect(page.getByRole('switch', { name: 'Canvas error notifications' })).toBeVisible()
   await expect(page.getByRole('switch', { name: 'In-app notifications' })).toHaveCount(0)
   await expect(page.getByRole('switch', { name: 'Play sound' })).toHaveCount(0)
 })
 
-test('the time zone offers Auto and writes the setting', async ({ page }) => {
+test('the time zone row reads Auto or a saved zone', async ({ page }) => {
   await page.goto(settings())
   await expect(page.getByRole('combobox', { name: 'Time zone' })).toContainText(/Auto|\//)
 })
@@ -100,8 +109,23 @@ test('account deletion is refused, with the reasons, while the member still belo
 })
 
 test('a plan read on the server stands when the browser’s own read fails', async ({ page }) => {
+  await page.clock.install()
   await page.route('**/billing-summary', (route) => route.abort())
+  const failedReads: string[] = []
+  page.on('requestfailed', (request) => {
+    if (request.url().includes('/billing-summary')) failedReads.push(request.url())
+  })
   await page.goto(settings('/billing'))
+  await expect(page.getByText('Enterprise plan')).toBeVisible()
+  // The server's read is fresh for 30 seconds and the web app does not refetch on focus, so the
+  // browser reads it itself only once it is stale and the connection comes back.
+  await page.clock.fastForward('00:31')
+  await page.context().setOffline(true)
+  await page.context().setOffline(false)
+  // The read and its one retry (`shouldRetrySettingsRead`) both fail before the outcome is read.
+  await expect
+    .poll(() => failedReads.length, 'the browser never gave up on its read')
+    .toBeGreaterThanOrEqual(2)
   await expect(page.getByRole('region', { name: 'Subscription' })).toBeVisible()
   await expect(page.getByText('Enterprise plan')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0)

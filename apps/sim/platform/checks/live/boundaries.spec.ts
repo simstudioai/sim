@@ -53,5 +53,7 @@ test('the extension panel has no platform surface and reads no Home data', async
   expect(reads.filter((path) => HOME_READ.test(path))).toEqual([])
   const createLink = await page.goto('/extension/create-link')
   expect(createLink?.status(), 'the create-link panel').toBe(200)
+  // The panel's own draft has painted, so the shell's absence is read from a rendered page.
+  await expect(page.getByRole('dialog')).toBeVisible()
   await expect(page.locator('[data-platform-ui]')).toHaveCount(0)
 })

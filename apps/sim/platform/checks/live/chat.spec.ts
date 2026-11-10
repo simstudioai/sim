@@ -48,6 +48,9 @@ test('A resource in the URL survives a reload of the chat route', async ({ page 
   await signInAsAdmin(page, liveRoute('/chat?resource=stale-id'))
   await expect(page.getByRole('textbox')).toBeVisible()
   await expect(page).toHaveURL(/resource=stale-id/)
+  await page.reload()
+  await expect(page.getByRole('textbox')).toBeVisible()
+  await expect(page).toHaveURL(/resource=stale-id/)
 })
 
 test('A running turn streams, stops, and keeps what arrived', async ({ page }) => {
@@ -58,6 +61,8 @@ test('A running turn streams, stops, and keeps what arrived', async ({ page }) =
   await expect(page).toHaveURL(liveRoutePattern('/chat', '/[^/?]+'), { timeout: 30_000 })
   const stop = page.getByRole('button', { name: 'Stop response' })
   await expect(stop).toBeVisible()
+  const conversation = page.getByRole('region', { name: 'Conversation' })
+  await expect(conversation.getByText(/^1\s/)).toBeVisible()
   const stopped = page.waitForRequest((request) =>
     request.url().includes('/api/mothership/chat/stop')
   )
@@ -67,6 +72,7 @@ test('A running turn streams, stops, and keeps what arrived', async ({ page }) =
   await expect(page.getByText('Stopped by you')).toBeVisible()
   await page.reload()
   await expect(page.getByText('Count slowly from 1 to 50')).toBeVisible()
+  await expect(conversation.getByText(/^1\s/)).toBeVisible()
 })
 
 test('A message sent during a running turn steers it', async ({ page }) => {
@@ -109,18 +115,23 @@ test('A message the turn ends without applying goes out as the next turn', async
     }
   })
   const field = page.getByRole('textbox')
-  await field.fill('Count slowly to 3 and ignore steering.')
+  await field.fill('Count slowly to 6 and ignore steering.')
   await page.getByRole('button', { name: 'Send message' }).click()
   await expect(page.getByRole('button', { name: 'Stop response' })).toBeVisible()
+  const conversation = page.getByRole('region', { name: 'Conversation' })
+  await expect(conversation.getByText(/^1\s/)).toBeVisible()
+  const steered = page.waitForRequest(
+    (request) => request.method() === 'POST' && request.url().includes('/api/copilot/chat/steer')
+  )
   await field.fill('Then say done.')
   await field.press('Enter')
-  const conversation = page.getByRole('region', { name: 'Conversation' })
+  expect((await steered).postDataJSON().content).toBe('Then say done.')
   await expect(conversation.getByText('Then say done.', { exact: true })).toBeVisible()
   await expect(conversation.getByText('Hello from the scripted agent.')).toBeVisible({
     timeout: 30_000,
   })
   await expect(page.getByRole('button', { name: 'Send message' })).toBeVisible()
-  expect(turnPosts).toEqual(['Count slowly to 3 and ignore steering.', 'Then say done.'])
+  expect(turnPosts).toEqual(['Count slowly to 6 and ignore steering.', 'Then say done.'])
   await expect(conversation.getByText('Then say done.', { exact: true })).toHaveCount(1)
 })
 

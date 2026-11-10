@@ -163,6 +163,8 @@ test.describe('Home for the seeded administrator', () => {
     page,
   }) => {
     await signInAsAdmin(page, liveRoute('/home'))
+    // Home's sections have painted, so the attention list's absence is read from them.
+    await expect(page.getByRole('region', { name: 'Recents', exact: true })).toBeVisible()
     await expect(
       page.getByRole('region', { name: 'Needs your attention', exact: true })
     ).toHaveCount(0)

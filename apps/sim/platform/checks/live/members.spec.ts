@@ -137,7 +137,9 @@ test('removal holds on its disclosure, keeps the dialog on failure, then removes
 test('a plain member sees no controls the server would refuse', async ({ page }) => {
   await signIn(page, memberEmail(), MEMBERS)
   await expect(page.getByRole('heading', { name: 'Members', level: 1 })).toBeVisible()
+  // The section and its roster have painted, so the absences below are read from them.
+  await expect(page.getByRole('button', { name: 'Leave organization' })).toBeVisible()
+  await expect(page.getByRole('main').getByText(memberEmail()).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Invite', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /^Role for/ })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Leave organization' })).toBeVisible()
 })

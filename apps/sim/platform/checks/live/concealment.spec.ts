@@ -83,13 +83,16 @@ test.describe('with platform-preview off', () => {
   }) => {
     await signInAsAdmin(page, `/workspace/${WORKSPACE_ID}/workflows`)
     const tabs = page.getByRole('navigation', { name: `${WORKSPACE_NAME} pages`, exact: true })
+    // The tab row has painted, so the absences below are read from it, not from a page still loading.
     await expect(tabs.getByRole('link', { name: 'Workflows', exact: true })).toBeVisible()
-    for (const [section, label] of PREVIEW_TABS) {
+    for (const [, label] of PREVIEW_TABS) {
       await expect(tabs.getByRole('link', { name: label, exact: true })).toHaveCount(0)
+    }
+    await expect(tabs.getByRole('link', { name: 'Issues', exact: true })).toHaveCount(0)
+    for (const [section] of PREVIEW_TABS) {
       await page.goto(`/workspace/${WORKSPACE_ID}/${section}`)
       await expect(notFound(page), section).toBeVisible()
     }
-    await expect(tabs.getByRole('link', { name: 'Issues', exact: true })).toHaveCount(0)
   })
 
   test('Home reads and paints neither Needs your attention nor Workspaces', async ({ page }) => {
