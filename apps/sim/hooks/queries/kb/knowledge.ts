@@ -319,18 +319,28 @@ export const serializeChunkParams = (params: KnowledgeChunksParams) =>
     sortOrder: params.sortOrder ?? 'asc',
   })
 
+/** One page of a document's chunks, shared by the list's query and an imperative page read. */
+export function knowledgeChunksQueryOptions(params: KnowledgeChunksParams) {
+  return queryOptions({
+    queryKey: knowledgeKeys.chunks(
+      params.knowledgeBaseId,
+      params.documentId,
+      serializeChunkParams(params)
+    ),
+    queryFn: ({ signal }) => fetchKnowledgeChunks(params, signal),
+    staleTime: KNOWLEDGE_CHUNK_LIST_STALE_TIME,
+  })
+}
+
 export function useKnowledgeChunksQuery(
   params: KnowledgeChunksParams,
   options?: {
     enabled?: boolean
   }
 ) {
-  const paramsKey = serializeChunkParams(params)
   return useQuery({
-    queryKey: knowledgeKeys.chunks(params.knowledgeBaseId, params.documentId, paramsKey),
-    queryFn: ({ signal }) => fetchKnowledgeChunks(params, signal),
+    ...knowledgeChunksQueryOptions(params),
     enabled: (options?.enabled ?? true) && Boolean(params.knowledgeBaseId && params.documentId),
-    staleTime: KNOWLEDGE_CHUNK_LIST_STALE_TIME,
     placeholderData: (previous, previousQuery) =>
       knowledgeKeys
         .document(params.knowledgeBaseId, params.documentId)

@@ -11,6 +11,7 @@ import { Pagination } from '@sim/emcn/pagination'
 import { useScrollEdges } from '@sim/emcn/scroll-area/use-scroll-edges'
 import { SearchField } from '@sim/emcn/search-field'
 import { FailureNotice, StatusText } from '@sim/emcn/status'
+import { getErrorMessage } from '@sim/utils/errors'
 import { notFound, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { toast } from '@/lib/toast/sink'
@@ -37,6 +38,7 @@ import {
   ChunkEditor,
   type ChunkSaveStatus,
 } from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/chunk-editor/chunk-editor'
+import { locateCreatedChunk } from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/document-view/chunk-arrival'
 import styles from '@/app/(product)/workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/document-view/document-view.module.css'
 import {
   type ChunkData,
@@ -74,9 +76,6 @@ const CONTEXT_BEFORE = 30
 /** How long a failed create says so before its button reads Create chunk again. */
 const CREATE_FAILURE_DWELL_MS = 2000
 /** After a page change, how often the list is checked for the chunk to open, and how many times. */
-const ARRIVAL_POLL_MS = 100
-const ARRIVAL_POLL_TRIES = 50
-const NEXT_TASK = 0
 
 const STATUS_OPTIONS = [
   { value: 'all', label: 'All statuses' },
@@ -172,10 +171,14 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
     : list.chunks
   const currentPage = showingSearch ? searchPage : list.currentPage
   const totalPages = showingSearch ? searchPages : list.totalPages
-  const rowsRef = useRef(rows)
-  rowsRef.current = rows
-  const totalPagesRef = useRef(totalPages)
-  totalPagesRef.current = totalPages
+  /** Bumped by each page-crossing open and on unmount, so a superseded read opens nothing. */
+  const arrival = useRef(0)
+  useEffect(
+    () => () => {
+      arrival.current++
+    },
+    []
+  )
 
   const updateChunk = useUpdateChunk()
   const bulk = useBulkChunkOperation()
@@ -273,23 +276,16 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
     return () => window.removeEventListener('keydown', onKey)
   }, [editing])
 
-  /** After a page change the list loads anew; the chunk to open is picked once it arrives. */
-  function selectOnArrival(
-    pick: (rows: readonly ChunkData[]) => ChunkData | undefined,
-    before: readonly ChunkData[]
-  ) {
-    let tries = 0
-    const check = () => {
-      const current = rowsRef.current
-      if (current.length > 0 && current !== before) {
-        const target = pick(current)
-        if (target) setOpenChunk(target.id)
-      } else if (tries < ARRIVAL_POLL_TRIES) {
-        tries++
-        window.setTimeout(check, ARRIVAL_POLL_MS)
-      }
-    }
-    window.setTimeout(check, NEXT_TASK)
+  /** Moves to another page and opens its first or last chunk once that page has loaded. */
+  async function openOnPage(target: number, edge: 'first' | 'last') {
+    const token = ++arrival.current
+    await goToPage(target)
+    const pageRows = showingSearch
+      ? results.slice((target - 1) * PAGE_SIZE, target * PAGE_SIZE)
+      : (await list.fetchPage(target)).chunks
+    if (token !== arrival.current) return
+    const chunk = edge === 'first' ? pageRows[0] : pageRows[pageRows.length - 1]
+    if (chunk) setOpenChunk(chunk.id)
   }
 
   async function navigate(direction: 'previous' | 'next') {
@@ -297,42 +293,30 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
     if (direction === 'previous') {
       const previous = rows[openIndex - 1]
       if (previous) setOpenChunk(previous.id)
-      else if (currentPage > 1) {
-        await goToPage(currentPage - 1)
-        selectOnArrival((current) => current[current.length - 1], rows)
-      }
+      else if (currentPage > 1) await openOnPage(currentPage - 1, 'last')
       return
     }
     const next = rows[openIndex + 1]
     if (next) setOpenChunk(next.id)
-    else if (currentPage < totalPages) {
-      await goToPage(currentPage + 1)
-      selectOnArrival((current) => current[0], rows)
-    }
+    else if (currentPage < totalPages) await openOnPage(currentPage + 1, 'first')
   }
 
-  /** A new chunk is appended, so its page is the last one, which it may have just created. */
+  /** A new chunk is appended, so it opens on the last page, or on the page it started. */
   async function created(chunkId: string) {
     setCreating(false)
     setDirty(false)
     setCreateStatus('idle')
+    const token = ++arrival.current
     const lastPage = totalPages
     await goToPage(lastPage)
-    let tries = 0
-    let movedOn = false
-    const check = () => {
-      if (rowsRef.current.some((item) => item.id === chunkId)) setOpenChunk(chunkId)
-      else if (!movedOn && totalPagesRef.current > lastPage) {
-        movedOn = true
-        tries = 0
-        void goToPage(totalPagesRef.current)
-        window.setTimeout(check, ARRIVAL_POLL_MS)
-      } else if (tries < ARRIVAL_POLL_TRIES) {
-        tries++
-        window.setTimeout(check, ARRIVAL_POLL_MS)
-      }
-    }
-    window.setTimeout(check, NEXT_TASK)
+    const page = await locateCreatedChunk(chunkId, lastPage, list.fetchPage)
+    if (token !== arrival.current || page === null) return
+    if (page !== lastPage) await goToPage(page)
+    setOpenChunk(chunkId)
+  }
+
+  function reportArrivalFailure(error: unknown) {
+    toast.error(getErrorMessage(error, 'Could not open the chunk'))
   }
 
   function toggleEnabled(target: ChunkData) {
@@ -577,14 +561,14 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
                 icon='I023'
                 tooltip
                 disabled={!canPrevious}
-                onClick={() => guard(() => void navigate('previous'))}
+                onClick={() => guard(() => void navigate('previous').catch(reportArrivalFailure))}
               />
               <IconButton
                 label='Next chunk'
                 icon='I102'
                 tooltip
                 disabled={!canNext}
-                onClick={() => guard(() => void navigate('next'))}
+                onClick={() => guard(() => void navigate('next').catch(reportArrivalFailure))}
               />
             </>
           )}
@@ -675,7 +659,7 @@ export function DocumentView({ workspaceId, knowledgeBaseId, documentId }: Docum
         onDirtyChange={setDirty}
         onSaveStatusChange={() => {}}
         saveRef={saveRef}
-        onCreated={(chunkId) => void created(chunkId)}
+        onCreated={(chunkId) => void created(chunkId).catch(reportArrivalFailure)}
       />
     )
   else if (openChunkId)

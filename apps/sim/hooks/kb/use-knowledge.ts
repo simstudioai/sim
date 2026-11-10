@@ -7,6 +7,7 @@ import {
   type DocumentTagFilter,
   type KnowledgeChunksResponse,
   type KnowledgeDocumentsResponse,
+  knowledgeChunksQueryOptions,
   serializeChunkParams,
   serializeDocumentParams,
   useDocumentQuery,
@@ -263,12 +264,36 @@ export function useDocumentChunks(
     [knowledgeBaseId, documentId, offset, search, enabledFilter, sortBy, sortOrder, queryClient]
   )
 
+  /** Reads one page of this list, from the cache while it is fresh; a failed read rejects. */
+  const fetchPage = useCallback(
+    async (target: number) => {
+      const data = await queryClient.fetchQuery(
+        knowledgeChunksQueryOptions({
+          knowledgeBaseId,
+          documentId,
+          limit: DEFAULT_PAGE_SIZE,
+          offset: (Math.max(1, target) - 1) * DEFAULT_PAGE_SIZE,
+          search: search || undefined,
+          enabledFilter,
+          sortBy,
+          sortOrder,
+        })
+      )
+      return {
+        chunks: data.chunks,
+        totalPages: Math.max(1, Math.ceil(data.pagination.total / DEFAULT_PAGE_SIZE)),
+      }
+    },
+    [knowledgeBaseId, documentId, search, enabledFilter, sortBy, sortOrder, queryClient]
+  )
+
   return {
     chunks,
     isLoading: chunkQuery.isLoading,
     isFetching: chunkQuery.isFetching,
     error: chunkQuery.error ? getErrorMessage(chunkQuery.error) : null,
     refetch: chunkQuery.refetch,
+    fetchPage,
     currentPage,
     totalPages,
     hasNextPage,
