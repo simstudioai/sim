@@ -23,7 +23,6 @@ import {
   useDesktopCommands,
   useDesktopHost,
 } from '@/app/(product)/_components/desktop/desktop-host'
-import type { ShellData } from '@/app/(product)/_components/model'
 import { NotificationTray } from '@/app/(product)/_components/notification-tray/notification-tray'
 import styles from '@/app/(product)/_components/platform-shell/platform-shell.module.css'
 import { WindowHistoryButtons } from '@/app/(product)/_components/platform-shell/window-history'
@@ -32,6 +31,7 @@ import { orderSidebarItems } from '@/app/(product)/_components/sidebar/collectio
 import { Sidebar } from '@/app/(product)/_components/sidebar/sidebar'
 import { useSidebarLayout } from '@/app/(product)/_components/sidebar/sidebar-layout'
 import { SidebarToolbar } from '@/app/(product)/_components/sidebar/sidebar-toolbar'
+import type { ShellData } from '@/platform/lib/data/models/shell'
 import { useLiveShellActions } from '@/platform/lib/data/shell-context'
 import { platformHref } from '@/platform/lib/navigation'
 import { useSurfaceScope } from '@/platform/lib/surface-scope'

@@ -1,7 +1,4 @@
-import type {
-  LinkedSourceRow,
-  SourceRowData,
-} from '@/app/(product)/_components/source-row/source-row'
+import type { LinkedSourceRow, SourceRowData } from '@/platform/lib/data/models/source-row'
 
 interface SearchFilterOption {
   id: string

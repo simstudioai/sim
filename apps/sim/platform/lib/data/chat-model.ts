@@ -52,8 +52,8 @@ import type {
   PlatformSegment,
   PlatformTool,
   PlatformTurn,
-} from '@/app/(product)/_components/chat/model'
-import type { ChatAttachment } from '@/app/(product)/_components/composer/model'
+} from '@/platform/lib/data/models/chat'
+import type { ChatAttachment } from '@/platform/lib/data/models/composer'
 import { attachmentKind } from '@/platform/shared/attachment-kind'
 import { formatInstantDate } from '@/platform/shared/time'
 import { getAssistantToolEffect } from '@/tools/assistant-effects'

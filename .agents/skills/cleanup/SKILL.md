@@ -1,6 +1,6 @@
 ---
 name: cleanup
-description: Run all code quality skills — effects, memo, callbacks, state, React Query, emcn design review, url-state, comments, and test-audit — analyzing in parallel, then applying fixes sequentially
+description: Run all code quality skills — effects, memo, callbacks, state, React Query, design review, url-state, comments, and test-audit — analyzing in parallel, then applying fixes sequentially
 argument-hint: "[scope] [fix=true|false]"
 ---
 
@@ -25,14 +25,14 @@ Run these in parallel on the parsed `scope`:
 3. `/you-might-not-need-a-callback <scope> fix=false`
 4. `/you-might-not-need-state <scope> fix=false`
 5. `/react-query-best-practices <scope> fix=false`
-6. Design review: route `apps/sim/app/(product)/**` and `apps/sim/platform/**` to [implement-platform](../implement-platform/SKILL.md) and legacy app UI to [emcn-design-review](../emcn-design-review/SKILL.md). For a mixed diff, the same pass reviews each subset with its own contract. Both reviews are read-only and return proposals for Step 2.
+6. Design review: route `apps/sim/app/(product)/**` and `apps/sim/platform/**` to [implement-platform](../implement-platform/SKILL.md)'s review mode and legacy app UI to [emcn-legacy-design-review](../emcn-legacy-design-review/SKILL.md). For a mixed diff, the same pass reviews each subset with its own contract. Both reviews are read-only and return proposals for Step 2.
 7. `/you-might-not-need-url-state <scope> fix=false`
 8. `/you-might-not-need-a-comment <scope> fix=false`
 9. `/test-audit audit <test paths>` — read-only; only when the scope adds or changes test files (`*.test.ts(x)`, `*.integration.ts`, `**/e2e/**`, `apps/sim/scripts/test-*-e2e.ts`). First resolve a free-form scope to the concrete list of added or changed test paths (`git diff --name-only` against the scope's base) and pass those paths. It applies the authoring gate to every new or changed test and proposes deleting the ones that fail it.
 
 ## Step 2 — Converge
 
-Collect all findings into one list, **keeping each proposal tagged with the pass that produced it** — do NOT collapse a file's proposals into a single unlabeled patch, because Step 3 applies in pass order and needs those labels. Detect overlaps where two passes touch the same region (common: a state pass and an effect pass on the same block, or a memo and callback pass on the same component). Reconcile only genuine same-region conflicts, and drop proposals a sibling pass has made moot; a reconciled change inherits the pass label of whichever of its passes comes first in the Step 3 dependency order (effects → state → memo → callback → React Query → url-state → emcn → comments → tests), so it is applied at the earliest safe point. Non-overlapping proposals stay as-is with their own labels. The output is a per-pass list of surviving changes, not a per-file patch.
+Collect all findings into one list, **keeping each proposal tagged with the pass that produced it** — do NOT collapse a file's proposals into a single unlabeled patch, because Step 3 applies in pass order and needs those labels. Detect overlaps where two passes touch the same region (common: a state pass and an effect pass on the same block, or a memo and callback pass on the same component). Reconcile only genuine same-region conflicts, and drop proposals a sibling pass has made moot; a reconciled change inherits the pass label of whichever of its passes comes first in the Step 3 dependency order (effects → state → memo → callback → React Query → url-state → design → comments → tests), so it is applied at the earliest safe point. Non-overlapping proposals stay as-is with their own labels. The output is a per-pass list of surviving changes, not a per-file patch.
 
 ## Step 3 — Sequential apply
 
@@ -40,7 +40,7 @@ If `fix=false`, skip this step — just report the proposals from Step 2.
 
 Otherwise apply the surviving changes yourself (in the main context, not delegated), iterating **pass by pass** in this dependency order so earlier structural changes settle before later passes build on them:
 
-1. effects → 2. state → 3. memo → 4. callback → 5. React Query → 6. url-state → 7. emcn design → 8. comments → 9. tests
+1. effects → 2. state → 3. memo → 4. callback → 5. React Query → 6. url-state → 7. design → 8. comments → 9. tests
 
 For each pass in turn, apply all of that pass's changes, then move to the next pass. A file touched by several passes is therefore edited once per pass, in this order — not once as a merged patch. This is what makes the ordering real: a single merged-per-file patch would collapse all passes into one edit and lose it.
 

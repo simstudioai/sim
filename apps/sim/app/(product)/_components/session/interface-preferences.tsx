@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, type ReactNode, useContext, useEffect, useState } from 'react'
-import type { HomeMode, HomeWidget } from '@/app/(product)/_components/model'
+import type { HomeMode, HomeWidget } from '@/platform/lib/data/models/shell'
 
 function usePreferenceState() {
   const [cookieChoices, setCookieChoices] = useState<Record<string, boolean>>({})

@@ -1,6 +1,6 @@
 import 'server-only'
-import type { CredentialGroupsData } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
 import type { Scenario } from '@/platform/fixtures'
+import type { CredentialGroupsData } from '@/platform/lib/data/models/connected-accounts'
 import {
   credentialGroupCatalog,
   credentialTypeCatalog,

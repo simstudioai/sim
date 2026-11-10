@@ -10,11 +10,11 @@ import { ActionRow, SectionStack } from '@/app/(product)/_components/settings-pa
 import { GroupAccess } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/group-access'
 import { GroupPeople } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/group-people'
 import { GroupProviders } from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/group-providers'
+import type { CredentialGroupActions } from '@/platform/lib/data/credential-group-actions'
 import type {
   CredentialGroupsData,
   CredentialProvider,
-} from '@/app/(product)/o/[organizationId]/settings/_components/sections/connected-accounts/model'
-import type { CredentialGroupActions } from '@/platform/lib/data/credential-group-actions'
+} from '@/platform/lib/data/models/connected-accounts'
 
 const VIEWS = [
   { value: 'providers', label: 'Integrations' },

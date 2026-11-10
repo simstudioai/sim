@@ -9,13 +9,6 @@ import { isWorkspaceResourceKind, workspaceResourcePath } from '@/lib/resources'
 import { requestTerminalFocus } from '@/lib/terminal/focus'
 import { terminalIdFromResourceId } from '@/lib/terminal/resource-id'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file'
-import type {
-  ChatSource,
-  FileStream,
-  PlatformResource,
-  PlatformTurn,
-} from '@/app/(product)/_components/chat/model'
-import type { PanelPicker, PanelResources } from '@/app/(product)/_components/chat/panel/model'
 import { hasRenderableFilePreviewContent } from '@/hooks/mothership-chat/preview/use-file-preview-sessions'
 import { useBrowserTabResources } from '@/hooks/mothership-chat/use-browser-tab-resources'
 import type { useChat } from '@/hooks/mothership-chat/use-chat'
@@ -26,6 +19,13 @@ import type {
 import { useTerminalTabResources } from '@/hooks/mothership-chat/use-terminal-tab-resources'
 import { grouped, useDashboardsShown, useMentionBrowse } from '@/platform/lib/data/chat-mentions'
 import type { ChatContext } from '@/platform/lib/data/chat-types'
+import type {
+  ChatSource,
+  FileStream,
+  PlatformResource,
+  PlatformTurn,
+} from '@/platform/lib/data/models/chat'
+import type { PanelPicker, PanelResources } from '@/platform/lib/data/models/chat-panel'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { type SurfaceScope, surfaceHref } from '@/platform/lib/data/organization-model'
 

@@ -24,13 +24,6 @@ import {
 } from '@/lib/organizations/search-params'
 import { finishTerminalHandoff, isTerminalAvailable } from '@/lib/terminal/transport'
 import { toast } from '@/lib/toast/sink'
-import type {
-  ChatRuntime,
-  ChatSource,
-  PlatformPart,
-  PlatformTurn,
-  ToolDecision,
-} from '@/app/(product)/_components/chat/model'
 import { getMothershipUseChatOptions, useChat } from '@/hooks/mothership-chat/use-chat'
 import {
   useChatResourcePanel,
@@ -50,6 +43,13 @@ import {
 import { draftToSend } from '@/platform/lib/data/chat-draft'
 import { isRunningWait, toPlatformTurns } from '@/platform/lib/data/chat-model'
 import { useAssistantReview } from '@/platform/lib/data/chat-review'
+import type {
+  ChatRuntime,
+  ChatSource,
+  PlatformPart,
+  PlatformTurn,
+  ToolDecision,
+} from '@/platform/lib/data/models/chat'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 import { type SummaryRequest, useSendSummary } from '@/platform/lib/data/search-summary'

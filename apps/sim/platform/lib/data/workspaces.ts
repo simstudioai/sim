@@ -1,12 +1,12 @@
 'use client'
 
 import { toast } from '@/lib/toast/sink'
-import type { ShellWorkspaceActions } from '@/app/(product)/_components/model'
 import {
   useCreateWorkspace,
   useToggleWorkspacePin,
   useUpdateWorkspace,
 } from '@/hooks/queries/workspace'
+import type { ShellWorkspaceActions } from '@/platform/lib/data/models/shell'
 
 /**
  * The legacy sidebar's workspace mutations. A new workspace lands in the shell's organization;

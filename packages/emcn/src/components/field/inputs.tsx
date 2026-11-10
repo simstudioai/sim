@@ -166,16 +166,8 @@ export function Input({
   )
 }
 
-interface TextAreaProps
-  extends Omit<
-    InputProps,
-    'pattern' | 'type' | 'inputMode' | 'trailing' | 'inputRef' | 'onSelect'
-  > {
-  /** Resting height: regular (76px), expanded (112px) or large (240px). */
+interface TextAreaProps extends Omit<InputProps, 'pattern' | 'type' | 'inputMode' | 'trailing'> {
   defaultSize?: 'regular' | 'expanded' | 'large'
-  onSelect?: (event: SyntheticEvent<HTMLTextAreaElement>) => void
-  /** The textarea element, for a caller that places its caret. */
-  inputRef?: Ref<HTMLTextAreaElement>
 }
 
 export function TextArea({
@@ -196,23 +188,8 @@ export function TextArea({
   maxLength,
   readOnly,
   viewOnly,
-  onSelect,
-  inputRef,
 }: TextAreaProps) {
   const scrollRef = useScrollEdges<HTMLTextAreaElement>()
-  const elementRef = useCallback(
-    (element: HTMLTextAreaElement | null) => {
-      const stopMeasuring = scrollRef(element)
-      if (typeof inputRef === 'function') inputRef(element)
-      else if (inputRef) inputRef.current = element
-      return () => {
-        stopMeasuring?.()
-        if (typeof inputRef === 'function') inputRef(null)
-        else if (inputRef) inputRef.current = null
-      }
-    },
-    [scrollRef, inputRef]
-  )
   return (
     <span
       className={`${styles.inputFrame} ${styles.textareaFrame}`}
@@ -220,7 +197,7 @@ export function TextArea({
       data-view-only={viewOnly || undefined}
     >
       <textarea
-        ref={elementRef}
+        ref={scrollRef}
         id={id}
         autoComplete={autoComplete}
         spellCheck={spellCheck}
@@ -238,7 +215,6 @@ export function TextArea({
         disabled={disabled}
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
-        onSelect={onSelect}
       />
       {viewOnly && (
         <span className={styles.copyAction}>

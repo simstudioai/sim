@@ -23,45 +23,45 @@ const system = '../../packages/emcn-platform/src/'
  */
 const CODE_FIRST_VARIANTS: ReasonedAllowlist = {
   'ActivityRow.density=comfortable':
-    "Settings' roomier row; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    "Settings' roomier row; a frozen EMCN variant its design owner keeps without a Paper key",
   'ActivityRow.density=regular':
-    "The default row density; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    'The default row density; a frozen EMCN variant its design owner keeps without a Paper key',
   'Avatar.size=card':
-    "A card's avatar; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    "A card's avatar; a frozen EMCN variant its design owner keeps without a Paper key",
   'Avatar.size=hero':
-    "A profile header's avatar; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    "A profile header's avatar; a frozen EMCN variant its design owner keeps without a Paper key",
   'Avatar.size=inline':
-    "An avatar set in a line of text; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    'An avatar set in a line of text; a frozen EMCN variant its design owner keeps without a Paper key',
   'Avatar.size=row':
-    "A row's leading avatar; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    "A row's leading avatar; a frozen EMCN variant its design owner keeps without a Paper key",
   'IconButton.size=inline':
-    "An action inside a line of text; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    'An action inside a line of text; a frozen EMCN variant its design owner keeps without a Paper key',
   'IconButton.size=row':
-    "A ControlRow's trailing action; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    "A ControlRow's trailing action; a frozen EMCN variant its design owner keeps without a Paper key",
   'CopyButton.size=small':
-    "The standalone copy action; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    'The standalone copy action; a frozen EMCN variant its design owner keeps without a Paper key',
   'CopyButton.size=compact':
-    "A field's trailing copy action; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    "A field's trailing copy action; a frozen EMCN variant its design owner keeps without a Paper key",
   'SearchField.variant=quiet':
-    "The borderless toolbar search with its focus underline; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    'The borderless toolbar search with its focus underline; a frozen EMCN variant its design owner keeps without a Paper key',
   'TextArea.defaultSize=regular':
-    "The 76px default textarea; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    'The 76px default textarea; a frozen EMCN variant its design owner keeps without a Paper key',
   'TextArea.defaultSize=large':
-    "The 240px skill instruction editor; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    'The 240px skill instruction editor; a frozen EMCN variant its design owner keeps without a Paper key',
   'Disclosure.variant=navigation':
-    "A navigation group's disclosure; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    "A navigation group's disclosure; a frozen EMCN variant its design owner keeps without a Paper key",
   'MultiSelect.variant=field':
-    "The labelled form picker; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    'The labelled form picker; a frozen EMCN variant its design owner keeps without a Paper key',
   'MultiSelect.variant=text':
-    "The compact toolbar text trigger; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    'The compact toolbar text trigger; a frozen EMCN variant its design owner keeps without a Paper key',
   'SearchableSelect.variant=field':
-    "The labelled form picker; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    'The labelled form picker; a frozen EMCN variant its design owner keeps without a Paper key',
   'SearchableSelect.variant=text':
-    "The compact toolbar text trigger; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    'The compact toolbar text trigger; a frozen EMCN variant its design owner keeps without a Paper key',
   'DatePopover.variant=field':
-    "The labelled form picker; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    'The labelled form picker; a frozen EMCN variant its design owner keeps without a Paper key',
   'DatePopover.variant=text':
-    "The compact toolbar text trigger; Kept without a Paper key by Emir's EMCN consolidation (b5a30e9744)",
+    'The compact toolbar text trigger; a frozen EMCN variant its design owner keeps without a Paper key',
 }
 
 /**
@@ -81,7 +81,7 @@ const UNEXPORTED_VARIANT_OWNERS: ReasonedAllowlist = {
  */
 const LOADING_COPY_OWNERS: ReasonedAllowlist = {
   [`${PRODUCT_ROUTES}_components/composer/message-composer.tsx`]:
-    "Emir's composer: the @ menu names its pending list while the draft keeps focus and typing",
+    'The @ menu names its pending list, since the draft keeps focus and typing while it loads',
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/knowledge/[knowledgeBaseId]/[documentId]/_components/document-view/document-view.tsx`]:
     "The document editor's save status reports a write, not a pending read",
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/_components/deploy/chat-tab/chat-tab.tsx`]:
@@ -94,12 +94,12 @@ const LOADING_COPY_OWNERS: ReasonedAllowlist = {
     'Predates the Generating synonym: the wand prompt shows its streaming generation, not a read',
 }
 
-/** Frames that hold a legacy composer between surfaces, where foundation tokens do not reach. */
+/** Frames that size a composer docked between surfaces, where foundation tokens do not reach. */
 const FRAMES_OUTSIDE_SURFACE: ReasonedAllowlist = {
   [`${ORGANIZATION_ROUTES}home/_components/home-dashboard/home-dashboard.module.css`]:
-    "Home's dashboard frame sizes the legacy composer it hosts",
+    "Home's dashboard frame sizes the composer it hosts",
   [`${system}components/page-column/page-column.module.css`]:
-    'The page column measures the legacy composer docked beneath it',
+    'The page column measures the composer docked beneath it',
 }
 /** Pages that measure their own chrome for a table's scroller, or theme React Flow through its variables. */
 const LOCAL_TOKEN_OWNERS: ReasonedAllowlist = {
@@ -129,7 +129,7 @@ const serverSeamHelpers: ReasonedAllowlist = {
     "The fixture build's inlined switch, which `lib/data/mode.ts` reads",
   'lib/core/utils/deadline': 'withinDeadline, the budget server-read holds a first-paint read to',
   'lib/core/orchestration/types':
-    "asOrchestrationError, which reads a legacy credential link's not found or forbidden as not found",
+    "asOrchestrationError, which reads an old credential link's not found or forbidden as not found",
   'lib/credential-groups/application/organization-access':
     "The account workspace-access use case behind Connected accounts' route",
   'lib/credential-groups/application/organization-account-management':
@@ -146,7 +146,7 @@ const serverSeamHelpers: ReasonedAllowlist = {
   'lib/mothership/chat/organization-chats':
     "The organization chats list, prefetched for the shell's sidebar",
   'lib/navigation/legacy-redirects':
-    'mapLegacyWorkspaceUrl, the legacy workspace URL table route resolution runs',
+    'mapLegacyWorkspaceUrl, the table of pre-Platform workspace URLs route resolution redirects',
   'lib/navigation/resolve-app-entry':
     'resolveRolledOutOrganizationId, which organization a workspace entry opens in',
   'lib/navigation/shell-scope': "The proxy's shell scope and path headers and their parser",
@@ -174,7 +174,7 @@ const serverSeamHelpers: ReasonedAllowlist = {
   'lib/integrations/access':
     "The integration access verdict a workspace's Integrations directory reads from that policy",
   'lib/credentials/application/crud':
-    'getWorkspaceCredentialUseCase, which sends a legacy credential link to its app page',
+    'getWorkspaceCredentialUseCase, which sends an old credential link to its page',
 }
 /**
  * Host modules every Platform file may import, views included, because the product shares them with
@@ -192,9 +192,10 @@ const platformHostModules: ReasonedAllowlist = {
   'components/file-viewer/types': "The file viewer's public types",
   'components/file-viewer/rich-markdown-editor/rich-markdown-field':
     'The markdown editor field the file viewer, changelog and workflow notes use',
+  'components/file-viewer/rich-markdown-editor/suggestion-list':
+    "The markdown editor's / and @ list slot, which the product fills with the composer's suggestions",
   'components/dashboard-panel/dashboard-panel': 'The dashboard panel the markdown editor embeds',
-  'components/find-bar/find-bar':
-    'The one in-page find bar, which the legacy chat and file viewer also render',
+  'components/find-bar/find-bar': 'The one in-page find bar, which the file viewer also renders',
 }
 
 /**
@@ -225,7 +226,7 @@ const seamHelpers: ReasonedAllowlist = {
     'lib/core/utils/validation',
     'lib/core/config/deployment-shape',
   ]),
-  ...granted('File, upload and preview helpers the Files tab shares with the legacy file viewer', [
+  ...granted('File, upload and preview helpers the Files tab shares with the file viewer', [
     'components/file-viewer/rich-markdown-editor/paste-admission',
     'components/file-viewer/rich-markdown-editor/round-trip-safety',
     'hooks/use-workspace-files-room',
@@ -301,7 +302,7 @@ const seamHelpers: ReasonedAllowlist = {
     ]
   ),
   ...granted(
-    'Integration, credential and connector models the Integrations and Search pages share with the legacy app',
+    'Integration, credential and connector models the Integrations and Search pages read; pure, with no UI',
     [
       'lib/slack-search/manifest',
       'lib/slack-search/onboarding',
@@ -427,9 +428,10 @@ const seamHelpers: ReasonedAllowlist = {
     'lib/table/workflow-groups/deployment-mode',
     'stores/table/types',
   ]),
-  ...granted("The Workflows list's realtime room, joined as the legacy sidebar did", [
-    'hooks/use-workspace-workflows-room',
-  ]),
+  ...granted(
+    "The Workflows list's realtime room, which keeps the list current while others edit it",
+    ['hooks/use-workspace-workflows-room']
+  ),
   ...granted(
     'Workflow, block, tool and log metadata the product reads without rendering the editor',
     [
@@ -568,7 +570,7 @@ const seamHelpers: ReasonedAllowlist = {
     'lib/auth/session-provider',
   ]),
   ...granted(
-    'The identity-boundary reset sign-out and account deletion share with the legacy app: stops running desktop tools, then loads the store reset lazily.',
+    'The identity-boundary reset sign-out and account deletion run: stops running desktop tools, then loads the store reset lazily.',
     ['stores']
   ),
   ...granted(
@@ -826,20 +828,20 @@ const seamHelpers: ReasonedAllowlist = {
     ]
   ),
 }
-/** Legacy `.tsx` the seam's closure may reach: providers and glyphs, not a surface. */
+/** App `.tsx` outside the Platform that the seam's closure may reach: providers and glyphs, not a surface. */
 const seamClosureViews: ReasonedAllowlist = {
   'app/_shell/providers/query-provider.tsx':
     "The app's one React Query client, which every seam hook reads through",
   'components/workspace-providers/socket-provider.tsx':
-    'The one realtime socket the workspace tabs and the legacy editor share',
-  'components/icons.tsx': 'The legacy glyph set block configs name their icons from',
+    'The one realtime socket the workspace tabs and the workflow editor share',
+  'components/icons.tsx': 'The glyph set block configs name their icons from',
 }
 /**
  * What the workflow seam's closure may reach beyond `seamClosureViews`: the editor's context
  * providers and loaders, which render nothing of their own.
  */
 const workflowClosureViews: ReasonedAllowlist = granted(
-  'A legacy editor context provider or loader the Workflows tab runs unchanged; it renders nothing of its own',
+  'A workflow editor context provider or loader the Workflows tab runs unchanged; it renders nothing of its own',
   [
     'components/workspace-providers/block-visibility-loader.tsx',
     'components/workspace-providers/provider-models-loader.tsx',
@@ -884,13 +886,13 @@ const LIVE_ONLY_ROUTES: ReasonedAllowlist = {
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/tests/page.tsx`]:
     "Tests run the workspace's live workflows",
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/[workflowId]/page.tsx`]:
-    'The Workflows tab runs the legacy editor on live workflow state',
+    'The Workflows tab edits live workflow state and has no example data',
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/[workflowId]/versions/[version]/page.tsx`]:
-    'The Workflows tab runs the legacy editor on live workflow state',
+    'The Workflows tab edits live workflow state and has no example data',
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/page.tsx`]:
-    'The Workflows tab runs the legacy editor on live workflow state',
+    'The Workflows tab edits live workflow state and has no example data',
   [`${PRODUCT_ROUTES}workspace/[workspaceId]/workflows/runs/[executionId]/page.tsx`]:
-    'The Workflows tab runs the legacy editor on live workflow state',
+    'The Workflows tab edits live workflow state and has no example data',
 }
 /** Views that branch on fixture mode, which only pages, layouts, registries and fixtures may. */
 const FIXTURE_BRANCH_VIEWS: ReasonedAllowlist = {
@@ -911,12 +913,6 @@ const FIXTURE_BRANCH_VIEWS: ReasonedAllowlist = {
   'platform/shared/preferences.ts':
     'The telemetry setting never touches the browser telemetry preference on a fixture preview',
 }
-/** Live-reachable modules that import fixture code a normal build then evaluates. */
-const FIXTURE_IMPORTS_FROM_LIVE: ReasonedAllowlist = {}
-/** Files that render a failed read's copy outside `FailureNotice`. */
-const FAILURE_COPY_OWNERS: ReasonedAllowlist = {}
-/** Files whose product copy still spells an ellipsis as three periods. */
-const ASCII_ELLIPSIS_COPY: ReasonedAllowlist = {}
 
 /**
  * Files outside the Platform tree that style, spread or set variant attributes on an EMCN element
@@ -924,7 +920,7 @@ const ASCII_ELLIPSIS_COPY: ReasonedAllowlist = {}
  */
 const EMCN_CONSUMER_OVERRIDES: ReasonedAllowlist = {
   ...granted(
-    "Emir's docs app: sizes and tints EMCN's Icon with utility classes; predates the repo-wide rule",
+    "The docs app sizes and tints EMCN's Icon with utility classes; design-owner code that predates the repo-wide rule",
     [
       '../docs/components/docs/api-schema/api-schema.tsx',
       '../docs/components/docs/article/article.tsx',
@@ -941,7 +937,7 @@ const EMCN_CONSUMER_OVERRIDES: ReasonedAllowlist = {
     ]
   ),
   ...granted(
-    "Emir's Auth and Docs packages compose EMCN's Icon with their own classes; predates the repo-wide rule",
+    "The Auth and Docs packages compose EMCN's Icon with their own classes; design-owner code that predates the repo-wide rule",
     [
       '../../packages/emcn-auth/src/components/input/input.tsx',
       '../../packages/emcn-docs/src/components/callout/callout.tsx',
@@ -954,15 +950,12 @@ const EMCN_CONSUMER_OVERRIDES: ReasonedAllowlist = {
     ]
   ),
   'app/(auth)/oauth/consent/consent-view.tsx':
-    "Emir's OAuth consent view sizes a scope row's Icon with auth utilities; predates the repo-wide rule",
+    "The OAuth consent view sizes a scope row's Icon with auth utilities; design-owner code that predates the repo-wide rule",
 }
 
 export const PLATFORM_ALLOWLISTS = {
   LIVE_ONLY_ROUTES,
   FIXTURE_BRANCH_VIEWS,
-  FIXTURE_IMPORTS_FROM_LIVE,
-  FAILURE_COPY_OWNERS,
-  ASCII_ELLIPSIS_COPY,
   CODE_FIRST_VARIANTS,
   UNEXPORTED_VARIANT_OWNERS,
   EMCN_CONSUMER_OVERRIDES,

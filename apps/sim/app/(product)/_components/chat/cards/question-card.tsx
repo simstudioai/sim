@@ -5,7 +5,7 @@ import { Button, Chip, IconButton } from '@sim/emcn/button'
 import { Checkbox } from '@sim/emcn/checkbox'
 import { Input } from '@sim/emcn/field/inputs'
 import styles from '@/app/(product)/_components/chat/cards/cards.module.css'
-import type { PlatformQuestion } from '@/app/(product)/_components/chat/model'
+import type { PlatformQuestion } from '@/platform/lib/data/models/chat'
 
 /** One `Prompt — Answer` line per question, the shape the transcript pairs back to this card. */
 function formatAnswers(questions: readonly PlatformQuestion[], answers: readonly string[]): string {

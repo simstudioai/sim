@@ -9,7 +9,6 @@ import type { SearchConnectionTarget } from '@/lib/knowledge/search/connection-t
 import { formatCredentialSubmissionMessage } from '@/lib/mothership/chat/special-tags'
 import { organizationRoutes } from '@/lib/navigation/paths'
 import { toast } from '@/lib/toast/sink'
-import type { PlatformCredentialRequest } from '@/app/(product)/_components/chat/model'
 import { getMyAccessRequestHref } from '@/ee/access-requests/lib/navigation'
 import { useDiscoverAccessRequests } from '@/hooks/queries/access-requests'
 import {
@@ -23,6 +22,7 @@ import {
 } from '@/hooks/queries/organization-secrets'
 import { useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSearchIntegrationConnection } from '@/hooks/use-search-integration-connection'
+import type { PlatformCredentialRequest } from '@/platform/lib/data/models/chat'
 import { useOrganization } from '@/platform/lib/data/organization'
 import { surfaceHref } from '@/platform/lib/data/organization-model'
 

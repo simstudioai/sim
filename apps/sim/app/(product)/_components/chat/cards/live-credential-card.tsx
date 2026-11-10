@@ -12,7 +12,6 @@ import type {
   CredentialCardProps,
   UsageNoticeProps,
 } from '@/app/(product)/_components/chat/message/message-segments'
-import type { PlatformCredentialRequest } from '@/app/(product)/_components/chat/model'
 import { RequestAccessModal } from '@/app/(product)/_components/request-access-modal/request-access-modal'
 import {
   CredentialWorkspaceProvider,
@@ -26,6 +25,7 @@ import {
   useUsageLink,
 } from '@/platform/lib/data/chat-credentials'
 import type { SearchConnectionTarget } from '@/platform/lib/data/chat-types'
+import type { PlatformCredentialRequest } from '@/platform/lib/data/models/chat'
 
 function serviceName(item: PlatformCredentialRequest): string {
   return (item.provider ?? 'integration').replace(/[-_]/g, ' ')

@@ -1,8 +1,8 @@
 import 'server-only'
-import type { PanelData } from '@/app/(product)/_components/chat/panel/model'
 import type { Scenario } from '@/platform/fixtures'
 import { FIXTURE_NOW } from '@/platform/fixtures/clock'
 import linear from '@/platform/fixtures/media/linear-homepage.jpg'
+import type { PanelData } from '@/platform/lib/data/models/chat-panel'
 
 const full: PanelData = {
   asOf: FIXTURE_NOW,

@@ -10,7 +10,8 @@ globs: ["apps/sim/app/(product)/**","apps/sim/platform/lib/**","apps/sim/platfor
 The product's views live in `apps/sim/app/(product)/`: organization pages under `o/[organizationId]/`,
 workspace pages under `workspace/[workspaceId]/`, and what they share in `_components/`. They take
 everything shared from the EMCN family subpaths (`@sim/emcn/<family>`, `@sim/emcn-platform/<family>`).
-`apps/sim/platform/AGENTS.md` is the design contract; this file is the per-job checklist. Each job
+[`apps/sim/platform/AGENTS.md`](../../apps/sim/platform/AGENTS.md) (`AGENTS.md` below) is the design
+contract; this file is the per-job checklist. Each job
 below has one pattern. A view that differs needs a reason written where it differs; "it was already
 like that" is not one.
 
@@ -39,15 +40,10 @@ like that" is not one.
 
 ## Page gates
 
-Fixture mode is a build-time constant. A page that renders example data tests
-`process.env.SIM_PLATFORM_FIXTURES === '1'` inline and loads fixture code with a dynamic import inside
-that branch, so a normal build drops it; it loads the data seam with a dynamic import on the live path.
-A page that only answers not found outside live data reads `resolvePlatformMode()`
-(`@/platform/lib/data/mode`). The shell (`_components/live-shell/live-shell.tsx`) already sent
-a signed-out viewer to sign-in and answered failed surface reads. `o/[organizationId]/layout.tsx` and
-`workspace/[workspaceId]/layout.tsx` authorize their resource and answer not found for a viewer
-without access; a page adds only its own gate (People's `requirePeopleAccess`, a Settings section's
-entry in `apps/sim/platform/lib/data/settings-navigation.ts`). Never write `{ kind: 'session', ... }` in a page.
+The fixture/live split (`AGENTS.md` "Data seam") and resource authorization in
+`o/[organizationId]/layout.tsx` and `workspace/[workspaceId]/layout.tsx` (`AGENTS.md` "Product root
+and shell") already hold for every page. A page adds only its own gate: People's
+`requirePeopleAccess`, a Settings section's entry in `apps/sim/platform/lib/data/settings-navigation.ts`.
 
 ## Dialogs
 
@@ -59,13 +55,5 @@ user activation is spent, `cancel` cannot be prevented, so `OverlayDialog` reope
 
 - A section with more than one job splits by job into sibling files, as `settings/_components/sections/access-control/`
   does (`group-detail.tsx`, `permission-rows.tsx`, `add-members-modal.tsx`).
-- `_components/settings-parts/` holds what organization and workspace Settings share: `SectionStack`, `FieldStack`,
-  `SectionToolbar`, `DetailHeader`, `Muted`, `ResourceList`, and the saved-preference rows in `saved-settings.tsx`.
-
-## Non-UI code lives once
-
-A view's data and logic belong in `apps/sim/platform/lib/data`, and in `apps/sim/platform/shared` when
-the helper is pure and takes what differs as an argument. Merge logic worth a test is a pure module there
-with its test beside it (`apps/sim/platform/lib/data/home-model.ts`). A view reads hooks through that layer; a real adapter
-owns the mutation, its toasts and any mapping, and is never a re-export. `platform/lib` never imports a
-route at runtime (`check:boundaries`).
+- What organization and workspace Settings share is in `_components/settings-parts/`
+  (`apps/sim/platform/docs/component-ownership.md`); a view's data and logic follow `AGENTS.md` "Data seam".

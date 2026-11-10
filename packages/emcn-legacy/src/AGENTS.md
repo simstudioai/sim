@@ -1,6 +1,6 @@
 # EMCN Components Scope
 
-Applies to `packages/emcn/**`. Read `.claude/rules/emcn-legacy-components.md` before changing a component (chip chrome sources, component catalogue, modal keyboard defaults, authoring principles); tokens, font weight, and color conventions are in `.claude/rules/sim-styling.md`.
+Applies to `packages/emcn-legacy/**`. Read `.claude/rules/emcn-legacy-components.md` before changing a component (chip chrome sources, component catalogue, modal keyboard defaults, authoring principles); tokens, font weight, and color conventions are in `.claude/rules/sim-styling.md`.
 
 - Consumers import components, `cn`, and tokens from the `@sim/emcn-legacy` barrel, icons from `@sim/emcn-legacy/icons`, and CSS modules by file path — keep every new export reachable that way.
 - Components own their exact geometry tokens (e.g. `Button` uses `rounded-[5px]`) but never their own font-weight: every primitive inherits the document 400 and steps up only deliberately.

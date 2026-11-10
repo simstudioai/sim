@@ -4,7 +4,12 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { dollarSkills, spanIdentifier, withoutHistoryColumn } from './check-guidance-refs'
+import {
+  dollarSkills,
+  spanIdentifier,
+  withoutHistoryColumn,
+  withoutPlaceholders,
+} from './check-guidance-refs'
 
 const CHECK = fileURLToPath(new URL('./check-guidance-refs.ts', import.meta.url))
 
@@ -40,6 +45,15 @@ describe('withoutHistoryColumn', () => {
   })
 })
 
+describe('withoutPlaceholders', () => {
+  it('blanks a lowercase or SCREAMING placeholder and the word it is part of, and keeps a JSX tag', () => {
+    expect(withoutPlaceholders('set <FLAG_SECRET> and <name>MockFns')).toBe('set   and  ')
+    expect(withoutPlaceholders('render <SettingsPanel /> or <Row>')).toBe(
+      'render <SettingsPanel /> or <Row>'
+    )
+  })
+})
+
 describe('spanIdentifier', () => {
   it('reads an identifier-shaped span, called or as a tag, and leaves words and libraries alone', () => {
     expect(spanIdentifier('GoneLayout')).toBe('GoneLayout')
@@ -51,58 +65,95 @@ describe('spanIdentifier', () => {
   })
 })
 
-it('fails a bare file name or identifier no tracked file has, and holds the baseline to shrinking', () => {
+function withFixture(
+  run: (put: (file: string, content: string) => void, audit: () => Audit) => void
+) {
   const root = mkdtempSync(path.join(tmpdir(), 'sim-guidance-refs-'))
   const put = (file: string, content: string) => {
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true })
     writeFileSync(path.join(root, file), content)
   }
-  const run = (...args: string[]) => {
-    const result = spawnSync('bun', [CHECK, root, ...args], { encoding: 'utf8' })
-    return { status: result.status, output: result.stdout + result.stderr }
-  }
   try {
     spawnSync('git', ['init', '-q'], { cwd: root })
-    put('package.json', JSON.stringify({ name: 'fixture', workspaces: [] }))
-    put('src/panel.ts', 'export const PanelRows = 1\nexport function usePanelRows() {}\n')
-    const guidance = [
-      'Render `PanelRows` with `usePanelRows()` from `panel.ts`.',
-      '```ts',
-      'const LocalExample = usePanelRows()',
-      '```',
-      '```ts illustrative',
-      'const shown = MadeUpHelper()',
-      '```',
-    ]
-    put('AGENTS.md', `${guidance.join('\n')}\n`)
-    expect(run()).toEqual({ status: 0, output: expect.stringContaining('resolve') })
-
     put(
-      'AGENTS.md',
-      `${[...guidance, 'Use `GoneLayout` and `gone-order.test.ts`.', '```ts', 'MissingHelper()', '```'].join('\n')}\n`
+      'package.json',
+      JSON.stringify({ name: 'fixture', workspaces: [], scripts: { 'check:panel': 'true' } })
     )
-    const failing = run()
-    expect(failing.status).toBe(1)
-    for (const finding of [
-      'AGENTS.md:8  [identifier] GoneLayout',
-      'AGENTS.md:8  [file] gone-order.test.ts',
-      'AGENTS.md:10  [identifier] MissingHelper',
-    ])
-      expect(failing.output).toContain(finding)
-    expect(failing.output).not.toContain('MadeUpHelper')
-    expect(failing.output).not.toContain('LocalExample')
-
-    put('scripts/check-guidance-refs.baseline.json', '[]')
-    expect(run('--update', '--init').status).toBe(0)
-    expect(run().status).toBe(0)
-
-    put('AGENTS.md', `${[...guidance, 'Use `GoneLayout`.'].join('\n')}\n`)
-    const stale = run()
-    expect(stale.status).toBe(1)
-    expect(stale.output).toContain('fixed: AGENTS.md gone-order.test.ts')
-    expect(run('--update').status).toBe(0)
-    expect(run().status).toBe(0)
+    put('src/panel.ts', 'export const PanelRows = 1\nexport function usePanelRows() {}\n')
+    put('apps/sim/lib/panel.ts', 'export const panel = 1\n')
+    put('apps/sim/app/(product)/o/[organizationId]/home/page.tsx', 'export default null\n')
+    put('apps/sim/app/workspace/[workspaceId]/page.tsx', 'export default null\n')
+    run(put, () => {
+      const result = spawnSync('bun', [CHECK, root], { encoding: 'utf8' })
+      return { status: result.status, output: result.stdout + result.stderr }
+    })
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
-}, 30_000)
+}
+
+interface Audit {
+  status: number | null
+  output: string
+}
+
+/** Lines every fixture's guidance carries, all of which resolve. */
+const LIVE = [
+  'Render `PanelRows` with `usePanelRows()` from `panel.ts` in `apps/sim/lib/panel.ts`.',
+  'Import `@/lib/panel`, run `bun run check:panel`, and edit `o/[organizationId]/home/page.tsx`.',
+  'Each page sits at `workspace/[workspaceId]/<page>`; set `<FLAG_SECRET>` and `<name>MockFns`.',
+  '```ts',
+  'const LocalExample = usePanelRows()',
+  '```',
+  '```ts illustrative',
+  'const shown = MadeUpHelper()',
+  '```',
+  '```bash',
+  'SHIP_REF=$(git rev-parse HEAD) && grep -niE "x" file',
+  '```',
+]
+
+it('passes guidance whose every reference resolves, placeholders and shell fences included', () => {
+  withFixture((put, audit) => {
+    put('AGENTS.md', `${LIVE.join('\n')}\n`)
+    expect(audit()).toEqual({ status: 0, output: expect.stringContaining('resolve') })
+  })
+})
+
+describe('fails each kind of dead reference', () => {
+  const cases = [
+    ['path', 'Edit `apps/sim/lib/gone.ts`.', '[path] apps/sim/lib/gone.ts'],
+    ['path, from a product route', 'Edit `o/[organizationId]/gone/page.tsx`.', '[path] o/'],
+    [
+      'path, up to its first placeholder',
+      'Pages sit at `app/gone/[workspaceId]/<page>`.',
+      '[path] app/gone/[workspaceId]/<page>',
+    ],
+    ['script', 'Run `bun run check:gone`.', '[script] check:gone'],
+    ['import', 'Import `@/lib/gone`.', '[import] @/lib/gone'],
+    ['file', 'Read `gone-order.test.ts`.', '[file] gone-order.test.ts'],
+    ['identifier', 'Use `GoneLayout`.', '[identifier] GoneLayout'],
+    ['identifier, in a code fence', '```ts\nMissingHelper()\n```', '[identifier] MissingHelper'],
+  ] as const
+  it.each(cases)('%s', (_kind, line, finding) => {
+    withFixture((put, audit) => {
+      put('AGENTS.md', `${[...LIVE, line].join('\n')}\n`)
+      const result = audit()
+      expect(result.status).toBe(1)
+      expect(result.output).toContain(finding)
+    })
+  })
+
+  it('rule glob', () => {
+    withFixture((put, audit) => {
+      put('AGENTS.md', `${LIVE.join('\n')}\n`)
+      put(
+        '.claude/rules/gone.md',
+        '---\ndescription: Gone\npaths:\n  - "apps/gone/**/*.ts"\n---\n\n# Gone\n'
+      )
+      const result = audit()
+      expect(result.status).toBe(1)
+      expect(result.output).toContain('[path] apps/gone/**/*.ts')
+    })
+  })
+})

@@ -407,7 +407,7 @@ The shell lane's rows, one per row of its audit. `shell.spec` is `checks/live/sh
 
 ## Settings: legacy settings homes
 
-Every section of the legacy settings (`components/settings/navigation.ts`, `app/workspace/[workspaceId]/settings/**`) has one home in the Platform: organization Settings for what belongs to the viewer, the organization or the deployment, and the workspace's Settings tab for what belongs to one workspace. The workspace tab lists its sections in the organization Settings navigation's pattern, with the legacy sidebar's gates (`lib/data/workspace-settings`).
+Every section of the legacy settings (`components/settings/navigation.ts`) has one home in the Platform: organization Settings for what belongs to the viewer, the organization or the deployment, and the workspace's Settings tab for what belongs to one workspace. The workspace tab lists its sections in the organization Settings navigation's pattern, with the legacy sidebar's gates (`lib/data/workspace-settings`).
 
 | Domain | Capability | Legacy source | Status | Proof or reason |
 | --- | --- | --- | --- | --- |
