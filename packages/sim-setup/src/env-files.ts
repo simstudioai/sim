@@ -67,7 +67,8 @@ function parseValue(raw: string): string {
   if (trimmed.startsWith('"') || trimmed.startsWith("'")) {
     const quote = trimmed[0]
     const end = trimmed.indexOf(quote, 1)
-    return end === -1 ? trimmed.slice(1) : trimmed.slice(1, end)
+    const inner = end === -1 ? trimmed.slice(1) : trimmed.slice(1, end)
+    return quote === '"' ? inner.replaceAll('\\$', '$') : inner
   }
   return trimmed.replace(/\s+#.*$/, '').trim()
 }
@@ -89,17 +90,27 @@ export function readEnvFile(target: EnvTarget): EnvFile {
 }
 
 /**
- * Quotes a value only when `#`, edge whitespace, or a leading quote would change
- * it for `parseValue`, Next's dotenv, Bun, or Docker Compose. Single quotes are
- * preferred because all four read them literally.
+ * Quotes a value only when `#`, `$`, edge whitespace, or a leading quote would
+ * change it for `parseValue`, Next's dotenv, Bun, or Docker Compose. Single quotes
+ * are preferred because all four read them literally, except `$`: Next and Bun
+ * expand `$NAME` even inside single quotes, and the one spelling all four read as a
+ * literal `$` is `\$` inside double quotes.
  */
 function formatEnvValue(key: string, value: string): string {
   if (/[\r\n]/.test(value)) {
     throw new Error(`${key} cannot be written to an environment file: it contains a line break`)
   }
+  if (value.includes('$')) {
+    if (/["\\`]/.test(value)) {
+      throw new Error(
+        `${key} cannot be written to an environment file: it mixes $ with a double quote, backslash, or backtick`
+      )
+    }
+    return `"${value.replaceAll('$', '\\$')}"`
+  }
   if (value === value.trim() && !value.includes('#') && !/^["'`]/.test(value)) return value
   if (!value.includes("'")) return `'${value}'`
-  if (!/["\\$`]/.test(value)) return `"${value}"`
+  if (!/["\\`]/.test(value)) return `"${value}"`
   throw new Error(
     `${key} cannot be written to an environment file: it mixes quotes with a # or edge whitespace`
   )
