@@ -103,7 +103,10 @@ function sameTheme(left: TerminalAppearanceTheme, right: TerminalAppearanceTheme
     : left.id === right.id
 }
 
-/** Mod+K clears the terminal; every other key goes to the shell. */
+/**
+ * Mod+K clears the terminal; every other key goes to the shell. The clear claims the key, so the
+ * product shell's own Mod+K (command search) does not also open.
+ */
 function handleTerminalLocalShortcut(event: KeyboardEvent, clear: () => void): boolean {
   const mac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform)
   const primary = event.metaKey || (!mac && event.ctrlKey && !event.altKey)
@@ -117,6 +120,7 @@ function handleTerminalLocalShortcut(event: KeyboardEvent, clear: () => void): b
     event.key.toLowerCase() !== 'k'
   )
     return true
+  event.preventDefault()
   clear()
   return false
 }
