@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { searchParamsQuery } from '@/lib/navigation/paths'
 import { resolvePlatformMode } from '@/platform/lib/data/mode'
 import { workspaceRootHref } from '@/platform/lib/workspace-navigation'
 
@@ -15,8 +16,10 @@ export default async function WorkspacePage({
 }) {
   const [{ workspaceId }, query] = await Promise.all([params, searchParams])
   redirect(
-    workspaceRootHref(workspaceId, resolvePlatformMode() === 'live' ? 'live' : 'fixture', {
-      get: (key) => (typeof query[key] === 'string' ? query[key] : null),
-    })
+    workspaceRootHref(
+      workspaceId,
+      resolvePlatformMode() === 'live' ? 'live' : 'fixture',
+      searchParamsQuery(query)
+    )
   )
 }

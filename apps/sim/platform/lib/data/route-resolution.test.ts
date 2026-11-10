@@ -2,7 +2,9 @@
  * @vitest-environment node
  *
  * Failure modes: a member with nothing on the organization surface sent from a `/workspace` URL to
- * the workspace entry, itself a `/workspace` URL, forever; a gate of one organization applied to
+ * the workspace entry, itself a `/workspace` URL, forever; the organization gate, its landing and
+ * the workspace entry's hand-off disagreeing, so a viewer bounces between them; the gate locking a
+ * member out of Settings or dropping the query; a gate of one organization applied to
  * another whose id shares its prefix; Home with a resource painting before it hands off to the
  * chat; a bare Search URL loading without the viewer's remembered mode; a legacy workspace URL
  * reaching a renamed Settings section through a second redirect, or disclosing the organization of
@@ -20,7 +22,11 @@ vi.mock('@/platform/lib/data/shell-scope', () => ({
 
 import { WORKSPACES_PATH } from '@/lib/navigation/paths'
 import type { PlatformOrganization } from '@/platform/lib/data/organization-model'
-import { type RouteContext, resolveProductRedirect } from '@/platform/lib/data/route-resolution'
+import {
+  blockedWorkspaceEntryHref,
+  type RouteContext,
+  resolveProductRedirect,
+} from '@/platform/lib/data/route-resolution'
 
 interface Access {
   mothershipAvailable?: boolean
@@ -120,13 +126,26 @@ describe('resolveProductRedirect', () => {
     expect(resolve(href, { access: NO_SURFACE, workspaceOrganizationId: 'org-1' })).toBeNull()
   })
 
-  it.each(['/o/org-1', '/o/org-1/home', '/o/org-1/people', '/o/org-1/settings/members'])(
+  it.each(['/o/org-1', '/o/org-1/home', '/o/org-1/people'])(
     'sends %s to the workspace entry for a member with nothing on the organization surface',
     (href) => {
       expect(resolve(href, { access: NO_SURFACE })).toEqual({
         href: WORKSPACES_PATH,
         permanent: false,
       })
+    }
+  )
+
+  it('keeps the query when the gate sends a member to the workspace entry', () => {
+    expect(resolve('/o/org-1/home?redirect=settings', { access: NO_SURFACE })?.href).toBe(
+      `${WORKSPACES_PATH}?redirect=settings`
+    )
+  })
+
+  it.each(['/o/org-1/settings', '/o/org-1/settings/general', '/o/org-1/settings/billing'])(
+    'leaves %s to Settings for a member with nothing on the organization surface',
+    (href) => {
+      expect(resolve(href, { access: NO_SURFACE })).toBeNull()
     }
   )
 
@@ -184,8 +203,11 @@ describe('resolveProductRedirect', () => {
     expect(resolve('/o/org-1/settings/subscription/extra')).toBeNull()
   })
 
-  it('opens a workspace on its home tab', () => {
+  it('opens a workspace on its home tab, keeping the query', () => {
     expect(resolve('/workspace/ws-1')?.href).toBe('/workspace/ws-1/workflows')
+    expect(resolve('/workspace/ws-1?resource=file-1')?.href).toBe(
+      '/workspace/ws-1/workflows?resource=file-1'
+    )
   })
 
   it('sends a legacy workspace Settings alias to its section in one permanent hop', () => {
@@ -200,5 +222,67 @@ describe('resolveProductRedirect', () => {
 
   it('renders a path whose encoding is malformed', () => {
     expect(resolve('/workspace/%E0%A4%A/settings/team')).toBeNull()
+  })
+})
+
+describe('the organization gate, its landing and the workspace entry', () => {
+  const both = [false, true]
+  const viewers = both.flatMap((chat) =>
+    both.flatMap((memberScoped) =>
+      both.flatMap((people) =>
+        both.flatMap((simLinks) =>
+          both.flatMap((hasWorkspaces) =>
+            both.map((canCreate) => ({
+              chat,
+              memberScoped,
+              people,
+              simLinks,
+              hasWorkspaces,
+              canCreate,
+            }))
+          )
+        )
+      )
+    )
+  )
+  const starts = [
+    '/o/org-1',
+    '/o/org-1/home',
+    '/o/org-1/search',
+    '/o/org-1/people',
+    '/o/org-1/chat',
+    '/o/org-1/settings',
+    WORKSPACES_PATH,
+    `${WORKSPACES_PATH}?redirect=settings`,
+  ]
+
+  it.each(viewers)('never sends a viewer around in a circle: %o', (viewer) => {
+    const surface = organization({
+      mothershipAvailable: viewer.chat,
+      memberScoped: viewer.memberScoped,
+      people: viewer.people,
+      simLinks: viewer.simLinks,
+    })
+    /** The bare `/workspace` entry: a workspace opens (or is created), else the hand-off decides. */
+    const enterWorkspace = (url: URL) =>
+      viewer.hasWorkspaces || viewer.canCreate
+        ? null
+        : blockedWorkspaceEntryHref(surface, url.searchParams.get('redirect'))
+    for (const start of starts) {
+      const visited: string[] = []
+      let href: string | null = start
+      while (href) {
+        expect(visited, `${start} returns to ${href}`).not.toContain(href)
+        visited.push(href)
+        const url = new URL(href, 'https://app.sim.test')
+        href =
+          url.pathname === WORKSPACES_PATH
+            ? enterWorkspace(url)
+            : (resolveProductRedirect(
+                { pathname: url.pathname, query: url.searchParams },
+                { organization: surface, rememberedSearchMode: null, workspaceOrganizationId: null }
+              )?.href ?? null)
+      }
+    }
   })
 })

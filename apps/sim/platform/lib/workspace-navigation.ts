@@ -79,13 +79,18 @@ export function workspaceHomePath(workspaceId: string, mode: WorkspaceDataMode) 
   return workspacePath(workspaceId, workspaceHome(mode))
 }
 
-/** Where a workspace's bare URL redirects: its home page, with the fixture query kept. */
+/**
+ * Where a workspace's bare URL redirects: its home page, keeping the query it was opened with on
+ * live data and the scenario query on example data.
+ */
 export function workspaceRootHref(
   workspaceId: string,
   mode: WorkspaceDataMode,
-  search: Parameters<typeof platformHref>[1]
+  query: URLSearchParams
 ) {
-  return platformHref(workspaceHomePath(workspaceId, mode), search)
+  const home = workspaceHomePath(workspaceId, mode)
+  if (mode === 'fixture') return platformHref(home, query)
+  return query.size ? `${home}?${query}` : home
 }
 
 /** The workspace a path is under, and the record it shows, if any. */
