@@ -10,6 +10,7 @@ import {
   mountOrganizationSecrets,
 } from '@/lib/organization-secrets/application/use-cases'
 import { MAX_SECRET_ENVIRONMENT_BYTES } from '@/lib/organization-secrets/validation'
+import { PermissionGroupCapabilityError } from '@/lib/permission-groups/capability-error'
 
 /** Organization chat names resolve from its active source, then the explicitly targeted workspace. */
 export async function materializeOrganizationCodeSecrets(
@@ -28,20 +29,27 @@ export async function materializeOrganizationCodeSecrets(
     workspaceId: undefined,
     workflowId: undefined,
   }
-  const inventory = await executeOrganizationSecretUseCase(
+  const organizationNames = await executeOrganizationSecretUseCase(
     organizationContext,
     listOrganizationSecretNames,
     {}
+  ).then(
+    (inventory) => inventory.names,
+    (error: unknown) => {
+      // Revoked shared secrets leave only the targeted workspace's own to resolve.
+      if (error instanceof PermissionGroupCapabilityError) return []
+      throw error
+    }
   )
-  const available = new Set(inventory.names)
-  const organizationNames = names.filter((name) => available.has(name))
+  const available = new Set(organizationNames)
+  const requestedOrganizationNames = names.filter((name) => available.has(name))
   const workspaceNames = names.filter((name) => !available.has(name))
   if (workspaceNames.length && !context.workspaceId) {
     throw new OrchestrationError('forbidden', 'One or more requested secrets are unavailable')
   }
-  const mounted = organizationNames.length
+  const mounted = requestedOrganizationNames.length
     ? await executeOrganizationSecretUseCase(organizationContext, mountOrganizationSecrets, {
-        names: organizationNames,
+        names: requestedOrganizationNames,
       })
     : { envVars: {}, catalogEntries: [] }
   const workspace =
