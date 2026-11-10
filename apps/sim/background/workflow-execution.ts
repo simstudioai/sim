@@ -50,6 +50,7 @@ import {
 import {
   loadDeployedWorkflowState,
   loadWorkflowDeploymentVersionState,
+  resolveDeployedRunVariables,
 } from '@/lib/workflows/persistence/utils'
 import { WORKFLOW_EXECUTION_CONCURRENCY_LIMIT } from '@/background/concurrency-limits'
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
@@ -317,7 +318,7 @@ export async function executeWorkflowJob(
           metadata,
           workflow,
           payload.input,
-          deployedState.variables ?? workflow.variables ?? {},
+          resolveDeployedRunVariables(deployedState, workflow.variables),
           []
         )
 

@@ -10,6 +10,7 @@ import { createLogger } from '@sim/logger'
 import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { toRecord } from '@sim/utils/object'
 import {
   loadWorkflowFromNormalizedTablesRaw,
   persistMigratedBlocks,
@@ -97,6 +98,24 @@ export interface WorkflowDeploymentVersionResponse {
 export interface DeployedWorkflowData extends NormalizedWorkflowData {
   deploymentVersionId: string
   variables?: Record<string, unknown>
+  /**
+   * Whether the version's snapshot recorded its variables. Versions deployed before
+   * deployments snapshotted variables did not, and `variables` defaults to `{}` for them.
+   */
+  variablesSnapshotted?: boolean
+}
+
+/**
+ * The variables a queued deployed run (async API, schedule, webhook) executes with: the
+ * deployed version's own, or the workflow's saved variables for a version deployed before
+ * deployments snapshotted them, which is what those runs have always used for such a version.
+ */
+export function resolveDeployedRunVariables(
+  deployedState: DeployedWorkflowData,
+  savedVariables: unknown
+): Record<string, unknown> {
+  if (deployedState.variablesSnapshotted) return deployedState.variables ?? {}
+  return toRecord(savedVariables)
 }
 
 /**
@@ -268,6 +287,7 @@ export async function materializeDeploymentState(
     loops: state.loops || {},
     parallels: state.parallels || {},
     variables: state.variables || {},
+    variablesSnapshotted: state.variables != null,
     isFromNormalizedTables: false,
     deploymentVersionId: version.id,
   }
