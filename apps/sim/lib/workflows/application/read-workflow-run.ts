@@ -85,7 +85,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
         viewerUserId: logProjectionSubjectUserId(principal),
       })
       if (!projected) throw new OrchestrationError('not_found', 'Run not found')
-      const { status, projection, stateExecutionId } = projected
+      const { status, projection, stateExecutionId, pausePoints: loadedPausePoints } = projected
 
       /**
        * A run whose `blockOutputs` the viewer's group withholds joins the same
@@ -171,6 +171,7 @@ export const readWorkflowRun = defineAuthorizedWorkflowUseCase({
             (await readPausedRunPoints({
               workflowId: context.workflowId,
               executionId: stateExecutionId,
+              pausePoints: loadedPausePoints ?? undefined,
             })) ?? []
           ).map((point) => ({
             ...point,

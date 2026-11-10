@@ -149,11 +149,19 @@ export async function recordPollSourceFailure(
  * Increment the webhook's failure count, auto-disabling it once the count
  * reaches MAX_CONSECUTIVE_FAILURES. One statement, so an enable that resets the
  * count concurrently is never followed by a disable decided on the old count.
+ * The locked `prior` read reports whether this update is the one that disabled
+ * the webhook, so a failure on an already-disabled webhook logs nothing.
  */
 export async function markWebhookFailed(webhookId: string, logger: Logger): Promise<void> {
   try {
     const now = new Date()
     const reachesLimit = sql`COALESCE(${webhook.failedCount}, 0) + 1 >= ${MAX_CONSECUTIVE_FAILURES}`
+    const prior = db
+      .select({ wasActive: webhook.isActive })
+      .from(webhook)
+      .where(eq(webhook.id, webhookId))
+      .for('update')
+      .as('prior')
     const [result] = await db
       .update(webhook)
       .set({
@@ -162,10 +170,11 @@ export async function markWebhookFailed(webhookId: string, logger: Logger): Prom
         isActive: sql`CASE WHEN ${reachesLimit} THEN false ELSE ${webhook.isActive} END`,
         updatedAt: now,
       })
+      .from(prior)
       .where(eq(webhook.id, webhookId))
-      .returning({ failedCount: webhook.failedCount })
+      .returning({ isActive: webhook.isActive, wasActive: prior.wasActive })
 
-    if ((result?.failedCount ?? 0) >= MAX_CONSECUTIVE_FAILURES) {
+    if (result?.wasActive && !result.isActive) {
       logger.warn(
         `Webhook ${webhookId} auto-disabled after ${MAX_CONSECUTIVE_FAILURES} consecutive failures`
       )

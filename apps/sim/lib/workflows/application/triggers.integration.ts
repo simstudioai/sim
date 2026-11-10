@@ -742,10 +742,16 @@ check('enabling a poller clears its failures and backoff but keeps its config', 
 
 check('a poll failure auto-disables at the threshold in the same write', async () => {
   const logger = createLogger('TriggerHealthIntegration')
+  const warn = vi.spyOn(logger, 'warn')
   await markWebhookFailed(flakyWebhookId, logger)
   expect(await webhookRow(flakyWebhookId)).toMatchObject({ isActive: true, failedCount: 99 })
   await markWebhookFailed(flakyWebhookId, logger)
   expect(await webhookRow(flakyWebhookId)).toMatchObject({ isActive: false, failedCount: 100 })
+  expect(warn).toHaveBeenCalledTimes(1)
+
+  await markWebhookFailed(flakyWebhookId, logger)
+  expect(await webhookRow(flakyWebhookId)).toMatchObject({ isActive: false, failedCount: 101 })
+  expect(warn).toHaveBeenCalledTimes(1)
 
   await setBlock('flaky', true)
   await markWebhookFailed(flakyWebhookId, logger)
