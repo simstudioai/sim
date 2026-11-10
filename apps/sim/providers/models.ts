@@ -3971,7 +3971,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
     id: 'nvidia',
     name: 'NVIDIA NIM',
     description: "NVIDIA's Nemotron models via NIM's OpenAI-compatible API",
-    defaultModel: 'nvidia/nemotron-3-super-120b-a12b',
+    defaultModel: 'nvidia/nemotron-3-ultra-550b-a55b',
     modelPatterns: [/^nvidia\//],
     icon: NvidiaIcon,
     color: '#77B900',
@@ -4069,7 +4069,7 @@ export const PROVIDER_DEFINITIONS: Record<string, ProviderDefinition> = {
         },
         contextWindow: 1048576,
         releaseDate: '2026-03-11',
-        recommended: true,
+        sunset: { status: 'deprecated' },
       },
       {
         id: 'nvidia/nemotron-3-ultra-550b-a55b',

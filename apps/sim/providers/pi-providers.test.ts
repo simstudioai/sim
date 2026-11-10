@@ -32,11 +32,15 @@ describe('Pi provider catalog', () => {
     )
   })
 
-  it('rejects saved model IDs removed by Pi 1.0 without substituting another model', () => {
+  it('rejects saved model IDs removed by Pi without substituting another model', () => {
     expect(resolvePiModelId('anthropic', 'claude-opus-4-1')).toBeUndefined()
     expect(resolvePiModelId('cerebras', 'cerebras/zai-glm-4.7')).toBeUndefined()
     expect(resolvePiModelId('zai', 'glm-5.1')).toBeUndefined()
     expect(resolvePiModelId('zai', 'glm-4.5-air')).toBeUndefined()
+    expect(resolvePiModelId('mistral', 'mistral-large-2411')).toBeUndefined()
+    expect(resolvePiModelId('mistral', 'devstral-small-2507')).toBeUndefined()
+    expect(resolvePiModelId('mistral', 'devstral-medium-2507')).toBeUndefined()
+    expect(resolvePiModelId('nvidia', 'nvidia/nemotron-3-super-120b-a12b')).toBeUndefined()
   })
 
   it('rejects provider/model pairs absent from the installed Pi catalog', () => {
