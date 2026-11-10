@@ -5,9 +5,9 @@
  * still be made the owner of a new team.
  */
 import { db } from '@sim/db'
-import { member, organization, user } from '@sim/db/schema'
+import { member, organization, organizationBYOKKeys, user } from '@sim/db/schema'
 import { generateId } from '@sim/utils/id'
-import { eq, inArray } from 'drizzle-orm'
+import { eq, inArray, sql } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
@@ -16,6 +16,7 @@ vi.hoisted(() => {
 })
 
 import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
+import { POST as ADD_MEMBER } from '@/app/api/v1/admin/organizations/[id]/members/route'
 import { DELETE, PATCH } from '@/app/api/v1/admin/organizations/[id]/route'
 import { GET, POST } from '@/app/api/v1/admin/organizations/route'
 
@@ -117,6 +118,46 @@ describe('Admin API with personal organizations', () => {
       .where(eq(organization.id, organizationId))
     expect(kept).toBeDefined()
     expect(kept.name).not.toBe('Renamed')
+  })
+
+  it('answers a join its personal organization refuses with a conflict, not a server error', async () => {
+    const owner = await personalOrganizationOwner()
+    const joiner = await personalOrganizationOwner()
+    const created = await POST(
+      new NextRequest('http://localhost:3000/api/v1/admin/organizations', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: 'Joined Team', ownerId: owner.userId }),
+      }),
+      {}
+    )
+    const teamId = ((await created.json()) as { data: { id: string } }).data.id
+    // A team-only row written around the guards makes retiring the personal organization refuse.
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SET LOCAL session_replication_role = replica`)
+      await tx.insert(organizationBYOKKeys).values({
+        id: generateId(),
+        organizationId: joiner.organizationId,
+        providerId: 'openai',
+        encryptedApiKey: 'ciphertext',
+      })
+    })
+
+    const response = await ADD_MEMBER(
+      new NextRequest(`http://localhost:3000/api/v1/admin/organizations/${teamId}/members`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ userId: joiner.userId, role: 'member' }),
+      }),
+      { params: Promise.resolve({ id: teamId }) }
+    )
+
+    expect(response.status).toBe(409)
+    const memberships = await db
+      .select({ organizationId: member.organizationId })
+      .from(member)
+      .where(eq(member.userId, joiner.userId))
+    expect(memberships).toEqual([{ organizationId: joiner.organizationId }])
   })
 
   it('makes an account in a personal organization the owner of a new team, in place', async () => {

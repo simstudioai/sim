@@ -25,14 +25,25 @@ async function loadRuntime() {
     { eq, inArray, sql },
     { admitSsoUser },
     { acquireOrganizationMutationLock },
+    { createPersonalOrganization },
   ] = await Promise.all([
     import('@sim/db'),
     import('@sim/db/schema'),
     import('drizzle-orm'),
     import('@/lib/auth/sso/application/admit-sso-user'),
     import('@/lib/billing/organizations/membership'),
+    import('@/lib/organizations/provision-personal'),
   ])
-  return { db, schema, eq, inArray, sql, admitSsoUser, acquireOrganizationMutationLock }
+  return {
+    db,
+    schema,
+    eq,
+    inArray,
+    sql,
+    admitSsoUser,
+    acquireOrganizationMutationLock,
+    createPersonalOrganization,
+  }
 }
 
 describe('SSO admission with a hosted SCIM directory in PostgreSQL', () => {
@@ -247,6 +258,37 @@ describe('SSO admission with a hosted SCIM directory in PostgreSQL', () => {
 
     await expect(admit()).resolves.toEqual({ kind: 'denied', reason: 'provider-not-trusted' })
     expect(await emailVerified()).toBe(false)
+  })
+
+  it('denies admission its personal organization refuses instead of failing the sign-in', async () => {
+    const { db, schema, eq, sql } = runtime
+    await db
+      .update(schema.scimConnection)
+      .set({ settings: { disableJit: false } })
+      .where(eq(schema.scimConnection.id, connectionId))
+    const personalOrganizationId = await runtime.createPersonalOrganization(userId)
+    if (!personalOrganizationId) throw new Error('expected a personal organization')
+    try {
+      // A team-only row written around the guards makes retiring the personal organization refuse.
+      await db.transaction(async (tx) => {
+        await tx.execute(sql`SET LOCAL session_replication_role = replica`)
+        await tx.insert(schema.organizationBYOKKeys).values({
+          id: generateId(),
+          organizationId: personalOrganizationId,
+          providerId: 'openai',
+          encryptedApiKey: 'ciphertext',
+        })
+      })
+
+      await expect(admit()).resolves.toEqual({ kind: 'denied', reason: 'organization-conflict' })
+      const memberships = await db
+        .select({ organizationId: schema.member.organizationId })
+        .from(schema.member)
+        .where(eq(schema.member.userId, userId))
+      expect(memberships).toEqual([{ organizationId: personalOrganizationId }])
+    } finally {
+      await db.delete(schema.organization).where(eq(schema.organization.id, personalOrganizationId))
+    }
   })
 
   it('resumes normal JIT admission when the directory permits automatic membership', async () => {
