@@ -8,7 +8,7 @@ import { SearchField } from '@sim/emcn/search-field'
 import { DestinationTabs } from '@sim/emcn-platform/destination-tabs'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { useQueryStates } from 'nuqs'
+import { type Nullable, useQueryStates } from 'nuqs'
 import { ControlBar } from '@/app/(product)/_components/control-bar/control-bar'
 import { DirectoryBack } from '@/app/(product)/_components/resource-directory/resource-directory'
 import styles from '@/app/(product)/o/[organizationId]/integrations/_components/integration-center/integration-center.module.css'
@@ -27,16 +27,13 @@ import type {
 } from '@/platform/lib/integrations/center-model'
 import {
   CENTER_TABS,
-  centerParams,
-  resourceDetailParams,
+  integrationsPageParams,
   serializeCenter,
+  serializeIntegrationsPage,
 } from '@/platform/lib/integrations/center-navigation'
-import {
-  clearCredentialView,
-  credentialAccessParams,
-  credentialDetailParams,
-  serializeCredential,
-} from '@/platform/lib/integrations/credential-navigation'
+import { clearCredentialView } from '@/platform/lib/integrations/credential-navigation'
+import { platformHref } from '@/platform/lib/navigation'
+import { compareText } from '@/platform/shared/time'
 
 interface ResourceLibrary {
   data: IntegrationCenterData
@@ -96,15 +93,10 @@ export function IntegrationCenter({
   const pathname = usePathname()
   const router = useRouter()
   const search = useSearchParams()
-  const [view, setView] = useQueryStates(
-    {
-      ...centerParams,
-      ...resourceDetailParams,
-      ...credentialDetailParams,
-      ...credentialAccessParams,
-    },
-    { history: 'replace', shallow: true }
-  )
+  const [view, setView] = useQueryStates(integrationsPageParams, {
+    history: 'replace',
+    shallow: true,
+  })
   const [isOpening, startOpening] = useTransition()
   const [creating, setCreating] = useState<IntegrationResource['kind'] | null>(null)
   const tabs = library
@@ -117,10 +109,12 @@ export function IntegrationCenter({
           (tab.id === 'mcps' && mcps)
       )
   const current: IntegrationTab = tabs.some((tab) => tab.id === view.tab) ? view.tab : 'apps'
-  const base = `${pathname}?${search.toString()}`
+  const base = platformHref(pathname, search)
+  const linkTo = (change: Partial<Nullable<typeof view>>) =>
+    serializeIntegrationsPage(base, { ...view, ...change })
   const destinations = tabs.map((tab) => ({
     label: tab.label,
-    href: serializeCenter(base, {
+    href: linkTo({
       tab: tab.id,
       q: null,
       category: null,
@@ -133,7 +127,7 @@ export function IntegrationCenter({
   const currentHref = destinations[tabs.findIndex((tab) => tab.id === current)]?.href ?? pathname
   const term = view.q.trim().toLowerCase()
   const compare = (a: { name: string }, b: { name: string }) =>
-    (view.order === 'asc' ? 1 : -1) * a.name.localeCompare(b.name)
+    (view.order === 'asc' ? 1 : -1) * compareText(a.name, b.name)
   const categories = [...new Set(apps.map((app) => app.category))].sort()
   const visibleApps = apps
     .filter(
@@ -201,7 +195,7 @@ export function IntegrationCenter({
     return (
       <>
         <DirectoryBack
-          href={serializeCredential(serializeCenter(base, { resource: null }), clearCredentialView)}
+          href={linkTo({ ...clearCredentialView, resource: null })}
           label='Back to Credentials'
           onNavigate={(event) => {
             event.preventDefault()
@@ -244,7 +238,7 @@ export function IntegrationCenter({
         kind={kind}
         resource={resource}
         data={library.data}
-        backHref={serializeCenter(base, { resource: null, resourceTab: null })}
+        backHref={linkTo({ resource: null, resourceTab: null })}
         onBack={close}
         onSave={(next) => {
           library.save(next)
@@ -399,10 +393,7 @@ export function IntegrationCenter({
                   onNavigate={navigate}
                   onOpen={open}
                   resourceHref={(resource) =>
-                    serializeCredential(
-                      serializeCenter(base, { resource: resource.id, resourceTab: null }),
-                      clearCredentialView
-                    )
+                    linkTo({ ...clearCredentialView, resource: resource.id, resourceTab: null })
                   }
                 />
               ))}

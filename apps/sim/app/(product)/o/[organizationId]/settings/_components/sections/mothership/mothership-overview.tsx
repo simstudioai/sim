@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import { DataTable, MetricGroup } from '@sim/emcn/data-display'
 import { EmptyState } from '@sim/emcn/empty-state'
 import { OverlayDialog } from '@sim/emcn/modal/overlay-dialog'
@@ -33,12 +32,26 @@ interface OverviewProps {
   env: MothershipEnv
   start: string
   end: string
+  /** The page of recent requests, from 1. */
+  page: number
+  /** The open request's id, or empty. */
+  selected: string
+  onPageChange: (page: number) => void
+  onOpenRequest: (requestId: string) => void
+  onCloseRequest: () => void
 }
 
-export function MothershipOverview({ env, start, end }: OverviewProps) {
+export function MothershipOverview({
+  env,
+  start,
+  end,
+  page,
+  selected,
+  onPageChange,
+  onOpenRequest,
+  onCloseRequest,
+}: OverviewProps) {
   const { breakdown, requests } = useMothershipOverview(env, start, end)
-  const [page, setPage] = useState(1)
-  const [selected, setSelected] = useState('')
   const summary = breakdown.data
   const totalCost = summary?.users.reduce((total, user) => total + user.total_cost, 0) ?? 0
   const records = requests.data?.requests.slice(0, 100) ?? []
@@ -106,11 +119,11 @@ export function MothershipOverview({ env, start, end }: OverviewProps) {
                       />
                     ),
                   },
-                  onOpen: () => setSelected(row.request_id),
+                  onOpen: () => onOpenRequest(row.request_id),
                 }))}
             />
             {active && (
-              <OverlayDialog open title={active.request_id} onClose={() => setSelected('')}>
+              <OverlayDialog open title={active.request_id} onClose={onCloseRequest}>
                 <PropertyList
                   titleHidden
                   title='Request details'
@@ -153,10 +166,7 @@ export function MothershipOverview({ env, start, end }: OverviewProps) {
                 label='Recent request pages'
                 page={currentPage}
                 pageCount={pageCount}
-                onPageChange={(next) => {
-                  setPage(next)
-                  setSelected('')
-                }}
+                onPageChange={onPageChange}
               />
             )}
           </>

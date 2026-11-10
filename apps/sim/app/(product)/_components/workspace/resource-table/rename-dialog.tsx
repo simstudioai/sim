@@ -1,10 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { TextField } from '@sim/emcn/field'
 import { Modal } from '@sim/emcn/modal'
 import { readFormText } from '@/platform/shared/row-links'
-import { MINUTE_MS } from '@/platform/shared/time'
 
 interface RenameDialogProps {
   /** What is being renamed; the dialog is open while it is set. */
@@ -48,14 +46,4 @@ export function RenameDialog({ target, noun, maxLength, onClose, onRename }: Ren
       )}
     </Modal>
   )
-}
-
-/** One reference instant for a list's ages, moving on by the minute. */
-export function useMinuteClock() {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), MINUTE_MS)
-    return () => clearInterval(timer)
-  }, [])
-  return now
 }

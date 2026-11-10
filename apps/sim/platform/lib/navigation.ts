@@ -1,4 +1,12 @@
+import { parseAsStringLiteral } from 'nuqs/server'
+
 export type Appearance = 'system' | 'light' | 'dark'
+
+/** A fixture build's appearance, chosen in the URL (`?theme=`). */
+export const fixtureAppearanceParam = {
+  key: 'theme',
+  parser: parseAsStringLiteral(['system', 'light', 'dark'] as const).withDefault('system'),
+} as const
 
 export function readAppearance(value: string | string[] | null | undefined): Appearance {
   const theme = Array.isArray(value) ? value[0] : value

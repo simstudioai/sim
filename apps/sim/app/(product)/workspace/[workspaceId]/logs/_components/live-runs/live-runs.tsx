@@ -11,6 +11,7 @@ import {
   RunList,
   type RunRowActions,
 } from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-list/run-list'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   RUN_TRIGGER_OPTIONS,
   type RunCommandsTarget,
@@ -41,6 +42,7 @@ export function LiveRuns({ workspaceId, integrationTriggers }: LiveRunsProps) {
   const live = useLiveRuns(workspaceId, view)
   const dashboard = useRunDashboard(workspaceId, view)
   const options = useRunFilterOptions(workspaceId)
+  const now = useMinuteClock()
   const commands = useRunCommands(workspaceId)
 
   const stop = async (target: RunCommandsTarget, workflowId: string) => {
@@ -131,7 +133,7 @@ export function LiveRuns({ workspaceId, integrationTriggers }: LiveRunsProps) {
     <RunList
       read={view.view === 'dashboard' ? dashboard.read : live.read}
       workspace={{ id: workspaceId, live: true }}
-      referenceTime={Date.now()}
+      referenceTime={now}
       runs={live.runs}
       triggers={[...RUN_TRIGGER_OPTIONS, ...integrationTriggers]}
       workflows={options.workflows}

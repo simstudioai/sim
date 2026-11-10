@@ -89,6 +89,7 @@ import {
   useOAuthReturnForKBConnectors,
 } from '@/platform/lib/data/knowledge/connectors'
 import { folderChain } from '@/platform/lib/folder-chain'
+import { LOCALE } from '@/platform/shared/time'
 
 const DOCUMENTS_PER_PAGE = 50
 /** While a document indexes, its own status is what moves. */
@@ -134,7 +135,7 @@ function processKey(document: Pick<DocumentData, 'id' | 'processingStartedAt'>) 
 }
 
 function documents(count: number) {
-  return `${count.toLocaleString()} document${count === 1 ? '' : 's'}`
+  return `${count.toLocaleString(LOCALE)} document${count === 1 ? '' : 's'}`
 }
 
 interface KnowledgeBaseProps {
@@ -364,10 +365,10 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
       ? disabledCount > 0
         ? allSelected && enabled === 'all'
           ? 'Enable selected items'
-          : `Enable ${disabledCount.toLocaleString()} items`
+          : `Enable ${disabledCount.toLocaleString(LOCALE)} items`
         : allSelected && enabled === 'all'
           ? 'Disable selected items'
-          : `Disable ${enabledCount.toLocaleString()} items`
+          : `Disable ${enabledCount.toLocaleString(LOCALE)} items`
       : document.enabled
         ? 'Disable'
         : 'Enable'
@@ -403,7 +404,7 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
       actions.push({ id: 'retry', label: 'Retry', onSelect: () => retry(document) })
     actions.push({
       id: 'delete',
-      label: multiple ? `Delete ${selectedCount.toLocaleString()} items` : 'Delete',
+      label: multiple ? `Delete ${selectedCount.toLocaleString(LOCALE)} items` : 'Delete',
       destructive: true,
       separatorBefore: true,
       disabled: !canEdit || (!multiple && document.processingStatus === 'processing'),
@@ -427,7 +428,7 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
       cells: {
         size: formatFileSize(document.fileSize, { includeBytes: true }),
         tokens: completed ? formatTokens(document.tokenCount) : undefined,
-        chunks: completed ? document.chunkCount.toLocaleString() : undefined,
+        chunks: completed ? document.chunkCount.toLocaleString(LOCALE) : undefined,
         uploaded: <UploadedDate instant={document.uploadedAt} />,
         status: <DocumentStatus document={document} />,
         tags: <DocumentTags document={document} definitions={tagDefinitionsBySlot} />,
@@ -444,7 +445,7 @@ export function KnowledgeBase({ workspaceId, knowledgeBaseId }: KnowledgeBasePro
   )
     bulkActions.push({
       id: 'all',
-      label: `Select all ${total.toLocaleString()}`,
+      label: `Select all ${total.toLocaleString(LOCALE)}`,
       onSelect: () => setAllMode(true),
     })
   if (allSelected)

@@ -7,7 +7,6 @@ export {
 export type { PermissionGroupConfig } from '@/lib/permission-groups/fields'
 export {
   type PermissionGroup,
-  type PermissionGroupWorkspaceRef,
   useBulkAddPermissionGroupMembers,
   useCreatePermissionGroup,
   useDeletePermissionGroup,

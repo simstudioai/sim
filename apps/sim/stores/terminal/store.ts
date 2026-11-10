@@ -74,25 +74,10 @@ export const useTerminalStore = create<TerminalState>()(
       setStructuredView: (structured) => {
         set({ structuredView: structured })
       },
-      /**
-       * Indicates whether the terminal store has finished client-side hydration.
-       */
-      _hasHydrated: false,
-      /**
-       * Marks the store as hydrated on the client.
-       *
-       * @param hasHydrated - True when client-side hydration is complete.
-       */
-      setHasHydrated: (hasHydrated) => {
-        set({ _hasHydrated: hasHydrated })
-      },
     }),
     {
       name: 'terminal-state',
-      /**
-       * Persist only the durable terminal UI preferences. The `_hasHydrated`
-       * hydration marker is excluded so it always starts fresh on load.
-       */
+      /** Persist only the durable terminal UI preferences. */
       partialize: (state) => ({
         terminalHeight: state.terminalHeight,
         lastExpandedHeight: state.lastExpandedHeight,

@@ -1,6 +1,6 @@
 'use client'
 
-import { useDeferredValue, useRef, useState } from 'react'
+import { useDeferredValue, useState } from 'react'
 import { Avatar } from '@sim/emcn/avatar'
 import { Button } from '@sim/emcn/button'
 import { TextField } from '@sim/emcn/field'
@@ -50,7 +50,6 @@ import {
   type PermissionGroup,
   type PermissionGroupAccessState,
   type PermissionGroupConfig,
-  type PermissionGroupWorkspaceRef,
   type PermissionStatusFilter,
   PLATFORM_DEFAULT_MODEL,
   platformFeatureSections,
@@ -150,14 +149,13 @@ interface GroupDetailProps {
   hosted: boolean
   projectsEnabled: boolean
   workspaceOptions: { value: string; label: string }[]
-  organizationWorkspaces: PermissionGroupWorkspaceRef[]
   workspacesLoading: boolean
   onBack: () => void
 }
 
 /**
- * One permission group. Owns its editing buffer, scope and default writes, and members. The local
- * copy of the group is authoritative while open, so optimistic writes are not clobbered by refetches.
+ * One permission group. Owns its editing buffer, scope and default writes, and members. The group
+ * itself is the organization's group list as the query holds it, optimistic writes included.
  */
 export function GroupDetail({
   group,
@@ -165,7 +163,6 @@ export function GroupDetail({
   hosted,
   projectsEnabled,
   workspaceOptions,
-  organizationWorkspaces,
   workspacesLoading,
   onBack,
 }: GroupDetailProps) {
@@ -178,14 +175,11 @@ export function GroupDetail({
   const model = editor.model
   const members = usePermissionGroupMembers(organizationId, group.id)
 
-  const [viewing, setViewing] = useState<PermissionGroup>(group)
   const [editingConfig, setEditingConfig] = useState<PermissionGroupConfig>({ ...group.config })
   const [editingName, setEditingName] = useState(group.name.trim())
   const [editingDescription, setEditingDescription] = useState((group.description ?? '').trim())
   const [addingMembers, setAddingMembers] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
-  // Only the most recent scope write may reconcile or revert, so rapid edits cannot settle stale.
-  const scopeWriteSeq = useRef(0)
 
   const controls: PermissionControls | null = model
     ? {
@@ -200,18 +194,18 @@ export function GroupDetail({
   const isAgentDefaultValid = model
     ? isAgentDefaultUsable(editingConfig, { hosted, providerIds: model.providerIds }, model.facts)
     : true
-  const hasConfigChanges = hasPermissionConfigChanges(viewing.config, editingConfig)
+  const hasConfigChanges = hasPermissionConfigChanges(group.config, editingConfig)
   // Compared trimmed: an older row may hold untrimmed text and would otherwise open dirty.
   const trimmedName = editingName.trim()
   const trimmedDescription = editingDescription.trim()
-  const nameChanged = trimmedName !== viewing.name.trim()
-  const descriptionChanged = trimmedDescription !== (viewing.description ?? '').trim()
+  const nameChanged = trimmedName !== group.name.trim()
+  const descriptionChanged = trimmedDescription !== (group.description ?? '').trim()
   const hasChanges = hasConfigChanges || nameChanged || descriptionChanged
 
   function discard() {
-    setEditingConfig({ ...viewing.config })
-    setEditingName(viewing.name.trim())
-    setEditingDescription((viewing.description ?? '').trim())
+    setEditingConfig({ ...group.config })
+    setEditingName(group.name.trim())
+    setEditingDescription((group.description ?? '').trim())
   }
   const guard = useSettingsUnsavedGuard({
     isDirty: hasChanges,
@@ -222,21 +216,13 @@ export function GroupDetail({
   async function save() {
     if (!trimmedName || !isAgentDefaultValid) return
     try {
-      const result = await updateGroup.mutateAsync({
-        id: viewing.id,
+      await updateGroup.mutateAsync({
+        id: group.id,
         organizationId,
         ...(hasConfigChanges && { config: editingConfig }),
         ...(nameChanged && { name: trimmedName }),
         ...(descriptionChanged && { description: trimmedDescription || null }),
       })
-      // From the server's copy, so a normalization cannot leave a baseline never persisted.
-      const saved = result.permissionGroup
-      setViewing((previous) => ({
-        ...previous,
-        config: saved.config,
-        name: saved.name,
-        description: saved.description,
-      }))
     } catch (error) {
       toast.error("Couldn't save changes", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
@@ -245,28 +231,9 @@ export function GroupDetail({
   }
 
   async function changeScope(workspaceIds: string[]) {
-    const previous = viewing
-    const seq = ++scopeWriteSeq.current
-    setViewing((current) => ({
-      ...current,
-      workspaces: organizationWorkspaces.filter((ws) => workspaceIds.includes(ws.id)),
-    }))
     try {
-      const result = await updateGroup.mutateAsync({
-        id: viewing.id,
-        organizationId,
-        workspaceIds,
-      })
-      if (seq !== scopeWriteSeq.current) return
-      setViewing((current) => ({
-        ...current,
-        workspaces: organizationWorkspaces.filter((ws) =>
-          result.permissionGroup.workspaceIds.includes(ws.id)
-        ),
-      }))
+      await updateGroup.mutateAsync({ id: group.id, organizationId, workspaceIds })
     } catch (error) {
-      if (seq !== scopeWriteSeq.current) return
-      setViewing(previous)
       toast.error("Couldn't update workspaces", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
       })
@@ -274,23 +241,8 @@ export function GroupDetail({
   }
 
   async function toggleDefault(enabled: boolean) {
-    const seq = ++scopeWriteSeq.current
     try {
-      const result = await updateGroup.mutateAsync({
-        id: viewing.id,
-        organizationId,
-        isDefault: enabled,
-      })
-      if (seq !== scopeWriteSeq.current) return
-      setViewing((current) => ({
-        ...current,
-        isDefault: result.permissionGroup.isDefault,
-        workspaces: result.permissionGroup.isDefault
-          ? []
-          : organizationWorkspaces.filter((ws) =>
-              result.permissionGroup.workspaceIds.includes(ws.id)
-            ),
-      }))
+      await updateGroup.mutateAsync({ id: group.id, organizationId, isDefault: enabled })
     } catch (error) {
       toast.error("Couldn't update the default group", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
@@ -300,7 +252,7 @@ export function GroupDetail({
 
   async function removeGroupMember(memberId: string) {
     try {
-      await removeMember.mutateAsync({ organizationId, permissionGroupId: viewing.id, memberId })
+      await removeMember.mutateAsync({ organizationId, permissionGroupId: group.id, memberId })
     } catch (error) {
       toast.error("Couldn't remove member", {
         description: getErrorMessage(error, 'Please try again in a moment.'),
@@ -451,7 +403,7 @@ export function GroupDetail({
     const sections = platformFeatureSections(features)
     const editable = features.filter(
       (feature) =>
-        !isFeatureInertForGroup(feature, viewing.isDefault) &&
+        !isFeatureInertForGroup(feature, group.isDefault) &&
         !controls.isInherited({ kind: 'feature', configKey: feature.configKey })
     )
     const gridFor = (featureId: string) => {
@@ -503,7 +455,7 @@ export function GroupDetail({
               <PlatformPermissionRow
                 key={feature.id}
                 feature={feature}
-                inert={isFeatureInertForGroup(feature, viewing.isDefault)}
+                inert={isFeatureInertForGroup(feature, group.isDefault)}
                 controls={controls}
               >
                 {gridFor(feature.id)}
@@ -531,8 +483,8 @@ export function GroupDetail({
       <DetailHeader
         backLabel='Permission groups'
         onBack={() => guard.guardBack(onBack)}
-        title={viewing.name}
-        description={viewing.description ?? undefined}
+        title={group.name}
+        description={group.description ?? undefined}
       />
       <SegmentedControl
         label='Permission group settings'
@@ -574,39 +526,39 @@ export function GroupDetail({
             >
               <Switch
                 label='Organization default'
-                checked={viewing.isDefault}
+                checked={group.isDefault}
                 disabled={updateGroup.isPending}
                 onCheckedChange={(checked) => void toggleDefault(checked)}
               />
             </SettingsRow>
           </SettingsSection>
           <SettingsSection title='Workspaces'>
-            {viewing.isDefault ? (
+            {group.isDefault ? (
               <SettingsRow label='Governs every workspace in the organization' />
             ) : (
               <>
                 <FieldStack>
                   <MultiSelect
                     label={
-                      viewing.workspaces.length > 0
-                        ? `Governs ${plural(viewing.workspaces.length, 'workspace')}`
+                      group.workspaces.length > 0
+                        ? `Governs ${plural(group.workspaces.length, 'workspace')}`
                         : 'Select the workspaces this group governs'
                     }
                     searchLabel='Search workspaces…'
                     placeholder='Select workspaces…'
                     options={workspaceOptions}
-                    value={viewing.workspaces.map((ws) => ws.id)}
+                    value={group.workspaces.map((ws) => ws.id)}
                     disabled={workspacesLoading}
                     onValueChange={(ids) => void changeScope(ids)}
                   />
                 </FieldStack>
-                {viewing.workspaces.map((ws) => (
+                {group.workspaces.map((ws) => (
                   <SettingsRow key={ws.id} label={ws.name} />
                 ))}
               </>
             )}
           </SettingsSection>
-          {!viewing.isDefault && (
+          {!group.isDefault && (
             <SettingsSection title='Members'>
               <SettingsRow
                 label={
@@ -705,7 +657,7 @@ export function GroupDetail({
           onAdd={async (userIds) => {
             await bulkAddMembers.mutateAsync({
               organizationId,
-              permissionGroupId: viewing.id,
+              permissionGroupId: group.id,
               userIds,
             })
           }}
@@ -718,10 +670,10 @@ export function GroupDetail({
         open={confirmingDelete}
         onOpenChange={setConfirmingDelete}
         title='Delete permission group'
-        description={`Are you sure you want to delete ${viewing.name}? All members will be removed from this group. This action cannot be undone.`}
+        description={`Are you sure you want to delete ${group.name}? All members will be removed from this group. This action cannot be undone.`}
         confirmLabel={deleteGroup.isPending ? 'Deleting…' : 'Delete'}
         onConfirm={async () => {
-          await deleteGroup.mutateAsync({ permissionGroupId: viewing.id, organizationId })
+          await deleteGroup.mutateAsync({ permissionGroupId: group.id, organizationId })
           onBack()
         }}
       />

@@ -22,6 +22,7 @@ import {
   useTagDefinitionsQuery,
   useTagUsageQuery,
 } from '@/platform/lib/data/knowledge'
+import { LOCALE } from '@/platform/shared/time'
 
 type FieldType = (typeof SUPPORTED_FIELD_TYPES)[number]
 
@@ -36,7 +37,7 @@ const TAG_COLUMNS = [
 ] as const
 
 function documentCount(count: number) {
-  return `${count.toLocaleString()} document${count === 1 ? '' : 's'}`
+  return `${count.toLocaleString(LOCALE)} document${count === 1 ? '' : 's'}`
 }
 
 /** The documents a tag is on, as a bounded list naming each value; the rest are counted. */

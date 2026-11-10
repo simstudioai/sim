@@ -10,6 +10,7 @@ import {
   GITLAB_TOKEN_TABS,
   type GitLabPermissionForm,
 } from '@/platform/lib/data/knowledge/connectors'
+import { LOCALE } from '@/platform/shared/time'
 
 const KINDS = ['userMapping', 'projectPermissions'] as const
 
@@ -74,7 +75,7 @@ export function GitLabPermissionUploads({ form, disabled }: GitLabPermissionsPro
                       detail:
                         count === undefined
                           ? undefined
-                          : `${count.toLocaleString()} ${count === 1 ? 'row' : 'rows'} · ${selected?.upload ? 'Ready to save' : 'Saved'}`,
+                          : `${count.toLocaleString(LOCALE)} ${count === 1 ? 'row' : 'rows'} · ${selected?.upload ? 'Ready to save' : 'Saved'}`,
                     }
                   : undefined
               }

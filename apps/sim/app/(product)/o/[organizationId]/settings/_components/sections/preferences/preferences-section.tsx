@@ -4,7 +4,7 @@ import { ChoiceMenu } from '@sim/emcn/menu/choice-menu'
 import { SearchableSelect } from '@sim/emcn/picker/searchable-select'
 import { SettingsRow, SettingsSection } from '@sim/emcn/settings-section'
 import { FailureNotice } from '@sim/emcn/status'
-import { usePathname, useRouter, useSearchParams } from 'next/navigation'
+import { useQueryState } from 'nuqs'
 import {
   BooleanRow,
   SavedSettingsSection,
@@ -14,7 +14,7 @@ import {
   ProfileSettings,
 } from '@/app/(product)/o/[organizationId]/settings/_components/profile/profile-settings'
 import { useAppearanceSettings, useSnapToGridSetting } from '@/platform/lib/data/preferences'
-import { readAppearance } from '@/platform/lib/navigation'
+import { fixtureAppearanceParam } from '@/platform/lib/navigation'
 import { useProfileSettings } from '@/platform/shared/preferences'
 
 const THEMES = [
@@ -47,9 +47,10 @@ function Profile({ fixture }: PreferencesSectionProps) {
 }
 
 function Preferences({ fixture }: PreferencesSectionProps) {
-  const router = useRouter()
-  const path = usePathname()
-  const search = useSearchParams()
+  const [fixtureTheme, setFixtureTheme] = useQueryState(
+    fixtureAppearanceParam.key,
+    fixtureAppearanceParam.parser.withOptions({ history: 'replace', scroll: false })
+  )
   const appearance = useAppearanceSettings()
   const snap = useSnapToGridSetting()
   return (
@@ -58,12 +59,11 @@ function Preferences({ fixture }: PreferencesSectionProps) {
         <ChoiceMenu
           label='Theme'
           options={THEMES}
-          value={fixture ? readAppearance(search.get('theme')) : appearance.theme}
+          value={fixture ? fixtureTheme : appearance.theme}
           onValueChange={(value) => {
             if (!fixture) return appearance.setTheme(value)
-            const query = new URLSearchParams(search.toString())
-            query.set('theme', value)
-            router.replace(`${path}?${query}`, { scroll: false })
+            if (value === 'system' || value === 'light' || value === 'dark')
+              void setFixtureTheme(value)
           }}
         />
       </SettingsRow>

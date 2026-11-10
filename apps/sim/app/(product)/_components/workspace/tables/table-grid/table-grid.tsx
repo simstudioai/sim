@@ -122,6 +122,7 @@ import {
   type WorkflowGroup,
 } from '@/platform/lib/data/tables'
 import { platformHref } from '@/platform/lib/navigation'
+import { LOCALE } from '@/platform/shared/time'
 
 /** A menu the grid opens at a viewport point: under a header, or where a cell was right-clicked. */
 interface GridMenu {
@@ -3281,7 +3282,7 @@ export function TableGrid({
       // duration:0 keeps the in-progress toast up through long page loads; it is
       // dismissed explicitly on every settle path below.
       const loadingToastId = toast({
-        message: `${isCopy ? 'Copying' : 'Cutting'} ${estimate.toLocaleString()} ${estimate === 1 ? 'row' : 'rows'}…`,
+        message: `${isCopy ? 'Copying' : 'Cutting'} ${estimate.toLocaleString(LOCALE)} ${estimate === 1 ? 'row' : 'rows'}…`,
         duration: 0,
       })
       let rowCount = 0
@@ -3329,11 +3330,11 @@ export function TableGrid({
         toast.dismiss(loadingToastId)
         if (truncated) {
           toast({
-            message: `${opts.verb} first ${TABLE_LIMITS.MAX_COPY_ROWS.toLocaleString()} rows — export to CSV for the rest`,
+            message: `${opts.verb} first ${TABLE_LIMITS.MAX_COPY_ROWS.toLocaleString(LOCALE)} rows — export to CSV for the rest`,
           })
         } else {
           toast.success(
-            `${opts.verb} ${rowCount.toLocaleString()} ${rowCount === 1 ? 'row' : 'rows'}`
+            `${opts.verb} ${rowCount.toLocaleString(LOCALE)} ${rowCount === 1 ? 'row' : 'rows'}`
           )
         }
       })()
@@ -3606,7 +3607,7 @@ export function TableGrid({
       }
       if (exceedsTablePasteRowLimit(text, TABLE_LIMITS.MAX_BATCH_INSERT_SIZE)) {
         toast.warning('Paste has too many rows', {
-          description: `Paste up to ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE.toLocaleString()} rows at once, or use CSV import for larger datasets.`,
+          description: `Paste up to ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE.toLocaleString(LOCALE)} rows at once, or use CSV import for larger datasets.`,
         })
         return
       }

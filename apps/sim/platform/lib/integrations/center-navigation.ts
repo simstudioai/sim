@@ -1,4 +1,5 @@
 import { createLoader, createSerializer, parseAsString, parseAsStringLiteral } from 'nuqs/server'
+import { credentialParams } from '@/platform/lib/integrations/credential-navigation'
 
 export const CENTER_TABS = [
   { id: 'apps', label: 'Apps' },
@@ -35,21 +36,26 @@ export const resourceDetailParams = {
 
 export const serializeCenter = createSerializer({ ...centerParams, ...resourceDetailParams })
 
+/**
+ * Every param the Integrations directory keeps on its own links. A link built from these values, and
+ * not from a second read of the URL, agrees with the view the same render shows.
+ */
+export const integrationsPageParams = {
+  ...centerParams,
+  ...resourceDetailParams,
+  ...credentialParams,
+  ...integrationsWorkspaceParams,
+}
+
+export const serializeIntegrationsPage = createSerializer(integrationsPageParams)
+
 const loadCenter = createLoader(centerParams)
 
 /** Keep directory filters through a provider detail or credential round trip. */
 export function integrationCenterHref(
   path: string,
-  search: Pick<URLSearchParams, 'get'>,
+  search: URLSearchParams,
   query = search.get('q')
 ) {
-  const state = loadCenter({
-    tab: search.get('tab') ?? undefined,
-    q: query ?? undefined,
-    category: search.get('category') ?? undefined,
-    connection: search.get('connection') ?? undefined,
-    scope: search.get('scope') ?? undefined,
-    order: search.get('order') ?? undefined,
-  })
-  return serializeCenter(path, state)
+  return serializeCenter(path, { ...loadCenter(search), q: query ?? '', resource: null })
 }

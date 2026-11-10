@@ -1380,7 +1380,6 @@
   "apps/sim/lib/api/contracts/permission-groups.ts#MAX_PERMISSION_GROUP_WORKSPACES",
   "apps/sim/lib/api/contracts/permission-groups.ts#PermissionGroupDetailParams",
   "apps/sim/lib/api/contracts/permission-groups.ts#PermissionGroupParams",
-  "apps/sim/lib/api/contracts/permission-groups.ts#PermissionGroupWrite",
   "apps/sim/lib/api/contracts/permission-groups.ts#bulkAddPermissionGroupMembersBodySchema",
   "apps/sim/lib/api/contracts/permission-groups.ts#permissionGroupDetailParamsSchema",
   "apps/sim/lib/api/contracts/permission-groups.ts#permissionGroupMemberSchema",

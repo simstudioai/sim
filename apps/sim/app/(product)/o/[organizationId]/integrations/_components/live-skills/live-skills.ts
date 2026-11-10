@@ -4,11 +4,11 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { useOrderedWorkspacesQuery, useSkills } from '@/platform/lib/data/skills'
 import {
-  centerParams,
-  integrationsWorkspaceParams,
-  resourceDetailParams,
-  serializeCenter,
+  integrationsPageParams,
+  serializeIntegrationsPage,
 } from '@/platform/lib/integrations/center-navigation'
+import { platformHref } from '@/platform/lib/navigation'
+import { compareText } from '@/platform/shared/time'
 
 /**
  * The live Skills tab's rows and the skill it opens. Skills belong to a workspace, so the tab lists
@@ -19,10 +19,10 @@ import {
 export function useLiveSkills(pageWorkspaceId?: string) {
   const pathname = usePathname()
   const search = useSearchParams()
-  const [view, setView] = useQueryStates(
-    { ...centerParams, ...resourceDetailParams, ...integrationsWorkspaceParams },
-    { history: 'replace', shallow: true }
-  )
+  const [view, setView] = useQueryStates(integrationsPageParams, {
+    history: 'replace',
+    shallow: true,
+  })
   const workspaces = useOrderedWorkspacesQuery()
   const workspace = pageWorkspaceId
     ? workspaces.data?.find((item) => item.id === pageWorkspaceId)
@@ -30,16 +30,18 @@ export function useLiveSkills(pageWorkspaceId?: string) {
   const onSkills = view.tab === 'skills'
   const query = useSkills(onSkills && workspace ? workspace.id : '')
   const listed = query.isPlaceholderData ? undefined : query.data
-  const base = `${pathname}?${search.toString()}`
+  const base = platformHref(pathname, search)
+  const linkTo = (resource: string | null) =>
+    serializeIntegrationsPage(base, { ...view, resource, resourceTab: null })
   const term = view.q.trim().toLowerCase()
   const rows = (listed ?? [])
     .filter((skill) => `${skill.name} ${skill.description}`.toLowerCase().includes(term))
-    .sort((a, b) => (view.order === 'asc' ? 1 : -1) * a.name.localeCompare(b.name))
+    .sort((a, b) => (view.order === 'asc' ? 1 : -1) * compareText(a.name, b.name))
     .map((skill) => ({
       id: skill.id,
       name: skill.name,
       description: skill.description,
-      href: serializeCenter(base, { resource: skill.id, resourceTab: null }),
+      href: linkTo(skill.id),
     }))
   const open = (resource: string) =>
     void setView({ resource, resourceTab: null }, { history: 'push', scroll: false })
@@ -61,7 +63,7 @@ export function useLiveSkills(pageWorkspaceId?: string) {
       onSkills && view.resource
         ? { skillId: view.resource === 'new' ? null : view.resource }
         : undefined,
-    detailBackHref: serializeCenter(base, { resource: null, resourceTab: null }),
+    detailBackHref: linkTo(null),
     closeDetail: () =>
       void setView({ resource: null, resourceTab: null }, { history: 'push', scroll: false }),
     created: (resource: string) =>

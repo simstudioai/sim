@@ -8,6 +8,7 @@ import {
   useGenerateVersionDescription,
   useUpdateDeploymentVersion,
 } from '@/platform/lib/data/workflow-deploy'
+import { LOCALE } from '@/platform/shared/time'
 
 /** A high cap that only guards against abuse; the message appears only once it is exceeded. */
 const MAX_DESCRIPTION_LENGTH = 50_000
@@ -111,7 +112,7 @@ export function VersionDescription({
           disabled={isGenerating}
           error={
             isTooLong
-              ? `Description exceeds the ${MAX_DESCRIPTION_LENGTH.toLocaleString()}-character limit (currently ${description.length.toLocaleString()})`
+              ? `Description exceeds the ${MAX_DESCRIPTION_LENGTH.toLocaleString(LOCALE)}-character limit (currently ${description.length.toLocaleString(LOCALE)})`
               : generateError
           }
         />
