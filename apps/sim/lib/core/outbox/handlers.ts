@@ -41,6 +41,7 @@ import {
 } from '@/lib/knowledge/documents/processing-events'
 import { KNOWLEDGE_DOCUMENT_RECOVERY_OUTBOX_EVENT } from '@/lib/knowledge/documents/processing-recovery-event'
 import { KNOWLEDGE_STORAGE_CLEANUP_EVENT } from '@/lib/knowledge/documents/storage-cleanup-event'
+import { CHAT_RESCOPE_EVENT } from '@/lib/mothership/chat/rescope-event'
 import { INBOX_CLEANUP_EVENT } from '@/lib/mothership/inbox/cleanup-event'
 import { MEMORY_CLEANUP_EVENT } from '@/lib/mothership/memories/cleanup-event'
 import { PERSONAL_ORGANIZATION_AUDIT_EVENT } from '@/lib/organizations/lifecycle-audit-event'
@@ -225,6 +226,13 @@ export const OUTBOX_HANDLER_GROUPS: readonly LazyOutboxHandlerGroup[] = [
         '@/lib/cleanup/chat-backend-cleanup-outbox'
       )
       return chatBackendCleanupOutboxHandlers
+    },
+  },
+  {
+    events: [CHAT_RESCOPE_EVENT],
+    load: async () => {
+      const { chatRescopeOutboxHandlers } = await import('@/lib/mothership/chat/rescope-outbox')
+      return chatRescopeOutboxHandlers
     },
   },
   {
