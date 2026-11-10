@@ -32,6 +32,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
     id: 'fixture-workspace',
     billedAccountUserId: 'fixture-owner',
     organizationId: fixture.organizationId,
+    teamOrganizationId: fixture.organizationId,
   }),
 }))
 vi.mock('@/lib/billing/core/access', () => ({

@@ -24,6 +24,7 @@ import {
 } from '@sim/testing/mocks/organization-membership.mock'
 import { schemaMock } from '@sim/testing/mocks/schema.mock'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DbTransaction } from '@/lib/db/types'
 
 const {
   mockCreateOrganizationWithOwner,
@@ -77,6 +78,8 @@ const { mockAcquireOrganizationMutationLock } = organizationMembershipMockFns
 const { mockAcquireUserBillingIdentityLock } = billingIdentityLockMockFns
 const BILLING_WEBHOOK = { type: 'system', name: 'Billing System' } as const
 const ACCEPTOR = { type: 'user', userId: 'acceptor-1' } as const
+/** The chain mock standing in for the acceptance transaction the Tx variant runs on. */
+const ACCEPTANCE_TX = dbChainMock.db as unknown as DbTransaction
 billingPlanHelpersMockFns.mockIsPaid.mockImplementation((plan) => plan !== 'free')
 
 function queueWhereResponses(responses: unknown[][]) {
@@ -175,7 +178,7 @@ describe('ensureOrganizationForTeamSubscription', () => {
     mockAttachOwnedWorkspacesToOrganizationTx.mockResolvedValueOnce({ usageLimitUserIds: [] })
 
     await ensureOrganizationForTeamSubscriptionTx(
-      dbChainMock.db,
+      ACCEPTANCE_TX,
       {
         id: 'sub-1',
         plan: 'team',
@@ -204,7 +207,7 @@ describe('ensureOrganizationForTeamSubscription', () => {
 
     await expect(
       ensureOrganizationForTeamSubscriptionTx(
-        dbChainMock.db,
+        ACCEPTANCE_TX,
         {
           id: 'sub-1',
           plan: 'team',
@@ -267,16 +270,13 @@ describe('syncSubscriptionUsageLimits', () => {
     mockGetOrganizationIdForSubscriptionReference.mockResolvedValue('org-1')
     mockGetPlanPricing.mockReturnValue({ basePrice: 25 })
 
-    await syncSubscriptionUsageLimits(
-      {
-        id: 'sub-1',
-        plan: 'team_6000',
-        referenceId: 'org-1',
-        status: 'active',
-        seats: 2,
-      },
-      BILLING_WEBHOOK
-    )
+    await syncSubscriptionUsageLimits({
+      id: 'sub-1',
+      plan: 'team_6000',
+      referenceId: 'org-1',
+      status: 'active',
+      seats: 2,
+    })
 
     const update = dbChainMockFns.set.mock.calls[0]?.[0]
     const expression = JSON.stringify(update?.orgUsageLimit)

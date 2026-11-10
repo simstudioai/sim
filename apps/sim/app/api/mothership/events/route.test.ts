@@ -27,8 +27,9 @@ vi.mock('@/lib/mothership/chat/organization-chats', () => mothershipOrganization
 vi.mock('@/lib/mothership/chat-status', () => mothershipChatStatusMock)
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
-import { GET } from '@/app/api/mothership/events/route'
+import { GET as routeGET } from '@/app/api/mothership/events/route'
 
+const GET = (req: NextRequest) => routeGET(req, { params: Promise.resolve({}) })
 const authorize = mothershipOrganizationChatsMockFns.mockAuthorizeOrganizationChatEvents
 const subscribe = mothershipChatStatusMockFns.mockOnStatusChanged
 
