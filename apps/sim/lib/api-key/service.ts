@@ -102,9 +102,6 @@ export async function authenticateApiKeyFromHeader(
 
     if (options.userId && record.userId !== options.userId) return INVALID
     if (options.keyTypes?.length && !options.keyTypes.includes(keyType)) return INVALID
-    if (record.expiresAt && record.expiresAt < new Date()) {
-      return { success: false, error: API_KEY_EXPIRED, expired: true }
-    }
 
     if (
       options.workspaceId &&
@@ -124,6 +121,11 @@ export async function authenticateApiKeyFromHeader(
         options.workspaceId
       )
       if (permission === null) return INVALID
+    }
+
+    /** Last, so a key that fails any other gate reports invalid rather than expired. */
+    if (record.expiresAt && record.expiresAt < new Date()) {
+      return { success: false, error: API_KEY_EXPIRED, expired: true }
     }
 
     logger.debug('API key matched via hash lookup', { keyId: record.id, keyType })

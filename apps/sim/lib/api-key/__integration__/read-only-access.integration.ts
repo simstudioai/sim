@@ -10,6 +10,8 @@
 import { db } from '@sim/db'
 import {
   apiKey,
+  knowledgeBase,
+  knowledgeBaseTagDefinitions,
   permissions,
   user,
   userTableDefinitions,
@@ -20,12 +22,14 @@ import {
 } from '@sim/db/schema'
 import { deleteWorkspaceFixture, insertWorkspaceFixture } from '@sim/db/testing/workspace-fixtures'
 import { authMock, authMockFns } from '@sim/testing'
+import { featureFlagsMock, featureFlagsMockFns } from '@sim/testing/mocks/feature-flags.mock'
 import { generateId } from '@sim/utils/id'
 import { eq } from 'drizzle-orm'
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/auth', () => authMock)
+vi.mock('@/lib/core/config/feature-flags', () => featureFlagsMock)
 
 import { hashApiKey } from '@/lib/api-key/crypto'
 import { READ_ONLY_API_KEY_DENIED } from '@/lib/api-key/policy-messages'
@@ -50,11 +54,13 @@ const userId = generateId()
 const workspaceId = generateId()
 const workflowId = generateId()
 const mcpServerId = generateId()
+const knowledgeBaseId = generateId()
 const legacyKey = `sk-sim-fixture-${generateId()}`
 const expiredKey = `sk-sim-fixture-${generateId()}`
 
 let readPersonalKey = ''
 let readWorkspaceKey = ''
+let readOnlyKeysEnabled = false
 
 type RouteHandler = (request: NextRequest, context: { params: Promise<never> }) => Promise<Response>
 
@@ -157,6 +163,22 @@ describe('read-only and expiring API keys in PostgreSQL', () => {
       createdBy: userId,
       name: 'Read-only key fixture',
     })
+    await db.insert(knowledgeBase).values({
+      id: knowledgeBaseId,
+      userId,
+      workspaceId,
+      name: 'Read-only key fixture',
+    })
+    await db.insert(knowledgeBaseTagDefinitions).values({
+      id: generateId(),
+      knowledgeBaseId,
+      tagSlot: 'tag1',
+      displayName: 'Topic',
+      fieldType: 'text',
+    })
+    featureFlagsMockFns.mockIsFeatureEnabled.mockImplementation(
+      async (flag) => flag === 'api-key-read-only' && readOnlyKeysEnabled
+    )
     await db.insert(apiKey).values([
       {
         id: generateId(),
@@ -197,7 +219,7 @@ describe('read-only and expiring API keys in PostgreSQL', () => {
       'next tuesday',
     ]) {
       const created = await call(createPersonalKey, '/api/users/me/api-keys', {
-        body: { name: `Bad expiry ${generateId()}`, access: 'read', expiresAt },
+        body: { name: `Bad expiry ${generateId()}`, expiresAt },
       })
       expect(created.status, expiresAt).toBe(400)
     }
@@ -209,7 +231,31 @@ describe('read-only and expiring API keys in PostgreSQL', () => {
     expect(after).toHaveLength(before.length)
   })
 
+  it('refuses to create a read-only key while the api-key-read-only flag is off', async () => {
+    const before = await db.select({ id: apiKey.id }).from(apiKey).where(eq(apiKey.userId, userId))
+    const personal = await call(createPersonalKey, '/api/users/me/api-keys', {
+      body: { name: `Flag off personal ${generateId()}`, access: 'read' },
+    })
+    expect(personal.status).toBe(400)
+    expect(personal.body).toEqual({ error: 'Read-only API keys are not available yet' })
+    const scoped = await call(createWorkspaceKey, `/api/workspaces/${workspaceId}/api-keys`, {
+      body: { name: `Flag off workspace ${generateId()}`, access: 'read' },
+      params: { id: workspaceId },
+    })
+    expect(scoped.status).toBe(400)
+    const after = await db.select({ id: apiKey.id }).from(apiKey).where(eq(apiKey.userId, userId))
+    expect(after).toHaveLength(before.length)
+  })
+
+  it('reserves the delegation key-name prefix', async () => {
+    const created = await call(createPersonalKey, '/api/users/me/api-keys', {
+      body: { name: `mothership-delegation:${userId}`, access: 'write' },
+    })
+    expect(created.status).toBe(400)
+  })
+
   it('mints read-only personal and workspace keys that report their access and expiry', async () => {
+    readOnlyKeysEnabled = true
     const expiresAt = new Date(Date.now() + 30 * DAY_MS).toISOString()
     const personal = await call(createPersonalKey, '/api/users/me/api-keys', {
       body: { name: `Read personal ${generateId()}`, access: 'read', expiresAt },
@@ -262,12 +308,18 @@ describe('read-only and expiring API keys in PostgreSQL', () => {
       expect(workflowMcpList.status).toBe(200)
     }
 
-    /** Search reads through POST, so the v1 write gate lets it through to the route's own checks. */
-    const search = await call(v1KnowledgeSearch, '/api/v1/knowledge/search', {
-      key: readPersonalKey,
-      body: { workspaceId, knowledgeBaseIds: [generateId()], query: 'fixture' },
-    })
-    expect(JSON.stringify(search.body)).not.toContain('READ_ONLY_API_KEY')
+    /** Search reads through POST, so the v1 write gate lets it through. Tag-only, so nothing embeds. */
+    for (const key of [readPersonalKey, readWorkspaceKey]) {
+      const search = await call(v1KnowledgeSearch, '/api/v1/knowledge/search', {
+        key,
+        body: {
+          workspaceId,
+          knowledgeBaseIds: knowledgeBaseId,
+          tagFilters: [{ tagName: 'Topic', value: 'fixture' }],
+        },
+      })
+      expect(search.status, JSON.stringify(search.body)).toBe(200)
+    }
   })
 
   it('refuses every write path with READ_ONLY_API_KEY and changes nothing', async () => {

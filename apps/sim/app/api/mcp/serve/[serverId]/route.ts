@@ -41,7 +41,11 @@ import {
   mcpServeRouteParamsSchema,
   mcpToolCallParamsSchema,
 } from '@/lib/api/contracts/mcp'
-import { PERSONAL_KEY_DENIED, READ_ONLY_API_KEY_DENIED } from '@/lib/api-key/policy-messages'
+import {
+  API_KEY_EXPIRED,
+  PERSONAL_KEY_DENIED,
+  READ_ONLY_API_KEY_DENIED,
+} from '@/lib/api-key/policy-messages'
 import { type AuthResult, checkHybridAuth } from '@/lib/auth/hybrid'
 import {
   InvalidOAuthAccessTokenError,
@@ -487,10 +491,14 @@ async function resolveWorkflowMcpBillingAttribution(
  * A 401 that points OAuth clients at this server's protected-resource metadata,
  * so they can discover Sim's authorization server and start the flow.
  */
-function unauthorizedResponse(serverId: string, invalidToken = false): NextResponse {
+function unauthorizedResponse(
+  serverId: string,
+  invalidToken = false,
+  error?: string
+): NextResponse {
   return withWorkflowMcpAuthChallenge(
     NextResponse.json(
-      { error: invalidToken ? 'Invalid access token' : 'Unauthorized' },
+      { error: invalidToken ? 'Invalid access token' : (error ?? 'Unauthorized') },
       {
         status: 401,
         ...(invalidToken && { headers: { 'WWW-Authenticate': 'Bearer error="invalid_token"' } }),
@@ -565,7 +573,10 @@ async function authorizeMcpServeRequest(
     }
   }
   if (!auth.success || !auth.userId) {
-    return { response: unauthorizedResponse(server.id) }
+    const expired = auth.error === API_KEY_EXPIRED
+    return {
+      response: unauthorizedResponse(server.id, false, expired ? API_KEY_EXPIRED : undefined),
+    }
   }
   if (!auth.principal) {
     throw new Error('Authenticated MCP request is missing its principal')

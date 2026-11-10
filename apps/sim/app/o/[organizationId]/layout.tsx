@@ -3,6 +3,7 @@ import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { SettingsNavigationProvider } from '@/components/settings/settings-navigation-provider'
+import { isReadOnlyApiKeyCreationEnabled } from '@/lib/api-key/feature-flag'
 import { getSession } from '@/lib/auth'
 import { getActiveOrganizationId } from '@/lib/auth/session-response'
 import { canUseBenchmarks } from '@/lib/benchmarks/config'
@@ -89,6 +90,7 @@ export default async function OrganizationLayout({
     simLinksEnabled,
     peopleEnabled,
     simLinkOrganizationId,
+    readOnlyApiKeysEnabled,
   ] = await Promise.all([
     prefetchOrganizationSidebar(
       queryClient,
@@ -113,6 +115,7 @@ export default async function OrganizationLayout({
       userId: session.user.id,
       sessionId: session.session.id,
     }),
+    isReadOnlyApiKeyCreationEnabled(),
   ])
   const initialSidebarCollapsed = cookieStore.get('sidebar_collapsed')?.value === '1'
 
@@ -128,6 +131,7 @@ export default async function OrganizationLayout({
           'mothership-plan-mode': benchmarkEnabled,
           'mothership-memory-spaces': benchmarkEnabled,
           projects: projectsEnabled,
+          'api-key-read-only': readOnlyApiKeysEnabled,
         }}
       >
         <OrganizationProvider context={context}>

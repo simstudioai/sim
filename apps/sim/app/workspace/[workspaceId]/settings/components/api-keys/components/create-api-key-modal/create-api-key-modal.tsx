@@ -14,12 +14,11 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import type { ApiKeyAccessLevel } from '@/lib/api/contracts/api-keys'
+import { type ApiKeyAccessLevel, DAY_MS } from '@/lib/api/contracts/api-keys'
+import { useFeatureFlag } from '@/app/workspace/[workspaceId]/providers/feature-flags-provider'
 import { type CreatedApiKey, useCreateApiKey } from '@/hooks/queries/api-keys'
 
 const logger = createLogger('CreateApiKeyModal')
-
-const DAY_MS = 24 * 60 * 60 * 1000
 
 const EXPIRY_OPTIONS = [
   { value: '30', label: '30 days' },
@@ -76,6 +75,8 @@ export function CreateApiKeyModal({
   const [newKey, setNewKey] = useState<CreatedApiKey | null>(null)
   const [showNewKeyDialog, setShowNewKeyDialog] = useState(false)
   const createApiKeyMutation = useCreateApiKey()
+  const readOnlyKeysEnabled = useFeatureFlag('api-key-read-only')
+  const canChooseAccess = !fullAccessOnly && readOnlyKeysEnabled
 
   /**
    * The form is seeded when the modal OPENS, not when this component mounts.
@@ -127,7 +128,7 @@ export function CreateApiKeyModal({
       const settings = {
         name: trimmedName,
         source,
-        access: fullAccessOnly ? 'write' : access,
+        access: canChooseAccess ? access : 'write',
         expiresAt: expiresAtFor(expiry),
       } as const
       const data = await createApiKeyMutation.mutateAsync(
@@ -195,7 +196,7 @@ export function CreateApiKeyModal({
             autoComplete='off'
             required
           />
-          {!fullAccessOnly && (
+          {canChooseAccess && (
             <ChipModalField type='custom' title='Access'>
               <ChipButtonGroup
                 value={access}
