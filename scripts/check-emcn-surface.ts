@@ -1,16 +1,25 @@
 #!/usr/bin/env bun
 /**
- * Freezes the public surface of `@sim/emcn` and `@sim/emcn-platform`. The design owner's rule:
- * legacy components stay custom or `emcn-legacy`, new work composes EMCN as it stands, and nothing
- * is added to EMCN, so no attribute, variant or option is passed through to it. The surface is every
- * export subpath, each one's exported names, each exported component's props with their literal
- * variant values, and every CSS Module class in the package. It is recorded in
- * `scripts/emcn-surface.json`; any difference fails. Only the design owner (CODEOWNERS) changes
- * EMCN or regenerates the snapshot with `--update`: compose the existing component instead.
+ * Freezes the public surface of the modern design packages. The design owner's rule: legacy
+ * components stay custom or `emcn-legacy`, new work composes EMCN as it stands, and nothing is added
+ * to EMCN, so no attribute, variant or option is passed through to it. The surface is recorded in
+ * `scripts/emcn-surface.json`; any difference fails. Only the design owner (CODEOWNERS) changes EMCN
+ * or regenerates the snapshot with `--update`: compose the existing component instead.
+ *
+ * Per export subpath it records the exported names, and each component's props and each other
+ * exported function's parameters as a type shape: literal values, opaque type names (`‹string›`),
+ * and the members of the objects, arrays (`[]`) and callbacks (`()`, returning `⇒`) declared in the
+ * package, to `MAX_DEPTH`. React and DOM attributes are named by their declaring interface under `…inherited`.
+ * An exported stylesheet records its custom properties and its selectors and at-rules; each CSS
+ * Module class records a fingerprint of the declarations of every rule that names it.
+ *
+ * `@sim/emcn-auth` and `@sim/emcn-docs` are frozen with `@sim/emcn` and `@sim/emcn-platform`: the
+ * design owner is their only author (`git log --format=%an -- packages/emcn-auth packages/emcn-docs`).
  *
  * Run: `bun run check:emcn-surface` (`-- --update` rewrites the snapshot)
  */
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import ts from '@typescript/typescript6'
@@ -19,38 +28,86 @@ import { emcnPackages, emcnTypeScriptPaths } from './emcn-packages'
 import { localBin } from './local-bin'
 import { listRepoFiles } from './repo-files'
 
-const FROZEN = new Set(['@sim/emcn', '@sim/emcn-platform'])
+const FROZEN = new Set(['@sim/emcn', '@sim/emcn-auth', '@sim/emcn-docs', '@sim/emcn-platform'])
 const SNAPSHOT = 'scripts/emcn-surface.json'
+/** How many levels of objects, arrays and callbacks are recorded, counting the prop itself. */
+const MAX_DEPTH = 5
 
-/** A prop's literal values, sorted, or `null` when its type is not a literal union. */
-type PropShape = string[] | null
+/**
+ * A type's literal values and opaque type names, sorted; or, when it admits an object, array or
+ * callback declared in a frozen package, a record of their members with the rest under `…types`.
+ */
+type TypeShape = string[] | { [key: string]: TypeShape }
+type Members = Record<string, TypeShape>
 interface SubpathSurface {
   names: string[]
-  props: Record<string, Record<string, PropShape>>
+  props: Record<string, Members>
+  params: Record<string, Members>
+}
+interface StylesheetSurface {
+  properties: string[]
+  selectors: string[]
 }
 interface PackageSurface {
-  exports: Record<string, SubpathSurface | 'asset'>
-  classes: Record<string, string[]>
+  exports: Record<string, SubpathSurface | StylesheetSurface | 'asset'>
+  classes: Record<string, Record<string, string>>
 }
 type Surface = Record<string, PackageSurface>
 
 const sorted = <T>(values: Iterable<T>) => [...values].sort()
 const byKey = <T>(entries: [string, T][]) =>
   Object.fromEntries(entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+/** CSS text with whitespace collapsed and dropped around punctuation: reformatting is no change. */
+const normalizeCss = (text: string) =>
+  text
+    .replace(/\s+/g, ' ')
+    .replace(/\s*([,>+~(){}:;])\s*/g, '$1')
+    .trim()
 
-function literalValues(type: ts.Type): PropShape {
-  const members = (type.isUnion() ? type.types : [type]).filter(
-    (member) => !(member.flags & (ts.TypeFlags.Undefined | ts.TypeFlags.Null))
-  )
-  if (!members.length) return null
-  const values: string[] = []
-  for (const member of members) {
-    if (member.isStringLiteral() || member.isNumberLiteral()) values.push(String(member.value))
-    else if (member.flags & ts.TypeFlags.BooleanLiteral)
-      values.push((member as ts.Type & { intrinsicName: string }).intrinsicName)
-    else return null
+/** The at-rules enclosing `node`, outermost first, each followed by a space. */
+function cssContext(node: postcss.Node) {
+  let context = ''
+  for (let parent = node.parent; parent && parent.type !== 'root'; parent = parent.parent) {
+    if (parent.type === 'atrule') {
+      const rule = parent as postcss.AtRule
+      context = `${normalizeCss(`@${rule.name} ${rule.params}`)} ${context}`
+    }
   }
-  return sorted(new Set(values))
+  return context
+}
+
+function stylesheetSurface(file: string): StylesheetSurface {
+  const properties = new Set<string>()
+  const selectors = new Set<string>()
+  postcss.parse(readFileSync(file, 'utf8')).walk((node) => {
+    if (node.type === 'decl' && node.prop.startsWith('--')) properties.add(node.prop)
+    if (node.type === 'rule') selectors.add(cssContext(node) + normalizeCss(node.selector))
+    if (node.type === 'atrule')
+      selectors.add(cssContext(node) + normalizeCss(`@${node.name} ${node.params}`))
+  })
+  return { properties: sorted(properties), selectors: sorted(selectors) }
+}
+
+/** Each class a CSS Module names, with a fingerprint of the rules (and declarations) naming it. */
+function classFingerprints(file: string) {
+  const rules = new Map<string, string[]>()
+  postcss.parse(readFileSync(file, 'utf8')).walkRules((rule) => {
+    const declarations = (rule.nodes ?? [])
+      .filter((node): node is postcss.Declaration => node.type === 'decl')
+      .map(
+        (decl) => `${decl.prop}:${normalizeCss(decl.value)}${decl.important ? '!important' : ''}`
+      )
+    const text = `${cssContext(rule)}${normalizeCss(rule.selector)}{${declarations.join(';')}}`
+    for (const [, name] of rule.selector.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)) {
+      rules.set(name, [...(rules.get(name) ?? []), text])
+    }
+  })
+  return byKey(
+    [...rules].map(([name, texts]): [string, string] => [
+      name,
+      createHash('sha256').update(texts.join('\n')).digest('hex').slice(0, 12),
+    ])
+  )
 }
 
 /** Reads the frozen packages' surface from the tree at `root`. */
@@ -78,41 +135,127 @@ function readSurface(root: string): Surface {
   )
   const checker = program.getTypeChecker()
   const packagesRoot = path.join(root, 'packages') + path.sep
+  const inPackages = (node: ts.Node | undefined) => {
+    const file = node?.getSourceFile().fileName
+    return !!file?.startsWith(packagesRoot) && !file.includes('/node_modules/')
+  }
+  /** A type declared outside the packages (React, the DOM, the standard library): named, not walked. */
+  const isLibrary = (type: ts.Type) => {
+    const declarations = (type.aliasSymbol ?? type.getSymbol())?.declarations ?? []
+    return declarations.length > 0 && !declarations.some(inPackages)
+  }
+  const isObject = (type: ts.Type): boolean =>
+    !!(type.flags & ts.TypeFlags.Object) ||
+    (type.isIntersection() && type.types.every((part) => part.flags & ts.TypeFlags.Object))
+  /**
+   * A type's name: an anonymous package object past `MAX_DEPTH` is `‹…›`, and a long expansion keeps
+   * its start and a hash of the rest, so the snapshot stays readable but still changes with it.
+   */
+  function opaque(type: ts.Type) {
+    const anonymous = !type.aliasSymbol && !/^[A-Z]/.test(type.getSymbol()?.name ?? '')
+    if (isObject(type) && !isLibrary(type) && anonymous) return '‹…›'
+    const text = checker.typeToString(type, undefined, ts.TypeFormatFlags.NoTruncation)
+    if (text.length <= 120) return `‹${text}›`
+    return `‹${text.slice(0, 80)}… #${createHash('sha256').update(text).digest('hex').slice(0, 8)}›`
+  }
+
+  function shapeOf(types: readonly ts.Type[], depth: number): TypeShape {
+    const tokens = new Set<string>()
+    const elements: ts.Type[] = []
+    const callbacks: ts.Signature[] = []
+    const objects: ts.Type[] = []
+    for (const type of types) {
+      const named = type.aliasSymbol && isLibrary(type)
+      for (const member of named || !type.isUnion() ? [type] : type.types) {
+        if (member.flags & (ts.TypeFlags.Undefined | ts.TypeFlags.Null)) continue
+        if (member.isStringLiteral() || member.isNumberLiteral()) tokens.add(String(member.value))
+        else if (member.flags & ts.TypeFlags.BooleanLiteral)
+          tokens.add((member as ts.Type & { intrinsicName: string }).intrinsicName)
+        else if (depth >= MAX_DEPTH) tokens.add(opaque(member))
+        else if (checker.isArrayType(member) || checker.isTupleType(member))
+          elements.push(...checker.getTypeArguments(member as ts.TypeReference))
+        else if (isLibrary(member) || !isObject(member)) tokens.add(opaque(member))
+        else if (member.getCallSignatures().length && !member.getProperties().length)
+          callbacks.push(...member.getCallSignatures())
+        else objects.push(member)
+      }
+    }
+    const record: Members = {}
+    if (elements.length) record['[]'] = shapeOf(elements, depth + 1)
+    if (callbacks.length)
+      record['()'] = {
+        ...parametersOf(callbacks, depth + 1),
+        '⇒': shapeOf(
+          callbacks.map((signature) => signature.getReturnType()),
+          depth + 1
+        ),
+      }
+    if (objects.length) Object.assign(record, membersOf(objects, depth + 1))
+    if (!Object.keys(record).length) return sorted(tokens)
+    if (tokens.size) record['…types'] = sorted(tokens)
+    return byKey(Object.entries(record))
+  }
+
+  /** The properties of `types`, merged by name; those declared outside the packages by interface. */
+  function membersOf(types: readonly ts.Type[], depth: number): Members {
+    const own = new Map<string, ts.Type[]>()
+    const inherited = new Set<string>()
+    for (const type of types) {
+      for (const member of type.isUnion() ? type.types : [type]) {
+        for (const prop of checker.getPropertiesOfType(checker.getApparentType(member))) {
+          const owner = prop.declarations?.[0]?.parent
+          if (!inPackages(owner)) {
+            const name = owner && (ts.isInterfaceDeclaration(owner) ? owner.name.text : undefined)
+            inherited.add(name ?? 'anonymous')
+            continue
+          }
+          own.set(prop.name, [...(own.get(prop.name) ?? []), checker.getTypeOfSymbol(prop)])
+        }
+      }
+    }
+    const record: Members = {}
+    for (const [name, propTypes] of own) record[name] = shapeOf(propTypes, depth)
+    if (inherited.size) record['…inherited'] = sorted(inherited)
+    return byKey(Object.entries(record))
+  }
+
+  /** The parameters of `signatures`, merged by name. */
+  function parametersOf(signatures: readonly ts.Signature[], depth: number): Members {
+    const parameters = new Map<string, ts.Type[]>()
+    for (const signature of signatures) {
+      for (const parameter of signature.getParameters()) {
+        const types = parameters.get(parameter.name) ?? []
+        parameters.set(parameter.name, [...types, checker.getTypeOfSymbol(parameter)])
+      }
+    }
+    return byKey([...parameters].map(([name, types]) => [name, shapeOf(types, depth)]))
+  }
 
   function subpathSurface(file: string): SubpathSurface {
     const source = program.getSourceFile(file)
     const module = source && checker.getSymbolAtLocation(source)
     const names: string[] = []
     const props: SubpathSurface['props'] = {}
+    const params: SubpathSurface['params'] = {}
     for (const symbol of module ? checker.getExportsOfModule(module) : []) {
       names.push(symbol.name)
       const target = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol
       const declaration = target.valueDeclaration
-      if (!declaration || !/^[A-Z]/.test(symbol.name)) continue
+      if (!declaration) continue
       const [signature] = checker.getTypeOfSymbolAtLocation(target, declaration).getCallSignatures()
-      const [parameter] = signature?.getParameters() ?? []
-      if (!parameter) continue
-      const shape = checker.getTypeOfSymbolAtLocation(parameter, declaration)
-      const own: Record<string, PropShape> = {}
-      const inherited = new Set<string>()
-      for (const member of shape.isUnion() ? shape.types : [shape]) {
-        for (const prop of checker.getPropertiesOfType(checker.getApparentType(member))) {
-          const owner = prop.declarations?.[0]?.parent
-          if (!owner?.getSourceFile().fileName.startsWith(packagesRoot)) {
-            // DOM and React attributes, recorded by the interface that declares them.
-            const name = owner && (ts.isInterfaceDeclaration(owner) ? owner.name.text : undefined)
-            inherited.add(name ?? 'anonymous')
-            continue
-          }
-          own[prop.name] = literalValues(
-            checker.getNonNullableType(checker.getTypeOfSymbolAtLocation(prop, declaration))
-          )
-        }
+      if (!signature) continue
+      if (!/^[A-Z]/.test(symbol.name)) {
+        params[symbol.name] = parametersOf([signature], 1)
+        continue
       }
-      if (inherited.size) own['…inherited'] = sorted(inherited)
-      props[symbol.name] = byKey(Object.entries(own))
+      const [parameter] = signature.getParameters()
+      if (parameter) props[symbol.name] = membersOf([checker.getTypeOfSymbol(parameter)], 1)
     }
-    return { names: sorted(names), props: byKey(Object.entries(props)) }
+    return {
+      names: sorted(names),
+      props: byKey(Object.entries(props)),
+      params: byKey(Object.entries(params)),
+    }
   }
 
   const surface: Surface = {}
@@ -120,18 +263,22 @@ function readSurface(root: string): Surface {
     const prefix = `${path.relative(root, owner.directory)}/`
     const classes = files
       .filter((file) => file.startsWith(prefix) && file.endsWith('.module.css'))
-      .map((file): [string, string[]] => {
-        const found = new Set<string>()
-        postcss.parse(readFileSync(path.join(root, file), 'utf8')).walkRules((rule) => {
-          for (const [, name] of rule.selector.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)) found.add(name)
-        })
-        return [file.slice(prefix.length), sorted(found)]
-      })
+      .map((file): [string, Record<string, string>] => [
+        file.slice(prefix.length),
+        classFingerprints(path.join(root, file)),
+      ])
     surface[owner.name] = {
       exports: byKey(
         entries
           .filter((entry) => entry.owner === owner.name)
-          .map(({ key, file }) => [key, /\.tsx?$/.test(file) ? subpathSurface(file) : 'asset'])
+          .map(({ key, file }) => [
+            key,
+            /\.tsx?$/.test(file)
+              ? subpathSurface(file)
+              : file.endsWith('.css')
+                ? stylesheetSurface(file)
+                : 'asset',
+          ])
       ),
       classes: byKey(classes),
     }
@@ -182,9 +329,10 @@ if (import.meta.main) {
     if (diff.length) {
       process.stderr.write(
         `EMCN's surface changed (${SNAPSHOT}):\n${diff.map((line) => `  ${line}`).join('\n')}\n\n` +
-          'EMCN is frozen: compose the existing components and pass no new attribute, variant or ' +
-          'option through to them. Only the design owner (CODEOWNERS) changes EMCN and regenerates ' +
-          'the snapshot with `bun run check:emcn-surface -- --update`.\n'
+          'EMCN is frozen: compose the existing components and pass no new attribute, variant, ' +
+          'option, item field, parameter, token, selector or class style through to them (a `~` ' +
+          'on a class means its declarations changed). Only the design owner (CODEOWNERS) changes ' +
+          'EMCN and regenerates the snapshot with `bun run check:emcn-surface -- --update`.\n'
       )
       process.exitCode = 1
     } else {
