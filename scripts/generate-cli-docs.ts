@@ -308,6 +308,7 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
   organizations: [
     { title: 'Organizations and workspaces', prefixes: ['list', 'get', 'workspaces'] },
     { title: 'Members and credit limits', prefixes: ['members'] },
+    { title: 'GitLab Search permissions', prefixes: ['gitlab-permissions'] },
     { title: 'Invitations', prefixes: ['invitations'] },
     { title: 'Usage', prefixes: ['usage summary', 'usage breakdown', 'usage events'] },
     {

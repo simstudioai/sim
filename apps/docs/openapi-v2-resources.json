@@ -9643,6 +9643,234 @@
         }
       }
     },
+    "/api/v2/organizations/{organizationId}/search/sources/{sourceId}/gitlab-permissions": {
+      "get": {
+        "operationId": "getGitLabSearchPermissions",
+        "summary": "Get GitLab Search permission revision",
+        "description": "Read the current revision of an existing GitLab Search source in CSV permission mode. Requires organization Admin access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "knowledge.search.gitlab_permissions.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "description": "Identifier of the configured GitLab Search source.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Identifier of the configured GitLab Search source."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The current permission revision.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitLabSearchPermissionResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "revision": 3
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "put": {
+        "operationId": "replaceGitLabSearchPermissions",
+        "summary": "Replace GitLab Search permission CSVs",
+        "description": "Replace both permission CSVs for an existing GitLab Search source in CSV mode. Requires organization Admin access. Supply the current revision. A concurrent change returns 409 and leaves both files untouched. Each file accepts up to 4 MiB and 100,000 data rows. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "knowledge.search.gitlab_permissions.replace",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "description": "Identifier of the configured GitLab Search source.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Identifier of the configured GitLab Search source."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The expected revision and complete contents of both UTF-8 CSV files.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceGitLabSearchPermissionsBody"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "expectedRevision": 2,
+                    "userMapping": {
+                      "filename": "users.csv",
+                      "content": "user_id,email\n42,reader@example.com\n"
+                    },
+                    "projectPermissions": {
+                      "filename": "projects.csv",
+                      "content": "project_path,user_id\nteam/project,42\n"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new permission revision.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitLabSearchPermissionResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "revision": 3
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/organizations/{organizationId}/sso/providers": {
       "get": {
         "operationId": "listSsoProviders",
@@ -23294,6 +23522,109 @@
             "data": {
               "id": "invitation-123",
               "status": "cancelled"
+            }
+          }
+        ]
+      },
+      "GitLabSearchPermissionRevision": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Current revision of the stored permissions."
+          }
+        },
+        "required": ["revision"],
+        "additionalProperties": false,
+        "title": "GitLab Search permission revision",
+        "description": "Revision of the permission CSVs for this source."
+      },
+      "GitLabSearchPermissionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/GitLabSearchPermissionRevision"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "GitLab Search permission response",
+        "description": "Current revision of the permission CSVs.",
+        "examples": [
+          {
+            "data": {
+              "revision": 3
+            }
+          }
+        ]
+      },
+      "ReplaceGitLabSearchPermissionsBody": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Current permission revision obtained before generating this snapshot."
+          },
+          "userMapping": {
+            "type": "object",
+            "properties": {
+              "filename": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "CSV filename without path separators."
+              },
+              "content": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4194304,
+                "description": "UTF-8 CSV contents, up to 4 MiB."
+              }
+            },
+            "required": ["filename", "content"],
+            "additionalProperties": false,
+            "description": "GitLab user IDs and their verified Sim email addresses."
+          },
+          "projectPermissions": {
+            "type": "object",
+            "properties": {
+              "filename": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255,
+                "description": "CSV filename without path separators."
+              },
+              "content": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4194304,
+                "description": "UTF-8 CSV contents, up to 4 MiB."
+              }
+            },
+            "required": ["filename", "content"],
+            "additionalProperties": false,
+            "description": "GitLab project paths and the IDs of users granted access."
+          }
+        },
+        "required": ["expectedRevision", "userMapping", "projectPermissions"],
+        "additionalProperties": false,
+        "title": "GitLab Search permission CSVs",
+        "description": "The expected revision and complete contents of both UTF-8 CSV files.",
+        "examples": [
+          {
+            "expectedRevision": 2,
+            "userMapping": {
+              "filename": "users.csv",
+              "content": "user_id,email\n42,reader@example.com\n"
+            },
+            "projectPermissions": {
+              "filename": "projects.csv",
+              "content": "project_path,user_id\nteam/project,42\n"
             }
           }
         ]

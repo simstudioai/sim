@@ -1238,6 +1238,16 @@ export const CLI_CONTRACT: CliContract = {
     columns: [{ header: 'id' }, { header: 'name' }, { header: 'role' }],
   },
   getOrganization: { command: 'organizations get' },
+  getGitLabSearchPermissions: {
+    command: 'organizations gitlab-permissions get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  replaceGitLabSearchPermissions: {
+    command: 'organizations gitlab-permissions replace',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm:
+      'This replaces both GitLab permission files. Readers omitted from the new grants lose access.',
+  },
   listSsoProviders: {
     command: 'organizations sso providers list',
     pathFlags: ORGANIZATION_FLAG,

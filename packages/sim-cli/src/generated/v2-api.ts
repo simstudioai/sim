@@ -6221,6 +6221,22 @@ export type GetFileVersionResponse = {
   data: GetFileVersionResponseRef0
 }
 
+/** `GET /api/v2/organizations/[organizationId]/search/sources/[sourceId]/gitlab-permissions` */
+export type GetGitLabSearchPermissionsParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type GetGitLabSearchPermissionsQuery = Record<string, unknown>
+
+type GetGitLabSearchPermissionsResponseRef0 = {
+  revision: number
+}
+
+export type GetGitLabSearchPermissionsResponse = {
+  data: GetGitLabSearchPermissionsResponseRef0
+}
+
 /** `GET /api/v2/knowledge/[knowledgeBaseId]` */
 export type GetKnowledgeBaseParams = {
   knowledgeBaseId: string
@@ -12725,6 +12741,34 @@ export type RenameProjectFileResponse = {
   data: RenameProjectFileResponseRef0
 }
 
+/** `PUT /api/v2/organizations/[organizationId]/search/sources/[sourceId]/gitlab-permissions` */
+export type ReplaceGitLabSearchPermissionsParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type ReplaceGitLabSearchPermissionsQuery = Record<string, unknown>
+
+export type ReplaceGitLabSearchPermissionsBody = {
+  expectedRevision: number
+  userMapping: {
+    filename: string
+    content: string
+  }
+  projectPermissions: {
+    filename: string
+    content: string
+  }
+}
+
+type ReplaceGitLabSearchPermissionsResponseRef0 = {
+  revision: number
+}
+
+export type ReplaceGitLabSearchPermissionsResponse = {
+  data: ReplaceGitLabSearchPermissionsResponseRef0
+}
+
 /** `PUT /api/v2/workflows/[workflowId]/deployments/chat` */
 export type ReplaceWorkflowChatDeploymentParams = {
   workflowId: string
@@ -18793,6 +18837,18 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the file.' },
     },
   },
+  getGitLabSearchPermissions: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/gitlab-permissions',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Identifier of the configured GitLab Search source.',
+    },
+    responseMode: 'json',
+    summary: 'Get GitLab Search permission revision',
+    workspaceKeyUnsupported: true,
+  },
   getKnowledgeBase: {
     method: 'GET',
     path: '/api/v2/knowledge/[knowledgeBaseId]',
@@ -23071,6 +23127,35 @@ export const V2_OPERATIONS = {
     workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', required: true, describe: 'New file name, including its extension.' },
+    },
+  },
+  replaceGitLabSearchPermissions: {
+    method: 'PUT',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/gitlab-permissions',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Identifier of the configured GitLab Search source.',
+    },
+    responseMode: 'json',
+    summary: 'Replace GitLab Search permission CSVs',
+    workspaceKeyUnsupported: true,
+    body: {
+      expectedRevision: {
+        kind: 'integer',
+        required: true,
+        describe: 'Current permission revision obtained before generating this snapshot.',
+      },
+      userMapping: {
+        kind: 'object',
+        required: true,
+        describe: 'GitLab user IDs and their verified Sim email addresses.',
+      },
+      projectPermissions: {
+        kind: 'object',
+        required: true,
+        describe: 'GitLab project paths and the IDs of users granted access.',
+      },
     },
   },
   replaceWorkflowChatDeployment: {
