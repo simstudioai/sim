@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-06",
+  "updatedAt": "2026-11-10",
   "integrations": [
     {
       "type": "onepassword",
@@ -2342,6 +2342,66 @@
       "integrationType": "sales",
       "tags": ["sales-engagement", "enrichment"],
       "updatedAt": "2026-08-18"
+    },
+    {
+      "type": "autom",
+      "slug": "autom",
+      "name": "Autom",
+      "description": "Search Google, Bing, Brave, Yahoo and DuckDuckGo",
+      "longDescription": "Get structured search results from Google (web, news, Maps and autocomplete), Bing, Brave, Yahoo and DuckDuckGo, and look up the Google location names that localized searches accept.",
+      "bgColor": "#FFFFFF",
+      "iconName": "AutomIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/autom",
+      "operations": [
+        {
+          "name": "Google Search",
+          "description": "Search Google and get organic results with their position, title, link and snippet, the knowledge graph and the estimated total."
+        },
+        {
+          "name": "Google Search (Organic Only)",
+          "description": "Search Google and get only the organic results, the fastest and cheapest Google search."
+        },
+        {
+          "name": "Google News",
+          "description": "Search Google News and get articles with title, source, date, link and snippet."
+        },
+        {
+          "name": "Google Maps",
+          "description": "Search Google Maps and get places with address, website, phone number and coordinates."
+        },
+        {
+          "name": "Google Autocomplete",
+          "description": "Get the Google Search autocomplete suggestions for a partial query."
+        },
+        {
+          "name": "Bing Search",
+          "description": "Search Bing and get organic results with their position, title, link and snippet."
+        },
+        {
+          "name": "DuckDuckGo Search",
+          "description": "Search DuckDuckGo and get organic results with their position, title, link and snippet."
+        },
+        {
+          "name": "Yahoo Search",
+          "description": "Search Yahoo and get organic results with their position, title, link and snippet."
+        },
+        {
+          "name": "Brave Search",
+          "description": "Search Brave's web index and get organic results with their position, title, link and snippet."
+        },
+        {
+          "name": "Find Google Locations",
+          "description": "Find the Google location names that the Location field of Google searches accepts, ordered by reach."
+        }
+      ],
+      "operationCount": 10,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "search",
+      "tags": ["seo", "web-scraping", "monitoring"],
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "appconfig",
