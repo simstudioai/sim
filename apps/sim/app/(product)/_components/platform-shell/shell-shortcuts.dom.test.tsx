@@ -7,11 +7,12 @@
  * command search over another modal. The web path already refused all three.
  */
 import { act, useRef } from 'react'
-import type { DesktopCommand } from '@sim/desktop-bridge'
 import { stubDialog } from '@sim/testing/mocks/browser-apis.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useShellShortcuts } from '@/app/(product)/_components/platform-shell/shell-shortcuts'
+
+type DesktopCommand = 'toggle-sidebar' | 'open-search'
 
 const toggleSidebar = vi.fn()
 const toggleCommand = vi.fn()
