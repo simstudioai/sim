@@ -31,13 +31,6 @@ export const TERMINAL_HEIGHT = {
   MAX_PERCENTAGE: 0.7,
 } as const
 
-/** Editor connections section height constraints */
-export const EDITOR_CONNECTIONS_HEIGHT = {
-  DEFAULT: 172,
-  MIN: 30,
-  MAX: 300,
-} as const
-
 /** Output panel (terminal execution results) width constraints */
 export const OUTPUT_PANEL_WIDTH = {
   DEFAULT: 560,

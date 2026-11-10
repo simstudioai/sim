@@ -13,24 +13,11 @@ interface UseFloatBoundarySyncProps {
 const CONTENT_WINDOW_GAP = 8
 
 /**
- * Layout dimensions a float must stay clear of. During a resize drag the live
- * value is an inline override on the consuming element (a scoped style recalc);
- * at rest it lives on `:root` (committed via the store / pre-hydration script).
- * Each entry pairs the element the drag writes to with its variable so the
- * float tracks the drag live and re-clamps at rest.
+ * Containers a resize drag writes its live dimension to as an inline style; at
+ * rest the value lives on `:root`. Observing both keeps the float re-clamping
+ * throughout a drag rather than only on release.
  */
-const BOUNDARY_DIMENSIONS = [
-  { selector: '.sidebar-shell-outer', cssVar: '--sidebar-width' },
-  { selector: '.panel-container', cssVar: '--panel-width' },
-  { selector: '.terminal-container', cssVar: '--terminal-height' },
-] as const
-
-/** Reads a boundary dimension, preferring the drag's scoped inline override. */
-function readBoundaryDimension(selector: string, cssVar: string): number {
-  const inline = document.querySelector<HTMLElement>(selector)?.style.getPropertyValue(cssVar)
-  const value = inline || getComputedStyle(document.documentElement).getPropertyValue(cssVar)
-  return Number.parseInt(value || '0')
-}
+const BOUNDARY_CONTAINER_SELECTORS = ['.panel-container', '.terminal-container'] as const
 
 /**
  * Hook to synchronize a float's position with layout boundary changes.
@@ -57,7 +44,9 @@ export function useFloatBoundarySync({
   positionRef.current = position
 
   const checkAndUpdatePosition = useCallback(() => {
-    const sidebarWidth = readBoundaryDimension('.sidebar-shell-outer', '--sidebar-width')
+    const sidebarWidth = Number.parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
+    )
     const panelWidth = getPanelWidth()
     const terminalHeight = getTerminalHeight()
     const viewportWidth = window.innerWidth
@@ -121,7 +110,7 @@ export function useFloatBoundarySync({
      */
     const observer = new MutationObserver(handleResize)
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
-    for (const { selector } of BOUNDARY_DIMENSIONS) {
+    for (const selector of BOUNDARY_CONTAINER_SELECTORS) {
       const el = document.querySelector(selector)
       if (el) observer.observe(el, { attributes: true, attributeFilter: ['style'] })
     }

@@ -13,8 +13,9 @@ vi.mock('@/stores/reset-all-stores', () => {
   return { resetAllStores: mockResetAllStores }
 })
 
+import { RECENT_IMPERSONATIONS_STORAGE_KEY } from '@/lib/auth/browser-storage'
 import { desktopToolSession } from '@/hooks/mothership-chat/desktop-tool-lifetimes'
-import { clearUserData, RECENT_IMPERSONATIONS_STORAGE_KEY } from '@/stores'
+import { clearUserData } from '@/stores'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
 
 expect(mockModuleLoaded).not.toHaveBeenCalled()

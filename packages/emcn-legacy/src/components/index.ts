@@ -18,7 +18,6 @@ export {
   chipContentGap,
   chipContentIconClass,
   chipContentLabelClass,
-  chipDropTargetSurfaceClass,
   chipFieldSurfaceClass,
   chipFieldTextClass,
   chipFilledFillTokens,
@@ -82,7 +81,6 @@ export {
   DropdownMenuTrigger,
   dropdownMenuRowClass,
 } from './dropdown-menu/dropdown-menu'
-export { MENU_STYLES } from './dropdown-menu/styles'
 export { Expandable, ExpandableContent } from './expandable/expandable'
 export { FieldDivider } from './field-divider/field-divider'
 export { Info } from './info/info'
@@ -105,12 +103,7 @@ export {
   ModalTrigger,
   useNativeSurfaceOcclusionReady,
 } from './modal/modal'
-export {
-  OverflowText,
-  overflowFadeSizeClass,
-  overflowTextClipClass,
-  overflowTextFadeClass,
-} from './overflow-text/overflow-text'
+export { OverflowText, overflowFadeSizeClass } from './overflow-text/overflow-text'
 export { POPOVER_ANIMATION_CLASSES } from './popover/animation'
 export {
   Popover,
@@ -160,6 +153,5 @@ export {
   isTextClipped,
   Tooltip,
   useFloatingTooltip,
-  useIsOverflowing,
 } from './tooltip/tooltip'
 export { Wizard } from './wizard/wizard'

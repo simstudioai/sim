@@ -176,7 +176,7 @@ interface SettingsActionChipProps {
  * is identical wherever it is mounted. Container spacing still belongs to the
  * enclosing shell.
  */
-export function SettingsActionChip({
+function SettingsActionChip({
   action,
   onSelect = action.onSelect,
   onPrefetch = action.onPrefetch,
@@ -232,7 +232,7 @@ export function SettingsActionChip({
  * `actions[index]` on a live ref to dodge stale closures, so a reordered render
  * must not renumber them.
  */
-export function orderHeaderActions(
+function orderHeaderActions(
   actions: SettingsAction[] | undefined
 ): { action: SettingsAction; index: number }[] {
   const rank = (action: SettingsAction) => {

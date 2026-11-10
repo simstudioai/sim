@@ -14,7 +14,7 @@ import {
 export const overflowFadeSizeClass = '[--overflow-fade-size:16px]'
 
 /** Complete fade-only clipping treatment for measured special cases. */
-export const overflowTextFadeClass = cn(
+const overflowTextFadeClass = cn(
   overflowFadeSizeClass,
   'overflow-hidden text-clip whitespace-nowrap [-webkit-mask-image:linear-gradient(to_right,black_calc(100%_-_var(--overflow-fade-size)),transparent)] [mask-image:linear-gradient(to_right,black_calc(100%_-_var(--overflow-fade-size)),transparent)]'
 )
