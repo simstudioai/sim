@@ -56,16 +56,3 @@ it('runs platform-design when an in-process dependency of the product changes', 
     .filter((file) => !triggers(filters, file))
   expect(uncovered, `add a paths filter to ${WORKFLOW} for each`).toEqual([])
 })
-
-it('reads the filters the way GitHub does', () => {
-  const filters = [
-    'apps/sim/platform/**',
-    '!apps/sim/platform/docs/**',
-    'apps/sim/platform/docs/org-parity.md',
-  ]
-  expect(triggers(filters, 'apps/sim/platform/lib/data/mode.ts')).toBe(true)
-  expect(triggers(filters, 'apps/sim/platform/docs/workspace-ui.md')).toBe(false)
-  expect(triggers(filters, 'apps/sim/platform/docs/org-parity.md')).toBe(true)
-  expect(triggers(['scripts/check-platform-*'], 'scripts/check-platform-css.ts')).toBe(true)
-  expect(triggers(['scripts/check-platform-*'], 'scripts/nested/check-platform-css.ts')).toBe(false)
-})

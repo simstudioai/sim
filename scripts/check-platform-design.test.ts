@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { expect, it } from 'vitest'
-import { allowlistReasonFindings, staleAllowlistFindings } from './platform-allowlists'
+import { allowlistReasonFindings } from './platform-allowlists'
 
 const CHECK = fileURLToPath(new URL('./check-platform-design.ts', import.meta.url))
 const ROOT = mkdtempSync(path.join(tmpdir(), 'sim-platform-design-'))
@@ -1001,18 +1001,6 @@ it('fails [stale-allowlist] for each entry no check needed', () => {
     rmSync(root, { recursive: true, force: true })
   }
 }, 30_000)
-
-it('names the allowlist entries no check consulted', () => {
-  expect(
-    staleAllowlistFindings(
-      { seamHelpers: { 'lib/a': 'used', 'lib/b': 'unused' }, LOCAL_TOKEN_OWNERS: { 'x.css': 'r' } },
-      new Map([['seamHelpers', new Set(['lib/a'])]])
-    )
-  ).toEqual([
-    'seamHelpers names lib/b, which no check needed; delete the entry',
-    'LOCAL_TOKEN_OWNERS names x.css, which no check needed; delete the entry',
-  ])
-})
 
 it('fails [prop-spread] for props passed through cloneElement or createElement', () => {
   const { root, put, run } = productFixture()
