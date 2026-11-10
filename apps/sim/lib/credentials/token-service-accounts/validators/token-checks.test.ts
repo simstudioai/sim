@@ -430,3 +430,12 @@ describe('saved credentials whose vendor answers a restricted token in its error
     else await expect(result).resolves.toMatchObject({ principal: null })
   })
 })
+
+it('refuses an Email Bison instance typed with a non-https scheme instead of reading it as a host', async () => {
+  inputValidationMockFns.mockSecureFetchWithValidation.mockReset()
+
+  await expect(
+    validateEmailBisonServiceAccount({ apiToken: 'secret', domain: 'ftp://instance.example.com' })
+  ).rejects.toMatchObject({ code: 'invalid_credentials' })
+  expect(inputValidationMockFns.mockSecureFetchWithValidation).not.toHaveBeenCalled()
+})

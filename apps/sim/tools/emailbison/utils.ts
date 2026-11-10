@@ -73,7 +73,7 @@ export function normalizeEmailBisonBaseUrl(baseUrl: string): string {
     throw new Error('Email Bison Instance URL is required')
   }
 
-  const rawBaseUrl = /^https?:\/\//i.test(trimmedBaseUrl)
+  const rawBaseUrl = /^[a-z][a-z\d+.-]*:\/\//i.test(trimmedBaseUrl)
     ? trimmedBaseUrl
     : `https://${trimmedBaseUrl}`
   const parsed = new URL(rawBaseUrl)
