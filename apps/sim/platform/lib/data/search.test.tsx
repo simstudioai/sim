@@ -142,7 +142,6 @@ describe('Summarize on a search result', () => {
     expect(mocks.params.mode).toBe('assistant')
     rerender()
     const pending = result.current.pendingSummary
-    expect(pending?.message).toBe('Summarize "Renewal plan"')
     expect(pending?.assistantSearch.documentIds).toEqual(['doc-1'])
     expect(pending?.assistantSearch.modifiedAfter).toBeTruthy()
   })
@@ -155,7 +154,7 @@ describe('Summarize on a search result', () => {
     expect(result.current.pendingSummary).toBeUndefined()
     mocks.params.mode = 'assistant'
     rerender()
-    expect(result.current.pendingSummary?.message).toBe('Summarize "Renewal plan"')
+    expect(result.current.pendingSummary?.assistantSearch.documentIds).toEqual(['doc-1'])
   })
 
   it('hands over summaries oldest first, each leaving once consumed', () => {

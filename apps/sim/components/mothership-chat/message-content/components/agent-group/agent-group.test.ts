@@ -1,21 +1,7 @@
-/**
- * @vitest-environment jsdom
- */
-import { createElement } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { isAgentGroupResolved } from '@/components/mothership-chat/message-content/components/agent-group/agent-group-content'
 import type { AgentGroupItem } from '@/components/mothership-chat/message-content/components/agent-group/agent-group-view'
 import type { ToolCallData, ToolCallStatus } from '@/lib/mothership/chat/types'
-
-vi.mock('@/lib/browser-agent/transport', () => ({
-  isBrowserAgentAvailable: () => true,
-}))
-
-vi.mock('@/components/mothership-chat/message-content/components/special-tags', () => ({
-  CredentialDisplay: ({ data }: { data: Array<{ name?: string }> }) => data[0]?.name ?? '',
-  BrowserTakeoverQuestion: ({ reason, answer }: { reason?: string; answer?: string }) =>
-    createElement('div', { 'data-takeover-answer': 'true' }, `${reason}: ${answer}`),
-}))
 
 let toolSeq = 0
 

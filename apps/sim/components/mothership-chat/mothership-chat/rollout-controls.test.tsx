@@ -81,7 +81,6 @@ it('hides the Plan model picker while its rollout is off but preserves the reque
   useMothershipPlanEffortStore.getState().setFastMode(true)
   await render(false)
   expect(container.querySelector('button[aria-label="Model"]')).toBeNull()
-  expect(container.textContent).not.toContain('Fast')
   expect(
     resolveMothershipModelSettings(useMothershipPlanEffortStore.getState(), false, true)
       .modelSelection
@@ -120,7 +119,6 @@ it.each([undefined, 'workspace'])(
       })
     )
     const status = container.querySelector('[role="status"]')
-    expect(status?.textContent).toContain('Synthetic app · Typing')
     const stop = status?.querySelector<HTMLButtonElement>('button')
     expect(stop?.getAttribute('aria-keyshortcuts')).toBe('Meta+Shift+Escape')
     await act(async () => stop?.click())

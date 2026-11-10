@@ -3,6 +3,7 @@
  */
 
 import { act } from 'react'
+import { stubResizeObserver } from '@sim/testing/mocks/browser-apis.mock'
 import { nextNavigationMock } from '@sim/testing/mocks/next-navigation.mock'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -77,14 +78,7 @@ const LOADED = {
 describe('CliAuthView workspace loading', () => {
   beforeEach(() => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      }
-    )
+    stubResizeObserver()
   })
 
   afterEach(() => {

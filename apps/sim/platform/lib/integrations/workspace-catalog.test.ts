@@ -75,7 +75,18 @@ describe('projectWorkspaceApp', () => {
     expect(app?.connections).toEqual([])
   })
 
-  it("offers GitLab's personal access token", () => {
+  it('lists an unconfigured app with no way to connect it', () => {
+    const app = projectWorkspaceApp(gmail, verdicts('unconfigured'))
+    expect(app?.access).toBe('unconfigured')
+    expect(app?.connections).toEqual([])
+    expect(app?.credentialProviders).toContain('google-email')
+  })
+
+  it('offers only the methods this page can complete, a personal token among them', () => {
+    const ids = (oauth?: boolean) =>
+      projectWorkspaceApp(gmail, verdicts('available', oauth))?.connections.map(({ id }) => id)
+    expect(ids()).toEqual(['google-email', 'google-service-account'])
+    expect(ids(false)).toEqual(['google-service-account'])
     const gitlab: IntegrationCatalogEntry = {
       ...gmail,
       id: 'gitlab',
@@ -94,20 +105,6 @@ describe('projectWorkspaceApp', () => {
     expect(
       projectWorkspaceApp(gitlab, verdicts('available'))?.connections.map(({ kind }) => kind)
     ).toEqual(['personal_token'])
-  })
-
-  it('lists an unconfigured app with no way to connect it', () => {
-    const app = projectWorkspaceApp(gmail, verdicts('unconfigured'))
-    expect(app?.access).toBe('unconfigured')
-    expect(app?.connections).toEqual([])
-    expect(app?.credentialProviders).toContain('google-email')
-  })
-
-  it('offers only the methods this page can complete', () => {
-    const ids = (oauth?: boolean) =>
-      projectWorkspaceApp(gmail, verdicts('available', oauth))?.connections.map(({ id }) => id)
-    expect(ids()).toEqual(['google-email', 'google-service-account'])
-    expect(ids(false)).toEqual(['google-service-account'])
   })
 })
 

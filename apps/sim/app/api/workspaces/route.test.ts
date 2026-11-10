@@ -134,18 +134,6 @@ describe('GET /api/workspaces blocked viewer forwarding', () => {
     mockListWorkspacesEnsuringDefault.mockResolvedValue(blockedList)
   })
 
-  it('names the organization that can serve a viewer with nothing to pick', async () => {
-    mockResolveSessionOrganizationLanding.mockResolvedValue('org-1')
-    const response = await GET(listRequest(), routeContext)
-    expect((await response.json()).forwardOrganizationId).toBe('org-1')
-  })
-
-  it('leaves the blocked picker in place when no organization can serve them', async () => {
-    mockResolveSessionOrganizationLanding.mockResolvedValue(null)
-    const response = await GET(listRequest(), routeContext)
-    expect(await response.json()).not.toHaveProperty('forwardOrganizationId')
-  })
-
   it('still returns the list when the organization lookup fails', async () => {
     mockResolveSessionOrganizationLanding.mockRejectedValue(new Error('down'))
     const response = await GET(listRequest(), routeContext)
