@@ -57,7 +57,7 @@
       }
     },
     "app/(product)/o/[organizationId]/integrations/[providerId]/page.tsx": {
-      "modules": 2792,
+      "modules": 2853,
       "gateways": {
         "apps/sim/app/(product)/o/[organizationId]/integrations/_components/integrations-page/live-integrations-route.tsx": 2584,
         "apps/sim/blocks/registry-maps.ts": 941,
@@ -83,7 +83,7 @@
       }
     },
     "app/(product)/o/[organizationId]/integrations/page.tsx": {
-      "modules": 2792,
+      "modules": 2853,
       "gateways": {
         "apps/sim/app/(product)/o/[organizationId]/integrations/_components/integrations-page/live-integrations-route.tsx": 2584,
         "apps/sim/blocks/registry-maps.ts": 941,
@@ -213,7 +213,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/access-requests/page.tsx": {
-      "modules": 1897,
+      "modules": 1941,
       "gateways": {
         "apps/sim/platform/lib/data/legacy-redirects.ts": 1895,
         "apps/sim/lib/auth/index.ts": 1889,
@@ -252,7 +252,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/chat/[chatId]/page.tsx": {
-      "modules": 1897,
+      "modules": 1941,
       "gateways": {
         "apps/sim/platform/lib/data/legacy-redirects.ts": 1895,
         "apps/sim/lib/auth/index.ts": 1889,
@@ -303,7 +303,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/home/page.tsx": {
-      "modules": 1897,
+      "modules": 1941,
       "gateways": {
         "apps/sim/platform/lib/data/legacy-redirects.ts": 1895,
         "apps/sim/lib/auth/index.ts": 1889,
@@ -316,7 +316,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/integrations/[[...path]]/page.tsx": {
-      "modules": 1897,
+      "modules": 1941,
       "gateways": {
         "apps/sim/platform/lib/data/legacy-redirects.ts": 1895,
         "apps/sim/lib/auth/index.ts": 1889,
@@ -444,7 +444,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/skills/[[...path]]/page.tsx": {
-      "modules": 1897,
+      "modules": 1941,
       "gateways": {
         "apps/sim/platform/lib/data/legacy-redirects.ts": 1895,
         "apps/sim/lib/auth/index.ts": 1889,
@@ -504,7 +504,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/upgrade/page.tsx": {
-      "modules": 1897,
+      "modules": 1941,
       "gateways": {
         "apps/sim/platform/lib/data/legacy-redirects.ts": 1895,
         "apps/sim/lib/auth/index.ts": 1889,
