@@ -2,6 +2,6 @@
 
 import { PageError } from '@/app/(product)/_components/shell-gate/shell-gate'
 
-export default function ErrorPage({ reset }: { reset: () => void }) {
-  return <PageError reset={reset} />
+export default function ErrorPage({ retry }: { retry: () => void }) {
+  return <PageError retry={retry} />
 }

@@ -63,18 +63,19 @@ export function SurfaceUnavailable() {
 }
 
 interface PageErrorProps {
-  reset: () => void
+  /** Next's error-boundary `retry`: refetches the failed server segment, then re-renders it. */
+  retry: () => void
   fullPage?: boolean
 }
 
-export function PageError({ reset, fullPage }: PageErrorProps) {
+export function PageError({ retry, fullPage }: PageErrorProps) {
   return (
     <ShellGate
       fullPage={fullPage}
       title='Something went wrong'
       description='An unexpected error occurred. Please try again or refresh the page.'
     >
-      <Button variant='primary' onClick={reset}>
+      <Button variant='primary' onClick={retry}>
         Try again
       </Button>
     </ShellGate>
