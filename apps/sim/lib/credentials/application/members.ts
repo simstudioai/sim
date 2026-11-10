@@ -15,6 +15,7 @@ import {
   credentialUserOperations,
 } from '@/lib/credentials/application/operations'
 import {
+  addCredentialMembers,
   type CredentialMemberGrant,
   type CredentialMemberPageInput,
   leaveCredentialMembership,
@@ -102,6 +103,54 @@ export const upsertCredentialMemberUseCase = defineAuthorizedCredentialUseCase({
       role: result.role,
       workspace_id: context.workspaceId,
     })
+  },
+})
+
+export interface AddCredentialMembersInput extends CredentialMemberResourceInput {
+  userIds: readonly string[]
+  role: 'admin' | 'member'
+}
+
+/**
+ * Grants several workspace members one role on a shared credential in a single change, as the Add
+ * people dialog proposes them. Each person is refused or granted on their own and the result says
+ * which, so a partial failure is reported by the server rather than pieced together by the client.
+ */
+export const addCredentialMembersUseCase = defineAuthorizedCredentialUseCase({
+  operation: credentialOperations.addMembers,
+  resolveContext: ({ input }: { input: AddCredentialMembersInput }) =>
+    resolveCredentialApplicationContext(input),
+  async execute({ principal, input, context }) {
+    requireManageableCredentialType(principal, context.credential)
+    const result = await addCredentialMembers({
+      credential: context.credential,
+      actorUserId: requirePrincipalSubjectUserId(principal),
+      userIds: input.userIds,
+      role: input.role,
+    })
+    return { ...result, role: input.role }
+  },
+  projectAudit: ({ context, result }) =>
+    result.added.length || result.roleChanged.length
+      ? {
+          action: AuditAction.CREDENTIAL_MEMBERS_UPDATED,
+          resourceType: AuditResourceType.CREDENTIAL,
+          resourceId: context.credential.id,
+          description: 'Changed credential access',
+          metadata: {
+            added: result.added.map((userId) => ({ userId, role: result.role })),
+            roleChanged: result.roleChanged,
+            removed: [],
+          },
+        }
+      : [],
+  afterSuccess: ({ principal, context, result }) => {
+    for (let shared = 0; shared < result.added.length; shared++)
+      captureServerEvent(requirePrincipalSubjectUserId(principal), 'credential_shared', {
+        credential_type: requireOrdinaryCredentialType(context.credential.type),
+        role: result.role,
+        workspace_id: context.workspaceId,
+      })
   },
 })
 

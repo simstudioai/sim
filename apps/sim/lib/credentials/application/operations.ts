@@ -229,6 +229,16 @@ export const credentialOperations = {
     }),
     'admin'
   ),
+  addMembers: defineCredentialOperation(
+    defineWorkspaceOperation({
+      id: 'credentials.members.add',
+      minimumRole: 'read',
+      workspaceApiKey: 'deny',
+      capability: 'integrations.manage',
+      principalKinds: ['session'],
+    }),
+    'admin'
+  ),
   setMembers: defineCredentialOperation(
     defineWorkspaceOperation({
       id: 'credentials.members.set',

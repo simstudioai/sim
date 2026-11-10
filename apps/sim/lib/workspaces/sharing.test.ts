@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { partitionSettledFailures, resolveAddEmail } from '@/lib/workspaces/sharing'
+import { resolveAddEmail } from '@/lib/workspaces/sharing'
 
 describe('resolveAddEmail', () => {
   const ctx = {
@@ -27,18 +27,5 @@ describe('resolveAddEmail', () => {
     expect(resolveAddEmail('Grace@SIM.dev', ctx)).toEqual({
       error: 'Grace@SIM.dev already has access',
     })
-  })
-})
-
-describe('partitionSettledFailures', () => {
-  const targets = [{ email: 'a' }, { email: 'b' }, { email: 'c' }]
-
-  it('returns only the rejected targets (index-aligned) on partial failure', () => {
-    const results: PromiseSettledResult<unknown>[] = [
-      { status: 'fulfilled', value: 1 },
-      { status: 'rejected', reason: new Error('boom') },
-      { status: 'fulfilled', value: 3 },
-    ]
-    expect(partitionSettledFailures(targets, results)).toEqual([{ email: 'b' }])
   })
 })

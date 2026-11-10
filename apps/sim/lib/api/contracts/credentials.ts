@@ -633,6 +633,29 @@ export const upsertWorkspaceCredentialMemberContract = defineRouteContract({
   },
 })
 
+/** The most people one Add people request may name. */
+export const MAX_CREDENTIAL_MEMBERS_PER_ADD = 100
+
+/** Grants several workspace members one role in one change; each is refused or granted on their own. */
+export const addWorkspaceCredentialMembersContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/credentials/[id]/members/batch',
+  params: credentialIdParamsSchema,
+  body: z.object({
+    userIds: z.array(z.string().min(1)).min(1).max(MAX_CREDENTIAL_MEMBERS_PER_ADD),
+    role: workspaceCredentialRoleSchema,
+  }),
+  response: {
+    mode: 'json',
+    schema: z.object({
+      added: z.array(z.string()),
+      updated: z.array(z.string()),
+      unchanged: z.array(z.string()),
+      refused: z.array(z.object({ userId: z.string(), reason: z.string() })),
+    }),
+  },
+})
+
 /** Replaces a credential's explicit grants with the list the access table proposes, atomically. */
 export const setWorkspaceCredentialMembersContract = defineRouteContract({
   method: 'PUT',

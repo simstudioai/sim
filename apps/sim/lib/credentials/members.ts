@@ -204,23 +204,24 @@ async function readWorkspaceRolesTx(
   return roles
 }
 
-/** Refuses a grant to someone outside the workspace, or below admin to a workspace admin. */
+/** Why a grant is refused: to someone outside the workspace, or below admin to a workspace admin. */
+function grantRefusal(
+  workspaceRole: PermissionType | null,
+  role: 'admin' | 'member'
+): string | null {
+  if (workspaceRole === null) return 'Target user must belong to the credential workspace'
+  if (workspaceRole === 'admin' && role !== 'admin')
+    return 'Workspace admins are automatically credential admins and cannot be demoted'
+  return null
+}
+
 function assertGrantsAllowed(
   grants: Iterable<readonly [string, 'admin' | 'member']>,
   roles: ReadonlyMap<string, PermissionType | null>
 ) {
   for (const [userId, role] of grants) {
-    const workspaceRole = roles.get(userId) ?? null
-    if (workspaceRole === null)
-      throw new OrchestrationError(
-        'validation',
-        'Target user must belong to the credential workspace'
-      )
-    if (workspaceRole === 'admin' && role !== 'admin')
-      throw new OrchestrationError(
-        'validation',
-        'Workspace admins are automatically credential admins and cannot be demoted'
-      )
+    const refusal = grantRefusal(roles.get(userId) ?? null, role)
+    if (refusal) throw new OrchestrationError('validation', refusal)
   }
 }
 
@@ -288,6 +289,100 @@ export async function upsertCredentialMember(
       updatedAt: now,
     })
     return { created: true }
+  })
+}
+
+export interface AddCredentialMembersResult {
+  added: string[]
+  roleChanged: { userId: string; fromRole: 'admin' | 'member'; toRole: 'admin' | 'member' }[]
+  /** People who already held this role; nothing was written for them. */
+  unchanged: string[]
+  /** People refused one by one, with why; the rest were still granted. */
+  refused: { userId: string; reason: string }[]
+}
+
+/**
+ * Grants several people the same role on a shared credential in one transaction. Each person is
+ * judged on their own: someone outside the workspace, or a workspace admin offered less than admin,
+ * is reported in `refused` while everyone else is granted, so one bad address never blocks the rest.
+ * Anything else that fails rolls the whole change back.
+ */
+export async function addCredentialMembers(params: {
+  credential: CredentialRow
+  actorUserId: string
+  userIds: readonly string[]
+  role: 'admin' | 'member'
+}): Promise<AddCredentialMembersResult> {
+  const workspaceId = params.credential.workspaceId
+  if (!workspaceId) throw new OrchestrationError('not_found', 'Credential not found')
+  if (!isSharedCredentialType(params.credential.type))
+    throw new OrchestrationError('validation', 'Personal credentials cannot be shared')
+  const userIds = [...new Set(params.userIds)]
+
+  return db.transaction(async (tx) => {
+    const [locked] = await tx
+      .select({ id: credential.id })
+      .from(credential)
+      .where(eq(credential.id, params.credential.id))
+      .limit(1)
+      .for('update')
+    if (!locked) throw new OrchestrationError('not_found', 'Credential not found')
+    const workspaceRoles = await readWorkspaceRolesTx(tx, workspaceId, userIds)
+    const existing = await tx
+      .select({
+        id: credentialMember.id,
+        userId: credentialMember.userId,
+        role: credentialMember.role,
+        status: credentialMember.status,
+      })
+      .from(credentialMember)
+      .where(
+        and(eq(credentialMember.credentialId, locked.id), inArray(credentialMember.userId, userIds))
+      )
+      .for('update')
+    const current = new Map(existing.map((row) => [row.userId, row]))
+    const now = new Date()
+    const result: AddCredentialMembersResult = {
+      added: [],
+      roleChanged: [],
+      unchanged: [],
+      refused: [],
+    }
+    for (const userId of userIds) {
+      const refusal = grantRefusal(workspaceRoles.get(userId) ?? null, params.role)
+      if (refusal) {
+        result.refused.push({ userId, reason: refusal })
+        continue
+      }
+      const row = current.get(userId)
+      if (row && row.status === 'active' && row.role === params.role) {
+        result.unchanged.push(userId)
+        continue
+      }
+      if (row) {
+        await tx
+          .update(credentialMember)
+          .set({ role: params.role, status: 'active', updatedAt: now })
+          .where(eq(credentialMember.id, row.id))
+        if (row.status === 'active')
+          result.roleChanged.push({ userId, fromRole: row.role, toRole: params.role })
+        else result.added.push(userId)
+        continue
+      }
+      await tx.insert(credentialMember).values({
+        id: generateId(),
+        credentialId: locked.id,
+        userId,
+        role: params.role,
+        status: 'active',
+        joinedAt: now,
+        invitedBy: params.actorUserId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      result.added.push(userId)
+    }
+    return result
   })
 }
 

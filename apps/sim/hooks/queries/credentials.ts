@@ -4,6 +4,7 @@ import { type QueryKey, useMutation, useQuery, useQueryClient } from '@tanstack/
 import { requestJson } from '@/lib/api/client/request'
 import type { ContractBodyInput, ContractQueryInput } from '@/lib/api/contracts'
 import {
+  addWorkspaceCredentialMembersContract,
   createCredentialDraftContract,
   createWorkspaceCredentialContract,
   deleteWorkspaceCredentialContract,
@@ -272,6 +273,33 @@ export function useUpsertWorkspaceCredentialMember() {
         },
       })
     },
+    onSettled: (_data, _error, variables) =>
+      Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: workspaceCredentialKeys.members(variables.credentialId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: workspaceCredentialKeys.detail(variables.credentialId),
+        }),
+        invalidateSelectorQueries(queryClient),
+      ]),
+  })
+}
+
+/** Grants several people one role in one request; the result names who was refused and why. */
+export function useAddWorkspaceCredentialMembers() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (
+      payload: {
+        credentialId: string
+      } & ContractBodyInput<typeof addWorkspaceCredentialMembersContract>
+    ) =>
+      requestJson(addWorkspaceCredentialMembersContract, {
+        params: { id: payload.credentialId },
+        body: { userIds: payload.userIds, role: payload.role },
+      }),
     onSettled: (_data, _error, variables) =>
       Promise.all([
         queryClient.invalidateQueries({

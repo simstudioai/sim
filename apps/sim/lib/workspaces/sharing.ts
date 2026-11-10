@@ -25,14 +25,3 @@ export function resolveAddEmail(
   if (existingMemberEmails.has(normalized)) return { error: `${email} already has access` }
   return { userId }
 }
-
-/**
- * Given the targets passed to a batch add and the index-aligned
- * `Promise.allSettled` results, return the targets whose settle rejected.
- */
-export function partitionSettledFailures<T>(
-  targets: readonly T[],
-  results: readonly PromiseSettledResult<unknown>[]
-): T[] {
-  return targets.filter((_, index) => results[index]?.status === 'rejected')
-}
