@@ -62,6 +62,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { and, asc, count, eq, exists, gt, isNull, notExists, or, type SQL, sql } from 'drizzle-orm'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
 import {
+  ensureInstanceOrganization,
   getInstanceOrganizationId,
   isInstanceOrganizationMode,
   joinInstanceOrganization,
@@ -90,37 +91,38 @@ interface BackfillReport {
 }
 
 /**
- * The run's instance organization on an instance-organization deployment (`organizationId` is
- * null until it is provisioned), or `null` on any other deployment.
+ * On an instance-organization deployment, the users the audit log records leaving its instance
+ * organization (none until it exists); `null` stands for any other deployment.
  */
 export interface InstanceOrganizationScope {
-  organizationId: string | null
+  departedUserIds: string[]
 }
 
 /**
- * Departures from `organizationId` the audit log recorded for the user in the outer query. Every
- * path out of an organization records one: `org_member.removed` naming the user (the settings UI
- * and leaving, the Admin API, the admin dashboard and its transfers, SCIM deprovisioning, leaving
- * after an ownership transfer), or `member.removed` on one of its workspaces when losing their last
+ * Users the audit log recorded leaving `organizationId`, read once per run. Every path out of an
+ * organization records a departure: `org_member.removed` naming the user (the settings UI and
+ * leaving, the Admin API, the admin dashboard and its transfers, SCIM deprovisioning, leaving after
+ * an ownership transfer), or `member.removed` on one of its workspaces when losing their last
  * workspace took the membership with it. An `external` removal ended workspace access of someone
- * who was never a member, so it is no departure. Returned as two predicates so each stays a
- * top-level anti-join, scanned once per page rather than once per user.
+ * who was never a member, so it is no departure. Read up front rather than correlated per
+ * candidate: the user ids sit in unindexed metadata, so a per-user probe scans the organization's
+ * audit rows once per user.
  */
-function recordedDeparturesFrom(organizationId: string): SQL[] {
-  const removedAsMember = db
-    .select({ id: auditLog.id })
+async function recordedDepartedUserIds(organizationId: string): Promise<string[]> {
+  const removedAsMember = await db
+    .selectDistinct({ userId: sql<string>`${auditLog.metadata}->>'targetUserId'` })
     .from(auditLog)
     .where(
       and(
         eq(auditLog.action, AuditAction.ORG_MEMBER_REMOVED),
         eq(auditLog.resourceType, AuditResourceType.ORGANIZATION),
         eq(auditLog.resourceId, organizationId),
-        sql`${auditLog.metadata}->>'targetUserId' = ${user.id}`,
+        sql`${auditLog.metadata}->>'targetUserId' is not null`,
         sql`${auditLog.metadata}->>'membershipType' is distinct from 'external'`
       )
     )
-  const removedWithLastWorkspace = db
-    .select({ id: auditLog.id })
+  const removedWithLastWorkspace = await db
+    .selectDistinct({ userId: sql<string>`${auditLog.metadata}->>'removedUserId'` })
     .from(auditLog)
     .innerJoin(workspace, eq(workspace.id, auditLog.workspaceId))
     .where(
@@ -129,10 +131,12 @@ function recordedDeparturesFrom(organizationId: string): SQL[] {
         eq(auditLog.resourceType, AuditResourceType.WORKSPACE),
         eq(workspace.organizationId, organizationId),
         sql`${auditLog.metadata}->>'organizationRemoval' = 'true'`,
-        sql`${auditLog.metadata}->>'removedUserId' = ${user.id}`
+        sql`${auditLog.metadata}->>'removedUserId' is not null`
       )
     )
-  return [notExists(removedAsMember), notExists(removedWithLastWorkspace)]
+  return [
+    ...new Set([...removedAsMember, ...removedWithLastWorkspace].map((row) => row.userId)),
+  ].sort()
 }
 
 /**
@@ -164,7 +168,9 @@ function candidateUsersWhere(
   const candidate = instance
     ? and(
         or(inNoOrganization, inPersonalOrganization),
-        ...(instance.organizationId ? recordedDeparturesFrom(instance.organizationId) : [])
+        instance.departedUserIds.length > 0
+          ? sql`${user.id} <> ALL(ARRAY(SELECT jsonb_array_elements_text(${JSON.stringify(instance.departedUserIds)}::jsonb)))`
+          : undefined
       )
     : or(inNoOrganization, and(inPersonalOrganization, ownsUnassignedWorkspace))
   return cursor ? and(gt(user.id, cursor), candidate) : candidate
@@ -213,15 +219,42 @@ function readOptions() {
   }
 }
 
+/**
+ * The instance organization every candidate joins. A dry run of a deployment without one yet counts
+ * every candidate; `--apply` provisions it for `INSTANCE_ORG_OWNER_EMAIL` first, and refuses when
+ * it cannot, since it is never created with an arbitrary user as its owner.
+ */
+async function resolveInstanceScope(apply: boolean): Promise<InstanceOrganizationScope> {
+  const organizationId = apply
+    ? await ensureInstanceOrganization(null, {
+        type: 'system',
+        name: 'Personal organization backfill',
+      })
+    : await getInstanceOrganizationId()
+  if (!organizationId && apply) {
+    throw new Error(
+      'The instance organization does not exist and could not be provisioned: set INSTANCE_ORG_OWNER_EMAIL to an existing user who belongs to no team, then rerun'
+    )
+  }
+  return loadInstanceOrganizationScope(organizationId)
+}
+
+/** The scope of the instance organization `organizationId`, or of one not provisioned yet (null). */
+export async function loadInstanceOrganizationScope(
+  organizationId: string | null
+): Promise<InstanceOrganizationScope> {
+  return {
+    departedUserIds: organizationId ? await recordedDepartedUserIds(organizationId) : [],
+  }
+}
+
 async function main(): Promise<void> {
   const options = readOptions()
   if (options.help) {
     logger.info('See the header of scripts/backfill-personal-organizations.ts for usage')
     return
   }
-  const instance: InstanceOrganizationScope | null = isInstanceOrganizationMode()
-    ? { organizationId: await getInstanceOrganizationId() }
-    : null
+  const instance = isInstanceOrganizationMode() ? await resolveInstanceScope(options.apply) : null
   if (options.apply && !instance && (await isFeatureEnabled('pause-personal-organizations'))) {
     throw new Error('Turn the pause-personal-organizations flag off before applying the backfill')
   }

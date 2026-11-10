@@ -310,7 +310,12 @@ export const addAdminOrganizationMember: OperationUseCase<
         skipSeatValidation: isBillingEnabled && !organizationHasFixedSeats,
       })
       if (!membership.success || !membership.memberId || membership.alreadyMember) {
-        return { membership, attachedWorkspaceIds: [], usageLimitUserIds: [] }
+        return {
+          membership,
+          attachedWorkspaceIds: [],
+          usageLimitUserIds: [],
+          skippedSplitProjectWorkspaceIds: [],
+        }
       }
 
       /**
@@ -333,7 +338,12 @@ export const addAdminOrganizationMember: OperationUseCase<
       }
 
       if (ownedWorkspaceIds.length === 0) {
-        return { membership, attachedWorkspaceIds: [], usageLimitUserIds: [] }
+        return {
+          membership,
+          attachedWorkspaceIds: [],
+          usageLimitUserIds: [],
+          skippedSplitProjectWorkspaceIds: [],
+        }
       }
       const attach = await attachOwnedWorkspacesToOrganizationTx(tx, {
         ownerUserId: userId,
@@ -342,12 +352,15 @@ export const addAdminOrganizationMember: OperationUseCase<
         externalMemberPolicy: 'external-all',
         ownerMatch: 'owner',
         includeArchived: true,
+        /** A collaborator's fork sharing a Project must not refuse the add. */
+        skipSplitProjects: true,
         actor: ADMIN_API_ACTOR,
       })
       return {
         membership,
         attachedWorkspaceIds: attach.attachedWorkspaceIds,
         usageLimitUserIds: attach.usageLimitUserIds,
+        skippedSplitProjectWorkspaceIds: attach.skippedSplitProjectWorkspaceIds,
       }
     })
 
@@ -414,6 +427,7 @@ export const addAdminOrganizationMember: OperationUseCase<
           role,
           memberId: membership.memberId,
           attachedWorkspaceIds: result.attachedWorkspaceIds,
+          skippedSplitProjectWorkspaceIds: result.skippedSplitProjectWorkspaceIds,
         },
       },
     ])

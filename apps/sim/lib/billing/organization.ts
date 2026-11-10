@@ -8,7 +8,10 @@ import { getPlanPricing, isSubscriptionOrgScoped } from '@/lib/billing/core/bill
 import { getOrganizationIdForSubscriptionReference } from '@/lib/billing/core/subscription'
 import { syncUsageLimitsFromSubscription } from '@/lib/billing/core/usage'
 import { assertNoCompetingEnterpriseIssuance } from '@/lib/billing/enterprise-outbox'
-import { createOrganizationWithOwnerTx } from '@/lib/billing/organizations/create-organization'
+import {
+  createOrganizationWithOwnerTx,
+  OrganizationOwnerAlreadyInTeamError,
+} from '@/lib/billing/organizations/create-organization'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/identity-lock'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { TEAM_PLAN_WORKSPACE_ATTACH_EVENT } from '@/lib/billing/organizations/team-plan-attach-event'
@@ -46,6 +49,32 @@ type SubscriptionData = {
   enterpriseOperationId?: string | null
 }
 
+/** The Team buyer belongs to a team they do not administer, so their subscription has no team to land in. */
+export class TeamSubscriptionBuyerInOtherTeamError extends Error {
+  constructor(
+    readonly userId: string,
+    readonly organizationId: string
+  ) {
+    super('User is already member of another organization')
+    this.name = 'TeamSubscriptionBuyerInOtherTeamError'
+  }
+}
+
+/**
+ * Whether resolving a Team subscription's organization failed because its buyer is in a team that
+ * cannot take it (one they joined while the subscription was created, typically). Retrying the
+ * Stripe event can never succeed, so the billing webhook acknowledges it and reports it for an
+ * operator to settle.
+ */
+export function isTeamSubscriptionMembershipConflict(
+  error: unknown
+): error is TeamSubscriptionBuyerInOtherTeamError | OrganizationOwnerAlreadyInTeamError {
+  return (
+    error instanceof TeamSubscriptionBuyerInOtherTeamError ||
+    error instanceof OrganizationOwnerAlreadyInTeamError
+  )
+}
+
 function teamOrganizationSlug(userId: string): string {
   return `${userId}-team-${generateId()}`
     .toLowerCase()
@@ -74,6 +103,10 @@ async function attachAndClearPendingTeamPlanWorkspaces(
     skipSplitProjects: true,
     actor,
   })
+  await clearPendingTeamPlanWorkspaces(organizationId)
+}
+
+async function clearPendingTeamPlanWorkspaces(organizationId: string): Promise<void> {
   await db
     .update(organization)
     .set({
@@ -84,6 +117,8 @@ async function attachAndClearPendingTeamPlanWorkspaces(
 
 interface TeamPlanWorkspaceAttachPayload {
   organizationId: string
+  /** The buyer whose workspaces the retry attaches; never whoever owns the team by then. */
+  ownerUserId: string
   actor: PersonalOrganizationAuditActor
 }
 
@@ -113,7 +148,7 @@ async function attachPendingTeamPlanWorkspaces(
         await enqueueOrReschedulePendingOutboxEvent<TeamPlanWorkspaceAttachPayload>(
           tx,
           TEAM_PLAN_WORKSPACE_ATTACH_EVENT,
-          { organizationId, actor },
+          { organizationId, ownerUserId, actor },
           { coalesceOn: { payloadKey: 'organizationId', payloadValue: organizationId } }
         )
       })
@@ -160,16 +195,27 @@ async function recoverPendingTeamPlanWorkspaces(
 
 /**
  * Retries a failed Team workspace attach until it succeeds or the marker is gone (a later delivery
- * finished it, or the team was deleted). A failure throws for the outbox's backoff.
+ * finished it, or the team was deleted). Only the buyer's workspaces are ever swept: once someone
+ * else owns the team, the pending attach is dropped (marker cleared) rather than sweeping theirs.
+ * A failure throws for the outbox's backoff.
  */
 export const teamPlanWorkspaceAttachOutboxHandlers: OutboxHandlerRegistry = {
   [TEAM_PLAN_WORKSPACE_ATTACH_EVENT]: async (rawPayload) => {
-    const { organizationId, actor } = rawPayload as TeamPlanWorkspaceAttachPayload
-    if (typeof organizationId !== 'string' || !actor) {
+    const { organizationId, ownerUserId, actor } = rawPayload as TeamPlanWorkspaceAttachPayload
+    if (typeof organizationId !== 'string' || typeof ownerUserId !== 'string' || !actor) {
       throw new Error('Team workspace attach retry has an invalid payload')
     }
-    const ownerUserId = await findPendingTeamPlanOwner(organizationId)
-    if (!ownerUserId) return
+    const currentOwnerUserId = await findPendingTeamPlanOwner(organizationId)
+    if (!currentOwnerUserId) return
+    if (currentOwnerUserId !== ownerUserId) {
+      logger.warn("Dropped the Team buyer's pending workspace attach: the team changed owners", {
+        organizationId,
+        buyerUserId: ownerUserId,
+        currentOwnerUserId,
+      })
+      await clearPendingTeamPlanWorkspaces(organizationId)
+      return
+    }
     await attachAndClearPendingTeamPlanWorkspaces(ownerUserId, organizationId, actor)
   },
 }
@@ -362,7 +408,7 @@ export async function ensureOrganizationForTeamSubscription(
       existingOrgId: membership.organizationId,
       subscriptionId: subscription.id,
     })
-    throw new Error('User is already member of another organization')
+    throw new TeamSubscriptionBuyerInOtherTeamError(userId, membership.organizationId)
   }
 
   /**
@@ -486,7 +532,7 @@ export async function ensureOrganizationForTeamSubscriptionTx(
   let organizationId: string
   if (existingMembership) {
     if (!isOrgAdminRole(existingMembership.role)) {
-      throw new Error('User is already member of another organization')
+      throw new TeamSubscriptionBuyerInOtherTeamError(userId, existingMembership.organizationId)
     }
     organizationId = existingMembership.organizationId
     await acquireOrganizationMutationLock(tx, organizationId)

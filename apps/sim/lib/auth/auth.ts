@@ -99,6 +99,7 @@ import {
 import { handleNewSignInAccount, handleNewUser } from '@/lib/billing/core/usage'
 import {
   ensureOrganizationForTeamSubscription,
+  isTeamSubscriptionMembershipConflict,
   syncSubscriptionUsageLimits,
 } from '@/lib/billing/organization'
 import { pauseProSubscriptionForOrgCoverage } from '@/lib/billing/organizations/membership'
@@ -1669,6 +1670,25 @@ export const auth = betterAuth({
                     BILLING_WEBHOOK_ACTOR
                   )
                 } catch (orgError) {
+                  /**
+                   * The buyer joined a team that cannot take this subscription while it was
+                   * created: no retry can succeed, so the event is acknowledged rather than
+                   * retried forever, and left for an operator to settle.
+                   */
+                  if (isTeamSubscriptionMembershipConflict(orgError)) {
+                    logger.error(
+                      '[onSubscriptionComplete] Team subscription buyer is in another team; acknowledged for manual handling',
+                      {
+                        manualHandlingRequired: true,
+                        subscriptionId: subscription.id,
+                        stripeSubscriptionId: stripeSubscription.id,
+                        eventId: event.id,
+                        userId: orgError.userId,
+                        conflictingOrganizationId: orgError.organizationId,
+                      }
+                    )
+                    return
+                  }
                   logger.error(
                     '[onSubscriptionComplete] Failed to ensure organization for team subscription',
                     {
@@ -1789,6 +1809,21 @@ export const auth = betterAuth({
                     )
                   }
                 } catch (orgError) {
+                  /** As in onSubscriptionComplete: unretryable, acknowledged for manual handling. */
+                  if (isTeamSubscriptionMembershipConflict(orgError)) {
+                    logger.error(
+                      '[onSubscriptionUpdate] Team subscription buyer is in another team; acknowledged for manual handling',
+                      {
+                        manualHandlingRequired: true,
+                        subscriptionId: subscription.id,
+                        stripeSubscriptionId: stripeSubscription.id,
+                        eventId: event.id,
+                        userId: orgError.userId,
+                        conflictingOrganizationId: orgError.organizationId,
+                      }
+                    )
+                    return
+                  }
                   logger.error(
                     '[onSubscriptionUpdate] Failed to ensure organization for team subscription',
                     {

@@ -50,7 +50,10 @@ import { TEAM_PLAN_WORKSPACE_ATTACH_EVENT } from '@/lib/billing/organizations/te
 import { processOutboxEventById } from '@/lib/core/outbox/service'
 import { createTeamOrganization } from '@/lib/organizations/application/team-organizations'
 import { createPersonalOrganization } from '@/lib/organizations/provision-personal'
-import { createDefaultPersonalWorkspaceInTransaction } from '@/lib/workspaces/create'
+import {
+  createDefaultPersonalWorkspaceInTransaction,
+  createWorkspaceInTransaction,
+} from '@/lib/workspaces/create'
 
 const userIds: string[] = []
 const subscriptionIds: string[] = []
@@ -198,6 +201,88 @@ describe('starting a Team from the webhook when attaching workspaces fails', () 
       .from(workspace)
       .where(eq(workspace.id, ownerWorkspace.id))
     expect(attached).toEqual({ organizationId })
+    const [team] = await db
+      .select({
+        pending: sql<string | null>`${organization.metadata}->>'teamPlanWorkspacesPending'`,
+      })
+      .from(organization)
+      .where(eq(organization.id, organizationId))
+    expect(team.pending).toBeNull()
+  })
+})
+
+describe('retrying the Team buyer’s workspace attach after the team changed owners', () => {
+  it('drops the attach instead of sweeping the new owner’s workspaces', async () => {
+    const { userId, organizationId, subscriptionId } = await ownerWithPersonalOrganization()
+    const buyerWorkspace = await db.transaction((tx) =>
+      createDefaultPersonalWorkspaceInTransaction(tx, {
+        userId,
+        userName: 'Team acceptance owner',
+        personalOrganizationId: organizationId,
+      })
+    )
+    attachFault.outsideTransaction = true
+    await ensureOrganizationForTeamSubscription(
+      { id: subscriptionId, plan: 'team', referenceId: userId, status: 'active', seats: 1 },
+      { type: 'system', name: 'Billing webhook' }
+    )
+    attachFault.outsideTransaction = false
+    const [retry] = await db
+      .select({ id: outboxEvent.id, payload: outboxEvent.payload })
+      .from(outboxEvent)
+      .where(
+        and(
+          eq(outboxEvent.eventType, TEAM_PLAN_WORKSPACE_ATTACH_EVENT),
+          sql`${outboxEvent.payload}->>'organizationId' = ${organizationId}`
+        )
+      )
+    expect(retry.payload).toMatchObject({ organizationId, ownerUserId: userId })
+
+    const newOwnerId = `team-accept-${generateId()}`
+    const now = new Date()
+    await db.insert(user).values({
+      id: newOwnerId,
+      name: 'New owner',
+      email: `${newOwnerId}@team-accept.test`,
+      emailVerified: true,
+      createdAt: now,
+      updatedAt: now,
+    })
+    userIds.push(newOwnerId)
+    const newOwnerWorkspace = await db.transaction((tx) =>
+      createWorkspaceInTransaction(tx, {
+        userId: newOwnerId,
+        name: 'New owner workspace',
+        organizationId: null,
+        observedOrganizationId: null,
+        governingPermissionGroupOrganizationId: null,
+        workspaceMode: 'personal',
+        billedAccountUserId: newOwnerId,
+        skipDefaultWorkflow: true,
+      })
+    )
+    await db
+      .update(member)
+      .set({ role: 'admin' })
+      .where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
+    await db
+      .insert(member)
+      .values({ id: generateId(), userId: newOwnerId, organizationId, role: 'owner' })
+
+    expect(await processOutboxEventById(retry.id, teamPlanWorkspaceAttachOutboxHandlers)).toBe(
+      'completed'
+    )
+
+    const rows = await db
+      .select({ id: workspace.id, organizationId: workspace.organizationId })
+      .from(workspace)
+      .where(inArray(workspace.id, [buyerWorkspace.id, newOwnerWorkspace.id]))
+    expect(new Map(rows.map((row) => [row.id, row.organizationId]))).toEqual(
+      new Map([
+        [buyerWorkspace.id, null],
+        [newOwnerWorkspace.id, null],
+      ])
+    )
     const [team] = await db
       .select({
         pending: sql<string | null>`${organization.metadata}->>'teamPlanWorkspacesPending'`,

@@ -99,7 +99,10 @@ import {
   createWorkspaceInvitation,
   prepareWorkspaceInvitationContext,
 } from '@/lib/invitations/workspace-invitations'
-import { convertPersonalOrganizationToTeamTx } from '@/lib/organizations/personal'
+import {
+  acquirePersonalOrganizationWorkspaceLocksTx,
+  convertPersonalOrganizationToTeamTx,
+} from '@/lib/organizations/personal'
 import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
 import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
 import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
@@ -1622,6 +1625,11 @@ export async function issueEnterpriseProvisioning(
         throw new EnterpriseProvisioningError('The selected user no longer owns this organization')
       }
     } else {
+      /**
+       * The personal organization this converts, its workspaces first, is locked before the
+       * owner's identity, as the owner claim and createOrganizationWithOwnerTx do.
+       */
+      await acquirePersonalOrganizationWorkspaceLocksTx(tx, input.ownerUserId)
       if (personalOrganizationSnapshot) {
         await acquireOrganizationMutationLock(tx, personalOrganizationSnapshot)
       }

@@ -717,6 +717,8 @@ interface InvitationAcceptancePostCommitEffects {
   acceptedWorkspaceIds: string[]
   /** Owned personal workspaces that followed the invitee into the org. */
   attachedWorkspaceIds: string[]
+  /** Owned workspaces left outside the org: their Project spans another owner's workspace. */
+  skippedSplitProjectWorkspaceIds: string[]
   syncUsageLimitUserIds: string[]
   planConversions: AcceptancePlanConversion[]
   acceptedInvitation: InvitationWithGrants | null
@@ -798,6 +800,7 @@ export async function acceptInvitation(
     reconcileSeats: false,
     acceptedWorkspaceIds: [],
     attachedWorkspaceIds: [],
+    skippedSplitProjectWorkspaceIds: [],
     syncUsageLimitUserIds: [],
     planConversions: [],
     acceptedInvitation: null,
@@ -1248,10 +1251,13 @@ async function acceptLockedInvitation(
             externalMemberPolicy: 'external-all',
             ownerMatch: 'owner',
             includeArchived: true,
+            /** A collaborator's fork sharing a Project must not refuse the join. */
+            skipSplitProjects: true,
             actor: { type: 'user', userId: input.userId },
           })
           effects.syncUsageLimitUserIds.push(...attachResult.usageLimitUserIds)
           effects.attachedWorkspaceIds = attachResult.attachedWorkspaceIds
+          effects.skippedSplitProjectWorkspaceIds = attachResult.skippedSplitProjectWorkspaceIds
         }
       }
     } else {
@@ -1475,6 +1481,7 @@ async function runInvitationAcceptancePostCommitEffects(
         invitationId: input.invitationId,
         memberRole: effects.memberRole,
         attachedWorkspaceIds: effects.attachedWorkspaceIds,
+        skippedSplitProjectWorkspaceIds: effects.skippedSplitProjectWorkspaceIds,
       },
     })
     captureServerEvent(

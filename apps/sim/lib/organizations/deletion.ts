@@ -2,16 +2,25 @@ import { recordAuditBatch } from '@sim/audit'
 import { db } from '@sim/db'
 import { organization } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
-import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/identity-lock'
+import {
+  acquireOrganizationMutationLock,
+  acquireUserBillingIdentityLock,
+} from '@/lib/billing/organizations/identity-lock'
 import type { DbTransaction } from '@/lib/db/types'
 import {
   enqueuePersonalOrganizationAuditTx,
   type PersonalOrganizationAuditActor,
 } from '@/lib/organizations/lifecycle-audit'
 import {
+  acquirePersonalOrganizationWorkspaceLocksTx,
   detachPersonalOrganizationWorkspacesTx,
   getPersonalOrganizationId,
+  lockPersonalOrganizationTx,
 } from '@/lib/organizations/personal'
+import {
+  findPersonalChatDestinationWorkspaceId,
+  rehomePersonalOrganizationChatsTx,
+} from '@/lib/organizations/personal-chats'
 import { enqueueOrganizationResourceCleanup } from '@/lib/organizations/resource-cleanup'
 import { detachOrganizationWorkspacesTx } from '@/lib/workspaces/organization-workspaces'
 
@@ -77,12 +86,30 @@ export async function deletePersonalOrganizationTx(
  * (Better Auth's admin `/admin/remove-user`), whose membership cascade would otherwise leave the
  * organization behind with no member and no payer. Its workspaces return to the organization-less
  * personal state first, as account deletion does. A no-op without a personal organization.
+ *
+ * Better Auth runs this `delete.before` hook outside any transaction of its own, so it cannot
+ * commit with the user delete. Should that delete then fail, the user is left live without their
+ * personal organization (the product shell gives them a new one on their next visit), so this
+ * first moves their organization chats, runs and attachments into their oldest personal workspace,
+ * as retirement does: what the user deletion would have erased survives a failed one. What a
+ * failed user delete still loses: the organization-bound content (its Search index, go links,
+ * files and connections), queued for cleanup here, and the chats of a user who owns no workspace
+ * (creating one would give them a Project, whose owner key then refuses the user delete).
  */
 export async function deletePersonalOrganizationOfRemovedUser(userId: string): Promise<void> {
   await db.transaction(async (tx) => {
+    await acquirePersonalOrganizationWorkspaceLocksTx(tx, userId)
     const personalOrganizationId = await getPersonalOrganizationId(userId, tx)
     if (!personalOrganizationId) return
     await acquireOrganizationMutationLock(tx, personalOrganizationId)
+    await acquireUserBillingIdentityLock(tx, userId)
+    await lockPersonalOrganizationTx(tx, personalOrganizationId)
+    if (await findPersonalChatDestinationWorkspaceId(tx, userId)) {
+      await rehomePersonalOrganizationChatsTx(tx, {
+        organizationId: personalOrganizationId,
+        userId,
+      })
+    }
     await detachPersonalOrganizationWorkspacesTx(tx, personalOrganizationId)
     await deletePersonalOrganizationTx(tx, {
       organizationId: personalOrganizationId,

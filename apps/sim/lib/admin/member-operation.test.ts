@@ -29,7 +29,10 @@ vi.mock('@/lib/workspaces/admin-move', () => ({
   moveWorkspaceToOrganization: hoisted.moveWorkspace,
 }))
 vi.mock('@/lib/workspaces/organization-workspaces', () => ({
-  ownedAttachableWorkspacesWhere: vi.fn(() => undefined),
+  joinAttachableWorkspacesWhere: vi.fn(async () => undefined),
+}))
+vi.mock('@/lib/organizations/personal', () => ({
+  acquirePersonalOrganizationWorkspaceLocksTx: vi.fn(async () => undefined),
 }))
 vi.mock('@/lib/core/outbox/service', () => outboxServiceMock)
 

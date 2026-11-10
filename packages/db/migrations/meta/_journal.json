@@ -3207,6 +3207,13 @@
       "when": 1794256289997,
       "tag": "0458_personal_organization_single_owner",
       "breakpoints": true
+    },
+    {
+      "idx": 459,
+      "version": "7",
+      "when": 1794341261763,
+      "tag": "0459_personal_chats_rehomed_workspace",
+      "breakpoints": true
     }
   ]
 }

@@ -71,7 +71,7 @@ import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import { identityHadFreeAllowance } from '@/lib/users/free-allowance'
-import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
+import { joinAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
 interface PaginationInput {
   search: string
@@ -1444,10 +1444,7 @@ export async function getDashboardMemberTransferPreflight(
   const search = workspacePage.search.trim()
   const limit = Math.min(Math.max(workspacePage.limit, 1), 250)
   const offset = Math.max(workspacePage.offset, 0)
-  const allPersonalWorkspacesWhere = ownedAttachableWorkspacesWhere({
-    userId,
-    includeArchived: true,
-  })
+  const allPersonalWorkspacesWhere = await joinAttachableWorkspacesWhere(db, userId)
   const matchingPersonalWorkspacesWhere = and(
     allPersonalWorkspacesWhere,
     search ? or(eq(workspace.id, search), ilike(workspace.name, `%${search}%`)) : undefined
@@ -1468,6 +1465,7 @@ export async function getDashboardMemberTransferPreflight(
           role: member.role,
           organizationId: member.organizationId,
           organizationName: organization.name,
+          organizationKind: organization.kind,
         })
         .from(user)
         .leftJoin(member, eq(member.userId, user.id))
@@ -1497,13 +1495,19 @@ export async function getDashboardMemberTransferPreflight(
   if (!destination) throw new Error('Destination organization not found')
   if (!target) throw new Error('User not found')
 
-  const credentialDependencies = target.organizationId
-    ? await getOrganizationTransferCredentialDependencies(userId, target.organizationId)
+  /**
+   * A personal organization is no team membership: the add retires it, and its owner role and
+   * connections are not a source organization's to transfer.
+   */
+  const teamOrganizationId =
+    target.organizationKind === 'team' ? (target.organizationId ?? null) : null
+  const credentialDependencies = teamOrganizationId
+    ? await getOrganizationTransferCredentialDependencies(userId, teamOrganizationId)
     : []
   const alreadyInDestination = target.organizationId === destinationOrganizationId
   const reason = alreadyInDestination
     ? 'User is already a member of this organization'
-    : target.role === 'owner'
+    : teamOrganizationId && target.role === 'owner'
       ? 'Transfer organization ownership before moving this user'
       : credentialDependencies.length > 0
         ? 'Reconnect or remove source-organization credentials owned by this user before transfer'
@@ -1515,8 +1519,8 @@ export async function getDashboardMemberTransferPreflight(
   return {
     user: { id: target.id, name: target.name, email: target.email },
     currentOrganization:
-      target.organizationId && target.organizationName
-        ? { id: target.organizationId, name: target.organizationName, role: target.role }
+      teamOrganizationId && target.organizationName
+        ? { id: teamOrganizationId, name: target.organizationName, role: target.role }
         : null,
     personalWorkspaces: personalWorkspaces.map((row) => ({
       id: row.id,

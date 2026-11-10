@@ -31,6 +31,8 @@ export interface AttachOwnedWorkspacesToOrganizationTxResult
   extends AttachOwnedWorkspacesToOrganizationResult {
   /** These best-effort derived-limit refreshes must run only after commit. */
   usageLimitUserIds: string[]
+  /** Left where they were under `skipSplitProjects`: their Project spans workspaces outside the attach. */
+  skippedSplitProjectWorkspaceIds: string[]
 }
 
 export interface DetachOrganizationWorkspacesResult {
@@ -76,8 +78,9 @@ type ExternalMemberPolicy = 'reject' | 'keep-external' | 'external-all'
 /**
  * The single definition of "a workspace that follows this user into an
  * organization": owned (or billed) by them, in no organization or in their
- * personal organization (whose workspaces return there first), and —
- * unless `includeArchived` — not archived. Every site that selects, locks, or
+ * personal organization (whose workspaces return there first), never one a
+ * retired personal organization's chats were moved into (a team's data drains
+ * would export them), and — unless `includeArchived` — not archived. Every site that selects, locks, or
  * previews attachable workspaces must build its WHERE from this so the
  * acceptance lock plan, the attach queries, and the accept-screen preview can
  * never drift apart.
@@ -107,15 +110,26 @@ export function ownedAttachableWorkspacesWhere({
       )
     ),
     ne(workspace.workspaceMode, WORKSPACE_MODE.ORGANIZATION),
+    isNull(workspace.personalChatsRehomedAt),
     ...(includeArchived ? [] : [isNull(workspace.archivedAt)])
   )
 }
 
 /**
- * The joiner's owned workspaces a team join sweeps into the team, sorted: every attachable one
- * (archived included) except the workspace their personal organization's chats move into, which
- * stays theirs and outside the team so the team's data drains never export those chats.
+ * {@link ownedAttachableWorkspacesWhere} (archived included) for a team join, less the workspace
+ * the joiner's personal organization's chats will move into: it stays theirs and outside the team
+ * so the team's data drains never export those chats. Every join-time selection (the sweep, the
+ * admin member operation and its preflight) builds its WHERE from this.
  */
+export async function joinAttachableWorkspacesWhere(executor: DbOrTx, userId: string) {
+  const chatWorkspaceId = await findPersonalChatDestinationWorkspaceId(executor, userId)
+  return and(
+    ownedAttachableWorkspacesWhere({ userId, includeArchived: true }),
+    chatWorkspaceId ? ne(workspace.id, chatWorkspaceId) : undefined
+  )
+}
+
+/** The ids {@link joinAttachableWorkspacesWhere} selects, sorted. */
 export async function joinAttachableWorkspaceIds(
   executor: DbOrTx,
   userId: string
@@ -123,12 +137,8 @@ export async function joinAttachableWorkspaceIds(
   const owned = await executor
     .select({ id: workspace.id })
     .from(workspace)
-    .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
-  const chatWorkspaceId = await findPersonalChatDestinationWorkspaceId(executor, userId)
-  return owned
-    .map((row) => row.id)
-    .filter((id) => id !== chatWorkspaceId)
-    .sort()
+    .where(await joinAttachableWorkspacesWhere(executor, userId))
+  return owned.map((row) => row.id).sort()
 }
 
 /**
@@ -222,23 +232,14 @@ export async function attachOwnedWorkspacesToOrganization({
     })
     await acquireOrganizationMutationLock(tx, organizationId)
     await lockWorkspaceRowsForPayerChanges(tx, ownedWorkspaceIds)
-    const splitWorkspaceIds = skipSplitProjects
-      ? await findSplitProjectWorkspaceIds(tx, ownedWorkspaceIds)
-      : new Set<string>()
-    if (splitWorkspaceIds.size > 0) {
-      logger.warn('Left workspaces outside the organization: their Project spans owners', {
-        ownerUserId,
-        organizationId,
-        skippedWorkspaceIds: [...splitWorkspaceIds],
-      })
-    }
     return attachOwnedWorkspacesToOrganizationTx(tx, {
       ownerUserId,
       organizationId,
-      workspaceIds: ownedWorkspaceIds.filter((id) => !splitWorkspaceIds.has(id)),
+      workspaceIds: ownedWorkspaceIds,
       externalMemberPolicy,
       ownerMatch: 'owner',
       includeArchived,
+      skipSplitProjects,
       actor,
     })
   })
@@ -296,6 +297,7 @@ export async function attachOwnedWorkspacesToOrganizationTx(
     externalMemberPolicy = 'keep-external',
     ownerMatch = 'billing-account',
     includeArchived = false,
+    skipSplitProjects = false,
     actor,
   }: {
     ownerUserId: string
@@ -304,22 +306,27 @@ export async function attachOwnedWorkspacesToOrganizationTx(
     externalMemberPolicy?: ExternalMemberPolicy
     ownerMatch?: 'owner' | 'billing-account'
     includeArchived?: boolean
+    /**
+     * Leave a workspace whose Project also holds an environment outside the attach where it is,
+     * reported in `skippedSplitProjectWorkspaceIds`, instead of failing the whole attach on it.
+     */
+    skipSplitProjects?: boolean
     actor: PersonalOrganizationAuditActor
   }
 ): Promise<AttachOwnedWorkspacesToOrganizationTxResult> {
-  if (workspaceIds.length === 0) {
-    return {
-      attachedWorkspaceIds: [],
-      addedMemberIds: [],
-      skippedMembers: [],
-      usageLimitUserIds: [],
-    }
+  const nothingAttached = {
+    attachedWorkspaceIds: [],
+    addedMemberIds: [],
+    skippedMembers: [],
+    usageLimitUserIds: [],
+    skippedSplitProjectWorkspaceIds: [],
   }
+  if (workspaceIds.length === 0) return nothingAttached
 
   // A workspace may have completed a different organization move while this
   // acceptance was waiting for its advisory locks. Never turn that into an
   // inter-organization transfer: attach only rows that are still non-org.
-  const ownedWorkspaces = await tx
+  const attachableWorkspaces = await tx
     .select({
       id: workspace.id,
       billedAccountUserId: workspace.billedAccountUserId,
@@ -335,14 +342,24 @@ export async function attachOwnedWorkspacesToOrganizationTx(
     )
     .orderBy(asc(workspace.id))
     .for('no key update')
+  const splitWorkspaceIds = skipSplitProjects
+    ? await findSplitProjectWorkspaceIds(
+        tx,
+        attachableWorkspaces.map((row) => row.id)
+      )
+    : new Set<string>()
+  const skippedSplitProjectWorkspaceIds = [...splitWorkspaceIds].sort()
+  if (skippedSplitProjectWorkspaceIds.length > 0) {
+    logger.warn('Left workspaces outside the organization: their Project spans owners', {
+      ownerUserId,
+      organizationId,
+      skippedWorkspaceIds: skippedSplitProjectWorkspaceIds,
+    })
+  }
+  const ownedWorkspaces = attachableWorkspaces.filter((row) => !splitWorkspaceIds.has(row.id))
 
   if (ownedWorkspaces.length === 0) {
-    return {
-      attachedWorkspaceIds: [],
-      addedMemberIds: [],
-      skippedMembers: [],
-      usageLimitUserIds: [],
-    }
+    return { ...nothingAttached, skippedSplitProjectWorkspaceIds }
   }
 
   const [ownerMembership] = await tx
@@ -509,6 +526,7 @@ export async function attachOwnedWorkspacesToOrganizationTx(
     addedMemberIds,
     skippedMembers,
     usageLimitUserIds,
+    skippedSplitProjectWorkspaceIds,
   }
 }
 

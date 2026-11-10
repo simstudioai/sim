@@ -50,7 +50,10 @@ export const POST = withRouteHandler(
             error.code === 'workspace-not-found' ? 'Workspace' : 'Organization'
           )
         }
-        if (error.code === 'destination-personal-organization') {
+        if (
+          error.code === 'destination-personal-organization' ||
+          error.code === 'holds-moved-personal-chats'
+        ) {
           return adminConflictResponse(error.message)
         }
         return adminBadRequestResponse(error.message)

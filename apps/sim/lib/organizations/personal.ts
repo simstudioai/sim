@@ -64,7 +64,7 @@ export async function getPersonalOrganizationId(
  * Without it, a chat or run committed between moving content and deleting the organization would
  * be cascade-deleted with it.
  */
-async function lockPersonalOrganizationTx(tx: DbTransaction, organizationId: string) {
+export async function lockPersonalOrganizationTx(tx: DbTransaction, organizationId: string) {
   await tx
     .select({ id: organization.id })
     .from(organization)

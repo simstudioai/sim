@@ -104,7 +104,8 @@ export async function findPersonalChatDestinationWorkspaceId(
  * personal workspace, in the caller's transaction, before the organization's workspaces are
  * detached and it is deleted (joining a team, or the rollback). The chats stay private to their
  * owner as workspace chats, outlive any team they join or leave, and never reach a team's data
- * drains; moving them into the team would have done all three wrong.
+ * drains; moving them into the team would have done all three wrong. The workspace is stamped
+ * `personalChatsRehomedAt`, which keeps it out of every later team attach, on whatever path.
  *
  * Their live runs are stopped first (the Stop recorded durably under the workspace, so run control
  * keeps answering it after the move), the runs move with their chats, and the private attachments
@@ -130,6 +131,10 @@ export async function rehomePersonalOrganizationChatsTx(
   if (!anyChat) return { workspaceId: null, chatCount: 0, attachmentCount: 0, rescopeEventIds: [] }
 
   const workspaceId = await destinationWorkspaceTx(tx, organizationId, userId)
+  await tx
+    .update(workspace)
+    .set({ personalChatsRehomedAt: new Date() })
+    .where(eq(workspace.id, workspaceId))
   const stoppedRuns = await stopLiveRunsTx(tx, { userId, organizationId })
   await tx.execute(sql`
     INSERT INTO ${copilotRequestStops} (user_id, workspace_id, stream_id, stopped_at)
