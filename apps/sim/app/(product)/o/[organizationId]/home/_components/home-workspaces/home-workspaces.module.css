@@ -1,0 +1,18 @@
+.viewport {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: var(--ui-list-gap);
+  min-block-size: 0;
+  margin-inline: calc(-1 * var(--ui-row-inset));
+}
+.entries {
+  display: grid;
+  gap: var(--ui-list-gap);
+  min-inline-size: 0;
+}
+/* The button's hit area sits on the rows' outer edge, so its label shares their text edge. */
+.more {
+  display: flex;
+  justify-self: start;
+}
