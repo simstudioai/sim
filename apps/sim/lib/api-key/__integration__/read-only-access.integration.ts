@@ -86,10 +86,11 @@ async function call(handler: unknown, path: string, options: CallOptions = {}) {
   return { status: response.status, body }
 }
 
-function tableBody(name: string) {
+/** Table names must match `NAME_PATTERN`, so the generated id's hyphens become underscores. */
+function tableBody(label: string) {
   return {
     workspaceId,
-    name,
+    name: `${label}_${generateId().replaceAll('-', '_')}`,
     schema: { columns: [{ name: 'title', type: 'string' }] },
   }
 }
@@ -276,7 +277,7 @@ describe('read-only and expiring API keys in PostgreSQL', () => {
     for (const key of [readPersonalKey, readWorkspaceKey]) {
       const v2 = await call(v2CreateTable, '/api/v2/tables', {
         key,
-        body: tableBody(`v2 ${generateId()}`),
+        body: tableBody('v2'),
       })
       expect(v2.status).toBe(403)
       expect(v2.body).toMatchObject({
@@ -288,7 +289,7 @@ describe('read-only and expiring API keys in PostgreSQL', () => {
         headers: MCP_HEADERS,
         body: mcpToolCall('call_write_operation', {
           operation: 'createTable',
-          body: tableBody(`mcp ${generateId()}`),
+          body: tableBody('mcp'),
         }),
       })
       expect(mcpWrite.status).toBe(403)
@@ -296,7 +297,7 @@ describe('read-only and expiring API keys in PostgreSQL', () => {
 
       const v1 = await call(v1CreateTable, '/api/v1/tables', {
         key,
-        body: tableBody(`v1 ${generateId()}`),
+        body: tableBody('v1'),
       })
       expect(v1.status).toBe(403)
       expect(v1.body).toEqual({
@@ -370,9 +371,9 @@ describe('read-only and expiring API keys in PostgreSQL', () => {
     const tablesBefore = await tableCount()
     const created = await call(v2CreateTable, '/api/v2/tables', {
       key: legacyKey,
-      body: tableBody(`legacy ${generateId()}`),
+      body: tableBody('legacy'),
     })
-    expect(created.status).toBe(200)
+    expect(created.status, JSON.stringify(created.body)).toBe(201)
     expect(await tableCount()).toBe(tablesBefore + 1)
   })
 

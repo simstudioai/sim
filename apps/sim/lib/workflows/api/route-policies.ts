@@ -19,6 +19,7 @@ import {
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
 import { API_KEY_EXPIRED } from '@/lib/api-key/policy-messages'
+import { apiKeyPrincipal } from '@/lib/api-key/principal'
 import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { WorkflowRunAlreadyTerminalError } from '@/lib/execution/workflow-run-already-terminal-error'
@@ -101,29 +102,12 @@ type WorkflowApiKeyPrincipal = PersonalApiKeyPrincipal | WorkspaceApiKeyPrincipa
 
 async function authenticateWorkflowApiKey(rawApiKey: string): Promise<WorkflowApiKeyPrincipal> {
   const result = await authenticateApiKeyFromHeader(rawApiKey)
-  if (!result.success || !result.keyId || !result.keyType || !result.access) {
-    throw new InternalUnauthenticatedError(
-      result.error === API_KEY_EXPIRED ? API_KEY_EXPIRED : 'Unauthorized'
-    )
+  if (!result.success) {
+    throw new InternalUnauthenticatedError(result.expired ? API_KEY_EXPIRED : 'Unauthorized')
   }
-  updateApiKeyLastUsed(result.keyId)
-
-  if (result.keyType === 'workspace') {
-    if (!result.workspaceId) throw new Error('Workspace API key is missing its workspace scope')
-    return {
-      kind: 'workspace_api_key',
-      workspaceId: result.workspaceId,
-      keyId: result.keyId,
-      access: result.access,
-    }
-  }
-  if (!result.userId) throw new Error('Personal API key is missing its credential owner')
-  return {
-    kind: 'personal_api_key',
-    userId: result.userId,
-    keyId: result.keyId,
-    access: result.access,
-  }
+  const principal = apiKeyPrincipal(result)
+  updateApiKeyLastUsed(principal.keyId)
+  return principal
 }
 
 export const internalWorkflowSessionOrApiKeyAuth: InternalAuthPolicy<

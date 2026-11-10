@@ -38,13 +38,13 @@ Delete a key from the same settings page to revoke it. Update applications that 
 | Access | Allows |
 | --- | --- |
 | **Full access** | Everything the key's identity can do: reads, changes, deploys, and workflow runs |
-| **Read only** | The operations the [`api:read` scope](#oauth-access-tokens) allows, including searches sent as POST requests |
+| **Read only** | The operations the [`api:read` scope](#oauth-access-tokens) allows, including searches sent as POST requests and search chat, which `search:read` covers |
 
 A read-only key cannot run, resume, or cancel workflows, or create, change, or delete anything. Those requests fail with `403` and `error.details.code` `READ_ONLY_API_KEY`. Access narrows a key; it never grants more than the key's identity already has. Access is fixed at creation, so create a new key to change it. Keys created before access levels existed have full access. Keys created from the deploy modal or for a workflow MCP server always have full access, because they exist to run workflows.
 
 ### Expiration [#key-expiration]
 
-A key expires 30 days, 90 days, or 1 year after creation, or never. The settings page defaults to 90 days. After it expires, every request with the key fails with `401` and the message `API key has expired`; create a replacement before then. The key list shows each key's expiration date. `GET /api/v2/meta` reports the calling key's `expiresAt` and `scopes`.
+A key expires 30 days, 90 days, or 1 year after creation, or never. The settings page defaults to never. After it expires, every request with the key fails with `401` and the message `API key has expired`; create a replacement before then. The key list shows each key's expiration date. `GET /api/v2/meta` reports the calling key's `expiresAt` and `scopes`.
 
 ## Send an API key [#using-api-keys]
 

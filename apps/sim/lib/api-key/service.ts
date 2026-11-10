@@ -26,6 +26,8 @@ export interface ApiKeyAuthResult {
   access?: ApiKeyAccess
   workspaceId?: string
   error?: string
+  /** The key matched but is past its expiry, so callers can say so rather than "invalid". */
+  expired?: true
 }
 
 const INVALID = { success: false, error: 'Invalid API key' } as const
@@ -101,7 +103,7 @@ export async function authenticateApiKeyFromHeader(
     if (options.userId && record.userId !== options.userId) return INVALID
     if (options.keyTypes?.length && !options.keyTypes.includes(keyType)) return INVALID
     if (record.expiresAt && record.expiresAt < new Date()) {
-      return { success: false, error: API_KEY_EXPIRED }
+      return { success: false, error: API_KEY_EXPIRED, expired: true }
     }
 
     if (

@@ -30,9 +30,8 @@ export function apiKeyCreationErrorStatus(code: ApiKeyOrchestrationErrorCode | u
   return 500
 }
 
+/** Also the shortest lifetime a key may be created with. */
 const DAY_MS = 24 * 60 * 60 * 1000
-/** The shortest lifetime a key may be created with. */
-const MIN_API_KEY_LIFETIME_MS = DAY_MS
 /** The longest lifetime a key may be created with: a year, with a day of slack for time zones. */
 const MAX_API_KEY_LIFETIME_MS = 366 * DAY_MS
 
@@ -55,7 +54,7 @@ function resolveApiKeyExpiry(expiresAt: string | null | undefined): ResolvedExpi
   if (!Number.isFinite(lifetimeMs)) {
     return { ok: false, error: 'Expiration must be a valid date' }
   }
-  if (lifetimeMs < MIN_API_KEY_LIFETIME_MS) {
+  if (lifetimeMs < DAY_MS) {
     return { ok: false, error: 'Expiration must be at least one day from now' }
   }
   if (lifetimeMs > MAX_API_KEY_LIFETIME_MS) {

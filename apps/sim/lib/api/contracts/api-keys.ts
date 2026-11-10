@@ -7,7 +7,8 @@ export type ApiKeyAccessLevel = z.output<typeof apiKeyAccessSchema>
 const apiKeyMetadataSchema = z.object({
   id: z.string(),
   name: z.string(),
-  access: apiKeyAccessSchema,
+  /** Defaulted so a new client tolerates an old server's response during rollout. */
+  access: apiKeyAccessSchema.default('write'),
   lastUsed: z.string().nullable().optional(),
   createdAt: z.string(),
   expiresAt: z.string().nullable().optional(),

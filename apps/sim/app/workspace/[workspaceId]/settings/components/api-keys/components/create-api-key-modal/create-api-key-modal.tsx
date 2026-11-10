@@ -30,7 +30,7 @@ const EXPIRY_OPTIONS = [
 
 type ExpiryOption = (typeof EXPIRY_OPTIONS)[number]['value']
 
-const DEFAULT_EXPIRY: ExpiryOption = '90'
+const DEFAULT_EXPIRY: ExpiryOption = 'never'
 
 function expiresAtFor(expiry: ExpiryOption): string | null {
   return expiry === 'never' ? null : new Date(Date.now() + Number(expiry) * DAY_MS).toISOString()
