@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-06",
+  "updatedAt": "2026-11-10",
   "integrations": [
     {
       "type": "onepassword",
@@ -13722,6 +13722,38 @@
       "integrationType": "ai",
       "tags": ["llm", "agentic"],
       "updatedAt": "2026-10-14"
+    },
+    {
+      "type": "huntapi",
+      "slug": "huntapi",
+      "name": "HuntAPI",
+      "description": "Download videos and audio from public video URLs",
+      "longDescription": "Start a download of a public video in a chosen quality and format, or extract its audio track, then check the job to get a link to the file with the video's title, duration, channel and view counts.",
+      "bgColor": "#FFFFFF",
+      "iconName": "HuntApiIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/huntapi",
+      "operations": [
+        {
+          "name": "Download Video",
+          "description": "Start downloading a public video in a chosen quality and format. Returns a job ID; use Get Job to get the file link once the job completes."
+        },
+        {
+          "name": "Download Audio",
+          "description": "Start extracting the audio track of a public video as MP3 or another format. Returns a job ID; use Get Job to get the file link once the job completes."
+        },
+        {
+          "name": "Get Job",
+          "description": "Get a download job's status and progress and, once it completes, the link to the file with the video's metadata."
+        }
+      ],
+      "operationCount": 3,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["automation", "content-management"],
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "hunter",

@@ -131,6 +131,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   hubspot: 'HubSpot',
   huggingface: 'Hugging Face',
   human_in_the_loop_v2: 'Human',
+  huntapi: 'HuntAPI',
   hunter: 'Hunter.io',
   iam: 'AWS IAM',
   icypeas: 'Icypeas',
