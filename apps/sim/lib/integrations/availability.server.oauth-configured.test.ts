@@ -4,12 +4,15 @@ import {
   getIntegrationAvailability,
   getOAuthServiceAvailability,
 } from '@/lib/integrations/availability.server'
+import { getAllOAuthServices } from '@/lib/oauth'
 
 setEnv({
   GITHUB_APP_CLIENT_ID: 'repository-client',
   GITHUB_APP_CLIENT_SECRET: 'repository-secret',
   GOOGLE_CLIENT_ID: undefined,
   GOOGLE_CLIENT_SECRET: undefined,
+  SALESFORCE_CLIENT_ID: 'salesforce-client',
+  SALESFORCE_CLIENT_SECRET: 'salesforce-secret',
 })
 afterAll(resetEnvMock)
 
@@ -34,6 +37,16 @@ describe('OAuth service availability projection', () => {
     ).toEqual([
       { providerId: 'google-email', available: false },
       { providerId: 'google-calendar', available: false },
+    ])
+  })
+
+  it('judges every provider id a service signs in through, not only its primary one', () => {
+    const salesforce = getAllOAuthServices().filter(
+      (service) => service.providerId === 'salesforce'
+    )
+    expect(getOAuthServiceAvailability(salesforce)).toEqual([
+      { providerId: 'salesforce', available: true },
+      { providerId: 'salesforce-sandbox', available: true },
     ])
   })
 

@@ -59,7 +59,7 @@ const gmail: IntegrationCatalogEntry = {
 
 function verdicts(
   access: ReturnType<WorkspaceAppVerdicts['access']>,
-  oauth?: boolean
+  oauth = false
 ): WorkspaceAppVerdicts {
   return { access: () => access, oauthAvailable: () => oauth }
 }
@@ -83,9 +83,9 @@ describe('projectWorkspaceApp', () => {
   })
 
   it('offers only the methods this page can complete, a personal token among them', () => {
-    const ids = (oauth?: boolean) =>
+    const ids = (oauth: boolean) =>
       projectWorkspaceApp(gmail, verdicts('available', oauth))?.connections.map(({ id }) => id)
-    expect(ids()).toEqual(['google-email', 'google-service-account'])
+    expect(ids(true)).toEqual(['google-email', 'google-service-account'])
     expect(ids(false)).toEqual(['google-service-account'])
     const gitlab: IntegrationCatalogEntry = {
       ...gmail,

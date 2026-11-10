@@ -60,8 +60,8 @@ export interface WorkspaceAppDetail extends WorkspaceApp {
 export interface WorkspaceAppVerdicts {
   /** The integration access verdict for a block type, as `resolveIntegrationAccess` answers it. */
   access: (blockType: string) => 'available' | 'unconfigured' | 'requestable' | 'denied'
-  /** Whether the deployment can complete an OAuth provider's sign-in; absent reads as available. */
-  oauthAvailable: (providerId: string) => boolean | undefined
+  /** Whether the deployment can complete an OAuth provider's sign-in. */
+  oauthAvailable: (providerId: string) => boolean
 }
 
 const ATLASSIAN_SERVICE_ACCOUNT_PROVIDER = 'atlassian-service-account'
@@ -90,8 +90,7 @@ export function projectWorkspaceApp(
       ? entry.connections.filter(
           (connection) =>
             CONNECTABLE_KINDS.has(connection.kind) &&
-            (connection.kind !== 'oauth' ||
-              verdicts.oauthAvailable(connection.providerId) !== false)
+            (connection.kind !== 'oauth' || verdicts.oauthAvailable(connection.providerId))
         )
       : []
   return {

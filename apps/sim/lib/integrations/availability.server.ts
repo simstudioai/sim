@@ -24,15 +24,23 @@ export function getIntegrationAvailability() {
   return resolveIntegrationAvailability(env)
 }
 
-/** OAuth clients are independent of the authentication method a workflow block exposes. */
+/**
+ * Whether the deployment can complete each provider id an OAuth service signs in through, its
+ * additional ones (such as Salesforce's sandbox) included. OAuth clients are independent of the
+ * authentication method a workflow block exposes.
+ */
 export function getOAuthServiceAvailability(
-  services: readonly Pick<OAuthServiceMetadata, 'providerId' | 'authType'>[]
+  services: readonly Pick<
+    OAuthServiceMetadata,
+    'providerId' | 'authType' | 'additionalProviderIds'
+  >[]
 ): { providerId: string; available: boolean }[] {
   return services
     .filter((service) => service.authType === 'oauth')
-    .map((service) => ({
-      providerId: service.providerId,
-      available: isOAuthServiceDeploymentAvailable(service.providerId),
+    .flatMap((service) => [service.providerId, ...(service.additionalProviderIds ?? [])])
+    .map((providerId) => ({
+      providerId,
+      available: isOAuthServiceDeploymentAvailable(providerId),
     }))
 }
 

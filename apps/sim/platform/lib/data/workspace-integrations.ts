@@ -65,7 +65,7 @@ async function readWorkspaceApps(workspaceId: string): Promise<WorkspaceAppDetai
   return integrationCatalog.flatMap((entry) => {
     const app = projectWorkspaceApp(entry, {
       access: (blockType) => resolveIntegrationAccess(blockType, policy),
-      oauthAvailable: (providerId) => oauth.get(providerId.toLowerCase()),
+      oauthAvailable: (providerId) => oauth.get(providerId.toLowerCase()) === true,
     })
     return app
       ? [{ ...app, example: entry.example, skills: entry.skills, templates: entry.templates }]
