@@ -265,6 +265,8 @@ API request and response schemas: [getGitLabSearchPermissions](/api-reference/or
 
 OAuth login or personal API key required.
 
+This replaces both GitLab permission files. Readers omitted from the new grants lose access.
+
 ```bash
 sim organizations gitlab-permissions replace <sourceId> [options]
 ```
@@ -289,6 +291,7 @@ sim organizations gitlab-permissions replace <sourceId> [options]
 | `--expected-revision <value>` | Yes | Current permission revision obtained before generating this snapshot. |
 | `--user-mapping <json\|@file>` | Yes | GitLab user IDs and their verified Sim email addresses. (JSON, or @path / @- to read a file or stdin). |
 | `--project-permissions <json\|@file>` | Yes | GitLab project paths and the IDs of users granted access. (JSON, or @path / @- to read a file or stdin). |
+| `-y, --yes` | Yes | Confirm this operation. |
 
 </CommandTable>
 

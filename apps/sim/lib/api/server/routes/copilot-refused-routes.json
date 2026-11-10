@@ -176,6 +176,16 @@
   },
   {
     "method": "GET",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/gitlab-permissions",
+    "operation": "knowledge.search.gitlab_permissions.read"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v2/organizations/[organizationId]/search/sources/[sourceId]/gitlab-permissions",
+    "operation": "knowledge.search.gitlab_permissions.replace"
+  },
+  {
+    "method": "GET",
     "path": "/api/v2/organizations/[organizationId]/sso/policy",
     "operation": "organization.sso.read_requirement"
   },

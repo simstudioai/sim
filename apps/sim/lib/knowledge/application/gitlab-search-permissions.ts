@@ -14,7 +14,7 @@ import { authorizeOrganizationOperation } from '@/lib/core/application/organizat
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resourceScopeCondition } from '@/lib/core/resource-scope.server'
 import { isKnowledgeMemberAccessAvailable } from '@/lib/knowledge/access/availability'
-import { gitLabSearchPermissionOperations } from '@/lib/knowledge/application/gitlab-search-permission-operations'
+import { gitLabSearchPermissionOperations } from '@/lib/knowledge/application/operations'
 import { connectorIsLive } from '@/lib/knowledge/connectors/sync-lock'
 import {
   lockOrganizationSearchApproval,

@@ -23,7 +23,7 @@ import {
 } from '@/lib/api/contracts/v2/organizations'
 import { defineOpenApiRoute } from '@/lib/api/openapi/types'
 import { invitationOperations } from '@/lib/invitations/application/operations'
-import { gitLabSearchPermissionOperations } from '@/lib/knowledge/application/gitlab-search-permission-operations'
+import { gitLabSearchPermissionOperations } from '@/lib/knowledge/application/operations'
 import { organizationOperations } from '@/lib/organizations/application/operations'
 
 const TIMESTAMP = '2026-06-01T09:00:00.000Z'

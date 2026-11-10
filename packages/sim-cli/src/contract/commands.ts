@@ -1245,6 +1245,8 @@ export const CLI_CONTRACT: CliContract = {
   replaceGitLabSearchPermissions: {
     command: 'organizations gitlab-permissions replace',
     pathFlags: ORGANIZATION_FLAG,
+    confirm:
+      'This replaces both GitLab permission files. Readers omitted from the new grants lose access.',
   },
   listSsoProviders: {
     command: 'organizations sso providers list',

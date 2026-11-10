@@ -4,11 +4,11 @@ import {
 } from '@/lib/api/contracts/v2/organizations'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2OrganizationErrorPolicy } from '@/lib/api/server/routes/organizations'
-import { gitLabSearchPermissionOperations } from '@/lib/knowledge/application/gitlab-search-permission-operations'
 import {
   readGitLabSearchPermissions,
   replaceGitLabSearchPermissions,
 } from '@/lib/knowledge/application/gitlab-search-permissions'
+import { gitLabSearchPermissionOperations } from '@/lib/knowledge/application/operations'
 
 export const GET = defineV2JsonRoute({
   contract: v2GetGitLabSearchPermissionsContract,
