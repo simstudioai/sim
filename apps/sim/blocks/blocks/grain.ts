@@ -2,6 +2,7 @@ import { omit } from '@sim/utils/object'
 import { GrainIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 import { GRAIN_HOOK_TYPE_OPTIONS, grainTriggerOptions } from '@/triggers/grain/utils'
 
@@ -25,10 +26,10 @@ export const GrainBlock: BlockConfig = {
   description: 'Access meeting recordings, transcripts, and AI summaries',
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
-  // Superseded by grain_v2 (Grain API v1 sunsets 2026-09-07); existing blocks
-  // keep rendering, new blocks come from the v2 entry.
+  // Superseded (Grain API v1 sunsets 2026-09-07); existing blocks keep rendering,
+  // new blocks come from the current version.
   hideFromToolbar: true,
-  sunset: { status: 'legacy', replacedBy: 'grain_v2' },
+  sunset: { status: 'legacy', replacedBy: 'grain_v3' },
   longDescription:
     'Access meeting recordings, transcripts, highlights, and AI-generated summaries. Trigger workflows based on Grain webhook events.',
   category: 'tools',
@@ -544,9 +545,9 @@ Return ONLY the search term - no explanations, no quotes, no extra text.`,
  */
 export const GrainV2Block: BlockConfig = {
   ...GrainBlock,
-  sunset: undefined,
+  sunset: { status: 'legacy', replacedBy: 'grain_v3' },
   type: 'grain_v2',
-  hideFromToolbar: false,
+  hideFromToolbar: true,
   canvasPresentation: {
     defaultTitle: 'Grain',
     sentences: {
@@ -926,3 +927,17 @@ export const GrainBlockMeta = {
 } as const satisfies BlockMeta
 
 export const GrainV2BlockMeta = GrainBlockMeta
+
+export const GrainV3Block: BlockConfig = {
+  ...GrainV2Block,
+  type: 'grain_v3',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(GrainV2Block, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'grain',
+    title: 'Grain Credential',
+  }),
+}

@@ -2,6 +2,7 @@ import type {
   PagerDutyListServicesParams,
   PagerDutyListServicesResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listServicesTool: ToolConfig<
@@ -12,6 +13,7 @@ export const listServicesTool: ToolConfig<
   name: 'PagerDuty List Services',
   description: 'List services from PagerDuty with optional name filter.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

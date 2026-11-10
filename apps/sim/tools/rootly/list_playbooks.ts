@@ -1,4 +1,5 @@
 import type { RootlyListPlaybooksParams, RootlyListPlaybooksResponse } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListPlaybooksTool: ToolConfig<
@@ -9,6 +10,7 @@ export const rootlyListPlaybooksTool: ToolConfig<
   name: 'Rootly List Playbooks',
   description: 'List playbooks from Rootly with pagination support.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,6 +2,7 @@ import type {
   RootlyListIncidentEventsParams,
   RootlyListIncidentEventsResponse,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListIncidentEventsTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyListIncidentEventsTool: ToolConfig<
   name: 'Rootly List Incident Events',
   description: 'List the timeline events for a Rootly incident.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

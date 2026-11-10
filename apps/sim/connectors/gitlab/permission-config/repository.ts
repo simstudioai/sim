@@ -2,13 +2,16 @@ import { isPlainRecord } from '@sim/utils/object'
 import { z } from 'zod'
 import { gitLabPermissionSummarySchema } from '@/lib/api/contracts/knowledge/gitlab-permissions'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { DbTransaction } from '@/lib/db/types'
 import {
+  type ConnectorPermissionData,
   loadConnectorPermissionSnapshot,
   readConnectorPermissionMetadata,
-  writeConnectorPermissions,
 } from '@/lib/knowledge/connectors/permission-store'
-import { gitLabCsvSubjects, parseGitLabCsv } from '@/connectors/gitlab/permission-config/parser'
+import {
+  GitLabCsvValidationError,
+  gitLabCsvSubjects,
+  parseGitLabCsv,
+} from '@/connectors/gitlab/permission-config/parser'
 import {
   GITLAB_CSV_MAX_ROWS,
   type GitLabPermissionInput,
@@ -23,16 +26,16 @@ const metadataSchema = gitLabPermissionSummarySchema
     projectId: z.number().int().positive(),
     projectPath: z.string().min(1),
   })
-type Snapshot = z.output<typeof metadataSchema> & {
-  connectorId: string
-  revision: number
+type RevisionMetadata = z.output<typeof metadataSchema> & { revision: number }
+interface StoredRows {
   userMappingRows: [string, string][] | null
   projectPermissionRows: [string, string][] | null
 }
+type Snapshot = RevisionMetadata & StoredRows
 
 export interface PreparedGitLabPermissions {
   expectedRevision: number
-  snapshot: Omit<Snapshot, 'connectorId'>
+  snapshot: Snapshot
   subjects: string[]
   rewriteAccess: boolean
 }
@@ -41,7 +44,8 @@ function invalidSnapshot(): never {
   throw new OrchestrationError('internal', 'Could not read the stored GitLab permissions.')
 }
 
-function readMetadata(value: unknown) {
+/** Validates stored file summaries and the canonical project without loading CSV rows. */
+export function readGitLabPermissionMetadata(value: unknown) {
   const parsed = metadataSchema.safeParse(value)
   if (!parsed.success) return invalidSnapshot()
   const result = parsed.data
@@ -68,7 +72,7 @@ function readRows(value: unknown): [string, string][] | null {
 export async function loadGitLabPermissionSnapshot(connectorId: string): Promise<Snapshot | null> {
   const row = await loadConnectorPermissionSnapshot(connectorId)
   if (!row) return null
-  const metadata = readMetadata(row.metadata)
+  const metadata = readGitLabPermissionMetadata(row.metadata)
   if (!isPlainRecord(row.payload)) return invalidSnapshot()
   const userMappingRows = readRows(row.payload.userMappingRows)
   const projectPermissionRows = readRows(row.payload.projectPermissionRows)
@@ -82,7 +86,6 @@ export async function loadGitLabPermissionSnapshot(connectorId: string): Promise
   )
     return invalidSnapshot()
   return {
-    connectorId,
     revision: row.revision,
     ...metadata,
     userMappingRows,
@@ -93,7 +96,7 @@ export async function loadGitLabPermissionSnapshot(connectorId: string): Promise
 export function prepareGitLabPermissions(
   input: GitLabPermissionInput,
   project: { host: string; projectId: number; projectPath: string },
-  existing: Snapshot | null,
+  existing: (RevisionMetadata & Partial<StoredRows>) | null,
   replacing: boolean
 ): PreparedGitLabPermissions {
   const revision = existing?.revision ?? 0
@@ -115,7 +118,17 @@ export function prepareGitLabPermissions(
         kind === 'userMapping' ? existing?.userMappingRows : existing?.projectPermissionRows
       return metadata && rows ? { ...metadata, rows } : null
     }
-    return { filename: upload.filename.trim(), uploadedAt: now, rows: parseGitLabCsv(upload, kind) }
+    try {
+      return {
+        filename: upload.filename.trim(),
+        uploadedAt: now,
+        rows: parseGitLabCsv(upload, kind),
+      }
+    } catch (error) {
+      if (error instanceof GitLabCsvValidationError)
+        throw new OrchestrationError('validation', error.message)
+      throw error
+    }
   }
   const userMapping = input.mode === 'csv' ? file('userMapping') : null
   const projectPermissions = input.mode === 'csv' ? file('projectPermissions') : null
@@ -125,7 +138,9 @@ export function prepareGitLabPermissions(
   return {
     expectedRevision: revision,
     snapshot: {
-      ...project,
+      host: project.host,
+      projectId: project.projectId,
+      projectPath: project.projectPath,
       mode: input.mode,
       revision: revision + 1,
       userMapping: userMapping
@@ -157,24 +172,19 @@ export function prepareGitLabPermissions(
   }
 }
 
-/** The shared store serializes revision checks and grants inside the owning connector transaction. */
-export async function writeGitLabPermissions(
-  tx: DbTransaction,
-  connectorId: string,
-  prepared: PreparedGitLabPermissions
-): Promise<void> {
+/** Keeps CSV rows in the private payload and stores only the configured project’s reader grants. */
+export function gitLabPermissionData(prepared: PreparedGitLabPermissions): ConnectorPermissionData {
   const {
     revision: _revision,
     userMappingRows,
     projectPermissionRows,
     ...metadata
   } = prepared.snapshot
-  await writeConnectorPermissions(tx, connectorId, {
-    expectedRevision: prepared.expectedRevision,
+  return {
     metadata,
     payload: { userMappingRows, projectPermissionRows },
     groups: [{ groupKey: 'project', subjects: prepared.subjects }],
-  })
+  }
 }
 
 /** Projects only safe metadata; CSV contents never reach a response or browser draft. */
@@ -183,7 +193,7 @@ export async function readGitLabPermissionSummaries(
 ): Promise<Map<string, GitLabPermissionSummary>> {
   const result = new Map<string, GitLabPermissionSummary>()
   for (const row of await readConnectorPermissionMetadata(connectorIds)) {
-    const { mode, userMapping, projectPermissions } = readMetadata(row.metadata)
+    const { mode, userMapping, projectPermissions } = readGitLabPermissionMetadata(row.metadata)
     result.set(row.connectorId, { mode, revision: row.revision, userMapping, projectPermissions })
   }
   return result
@@ -196,6 +206,6 @@ export async function seedGitLabCsvContext(
 ): Promise<void> {
   const [row] = await readConnectorPermissionMetadata([connectorId])
   if (!row) return
-  const { mode, host, projectId, projectPath } = readMetadata(row.metadata)
+  const { mode, host, projectId, projectPath } = readGitLabPermissionMetadata(row.metadata)
   if (mode === 'csv') setGitLabCsvContext(context, { connectorId, host, projectId, projectPath })
 }

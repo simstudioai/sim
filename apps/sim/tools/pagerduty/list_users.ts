@@ -1,4 +1,5 @@
 import type { PagerDutyListUsersParams, PagerDutyListUsersResponse } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listUsersTool: ToolConfig<PagerDutyListUsersParams, PagerDutyListUsersResponse> = {
@@ -6,6 +7,7 @@ export const listUsersTool: ToolConfig<PagerDutyListUsersParams, PagerDutyListUs
   name: 'PagerDuty List Users',
   description: 'List users from PagerDuty with an optional name/email filter.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

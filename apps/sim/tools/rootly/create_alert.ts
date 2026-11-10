@@ -1,4 +1,5 @@
 import type { RootlyCreateAlertParams, RootlyCreateAlertResponse } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCreateAlertResponse> =
@@ -7,6 +8,7 @@ export const rootlyCreateAlertTool: ToolConfig<RootlyCreateAlertParams, RootlyCr
     name: 'Rootly Create Alert',
     description: 'Create a new alert in Rootly for on-call notification and routing.',
     version: '1.0.0',
+    oauth: ROOTLY_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

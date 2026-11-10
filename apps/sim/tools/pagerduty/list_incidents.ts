@@ -2,6 +2,7 @@ import type {
   PagerDutyListIncidentsParams,
   PagerDutyListIncidentsResponse,
 } from '@/tools/pagerduty/types'
+import { PAGERDUTY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listIncidentsTool: ToolConfig<
@@ -12,6 +13,7 @@ export const listIncidentsTool: ToolConfig<
   name: 'PagerDuty List Incidents',
   description: 'List incidents from PagerDuty with optional filters.',
   version: '1.0.0',
+  oauth: PAGERDUTY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

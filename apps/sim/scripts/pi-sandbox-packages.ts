@@ -17,7 +17,7 @@
 export const PI_BUN_VERSION = '1.4.4'
 
 /** Exact Pi version mirrored from the app dependencies and lockfile. */
-export const PI_PACKAGE_VERSION = '1.0.0'
+export const PI_PACKAGE_VERSION = '1.5.0'
 
 /** Exact global package versions mirrored from package.json and bun.lock. */
 export const PI_GLOBAL_NPM_PACKAGES = [

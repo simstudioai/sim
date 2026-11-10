@@ -2,7 +2,7 @@
 title: Fathom
 description: Access meeting recordings, transcripts, and summaries
 integration:
-  type: "fathom"
+  type: "fathom_v2"
   color: "#181C1E"
 ---
 
@@ -31,7 +31,6 @@ List recent meetings recorded by the user or shared to their team.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fathom API Key |
 | `includeSummary` | string | No | Include meeting summary \(true/false\) |
 | `includeTranscript` | string | No | Include meeting transcript \(true/false\) |
 | `includeActionItems` | string | No | Include action items \(true/false\) |
@@ -129,7 +128,6 @@ List meeting types configured in your Fathom organization.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fathom API Key |
 | `cursor` | string | No | Pagination cursor from a previous response |
 
 #### Output
@@ -154,7 +152,6 @@ Get the call summary for a specific meeting recording.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fathom API Key |
 | `recordingId` | string | Yes | The recording ID of the meeting |
 
 #### Output
@@ -176,7 +173,6 @@ Get the full transcript for a specific meeting recording.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fathom API Key |
 | `recordingId` | string | Yes | The recording ID of the meeting |
 
 #### Output
@@ -202,7 +198,6 @@ List team members in your Fathom organization.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fathom API Key |
 | `teams` | string | No | Team name to filter by |
 | `cursor` | string | No | Pagination cursor from a previous response |
 
@@ -228,7 +223,6 @@ List teams in your Fathom organization.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Fathom API Key |
 | `cursor` | string | No | Pagination cursor from a previous response |
 
 #### Output

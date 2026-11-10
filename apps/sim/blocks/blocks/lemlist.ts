@@ -1,9 +1,12 @@
 import { LemlistIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 export const LemlistBlock: BlockConfig = {
   type: 'lemlist',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'lemlist_v2' },
   name: 'Lemlist',
   description: 'Manage outreach activities, leads, and send emails via Lemlist',
   authMode: AuthMode.ApiKey,
@@ -364,3 +367,17 @@ export const LemlistBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const LemlistV2Block: BlockConfig = {
+  ...LemlistBlock,
+  type: 'lemlist_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(LemlistBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'lemlist',
+    title: 'Lemlist Credential',
+  }),
+}

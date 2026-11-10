@@ -2,6 +2,7 @@ import type {
   RootlyListEscalationPoliciesParams,
   RootlyListEscalationPoliciesResponse,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListEscalationPoliciesTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyListEscalationPoliciesTool: ToolConfig<
   name: 'Rootly List Escalation Policies',
   description: 'List escalation policies from Rootly with optional search filtering.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

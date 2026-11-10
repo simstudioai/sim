@@ -6,6 +6,7 @@ import {
   JOB_OUTPUTS,
   mapJob,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface Params {
@@ -23,6 +24,7 @@ export const searchJobsTool: ToolConfig<Params, Response> = {
   description:
     'Searches Ashby jobs by title and/or requisition ID. Provide at least one of these filters.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

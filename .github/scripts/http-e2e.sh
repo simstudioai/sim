@@ -346,6 +346,9 @@ case "$group" in
           bun --no-env-file scripts/test-assistant-actions-e2e.ts
         ;;
       organization-search)
+        GITLAB_CSV_E2E_BASE_URL="$local_app_url" \
+        GITLAB_CSV_E2E_REPORT_PATH="$report_dir/gitlab-csv-permissions-http-report.json" \
+          bun --no-env-file scripts/test-gitlab-csv-permissions-e2e.ts
         ORGANIZATION_SEARCH_E2E_BASE_URL="$local_app_url" \
         ORGANIZATION_SEARCH_E2E_DATABASE_URL="$DATABASE_URL" \
         ORGANIZATION_SEARCH_E2E_AUTH_SECRET="$BETTER_AUTH_SECRET" \

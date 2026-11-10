@@ -7,6 +7,7 @@ import {
   checkrHeaders,
   checkrUrl,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrGetAccountTool: ToolConfig<CheckrGetAccountParams, CheckrGetAccountResponse> = {
@@ -15,6 +16,7 @@ export const checkrGetAccountTool: ToolConfig<CheckrGetAccountParams, CheckrGetA
   description:
     'Retrieve the authenticated Checkr account, including whether it is authorized to order checks and which screenings are available.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

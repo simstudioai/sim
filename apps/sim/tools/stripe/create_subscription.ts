@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineStripeKeyedSite,
   type StripeDeliveryContextParams,
@@ -20,6 +21,7 @@ export const stripeCreateSubscriptionTool: ToolConfig<
   name: 'Stripe Create Subscription',
   description: 'Create a new subscription for a customer',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import {
   defineStripeKeyedSite,
   type StripeDeliveryContextParams,
@@ -23,6 +24,7 @@ export const stripeCapturePaymentIntentTool: ToolConfig<
   name: 'Stripe Capture Payment Intent',
   description: 'Capture an authorized Payment Intent',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

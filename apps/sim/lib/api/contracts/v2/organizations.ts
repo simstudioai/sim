@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { connectorPermissionGrantsSchema } from '@/lib/api/contracts/knowledge/connector-permissions'
 import {
   noInputSchema,
   nonEmptyIdSchema,
@@ -317,4 +318,43 @@ export const v2ResendOrganizationInvitationContract = defineRouteContract({
   query: noInputSchema,
   body: noInputSchema.optional().default({}),
   response: { mode: 'json', schema: v2DataResponse(v2OrganizationInvitationSchema) },
+})
+
+const searchSourceParamsSchema = v2OrganizationParamsSchema.extend({
+  sourceId: nonEmptyIdSchema.max(255).describe('Identifier of the configured Search source.'),
+})
+const searchSourceRevisionResponse = v2DataResponse(
+  z
+    .object({ revision: z.number().int().nonnegative().describe('Current permission revision.') })
+    .meta({
+      id: 'SearchSourcePermissionRevision',
+      title: 'Search source permission revision',
+      description: 'Revision of this source’s permission grants.',
+    })
+)
+
+export const v2GetSearchSourcePermissionsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions',
+  params: searchSourceParamsSchema,
+  query: noInputSchema,
+  response: { mode: 'json', schema: searchSourceRevisionResponse },
+})
+
+export const v2ReplaceSearchSourcePermissionsContract = defineRouteContract({
+  method: 'PUT',
+  path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions',
+  params: searchSourceParamsSchema,
+  query: noInputSchema,
+  body: z.strictObject({
+    expectedRevision: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Permission revision read before exporting the grants.'),
+    permissions: connectorPermissionGrantsSchema.describe(
+      'Complete permission grants in the source provider’s format.'
+    ),
+  }),
+  response: { mode: 'json', schema: searchSourceRevisionResponse },
 })

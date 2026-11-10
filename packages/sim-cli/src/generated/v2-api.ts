@@ -7160,6 +7160,22 @@ export type GetSandboxResponse = {
   data: GetSandboxResponseRef0
 }
 
+/** `GET /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions` */
+export type GetSearchSourcePermissionsParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type GetSearchSourcePermissionsQuery = Record<string, unknown>
+
+type GetSearchSourcePermissionsResponseRef0 = {
+  revision: number
+}
+
+export type GetSearchSourcePermissionsResponse = {
+  data: GetSearchSourcePermissionsResponseRef0
+}
+
 /** `POST /api/v2/selectors/get` */
 export type GetSelectorQuery = Record<string, unknown>
 
@@ -12723,6 +12739,37 @@ type RenameProjectFileResponseRef0 = {
 
 export type RenameProjectFileResponse = {
   data: RenameProjectFileResponseRef0
+}
+
+/** `PUT /api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions` */
+export type ReplaceSearchSourcePermissionsParams = {
+  organizationId: string
+  sourceId: string
+}
+
+export type ReplaceSearchSourcePermissionsQuery = Record<string, unknown>
+
+export type ReplaceSearchSourcePermissionsBody = {
+  expectedRevision: number
+  permissions: {
+    provider: 'gitlab'
+    userMapping: {
+      filename: string
+      content: string
+    }
+    projectPermissions: {
+      filename: string
+      content: string
+    }
+  }
+}
+
+type ReplaceSearchSourcePermissionsResponseRef0 = {
+  revision: number
+}
+
+export type ReplaceSearchSourcePermissionsResponse = {
+  data: ReplaceSearchSourcePermissionsResponseRef0
 }
 
 /** `PUT /api/v2/workflows/[workflowId]/deployments/chat` */
@@ -19263,6 +19310,18 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true, describe: 'Workspace that owns the sandbox.' },
     },
   },
+  getSearchSourcePermissions: {
+    method: 'GET',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Identifier of the configured Search source.',
+    },
+    responseMode: 'json',
+    summary: 'Get Search source permission revision',
+    workspaceKeyUnsupported: true,
+  },
   getSelector: {
     method: 'POST',
     path: '/api/v2/selectors/get',
@@ -23071,6 +23130,30 @@ export const V2_OPERATIONS = {
     workspaceKeyUnsupported: true,
     body: {
       name: { kind: 'string', required: true, describe: 'New file name, including its extension.' },
+    },
+  },
+  replaceSearchSourcePermissions: {
+    method: 'PUT',
+    path: '/api/v2/organizations/[organizationId]/search/sources/[sourceId]/permissions',
+    pathParams: ['organizationId', 'sourceId'] as const,
+    pathParamDocs: {
+      organizationId: 'Organization identifier.',
+      sourceId: 'Identifier of the configured Search source.',
+    },
+    responseMode: 'json',
+    summary: 'Replace Search source permissions',
+    workspaceKeyUnsupported: true,
+    body: {
+      expectedRevision: {
+        kind: 'integer',
+        required: true,
+        describe: 'Permission revision read before exporting the grants.',
+      },
+      permissions: {
+        kind: 'object',
+        required: true,
+        describe: 'Complete permission grants in the source provider’s format.',
+      },
     },
   },
   replaceWorkflowChatDeployment: {

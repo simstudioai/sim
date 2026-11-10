@@ -1,3 +1,4 @@
+import { TYPEFORM_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { TypeformResponsesParams, TypeformResponsesResponse } from '@/tools/typeform/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const responsesTool: ToolConfig<TypeformResponsesParams, TypeformResponse
   name: 'Typeform Responses',
   description: 'Retrieve form responses from Typeform',
   version: '1.0.0',
+  oauth: TYPEFORM_CREDENTIAL_OAUTH,
 
   params: {
     formId: {

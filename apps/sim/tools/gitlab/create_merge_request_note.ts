@@ -3,6 +3,7 @@ import type {
   GitLabCreateNoteResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabCreateMergeRequestNoteTool: ToolConfig<
@@ -14,6 +15,7 @@ export const gitlabCreateMergeRequestNoteTool: ToolConfig<
   name: 'GitLab Create Merge Request Comment',
   description: 'Add a comment to a GitLab merge request',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

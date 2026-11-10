@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { PaymentIntentResponse, RetrievePaymentIntentParams } from '@/tools/stripe/types'
 import {
   PAYMENT_INTENT_METADATA_OUTPUT_PROPERTIES,
@@ -13,6 +14,7 @@ export const stripeRetrievePaymentIntentTool: ToolConfig<
   name: 'Stripe Retrieve Payment Intent',
   description: 'Retrieve an existing Payment Intent by ID',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

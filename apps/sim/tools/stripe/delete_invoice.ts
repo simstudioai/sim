@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { DeleteInvoiceParams, InvoiceDeleteResponse } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -6,6 +7,7 @@ export const stripeDeleteInvoiceTool: ToolConfig<DeleteInvoiceParams, InvoiceDel
   name: 'Stripe Delete Invoice',
   description: 'Permanently delete a draft invoice',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,6 +2,7 @@ import type {
   RootlyListActionItemsParams,
   RootlyListActionItemsResponse,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListActionItemsTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyListActionItemsTool: ToolConfig<
   name: 'Rootly List Action Items',
   description: 'List action items for an incident in Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

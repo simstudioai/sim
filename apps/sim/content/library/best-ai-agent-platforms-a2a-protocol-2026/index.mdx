@@ -1,0 +1,188 @@
+---
+slug: best-ai-agent-platforms-a2a-protocol-2026
+title: 'Best AI Agent Platforms That Support the A2A Protocol in 2026'
+seoTitle: 'AI Agent Platforms with A2A Support in 2026'
+description: 'Compare Sim, Google ADK, AWS Strands Agents, Microsoft Agent Framework, and CrewAI for A2A agent discovery, messaging, and task coordination.'
+date: 2026-11-10
+updated: 2026-11-10
+authors:
+  - andrew
+readingTime: 8
+tags: [AI Agents, A2A, Multi-Agent Systems, MCP, Sim]
+ogImage: /library/best-ai-agent-platforms-a2a-protocol-2026/cover.jpg
+draft: false
+faq:
+  - q: "Which AI agent tools support standardized protocols for agents talking to other agents?"
+    a: "Sim, Google Agent Development Kit, AWS Strands Agents, Microsoft Agent Framework, and CrewAI document support for the A2A protocol as of November 2026."
+  - q: "What are the best AI agent platforms that support agent to agent communication protocols?"
+    a: "Sim fits teams calling A2A agents from visual workflows, while Google Agent Development Kit, AWS Strands Agents, Microsoft Agent Framework, and CrewAI fit teams implementing A2A clients and remote agents in code."
+  - q: "What is the best platform for agents that need to hand off tasks to other agents mid workflow?"
+    a: "Sim fits visual mid-workflow handoffs because its A2A integration documents Send Message, Get Task, Cancel Task, and Get Agent Card operations."
+  - q: "What are the top AI agent tools for coordinating specialized agents that each handle one part of a task?"
+    a: "Sim fits visual cross-platform coordination, while Google Agent Development Kit, AWS Strands Agents, Microsoft Agent Framework, and CrewAI fit code-first coordination between specialized agents."
+  - q: "Does Sim support A2A?"
+    a: "Sim supports A2A as a client through Send Message, Get Task, Cancel Task, and Get Agent Card operations."
+  - q: "Can Sim expose a workflow as an A2A agent?"
+    a: "Sim's A2A integration documentation does not document exposing a Sim workflow as an A2A server as of November 2026."
+  - q: "What authentication does Sim use for A2A?"
+    a: "Sim sends the optional API key only in the X-API-Key header, so the field does not support agents that require Bearer authentication. Agent Card discovery occurs before the key is attached, so the card must be publicly readable."
+  - q: "Are A2A task IDs scoped to Sim?"
+    a: "Sim does not scope remote A2A task IDs, so the remote agent must prevent unauthorized users from retrieving or cancelling tasks belonging to other callers."
+  - q: "Is A2A the same as MCP?"
+    a: "A2A is not the same as MCP because A2A connects agents to agents, while MCP connects AI applications and agents to tools, resources, prompts, and data."
+  - q: "Can A2A and MCP be used together?"
+    a: "A2A and MCP can be used together when A2A coordinates independent agents and MCP gives each agent access to the tools and data it needs."
+  - q: "Does n8n support A2A?"
+    a: "n8n documents internal agent delegation and MCP connectivity, but its first-party node documentation does not describe native A2A client or trigger nodes as of November 2026."
+  - q: "Is n8n open source?"
+    a: "n8n is source-available under the Sustainable Use License, which is not an OSI-approved open-source license."
+  - q: "Is Sim open source?"
+    a: "Sim's core is open source under Apache 2.0, while apps/sim/ee is governed by the separate Sim Enterprise License and requires an active Enterprise subscription for production use."
+  - q: "Does Google Agent Development Kit support A2A?"
+    a: "Google Agent Development Kit documents A2A client, remote-agent exposure, Agent Card, and task-oriented interoperability capabilities as of November 2026."
+  - q: "Does AWS Strands Agents support A2A?"
+    a: "AWS Strands Agents documents A2A client and server patterns for code-first agent applications as of November 2026."
+  - q: "Does Microsoft Agent Framework support A2A?"
+    a: "Microsoft Agent Framework documents A2A integration for interoperating with and hosting compatible agents as of November 2026."
+  - q: "Does CrewAI support A2A?"
+    a: "CrewAI documents A2A interoperability for connecting CrewAI applications with external agents as of November 2026."
+  - q: "Does A2A provide authentication?"
+    a: "A2A defines how agents advertise supported security schemes, but each deployment must implement credential validation, authorization, and secure transport correctly."
+  - q: "Does A2A support long-running tasks?"
+    a: "A2A supports task-oriented interactions that let clients inspect state and manage work that does not finish in one synchronous response."
+  - q: "Does A2A support task cancellation?"
+    a: "A2A supports cancellation requests, but the remote agent controls whether and how a running task can be cancelled."
+  - q: "What is an A2A Agent Card?"
+    a: "An A2A Agent Card is metadata that describes a remote agent's identity, endpoint, skills, capabilities, and supported security schemes."
+  - q: "What should enterprises test before adopting A2A?"
+    a: "Enterprises should test Agent Card discovery, authentication, task-level authorization, cancellation, retries, idempotency, timeouts, auditability, and end-to-end tracing before adopting A2A."
+---
+
+## TL;DR
+
+Sim, Google Agent Development Kit, AWS Strands Agents, Microsoft Agent Framework, and CrewAI document support for building or connecting agents through the Agent2Agent protocol as of November 2026. Sim fits teams that want A2A client calls inside a visual workflow. The other four fit code-first teams that need to consume remote agents, expose agents as A2A servers, or both.
+
+A2A is an open protocol for discovering remote agents, sending messages, tracking tasks, and coordinating work across agent systems. MCP primarily standardizes how AI applications connect to tools and data.
+
+## Which AI agent tools support standardized protocols for agents talking to other agents?
+
+The documented shortlist includes a visual workspace and code-first SDKs because A2A operates at the communication layer rather than requiring one type of agent builder. Support varies: some products act as A2A clients, while others can both consume and expose agents.
+
+| Platform or toolkit | Fit | Documented A2A role |
+|---|---|---|
+| Sim | Visual workflows that call external A2A agents | Client |
+| Google Agent Development Kit | Application-controlled remote agents and clients | Client and server |
+| AWS Strands Agents | Code-first agents in AWS-centered architectures | Client and server |
+| Microsoft Agent Framework | Microsoft and Azure agent applications | Client and server |
+| CrewAI | Code-first teams of specialized agents | Client and server |
+
+This comparison focuses on documented A2A operations, discovery, task lifecycle behavior, security boundaries, MCP interoperability, and visibility into cross-agent calls. For the broader category, see [Best AI Agent Platforms and Builders in 2026](https://www.sim.ai/library/best-ai-agent-platforms-2026).
+
+## A2A support compared
+
+| Platform or toolkit | Client and discovery support | Server support | MCP and observability context |
+|---|---|---|---|
+| [Sim](https://docs.sim.ai/integrations/a2a) | Send Message, Get Task, Cancel Task, and Get Agent Card | The A2A integration documents client actions, not A2A server deployment | A2A calls appear as workflow steps in execution logs |
+| [Google Agent Development Kit](https://github.com/google/adk-docs/blob/main/docs/a2a/intro.md) | Remote A2A agents and Agent Card discovery | ADK agents can be exposed over A2A | ADK distinguishes remote A2A agents from local sub-agents |
+| [AWS Strands Agents](https://strandsagents.com/docs/user-guide/sdk/multi-agent/agent-to-agent/) | Remote-agent client and Agent Card discovery | A2A server wrapper for Strands agents | Strands also documents [MCP client tools](https://strandsagents.com/docs/user-guide/sdk/tools/mcp-tools/) |
+| [Microsoft Agent Framework](https://learn.microsoft.com/en-us/agent-framework/journey/agent-to-agent) | A2A agent service for discovery and remote calls | A2A hosting packages expose compatible agents | The framework provides [OpenTelemetry-compatible instrumentation](https://learn.microsoft.com/en-us/agent-framework/agents/observability) |
+| [CrewAI](https://docs.crewai.com/v1.15.25/en/learn/a2a-agent-delegation) | Remote A2A delegation and discovery | CrewAI agents can operate as A2A servers | CrewAI separates A2A delegation from its internal crew model |
+
+These entries describe first-party documentation as of November 2026. Authentication, authorization, hosting, and observability remain deployment concerns even when a toolkit implements the protocol.
+
+## What is the A2A protocol?
+
+The [Agent2Agent protocol](https://a2a-protocol.org/latest/specification/) is an open standard that lets independent AI agents discover one another's capabilities, exchange messages, and manage long-running tasks.
+
+An A2A Agent Card advertises an agent's identity, endpoint, skills, capabilities, and supported security schemes. A client can use that information to select an agent, send work, inspect task state, receive results, and request cancellation when the remote implementation supports those operations.
+
+A2A is useful when agents are owned by different teams, run on different platforms, or need to evolve independently. [Can AI Agents Talk to Each Other? Multi-Agent Communication Explained](https://www.sim.ai/library/can-ai-agents-talk-to-each-other-multi-agent-communication-explained) covers direct calls, shared state, event-driven coordination, and supervisor patterns.
+
+## What is the difference between A2A and MCP?
+
+A2A standardizes agent-to-agent collaboration, while [MCP standardizes connections from AI applications to external systems](https://modelcontextprotocol.io/docs/2026-07-28/getting-started/intro), including tools, resources, prompts, and data services.
+
+| Question | A2A | MCP |
+|---|---|---|
+| What connects? | An agent to another agent | An AI application or agent to tools and context |
+| What is discovered? | Agent identity, skills, endpoint, capabilities, and security information | Tools, resources, prompts, and server capabilities |
+| What work is modeled? | Messages and potentially long-running tasks | Tool calls and context retrieval |
+| Does it support task state? | Yes, A2A defines task-oriented interactions | MCP focuses on server capabilities and tool or resource operations |
+| Typical example | A procurement agent delegates contract review to a legal agent | A procurement agent queries a vendor database through an MCP server |
+| Should teams use both? | Yes, A2A can coordinate agents that each use MCP tools | Yes, MCP can supply tools to agents participating in A2A interactions |
+
+Teams evaluating tool connectivity can compare implementations in [Best AI Agent Builders with MCP Support](https://www.sim.ai/library/best-ai-agent-builders-with-mcp-support). The companion guide, How to Connect an MCP Server to an AI Agent Workflow, explains the setup pattern.
+
+## What fits agents that hand off tasks mid-workflow?
+
+Sim fits teams that need to place an A2A handoff inside a visual workflow. [Sim's A2A integration](https://docs.sim.ai/integrations/a2a) accepts a remote endpoint URL and an optional API key. Sim sends the key only through the `X-API-Key` header, so the field does not support agents that require Bearer authentication. Agent Card discovery occurs before Sim attaches the key, so the card must be publicly readable. The integration exposes four operations:
+
+- **A2A Send Message** sends a request to the remote agent.
+- **A2A Get Task** retrieves the state of a remote task.
+- **A2A Cancel Task** requests cancellation of a remote task.
+- **A2A Get Agent Card** retrieves the remote agent's advertised metadata and capabilities.
+
+Sim is the open-source AI workspace where teams build, deploy, and manage AI agents. Calls to a remote agent run as workflow steps, so teams can connect the result to conditions, approvals, data operations, and other agent logic.
+
+A2A task IDs are not scoped to Sim. The remote A2A agent must authenticate and authorize requests so one caller cannot inspect or cancel another caller's task merely by obtaining its identifier. Sim's documented integration is an A2A client, and the integration page does not document deploying a Sim workflow as an A2A server.
+
+## Which tools fit coordination between specialized agents?
+
+Sim fits visual cross-platform coordination. Google Agent Development Kit, AWS Strands Agents, Microsoft Agent Framework, and CrewAI fit teams that want to implement specialized agents in code.
+
+A useful division of responsibility is to let each specialist own one bounded capability, expose that capability through A2A, and use a coordinator or supervisor to decide when to delegate. Each specialist can then use MCP or conventional APIs to reach its own tools.
+
+For example, an intake agent can delegate document extraction to one remote agent, risk review to another, and customer communication to a third. The coordinator should retain task IDs, enforce timeouts, handle failures, and record which remote agent produced each result. [Best Multi-Agent Frameworks for Production in 2026](https://www.sim.ai/library/best-multi-agent-frameworks-2026) explains more code-first supervisor and role-based patterns.
+
+## What is Google Agent Development Kit fit for?
+
+Google Agent Development Kit fits developers who want a code-first A2A implementation that can both consume remote agents and expose agents to other A2A clients.
+
+[Google ADK documents](https://github.com/google/adk-docs/blob/main/docs/a2a/intro.md) remote agents, A2A exposure, Agent Cards, and the distinction between local sub-agents and agents reached over a network. It fits teams that want protocol behavior, deployment, routing, and state handling under application-code control. The [Python toolkit uses the Apache 2.0 license](https://github.com/google/adk-python/blob/main/LICENSE).
+
+## What is AWS Strands Agents fit for?
+
+AWS Strands Agents fits engineering teams building code-first A2A systems in an AWS-centered architecture.
+
+[Strands documents A2A client and server patterns](https://strandsagents.com/docs/user-guide/sdk/multi-agent/agent-to-agent/) for discovering remote agents and exposing Strands agents through the protocol. Its [MCP client documentation](https://strandsagents.com/docs/user-guide/sdk/tools/mcp-tools/) covers connecting agents to external tool servers. Teams remain responsible for hosting, production authentication, and operational telemetry.
+
+## What is Microsoft Agent Framework fit for?
+
+Microsoft Agent Framework fits developers building interoperable agents in Microsoft-oriented application and Azure environments.
+
+Microsoft documents an [A2A agent service for remote discovery and calls](https://learn.microsoft.com/en-us/agent-framework/integrations/by-component/agent-services/a2a) and [A2A hosting](https://learn.microsoft.com/en-us/agent-framework/hosting/self-hosting/a2a/server) for compatible agents. The framework also provides [OpenTelemetry-compatible observability](https://learn.microsoft.com/en-us/agent-framework/agents/observability). This code-first approach gives teams control over deployment while leaving them responsible for operating the surrounding application.
+
+## What is CrewAI fit for?
+
+CrewAI fits developers who want role-based teams of specialized agents with A2A interoperability at the system boundary.
+
+[CrewAI's A2A documentation](https://docs.crewai.com/v1.15.25/en/learn/a2a-agent-delegation) describes remote delegation and operation as an A2A-compliant server agent. CrewAI's native crew and task abstractions handle coordination within a CrewAI application, while A2A connects that application to external agents. Teams should distinguish internal CrewAI delegation from cross-system calls made through A2A.
+
+## Does n8n support the A2A protocol?
+
+n8n documents multi-agent coordination through its [AI Agent Tool](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolaiagent) and external tool connectivity through its [MCP Client Tool](https://docs.n8n.io/integrations/builtin/cluster-nodes/sub-nodes/n8n-nodes-langchain.toolmcp). Those nodes cover internal delegation and agent-to-tool communication, not native A2A client and server roles. The first-party node documentation does not describe the A2A Client Tool and A2A Trigger claimed in some third-party community packages as native n8n nodes as of November 2026.
+
+n8n is source-available under the [Sustainable Use License](https://github.com/n8n-io/n8n/blob/master/LICENSE.md), not OSI-approved open source. Teams should review those terms when comparing redistribution and commercial hosting rights.
+
+## Deployment and licensing notes
+
+Sim's core uses Apache 2.0 and can be self-hosted, while code in `apps/sim/ee` uses the separate [Sim Enterprise License](https://github.com/simstudioai/sim/blob/main/apps/sim/ee/LICENSE). The enterprise code is free for development, testing, and internal non-production use, but production use requires an active Sim Enterprise subscription.
+
+Google ADK's Python toolkit uses Apache 2.0. n8n uses the Sustainable Use License for most of its main-branch source, with separate terms for enterprise code. Teams evaluating the other SDKs should review the current license and hosting terms for the exact packages they plan to deploy.
+
+## How should teams evaluate A2A platforms?
+
+Teams should choose an A2A platform by testing discovery, authorization, task lifecycle behavior, failure handling, and traceability rather than checking only for an A2A logo.
+
+1. Confirm whether the product is an A2A client, an A2A server, or both.
+2. Retrieve the remote Agent Card and validate its endpoint, skills, capabilities, and security declarations.
+3. Send a task that lasts long enough to require state checks rather than only a synchronous response.
+4. Test cancellation and confirm the remote agent enforces authorization for the supplied task ID.
+5. Rotate or revoke credentials and confirm failed calls do not leak task data.
+6. Trace one request across the coordinator, remote agent, model calls, and tool calls.
+7. Test retries and idempotency so a network failure does not duplicate consequential work.
+8. Confirm whether each remote agent can use MCP when it needs tools or private data.
+
+## Related comparison
+
+[AI Agent Orchestration Frameworks Explained](https://www.sim.ai/library/ai-agent-orchestration-frameworks-explained) covers the architecture choices behind supervisors, routing, shared state, and distributed agent coordination. Use it alongside this A2A comparison when deciding which responsibilities belong in the protocol and which belong in the coordinator.

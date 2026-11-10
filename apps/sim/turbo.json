@@ -41,6 +41,7 @@
         "!scripts/test-org-redesign-e2e.ts",
         "!scripts/org-redesign-seed.ts",
         "!scripts/org-redesign-e2e/**",
+        "!scripts/test-gitlab-csv-permissions-e2e.ts",
         "!scripts/test-docs-search-provider-e2e.ts",
         "!scripts/test-file-*-e2e.ts",
         "!scripts/test-landing-seo-e2e.ts",
@@ -153,7 +154,10 @@
     },
     "ci:e2e-organization-search": {
       "dependsOn": ["ci:server", "ci:ui", "@sim/realtime#ci:runtime"],
-      "inputs": ["scripts/test-organization-search-e2e.ts"],
+      "inputs": [
+        "scripts/test-organization-search-e2e.ts",
+        "scripts/test-gitlab-csv-permissions-e2e.ts"
+      ],
       "cache": false
     },
     "ci:e2e-org-redesign": {
@@ -211,6 +215,7 @@
         "!scripts/test-org-redesign-e2e.ts",
         "!scripts/org-redesign-seed.ts",
         "!scripts/org-redesign-e2e/**",
+        "!scripts/test-gitlab-csv-permissions-e2e.ts",
         "!scripts/test-docs-search-provider-e2e.ts",
         "!scripts/test-file-*-e2e.ts",
         "!scripts/test-landing-seo-e2e.ts",

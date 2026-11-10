@@ -6,6 +6,7 @@ import {
   CANDIDATE_OUTPUTS,
   mapCandidate,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyAnonymizeCandidateParams {
@@ -27,6 +28,7 @@ export const anonymizeCandidateTool: ToolConfig<
   description:
     'Remove personally identifiable information from an Ashby candidate while retaining the candidate record and its applications. This operation does not delete the candidate. Requires the candidatesWrite permission.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

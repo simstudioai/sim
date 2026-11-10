@@ -1,5 +1,6 @@
 import type { GitLabListProjectsParams, GitLabListProjectsResponse } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabListProjectsTool: ToolConfig<
@@ -12,6 +13,7 @@ export const gitlabListProjectsTool: ToolConfig<
   name: 'GitLab List Projects',
   description: 'List GitLab projects accessible to the authenticated user',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

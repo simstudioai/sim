@@ -1,3 +1,4 @@
+import { STRIPE_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { CustomerListResponse, ListCustomersParams } from '@/tools/stripe/types'
 import { CUSTOMER_OUTPUT, LIST_METADATA_OUTPUT_PROPERTIES } from '@/tools/stripe/types'
 import type { ToolConfig } from '@/tools/types'
@@ -7,6 +8,7 @@ export const stripeListCustomersTool: ToolConfig<ListCustomersParams, CustomerLi
   name: 'Stripe List Customers',
   description: 'List all customers',
   version: '1.0.0',
+  oauth: STRIPE_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

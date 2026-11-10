@@ -3,6 +3,7 @@ import type {
   CalendlyListEventTypesResponse,
 } from '@/tools/calendly/types'
 import { toResourceUri } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEventTypesTool: ToolConfig<
@@ -13,6 +14,7 @@ export const listEventTypesTool: ToolConfig<
   name: 'Calendly List Event Types',
   description: 'Retrieve a list of all event types for a user or organization',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -7,6 +7,7 @@ import {
   checkrId,
   checkrUrl,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrListAssessmentsTool: ToolConfig<
@@ -18,6 +19,7 @@ export const checkrListAssessmentsTool: ToolConfig<
   description:
     'List the Assess results for a report, including the ruleset applied and which rule flagged each record. Requires Checkr Assess.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

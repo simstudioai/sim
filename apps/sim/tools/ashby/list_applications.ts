@@ -10,6 +10,7 @@ import {
   ashbyTimestamp,
   mapApplication,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listApplicationsTool: ToolConfig<
@@ -21,6 +22,7 @@ export const listApplicationsTool: ToolConfig<
   description:
     'Lists all applications in an Ashby organization with pagination and optional filters for status, job, and creation date.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

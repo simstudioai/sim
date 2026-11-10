@@ -11,6 +11,7 @@ import {
   checkrUrl,
   mapInvitation,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrGetInvitationTool: ToolConfig<
@@ -21,6 +22,7 @@ export const checkrGetInvitationTool: ToolConfig<
   name: 'Checkr Get Invitation',
   description: 'Retrieve an invitation by ID, including its status and invitation URL.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

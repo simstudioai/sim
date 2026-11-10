@@ -6,6 +6,7 @@ import {
   CANDIDATE_OUTPUTS,
   mapCandidate,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyRemoveCandidateTagParams {
@@ -27,6 +28,7 @@ export const removeCandidateTagTool: ToolConfig<
   name: 'Ashby Remove Candidate Tag',
   description: 'Removes a tag from a candidate in Ashby and returns the updated candidate.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

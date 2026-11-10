@@ -1,4 +1,5 @@
 import type { RootlyRunWorkflowParams, RootlyRunWorkflowResponse } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyRunWorkflowTool: ToolConfig<RootlyRunWorkflowParams, RootlyRunWorkflowResponse> =
@@ -7,6 +8,7 @@ export const rootlyRunWorkflowTool: ToolConfig<RootlyRunWorkflowParams, RootlyRu
     name: 'Rootly Run Workflow',
     description: 'Trigger a Rootly automation workflow, optionally scoped to an incident or alert.',
     version: '1.0.0',
+    oauth: ROOTLY_CREDENTIAL_OAUTH,
 
     params: {
       apiKey: {

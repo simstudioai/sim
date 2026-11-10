@@ -1,7 +1,7 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { AshbyIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
-import { normalizeFileInput } from '@/blocks/utils'
+import { normalizeFileInput, withSavedCredential } from '@/blocks/utils'
 import { getTrigger } from '@/triggers'
 
 function parseStringListInput(value: unknown): string[] {
@@ -137,6 +137,8 @@ function parseJsonObjectInput(value: unknown, label: string): Record<string, unk
 
 export const AshbyBlock: BlockConfig = {
   type: 'ashby',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'ashby_v2' },
   name: 'Ashby',
   description: 'Manage candidates, jobs, and applications in Ashby',
   longDescription:
@@ -1975,3 +1977,17 @@ export const AshbyBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const AshbyV2Block: BlockConfig = {
+  ...AshbyBlock,
+  type: 'ashby_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(AshbyBlock, {
+    id: 'credential',
+    type: 'oauth-input',
+    serviceId: 'ashby',
+    title: 'Ashby Credential',
+  }),
+}

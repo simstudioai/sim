@@ -15,6 +15,7 @@ import {
   mapSubscription,
   trimmed,
 } from '@/tools/checkr/utils'
+import { CHECKR_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const checkrUpdateSubscriptionTool: ToolConfig<
@@ -25,6 +26,7 @@ export const checkrUpdateSubscriptionTool: ToolConfig<
   name: 'Checkr Update Subscription',
   description: 'Change the package, schedule, node, or work locations of a subscription.',
   version: '1.0.0',
+  oauth: CHECKR_CREDENTIAL_OAUTH,
   errorExtractor: CHECKR_ERROR_EXTRACTOR,
 
   params: {

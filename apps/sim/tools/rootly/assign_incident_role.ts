@@ -2,6 +2,7 @@ import type {
   RootlyAssignIncidentRoleParams,
   RootlyIncidentActionResponse,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyAssignIncidentRoleTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyAssignIncidentRoleTool: ToolConfig<
   name: 'Rootly Assign Incident Role',
   description: 'Assign an incident role (e.g. commander) to a user on a Rootly incident.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

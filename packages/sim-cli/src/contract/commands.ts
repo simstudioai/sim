@@ -1238,6 +1238,16 @@ export const CLI_CONTRACT: CliContract = {
     columns: [{ header: 'id' }, { header: 'name' }, { header: 'role' }],
   },
   getOrganization: { command: 'organizations get' },
+  getSearchSourcePermissions: {
+    command: 'organizations search sources permissions get',
+    pathFlags: ORGANIZATION_FLAG,
+  },
+  replaceSearchSourcePermissions: {
+    command: 'organizations search sources permissions replace',
+    pathFlags: ORGANIZATION_FLAG,
+    confirm:
+      'This replaces the source’s permission grants. Readers omitted from the new grants lose access.',
+  },
   listSsoProviders: {
     command: 'organizations sso providers list',
     pathFlags: ORGANIZATION_FLAG,

@@ -5,6 +5,7 @@ import {
   ashbyTimestamp,
   USER_SUMMARY_OUTPUT,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface Params {
@@ -29,6 +30,7 @@ export const listApplicationFeedbackTool: ToolConfig<Params, Response> = {
   description:
     'Lists submitted interview feedback, optionally for one application, with pagination and incremental sync.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
   params: {
     apiKey: {
       type: 'string',

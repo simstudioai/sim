@@ -34,7 +34,7 @@ import {
 } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/editor/workflow-block-preview/workflow-block-preview'
 import { ResizeHandle } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/resize-handle/resize-handle'
 import styles from '@/app/(product)/workspace/[workspaceId]/workflows/_components/snapshot-block/snapshot-block.module.css'
-import { useCodeViewerFeatures } from '@/platform/lib/data/workflow-deploy/terminal'
+import { useCodeViewerFeatures } from '@/platform/lib/data/code-viewer'
 import {
   type BlockConfig,
   type BlockState,

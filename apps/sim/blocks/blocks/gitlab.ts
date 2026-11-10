@@ -1,6 +1,7 @@
 import { GitLabIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { withSavedCredential } from '@/blocks/utils'
 import {
   coerceGitLabAccessLevel,
   GITLAB_ACCESS_LEVEL_OPTIONS,
@@ -131,6 +132,8 @@ function parseTriState(raw: unknown): boolean | undefined {
 
 export const GitLabBlock: BlockConfig = {
   type: 'gitlab',
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'gitlab_v2' },
   name: 'GitLab',
   description: 'Interact with GitLab projects, issues, merge requests, and pipelines',
   authMode: AuthMode.ApiKey,
@@ -3409,3 +3412,16 @@ export const GitLabBlockMeta = {
     },
   ],
 } as const satisfies BlockMeta
+
+export const GitLabV2Block: BlockConfig = {
+  ...GitLabBlock,
+  type: 'gitlab_v2',
+  authMode: AuthMode.OAuth,
+  hideFromToolbar: false,
+  sunset: undefined,
+  ...withSavedCredential(
+    GitLabBlock,
+    { id: 'credential', type: 'oauth-input', serviceId: 'gitlab', title: 'GitLab Credential' },
+    { required: true }
+  ),
+}

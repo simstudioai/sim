@@ -1,4 +1,5 @@
 import type { SentryListIssuesParams, SentryListIssuesResponse } from '@/tools/sentry/types'
+import { SENTRY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssuesResponse> = {
@@ -7,6 +8,7 @@ export const listIssuesTool: ToolConfig<SentryListIssuesParams, SentryListIssues
   description:
     'List issues from Sentry for a specific organization and optionally a specific project. Returns issue details including status, error counts, and last seen timestamps.',
   version: '1.0.0',
+  oauth: SENTRY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,7 +2,7 @@
 title: Rootly
 description: Manage incidents, alerts, and on-call with Rootly
 integration:
-  type: "rootly"
+  type: "rootly_v2"
   color: "#6C72C8"
 ---
 
@@ -29,7 +29,6 @@ Create a new incident in Rootly with optional severity, services, and teams.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `title` | string | No | The title of the incident \(auto-generated if not provided\) |
 | `summary` | string | No | A summary of the incident |
 | `severityId` | string | No | Severity ID to attach to the incident |
@@ -79,7 +78,6 @@ Retrieve a single incident by ID from Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident to retrieve |
 
 #### Output
@@ -118,7 +116,6 @@ Update an existing incident in Rootly (status, severity, summary, etc.).
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident to update |
 | `title` | string | No | Updated incident title |
 | `summary` | string | No | Updated incident summary |
@@ -172,7 +169,6 @@ List incidents from Rootly with optional filtering by status, severity, and more
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `status` | string | No | Filter by status \(in_triage, started, detected, acknowledged, mitigated, resolved, closed, cancelled, scheduled, in_progress, completed\) |
 | `severity` | string | No | Filter by severity slug |
 | `search` | string | No | Search term to filter incidents |
@@ -220,7 +216,6 @@ Create a new alert in Rootly for on-call notification and routing.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `summary` | string | Yes | The summary of the alert |
 | `description` | string | No | A detailed description of the alert |
 | `source` | string | No | The source of the alert \(e.g., api, manual, datadog, pagerduty\) |
@@ -263,7 +258,6 @@ List alerts from Rootly with optional filtering by status, source, and services.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `status` | string | No | Filter by status \(open, triggered, acknowledged, resolved\) |
 | `source` | string | No | Filter by source \(e.g., api, datadog, pagerduty\) |
 | `services` | string | No | Filter by service slugs \(comma-separated\) |
@@ -304,7 +298,6 @@ Add a timeline event to an existing incident in Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident to add the event to |
 | `event` | string | Yes | The summary/description of the event |
 | `visibility` | string | No | Event visibility \(internal or external\) |
@@ -332,7 +325,6 @@ List services from Rootly with optional search filtering.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `search` | string | No | Search term to filter services |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
@@ -363,7 +355,6 @@ List severity levels configured in Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `search` | string | No | Search term to filter severities |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
@@ -396,7 +387,6 @@ List teams (groups) configured in Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `search` | string | No | Search term to filter teams |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
@@ -427,7 +417,6 @@ List environments configured in Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `search` | string | No | Search term to filter environments |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
@@ -458,7 +447,6 @@ List incident types configured in Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `search` | string | No | Filter incident types by name |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
@@ -489,7 +477,6 @@ List functionalities configured in Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `search` | string | No | Search term to filter functionalities |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
@@ -520,7 +507,6 @@ List incident retrospectives (post-mortems) from Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `status` | string | No | Filter by status \(draft, published\) |
 | `search` | string | No | Search term to filter retrospectives |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
@@ -554,7 +540,6 @@ Delete an incident by ID from Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident to delete |
 
 #### Output
@@ -576,7 +561,6 @@ Retrieve a single alert by ID from Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `alertId` | string | Yes | The ID of the alert to retrieve |
 
 #### Output
@@ -610,7 +594,6 @@ Update an existing alert in Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `alertId` | string | Yes | The ID of the alert to update |
 | `summary` | string | No | Updated alert summary |
 | `description` | string | No | Updated alert description |
@@ -653,7 +636,6 @@ Acknowledge an alert in Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `alertId` | string | Yes | The ID of the alert to acknowledge |
 
 #### Output
@@ -687,7 +669,6 @@ Resolve an alert in Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `alertId` | string | Yes | The ID of the alert to resolve |
 | `resolutionMessage` | string | No | Message describing how the alert was resolved |
 | `resolveRelatedIncidents` | boolean | No | Whether to also resolve related incidents |
@@ -723,7 +704,6 @@ Create a new action item for an incident in Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident to add the action item to |
 | `summary` | string | Yes | The title of the action item |
 | `description` | string | No | A detailed description of the action item |
@@ -760,7 +740,6 @@ List action items for an incident in Rootly.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident to list action items for |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
@@ -793,7 +772,6 @@ List users from Rootly with optional search and email filtering.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `search` | string | No | Search term to filter users |
 | `email` | string | No | Filter users by email address |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
@@ -826,7 +804,6 @@ List current on-call entries from Rootly with optional filtering.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `scheduleIds` | string | No | Comma-separated schedule IDs to filter by |
 | `escalationPolicyIds` | string | No | Comma-separated escalation policy IDs to filter by |
 | `userIds` | string | No | Comma-separated user IDs to filter by |
@@ -859,7 +836,6 @@ List on-call schedules from Rootly with optional search filtering.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `search` | string | No | Search term to filter schedules |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
@@ -889,7 +865,6 @@ List escalation policies from Rootly with optional search filtering.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `search` | string | No | Search term to filter escalation policies |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
@@ -921,7 +896,6 @@ List causes from Rootly with optional search filtering.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `search` | string | No | Search term to filter causes |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
@@ -952,7 +926,6 @@ List playbooks from Rootly with pagination support.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
 
@@ -981,7 +954,6 @@ Transition a Rootly incident to the mitigated state.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident to mitigate |
 | `mitigationMessage` | string | No | How was the incident mitigated? |
 
@@ -1021,7 +993,6 @@ Transition a Rootly incident to the resolved state.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident to resolve |
 | `resolutionMessage` | string | No | How was the incident resolved? |
 
@@ -1061,7 +1032,6 @@ Assign an incident role (e.g. commander) to a user on a Rootly incident.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident |
 | `userId` | string | Yes | The ID of the user to assign \(use List Users to find IDs\) |
 | `incidentRoleId` | string | Yes | The ID of the incident role \(use List Incident Roles to find IDs\) |
@@ -1102,7 +1072,6 @@ Remove an incident role assignment from a user on a Rootly incident.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident |
 | `userId` | string | Yes | The ID of the user to unassign \(use List Users to find IDs\) |
 | `incidentRoleId` | string | Yes | The ID of the incident role to remove \(use List Incident Roles to find IDs\) |
@@ -1143,7 +1112,6 @@ Subscribe users to a Rootly incident so they receive updates.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident |
 | `userIds` | string | Yes | Comma-separated user IDs to subscribe \(use List Users to find IDs\) |
 
@@ -1183,7 +1151,6 @@ Unsubscribe users from a Rootly incident.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident |
 | `userIds` | string | Yes | Comma-separated user IDs to unsubscribe \(use List Users to find IDs\) |
 
@@ -1223,7 +1190,6 @@ Post a public status page update for a Rootly incident.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident |
 | `event` | string | Yes | The status page update message to publish |
 | `statusPageId` | string | No | The ID of the status page to post to |
@@ -1258,7 +1224,6 @@ Update a Rootly incident action item (status, priority, assignee, etc.).
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `actionItemId` | string | Yes | The ID of the action item to update |
 | `summary` | string | No | Updated action item title |
 | `description` | string | No | Updated description |
@@ -1295,7 +1260,6 @@ Delete a Rootly incident action item.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `actionItemId` | string | Yes | The ID of the action item to delete |
 
 #### Output
@@ -1317,7 +1281,6 @@ Snooze a Rootly alert for a set number of minutes.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `alertId` | string | Yes | The ID of the alert to snooze |
 | `delayMinutes` | number | Yes | Number of minutes to snooze the alert |
 
@@ -1352,7 +1315,6 @@ Escalate a Rootly alert, optionally to a specific escalation policy or level.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `alertId` | string | Yes | The ID of the alert to escalate |
 | `escalationPolicyId` | string | No | Escalation policy ID to escalate to \(use List Escalation Policies to find IDs\) |
 | `escalationPolicyLevel` | number | No | Escalation policy level to escalate to |
@@ -1388,7 +1350,6 @@ List the timeline events for a Rootly incident.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `incidentId` | string | Yes | The ID of the incident |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |
@@ -1418,7 +1379,6 @@ Trigger a Rootly automation workflow, optionally scoped to an incident or alert.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `workflowId` | string | Yes | The ID of the workflow to run |
 | `incidentId` | string | No | Incident ID to run the workflow against |
 | `alertId` | string | No | Alert ID to run the workflow against |
@@ -1454,7 +1414,6 @@ List incident roles configured in Rootly (e.g. commander, scribe).
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | Rootly API key |
 | `search` | string | No | Search term to filter incident roles |
 | `pageSize` | number | No | Number of items per page \(default: 20\) |
 | `pageNumber` | number | No | Page number for pagination |

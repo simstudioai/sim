@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { CancelEmailParams, CancelEmailResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendCancelEmailTool')
@@ -9,6 +10,7 @@ export const resendCancelEmailTool: ToolConfig<CancelEmailParams, CancelEmailRes
   name: 'Cancel Email',
   description: 'Cancel a scheduled email before it is sent',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     cancelEmailId: {

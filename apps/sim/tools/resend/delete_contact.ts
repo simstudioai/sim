@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { DeleteContactParams, DeleteContactResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendDeleteContactTool')
@@ -9,6 +10,7 @@ export const resendDeleteContactTool: ToolConfig<DeleteContactParams, DeleteCont
   name: 'Delete Contact',
   description: 'Delete a contact from Resend by ID or email',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     contactId: {

@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { VercelAddDomainParams, VercelAddDomainResponse } from '@/tools/vercel/types'
 
@@ -6,6 +7,7 @@ export const vercelAddDomainTool: ToolConfig<VercelAddDomainParams, VercelAddDom
   name: 'Vercel Add Domain',
   description: 'Add a new domain to a Vercel account or team',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

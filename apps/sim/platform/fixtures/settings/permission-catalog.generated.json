@@ -998,7 +998,7 @@
       ]
     },
     {
-      "type": "ashby",
+      "type": "ashby_v2",
       "name": "Ashby",
       "description": "Manage candidates, jobs, and applications in Ashby",
       "category": "tools",
@@ -1813,7 +1813,7 @@
       ]
     },
     {
-      "type": "calendly",
+      "type": "calendly_v2",
       "name": "Calendly",
       "description": "Manage Calendly scheduling and events",
       "category": "tools",
@@ -1916,7 +1916,7 @@
       ]
     },
     {
-      "type": "checkr",
+      "type": "checkr_v2",
       "name": "Checkr",
       "description": "Run and manage background checks with Checkr",
       "category": "tools",
@@ -3411,7 +3411,7 @@
       "tools": [{ "id": "extend_parser_v2", "label": "Extend Document Parser" }]
     },
     {
-      "type": "fathom",
+      "type": "fathom_v2",
       "name": "Fathom",
       "description": "Access meeting recordings, transcripts, and summaries",
       "category": "tools",
@@ -3742,7 +3742,7 @@
       ]
     },
     {
-      "type": "gitlab",
+      "type": "gitlab_v2",
       "name": "GitLab",
       "description": "Interact with GitLab projects, issues, merge requests, and pipelines",
       "category": "tools",
@@ -4448,7 +4448,7 @@
       ]
     },
     {
-      "type": "grain_v2",
+      "type": "grain_v3",
       "name": "Grain",
       "description": "Access meeting recordings, transcripts, and AI summaries",
       "category": "tools",
@@ -4466,7 +4466,7 @@
       ]
     },
     {
-      "type": "granola",
+      "type": "granola_v2",
       "name": "Granola",
       "description": "Access meeting notes, transcripts, and audit events from Granola",
       "category": "tools",
@@ -5482,7 +5482,7 @@
       ]
     },
     {
-      "type": "lemlist",
+      "type": "lemlist_v2",
       "name": "Lemlist",
       "description": "Manage outreach activities, leads, and send emails via Lemlist",
       "category": "tools",
@@ -6793,7 +6793,7 @@
       ]
     },
     {
-      "type": "pagerduty",
+      "type": "pagerduty_v2",
       "name": "PagerDuty",
       "description": "Manage incidents and on-call schedules with PagerDuty",
       "category": "tools",
@@ -7761,7 +7761,7 @@
       "tools": [{ "id": "reducto_parser_v2", "label": "Reducto PDF Parser" }]
     },
     {
-      "type": "resend",
+      "type": "resend_v2",
       "name": "Resend",
       "description": "Send emails and manage contacts with Resend.",
       "category": "tools",
@@ -8061,7 +8061,7 @@
       ]
     },
     {
-      "type": "rootly",
+      "type": "rootly_v2",
       "name": "Rootly",
       "description": "Manage incidents, alerts, and on-call with Rootly",
       "category": "tools",
@@ -8573,7 +8573,7 @@
       ]
     },
     {
-      "type": "sentry",
+      "type": "sentry_v2",
       "name": "Sentry",
       "description": "Manage Sentry issues, projects, events, and releases",
       "category": "tools",
@@ -9568,7 +9568,7 @@
       ]
     },
     {
-      "type": "stripe",
+      "type": "stripe_v2",
       "name": "Stripe",
       "description": "Process payments and manage Stripe data",
       "category": "tools",
@@ -9734,7 +9734,7 @@
       ]
     },
     {
-      "type": "telegram",
+      "type": "telegram_v2",
       "name": "Telegram",
       "description": "Interact with Telegram",
       "category": "tools",
@@ -10020,7 +10020,7 @@
       ]
     },
     {
-      "type": "typeform",
+      "type": "typeform_v2",
       "name": "Typeform",
       "description": "Interact with Typeform",
       "category": "tools",
@@ -10155,7 +10155,7 @@
       ]
     },
     {
-      "type": "vercel",
+      "type": "vercel_v2",
       "name": "Vercel",
       "description": "Manage Vercel deployments, projects, and infrastructure",
       "category": "tools",
@@ -10252,7 +10252,7 @@
       ]
     },
     {
-      "type": "whatsapp",
+      "type": "whatsapp_v2",
       "name": "WhatsApp",
       "description": "Send WhatsApp messages",
       "category": "tools",

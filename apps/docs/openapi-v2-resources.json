@@ -9643,6 +9643,237 @@
         }
       }
     },
+    "/api/v2/organizations/{organizationId}/search/sources/{sourceId}/permissions": {
+      "get": {
+        "operationId": "getSearchSourcePermissions",
+        "summary": "Get Search source permission revision",
+        "description": "Read the permission revision for a Search source that accepts externally managed grants. Requires organization Admin access. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:read`.",
+        "x-sim-operation": "knowledge.search.source_permissions.read",
+        "x-oauth-scope": "api:read",
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:read"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "description": "Identifier of the configured Search source.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Identifier of the configured Search source."
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The current permission revision.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchSourcePermissionResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "revision": 3
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      },
+      "put": {
+        "operationId": "replaceSearchSourcePermissions",
+        "summary": "Replace Search source permissions",
+        "description": "Replace the complete permission grants for one Search source. Requires organization Admin access. Supply the current revision and the grants for the configured provider. A stale revision returns 409. GitLab CSV mode accepts both files together, up to 4 MiB and 100,000 data rows each. Workspace API keys return `403`; use a personal API key or scoped OAuth token.\n\nOAuth scope: `api:write`.",
+        "x-sim-operation": "knowledge.search.source_permissions.replace",
+        "x-oauth-scope": "api:write",
+        "tags": ["Organizations"],
+        "security": [
+          {
+            "apiKey": []
+          },
+          {
+            "oauthBearer": ["api:write"]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "description": "Organization identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Organization identifier."
+            }
+          },
+          {
+            "name": "sourceId",
+            "in": "path",
+            "required": true,
+            "description": "Identifier of the configured Search source.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "description": "Identifier of the configured Search source."
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The expected revision and complete replacement grants for the provider.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceSearchSourcePermissionsBody"
+              },
+              "examples": {
+                "example1": {
+                  "summary": "Request example 1",
+                  "value": {
+                    "expectedRevision": 2,
+                    "permissions": {
+                      "provider": "gitlab",
+                      "userMapping": {
+                        "filename": "users.csv",
+                        "content": "user_id,email\n42,reader@example.com\n"
+                      },
+                      "projectPermissions": {
+                        "filename": "projects.csv",
+                        "content": "project_path,user_id\nteam/project,42\n"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new permission revision.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "$ref": "#/components/headers/X-RateLimit-Limit"
+              },
+              "X-RateLimit-Remaining": {
+                "$ref": "#/components/headers/X-RateLimit-Remaining"
+              },
+              "X-RateLimit-Reset": {
+                "$ref": "#/components/headers/X-RateLimit-Reset"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchSourcePermissionResponse"
+                },
+                "examples": {
+                  "example1": {
+                    "summary": "Response example 1",
+                    "value": {
+                      "data": {
+                        "revision": 3
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/v2/organizations/{organizationId}/sso/providers": {
       "get": {
         "operationId": "listSsoProviders",
@@ -23294,6 +23525,129 @@
             "data": {
               "id": "invitation-123",
               "status": "cancelled"
+            }
+          }
+        ]
+      },
+      "SearchSourcePermissionRevision": {
+        "type": "object",
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Current permission revision."
+          }
+        },
+        "required": ["revision"],
+        "additionalProperties": false,
+        "title": "Search source permission revision",
+        "description": "Revision of this source’s permission grants."
+      },
+      "SearchSourcePermissionResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/SearchSourcePermissionRevision"
+          }
+        },
+        "required": ["data"],
+        "additionalProperties": false,
+        "title": "Search source permission response",
+        "description": "Current revision of the source permission grants.",
+        "examples": [
+          {
+            "data": {
+              "revision": 3
+            }
+          }
+        ]
+      },
+      "ReplaceSearchSourcePermissionsBody": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Permission revision read before exporting the grants."
+          },
+          "permissions": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "provider": {
+                    "type": "string",
+                    "const": "gitlab",
+                    "description": "Provider of the configured Search source."
+                  },
+                  "userMapping": {
+                    "type": "object",
+                    "properties": {
+                      "filename": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "description": "CSV filename without path separators."
+                      },
+                      "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4194304,
+                        "description": "UTF-8 CSV contents, up to 4 MiB."
+                      }
+                    },
+                    "required": ["filename", "content"],
+                    "additionalProperties": false,
+                    "description": "GitLab user IDs and their verified Sim email addresses."
+                  },
+                  "projectPermissions": {
+                    "type": "object",
+                    "properties": {
+                      "filename": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 255,
+                        "description": "CSV filename without path separators."
+                      },
+                      "content": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4194304,
+                        "description": "UTF-8 CSV contents, up to 4 MiB."
+                      }
+                    },
+                    "required": ["filename", "content"],
+                    "additionalProperties": false,
+                    "description": "GitLab project paths and the IDs of users granted access."
+                  }
+                },
+                "required": ["provider", "userMapping", "projectPermissions"],
+                "additionalProperties": false
+              }
+            ],
+            "description": "Complete permission grants in the source provider’s format."
+          }
+        },
+        "required": ["expectedRevision", "permissions"],
+        "additionalProperties": false,
+        "title": "Search source permission grants",
+        "description": "The expected revision and complete replacement grants for the provider.",
+        "examples": [
+          {
+            "expectedRevision": 2,
+            "permissions": {
+              "provider": "gitlab",
+              "userMapping": {
+                "filename": "users.csv",
+                "content": "user_id,email\n42,reader@example.com\n"
+              },
+              "projectPermissions": {
+                "filename": "projects.csv",
+                "content": "project_path,user_id\nteam/project,42\n"
+              }
             }
           }
         ]

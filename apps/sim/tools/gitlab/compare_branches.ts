@@ -3,6 +3,7 @@ import type {
   GitLabCompareBranchesResponse,
 } from '@/tools/gitlab/types'
 import { getGitLabApiBase } from '@/tools/gitlab/utils'
+import { GITLAB_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const gitlabCompareBranchesTool: ToolConfig<
@@ -14,6 +15,7 @@ export const gitlabCompareBranchesTool: ToolConfig<
   name: 'GitLab Compare Branches',
   description: 'Compare two branches, tags, or commits in a GitLab project repository',
   version: '1.0.0',
+  oauth: GITLAB_CREDENTIAL_OAUTH,
 
   params: {
     accessToken: {

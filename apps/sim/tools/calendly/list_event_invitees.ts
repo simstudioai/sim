@@ -3,6 +3,7 @@ import type {
   CalendlyListEventInviteesResponse,
 } from '@/tools/calendly/types'
 import { toUuid } from '@/tools/calendly/utils'
+import { CALENDLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const listEventInviteesTool: ToolConfig<
@@ -13,6 +14,7 @@ export const listEventInviteesTool: ToolConfig<
   name: 'Calendly List Event Invitees',
   description: 'Retrieve a list of invitees for a scheduled event',
   version: '1.0.0',
+  oauth: CALENDLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

@@ -2,7 +2,7 @@
 title: GitLab
 description: Interact with GitLab projects, issues, merge requests, and pipelines
 integration:
-  type: "gitlab"
+  type: "gitlab_v2"
   color: "#FFFFFF"
 ---
 
@@ -29,7 +29,6 @@ List GitLab projects accessible to the authenticated user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `owned` | boolean | No | Limit to projects owned by the current user |
 | `membership` | boolean | No | Limit to projects the current user is a member of |
 | `search` | string | No | Search projects by name |
@@ -58,7 +57,6 @@ Get details of a specific GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) \(e.g., "namespace/project"\) |
 
 #### Output
@@ -79,7 +77,6 @@ List GitLab groups accessible to the authenticated user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `owned` | boolean | No | Limit to groups owned by the current user |
 | `search` | string | No | Search groups by name or path |
 | `topLevelOnly` | boolean | No | Limit to top-level groups, excluding subgroups |
@@ -110,7 +107,6 @@ Get details of a specific GitLab group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `groupId` | string | Yes | Group ID or path \(e.g. mygroup or parent/subgroup\) |
 
 #### Output
@@ -131,7 +127,6 @@ List a user's project and group memberships. Requires an administrator access to
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `userId` | string | Yes | The ID of the user whose memberships to list |
 | `membershipType` | string | No | Filter by source: 'Project' or 'Namespace' \(group\). Omit for all memberships. |
 | `perPage` | number | No | Number of results per page \(default 20, max 100\) |
@@ -156,7 +151,6 @@ List issues in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `state` | string | No | Filter by state \(opened, closed, all\) |
 | `labels` | string | No | Comma-separated list of label names |
@@ -187,7 +181,6 @@ Get details of a specific GitLab issue
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `issueIid` | number | Yes | Issue number within the project \(the # shown in GitLab UI\) |
 
@@ -209,7 +202,6 @@ Create a new issue in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `title` | string | Yes | Issue title |
 | `description` | string | No | Issue description \(Markdown supported\) |
@@ -237,7 +229,6 @@ Update an existing issue in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `issueIid` | number | Yes | Issue internal ID \(IID\) |
 | `title` | string | No | New issue title |
@@ -267,7 +258,6 @@ Delete an issue from a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `issueIid` | number | Yes | Issue internal ID \(IID\) |
 
@@ -289,7 +279,6 @@ Add a comment to a GitLab issue
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `issueIid` | number | Yes | Issue internal ID \(IID\) |
 | `body` | string | Yes | Comment body \(Markdown supported\) |
@@ -313,7 +302,6 @@ List merge requests in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `state` | string | No | Filter by state \(opened, closed, locked, merged, all\) |
 | `labels` | string | No | Comma-separated list of label names |
@@ -343,7 +331,6 @@ Get details of a specific GitLab merge request
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 
@@ -365,7 +352,6 @@ Create a new merge request in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `sourceBranch` | string | Yes | Source branch name |
 | `targetBranch` | string | Yes | Target branch name |
@@ -396,7 +382,6 @@ Update an existing merge request in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 | `title` | string | No | New merge request title |
@@ -428,7 +413,6 @@ Merge a merge request in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 | `mergeCommitMessage` | string | No | Custom merge commit message |
@@ -455,7 +439,6 @@ Add a comment to a GitLab merge request
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 | `body` | string | Yes | Comment body \(Markdown supported\) |
@@ -479,7 +462,6 @@ List pipelines in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `ref` | string | No | Filter by ref \(branch or tag\) |
 | `status` | string | No | Filter by status \(created, waiting_for_resource, preparing, pending, running, success, failed, canceling, canceled, skipped, manual, scheduled, waiting_for_callback\) |
@@ -507,7 +489,6 @@ Get details of a specific GitLab pipeline
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `pipelineId` | number | Yes | Pipeline ID |
 
@@ -529,7 +510,6 @@ Trigger a new pipeline in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `ref` | string | Yes | Branch or tag to run the pipeline on |
 | `variables` | array | No | Array of variables for the pipeline \(each with key, value, and optional variable_type\) |
@@ -553,7 +533,6 @@ Retry a failed GitLab pipeline
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `pipelineId` | number | Yes | Pipeline ID |
 
@@ -575,7 +554,6 @@ Cancel a running GitLab pipeline
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `pipelineId` | number | Yes | Pipeline ID |
 
@@ -597,7 +575,6 @@ List files and directories in a GitLab project repository
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `path` | string | No | Path inside the repository to list |
 | `ref` | string | No | Branch, tag, or commit SHA to list from |
@@ -624,7 +601,6 @@ Get the contents of a file from a GitLab project repository
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `filePath` | string | Yes | Path to the file in the repository |
 | `ref` | string | Yes | Branch, tag, or commit SHA |
@@ -654,7 +630,6 @@ Create a new file in a GitLab project repository
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `filePath` | string | Yes | Path to the file in the repository |
 | `branch` | string | Yes | Branch to commit the new file to |
@@ -684,7 +659,6 @@ Update an existing file in a GitLab project repository
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `filePath` | string | Yes | Path to the file in the repository |
 | `branch` | string | Yes | Branch to commit the update to |
@@ -715,7 +689,6 @@ Create a new branch in a GitLab project repository
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `branch` | string | Yes | Name of the new branch |
 | `ref` | string | Yes | Source branch/tag/SHA |
@@ -741,7 +714,6 @@ Delete a branch from a GitLab project repository
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `branch` | string | Yes | Name of the branch to delete |
 
@@ -763,7 +735,6 @@ Compare two branches, tags, or commits in a GitLab project repository
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `from` | string | Yes | Commit SHA or branch/tag name to compare from |
 | `to` | string | Yes | Commit SHA or branch/tag name to compare to |
@@ -794,7 +765,6 @@ List branches in a GitLab project repository
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `search` | string | No | Filter branches by name |
 | `perPage` | number | No | Number of results per page \(default 20, max 100\) |
@@ -819,7 +789,6 @@ List commits in a GitLab project repository
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `refName` | string | No | Branch, tag, or revision range to list commits from |
 | `since` | string | No | Only commits after this ISO 8601 date |
@@ -848,7 +817,6 @@ Get the file changes (diffs) of a GitLab merge request
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 
@@ -873,7 +841,6 @@ Approve a GitLab merge request
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `mergeRequestIid` | number | Yes | Merge request internal ID \(IID\) |
 | `sha` | string | No | HEAD SHA of the merge request to approve |
@@ -898,7 +865,6 @@ List jobs for a GitLab pipeline
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `pipelineId` | number | Yes | Pipeline ID |
 | `scope` | string | No | Filter jobs by scope \(e.g. created, running, success, failed\) |
@@ -925,7 +891,6 @@ Get the log (trace) of a GitLab job
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `jobId` | number | Yes | Job ID |
 
@@ -948,7 +913,6 @@ Trigger (play) a manual GitLab job
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `jobId` | number | Yes | Job ID |
 | `jobVariables` | array | No | Variables for the manual job \(array of objects with key and value\) |
@@ -974,7 +938,6 @@ List releases in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `orderBy` | string | No | Order by field \(released_at, created_at\) |
 | `sort` | string | No | Sort direction \(asc, desc\) |
@@ -1000,7 +963,6 @@ Create a new release in a GitLab project
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `projectId` | string | Yes | Project ID or path \(e.g. mygroup/myproject\) |
 | `tagName` | string | Yes | The Git tag for the release |
 | `name` | string | No | The release name |
@@ -1029,7 +991,6 @@ List members of a GitLab project or group. Includes members inherited from ances
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `directOnly` | boolean | No | When true, returns only direct members. Defaults to false, which also returns members inherited from ancestor groups. |
@@ -1059,7 +1020,6 @@ Add an existing GitLab user to a project or group at a given access level
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `userId` | number | No | The ID of the user to add. Provide either userId or username. |
@@ -1087,7 +1047,6 @@ Update a member's access level in a GitLab project or group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `userId` | number | Yes | The ID of the member to update |
@@ -1113,7 +1072,6 @@ Remove a member from a GitLab project or group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `userId` | number | Yes | The ID of the member to remove |
@@ -1138,7 +1096,6 @@ Invite a person to a GitLab project or group by email address
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `email` | string | Yes | Email address to invite \(comma-separated for multiple\) |
@@ -1166,7 +1123,6 @@ List pending email invitations for a GitLab project or group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `query` | string | No | Filter invitations by invited email |
@@ -1192,7 +1148,6 @@ Update a pending invitation to a GitLab project or group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `email` | string | Yes | Email address of the invitation to update |
@@ -1217,7 +1172,6 @@ Revoke a pending email invitation to a GitLab project or group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `email` | string | Yes | Email address of the invitation to revoke |
@@ -1240,7 +1194,6 @@ List pending access requests for a GitLab project or group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `perPage` | number | No | Number of results per page \(default 20, max 100\) |
@@ -1265,7 +1218,6 @@ Approve a pending access request for a GitLab project or group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `userId` | number | Yes | The user ID of the access requester |
@@ -1289,7 +1241,6 @@ Deny (delete) a pending access request for a GitLab project or group
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `resourceType` | string | Yes | Whether the resource is a 'project' or a 'group' |
 | `resourceId` | string | Yes | Project or group ID or path \(e.g. mygroup/myproject\) |
 | `userId` | number | Yes | The user ID of the access requester |
@@ -1312,7 +1263,6 @@ List SAML group links for a GitLab group. Use this to detect whether a group is 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `groupId` | string | Yes | Group ID or path \(e.g. my-org/my-group\) |
 
 #### Output
@@ -1334,7 +1284,6 @@ Search for GitLab users by name, username, or email. Email matches must be exact
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `search` | string | Yes | Name, username, or email to search for |
 | `perPage` | number | No | Number of results per page \(default 20, max 100\) |
 | `page` | number | No | Page number for pagination |
@@ -1358,7 +1307,6 @@ Create a new GitLab user. Requires an administrator token with admin_mode on the
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `email` | string | Yes | The user's email address |
 | `username` | string | Yes | The user's username |
 | `name` | string | Yes | The user's display name |
@@ -1386,7 +1334,6 @@ Modify an existing GitLab user. Requires an administrator token with admin_mode 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `userId` | number | Yes | The ID of the user to modify |
 | `email` | string | No | The user's new email address \(GitLab only allows changing to one of the user's existing verified secondary emails\) |
 | `username` | string | No | The user's new username |
@@ -1411,7 +1358,6 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `userId` | number | Yes | The ID of the user to delete |
 | `hardDelete` | boolean | No | When true, contributions, personal projects, AND groups owned solely by this user are deleted rather than moved to a Ghost User |
 
@@ -1433,7 +1379,6 @@ Block a GitLab user, preventing them from signing in or accessing the instance
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
@@ -1511,7 +1456,6 @@ Unblock a previously blocked GitLab user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
@@ -1589,7 +1533,6 @@ Deactivate a dormant GitLab user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
@@ -1667,7 +1610,6 @@ Reactivate a deactivated GitLab user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
@@ -1745,7 +1687,6 @@ Ban a GitLab user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
@@ -1823,7 +1764,6 @@ Unban a previously banned GitLab user
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
@@ -1901,7 +1841,6 @@ Approve a GitLab user whose signup is pending administrator approval
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
@@ -1979,7 +1918,6 @@ Reject a GitLab user whose signup is pending administrator approval
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `userId` | number | Yes | The ID of the user to act on |
 
 #### Output
@@ -2057,7 +1995,6 @@ Delete a user's authentication identity (e.g. SAML or LDAP). Requires an adminis
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `userId` | number | Yes | The ID of the user |
 | `provider` | string | Yes | The external identity provider name \(e.g. saml, ldapmain\) |
 
@@ -2079,7 +2016,6 @@ Add a SAML group link that maps an identity-provider group to a GitLab group at 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `groupId` | string | Yes | Group ID or path \(e.g. my-org/my-group\) |
 | `samlGroupName` | string | Yes | The name of the SAML group as sent by the identity provider |
 | `accessLevel` | number | Yes | Access level granted to members of the SAML group: 10 \(Guest\), 15 \(Planner\), 20 \(Reporter\), 25 \(Security Manager\), 30 \(Developer\), 40 \(Maintainer\), 50 \(Owner\) |
@@ -2104,7 +2040,6 @@ Delete a SAML group link from a GitLab group (GitLab Premium/Ultimate)
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | No | Self-managed GitLab host \(e.g. gitlab.example.com\). Defaults to gitlab.com. |
 | `groupId` | string | Yes | Group ID or path \(e.g. my-org/my-group\) |
 | `samlGroupName` | string | Yes | The name of the SAML group link to delete |
 | `provider` | string | No | Provider name of the link to delete. Required when multiple links share the same SAML group name. |

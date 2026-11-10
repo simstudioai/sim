@@ -9,8 +9,8 @@ import { FindBar } from '@/components/find-bar/find-bar'
 import { MetadataFields } from '@/app/(product)/_components/workspace/metadata-fields/metadata-fields'
 import styles from '@/app/(product)/_components/workspace/span-inspector/span-inspector.module.css'
 import { formatDuration } from '@/app/(product)/_components/workspace/workspace-session/format'
+import { useCodeViewerFeatures } from '@/platform/lib/data/code-viewer'
 import { useFindShortcut } from '@/platform/lib/data/find-shortcut'
-import { useCodeViewerFeatures } from '@/platform/lib/data/workflow-deploy/terminal'
 import type { TracePayload, TraceSpan } from '@/platform/shared/workspace-records'
 
 const STEP_TYPE: Record<TraceSpan['kind'], string> = {

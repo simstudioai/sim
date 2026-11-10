@@ -2,6 +2,7 @@ import type {
   RootlyListFunctionalitiesParams,
   RootlyListFunctionalitiesResponse,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListFunctionalitiesTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyListFunctionalitiesTool: ToolConfig<
   name: 'Rootly List Functionalities',
   description: 'List functionalities configured in Rootly.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

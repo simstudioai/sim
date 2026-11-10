@@ -85,6 +85,23 @@ export const FLOW_SERVICE_ACCOUNT_PROVIDER_ID = 'flow-service-account' as const
 export const CODA_SERVICE_ACCOUNT_PROVIDER_ID = 'coda-service-account' as const
 export const GAUGE_SERVICE_ACCOUNT_PROVIDER_ID = 'gauge-service-account' as const
 export const HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID = 'higgsfield-service-account' as const
+export const GITLAB_SERVICE_ACCOUNT_PROVIDER_ID = 'gitlab-service-account' as const
+export const WHATSAPP_SERVICE_ACCOUNT_PROVIDER_ID = 'whatsapp-service-account' as const
+export const VERCEL_SERVICE_ACCOUNT_PROVIDER_ID = 'vercel-service-account' as const
+export const TYPEFORM_SERVICE_ACCOUNT_PROVIDER_ID = 'typeform-service-account' as const
+export const TELEGRAM_SERVICE_ACCOUNT_PROVIDER_ID = 'telegram-service-account' as const
+export const STRIPE_SERVICE_ACCOUNT_PROVIDER_ID = 'stripe-service-account' as const
+export const SENTRY_SERVICE_ACCOUNT_PROVIDER_ID = 'sentry-service-account' as const
+export const ROOTLY_SERVICE_ACCOUNT_PROVIDER_ID = 'rootly-service-account' as const
+export const RESEND_SERVICE_ACCOUNT_PROVIDER_ID = 'resend-service-account' as const
+export const PAGERDUTY_SERVICE_ACCOUNT_PROVIDER_ID = 'pagerduty-service-account' as const
+export const LEMLIST_SERVICE_ACCOUNT_PROVIDER_ID = 'lemlist-service-account' as const
+export const GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID = 'granola-service-account' as const
+export const GRAIN_SERVICE_ACCOUNT_PROVIDER_ID = 'grain-service-account' as const
+export const FATHOM_SERVICE_ACCOUNT_PROVIDER_ID = 'fathom-service-account' as const
+export const CHECKR_SERVICE_ACCOUNT_PROVIDER_ID = 'checkr-service-account' as const
+export const CALENDLY_SERVICE_ACCOUNT_PROVIDER_ID = 'calendly-service-account' as const
+export const ASHBY_SERVICE_ACCOUNT_PROVIDER_ID = 'ashby-service-account' as const
 export const FLINT_SERVICE_ACCOUNT_PROVIDER_ID = 'flint-service-account' as const
 export const REDUCTO_SERVICE_ACCOUNT_PROVIDER_ID = 'reducto-service-account' as const
 export const QUIVER_SERVICE_ACCOUNT_PROVIDER_ID = 'quiver-service-account' as const
@@ -175,6 +192,23 @@ export type TokenServiceAccountProviderId =
   | typeof CODA_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof GAUGE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof HIGGSFIELD_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof GITLAB_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof WHATSAPP_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof VERCEL_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof TYPEFORM_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof TELEGRAM_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof STRIPE_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SENTRY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ROOTLY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof RESEND_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof PAGERDUTY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof LEMLIST_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof GRAIN_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof FATHOM_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CHECKR_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof CALENDLY_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof ASHBY_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof FLINT_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof REDUCTO_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof QUIVER_SERVICE_ACCOUNT_PROVIDER_ID
@@ -1475,6 +1509,285 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     fields: [{ id: 'apiToken', label: 'API key', placeholder: 'ak_...', secret: true }],
     docsUrl: 'https://docs.sim.ai/integrations/flint',
     helpText: 'Create a key in your Flint team settings. It needs at least the member role.',
+  },
+  [ASHBY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ASHBY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Ashby',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Ashby API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/ashby',
+    helpText:
+      'Create an API key in Ashby under Admin > API Keys and grant read and write access to the modules your workflows use.',
+    invalidCredentialsHelp:
+      'Ashby rejected this key. Check that it was copied in full and has not been deactivated.',
+  },
+  [CALENDLY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CALENDLY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Calendly',
+    tokenNoun: 'personal access token',
+    connectNoun: 'personal access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Personal access token',
+        placeholder: 'Paste your Calendly personal access token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/calendly',
+    helpText:
+      'Create a personal access token in Calendly under Settings > Integrations > API & Webhooks.',
+  },
+  [CHECKR_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: CHECKR_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Checkr',
+    tokenNoun: 'secret API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Secret API key',
+        placeholder: 'Paste your Checkr secret API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/checkr',
+    helpText:
+      'Use a secret API key from your Checkr production account (Account Settings > Developer Settings). Staging keys do not work, since Sim calls api.checkr.com.',
+    invalidCredentialsHelp:
+      'Checkr rejected this key. Check that it is a production secret key, not a publishable or staging key.',
+  },
+  [FATHOM_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: FATHOM_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Fathom',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Fathom API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/fathom',
+    helpText:
+      'Create an API key in Fathom under User Settings > API Access. The key sees the meetings you recorded or that were shared with you or your team.',
+  },
+  [GRAIN_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: GRAIN_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Grain',
+    tokenNoun: 'access token',
+    connectNoun: 'access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Access token',
+        placeholder: 'Paste your Grain access token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/grain',
+    helpText:
+      'Create a personal or workspace access token in Grain under Settings > Integrations > API. A personal token has the same access you have in Grain.',
+  },
+  [GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: GRANOLA_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Granola',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Granola API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/granola',
+    helpText:
+      'Create an API key in the Granola desktop app under Settings > Connectors > API keys (Business or Enterprise plan). Workspace admins can create a workspace API key, which does not expire and reads public notes and spaces with API access enabled.',
+  },
+  [LEMLIST_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: LEMLIST_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Lemlist',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Lemlist API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/lemlist',
+    helpText: 'Find your API key in Lemlist under Settings > Integrations.',
+    invalidCredentialsHelp:
+      'Lemlist rejected the key. A key whose user is blocked also fails; generate a new key under Settings > Integrations.',
+  },
+  [PAGERDUTY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: PAGERDUTY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'PagerDuty',
+    tokenNoun: 'REST API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'REST API key',
+        placeholder: 'Paste your PagerDuty REST API key',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/pagerduty',
+    helpText:
+      'Use an account REST API key (an administrator creates it under Integrations > API Access Keys) or a personal user API token (User Settings > API Access). Creating, updating, snoozing, merging, and noting incidents needs a full-access key; a read-only key covers the list and get operations.',
+  },
+  [RESEND_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: RESEND_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Resend',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'API key',
+        placeholder: 're_...',
+        secret: true,
+        hintPattern: /^re_/,
+        hintMessage: 'Resend API keys start with re_.',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/resend',
+    helpText:
+      'A sending-access key can only send emails. Use a full-access key to manage contacts, audiences, broadcasts, and domains.',
+    invalidCredentialsHelp:
+      'Resend rejected this key. Check that it was copied in full and has not been deleted, deactivated, or suspended.',
+  },
+  [ROOTLY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: ROOTLY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Rootly',
+    tokenNoun: 'API key',
+    connectNoun: 'API key',
+    fields: [
+      { id: 'apiToken', label: 'API key', placeholder: 'Paste your Rootly API key', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/rootly',
+    helpText:
+      'Use a Global or Team API key. A Personal key stops working if the person who created it leaves the organization.',
+    invalidCredentialsHelp:
+      'Rootly rejected this key. Check that it was copied in full and has not been revoked.',
+  },
+  [SENTRY_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SENTRY_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Sentry',
+    tokenNoun: 'auth token',
+    connectNoun: 'auth token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Auth token',
+        placeholder: 'Paste your Sentry auth token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/sentry',
+    helpText:
+      'Use a user auth token or an internal integration token with the scopes your operations need, such as org:read, project:read, project:write, and event:read. The organization slug stays a field on the block.',
+    invalidCredentialsHelp:
+      'Sentry rejected this token. Check that it was copied in full, has not been revoked, and belongs to sentry.io rather than a self-hosted Sentry.',
+  },
+  [STRIPE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: STRIPE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Stripe',
+    tokenNoun: 'secret key',
+    connectNoun: 'secret key',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Secret key',
+        placeholder: 'sk_live_...',
+        secret: true,
+        hintPattern: /^(sk|rk)_(live|test)_/,
+        hintMessage:
+          'Stripe secret keys start with sk_live_ or sk_test_ (restricted keys with rk_).',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/stripe',
+    helpText:
+      'Create a secret or restricted key under Developers > API keys in the Stripe Dashboard. A restricted key needs read or write access to the resources your workflows use.',
+  },
+  [TELEGRAM_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: TELEGRAM_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Telegram',
+    tokenNoun: 'bot token',
+    connectNoun: 'bot token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Bot token',
+        placeholder: '123456789:ABC...',
+        secret: true,
+        hintPattern: /^\d+:/,
+        hintMessage: 'Telegram bot tokens look like 123456789:ABC-DEF...',
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/telegram',
+    helpText:
+      'Message /newbot to @BotFather in Telegram to create a bot and copy the token it gives you.',
+  },
+  [TYPEFORM_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: TYPEFORM_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Typeform',
+    tokenNoun: 'personal access token',
+    connectNoun: 'personal access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Personal access token',
+        placeholder: 'Paste personal access token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/typeform',
+    helpText:
+      'Create a personal access token in Typeform under Account > Personal tokens. Grant the forms and responses scopes your workflows use.',
+    invalidCredentialsHelp:
+      'Typeform rejected this token. Check that it has not been revoked and that it includes the forms:read scope.',
+  },
+  [VERCEL_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: VERCEL_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Vercel',
+    tokenNoun: 'access token',
+    connectNoun: 'access token',
+    fields: [
+      { id: 'apiToken', label: 'Access token', placeholder: 'Paste access token', secret: true },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/vercel',
+    helpText:
+      'Create a token under Account Settings > Tokens in the Vercel dashboard, scoped to the team your workflows manage.',
+  },
+  [WHATSAPP_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: WHATSAPP_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'WhatsApp',
+    tokenNoun: 'access token',
+    connectNoun: 'access token',
+    fields: [
+      {
+        id: 'apiToken',
+        label: 'Access token',
+        placeholder: 'Paste WhatsApp Cloud API access token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/whatsapp',
+    helpText:
+      'Use a permanent system user access token from Meta Business Settings with the whatsapp_business_messaging permission. Temporary tokens from the App Dashboard expire after 24 hours.',
+    invalidCredentialsHelp:
+      'Meta rejected this token. Check that it has not expired or been revoked; temporary App Dashboard tokens last only 24 hours.',
+  },
+  [GITLAB_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: GITLAB_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'GitLab',
+    tokenNoun: 'access token',
+    connectNoun: 'access token',
+    fields: [
+      { id: 'apiToken', label: 'Access token', placeholder: 'glpat-...', secret: true },
+      { id: 'domain', label: 'GitLab host', placeholder: 'gitlab.com', secret: false },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/gitlab',
+    helpText:
+      'Use a personal, project, or group access token with the api scope (read_api for read-only workflows). Enter gitlab.com, or your self-managed host.',
+    invalidCredentialsHelp:
+      'GitLab rejected this token. Check that it is active, has the api or read_api scope, and belongs to the host you entered.',
   },
 }
 

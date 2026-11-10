@@ -2,6 +2,7 @@ import type {
   RootlyCreateStatusPageEventParams,
   RootlyCreateStatusPageEventResponse,
 } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyCreateStatusPageEventTool: ToolConfig<
@@ -12,6 +13,7 @@ export const rootlyCreateStatusPageEventTool: ToolConfig<
   name: 'Rootly Create Status Page Event',
   description: 'Post a public status page update for a Rootly incident.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

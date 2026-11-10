@@ -2,7 +2,7 @@ import { truncate } from '@sim/utils/string'
 import { readResponseJsonWithLimit } from '@/lib/core/utils/stream-limits'
 import {
   fetchProvider,
-  isTransientProviderStatus,
+  providerFailureCode,
   TokenServiceAccountValidationError,
   throwForProviderResponse,
 } from '@/lib/credentials/token-service-accounts/errors'
@@ -46,6 +46,13 @@ interface TokenCheck {
    * before {@link forbiddenMeansScoped} accepts a 403.
    */
   rejectsKey?: (errorBody: unknown) => boolean
+  /**
+   * For a vendor that answers a valid but restricted key with an error naming
+   * the missing permission (Resend's `restricted_api_key` 401): returns whether
+   * the error body proves the key authenticated. Checked after
+   * {@link rejectsKey}.
+   */
+  provesKey?: (errorBody: unknown) => boolean
 }
 
 const MAX_CHECK_RESPONSE_BYTES = 64 * 1024
@@ -82,11 +89,16 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
       check.forbiddenMeansScoped &&
       response.status === 403 &&
       (response.headers.get('content-type') ?? '').includes('application/json')
-    if (check.rejectsKey && !response.ok) {
+    if ((check.rejectsKey || check.provesKey) && !response.ok) {
       const unreadable = Symbol('unreadable')
       const errorBody = await readJsonBody(response, check.serviceLabel).catch(() => unreadable)
-      if (errorBody !== unreadable && check.rejectsKey(errorBody)) {
-        throw new TokenServiceAccountValidationError('invalid_credentials', 400, { step: 'verify' })
+      if (errorBody !== unreadable) {
+        if (check.rejectsKey?.(errorBody)) {
+          throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+            step: 'verify',
+          })
+        }
+        if (check.provesKey?.(errorBody)) return accepted
       }
       if (scopedForbidden) {
         // Only a body that was read and doesn't name a bad key proves the token.
@@ -98,12 +110,8 @@ export function tokenCheckValidator(check: TokenCheck): TokenServiceAccountValid
         }
         return accepted
       }
-      const callerError =
-        response.status >= 400 &&
-        response.status < 500 &&
-        !isTransientProviderStatus(response.status)
       throw new TokenServiceAccountValidationError(
-        callerError ? 'invalid_credentials' : 'provider_unavailable',
+        providerFailureCode(response.status),
         response.status,
         {
           step: 'verify',

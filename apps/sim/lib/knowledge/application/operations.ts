@@ -1031,6 +1031,23 @@ function defineKnowledgeSessionOperation<const Id extends string>(
   return Object.freeze(operation)
 }
 
+export const searchSourcePermissionOperations = {
+  read: defineOrganizationOperation({
+    minimumRole: 'admin',
+    principalKinds: ['personal_api_key', 'oauth_access_token'],
+    capability: 'knowledge.use',
+    id: 'knowledge.search.source_permissions.read',
+    oauthScope: 'api:read',
+  }),
+  replace: defineOrganizationOperation({
+    minimumRole: 'admin',
+    principalKinds: ['personal_api_key', 'oauth_access_token'],
+    capability: 'knowledge.use',
+    id: 'knowledge.search.source_permissions.replace',
+    oauthScope: 'api:write',
+  }),
+} as const
+
 export const knowledgeSessionOperations = {
   // permission-group-exempt: delegates to knowledgeOperations.list, which carries knowledge.use
   list: defineKnowledgeSessionOperation({ id: 'knowledge.session.list', capability: 'none' }),

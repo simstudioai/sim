@@ -1,3 +1,4 @@
+import { VERCEL_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 import type { VercelCreateProjectParams, VercelCreateProjectResponse } from '@/tools/vercel/types'
 
@@ -9,6 +10,7 @@ export const vercelCreateProjectTool: ToolConfig<
   name: 'Vercel Create Project',
   description: 'Create a new Vercel project',
   version: '1.0.0',
+  oauth: VERCEL_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

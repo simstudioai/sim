@@ -2,6 +2,7 @@ import type {
   LemlistGetActivitiesParams,
   LemlistGetActivitiesResponse,
 } from '@/tools/lemlist/types'
+import { LEMLIST_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const getActivitiesTool: ToolConfig<
@@ -13,6 +14,7 @@ export const getActivitiesTool: ToolConfig<
   description:
     'Retrieves campaign activities and steps performed, including email opens, clicks, replies, and other events.',
   version: '1.0.0',
+  oauth: LEMLIST_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

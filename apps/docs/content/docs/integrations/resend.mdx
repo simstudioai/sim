@@ -2,7 +2,7 @@
 title: Resend
 description: Send emails and manage contacts with Resend.
 integration:
-  type: "resend"
+  type: "resend_v2"
   color: "#181C1E"
 ---
 
@@ -17,7 +17,7 @@ Use returned email IDs to check delivery status. The block's actions define the 
 
 ## Use the block [#usage-instructions]
 
-Send emails, retrieve email status, manage contacts, and view domains. Requires API Key.
+Send emails, retrieve email status, manage contacts, and view domains.
 
 ## Actions
 
@@ -41,7 +41,6 @@ Send an email using your own Resend API key and from address
 | `replyTo` | string | No | Reply-to email address |
 | `scheduledAt` | string | No | Schedule email to be sent later in ISO 8601 format |
 | `tags` | string | No | Comma-separated key:value pairs for email tags \(e.g., "category:welcome,type:onboarding"\) |
-| `resendApiKey` | string | Yes | Resend API key for sending emails |
 
 #### Output
 
@@ -66,7 +65,6 @@ Retrieve details of a previously sent email by its ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `emailId` | string | Yes | The ID of the email to retrieve |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -101,7 +99,6 @@ Cancel a scheduled email before it is sent
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `cancelEmailId` | string | Yes | The ID of the scheduled email to cancel |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -125,7 +122,6 @@ Create a new contact in Resend
 | `firstName` | string | No | First name of the contact |
 | `lastName` | string | No | Last name of the contact |
 | `unsubscribed` | boolean | No | Whether the contact is unsubscribed from all broadcasts |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -145,7 +141,6 @@ List all contacts in Resend
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -173,7 +168,6 @@ Retrieve details of a contact by ID or email
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `contactId` | string | Yes | The contact ID or email address to retrieve |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -202,7 +196,6 @@ Update an existing contact in Resend
 | `firstName` | string | No | Updated first name |
 | `lastName` | string | No | Updated last name |
 | `unsubscribed` | boolean | No | Whether the contact should be unsubscribed from all broadcasts |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -223,7 +216,6 @@ Delete a contact from Resend by ID or email
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `contactId` | string | Yes | The contact ID or email address to delete |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -245,7 +237,6 @@ Create a new audience in Resend
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `audienceName` | string | Yes | The name of the audience to create |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -267,7 +258,6 @@ Retrieve details of an audience by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `audienceId` | string | Yes | The ID of the audience to retrieve |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -289,7 +279,6 @@ List all audiences in Resend
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -314,7 +303,6 @@ Delete an audience from Resend by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `audienceId` | string | Yes | The ID of the audience to delete |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -343,7 +331,6 @@ Create a broadcast email for an audience in Resend
 | `broadcastReplyTo` | string | No | Reply-to email address |
 | `broadcastName` | string | No | Friendly internal name for the broadcast |
 | `broadcastPreviewText` | string | No | Preview text shown in the inbox before the email is opened |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -365,7 +352,6 @@ Send a broadcast immediately or schedule it for later
 | --------- | ---- | -------- | ----------- |
 | `broadcastId` | string | Yes | The ID of the broadcast to send |
 | `broadcastScheduledAt` | string | No | Schedule delivery in natural language \(e.g., "in 1 min"\) or ISO 8601 format. Sends immediately if omitted |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -386,7 +372,6 @@ Retrieve details of a broadcast by ID
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `broadcastId` | string | Yes | The ID of the broadcast to retrieve |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 
@@ -417,7 +402,6 @@ List all verified domains in your Resend account
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `resendApiKey` | string | Yes | Resend API key |
 
 #### Output
 

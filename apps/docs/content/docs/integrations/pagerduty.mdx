@@ -2,7 +2,7 @@
 title: PagerDuty
 description: Manage incidents and on-call schedules with PagerDuty
 integration:
-  type: "pagerduty"
+  type: "pagerduty_v2"
   color: "#06AC38"
 ---
 
@@ -29,7 +29,6 @@ List incidents from PagerDuty with optional filters.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `statuses` | string | No | Comma-separated statuses to filter \(triggered, acknowledged, resolved\) |
 | `urgencies` | string | No | Comma-separated urgencies to filter \(high, low\) |
 | `serviceIds` | string | No | Comma-separated service IDs to filter |
@@ -73,7 +72,6 @@ Get a single incident from PagerDuty by ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `incidentId` | string | Yes | ID of the incident to fetch |
 
 #### Output
@@ -109,7 +107,6 @@ Create a new incident in PagerDuty.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `fromEmail` | string | Yes | Email address of a valid PagerDuty user |
 | `title` | string | Yes | Incident title/summary |
 | `serviceId` | string | Yes | ID of the PagerDuty service |
@@ -145,7 +142,6 @@ Update an incident in PagerDuty (acknowledge, resolve, change urgency, etc.).
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `fromEmail` | string | Yes | Email address of a valid PagerDuty user |
 | `incidentId` | string | Yes | ID of the incident to update |
 | `status` | string | No | New status \(triggered, acknowledged, or resolved\) |
@@ -178,7 +174,6 @@ Snooze a triggered PagerDuty incident for a number of seconds, after which it re
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `fromEmail` | string | Yes | Email address of a valid PagerDuty user |
 | `incidentId` | string | Yes | ID of the incident to snooze |
 | `duration` | string | Yes | Number of seconds to snooze the incident for \(1 to 604800\) |
@@ -204,7 +199,6 @@ Merge one or more source incidents into a target incident. Source incidents are 
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `fromEmail` | string | Yes | Email address of a valid PagerDuty user |
 | `targetIncidentId` | string | Yes | ID of the incident that will absorb the source incidents |
 | `sourceIncidentIds` | string | Yes | Comma-separated IDs of the incidents to merge into the target incident |
@@ -231,7 +225,6 @@ Add a note to an existing PagerDuty incident.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `fromEmail` | string | Yes | Email address of a valid PagerDuty user |
 | `incidentId` | string | Yes | ID of the incident to add the note to |
 | `content` | string | Yes | Note content text |
@@ -257,7 +250,6 @@ List the individual alerts attached to a PagerDuty incident.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `incidentId` | string | Yes | ID of the incident whose alerts to list |
 | `statuses` | string | No | Comma-separated statuses to filter \(triggered, resolved\) |
 | `limit` | string | No | Maximum number of results \(max 100\) |
@@ -293,7 +285,6 @@ List services from PagerDuty with optional name filter.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `query` | string | No | Filter services by name |
 | `limit` | string | No | Maximum number of results \(max 100\) |
 | `offset` | string | No | Offset to start pagination search results |
@@ -327,7 +318,6 @@ Get a single service from PagerDuty by ID.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `serviceId` | string | Yes | ID of the service to fetch |
 
 #### Output
@@ -358,7 +348,6 @@ List current on-call entries from PagerDuty.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `escalationPolicyIds` | string | No | Comma-separated escalation policy IDs to filter |
 | `scheduleIds` | string | No | Comma-separated schedule IDs to filter |
 | `since` | string | No | Start time filter \(ISO 8601 format\) |
@@ -396,7 +385,6 @@ List escalation policies from PagerDuty with an optional name filter.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `query` | string | No | Filter escalation policies by name |
 | `limit` | string | No | Maximum number of results \(max 100\) |
 | `offset` | string | No | Offset to start pagination search results |
@@ -428,7 +416,6 @@ List on-call schedules from PagerDuty with an optional name filter.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `query` | string | No | Filter schedules by name |
 | `limit` | string | No | Maximum number of results \(max 100\) |
 | `offset` | string | No | Offset to start pagination search results |
@@ -459,7 +446,6 @@ List users from PagerDuty with an optional name/email filter.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `apiKey` | string | Yes | PagerDuty REST API Key |
 | `query` | string | No | Filter users by name or email |
 | `limit` | string | No | Maximum number of results \(max 100\) |
 | `offset` | string | No | Offset to start pagination search results |

@@ -83,7 +83,8 @@ interface SavedCredentialOptions {
  * The fields of a credential-only successor to a block that takes inline
  * secrets. The legacy block keeps its own definition and keeps running; the
  * successor spreads it, then these fields swap its secret fields for a
- * saved-credential picker in the same place. Fields that depended on
+ * saved-credential picker right under the operation picker (or where the
+ * secret was, when the block has none). Fields that depended on
  * a replaced secret depend on the credential instead.
  */
 export function withSavedCredential(
@@ -104,11 +105,15 @@ export function withSavedCredential(
     throw new Error(`Block "${legacy.type}" has none of the fields a saved credential replaces`)
   }
 
-  // The picker shows and is required exactly where the secrets it replaces were.
+  // The picker shows and is required exactly where the secrets it replaces were,
+  // unless the successor states where; replaced fields must agree on whatever it inherits.
   const { condition: secretCondition, required: secretRequired } = legacy.subBlocks[at]
-  const visibility = (subBlock: SubBlockConfig) =>
-    JSON.stringify([subBlock.condition ?? null, subBlock.required ?? null])
-  if (new Set(legacy.subBlocks.filter(isReplaced).map(visibility)).size > 1) {
+  const inherited = (subBlock: SubBlockConfig) =>
+    JSON.stringify([
+      options.condition === undefined ? (subBlock.condition ?? null) : null,
+      options.required === undefined ? (subBlock.required ?? null) : null,
+    ])
+  if (new Set(legacy.subBlocks.filter(isReplaced).map(inherited)).size > 1) {
     throw new Error(`Block "${legacy.type}": the replaced secrets show or require differently`)
   }
   const condition = options.condition ?? secretCondition
@@ -142,8 +147,12 @@ export function withSavedCredential(
       `Block "${legacy.type}": unused selector twins ${unusedSelectorKeys.join(', ')}`
     )
   }
+  // Under the operation picker because that is the first field a user sets.
+  const operationAt = subBlocks.findIndex(
+    (subBlock) => subBlock.id === 'operation' && !isTriggerModeSubBlock(subBlock)
+  )
   subBlocks.splice(
-    at,
+    operationAt === -1 ? at : operationAt + 1,
     0,
     {
       ...picker,

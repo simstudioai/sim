@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import type { ListDomainsParams, ListDomainsResult } from '@/tools/resend/types'
+import { RESEND_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('ResendListDomainsTool')
@@ -9,6 +10,7 @@ export const resendListDomainsTool: ToolConfig<ListDomainsParams, ListDomainsRes
   name: 'List Domains',
   description: 'List all verified domains in your Resend account',
   version: '1.0.0',
+  oauth: RESEND_CREDENTIAL_OAUTH,
 
   params: {
     resendApiKey: {

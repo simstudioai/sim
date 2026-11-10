@@ -5,6 +5,7 @@ import {
   ashbyErrorMessage,
   mapApplication,
 } from '@/tools/ashby/utils'
+import { ASHBY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig, ToolResponse } from '@/tools/types'
 
 interface AshbyGetApplicationParams {
@@ -26,6 +27,7 @@ export const getApplicationTool: ToolConfig<
   name: 'Ashby Get Application',
   description: 'Retrieves full details about a single application by its ID.',
   version: '1.0.0',
+  oauth: ASHBY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

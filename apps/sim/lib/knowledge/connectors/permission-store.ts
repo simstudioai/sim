@@ -9,6 +9,13 @@ import type { DbTransaction } from '@/lib/db/types'
 
 export type ConnectorPermissionSnapshot = typeof knowledgeConnectorPermissionSnapshot.$inferSelect
 
+/** A complete replacement. Metadata can be read without loading the private payload or subject grants. */
+export interface ConnectorPermissionData {
+  metadata: Record<string, unknown>
+  payload: Record<string, unknown>
+  groups: readonly { groupKey: string; subjects: readonly string[] }[]
+}
+
 /** The application has authorized this canonical source and verified the reader's subject. */
 export async function hasConnectorPermissionGrant(
   connectorId: string,
@@ -64,12 +71,7 @@ export async function readConnectorPermissionMetadata(connectorIds: readonly str
 export async function writeConnectorPermissions(
   tx: DbTransaction,
   connectorId: string,
-  input: {
-    expectedRevision: number
-    metadata: Record<string, unknown>
-    payload: Record<string, unknown>
-    groups: readonly { groupKey: string; subjects: readonly string[] }[]
-  }
+  input: ConnectorPermissionData & { expectedRevision: number }
 ) {
   const table = knowledgeConnectorPermissionSnapshot
   const [current] = await tx
@@ -114,4 +116,5 @@ export async function writeConnectorPermissions(
       'Could not save permissions. The previous configuration was preserved.'
     )
   }
+  return values.revision
 }

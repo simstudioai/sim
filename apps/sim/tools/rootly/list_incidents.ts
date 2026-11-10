@@ -1,4 +1,5 @@
 import type { RootlyListIncidentsParams, RootlyListIncidentsResponse } from '@/tools/rootly/types'
+import { ROOTLY_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const rootlyListIncidentsTool: ToolConfig<
@@ -9,6 +10,7 @@ export const rootlyListIncidentsTool: ToolConfig<
   name: 'Rootly List Incidents',
   description: 'List incidents from Rootly with optional filtering by status, severity, and more.',
   version: '1.0.0',
+  oauth: ROOTLY_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {

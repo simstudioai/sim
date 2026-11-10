@@ -10,7 +10,7 @@
       "gateways": {}
     },
     "app/(product)/layout.tsx": {
-      "modules": 2458,
+      "modules": 2513,
       "gateways": {
         "apps/sim/app/(product)/_components/product-shell.tsx": 2458,
         "apps/sim/app/(product)/_components/live-shell/live-shell.tsx": 2169,
@@ -70,7 +70,7 @@
       }
     },
     "app/(product)/o/[organizationId]/integrations/accounts/[credentialId]/page.tsx": {
-      "modules": 2136,
+      "modules": 2181,
       "gateways": {
         "apps/sim/app/(product)/o/[organizationId]/integrations/_components/tool-permissions/live-account-tools-route.tsx": 2135,
         "apps/sim/platform/lib/data/surface.ts": 1819,
@@ -96,7 +96,7 @@
       }
     },
     "app/(product)/o/[organizationId]/integrations/secrets/page.tsx": {
-      "modules": 2183,
+      "modules": 2238,
       "gateways": {
         "apps/sim/app/(product)/o/[organizationId]/integrations/_components/member-secrets/live-member-secrets-route.tsx": 1977,
         "apps/sim/platform/lib/data/server-read.ts": 1355,
@@ -200,7 +200,7 @@
       }
     },
     "app/(product)/o/[organizationId]/settings/billing/plans/page.tsx": {
-      "modules": 2009,
+      "modules": 2053,
       "gateways": {
         "apps/sim/platform/lib/data/plans-entry.ts": 1837,
         "apps/sim/platform/lib/data/surface.ts": 1835,
@@ -239,7 +239,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/changelog/page.tsx": {
-      "modules": 2153,
+      "modules": 2201,
       "gateways": {
         "apps/sim/platform/lib/data/workspace-tab-flags.ts": 1832,
         "apps/sim/platform/lib/data/server-read.ts": 1356,
@@ -265,7 +265,7 @@
       }
     },
     "app/(product)/workspace/[workspaceId]/dashboards/page.tsx": {
-      "modules": 2195,
+      "modules": 2241,
       "gateways": {
         "apps/sim/platform/lib/data/workspace-tab-flags.ts": 1822,
         "apps/sim/platform/lib/data/server-read.ts": 1352,

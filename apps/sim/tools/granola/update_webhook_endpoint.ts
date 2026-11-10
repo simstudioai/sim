@@ -9,6 +9,7 @@ import {
   throwGranolaError,
   toStringList,
 } from '@/tools/granola/utils'
+import { GRANOLA_CREDENTIAL_OAUTH } from '@/tools/shared/saved-credentials'
 import type { ToolConfig } from '@/tools/types'
 
 export const updateWebhookEndpointTool: ToolConfig<
@@ -20,6 +21,7 @@ export const updateWebhookEndpointTool: ToolConfig<
   description:
     'Updates a Granola webhook endpoint. Each supplied field replaces its current value; omitted fields are left unchanged. Use enabled to pause or resume deliveries.',
   version: '1.0.0',
+  oauth: GRANOLA_CREDENTIAL_OAUTH,
 
   params: {
     apiKey: {
