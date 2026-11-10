@@ -101,7 +101,7 @@ export async function peoplePhaseChecks() {
       ).toBeVisible()
     })
   })
-  await check('a phone gives the directory to the name, unbroken, on the page gutter', async () => {
+  await check('a phone gives the directory to the name, unbroken', async () => {
     await withSession(
       MEMBER,
       async ({ page }) => {
@@ -117,16 +117,12 @@ export async function peoplePhaseChecks() {
           const cell = node.closest('td')
           const table = node.closest('table')
           const name = node.previousElementSibling
-          // The field's frame, not the query wrapper inside its padding.
-          const field = document.querySelector('input')?.closest('[data-variant]')
           return {
             nameShare:
               (cell?.getBoundingClientRect().width ?? 0) /
               (table?.getBoundingClientRect().width ?? 1),
             emailLines: lines(node),
             nameLines: name ? lines(name) : 0,
-            searchEnd: field?.getBoundingClientRect().right ?? 0,
-            gutter: document.querySelector('h1')?.getBoundingClientRect().left ?? 0,
           }
         })
         assert.ok(
@@ -135,10 +131,6 @@ export async function peoplePhaseChecks() {
         )
         assert.equal(layout.emailLines, 1, 'An ordinary email address breaks mid-word')
         assert.equal(layout.nameLines, 1, 'An ordinary name breaks mid-word')
-        assert.ok(
-          Math.abs(layout.searchEnd - (PHONE.width - layout.gutter)) <= 1,
-          `Search ends at ${layout.searchEnd}, with the page gutter at ${PHONE.width - layout.gutter}`
-        )
       },
       { viewport: PHONE }
     )

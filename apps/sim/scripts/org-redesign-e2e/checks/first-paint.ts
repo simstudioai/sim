@@ -95,6 +95,8 @@ export async function firstPaintChecks() {
       path: org.integrations,
       primary: (page: Page) => page.getByRole('link', { name: /^Gmail/ }),
       prefetched: [...PREFETCHED_ON_LAYOUT, ...PREFETCHED_INVENTORY, ...PREFETCHED_SECRET_SOURCE],
+      // The directory gates its MCPs, Skills and Secrets by the chosen workspace's permission group.
+      ownReads: [/^\/api\/permission-groups\/user\?workspaceId=[^&]+$/],
     },
     {
       name: 'Links',
@@ -114,6 +116,8 @@ export async function firstPaintChecks() {
     path: string
     primary: (page: Page) => Locator
     prefetched: { label: string; pattern: RegExp }[]
+    /** The page's own reads of one workspace, which the composer's per-workspace guard allows. */
+    ownReads?: RegExp[]
   }[]
   await check(
     'Links paints its first page from the server, even with the client read refused',
@@ -197,9 +201,13 @@ export async function firstPaintChecks() {
             const duplicates = [...counts.entries()]
               .filter(([, count]) => count > 1)
               .map(([label, count]) => `${label} x${count}`)
-            const perWorkspaceReads = labelled.filter((label) =>
-              isPerWorkspaceRead(label.replace(/^\S+ /, ''))
-            )
+            const perWorkspaceReads = labelled.filter((label) => {
+              const path = label.replace(/^\S+ /, '')
+              return (
+                isPerWorkspaceRead(path) &&
+                !('ownReads' in entry && entry.ownReads.some((read) => read.test(path)))
+              )
+            })
             const refetched = entry.prefetched.flatMap(({ label, pattern }) =>
               api.some(({ method, path }) => method === 'GET' && pattern.test(path)) ? [label] : []
             )

@@ -444,7 +444,7 @@ export async function sidebarChecks() {
     })
   })
   await check(
-    'workspace menu: Open in new tab, Pin, Rename gated, nothing destructive',
+    'workspace menu: Open in new tab, Pin, Rename gated; Leave, behind a confirmation, only for a non-owner non-admin',
     async () => {
       await onHome(MEMBER, async ({ page, context }) => {
         const writeMenu = await openRowMenu(page, MEMBER_WRITE_WORKSPACE.name)
@@ -453,10 +453,22 @@ export async function sidebarChecks() {
           'Open in new tab',
           'Rename',
           'Pin',
+          'Leave',
         ])
-        await page.keyboard.press('Escape')
-        await openRowMenu(page, MEMBER_ADMIN_WORKSPACE.name)
+        await menuEntry(page, 'Leave').click()
+        const confirm = dialog(page, 'Leave workspace')
+        await expect(confirm).toContainText(MEMBER_WRITE_WORKSPACE.name)
+        await confirm.getByRole('button', { name: 'Cancel', exact: true }).click()
+        await expect(confirm).toHaveCount(0)
+        await expect(railLink(page, MEMBER_WRITE_WORKSPACE.name)).toBeVisible()
+        const adminMenu = await openRowMenu(page, MEMBER_ADMIN_WORKSPACE.name)
         await expect(menuEntry(page, 'Rename')).toBeEnabled()
+        await expect(adminMenu.getByRole('menuitem')).toHaveText([
+          'Open in new tab',
+          'Rename',
+          'Pin',
+          'Leave',
+        ])
         await menuEntry(page, 'Pin').click()
         await expect(
           railRow(page, MEMBER_ADMIN_WORKSPACE.name).getByRole('img', { name: 'Pinned' })
@@ -469,6 +481,11 @@ export async function sidebarChecks() {
         await expect(await popup).toHaveURL((address) =>
           address.pathname.startsWith(workspaceEntry(MEMBER_ADMIN_WORKSPACE.id))
         )
+      })
+      // An organization administrator keeps access to every workspace, so there is nothing to leave.
+      await onHome(ADMIN, async ({ page }) => {
+        const menu = await openRowMenu(page, MEMBER_WRITE_WORKSPACE.name)
+        await expect(menu.getByRole('menuitem')).toHaveText(['Open in new tab', 'Rename', 'Pin'])
       })
     }
   )

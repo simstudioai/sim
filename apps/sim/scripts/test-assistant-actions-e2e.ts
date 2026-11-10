@@ -768,9 +768,6 @@ try {
       const noCredentials = page
         .getByRole('region', { name: 'Connected credentials', exact: true })
         .getByText('No connected credentials', { exact: true })
-      const noCredentialsWithReason = page
-        .getByRole('main')
-        .getByRole('heading', { name: 'No connected credentials', exact: true })
       // Coda joins the member's Search app with the workspace catalog's own Coda method, which the
       // organization's Search approval does not govern.
       const personalAccount = page.getByRole('menuitem', { name: 'Personal account', exact: true })
@@ -806,10 +803,12 @@ try {
         await expect(integrationRow('Coda')).toBeVisible()
         await integrationRow('Coda').click()
         await expect(page).toHaveURL((url) => url.pathname === routes.integration('coda'))
-        await expect(noCredentialsWithReason).toBeVisible()
+        // The workspace's own Coda method still connects, so the page lists credentials and keeps
+        // the organization's refusal of the member connection out of it.
+        await expect(noCredentials).toBeVisible()
         await expect(
           page.getByRole('main').getByText('Disabled by your organization', { exact: true })
-        ).toBeVisible()
+        ).toHaveCount(0)
         await expectOnlyWorkspaceMethods()
         await capture('integration-disabled-empty')
       } finally {
@@ -818,11 +817,12 @@ try {
       await sql`update credential_group set status = 'disabled' where id = ${groupId}`
       try {
         await page.reload()
+        await expect(noCredentials).toBeVisible()
         await expect(
           page
             .getByRole('main')
             .getByText('Connections are paused by your organization', { exact: true })
-        ).toBeVisible()
+        ).toHaveCount(0)
         await expectOnlyWorkspaceMethods()
         await capture('integration-paused-empty')
       } finally {
@@ -836,10 +836,10 @@ try {
         await expect(salesforce).toBeVisible()
         await salesforce.click()
         await expect(page).toHaveURL((url) => url.pathname === routes.integration('salesforce'))
-        await expect(noCredentialsWithReason).toBeVisible()
+        await expect(noCredentials).toBeVisible()
         await expect(
           page.getByRole('main').getByText('Connections unavailable', { exact: true })
-        ).toBeVisible()
+        ).toHaveCount(0)
         await expect(
           page.getByRole('region', { name: 'Connected credentials', exact: true }).getByRole('link')
         ).toHaveCount(0)

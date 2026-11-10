@@ -126,7 +126,7 @@ export async function integrationChecks() {
     })
   })
   await check(
-    'detail: Connect starts managed authorization; a managed provider has no button',
+    'detail: Connect starts managed authorization; a managed provider offers only the workspace token',
     async () => {
       await withSession(MEMBER, async ({ page, context }) => {
         await context.route('https://accounts.google.com/**', (route) =>
@@ -134,10 +134,23 @@ export async function integrationChecks() {
         )
         await page.goto(url(org.integration('gitlab')))
         await expect(page.getByRole('heading', { level: 1, name: 'GitLab' })).toBeVisible()
-        await expect(page.getByText(/^Managed by your organization\./)).toBeVisible()
+        // The member account is the organization's to manage, so it offers no Connect; the
+        // workspace's personal access token still connects, so the page lists credentials rather
+        // than explaining a refusal.
         await expect(
           page.getByRole('button', { name: 'Connect integration', exact: true })
         ).toHaveCount(0)
+        await expect(page.getByText(/^Managed by your organization\./)).toHaveCount(0)
+        await expect(page.getByText('No connected credentials', { exact: true })).toBeVisible()
+        await page
+          .getByRole('main')
+          .getByRole('button', { name: 'Create credential', exact: true })
+          .click()
+        await expect(page.getByRole('menuitem').first()).toBeVisible()
+        await expect(
+          page.getByRole('menuitem', { name: 'Personal account', exact: true })
+        ).toHaveCount(0)
+        await page.keyboard.press('Escape')
         await page.goto(url(org.integration('gmail')))
         await expect(page.getByRole('heading', { level: 1, name: 'Gmail' })).toBeVisible()
         await expect(page.getByText('No connected credentials', { exact: true })).toBeVisible()

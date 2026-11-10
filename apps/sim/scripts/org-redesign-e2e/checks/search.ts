@@ -148,33 +148,29 @@ export async function searchChecks() {
       )
     })
   }
-  await check("a phone's Search button keeps its size and widens its target to 44px", async () => {
-    const drawnButton = async (page: Page) => {
+  // The coarse-pointer target extension was withdrawn with the design owner's Search markup; the
+  // parity ledger holds it as Open.
+  await check("a phone's Search button keeps its usual size", async () => {
+    const drawnHeight = async (page: Page) => {
       await page.goto(searchUrl({ mode: 'search' }))
       await searchField(page).fill('recall')
       const button = page.getByRole('search').getByRole('button', { name: 'Search', exact: true })
       const box = await button.boundingBox()
       assert(box, 'The button is on screen')
-      return { button, box }
+      return box.height
     }
     let desktopHeight = 0
     await withSession(MEMBER, async ({ page }) => {
-      desktopHeight = (await drawnButton(page)).box.height
+      desktopHeight = await drawnHeight(page)
     })
     await withSession(
       MEMBER,
       async ({ page }) => {
-        const { button, box } = await drawnButton(page)
-        assert.equal(box.height, desktopHeight, 'The phone draws the button at its usual size')
-        assert(box.height < 44, `At ${box.height}px the button needs no wider target`)
-        const reach = (44 - box.height) / 2 - 1
-        for (const y of [box.y - reach, box.y + box.height + reach]) {
-          const hit = await button.evaluate(
-            (node, point) => node.contains(document.elementFromPoint(point.x, point.y)),
-            { x: box.x + box.width / 2, y }
-          )
-          assert(hit, `A touch ${Math.round(reach)}px off the drawn button still lands on it`)
-        }
+        assert.equal(
+          await drawnHeight(page),
+          desktopHeight,
+          'The phone draws the button at its usual size'
+        )
       },
       { viewport: PHONE }
     )

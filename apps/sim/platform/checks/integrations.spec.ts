@@ -202,7 +202,7 @@ test('a private connection keeps its identity when shared and protects its only 
   await expect(people.getByText('Nina Patel', { exact: true })).toBeVisible()
 })
 
-test('Granola uses its managed MCP method and keeps every template in page flow', async ({
+test('Granola connects with its API key and keeps every template in page flow', async ({
   page,
 }) => {
   await page.goto(fixtureUrl('/integrations/granola?state=full'))
@@ -211,23 +211,33 @@ test('Granola uses its managed MCP method and keeps every template in page flow'
   await expect(templates.getByRole('listitem')).toHaveCount(7)
   expect(new Set(await templates.getByRole('listitem').allTextContents()).size).toBe(7)
   await expect(templates.getByRole('button', { name: 'Next', exact: true })).toHaveCount(0)
-  await main.getByRole('button', { name: 'Connect integration', exact: true }).click()
+  // Granola's one catalog connection is a saved API key, so there is no OAuth Connect.
+  await expect(main.getByRole('button', { name: 'Connect integration', exact: true })).toHaveCount(
+    0
+  )
+  await main.getByRole('button', { name: 'Create credential', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Add API key', exact: true }).click()
   const connect = page.getByRole('dialog', { name: 'Connect Granola', exact: true })
+  // Display name and description; the API key is a masked secret field.
   await expect(connect.getByRole('textbox')).toHaveCount(2)
-  await expect(
-    connect.getByRole('region', { name: 'Connection access', exact: true })
-  ).toBeVisible()
+  // The catalog lists no reads for Granola's key, so the dialog has no access list to show.
+  await expect(connect.getByRole('region', { name: 'Connection access', exact: true })).toHaveCount(
+    0
+  )
   await connect
     .getByRole('textbox', { name: 'Display name', exact: true })
     .fill('Meeting follow-ups')
-  await connect.getByRole('button', { name: 'Continue', exact: true }).click()
+  const submit = connect.getByRole('button', { name: 'Connect', exact: true })
+  await expect(submit).toBeDisabled()
+  await connect.getByLabel('API key', { exact: true }).fill('grn_fixture_key')
+  await submit.click()
   await main.getByRole('button', { name: /^Meeting follow-ups / }).click()
   await main.getByRole('tab', { name: 'Access', exact: true }).click()
   await expect(main.getByRole('table', { name: 'People with access', exact: true })).toContainText(
     'Emir Karabeg'
   )
-  await expect(main.getByRole('button', { name: 'Add people', exact: true })).toHaveCount(0)
-  await expect(main.getByRole('checkbox')).toHaveCount(0)
+  // An API key the organization holds is shared like any organization credential.
+  await expect(main.getByRole('button', { name: 'Add people', exact: true })).toBeVisible()
   await main.getByRole('tab', { name: 'Details', exact: true }).click()
   await page.getByRole('button', { name: 'Reconnect', exact: true }).click()
   await expect(
