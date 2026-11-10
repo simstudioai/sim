@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from 'react'
 import { getErrorMessage } from '@sim/utils/errors'
-import { isRecordLike } from '@sim/utils/object'
+import { toRecord } from '@sim/utils/object'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { inferParserType } from 'nuqs'
 import { isApiClientError } from '@/lib/api/client/errors'
@@ -409,9 +409,7 @@ function displayChildren(span: LogTraceSpan, id: string): LogTraceSpan[] {
         endTime: call.endTime ?? span.endTime,
         status: call.error ? 'error' : 'success',
         input: call.input,
-        output: call.error
-          ? { error: call.error, ...(isRecordLike(call.output) ? call.output : {}) }
-          : call.output,
+        output: call.error ? { error: call.error, ...toRecord(call.output) } : call.output,
       }))
   children.sort((left, right) => (spanTime(left.startTime) ?? 0) - (spanTime(right.startTime) ?? 0))
   const calledTool = children.some((child) => child.type === 'tool')

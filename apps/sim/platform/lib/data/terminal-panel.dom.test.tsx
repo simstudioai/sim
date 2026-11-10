@@ -42,7 +42,7 @@ function Terminal() {
     terminalId: 'term-1',
     scopeId: 'scope-1',
     onscreen: false,
-    appearanceTheme: 'default',
+    appearanceTheme: 'app',
     defaultZoom: 100,
     focusRequest: 0,
   })

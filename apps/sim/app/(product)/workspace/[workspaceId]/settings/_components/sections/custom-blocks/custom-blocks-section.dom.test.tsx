@@ -64,13 +64,13 @@ it('shows a failed workspace read with Retry', async () => {
 
 it('clears a ?block= the settled list does not hold', () => {
   reads.blockParam = 'deleted-block'
-  act(() => root.render(<CustomBlocksSection workspaceId='ws' />))
+  act(() => root.render(<CustomBlocksSection workspaceId='ws' subpath={[]} />))
   expect(reads.setBlock).toHaveBeenCalledWith(null, { history: 'replace' })
 })
 
 it('keeps a ?block= while the list is still loading', () => {
   reads.blockParam = 'block-1'
   reads.blocks = { data: undefined, isPlaceholderData: false }
-  act(() => root.render(<CustomBlocksSection workspaceId='ws' />))
+  act(() => root.render(<CustomBlocksSection workspaceId='ws' subpath={[]} />))
   expect(reads.setBlock).not.toHaveBeenCalled()
 })

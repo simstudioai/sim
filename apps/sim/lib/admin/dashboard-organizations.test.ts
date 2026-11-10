@@ -83,6 +83,8 @@ describe('getDashboardMemberTransferPreflight', () => {
   })
 
   it('pages workspace choices and exposes an empty default selection above the exact cap', async () => {
+    // The attachable-workspace filter first looks up the user's personal organization; none here.
+    queueTableRows(member, [])
     queueTableRows(organization, [{ id: 'org-destination' }])
     queueTableRows(user, [
       {

@@ -29,7 +29,7 @@ const NO_MORE = { hasMore: false, onLoadMore: () => {} }
 const runs: RunSummary[] = Array.from({ length: RUN_COUNT }, (_, index) => ({
   id: `run-${index}`,
   workflow: { id: 'workflow-1', name: `Workflow ${index}` },
-  status: 'success',
+  status: 'completed',
   trigger: { label: 'Manual' },
   startedAt: 1_700_000_000_000 - index * 1000,
   durationMs: 1200,
