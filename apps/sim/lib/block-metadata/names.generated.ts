@@ -304,6 +304,7 @@ export const BLOCK_NAMES: Readonly<Record<string, string>> = {
   uptimerobot: 'UptimeRobot',
   vanta: 'Vanta',
   variables: 'Variables',
+  veille: 'Veille',
   vercel: 'Vercel',
   video_generator_v3: 'Video Generator',
   vision: 'Vision (Legacy)',

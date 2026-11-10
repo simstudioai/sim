@@ -358,6 +358,7 @@ export const DOCS_MANIFEST: readonly string[] = [
   'integrations/upstash.mdx',
   'integrations/uptimerobot.mdx',
   'integrations/vanta.mdx',
+  'integrations/veille.mdx',
   'integrations/vercel.mdx',
   'integrations/wealthbox-service-account.mdx',
   'integrations/wealthbox.mdx',

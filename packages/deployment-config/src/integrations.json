@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-11-06",
+  "updatedAt": "2026-11-10",
   "integrations": [
     {
       "type": "onepassword",
@@ -29918,6 +29918,58 @@
       "integrationType": "security",
       "tags": ["monitoring", "automation", "document-processing"],
       "updatedAt": "2026-10-14"
+    },
+    {
+      "type": "veille",
+      "slug": "veille",
+      "name": "Veille",
+      "description": "Validate emails, phones, IPs, domains, VAT numbers and IBANs",
+      "longDescription": "Check signups and forms for fraud with Veille: verify email deliverability, flag disposable, role and webmail addresses, validate phone numbers, score IP addresses for VPN, proxy and Tor traffic, inspect domains, verify EU VAT numbers and IBANs, and read the European Central Bank's daily exchange rates.",
+      "bgColor": "#FFFFFF",
+      "iconName": "VeilleIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/veille",
+      "operations": [
+        {
+          "name": "Verify Email",
+          "description": "Verify that an email address can receive mail with an SMTP inbox test and catch-all detection, and get a verdict with a 0-100 risk score."
+        },
+        {
+          "name": "Check Email",
+          "description": "Check an email address without an SMTP test: disposable or temporary inbox, role account, public webmail, relay or alias, DNS health and a 0-100 risk score."
+        },
+        {
+          "name": "Validate Phone",
+          "description": "Validate a phone number in E.164 format and get its line type, carrier, country, time zones, virtual or disposable flags and a 0-100 risk score."
+        },
+        {
+          "name": "Check IP",
+          "description": "Check an IPv4 or IPv6 address for VPN, proxy, Tor exit, datacenter, abuse and crawler traffic, with its network owner, location and a 0-100 threat score."
+        },
+        {
+          "name": "Check Domain",
+          "description": "Check whether a domain hosts disposable, public webmail, relay or education email, with its DNS health, WHOIS dates and age."
+        },
+        {
+          "name": "Verify VAT Number",
+          "description": "Check an EU VAT number against VIES and get whether it is valid, with the registered company name and address when the member state shares them."
+        },
+        {
+          "name": "Validate IBAN",
+          "description": "Check an IBAN's structure and checksum and get its bank name, BIC, bank and branch codes, country and SEPA membership."
+        },
+        {
+          "name": "Get Exchange Rates",
+          "description": "Get the European Central Bank's daily exchange rates for a base currency, optionally limited to some target currencies."
+        }
+      ],
+      "operationCount": 8,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "security",
+      "tags": ["identity", "enrichment", "automation"],
+      "updatedAt": "2026-11-10"
     },
     {
       "type": "vercel",

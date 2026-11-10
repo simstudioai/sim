@@ -375,6 +375,7 @@ import { UpstashBlock, UpstashBlockMeta } from '@/blocks/blocks/upstash'
 import { UptimeRobotBlock, UptimeRobotBlockMeta } from '@/blocks/blocks/uptimerobot'
 import { VantaBlock, VantaBlockMeta } from '@/blocks/blocks/vanta'
 import { VariablesBlock } from '@/blocks/blocks/variables'
+import { VeilleBlock, VeilleBlockMeta } from '@/blocks/blocks/veille'
 import { VercelBlock, VercelBlockMeta } from '@/blocks/blocks/vercel'
 import {
   VideoGeneratorBlock,
@@ -755,6 +756,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   uptimerobot: UptimeRobotBlock,
   vanta: VantaBlock,
   variables: VariablesBlock,
+  veille: VeilleBlock,
   vercel: VercelBlock,
   video_generator: VideoGeneratorBlock,
   video_generator_v2: VideoGeneratorV2Block,
@@ -1080,6 +1082,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   upstash: UpstashBlockMeta,
   uptimerobot: UptimeRobotBlockMeta,
   vanta: VantaBlockMeta,
+  veille: VeilleBlockMeta,
   vercel: VercelBlockMeta,
   wealthbox: WealthboxBlockMeta,
   webflow: WebflowBlockMeta,
