@@ -193,6 +193,7 @@ const AuditAction = {
   TABLE_EXPORTED: 'table.exported',
   WEBHOOK_CREATED: 'webhook.created',
   WEBHOOK_DELETED: 'webhook.deleted',
+  WEBHOOK_UPDATED: 'webhook.updated',
   WORKFLOW_CREATED: 'workflow.created',
   WORKFLOW_UPDATED: 'workflow.updated',
   WORKFLOW_DELETED: 'workflow.deleted',

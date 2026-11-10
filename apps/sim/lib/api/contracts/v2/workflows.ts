@@ -1298,6 +1298,127 @@ export const v2UpdateWorkflowPublicApiContract = defineRouteContract({
   },
 })
 
+const v2TriggerTimestampSchema = (description: string) =>
+  z.string().nullable().describe(description).meta({ format: 'date-time' })
+
+/**
+ * One trigger the live deployment serves. Schedule-only fields are `null` on
+ * every other kind, and `failedCount` only moves for schedules and polling
+ * triggers: a push webhook's failures happen at the sender, which Sim cannot
+ * count.
+ */
+const v2WorkflowTriggerSchema = z
+  .object({
+    blockId: z.string().describe('Trigger block in the deployed workflow.'),
+    kind: z
+      .enum(['schedule', 'polling', 'event', 'webhook'])
+      .describe(
+        'How the trigger fires: `schedule` on a cron, `polling` when Sim polls the source, `event` on an event raised inside Sim, `webhook` when an external sender delivers to its URL.'
+      ),
+    provider: z
+      .string()
+      .nullable()
+      .describe('Trigger provider, e.g. `gmail` or `github`; null for schedules.'),
+    enabled: z.boolean().describe('Whether the trigger currently fires.'),
+    status: z
+      .enum(['active', 'disabled', 'completed'])
+      .describe(
+        '`disabled` after a manual disable or an automatic one following repeated failures. `completed` applies only to schedules that have no runs left.'
+      ),
+    failedCount: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe(
+        'Consecutive failures since the last success; the trigger disables itself at 100. Always 0 for `webhook` and `event` triggers.'
+      ),
+    lastFailedAt: v2TriggerTimestampSchema(
+      'ISO 8601 timestamp of the most recent counted failure, or null.'
+    ),
+    nextRunAt: v2TriggerTimestampSchema(
+      'ISO 8601 timestamp of the next scheduled run; null when disabled and for non-schedules.'
+    ),
+    lastRanAt: v2TriggerTimestampSchema(
+      'ISO 8601 timestamp of the last scheduled run; null for non-schedules.'
+    ),
+    cronExpression: z
+      .string()
+      .nullable()
+      .describe('Cron expression of a schedule; null for non-schedules.'),
+    timezone: z
+      .string()
+      .nullable()
+      .describe('IANA timezone the cron expression runs in; null for non-schedules.'),
+    url: z
+      .string()
+      .url()
+      .nullable()
+      .describe(
+        'Delivery URL of a `webhook` trigger; null for other kinds and for providers on a shared endpoint.'
+      ),
+  })
+  .strict()
+  .meta({
+    id: 'WorkflowTrigger',
+    title: 'Workflow trigger',
+    description: 'Health and enablement of one trigger the live deployment serves.',
+  })
+export type V2WorkflowTrigger = z.output<typeof v2WorkflowTriggerSchema>
+
+const v2WorkflowTriggerParamsSchema = z
+  .object({
+    workflowId: v2WorkflowIdParamsSchema.shape.workflowId,
+    blockId: z
+      .string({ error: missingFieldError('Block ID is required') })
+      .min(1, 'Block ID is required')
+      .max(MAX_ID_LENGTH, 'Block ID is too long')
+      .describe('Trigger block in the deployed workflow.'),
+  })
+  .meta({
+    id: 'WorkflowTriggerParams',
+    title: 'Workflow trigger path parameters',
+    description: 'Workflow and trigger block selected by the request path.',
+  })
+
+export const v2ListWorkflowTriggersContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/v2/workflows/[workflowId]/triggers',
+  query: noInputSchema,
+  params: v2WorkflowIdParamsSchema,
+  response: {
+    mode: 'json',
+    schema: v2CursorListResponse(v2WorkflowTriggerSchema, { paged: false }),
+  },
+})
+
+const v2UpdateWorkflowTriggerBodySchema = z
+  .object({
+    enabled: z
+      .boolean({ error: 'enabled must be a boolean' })
+      .describe(
+        'Whether the trigger should fire. A disable lasts until the next deploy or version activation, which re-enables every trigger.'
+      ),
+  })
+  .strict()
+  .meta({
+    id: 'UpdateWorkflowTriggerRequest',
+    title: 'Update workflow trigger request',
+    description: 'Enable or disable one trigger of the live deployment.',
+    examples: [{ enabled: true }],
+  })
+
+export const v2UpdateWorkflowTriggerContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/v2/workflows/[workflowId]/triggers/[blockId]',
+  query: noInputSchema,
+  params: v2WorkflowTriggerParamsSchema,
+  body: v2UpdateWorkflowTriggerBodySchema,
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2WorkflowTriggerSchema),
+  },
+})
+
 /**
  * Structured execution error — mirrors `WorkflowExecutionErrorCode` in
  * `@/executor/utils/errors` (duplicated literally: contracts are

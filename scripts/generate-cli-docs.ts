@@ -392,7 +392,16 @@ const GROUP_SECTIONS: Record<string, readonly CommandSection[]> = {
     { title: 'Draft state and edits', prefixes: ['state', 'operations', 'variables'] },
     {
       title: 'Deployments and versions',
-      prefixes: ['deploy', 'deployment', 'versions', 'activate', 'revert', 'rollback', 'undeploy'],
+      prefixes: [
+        'deploy',
+        'deployment',
+        'triggers',
+        'versions',
+        'activate',
+        'revert',
+        'rollback',
+        'undeploy',
+      ],
     },
     {
       title: 'Run and inspect',
