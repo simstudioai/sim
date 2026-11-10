@@ -34,8 +34,8 @@ export const fileReadCommand: AgentCliEngine = {
       return agentCliFail(
         'files read requires a workspace file reference or absolute sandbox path.'
       )
-    if (!runtime.principal)
-      return agentCliFail('Workspace authentication is unavailable. Retry the read.')
+    const { principal } = runtime
+    if (!principal) return agentCliFail('Workspace authentication is unavailable. Retry the read.')
     for (const key of ['max-bytes', 'offset', 'limit']) {
       if (flags[key] === true) return agentCliFail(`--${key} requires a value.`)
     }
@@ -123,7 +123,7 @@ export const fileReadCommand: AgentCliEngine = {
       const resolved = await readWorkspaceFileOrChatUpload(
         () =>
           resolveWorkspaceFileReference({
-            principal: runtime.principal,
+            principal,
             operation: fileOperations.readContent,
             workspaceId: runtime.workspaceId,
             reference,
