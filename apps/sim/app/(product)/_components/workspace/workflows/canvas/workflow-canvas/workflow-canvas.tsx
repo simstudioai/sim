@@ -296,6 +296,10 @@ interface BlockData {
   position: { x: number; y: number }
 }
 
+/** An add-block request as received: checked before use, except the drag-release it hands over. */
+type ReceivedAddBlock = Partial<Record<Exclude<keyof AddBlockDetail, 'pendingConnect'>, unknown>> &
+  Pick<AddBlockDetail, 'pendingConnect'>
+
 interface WorkflowCanvasProps {
   workspaceId: string
   workflowId: string
@@ -2164,9 +2168,7 @@ const WorkflowContent = memo(function WorkflowContent({
 
   /** Handles toolbar block click events to add blocks to the canvas. */
   useEffect(() => {
-    const handleAddBlockFromToolbar = (
-      event: CustomEvent<Partial<Record<keyof AddBlockDetail, unknown>>>
-    ) => {
+    const handleAddBlockFromToolbar = (event: CustomEvent<ReceivedAddBlock>) => {
       if (!effectivePermissions.canEdit) {
         return
       }
