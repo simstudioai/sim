@@ -73,6 +73,11 @@ import {
 import { deleteOutboxEventsNaming } from '@sim/db/testing/outbox-fixtures'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, sql } from 'drizzle-orm'
+import { getDashboardMemberTransferPreflight } from '@/lib/admin/dashboard'
+import {
+  adminMemberOperationOutboxHandlers,
+  startAdminMemberOperation,
+} from '@/lib/admin/member-operation'
 import { createOrganizationWithOwner } from '@/lib/billing/organizations/create-organization'
 import {
   addUserToOrganization,
@@ -90,12 +95,14 @@ import { resolveOwnedChatContext } from '@/lib/mothership/chat/application/conte
 import { CHAT_RESCOPE_EVENT, enqueueChatRescopeTx } from '@/lib/mothership/chat/rescope-event'
 import { chatRescopeOutboxHandlers } from '@/lib/mothership/chat/rescope-outbox'
 import { addAdminOrganizationMember } from '@/lib/organizations/application/admin-members'
+import { deletePersonalOrganizationOfRemovedUser } from '@/lib/organizations/deletion'
 import {
   createPersonalOrganization,
   provisionPersonalOrganization,
 } from '@/lib/organizations/provision-personal'
 import { authorizeOrganizationChatAttachment } from '@/lib/uploads/contexts/organization-assistant/application'
 import { cleanupExpiredUploadSessions } from '@/lib/uploads/upload-session/service'
+import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
 
 const userIds: string[] = []
@@ -682,5 +689,260 @@ describe('a team join that sweeps the joiner’s workspaces', () => {
     expect(accepted).toMatchObject({ success: true })
     const scope = await chatScope(chatId)
     expect(await workspaceOrganization(scope.workspaceId ?? '')).toBeNull()
+  })
+})
+
+async function workspaceOrganizationId(workspaceId: string) {
+  const [row] = await db
+    .select({ organizationId: workspace.organizationId })
+    .from(workspace)
+    .where(eq(workspace.id, workspaceId))
+  return row?.organizationId ?? null
+}
+
+async function teamMembershipOf(userId: string) {
+  const [row] = await db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, userId))
+  return row?.organizationId ?? null
+}
+
+/**
+ * A workspace that took a retired personal organization's chats, against every later attach. Failure
+ * mode: once the owner leaves the team and their new personal organization has no chats, nothing
+ * remembers the workspace, so the next team's sweep takes it and its drain exports the chats.
+ */
+describe('the workspace holding moved personal chats, after its owner re-joins', () => {
+  it('stays out of a second team the owner joins after leaving the first', async () => {
+    const owner = await backfilledOwner()
+    const first = await team()
+    const second = await team()
+    const chatId = await organizationChat(owner.userId, owner.organizationId)
+    expect(await join(owner.userId, first.teamId)).toMatchObject({ success: true })
+    const [membership] = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(and(eq(member.userId, owner.userId), eq(member.organizationId, first.teamId)))
+    expect(
+      await removeUserFromOrganization({
+        actor: { type: 'system', name: 'Test' },
+        userId: owner.userId,
+        organizationId: first.teamId,
+        memberId: membership.id,
+        skipBillingLogic: true,
+      })
+    ).toMatchObject({ success: true })
+    await createPersonalOrganization(owner.userId)
+
+    await addAdminOrganizationMember.execute({
+      principal: { kind: 'admin_api_key' },
+      input: { organizationId: second.teamId, userId: owner.userId, role: 'member' },
+    })
+
+    expect(await teamMembershipOf(owner.userId)).toBe(second.teamId)
+    expect(await chatScope(chatId)).toEqual({
+      workspaceId: owner.oldestWorkspaceId,
+      organizationId: null,
+    })
+    expect(await workspaceOrganizationId(owner.oldestWorkspaceId)).toBeNull()
+    expect(await workspaceOrganizationId(owner.newerWorkspaceId)).toBe(second.teamId)
+  })
+
+  it('refuses an admin workspace move into a team', async () => {
+    const owner = await backfilledOwner()
+    const first = await team()
+    const second = await team()
+    await organizationChat(owner.userId, owner.organizationId)
+    expect(await join(owner.userId, first.teamId)).toMatchObject({ success: true })
+
+    await expect(
+      moveWorkspaceToOrganization({
+        workspaceId: owner.oldestWorkspaceId,
+        destinationOrganizationId: second.teamId,
+        adminEmail: 'admin@personal-chats.test',
+      })
+    ).rejects.toMatchObject({ code: 'holds-moved-personal-chats' })
+    expect(await workspaceOrganizationId(owner.oldestWorkspaceId)).toBeNull()
+  })
+})
+
+/**
+ * The admin dashboard's add of a person in their personal organization. Failure modes: their
+ * personal organization read as a team they own, refusing every such add or routing it through a
+ * transfer between organizations; and the add moving the workspace that holds their chats.
+ */
+describe('the admin member operation for a personal-organization owner', () => {
+  const actor = { id: null, name: 'Admin Test', email: null }
+
+  it('adds them, retiring the personal organization, and leaves the chat workspace out', async () => {
+    const owner = await backfilledOwner()
+    const { teamId } = await team()
+    const chatId = await organizationChat(owner.userId, owner.organizationId)
+
+    const preflight = await getDashboardMemberTransferPreflight(teamId, owner.userId)
+    expect(preflight).toMatchObject({ canAdd: true, reason: null, currentOrganization: null })
+    expect(preflight.workspaceSelection.defaultSelectedIds).toEqual([owner.newerWorkspaceId])
+
+    await expect(
+      startAdminMemberOperation(
+        generateId(),
+        teamId,
+        {
+          userId: owner.userId,
+          role: 'member',
+          personalWorkspaceIds: [owner.oldestWorkspaceId, owner.newerWorkspaceId],
+        },
+        actor
+      )
+    ).rejects.toThrow('One or more selected personal workspaces can no longer be moved')
+
+    const operationId = generateId()
+    const started = await startAdminMemberOperation(
+      operationId,
+      teamId,
+      {
+        userId: owner.userId,
+        role: 'member',
+        personalWorkspaceIds: preflight.workspaceSelection.defaultSelectedIds,
+      },
+      actor
+    )
+    expect(started).toMatchObject({ status: 'pending', transferredFromOrganizationId: null })
+    expect(await processOutboxEventById(operationId, adminMemberOperationOutboxHandlers)).toBe(
+      'completed'
+    )
+
+    expect(await teamMembershipOf(owner.userId)).toBe(teamId)
+    expect(await chatScope(chatId)).toEqual({
+      workspaceId: owner.oldestWorkspaceId,
+      organizationId: null,
+    })
+    expect(await workspaceOrganizationId(owner.oldestWorkspaceId)).toBeNull()
+    expect(await workspaceOrganizationId(owner.newerWorkspaceId)).toBe(teamId)
+  })
+
+  it('leaves out a selected workspace the add moved chats into after the selection', async () => {
+    const owner = await backfilledOwner()
+    const { teamId } = await team()
+    const operationId = generateId()
+    await startAdminMemberOperation(
+      operationId,
+      teamId,
+      {
+        userId: owner.userId,
+        role: 'member',
+        personalWorkspaceIds: [owner.oldestWorkspaceId, owner.newerWorkspaceId],
+      },
+      actor
+    )
+    const chatId = await organizationChat(owner.userId, owner.organizationId)
+
+    expect(await processOutboxEventById(operationId, adminMemberOperationOutboxHandlers)).toBe(
+      'completed'
+    )
+
+    expect(await chatScope(chatId)).toEqual({
+      workspaceId: owner.oldestWorkspaceId,
+      organizationId: null,
+    })
+    expect(await workspaceOrganizationId(owner.oldestWorkspaceId)).toBeNull()
+    expect(await workspaceOrganizationId(owner.newerWorkspaceId)).toBe(teamId)
+  })
+})
+
+/**
+ * Better Auth's admin user removal deletes the personal organization in its `before` hook, in a
+ * transaction of its own. Failure mode: the user delete then fails, and a live user has lost the
+ * organization's chats with it.
+ */
+describe('deleting the personal organization of a user the admin plugin removes', () => {
+  it('keeps their organization chats in their workspace should the user delete then fail', async () => {
+    const owner = await backfilledOwner()
+    const chatId = await organizationChat(owner.userId, owner.organizationId)
+
+    await deletePersonalOrganizationOfRemovedUser(owner.userId)
+
+    const [org] = await db
+      .select({ id: organization.id })
+      .from(organization)
+      .where(eq(organization.id, owner.organizationId))
+    expect(org).toBeUndefined()
+    expect(await chatScope(chatId)).toEqual({
+      workspaceId: owner.oldestWorkspaceId,
+      organizationId: null,
+    })
+  })
+})
+
+/**
+ * A joiner whose workspace shares a Project with a collaborator's fork. Failure mode: the join's
+ * sweep refuses to split the Project and aborts the whole join.
+ */
+describe('a team join over a Project split with another owner', () => {
+  async function splitProjectJoiner() {
+    const joinerId = await createUser()
+    const otherId = await createUser()
+    const movable = await personalWorkspace(joinerId, 'Movable')
+    const split = await personalWorkspace(joinerId, 'Split')
+    const fork = await personalWorkspace(otherId, 'Fork')
+    const rows = await db
+      .select({ id: workspace.id, projectId: workspace.projectId })
+      .from(workspace)
+      .where(inArray(workspace.id, [split, fork]))
+    const projectOf = new Map(rows.map((row) => [row.id, row.projectId]))
+    const replaced = projectOf.get(fork)
+    if (!replaced) throw new Error('expected a Project')
+    await db
+      .update(workspace)
+      .set({ projectId: projectOf.get(split) })
+      .where(eq(workspace.id, fork))
+    await db.delete(project).where(eq(project.id, replaced))
+    return { joinerId, movable, split, fork }
+  }
+
+  it('lets the Admin API add them, leaving the split workspace outside the team', async () => {
+    const joiner = await splitProjectJoiner()
+    const { teamId } = await team()
+
+    const added = await addAdminOrganizationMember.execute({
+      principal: { kind: 'admin_api_key' },
+      input: { organizationId: teamId, userId: joiner.joinerId, role: 'member' },
+    })
+
+    expect(added).toMatchObject({ action: 'created' })
+    expect(await workspaceOrganizationId(joiner.movable)).toBe(teamId)
+    expect(await workspaceOrganizationId(joiner.split)).toBeNull()
+    expect(await workspaceOrganizationId(joiner.fork)).toBeNull()
+  })
+
+  it('lets invitation acceptance join them, leaving the split workspace outside the team', async () => {
+    const joiner = await splitProjectJoiner()
+    const { teamId, teamOwnerId } = await team()
+    const email = `${joiner.joinerId}@personal-chats.test`
+    const id = generateId()
+    const token = generateId()
+    await db.insert(invitation).values({
+      id,
+      kind: 'organization',
+      email,
+      inviterId: teamOwnerId,
+      organizationId: teamId,
+      role: 'member',
+      token,
+      expiresAt: new Date(Date.now() + 86_400_000),
+    })
+
+    const accepted = await acceptInvitation({
+      userId: joiner.joinerId,
+      userEmail: email,
+      invitationId: id,
+      token,
+    })
+
+    expect(accepted).toMatchObject({ success: true })
+    expect(await teamMembershipOf(joiner.joinerId)).toBe(teamId)
+    expect(await workspaceOrganizationId(joiner.movable)).toBe(teamId)
+    expect(await workspaceOrganizationId(joiner.split)).toBeNull()
   })
 })

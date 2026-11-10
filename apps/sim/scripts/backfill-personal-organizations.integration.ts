@@ -32,6 +32,7 @@ import { removeWorkspaceMember } from '@/lib/workspaces/application/remove-membe
 import { createWorkspaceInTransaction } from '@/lib/workspaces/create'
 import {
   type InstanceOrganizationScope,
+  loadInstanceOrganizationScope,
   parseBatchSize,
   selectCandidateBatch,
 } from '@/scripts/backfill-personal-organizations'
@@ -274,7 +275,9 @@ describe('backfill candidate selection', () => {
   })
 
   it('selects everyone outside a team on an instance-organization deployment', async () => {
-    expect(new Set(await seededCandidates({ organizationId: null }, baseSeededUsers()))).toEqual(
+    expect(
+      new Set(await seededCandidates(await loadInstanceOrganizationScope(null), baseSeededUsers()))
+    ).toEqual(
       new Set([
         seeded.noOrganization,
         seeded.personalWithWork,
@@ -292,13 +295,16 @@ describe('backfill candidate selection', () => {
       instanceSeeded.removedElsewhere,
       instanceSeeded.neverMember,
     ]
-    expect(new Set(await seededCandidates({ organizationId: null }, instanceUsers))).toEqual(
-      new Set(instanceUsers)
-    )
+    expect(
+      new Set(await seededCandidates(await loadInstanceOrganizationScope(null), instanceUsers))
+    ).toEqual(new Set(instanceUsers))
 
     expect(
       new Set(
-        await seededCandidates({ organizationId: instanceSeeded.organizationId }, instanceUsers)
+        await seededCandidates(
+          await loadInstanceOrganizationScope(instanceSeeded.organizationId),
+          instanceUsers
+        )
       )
     ).toEqual(
       new Set([

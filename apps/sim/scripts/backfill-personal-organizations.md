@@ -27,7 +27,9 @@ admin, the Admin API or SCIM removed it, or it left). The release that introduce
 4. **Backfill** with `--apply --report <path>`, in batches (`--batch-size`, default 200). It is
    idempotent and resumable (`--after <cursor>` from the last printed cursor); rerun until the dry
    run reports zero, and review `skippedWorkspaceIds` (Projects shared across owners) and
-   `failures` in the report.
+   `failures` in the report. On an instance-organization deployment whose instance organization
+   does not exist yet, set `INSTANCE_ORG_OWNER_EMAIL` to an existing user in no team first:
+   `--apply` provisions it for them before the first user, and refuses to start without it.
 5. **Verify** (read-only):
 
    ```sql

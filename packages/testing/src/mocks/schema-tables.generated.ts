@@ -601,6 +601,7 @@ export const GENERATED_SCHEMA_TABLES = {
     'inboxMountedSecrets',
     'archivedAt',
     'organizationAssignedAt',
+    'personalChatsRehomedAt',
     'forkedFromWorkspaceId',
     'forkSyncNewWorkflowsExcluded',
     'createdAt',

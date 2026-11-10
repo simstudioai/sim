@@ -122,6 +122,7 @@ export class WorkspaceMoveError extends Error {
       | 'pending-invitations-present'
       | 'project-conflict'
       | 'destination-personal-organization'
+      | 'holds-moved-personal-chats'
   ) {
     super(message)
     this.name = 'WorkspaceMoveError'
@@ -1102,6 +1103,7 @@ export async function moveWorkspaceToOrganization(params: {
             workspaceMode: workspace.workspaceMode,
             billedAccountUserId: workspace.billedAccountUserId,
             archivedAt: workspace.archivedAt,
+            personalChatsRehomedAt: workspace.personalChatsRehomedAt,
           })
           .from(workspace)
           .where(eq(workspace.id, params.workspaceId))
@@ -1110,6 +1112,13 @@ export async function moveWorkspaceToOrganization(params: {
 
         if (!workspaceRow) {
           throw new WorkspaceMoveError('Workspace not found', 'workspace-not-found')
+        }
+        /** A team's data drains export its workspaces' chats; these were private to their owner. */
+        if (workspaceRow.personalChatsRehomedAt) {
+          throw new WorkspaceMoveError(
+            'This workspace holds its owner’s private chats from a retired personal organization and stays outside every team.',
+            'holds-moved-personal-chats'
+          )
         }
         if (params.expectedOwnerId && workspaceRow.ownerId !== params.expectedOwnerId) {
           throw new WorkspaceMoveError(

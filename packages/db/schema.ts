@@ -2419,6 +2419,12 @@ export const workspace = pgTable(
     inboxMountedSecrets: jsonb('inbox_mounted_secrets').$type<string[]>().notNull().default([]),
     archivedAt: timestamp('archived_at'),
     organizationAssignedAt: timestamp('organization_assigned_at'),
+    /**
+     * When a retired personal organization's chats were moved into this workspace. Such a
+     * workspace stays outside every team for good: a team's data drains export its workspaces'
+     * chats, and these were private to their owner.
+     */
+    personalChatsRehomedAt: timestamp('personal_chats_rehomed_at'),
     forkedFromWorkspaceId: text('forked_from_workspace_id').references(
       (): AnyPgColumn => workspace.id,
       { onDelete: 'set null' }

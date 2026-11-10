@@ -26,9 +26,10 @@ import {
 import type { DbOrTx } from '@/lib/db/types'
 import { deliverRunStops } from '@/lib/mothership/request/application/stop-delivery'
 import type { PersonalOrganizationAuditActor } from '@/lib/organizations/lifecycle-audit'
+import { acquirePersonalOrganizationWorkspaceLocksTx } from '@/lib/organizations/personal'
 import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
 import { MIGRATED_INVITATION_EMAIL_EVENT_TYPE } from '@/lib/workspaces/admin-move-event'
-import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
+import { joinAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
 const MEMBER_OPERATION_WORKSPACE_BATCH_SIZE = 10
 const ADMIN_API_AUDIT_EMAIL = 'admin-api@internal.simstudio.ai'
@@ -285,14 +286,21 @@ export async function startAdminMemberOperation(
           memberId: member.id,
           role: member.role,
           organizationId: member.organizationId,
+          organizationKind: organization.kind,
         })
         .from(user)
         .leftJoin(member, eq(member.userId, user.id))
+        .leftJoin(organization, eq(organization.id, member.organizationId))
         .where(eq(user.id, values.userId))
         .limit(1),
     ])
     if (!destination) throw new Error('Destination organization not found')
     if (!target) throw new Error('User not found')
+    /** A personal organization is no team membership: the add retires it rather than transferring. */
+    const teamMembership =
+      target.organizationId && target.organizationKind === 'team'
+        ? { organizationId: target.organizationId, role: target.role }
+        : null
 
     const request: MemberOperationPayload['request'] = {
       organizationId,
@@ -303,8 +311,8 @@ export async function startAdminMemberOperation(
         : {}),
       workspaceIds,
       sourceOrganizationId:
-        target.organizationId && target.organizationId !== organizationId
-          ? target.organizationId
+        teamMembership && teamMembership.organizationId !== organizationId
+          ? teamMembership.organizationId
           : null,
       actor: {
         id: actor.id,
@@ -342,7 +350,7 @@ export async function startAdminMemberOperation(
     if (target.organizationId === organizationId) {
       throw new Error('User is already a member of this organization')
     }
-    if (target.role === 'owner') {
+    if (teamMembership?.role === 'owner') {
       throw new Error('Transfer organization ownership before moving this user')
     }
     if (workspaceIds.length > 0) {
@@ -351,7 +359,7 @@ export async function startAdminMemberOperation(
         .from(workspace)
         .where(
           and(
-            ownedAttachableWorkspacesWhere({ userId: values.userId, includeArchived: true }),
+            await joinAttachableWorkspacesWhere(tx, values.userId),
             inArray(workspace.id, workspaceIds)
           )
         )
@@ -498,7 +506,8 @@ async function applyMembership(
   const [currentMembership] = await db
     .select({ id: member.id, role: member.role, organizationId: member.organizationId })
     .from(member)
-    .where(eq(member.userId, request.userId))
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(and(eq(member.userId, request.userId), eq(organization.kind, 'team')))
     .limit(1)
 
   let memberId: string
@@ -528,6 +537,8 @@ async function applyMembership(
   } else {
     if (currentMembership) throw new Error('User joined another organization before being added')
     memberId = await db.transaction(async (tx) => {
+      /** The add retires their personal organization; its workspace locks come first. */
+      await acquirePersonalOrganizationWorkspaceLocksTx(tx, request.userId)
       await acquireOrganizationMutationLock(tx, request.organizationId)
       await acquireUserBillingIdentityLock(tx, request.userId)
       const [organizationSubscription] = await tx
@@ -678,6 +689,26 @@ export const processAdminMemberOperation: OutboxHandler<unknown> = async (rawPay
     await context.checkpointPayload({
       progress: { ...progress, nextWorkspaceIndex, currentWorkspaceId },
     })
+    /**
+     * The add's retirement may have moved their personal-organization chats into a selected
+     * workspace (a chat written after the selection); that workspace never joins a team.
+     */
+    const [selected] = await db
+      .select({ personalChatsRehomedAt: workspace.personalChatsRehomedAt })
+      .from(workspace)
+      .where(eq(workspace.id, currentWorkspaceId))
+      .limit(1)
+    if (selected?.personalChatsRehomedAt) {
+      logger.warn('Left the workspace holding moved personal chats outside the organization', {
+        operationId: context.eventId,
+        workspaceId: currentWorkspaceId,
+      })
+      nextWorkspaceIndex += 1
+      await context.checkpointPayload({
+        progress: { ...progress, nextWorkspaceIndex, currentWorkspaceId: null },
+      })
+      continue
+    }
     await moveWorkspaceToOrganization({
       workspaceId: currentWorkspaceId,
       destinationOrganizationId: payload.request.organizationId,
