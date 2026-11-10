@@ -6,7 +6,7 @@ import {
   getOrganizationHomeWorkspaceActivityContract,
   type OrganizationHomeWorkspaceActivity,
 } from '@/lib/api/contracts/organization-home'
-import { organizationAccountsKeys } from '@/hooks/queries/utils/organization-accounts-keys'
+import { organizationHomeKeys } from '@/hooks/queries/utils/organization-home-keys'
 
 /** Each read costs a request per thread at the member's mail provider, so focus re-reads are spaced. */
 const EMAIL_STALE_TIME = 5 * 60 * 1000
@@ -14,19 +14,6 @@ const EMAIL_STALE_TIME = 5 * 60 * 1000
 const CALENDAR_STALE_TIME = 5 * 60 * 1000
 /** A run's state moves quickly, but no one is waiting on it to the second. */
 const WORKSPACE_ACTIVITY_STALE_TIME = 30 * 1000
-
-/** Nested under the organization's accounts, so anything that changes a connection refreshes Home. */
-const organizationHomeKeys = {
-  all: organizationAccountsKeys.all,
-  organization: (organizationId: string) =>
-    [...organizationAccountsKeys.detail(organizationId), 'home'] as const,
-  email: (organizationId: string) =>
-    [...organizationHomeKeys.organization(organizationId), 'email'] as const,
-  calendar: (organizationId: string, date: string, timeZone: string) =>
-    [...organizationHomeKeys.organization(organizationId), 'calendar', date, timeZone] as const,
-  workspaceActivity: (organizationId: string) =>
-    [...organizationHomeKeys.organization(organizationId), 'workspace-activity'] as const,
-}
 
 interface HomeWidgetQueryOptions {
   enabled: boolean
