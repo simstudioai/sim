@@ -23,7 +23,7 @@ import {
   type CaseState,
   CaseStatus,
 } from '@/app/(product)/workspace/[workspaceId]/tests/_components/test-status/test-status'
-import { useMinuteClock } from '@/hooks/use-minute-clock'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   testDetailParsers,
   useRunWorkflowTests,

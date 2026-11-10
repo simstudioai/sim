@@ -63,7 +63,7 @@ import type { WorkspaceRead } from '@/app/(product)/_components/workspace/worksp
 import { CreateBaseModal } from '@/app/(product)/workspace/[workspaceId]/knowledge/_components/create-base-modal/create-base-modal'
 import { DeleteBaseModal } from '@/app/(product)/workspace/[workspaceId]/knowledge/_components/delete-base-modal/delete-base-modal'
 import { EditBaseModal } from '@/app/(product)/workspace/[workspaceId]/knowledge/_components/edit-base-modal/edit-base-modal'
-import { useMinuteClock } from '@/hooks/use-minute-clock'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   type ResourceFolder,
   SEARCH_DEBOUNCE_MS,

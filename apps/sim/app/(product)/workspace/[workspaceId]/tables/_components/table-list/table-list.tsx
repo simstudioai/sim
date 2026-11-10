@@ -57,7 +57,7 @@ import {
   WorkspaceEmpty,
 } from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
 import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
-import { useMinuteClock } from '@/hooks/use-minute-clock'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   type ResourceFolder,
   SEARCH_DEBOUNCE_MS,

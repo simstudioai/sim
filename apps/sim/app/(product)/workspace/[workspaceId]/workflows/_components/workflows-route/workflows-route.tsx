@@ -55,7 +55,7 @@ import {
   useWorkflowListOperations,
   workflowEditorPath,
 } from '@/app/(product)/workspace/[workspaceId]/workflows/_components/workflows-route/operations'
-import { useMinuteClock } from '@/hooks/use-minute-clock'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   type ResourceFolder,
   SEARCH_DEBOUNCE_MS,

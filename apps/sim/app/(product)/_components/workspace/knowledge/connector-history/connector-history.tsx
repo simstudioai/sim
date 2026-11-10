@@ -3,7 +3,7 @@
 import { FailureNotice } from '@sim/emcn/status'
 import styles from '@/app/(product)/_components/workspace/knowledge/connector-history/connector-history.module.css'
 import { useViewerTimeZone } from '@/app/(product)/_components/workspace/workspace-session/workspace-session'
-import { useMinuteClock } from '@/hooks/use-minute-clock'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   CONNECTOR_SYNC_STALE_LOCK_TTL_MS,
   type ConnectorData,

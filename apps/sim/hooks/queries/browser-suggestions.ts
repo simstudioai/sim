@@ -5,9 +5,9 @@ import {
 } from '@/lib/browser-agent/transport'
 
 /** Stale at once: the omnibox re-reads what the browser knows each time its panel comes back. */
-export const BROWSER_SUGGESTION_SOURCES_STALE_TIME = 0
+const BROWSER_SUGGESTION_SOURCES_STALE_TIME = 0
 /** One typed query's completions hold while the user edits around it. */
-export const BROWSER_SEARCH_SUGGESTIONS_STALE_TIME = 60 * 1000
+const BROWSER_SEARCH_SUGGESTIONS_STALE_TIME = 60 * 1000
 
 const browserSuggestionKeys = {
   all: ['browser-suggestions'] as const,

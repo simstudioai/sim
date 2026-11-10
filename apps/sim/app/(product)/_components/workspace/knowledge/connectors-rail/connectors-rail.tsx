@@ -17,7 +17,7 @@ import {
   CONNECTOR_STATUS,
   connectorMark,
 } from '@/app/(product)/_components/workspace/knowledge/knowledge-base/model'
-import { useMinuteClock } from '@/hooks/use-minute-clock'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   CONNECTOR_META_REGISTRY,
   type ConnectorData,

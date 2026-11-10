@@ -19,7 +19,7 @@ import {
   SectionStack,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
 import { GroupMappings } from '@/app/(product)/o/[organizationId]/settings/_components/sections/sso/group-mappings'
-import { useMinuteClock } from '@/hooks/use-minute-clock'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   CREDENTIAL_EXPIRY_OPTIONS,
   type CredentialExpiry,

@@ -23,7 +23,7 @@ import {
 } from '@/app/(product)/_components/workspace/workspace-page/workspace-page'
 import type { WorkspaceRead } from '@/app/(product)/_components/workspace/workspace-session/model'
 import { TestStatus } from '@/app/(product)/workspace/[workspaceId]/tests/_components/test-status/test-status'
-import { useMinuteClock } from '@/hooks/use-minute-clock'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   SEARCH_DEBOUNCE_MS,
   useDebouncedSearchSetter,

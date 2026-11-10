@@ -12,7 +12,7 @@ import { ProfileUnavailable } from '@/app/(product)/o/[organizationId]/people/_c
 import styles from '@/app/(product)/o/[organizationId]/people/_components/person/person.module.css'
 import { PersonModal } from '@/app/(product)/o/[organizationId]/people/_components/person/person-modal'
 import { PersonIdentity } from '@/app/(product)/o/[organizationId]/people/_components/person-identity/person-identity'
-import { useMinuteClock } from '@/hooks/use-minute-clock'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import { usePeoplePath, usePeopleViewer, usePersonProfile } from '@/platform/lib/data/people'
 import {
   type Person,

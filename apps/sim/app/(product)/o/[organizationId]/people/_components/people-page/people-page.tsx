@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic'
 import { PeopleDirectory } from '@/app/(product)/o/[organizationId]/people/_components/directory/directory'
 import { PeopleFrame } from '@/app/(product)/o/[organizationId]/people/_components/people-page/people-frame'
 import styles from '@/app/(product)/o/[organizationId]/people/_components/people-page/people-page.module.css'
-import { useMinuteClock } from '@/hooks/use-minute-clock'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import { usePeopleViewer } from '@/platform/lib/data/people'
 import {
   type SyncSource,

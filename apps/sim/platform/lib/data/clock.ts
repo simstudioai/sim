@@ -1,7 +1,8 @@
+'use client'
+
 import { useEffect, useState } from 'react'
 import { useHydrated } from '@/hooks/use-hydrated'
-
-const MINUTE_MS = 60_000
+import { MINUTE_MS } from '@/platform/shared/time'
 
 /**
  * One reference instant for a surface's ages, moving on by the minute. `null` in server HTML and

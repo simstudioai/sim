@@ -11,7 +11,7 @@ import {
   ResourceList,
   SectionToolbar,
 } from '@/app/(product)/_components/settings-parts/settings-parts'
-import { useMinuteClock } from '@/hooks/use-minute-clock'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   INBOX_STATUS_FILTERS,
   type InboxTaskItem,

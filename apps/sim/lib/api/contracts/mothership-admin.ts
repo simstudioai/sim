@@ -8,7 +8,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
  */
 const ADMIN_MOTHERSHIP_PATH = '/api/admin/mothership'
 
-export const mothershipAdminEnvSchema = z.enum(['default', 'dev', 'staging', 'prod'])
+const mothershipAdminEnvSchema = z.enum(['default', 'dev', 'staging', 'prod'])
 export type MothershipAdminEnv = z.output<typeof mothershipAdminEnvSchema>
 
 const instantSchema = z.string().refine((date) => Number.isFinite(Date.parse(date)))
@@ -38,7 +38,6 @@ const mothershipUserBreakdownSchema = z.object({
     })
   ),
 })
-export type MothershipUserBreakdown = z.output<typeof mothershipUserBreakdownSchema>
 
 const mothershipRequestListSchema = z.object({
   count: z.number(),
@@ -55,7 +54,6 @@ const mothershipRequestListSchema = z.object({
     })
   ),
 })
-export type MothershipRequestList = z.output<typeof mothershipRequestListSchema>
 
 const mothershipLicenseListSchema = z.object({
   licenses: z.array(
@@ -68,7 +66,6 @@ const mothershipLicenseListSchema = z.object({
     })
   ),
 })
-export type MothershipLicenseList = z.output<typeof mothershipLicenseListSchema>
 
 export const mothershipUserBreakdownContract = defineRouteContract({
   method: 'POST',

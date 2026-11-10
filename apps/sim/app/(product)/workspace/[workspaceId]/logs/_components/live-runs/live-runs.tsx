@@ -11,7 +11,7 @@ import {
   RunList,
   type RunRowActions,
 } from '@/app/(product)/workspace/[workspaceId]/logs/_components/run-list/run-list'
-import { useMinuteClock } from '@/hooks/use-minute-clock'
+import { useMinuteClock } from '@/platform/lib/data/clock'
 import {
   RUN_TRIGGER_OPTIONS,
   type RunCommandsTarget,
