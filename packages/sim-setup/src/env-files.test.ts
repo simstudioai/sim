@@ -28,6 +28,10 @@ describe('upsertEnv', () => {
     }
   )
 
+  it('single-quotes a value with $ so dotenv, Bun, and Compose do not expand it', () => {
+    expect(upsertEnv('', 'SMTP_PASSWORD', 'pa$$word$HOME')).toBe("SMTP_PASSWORD='pa$$word$HOME'\n")
+  })
+
   it('writes an ordinary value without quotes', () => {
     const dsn = 'postgresql://postgres:p%23w@127.0.0.1:5432/simstudio'
     expect(upsertEnv('', 'DATABASE_URL', dsn)).toBe(`DATABASE_URL=${dsn}\n`)

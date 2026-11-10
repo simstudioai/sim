@@ -89,19 +89,20 @@ export function readEnvFile(target: EnvTarget): EnvFile {
 }
 
 /**
- * Quotes a value only when `#`, edge whitespace, or a leading quote would change
- * it for `parseValue`, Next's dotenv, Bun, or Docker Compose. Single quotes are
- * preferred because all four read them literally.
+ * Quotes a value only when `#`, `$`, edge whitespace, or a leading quote would
+ * change it for `parseValue`, Next's dotenv, Bun, or Docker Compose (the last three
+ * expand `$NAME` in unquoted values). Single quotes are preferred because all four
+ * read them literally.
  */
 function formatEnvValue(key: string, value: string): string {
   if (/[\r\n]/.test(value)) {
     throw new Error(`${key} cannot be written to an environment file: it contains a line break`)
   }
-  if (value === value.trim() && !value.includes('#') && !/^["'`]/.test(value)) return value
+  if (value === value.trim() && !/[#$]/.test(value) && !/^["'`]/.test(value)) return value
   if (!value.includes("'")) return `'${value}'`
   if (!/["\\$`]/.test(value)) return `"${value}"`
   throw new Error(
-    `${key} cannot be written to an environment file: it mixes quotes with a # or edge whitespace`
+    `${key} cannot be written to an environment file: it mixes quotes with a #, $, or edge whitespace`
   )
 }
 
