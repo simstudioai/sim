@@ -2334,11 +2334,8 @@ try {
         await composer.fill('QA scoped follow-up')
         await composer.press('Enter')
         const refusal = (await followUp).status()
-        // The chat route answers a workspace the sender cannot reach with 400, before any run.
-        assert(
-          refusal === 400 || refusal === 403 || refusal === 404,
-          `The follow-up was answered ${refusal}`
-        )
+        // A workspace the sender cannot reach is not found to them, answered before any run.
+        assert.equal(refusal, 404, `The follow-up was answered ${refusal}`)
         // Refused, not re-scoped: no run under the organization, and the chat keeps its workspace.
         assert.deepEqual(await runs(), [{ workspaceId: scopedWorkspaceId, organizationId: null }])
         const [chat] = await sql<{ workspaceId: string | null; organizationId: string | null }[]>`

@@ -72,7 +72,11 @@ import { CopilotTransport } from '@/lib/mothership/generated/trace-attribute-val
 import { TraceAttr } from '@/lib/mothership/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/mothership/generated/trace-spans-v1'
 import { resolveMothershipModelSettings } from '@/lib/mothership/model-options'
-import { createBadRequestResponse, createUnauthorizedResponse } from '@/lib/mothership/request/http'
+import {
+  createBadRequestResponse,
+  createNotFoundResponse,
+  createUnauthorizedResponse,
+} from '@/lib/mothership/request/http'
 import { durableResourceAuthoringVersion } from '@/lib/mothership/request/lifecycle/recovery-config'
 import { createSSEStream, SSE_RESPONSE_HEADERS } from '@/lib/mothership/request/lifecycle/start'
 import { startCopilotOtelRoot, withCopilotSpan } from '@/lib/mothership/request/otel'
@@ -643,7 +647,7 @@ async function resolveBranch(params: {
   )
 
   if (workspacePermission === null) {
-    return createBadRequestResponse('Workspace not found or access denied')
+    return createNotFoundResponse('Workspace not found or access denied')
   }
 
   return {
