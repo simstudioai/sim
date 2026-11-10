@@ -17,6 +17,8 @@ vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 const { mockMinter } = vi.hoisted(() => ({ mockMinter: vi.fn() }))
 vi.mock('@/lib/credentials/client-credential-accounts/server', () => ({
   getClientCredentialAccountMinter: vi.fn(() => mockMinter),
+}))
+vi.mock('@/lib/credentials/client-credential-accounts/secret-blob', () => ({
   parseClientCredentialAccountSecretBlob: vi.fn((decrypted: string) => JSON.parse(decrypted)),
 }))
 
