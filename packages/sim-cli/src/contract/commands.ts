@@ -1525,14 +1525,15 @@ export const CLI_CONTRACT: CliContract = {
     describe: 'List workspace members',
     profileWorkspacePath: true,
     // `members update` and `members remove` take the user id, and the listing
-    // is where a caller finds it.
+    // is where a caller finds it. Appended last so the shipped text columns keep
+    // their positions for scripts that read them by field.
     columns: [
-      { header: 'user', path: 'userId' },
       { header: 'email' },
       { header: 'name' },
       { header: 'role' },
       { header: 'external', path: 'isExternal', format: 'bool' },
       { header: 'joined', path: 'joinedAt', format: 'timestamp' },
+      { header: 'user', path: 'userId' },
     ],
   },
   updateWorkspaceMember: {

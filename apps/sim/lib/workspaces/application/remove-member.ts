@@ -3,7 +3,7 @@ import { requirePrincipalSubjectUserId } from '@sim/auth/principal'
 import { defineAuthorizedWorkspaceUseCase, requireCurrentHumanRole } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
-import { removeWorkspaceMemberOperation } from '@/lib/workspaces/application/member-operations'
+import { workspaceMemberOperations } from '@/lib/workspaces/application/operations'
 import { removeWorkspaceMemberRecord } from '@/lib/workspaces/permissions/member-removal-store'
 
 export interface RemoveWorkspaceMemberInput {
@@ -12,7 +12,7 @@ export interface RemoveWorkspaceMemberInput {
 }
 
 export const removeWorkspaceMember = defineAuthorizedWorkspaceUseCase({
-  operation: removeWorkspaceMemberOperation,
+  operation: workspaceMemberOperations.remove,
   resolveContext: ({ input }: { input: RemoveWorkspaceMemberInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   authorizationOptions: { delegation: { audience: 'sim:settings', isWithinScope: () => true } },

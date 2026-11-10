@@ -6,7 +6,7 @@ import { defineAuthorizedWorkspaceUseCase, ForbiddenOperationError } from '@/lib
 import { OrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/context'
-import { workspacePermissionOperations } from '@/lib/workspaces/application/member-operations'
+import { workspacePermissionOperations } from '@/lib/workspaces/application/operations'
 import {
   type WorkspacePermissionUpdate,
   workspacePermissionUpdatesSchema,

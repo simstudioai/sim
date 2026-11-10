@@ -23,7 +23,7 @@ import {
   readWorkspacePermissions,
   updateWorkspacePermissions,
 } from '@/lib/workspaces/application/manage-permissions'
-import { workspacePermissionOperations } from '@/lib/workspaces/application/member-operations'
+import { workspacePermissionOperations } from '@/lib/workspaces/application/operations'
 import { WorkspacePermissionError } from '@/lib/workspaces/permissions/management-store'
 
 function permissionErrorResponse(error: unknown): NextResponse {

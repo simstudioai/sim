@@ -108,10 +108,10 @@ import { secretOperations } from '@/lib/secrets/application/operations'
 import { skillOperations } from '@/lib/skills/application/operations'
 import { toolExecutionOperations } from '@/lib/tool-execution/application/operations'
 import {
-  removeWorkspaceMemberOperation,
+  workspaceMemberOperations,
+  workspaceOperations,
   workspacePermissionOperations,
-} from '@/lib/workspaces/application/member-operations'
-import { workspaceOperations } from '@/lib/workspaces/application/operations'
+} from '@/lib/workspaces/application/operations'
 
 const BLOCK_SUMMARY_EXAMPLE = {
   id: 'slack',
@@ -795,7 +795,7 @@ const declaredRoutes = [
   defineOpenApiRoute(
     v2RemoveWorkspaceMemberContract,
     resourceOperation('Workspaces', {
-      applicationOperation: removeWorkspaceMemberOperation,
+      applicationOperation: workspaceMemberOperations.remove,
       operationId: 'removeWorkspaceMember',
       summary: 'Remove workspace member',
       description: `Remove a member’s workspace access, or leave the workspace by naming yourself. Removing someone else requires workspace Admin access; any member may leave. The last Admin cannot leave, organization Admins hold access through their organization role and cannot be removed here, and the workspace billing account cannot be removed until billing is reassigned. Removing the workspace owner transfers ownership to the billing account. When this was the member’s last workspace in its organization, their organization membership and seat are removed too and all of their sessions end, since this endpoint is called with an API key or OAuth token rather than from a signed-in browser session. ${WORKSPACE_API_KEY_DENIED}`,

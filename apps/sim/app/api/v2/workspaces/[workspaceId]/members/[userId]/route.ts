@@ -7,9 +7,9 @@ import { presentWorkspaceMember } from '@/lib/api/server/workspace-presenters'
 import { v2WorkspaceErrorPolicies } from '@/lib/workspaces/api/route-policies'
 import { updateWorkspaceMember } from '@/lib/workspaces/application/manage-permissions'
 import {
-  removeWorkspaceMemberOperation,
+  workspaceMemberOperations,
   workspacePermissionOperations,
-} from '@/lib/workspaces/application/member-operations'
+} from '@/lib/workspaces/application/operations'
 import { removeWorkspaceMember } from '@/lib/workspaces/application/remove-member'
 
 /** PATCH /api/v2/workspaces/[workspaceId]/members/[userId] — Change one member's role. */
@@ -27,7 +27,7 @@ export const PATCH = defineV2JsonRoute({
 /** DELETE /api/v2/workspaces/[workspaceId]/members/[userId] — Remove a member, or leave. */
 export const DELETE = defineV2JsonRoute({
   contract: v2RemoveWorkspaceMemberContract,
-  operation: removeWorkspaceMemberOperation,
+  operation: workspaceMemberOperations.remove,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2WorkspaceErrorPolicies.manageWorkspaceMembers,
