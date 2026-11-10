@@ -3087,15 +3087,15 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
     },
     defaultService: 'whatsapp',
   },
-  github: {
+  'github-token': {
     name: 'GitHub',
     icon: GithubIcon,
     services: {
-      github: {
+      'github-token': {
         name: 'GitHub',
         description:
           'Manage GitHub repositories, issues, pull requests, workflows, releases, and gists.',
-        providerId: 'github',
+        providerId: 'github-token',
         serviceAccountProviderId: 'github-service-account',
         icon: GithubIcon,
         baseProviderIcon: GithubIcon,
@@ -3103,7 +3103,7 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
         authType: 'service_account',
       },
     },
-    defaultService: 'github',
+    defaultService: 'github-token',
   },
   gitlab: {
     name: 'GitLab',

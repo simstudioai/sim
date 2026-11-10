@@ -164,7 +164,9 @@ export const FIREFLIES_CREDENTIAL_OAUTH = tokenCredentialOAuth('fireflies', {
 })
 export const FLINT_CREDENTIAL_OAUTH = tokenCredentialOAuth('flint', { apiKey: 'accessToken' })
 export const GAMMA_CREDENTIAL_OAUTH = tokenCredentialOAuth('gamma', { apiKey: 'accessToken' })
-export const GITHUB_CREDENTIAL_OAUTH = tokenCredentialOAuth('github', { apiKey: 'accessToken' })
+export const GITHUB_CREDENTIAL_OAUTH = tokenCredentialOAuth('github-token', {
+  apiKey: 'accessToken',
+})
 export const GITLAB_CREDENTIAL_OAUTH = tokenCredentialOAuth('gitlab', {
   accessToken: 'accessToken',
   host: 'domain',
@@ -360,7 +362,7 @@ export const SAVED_CREDENTIAL_OAUTH = {
   fireflies: FIREFLIES_CREDENTIAL_OAUTH,
   flint: FLINT_CREDENTIAL_OAUTH,
   gamma: GAMMA_CREDENTIAL_OAUTH,
-  github: GITHUB_CREDENTIAL_OAUTH,
+  'github-token': GITHUB_CREDENTIAL_OAUTH,
   gitlab: GITLAB_CREDENTIAL_OAUTH,
   grafana: GRAFANA_CREDENTIAL_OAUTH,
   grain: GRAIN_CREDENTIAL_OAUTH,

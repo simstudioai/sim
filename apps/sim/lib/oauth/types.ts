@@ -311,6 +311,7 @@ export type OAuthService =
   | 'convex'
   | 'jupyter'
   | 'grafana'
+  | 'github-token'
   | 'gitlab'
   | 'whatsapp'
   | 'vercel'

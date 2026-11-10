@@ -13,6 +13,7 @@ import { InvalidManagedOAuthDelegationError } from '@/lib/credentials/applicatio
 import { resolveManagedOAuthCredentialToken } from '@/lib/credentials/application/resolve-managed-oauth-token'
 import { ManagedOAuthCredentialError } from '@/lib/credentials/managed-oauth'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { projectAssistantConnectedAccountTool } from '@/lib/mothership/assistant/connected-account-tool'
 import { CredentialRevokedError, OAUTH_CREDENTIAL_REVOKED } from '@/lib/oauth/credential-revoked'
 import {
   getCredential,
@@ -54,6 +55,13 @@ export type CredentialTokenPayload = OAuthTokenResponse
 export interface ResolveCredentialTokenInput {
   /** Tool whose canonical provider and credential-kind policy applies before token minting. */
   toolId?: string
+  /**
+   * The call is an Assistant turn acting with the person's own connected account, so the
+   * tool's policy is the one the Assistant projects for it (GitHub tools bind the person's
+   * GitHub account, never a workspace token). Set only by the in-process executor for an
+   * authenticated Assistant turn; the token route never forwards it.
+   */
+  assistantConnectedAccount?: boolean
   /** Correlation id used by the credential service's own logging. */
   requestId: string
   credentialId?: string
@@ -283,13 +291,24 @@ function validateToolCredentialKind(
   }
 }
 
+/** The credential policy a tool call binds through: the registry's, or the Assistant's projection of it. */
+function toolCredentialPolicy(
+  toolId: string,
+  assistantConnectedAccount: boolean | undefined
+): OAuthConfig | undefined {
+  const tool = getToolMetadata(toolId)
+  if (!tool) return undefined
+  return (assistantConnectedAccount ? projectAssistantConnectedAccountTool(tool) : tool).oauth
+}
+
 function validateToolCredentialBinding(
   toolId: string | undefined,
+  assistantConnectedAccount: boolean | undefined,
   providerId: string | null | undefined,
   credentialKind: NonNullable<OAuthConfig['credentialKind']>
 ): Extract<ResolveCredentialTokenResult, { ok: false }> | undefined {
   if (!toolId) return
-  const policy = getToolMetadata(toolId)?.oauth
+  const policy = toolCredentialPolicy(toolId, assistantConnectedAccount)
   const kindError = validateToolCredentialKind(policy?.credentialKind, credentialKind)
   if (kindError) return kindError
   /**
@@ -377,6 +396,7 @@ export async function resolveCredentialToken(
       }
       const bindingError = validateToolCredentialBinding(
         input.toolId,
+        input.assistantConnectedAccount,
         resolved.providerId,
         'service-account'
       )
@@ -472,7 +492,12 @@ export async function resolveCredentialToken(
       return { ok: false, status: 404, error: 'Credential not found' }
     }
 
-    const bindingError = validateToolCredentialBinding(input.toolId, credential.providerId, 'oauth')
+    const bindingError = validateToolCredentialBinding(
+      input.toolId,
+      input.assistantConnectedAccount,
+      credential.providerId,
+      'oauth'
+    )
     if (bindingError) return bindingError
 
     return completeOAuthCredentialToken({
@@ -539,6 +564,7 @@ export async function resolveCredentialAccessToken(
       auditRequest,
       resolvedCredential: resolved,
       toolId,
+      assistantConnectedAccount: input.assistantConnectedAccount,
     })
   }
 
@@ -573,8 +599,8 @@ export async function resolveCredentialAccessToken(
     }
   }
 
-  const toolMetadata = getToolMetadata(toolId)
-  if (!toolMetadata?.oauth?.required) {
+  const toolPolicy = toolCredentialPolicy(toolId, input.assistantConnectedAccount)
+  if (!toolPolicy?.required) {
     logger.error('Tool is not configured for managed OAuth', { requestId, toolId })
     return {
       ok: false,
@@ -583,17 +609,16 @@ export async function resolveCredentialAccessToken(
       error: 'This tool is not configured to use managed credentials',
     }
   }
-  const kindError = validateToolCredentialKind(toolMetadata.oauth.credentialKind, 'oauth')
+  const kindError = validateToolCredentialKind(toolPolicy.credentialKind, 'oauth')
   if (kindError) return kindError
 
   const requiredScopes =
-    toolMetadata.oauth.requiredScopes ??
-    getDefaultToolScopesForProvider(toolMetadata.oauth.provider)
-  if (requiredScopes.length === 0 && toolMetadata.oauth.requiredScopes === undefined) {
+    toolPolicy.requiredScopes ?? getDefaultToolScopesForProvider(toolPolicy.provider)
+  if (requiredScopes.length === 0 && toolPolicy.requiredScopes === undefined) {
     logger.error('Tool has no trusted OAuth scope policy', {
       requestId,
       toolId,
-      providerId: toolMetadata.oauth.provider,
+      providerId: toolPolicy.provider,
     })
     return {
       ok: false,
@@ -608,7 +633,7 @@ export async function resolveCredentialAccessToken(
       principal,
       input: {
         credentialId: resolved.credentialId,
-        expectedProviderId: toolMetadata.oauth.provider,
+        expectedProviderId: toolPolicy.provider,
         requiredScopes,
         toolId,
       },
@@ -622,7 +647,7 @@ export async function resolveCredentialAccessToken(
         'credential_used',
         {
           credential_type: 'managed_oauth',
-          provider_id: toolMetadata.oauth.provider,
+          provider_id: toolPolicy.provider,
           workspace_id: principal.workspaceId,
         },
         { groups: { workspace: principal.workspaceId } }

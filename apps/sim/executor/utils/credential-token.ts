@@ -115,6 +115,7 @@ export async function resolveExecutorCredentialToken(
     workflowId,
     executionId: params.executionId,
     toolId,
+    assistantConnectedAccount: copilotExecutionContext?.requestMode === 'assistant',
     scopes: params.scopes,
     impersonateEmail: params.impersonateEmail,
     callerUserId: userId && params.enforceCredentialAccess ? userId : undefined,

@@ -10547,7 +10547,7 @@
       ],
       "triggerCount": 11,
       "authType": "oauth",
-      "oauthServiceId": "github",
+      "oauthServiceId": "github-token",
       "category": "tools",
       "integrationType": "devops",
       "tags": ["version-control", "ci-cd"],

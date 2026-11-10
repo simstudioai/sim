@@ -31,9 +31,9 @@ export const bitbucketListWorkspacesTool: ToolConfig<
   description: 'List Bitbucket Cloud workspaces available to the authenticated account',
   version: '1.0.0',
   /**
-   * Lists the signed-in user's workspaces, so it needs a user: Bitbucket refuses
-   * workspace, project, and repository access tokens here. A saved access token
-   * is turned away before any request instead of failing with a provider 401.
+   * Lists the workspaces of the person who connected the account, so it needs a
+   * person's OAuth account. A saved access token belongs to a workspace, project,
+   * or repository rather than a person, so it is turned away before any request.
    */
   oauth: {
     required: true,

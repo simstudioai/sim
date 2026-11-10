@@ -609,33 +609,37 @@ export const validateGitHubServiceAccount = tokenCheckValidator({
   },
 })
 
-/** Bitbucket workspace slugs: letters, digits, hyphens, and underscores. */
-const BITBUCKET_WORKSPACE_SLUG = /^[A-Za-z0-9][A-Za-z0-9_-]{0,254}$/
+/**
+ * A repository as `workspace/repository`: a workspace slug, then a repository slug that
+ * cannot be `.` or `..`, so neither half can climb out of the request path.
+ */
+const BITBUCKET_REPOSITORY = /^[A-Za-z0-9][A-Za-z0-9_-]{0,254}\/[A-Za-z0-9_-][A-Za-z0-9._-]{0,61}$/
 
 /**
  * Bitbucket access tokens belong to a workspace, project, or repository rather than a user,
- * so the user endpoints refuse them. Listing one repository of the token's workspace works
- * for all three kinds with the `repository` scope the tools need: 200 with a page of
- * repositories, 401 for a bad token, 403 for a token without that scope, and 404 for a
- * workspace that does not exist.
- * https://developer.atlassian.com/cloud/bitbucket/rest/intro/#access-tokens
+ * so the user endpoints refuse them, and a repository token reaches only its repository.
+ * Reading one repository the token can see is the request Atlassian documents for all
+ * three kinds (`GET /2.0/repositories/{workspace}/{repository}` with the `repository`
+ * scope): 200 with the repository, 401 for a bad token, 403 without the scope, and 404 for
+ * a repository that does not exist or that the token cannot reach.
+ * https://support.atlassian.com/bitbucket-cloud/docs/using-access-tokens/
  */
 export const validateBitbucketServiceAccount = tokenCheckValidator({
   serviceLabel: 'Bitbucket',
   workspaceId: ({ providerWorkspaceId }) => {
-    const workspace = (providerWorkspaceId ?? '').trim()
-    if (!BITBUCKET_WORKSPACE_SLUG.test(workspace)) throw new Error('invalid workspace slug')
-    return workspace
+    const repository = (providerWorkspaceId ?? '').trim()
+    if (!BITBUCKET_REPOSITORY.test(repository)) throw new Error('invalid repository')
+    return repository
   },
   request: ({ apiToken, providerWorkspaceId = '' }) => ({
-    url: `${BITBUCKET_API_BASE}/repositories/${providerWorkspaceId}?pagelen=1`,
+    url: `${BITBUCKET_API_BASE}/repositories/${providerWorkspaceId}`,
     headers: bitbucketHeaders(apiToken),
   }),
   acceptsBody: (body) => {
-    if (!Array.isArray(toRecord(body).values)) {
+    if (typeof toRecord(body).full_name !== 'string') {
       throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
         step: 'verify',
-        reason: 'Bitbucket returned an unexpected repository page',
+        reason: 'Bitbucket returned an unexpected repository',
       })
     }
     return true

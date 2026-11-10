@@ -3,6 +3,10 @@
  */
 import { generateKeyPairSync } from 'node:crypto'
 import { createSessionPrincipal } from '@sim/testing/factories/principal.factory'
+import {
+  credentialsAccessMock,
+  credentialsAccessMockFns,
+} from '@sim/testing/mocks/credentials-access.mock'
 import { encryptionMock, encryptionMockFns } from '@sim/testing/mocks/encryption.mock'
 import { workspaceAuthzMock, workspaceAuthzMockFns } from '@sim/testing/mocks/workspace-authz.mock'
 import {
@@ -11,12 +15,10 @@ import {
 } from '@sim/testing/mocks/workspace-context.mock'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const hoisted = vi.hoisted(() => ({ actorContext: vi.fn() }))
-
 vi.mock('@/lib/workspaces/application/context', () => workspaceContextMock)
 vi.mock('@sim/platform-authz/workspace', () => workspaceAuthzMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
-vi.mock('@/lib/credentials/access', () => ({ getCredentialActorContext: hoisted.actorContext }))
+vi.mock('@/lib/credentials/access', () => credentialsAccessMock)
 
 import { env } from '@/lib/core/config/env'
 import { prepareWorkloadIdentity } from '@/lib/credentials/application/prepare-workload-identity'
@@ -39,7 +41,7 @@ const tokenSecret = {
 
 /** The credential being reconnected, as the caller's access to it resolves. */
 function reconnecting(secret: object, access: { isAdmin?: boolean; workspaceId?: string } = {}) {
-  hoisted.actorContext.mockResolvedValue({
+  credentialsAccessMockFns.mockGetCredentialActorContext.mockResolvedValue({
     credential: {
       workspaceId: access.workspaceId ?? 'workspace-1',
       type: 'service_account',
@@ -80,7 +82,6 @@ afterAll(() => {
 
 describe('preparing a Snowflake reconnect', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
     workspaceContextMockFns.mockLoadActiveWorkspaceApplicationContext.mockResolvedValue({
       workspaceId: 'workspace-1',
       workspaceOrganizationId: null,

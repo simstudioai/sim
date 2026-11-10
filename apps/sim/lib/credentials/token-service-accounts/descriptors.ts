@@ -1871,18 +1871,19 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
       {
         id: 'providerWorkspaceId',
-        label: 'Workspace',
-        placeholder: 'my-workspace',
+        label: 'Repository',
+        placeholder: 'my-workspace/my-repository',
         secret: false,
-        hintPattern: /^[A-Za-z0-9][A-Za-z0-9_-]*$/,
-        hintMessage: 'Enter the workspace slug only, as in bitbucket.org/my-workspace.',
+        hintPattern: /^[A-Za-z0-9][A-Za-z0-9_-]*\/[A-Za-z0-9_-][A-Za-z0-9._-]*$/,
+        hintMessage:
+          'Enter a repository the token can read as workspace/repository, as in bitbucket.org/my-workspace/my-repository.',
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/bitbucket-service-account',
     helpText:
-      'Use a Bitbucket Cloud workspace, project, or repository access token with at least the repository scope. Enter the slug of the workspace it belongs to.',
+      'Use a Bitbucket Cloud workspace, project, or repository access token with at least the repository scope. Enter any repository the token can read, as workspace/repository; Sim reads it once to verify the token.',
     invalidCredentialsHelp:
-      'Bitbucket rejected this token. Check that it has not expired or been revoked, has the repository scope, and belongs to the workspace you entered.',
+      'Bitbucket rejected this token. Check that it has not expired or been revoked, has the repository scope, and can read the repository you entered.',
   },
   [GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: GRAFANA_SERVICE_ACCOUNT_PROVIDER_ID,

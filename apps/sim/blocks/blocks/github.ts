@@ -2490,7 +2490,7 @@ export const GitHubV3Block: BlockConfig = {
   ...withSavedCredential(GitHubV2Block, {
     id: 'credential',
     type: 'oauth-input',
-    serviceId: 'github',
+    serviceId: 'github-token',
     title: 'GitHub Credential',
   }),
 }
